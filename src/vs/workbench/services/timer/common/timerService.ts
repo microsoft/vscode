@@ -44,14 +44,14 @@ export interface IStartupMetrics {
 }
 
 export interface IInitData {
-	start: Date;
+	start: number;
 
-	appReady: Date;
+	appReady: number;
 
-	windowLoad: Date;
+	windowLoad: number;
 
-	beforeLoadWorkbenchMain: Date;
-	afterLoadWorkbenchMain: Date;
+	beforeLoadWorkbenchMain: number;
+	afterLoadWorkbenchMain: number;
 
 	isInitialStartup: boolean;
 	hasAccessibilitySupport: boolean;
@@ -60,14 +60,14 @@ export interface IInitData {
 export interface ITimerService extends IInitData {
 	_serviceBrand: any;
 
-	beforeDOMContentLoaded: Date;
-	afterDOMContentLoaded: Date;
+	beforeDOMContentLoaded: number;
+	afterDOMContentLoaded: number;
 
-	beforeWorkbenchOpen: Date;
-	workbenchStarted: Date;
+	beforeWorkbenchOpen: number;
+	workbenchStarted: number;
 
-	beforeExtensionLoad: Date;
-	afterExtensionLoad: Date;
+	beforeExtensionLoad: number;
+	afterExtensionLoad: number;
 
 	restoreViewletDuration: number;
 	restoreEditorsDuration: number;

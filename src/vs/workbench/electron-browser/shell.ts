@@ -225,8 +225,7 @@ export class WorkbenchShell {
 		});
 
 		// Telemetry: startup metrics
-		const workbenchStarted = Date.now();
-		this.timerService.workbenchStarted = new Date(workbenchStarted);
+		this.timerService.workbenchStarted = Date.now();
 		this.timerService.restoreEditorsDuration = info.restoreEditorsDuration;
 		this.timerService.restoreViewletDuration = info.restoreViewletDuration;
 		this.extensionService.onReady().done(() => {
@@ -372,7 +371,7 @@ export class WorkbenchShell {
 		this.threadService = instantiationService.createInstance(MainThreadService, extensionHostProcessWorker.messagingProtocol);
 		serviceCollection.set(IThreadService, this.threadService);
 
-		this.timerService.beforeExtensionLoad = new Date();
+		this.timerService.beforeExtensionLoad = Date.now();
 
 		// TODO@Joao: remove
 		const disabledExtensions = SCMPreview.enabled ? [] : ['vscode.git'];
@@ -380,7 +379,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IExtensionService, this.extensionService);
 		extensionHostProcessWorker.start(this.extensionService);
 		this.extensionService.onReady().done(() => {
-			this.timerService.afterExtensionLoad = new Date();
+			this.timerService.afterExtensionLoad = Date.now();
 		});
 
 		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);
