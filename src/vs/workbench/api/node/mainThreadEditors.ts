@@ -104,11 +104,27 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	// --- from extension host process
 
-	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string> {
+	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string>;
+	$tryShowTextDocument(resource: URI, position: EditorPosition, options: { preserveFocus: boolean, pinned: boolean }): TPromise<string>;
+	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocusOrOptions: boolean | { preserveFocus: boolean, pinned: boolean }): TPromise<string>;
+	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocusOrOptions: boolean | { preserveFocus: boolean, pinned: boolean }): TPromise<string> {
+
+		let options: { preserveFocus: boolean, pinned: boolean };
+		if (typeof preserveFocusOrOptions === 'object') {
+			options = {
+				preserveFocus: preserveFocusOrOptions.preserveFocus,
+				pinned: preserveFocusOrOptions.pinned === undefined ? true : preserveFocusOrOptions.pinned
+			};
+		} else {
+			options = {
+				preserveFocus: preserveFocusOrOptions,
+				pinned: true
+			};
+		}
 
 		const input = {
 			resource,
-			options: { preserveFocus, pinned: true }
+			options
 		};
 
 		return this._workbenchEditorService.openEditor(input, position).then(editor => {

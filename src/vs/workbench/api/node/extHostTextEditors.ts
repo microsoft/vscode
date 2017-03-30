@@ -55,8 +55,10 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		return this._extHostDocumentsAndEditors.allEditors();
 	}
 
-	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor> {
-		return this._proxy.$tryShowTextDocument(<URI>document.uri, TypeConverters.fromViewColumn(column), preserveFocus).then(id => {
+	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, options: { preserveFocus: boolean, pinned: boolean }): TPromise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocusOrOptions: boolean | { preserveFocus: boolean, pinned: boolean }): TPromise<vscode.TextEditor> {
+		return this._proxy.$tryShowTextDocument(<URI>document.uri, TypeConverters.fromViewColumn(column), preserveFocusOrOptions).then(id => {
 			let editor = this._extHostDocumentsAndEditors.getEditor(id);
 			if (editor) {
 				return editor;

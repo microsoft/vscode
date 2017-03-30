@@ -3660,6 +3660,18 @@ declare module 'vscode' {
 		export function showTextDocument(document: TextDocument, column?: ViewColumn, preserveFocus?: boolean): Thenable<TextEditor>;
 
 		/**
+		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided
+		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
+		 *
+		 * @param document A text document to be shown.
+		 * @param column A view column in which the editor should be shown. The default is the [one](#ViewColumn.One), other values
+		 * are adjusted to be __Min(column, columnCount + 1)__.
+		 * @param options Editor options for showing the text editor.
+		 * @return A promise that resolves to an [editor](#TextEditor).
+		 */
+		export function showTextDocument(document: TextDocument, column?: ViewColumn, options?: { preserveFocus?: boolean, pinned?: boolean }): Thenable<TextEditor>;
+
+		/**
 		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.
 		 *
 		 * @param options Rendering options for the decoration type.
