@@ -7,7 +7,6 @@
 
 import 'vs/css!./viewCursors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { isWindows } from 'vs/base/common/platform';
 import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
@@ -219,9 +218,6 @@ export class ViewCursors extends ViewPart {
 		let isHidden = (blinkingStyle === editorCommon.TextEditorCursorBlinkingStyle.Hidden);
 		let isSolid = (blinkingStyle === editorCommon.TextEditorCursorBlinkingStyle.Solid);
 
-		// flat blinking is handled by JavaScript on Mac and Linux to save battery life due to Chromium step timing issue https://bugs.chromium.org/p/chromium/issues/detail?id=361587
-		let isFlatBlinkingOnInx = (blinkingStyle === editorCommon.TextEditorCursorBlinkingStyle.Blink) && !isWindows;
-
 		if (isHidden) {
 			this._hide();
 		} else {
@@ -232,7 +228,8 @@ export class ViewCursors extends ViewPart {
 		this._updateDomClassName();
 
 		if (!isHidden && !isSolid) {
-			if (isFlatBlinkingOnInx) {
+			if (blinkingStyle === editorCommon.TextEditorCursorBlinkingStyle.Blink) {
+				// flat blinking is handled by JavaScript to save battery life due to Chromium step timing issue https://bugs.chromium.org/p/chromium/issues/detail?id=361587
 				this._cursorFlatBlinkInterval.cancelAndSet(() => {
 					if (this._isVisible) {
 						this._hide();
