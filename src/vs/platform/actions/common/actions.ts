@@ -60,9 +60,14 @@ export class MenuId {
 	}
 }
 
+export interface IMenuActionOptions {
+	arg?: any;
+	shouldForwardArgs?: boolean;
+}
+
 export interface IMenu extends IDisposable {
 	onDidChange: Event<IMenu>;
-	getActions(arg?: any): [string, MenuItemAction[]][];
+	getActions(options?: IMenuActionOptions): [string, MenuItemAction[]][];
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -158,7 +163,7 @@ export class ExecuteCommandAction extends Action {
 
 export class MenuItemAction extends ExecuteCommandAction {
 
-	private _arg: any;
+	private _options: IMenuActionOptions;
 
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction;
@@ -166,24 +171,30 @@ export class MenuItemAction extends ExecuteCommandAction {
 	constructor(
 		item: ICommandAction,
 		alt: ICommandAction,
-		arg: any,
+		options: IMenuActionOptions,
 		@ICommandService commandService: ICommandService
 	) {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 		this._cssClass = item.iconClass;
 		this._enabled = true;
-		this._arg = arg;
+		this._options = options;
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, arg, commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, commandService) : undefined;
 	}
 
 	run(...args: any[]): TPromise<any> {
-		if (this._arg) {
-			return super.run(this._arg, ...args);
-		} else {
-			return super.run(...args);
+		let runArgs = [];
+
+		if (this._options.arg) {
+			runArgs = [...runArgs, this._options.arg];
 		}
+
+		if (this._options.shouldForwardArgs) {
+			runArgs = [...runArgs, ...args];
+		}
+
+		return super.run(...runArgs);
 	}
 }
 
