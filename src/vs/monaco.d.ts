@@ -4005,6 +4005,21 @@ declare module monaco.languages {
     }
 
     /**
+     * The result of a line tokenization with Uint32Array tokens.
+     */
+    export interface ILineTokens2 {
+        /**
+         * The Uint32Array tokens on the line.
+         */
+        tokens: Uint32Array;
+        /**
+         * The tokenization end state.
+         * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+         */
+        endState: IState;
+    }
+
+    /**
      * A "manual" provider of tokens.
      */
     export interface TokensProvider {
@@ -4016,6 +4031,10 @@ declare module monaco.languages {
          * Tokenize a line given the state at the beginning of the line.
          */
         tokenize(line: string, state: IState): ILineTokens;
+        /**
+         * Tokenize a line given the state with Uint32Array tokens.
+         */
+        tokenize2(line: string, state: IState): ILineTokens2;
     }
 
     /**
