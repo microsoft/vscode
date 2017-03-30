@@ -775,20 +775,20 @@ export class ReferenceWidget extends PeekViewWidget {
 
 // theming
 
-export const editorPeekTitleBackground = registerColor('editorPeekTitleBackground', { dark: '#1E1E1E', light: '#FFFFFF', hc: '#0C141F' }, nls.localize('editorPeekTitleBackground', 'Editor peek view title area background'));
-export const editorPeekTitle = registerColor('editorPeekTitle', { dark: '#FFFFFF', light: '#333333', hc: '#FFFFFF' }, nls.localize('editorPeekTitle', 'Editor peek view title color'));
-export const editorPeekTitleInfo = registerColor('editorPeekTitleInfo', { dark: '#ccccccb3', light: '#6c6c6cb3', hc: '#FFFFFF99' }, nls.localize('editorPeekTitleInfo', 'Editor peek view title info color'));
-export const editorPeekBorder = registerColor('editorPeekBorder', { dark: '#007acc', light: '#007acc', hc: '#6FC3DF' }, nls.localize('editorPeekBorder', 'Editor peek view borders'));
+export const editorPeekTitleBackground = registerColor('editorPeekTitleBackground', { dark: '#1E1E1E', light: '#FFFFFF', hc: '#0C141F' }, nls.localize('editorPeekTitleBackground', 'Background color of the peek view title area.'));
+export const editorPeekTitle = registerColor('editorPeekTitle', { dark: '#FFFFFF', light: '#333333', hc: '#FFFFFF' }, nls.localize('editorPeekTitle', 'Color of the peek view title.'));
+export const editorPeekTitleInfo = registerColor('editorPeekTitleInfo', { dark: '#ccccccb3', light: '#6c6c6cb3', hc: '#FFFFFF99' }, nls.localize('editorPeekTitleInfo', 'Color of the peek view title info.'));
+export const editorPeekBorder = registerColor('editorPeekBorder', { dark: '#007acc', light: '#007acc', hc: '#6FC3DF' }, nls.localize('editorPeekBorder', 'Color of the peek view borders and arrow'));
 
-export const editorPeekResultsBackground = registerColor('editorPeekResultsBackground', { dark: '#252526', light: '#F3F3F3', hc: Color.black }, nls.localize('editorPeekResultsBackground', 'Background color of the peek view result list'));
-export const editorPeekResultsMatchForeground = registerColor('editorPeekResultsMatchForeground', { dark: '#bbbbbb', light: '#646465', hc: Color.white }, nls.localize('editorPeekResultsMatchForeground', 'Match entry foreground in the peek view result list'));
-export const editorPeekResultsFileForeground = registerColor('editorPeekResultsFileForeground', { dark: Color.white, light: '#1E1E1E', hc: Color.white }, nls.localize('editorPeekResultsFileForeground', 'File entry foreground in the peek view result list'));
-export const editorPeekResultsSelectedBackground = registerColor('editorPeekResultsSelectedBackground', { dark: '#3399ff33', light: '#3399ff33', hc: null }, nls.localize('editorPeekResultsSelectedBackground', 'Selected entry background in the peek view result list'));
-export const editorPeekResultsSelectedForeground = registerColor('editorPeekResultsSelectedForeground', { dark: Color.white, light: '#6C6C6C', hc: Color.white }, nls.localize('editorPeekResultsSelectedForeground', 'Selected entry foreground in the peek view result list'));
-export const editorPeekEditorBackground = registerColor('editorPeekEditorBackground', { dark: '#001F33', light: '#F2F8FC', hc: '#0C141F' }, nls.localize('editorPeekEditorBackground', 'Background color of the peek view editor'));
+export const editorPeekResultsBackground = registerColor('editorPeekResultsBackground', { dark: '#252526', light: '#F3F3F3', hc: Color.black }, nls.localize('editorPeekResultsBackground', 'Background color of the peek view result list.'));
+export const editorPeekResultsMatchForeground = registerColor('editorPeekResultsMatchForeground', { dark: '#bbbbbb', light: '#646465', hc: Color.white }, nls.localize('editorPeekResultsMatchForeground', 'Match entry foreground in the peek view result list.'));
+export const editorPeekResultsFileForeground = registerColor('editorPeekResultsFileForeground', { dark: Color.white, light: '#1E1E1E', hc: Color.white }, nls.localize('editorPeekResultsFileForeground', 'File entry foreground in the peek view result list.'));
+export const editorPeekResultsSelectionBackground = registerColor('editorPeekResultsSelectionBackground', { dark: '#3399ff33', light: '#3399ff33', hc: null }, nls.localize('editorPeekResultsSelectionBackground', 'Background color of the selected entry in the peek view result list.'));
+export const editorPeekResultsSelectionForeground = registerColor('editorPeekResultsSelectionForeground', { dark: Color.white, light: '#6C6C6C', hc: Color.white }, nls.localize('editorPeekResultsSelectionForeground', 'Foreground color of the selected entry in the peek view result list.'));
+export const editorPeekEditorBackground = registerColor('editorPeekEditorBackground', { dark: '#001F33', light: '#F2F8FC', hc: '#0C141F' }, nls.localize('editorPeekEditorBackground', 'Background color of the peek view editor.'));
 
-export const editorPeekResultsMatchHighlight = registerColor('editorPeekResultsMatchHighlight', { dark: '#ea5c004d', light: '#ea5c004d', hc: null }, nls.localize('editorPeekResultsMatchHighlight', 'Match highlight color in the peek view result list'));
-export const editorPeekEditorMatchHighlight = registerColor('editorPeekEditorMatchHighlight', { dark: '#ff8f0099', light: '#f5d802de', hc: null }, nls.localize('editorPeekEditorMatchHighlight', 'Match highlight color in the peek view editor'));
+export const editorPeekResultsMatchHighlight = registerColor('editorPeekResultsMatchHighlight', { dark: '#ea5c004d', light: '#ea5c004d', hc: null }, nls.localize('editorPeekResultsMatchHighlight', 'Match highlight color in the peek view result list.'));
+export const editorPeekEditorMatchHighlight = registerColor('editorPeekEditorMatchHighlight', { dark: '#ff8f0099', light: '#f5d802de', hc: null }, nls.localize('editorPeekEditorMatchHighlight', 'Match highlight color in the peek view editor.'));
 
 
 registerThemingParticipant((theme, collector) => {
@@ -817,11 +817,11 @@ registerThemingParticipant((theme, collector) => {
 	if (resultsFileForeground) {
 		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .reference-file { color: ${resultsFileForeground}; }`);
 	}
-	let resultsSelectedBackground = theme.getColor(editorPeekResultsSelectedBackground);
+	let resultsSelectedBackground = theme.getColor(editorPeekResultsSelectionBackground);
 	if (resultsSelectedBackground) {
 		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
 	}
-	let resultsSelectedForeground = theme.getColor(editorPeekResultsSelectedForeground);
+	let resultsSelectedForeground = theme.getColor(editorPeekResultsSelectionForeground);
 	if (resultsSelectedForeground) {
 		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
 	}
