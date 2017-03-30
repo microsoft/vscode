@@ -192,6 +192,10 @@ export class CommandsConverter {
 			result.arguments = [id];
 		}
 
+		if (command.tooltip) {
+			result.tooltip = command.tooltip;
+		}
+
 		return result;
 	}
 

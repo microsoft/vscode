@@ -29,6 +29,11 @@ declare module 'vscode' {
 		command: string;
 
 		/**
+		 * A tooltip for for command, when represented in the UI.
+		 */
+		tooltip?: string;
+
+		/**
 		 * Arguments that the command handler should be
 		 * invoked with.
 		 */
@@ -4681,6 +4686,29 @@ declare module 'vscode' {
 		quickDiffProvider?: QuickDiffProvider;
 
 		/**
+		 * Optional commit template string.
+		 *
+		 * The Source Control viewlet will populate the Source Control
+		 * input with this value when appropriate.
+		 */
+		commitTemplate?: string;
+
+		/**
+		 * Optional accept input command.
+		 *
+		 * This command will be invoked when the user accepts the value
+		 * in the Source Control input.
+		 */
+		acceptInputCommand?: Command;
+
+		/**
+		 * Optional status bar commands.
+		 *
+		 * These commands will be displayed in the editor's status bar.
+		 */
+		statusBarCommands?: Command[];
+
+		/**
 		 * Create a new [resource group](#SourceControlResourceGroup).
 		 */
 		createResourceGroup(id: string, label: string): SourceControlResourceGroup;
@@ -4694,25 +4722,9 @@ declare module 'vscode' {
 	export namespace scm {
 
 		/**
-		 * The currently active [source control](#SourceControl).
-		 */
-		export let activeSourceControl: SourceControl | undefined;
-
-		/**
-		 * An [event](#Event) which fires when the active [source control](#SourceControl)
-		 * has changed.
-		 */
-		export const onDidChangeActiveSourceControl: Event<SourceControl>;
-
-		/**
 		 * The [input box](#SourceControlInputBox) in the Source Control viewlet.
 		 */
 		export const inputBox: SourceControlInputBox;
-
-		/**
-		 * An [event](#Event) which fires when the user has accepted the changes.
-		 */
-		export const onDidAcceptInputValue: Event<SourceControlInputBox>;
 
 		/**
 		 * Creates a new [source control](#SourceControl) instance.

@@ -181,6 +181,43 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._proxy.$updateSourceControl(this._handle, { hasQuickDiffProvider: !!quickDiffProvider });
 	}
 
+	private _commitTemplate: string | undefined = undefined;
+
+	get commitTemplate(): string | undefined {
+		return this._commitTemplate;
+	}
+
+	set commitTemplate(commitTemplate: string | undefined) {
+		this._commitTemplate = commitTemplate;
+		this._proxy.$updateSourceControl(this._handle, { commitTemplate });
+	}
+
+	private _acceptInputCommand: vscode.Command | undefined = undefined;
+
+	get acceptInputCommand(): vscode.Command | undefined {
+		return this._acceptInputCommand;
+	}
+
+	set acceptInputCommand(acceptInputCommand: vscode.Command | undefined) {
+		this._acceptInputCommand = acceptInputCommand;
+
+		const internal = this._commands.toInternal(acceptInputCommand);
+		this._proxy.$updateSourceControl(this._handle, { acceptInputCommand: internal });
+	}
+
+	private _statusBarCommands: vscode.Command[] | undefined = undefined;
+
+	get statusBarCommands(): vscode.Command[] | undefined {
+		return this._statusBarCommands;
+	}
+
+	set statusBarCommands(statusBarCommands: vscode.Command[] | undefined) {
+		this._statusBarCommands = statusBarCommands;
+
+		const internal = (statusBarCommands || []).map(c => this._commands.toInternal(c));
+		this._proxy.$updateSourceControl(this._handle, { statusBarCommands: internal });
+	}
+
 	private _handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(

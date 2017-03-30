@@ -5,10 +5,11 @@
 
 'use strict';
 
-import { IDisposable, toDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ISCMService, ISCMProvider, ISCMInput } from './scm';
 
 class SCMInput implements ISCMInput {
@@ -26,20 +27,14 @@ class SCMInput implements ISCMInput {
 
 	private _onDidChange = new Emitter<string>();
 	get onDidChange(): Event<string> { return this._onDidChange.event; }
-
-	private _onDidAccept = new Emitter<string>();
-	get onDidAccept(): Event<string> { return this._onDidAccept.event; }
-
-	acceptChanges(): void {
-		this._onDidAccept.fire(this._value);
-	}
 }
 
 export class SCMService implements ISCMService {
 
 	_serviceBrand;
 
-	private providerChangeDisposable: IDisposable = EmptyDisposable;
+	private activeProviderDisposable: IDisposable = EmptyDisposable;
+	private statusBarDisposable: IDisposable = EmptyDisposable;
 	private activeProviderContextKey: IContextKey<string | undefined>;
 
 	private _activeProvider: ISCMProvider | undefined;
@@ -49,6 +44,8 @@ export class SCMService implements ISCMService {
 	}
 
 	set activeProvider(provider: ISCMProvider | undefined) {
+		this.activeProviderDisposable.dispose();
+
 		if (!provider) {
 			throw new Error('invalid provider');
 		}
@@ -58,10 +55,11 @@ export class SCMService implements ISCMService {
 		}
 
 		this._activeProvider = provider;
+
+		this.activeProviderDisposable = provider.onDidChange(() => this.onDidProviderChange(provider));
+		this.onDidProviderChange(provider);
+
 		this.activeProviderContextKey.set(provider ? provider.contextKey : void 0);
-
-		this.providerChangeDisposable.dispose();
-
 		this._onDidChangeProvider.fire(provider);
 	}
 
@@ -75,7 +73,8 @@ export class SCMService implements ISCMService {
 	get input(): ISCMInput { return new SCMInput(); }
 
 	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStatusbarService private statusbarService: IStatusbarService
 	) {
 		this.activeProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
 	}
@@ -100,5 +99,18 @@ export class SCMService implements ISCMService {
 				this.activeProvider = this._providers[0];
 			}
 		});
+	}
+
+	private onDidProviderChange(provider: ISCMProvider): void {
+		this.statusBarDisposable.dispose();
+
+		const commands = provider.statusBarCommands || [];
+		const disposables = commands.map(c => this.statusbarService.addEntry({
+			text: c.title,
+			tooltip: c.tooltip,
+			command: c.id
+		}, MainThreadStatusBarAlignment.LEFT, 10000));
+
+		this.statusBarDisposable = combinedDisposable(disposables);
 	}
 }
