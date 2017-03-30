@@ -280,6 +280,11 @@
           "type": "boolean",
           "default": false,
           "description": "%format.placeOpenBraceOnNewLineForControlBlocks%"
+        },
+        "jsDocCompletion.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%jsDocCompletion.enabled%"
         }
       }
     },
