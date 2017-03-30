@@ -524,13 +524,19 @@ class KeybindingItemRenderer implements IRenderer<IKeybindingItemEntry, Keybindi
 
 	renderTemplate(container: HTMLElement): KeybindingItemTemplate {
 		DOM.addClass(container, 'keybinding-item');
+		const actions = new ActionsColumn(container, this.keybindingsEditor, this.keybindingsService);
+		const command = new CommandColumn(container, this.keybindingsEditor);
+		const keybinding = new KeybindingColumn(container, this.keybindingsEditor);
+		const source = new SourceColumn(container, this.keybindingsEditor);
+		const when = new WhenColumn(container, this.keybindingsEditor);
+		container.setAttribute('aria-labelledby', [command.id, keybinding.id, source.id, when.id].join(' '));
 		return {
 			parent: container,
-			actions: new ActionsColumn(container, this.keybindingsEditor, this.keybindingsService),
-			command: new CommandColumn(container, this.keybindingsEditor),
-			keybinding: new KeybindingColumn(container, this.keybindingsEditor),
-			source: new SourceColumn(container, this.keybindingsEditor),
-			when: new WhenColumn(container, this.keybindingsEditor)
+			actions,
+			command,
+			keybinding,
+			source,
+			when
 		};
 	}
 
@@ -547,11 +553,19 @@ class KeybindingItemRenderer implements IRenderer<IKeybindingItemEntry, Keybindi
 	}
 }
 
-class Column {
+abstract class Column {
+
+	static COUNTER = 0;
+
+	protected element: HTMLElement;
+	readonly id: string;
+
 	constructor(protected parent: HTMLElement, protected keybindingsEditor: IKeybindingsEditor) {
-		this.create(parent);
+		this.element = this.create(parent);
+		this.id = this.element.getAttribute('id');
 	}
-	create(parent: HTMLElement) { }
+
+	abstract create(parent: HTMLElement): HTMLElement;
 }
 
 class ActionsColumn extends Column {
@@ -562,9 +576,10 @@ class ActionsColumn extends Column {
 		super(parent, keybindingsEditor);
 	}
 
-	create(parent: HTMLElement) {
-		const actionsContainer = DOM.append(parent, $('.column.actions'));
+	create(parent: HTMLElement): HTMLElement {
+		const actionsContainer = DOM.append(parent, $('.column.actions', { id: 'actions_' + ++Column.COUNTER }));
 		this.actionBar = new ActionBar(actionsContainer, { animated: false });
+		return actionsContainer;
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
@@ -605,8 +620,9 @@ class CommandColumn extends Column {
 
 	private commandColumn: HTMLElement;
 
-	create(parent: HTMLElement) {
-		this.commandColumn = DOM.append(parent, $('.column.command'));
+	create(parent: HTMLElement): HTMLElement {
+		this.commandColumn = DOM.append(parent, $('.column.command', { id: 'command_' + ++Column.COUNTER }));
+		return this.commandColumn;
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
@@ -615,6 +631,7 @@ class CommandColumn extends Column {
 		const commandIdMatched = !!(keybindingItem.commandLabel && keybindingItemEntry.commandIdMatches);
 		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
 		DOM.toggleClass(this.commandColumn, 'vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
+		this.commandColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		if (keybindingItem.commandLabel) {
 			const commandLabel = new HighlightedLabel(this.commandColumn);
 			commandLabel.set(keybindingItem.commandLabel, keybindingItemEntry.commandLabelMatches);
@@ -627,18 +644,24 @@ class CommandColumn extends Column {
 			new HighlightedLabel(DOM.append(this.commandColumn, $('.code'))).set(keybindingItem.command, keybindingItemEntry.commandIdMatches);
 		}
 	}
+
+	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
+		return localize('commandAriaLabel', "Command is {0}.", keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command);
+	}
 }
 
 class KeybindingColumn extends Column {
 
 	private keybindingColumn: HTMLElement;
 
-	create(parent: HTMLElement) {
-		this.keybindingColumn = DOM.append(parent, $('.column.keybinding'));
+	create(parent: HTMLElement): HTMLElement {
+		this.keybindingColumn = DOM.append(parent, $('.column.keybinding', { id: 'keybinding_' + ++Column.COUNTER }));
+		return this.keybindingColumn;
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		DOM.clearNode(this.keybindingColumn);
+		this.keybindingColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		if (keybindingItemEntry.keybindingItem.keybinding) {
 			let keybinding = DOM.append(this.keybindingColumn, $('.htmlkb'));
 			let htmlkb = keybindingItemEntry.keybindingItem.keybinding.getHTMLLabel();
@@ -649,19 +672,29 @@ class KeybindingColumn extends Column {
 			}
 		}
 	}
+
+	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
+		return keybindingItemEntry.keybindingItem.keybinding ? localize('keybindingAriaLabel', "Keybinding is {0}.", keybindingItemEntry.keybindingItem.keybinding.getAriaLabel()) : localize('noKeybinding', "No Keybinding assigned.");
+	}
 }
 
 class SourceColumn extends Column {
 
 	private sourceColumn: HTMLElement;
 
-	create(parent: HTMLElement) {
-		this.sourceColumn = DOM.append(parent, $('.column.source'));
+	create(parent: HTMLElement): HTMLElement {
+		this.sourceColumn = DOM.append(parent, $('.column.source', { id: 'source_' + ++Column.COUNTER }));
+		return this.sourceColumn;
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		DOM.clearNode(this.sourceColumn);
+		this.sourceColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		new HighlightedLabel(this.sourceColumn).set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
+	}
+
+	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
+		return localize('sourceAriaLabel', "Source is {0}.", keybindingItemEntry.keybindingItem.source);
 	}
 }
 
@@ -669,13 +702,15 @@ class WhenColumn extends Column {
 
 	private whenColumn: HTMLElement;
 
-	create(parent: HTMLElement) {
+	create(parent: HTMLElement): HTMLElement {
 		const column = DOM.append(parent, $('.column.when'));
-		this.whenColumn = DOM.append(column, $('div'));
+		this.whenColumn = DOM.append(column, $('div', { id: 'when_' + ++Column.COUNTER }));
+		return this.whenColumn;
 	}
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		DOM.clearNode(this.whenColumn);
+		this.whenColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		DOM.toggleClass(this.whenColumn, 'code', !!keybindingItemEntry.keybindingItem.when);
 		DOM.toggleClass(this.whenColumn, 'empty', !keybindingItemEntry.keybindingItem.when);
 		if (keybindingItemEntry.keybindingItem.when) {
@@ -684,5 +719,9 @@ class WhenColumn extends Column {
 		} else {
 			this.whenColumn.textContent = '—';
 		}
+	}
+
+	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
+		return keybindingItemEntry.keybindingItem.when ? localize('whenAriaLabel', "When is {0}.", keybindingItemEntry.keybindingItem.when) : localize('noWhen', "No when context.");
 	}
 }
