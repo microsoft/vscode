@@ -39,7 +39,7 @@ import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
-import JsDocCompletionHelper from './features/jsDocCompletionProvider';
+import JsDocCompletionProvider from './features/jsDocCompletionProvider';
 import ImplementationCodeLensProvider from './features/implementationsCodeLensProvider';
 
 import * as BuildStatus from './utils/buildStatus';
@@ -142,7 +142,7 @@ class LanguageProvider {
 	private typingsStatus: TypingsStatus;
 	private referenceCodeLensProvider: ReferenceCodeLensProvider;
 	private implementationCodeLensProvider: ImplementationCodeLensProvider;
-	private jsDocCompletionHelper: JsDocCompletionHelper;
+	private JsDocCompletionProvider: JsDocCompletionProvider;
 
 	private _validate: boolean = true;
 
@@ -209,9 +209,9 @@ class LanguageProvider {
 			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(selector, this.formattingProvider);
 		}
 
-		this.jsDocCompletionHelper = new JsDocCompletionHelper(client);
-		this.jsDocCompletionHelper.updateConfiguration();
-		this.disposables.push(languages.registerCompletionItemProvider(selector, this.jsDocCompletionHelper, '*'));
+		this.JsDocCompletionProvider = new JsDocCompletionProvider(client);
+		this.JsDocCompletionProvider.updateConfiguration();
+		this.disposables.push(languages.registerCompletionItemProvider(selector, this.JsDocCompletionProvider, '*'));
 
 		this.disposables.push(languages.registerHoverProvider(selector, new HoverProvider(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new DefinitionProvider(client)));
@@ -322,8 +322,8 @@ class LanguageProvider {
 				this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
 			}
 		}
-		if (this.jsDocCompletionHelper) {
-			this.jsDocCompletionHelper.updateConfiguration();
+		if (this.JsDocCompletionProvider) {
+			this.JsDocCompletionProvider.updateConfiguration();
 		}
 	}
 

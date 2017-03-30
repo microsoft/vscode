@@ -140,7 +140,7 @@ class JsDocCompletionItem extends CompletionItem {
 	}
 }
 
-export default class JsDocCompletionHelper implements CompletionItemProvider {
+export default class JsDocCompletionProvider implements CompletionItemProvider {
 
 	private config: Configuration;
 
