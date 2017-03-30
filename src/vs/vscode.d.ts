@@ -4607,7 +4607,7 @@ declare module 'vscode' {
 		 * The [command](#Command) which should be run when the resource
 		 * state is open in the Source Control viewlet.
 		 */
-		readonly command: Command;
+		readonly command?: Command;
 
 		/**
 		 * The [decorations](#SourceControlResourceDecorations) for this source control

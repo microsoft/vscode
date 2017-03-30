@@ -44,7 +44,7 @@ class MainThreadSCMResource implements ISCMResource {
 		private groupHandle: number,
 		private handle: number,
 		public sourceUri: URI,
-		public command: Command,
+		public command: Command | undefined,
 		public resourceGroup: ISCMResourceGroup,
 		public decorations
 	) { }

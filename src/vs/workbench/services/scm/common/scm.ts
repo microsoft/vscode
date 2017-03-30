@@ -28,7 +28,7 @@ export interface ISCMResource {
 	// readonly uri: URI;
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
-	readonly command: Command;
+	readonly command?: Command;
 	readonly decorations: ISCMResourceDecorations;
 }
 
