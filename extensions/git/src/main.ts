@@ -45,14 +45,13 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	}
 
 	const model = new Model(git, workspaceRootPath);
-	const commitTemplate = await model.getCommitTemplate();
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 	git.onOutput(str => outputChannel.append(str), null, disposables);
 
 	const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
 	const statusBarCommands = new StatusBarCommands(model);
-	const provider = new GitSCMProvider(model, commandCenter, statusBarCommands, commitTemplate);
+	const provider = new GitSCMProvider(model, commandCenter, statusBarCommands);
 	const contentProvider = new GitContentProvider(model);
 	const autoFetcher = new AutoFetcher(model);
 	const mergeDecorator = new MergeDecorator(model);

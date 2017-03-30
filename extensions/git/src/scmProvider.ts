@@ -60,13 +60,11 @@ export class GitSCMProvider {
 	constructor(
 		private model: Model,
 		private commandCenter: CommandCenter,
-		private statusBarCommands: StatusBarCommands,
-		private commitTemplate: string
+		private statusBarCommands: StatusBarCommands
 	) {
 		this._sourceControl = scm.createSourceControl('git', 'Git');
 		this.disposables.push(this._sourceControl);
 
-		this._sourceControl.commitTemplate = commitTemplate;
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit") };
 		this._sourceControl.quickDiffProvider = this;
 
@@ -85,6 +83,15 @@ export class GitSCMProvider {
 		this.disposables.push(this.workingTreeGroup);
 
 		model.onDidChange(this.onDidModelChange, this, this.disposables);
+		this.updateCommitTemplate();
+	}
+
+	private async updateCommitTemplate(): Promise<void> {
+		try {
+			this._sourceControl.commitTemplate = await this.model.getCommitTemplate();
+		} catch (e) {
+			// noop
+		}
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
