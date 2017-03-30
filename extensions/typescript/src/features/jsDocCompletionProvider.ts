@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, commands, Uri, ProviderResult, TextEditor, SnippetString } from 'vscode';
+import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, Uri, ProviderResult, TextEditor, SnippetString, workspace } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
 import { FileLocationRequestArgs, DocCommandTemplateResponse } from '../protocol';
@@ -13,59 +13,38 @@ import { FileLocationRequestArgs, DocCommandTemplateResponse } from '../protocol
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-const tryCompleteJsDocCommand = '_typeScript.tryCompleteJsDoc';
+const configurationNamespace = 'jsDocCompletion';
 
+
+interface Configuration {
+	enabled: boolean;
+}
+
+namespace Configuration {
+	export const enabled = 'enabled';
+}
 
 class JsDocCompletionItem extends CompletionItem {
-	constructor(file: Uri, position: Position) {
+	constructor(
+		private client: ITypescriptServiceClient,
+		resource: Uri,
+		file: string,
+		position: Position,
+		enabledJsDocCompletion: boolean,
+	) {
 		super('/** */', CompletionItemKind.Snippet);
 		this.detail = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
 		this.insertText = '';
 		this.sortText = '\0';
-		this.command = {
-			title: 'Try Complete Js Doc',
-			command: tryCompleteJsDocCommand,
-			arguments: [file, position]
-		};
-	}
-}
 
-export default class JsDocCompletionHelper implements CompletionItemProvider {
-
-	constructor(
-		private client: ITypescriptServiceClient,
-	) {
-		commands.registerCommand(
-			tryCompleteJsDocCommand,
-			(file: Uri, position: Position) => this.tryCompleteJsDoc(file, position));
-	}
-
-	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<CompletionItem[]> {
-		const file = this.client.normalizePath(document.uri);
-		if (!file) {
-			return [];
-		}
-
-		// Only show the JSdoc completion when the everything before the cursor is whitespace
-		// or could be the opening of a comment
-		const line = document.lineAt(position.line).text;
-		const prefix = line.slice(0, position.character);
-		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/)) {
-			return [new JsDocCompletionItem(document.uri, position)];
-		}
-		return [];
-	}
-
-	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken) {
-		return item;
+		this.tryCompleteJsDoc(resource, file, position, enabledJsDocCompletion);
 	}
 
 	/**
 	 * Try to insert a jsdoc comment, using a template provide by typescript
 	 * if possible, otherwise falling back to a default comment format.
 	 */
-	private tryCompleteJsDoc(resource: Uri, position: Position): Thenable<boolean> {
-		const file = this.client.normalizePath(resource);
+	private tryCompleteJsDoc(resource: Uri, file: string, position: Position, enabledJsDocCompletion: boolean): Thenable<boolean> {
 		if (!file) {
 			return Promise.resolve(false);
 		}
@@ -77,6 +56,10 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 
 		return this.prepForDocCompletion(editor, position)
 			.then((start: Position) => {
+				if (!enabledJsDocCompletion) {
+					return this.tryInsertDefaultDoc(editor, start);
+				}
+
 				return this.tryInsertJsDocFromTemplate(editor, file, start)
 					.then((didInsertFromTemplate: boolean) => {
 						if (didInsertFromTemplate) {
@@ -154,5 +137,41 @@ export default class JsDocCompletionHelper implements CompletionItemProvider {
 	private tryInsertDefaultDoc(editor: TextEditor, position: Position): Thenable<boolean> {
 		const snippet = new SnippetString(`/**\n * $0\n */`);
 		return editor.insertSnippet(snippet, position, { undoStopBefore: false, undoStopAfter: true });
+	}
+}
+
+export default class JsDocCompletionHelper implements CompletionItemProvider {
+
+	private config: Configuration;
+
+	constructor(
+		private client: ITypescriptServiceClient,
+	) {
+		this.config = { enabled: true };
+	}
+
+	public updateConfiguration(): void {
+		const jsDocCompletionConfig = workspace.getConfiguration(configurationNamespace);
+		this.config.enabled = jsDocCompletionConfig.get(Configuration.enabled, true);
+	}
+
+	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<CompletionItem[]> {
+		const file = this.client.normalizePath(document.uri);
+		if (!file) {
+			return [];
+		}
+
+		// Only show the JSdoc completion when the everything before the cursor is whitespace
+		// or could be the opening of a comment
+		const line = document.lineAt(position.line).text;
+		const prefix = line.slice(0, position.character);
+		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/)) {
+			return [new JsDocCompletionItem(this.client, document.uri, file, position, this.config.enabled)];
+		}
+		return [];
+	}
+
+	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken) {
+		return item;
 	}
 }
