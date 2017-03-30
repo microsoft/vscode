@@ -71,7 +71,6 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private doEditKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): TPromise<void> {
 		return this.resolveAndValidate()
 			.then(reference => {
-				key = new RegExp(/\\/g).test(key) ? key.slice(0, -1) + '\\\\' : key;
 				const model = reference.object.textEditorModel;
 				if (keybindingItem.isDefault) {
 					this.updateDefaultKeybinding(key, keybindingItem, model);
