@@ -465,7 +465,7 @@
 		"editorLineNumbers": "#9DA39A",
 		"editorCursor": "#54494B",
 		"inputBackground": "#F5F5F5",
-		"editorCurrentFindMatchHighlight": "#BF9CAC",
+		"editorFindMatch": "#BF9CAC",
 		"editorFindMatchHighlight": "#edc9d8",
 		"editorPeekReferenceHighlight": "#C2DFE3",
 		"editorPeekTitleBackground": "#F2F8FC",

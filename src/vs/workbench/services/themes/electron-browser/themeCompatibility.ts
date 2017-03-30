@@ -54,7 +54,7 @@ addSettingMapping('selection', colorRegistry.editorSelection);
 addSettingMapping('inactiveSelection', colorRegistry.editorInactiveSelection);
 addSettingMapping('selectionHighlightColor', colorRegistry.editorSelectionHighlight);
 addSettingMapping('findMatchHighlight', colorRegistry.editorFindMatchHighlight);
-addSettingMapping('currentFindMatchHighlight', colorRegistry.editorCurrentFindMatchHighlight);
+addSettingMapping('currentFindMatchHighlight', colorRegistry.editorFindMatch);
 addSettingMapping('hoverHighlight', editorHoverHighlight);
 addSettingMapping('hoverHighlight', editorHoverHighlight);
 addSettingMapping('linkForeground', colorRegistry.editorLinkForeground);
