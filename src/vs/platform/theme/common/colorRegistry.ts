@@ -120,11 +120,11 @@ export function registerColor(id: string, defaults: ColorDefaults, description: 
 // ----- base colors
 
 export const foreground = registerColor('foreground', { dark: '#CCCCCC', light: '#6C6C6C', hc: '#FFFFFF' }, nls.localize('foreground', "Overall foreground color. This color is only used if not overridden by a component."));
-export const focus = registerColor('focus', {
+export const focus = registerColor('focusedElementOutline', {
 	dark: Color.fromRGBA(new RGBA(14, 99, 156)).transparent(0.6),
 	light: Color.fromRGBA(new RGBA(0, 122, 204)).transparent(0.4),
 	hc: '#F38518'
-}, nls.localize('focus', "Overall outline/border color for focused elements. This color is only used if not overridden by a component."));
+}, nls.localize('focusedElementOutline', "Overall outline/border color for focused elements. This color is only used if not overridden by a component."));
 
 /**
  * Commonly used High contrast colors.
@@ -135,14 +135,14 @@ export const highContrastOutline = registerColor('highContrastOutline', { light:
 /**
  * Widgets
  */
-export const inputBackground = registerColor('inputBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('inputBackground', 'Input field background.'));
-export const inputForeground = registerColor('inputForeground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('inputForeground', 'Input field foreground.'));
-export const inputBorder = registerColor('inputBorder', { dark: null, light: null, hc: highContrastBorder }, nls.localize('inputBorder', 'Input field border.'));
-export const inputActiveOptionBorder = registerColor('inputActiveOptionBorder', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('inputActiveOptionBorder', 'Border color of activated options in input fields.'));
+export const inputBackground = registerColor('inputBoxBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('inputBoxBackground', "Input box background."));
+export const inputForeground = registerColor('inputBoxForeground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('inputBoxForeground', "Input box foreground."));
+export const inputBorder = registerColor('inputBoxBorder', { dark: null, light: null, hc: highContrastBorder }, nls.localize('inputBoxBorder', "Input box border."));
+export const inputActiveOptionBorder = registerColor('inputBoxActiveOptionBorder', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('inputBoxActiveOptionBorder', "Border color of activated options in input fields."));
 
-export const selectBackground = registerColor('selectBackground', { dark: '#3C3C3C', light: Color.white, hc: '#3C3C3C' }, nls.localize('selectBackground', 'Select field background.'));
-export const selectForeground = registerColor('selectForeground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('selectForeground', 'Select field foreground.'));
-export const selectBorder = registerColor('selectBorder', { dark: selectBackground, light: '#CECECE', hc: selectBackground }, nls.localize('selectBorder', 'Select field border.'));
+export const selectBackground = registerColor('dropdownBackground', { dark: '#3C3C3C', light: Color.white, hc: '#3C3C3C' }, nls.localize('dropdownBackground', "Dropdown background."));
+export const selectForeground = registerColor('dropdownForeground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('dropdownForeground', "Dropdown foreground."));
+export const selectBorder = registerColor('dropdownBorder', { dark: selectBackground, light: '#CECECE', hc: selectBackground }, nls.localize('dropdownBorder', "Dropdown border."));
 
 /**
  * Editor background color.

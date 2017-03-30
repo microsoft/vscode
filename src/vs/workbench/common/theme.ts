@@ -17,12 +17,6 @@ export const TABS_CONTAINER_BACKGROUND = registerColor('tabsContainerBackground'
 	hc: null
 }, nls.localize('tabsContainerBackground', "Background color of the tabs container. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const NO_TABS_CONTAINER_BACKGROUND = registerColor('noTabsContainerBackground', {
-	dark: editorBackground,
-	light: editorBackground,
-	hc: editorBackground
-}, nls.localize('noTabsContainerBackground', "Background color of the editor title container when no tabs are enabled."));
-
 export const ACTIVE_TAB_BACKGROUND = registerColor('activeTabBackground', {
 	dark: editorBackground,
 	light: editorBackground,
@@ -68,6 +62,12 @@ export const TAB_BORDER = registerColor('tabBorder', {
 
 
 // < --- Editors --- >
+
+export const EDITOR_HEADER_BACKGROUND = registerColor('editorHeaderBackground', {
+	dark: editorBackground,
+	light: editorBackground,
+	hc: editorBackground
+}, nls.localize('editorHeaderBackground', "Background color of the editor title header when no tabs are enabled."));
 
 export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroupBorder', {
 	dark: '#444444',
