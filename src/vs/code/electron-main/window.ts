@@ -372,6 +372,19 @@ export class VSCodeWindow {
 				this.send('vscode:runAction', 'workbench.action.navigateForward');
 			}
 		});
+		
+		// Swipe command support (macOS)
+		this._win.on('swipe', (e, cmd) => {
+			if (this.readyState !== ReadyState.READY) {
+				return; // window must be ready
+			}
+
+			if (cmd === 'left') {
+				this.send('vscode:runAction', 'workbench.action.navigateBack');
+			} else if (cmd === 'right') {
+				this.send('vscode:runAction', 'workbench.action.navigateForward');
+			}
+		});
 
 		// Handle code that wants to open links
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
