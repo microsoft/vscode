@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./minimap';
-import { ViewPart } from 'vs/editor/browser/view/viewPart';
+import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
@@ -440,6 +440,7 @@ export class Minimap extends ViewPart {
 		this._buffers = null;
 
 		this._domNode = createFastDomNode(document.createElement('div'));
+		PartFingerprints.write(this._domNode.domNode, PartFingerprint.Minimap);
 		this._domNode.setClassName('minimap');
 		this._domNode.setPosition('absolute');
 		this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
