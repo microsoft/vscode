@@ -36,7 +36,7 @@ namespace schema {
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
-			case 'scm/resource/context': return MenuId.SCMResourceContext;
+			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
 		}
 
 		return void 0;

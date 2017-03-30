@@ -460,7 +460,7 @@
           "group": "inline"
         }
       ],
-      "scm/resource/context": [
+      "scm/resourceState/context": [
         {
           "command": "git.stage",
           "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == merge",
