@@ -143,6 +143,7 @@ export class DefineKeybindingController implements editorCommon.IEditorContribut
 		}
 
 		this._modelToDispose.push(model.onDidChangeContent((e) => this._updateDecorations.schedule()));
+		this._modelToDispose.push(this._keybindingService.onDidUpdateKeybindings((e) => this._updateDecorations.schedule()));
 		this._modelToDispose.push({
 			dispose: () => {
 				this._dec = this._editor.deltaDecorations(this._dec, []);
