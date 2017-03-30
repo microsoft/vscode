@@ -272,7 +272,7 @@
 		"editorPeekEditorBackground": "#001F33",
 		"editorPeekTitleBackground": "#060621",
 		"editorPeekBorders": "#7777cc",
-		"editorPeekReferenceHighlight": "#ddbb5555",
+		"editorPeekEditorMatchHighlight": "#ddbb5555",
 
 		"editorLineNumbers": "#406385",
 		"editorMarkerNavigationBackground": "#060621",

@@ -327,7 +327,7 @@
 
 		"editorPeekResultsBackground": "#00212B",
 		"editorPeekTitleBackground": "#00212B",
-		"editorPeekReferenceHighlight": "#7744AA40",
+		"editorPeekEditorMatchHighlight": "#7744AA40",
 		"editorHoverBackground": "#004052"
 	}
 }
