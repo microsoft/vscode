@@ -68,8 +68,6 @@ export class ExceptionWidget extends ZoneWidget {
 		this.container.style.lineHeight = `${fontInfo.lineHeight}px`;
 
 		let title = $('.title');
-		let description = $('.description');
-
 		switch (this.exceptionInfo.breakMode) {
 			case 'never':
 				title.textContent = nls.localize('neverException', 'User-handled exception has occurred: {0}', this.exceptionInfo.id);
@@ -87,16 +85,16 @@ export class ExceptionWidget extends ZoneWidget {
 				title.textContent = this.exceptionInfo.id ? nls.localize('exceptionThrownWithId', 'Exception has occurred: {0}', this.exceptionInfo.id) : nls.localize('exceptionThrown', 'Exception has occurred.');
 				break;
 		}
-
 		dom.append(container, title);
 
 		if (this.exceptionInfo.description) {
+			let description = $('.description');
 			description.textContent = this.exceptionInfo.description;
 			dom.append(container, description);
 		}
 
 		if (this.exceptionInfo.details && this.exceptionInfo.details.stackTrace) {
-			const stackTrace = $('.stack-trace');
+			let stackTrace = $('.stack-trace');
 			stackTrace.textContent = this.exceptionInfo.details.stackTrace;
 			dom.append(container, stackTrace);
 		}
