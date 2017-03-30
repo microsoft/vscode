@@ -346,16 +346,16 @@ declare module 'vscode' {
 		problemMatchers: ProblemMatcher[];
 	}
 
-	export interface ShellOptions {
+	export type ShellOptions = {
 		/**
 		 * The shell executable.
 		 */
-		executable?: string;
+		executable: string;
 
 		/**
-		 * The arguments to be passed to the shell executable.
+		 * The arguments to be passed to the shell executable used to run the task.
 		 */
-		args?: string[];
+		shellArgs?: string[];
 
 		/**
 		 * The current working directory of the executed shell.
@@ -369,7 +369,20 @@ declare module 'vscode' {
 		 * the parent process' environment.
 		 */
 		env?: { [key: string]: string };
-	}
+	} | {
+		/**
+		 * The current working directory of the executed shell.
+		 * If omitted VSCode's current workspace root is used.
+		 */
+		cwd?: string;
+
+		/**
+		 * The additional environment of the executed shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env?: { [key: string]: string };
+	};
 
 	/**
 	 * A task that executes a shell command.
