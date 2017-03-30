@@ -229,16 +229,31 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		return this.resolveModelReference()
 			.then(reference => {
 				const model = reference.object.textEditorModel;
-				if (this.hasParseErrors(model)) {
-					return TPromise.wrapError(localize('errorInvalidConfiguration', "Unable to write keybindings. Please open **Keybindings file** to correct errors/warnings in the file and try again."));
+				const EOL = model.getEOL();
+				if (model.getValue()) {
+					const parsed = this.parse(model);
+					if (parsed.parseErrors.length) {
+						return TPromise.wrapError(localize('parseErrors', "Unable to write keybindings. Please open **Keybindings file** to correct errors/warnings in the file and try again."));
+					}
+					if (parsed.result) {
+						if (!isArray(parsed.result)) {
+							return TPromise.wrapError(localize('errorInvalidConfiguration', "Unable to write keybindings. **Keybindings file** has an object which is not of type Array. Please open the file to clean up and try again."));
+						}
+					} else {
+						const content = EOL + '[]';
+						this.applyEditsToBuffer({ content, length: content.length, offset: model.getValue().length }, model);
+					}
+				} else {
+					const content = '// ' + localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + EOL + '[]';
+					this.applyEditsToBuffer({ content, length: content.length, offset: 0 }, model);
 				}
 				return reference;
 			});
 	}
 
-	private hasParseErrors(model: editorCommon.IModel): boolean {
+	private parse(model: editorCommon.IModel): { result: IUserFriendlyKeybinding[], parseErrors: json.ParseError[] } {
 		const parseErrors: json.ParseError[] = [];
 		const result = json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
-		return parseErrors.length > 0 || !isArray(result);
+		return { result, parseErrors };
 	}
 }
