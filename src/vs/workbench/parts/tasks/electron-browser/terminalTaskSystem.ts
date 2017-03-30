@@ -175,8 +175,14 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		if (!terminalData) {
 			return TPromise.as<TerminateResponse>({ success: false });
 		};
-		terminalData.terminal.dispose();
-		return TPromise.as<TerminateResponse>({ success: true });
+		return new TPromise<TerminateResponse>((resolve, reject) => {
+			let terminal = terminalData.terminal;
+			const onExit = terminal.onExit(() => {
+				onExit.dispose();
+				resolve({ success: true });
+			});
+			terminal.dispose();
+		});
 	}
 
 	public terminateAll(): TPromise<TerminateResponse> {
