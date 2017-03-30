@@ -323,6 +323,11 @@
 		"inactiveTabInactiveGroupForeground": "#93A1A1",
 		"debugToolBarBackground": "#00212B",
 		"selectBackground": "#00212B",
-		"selectBorder": "#2AA19899"
+		"selectBorder": "#2AA19899",
+
+		"editorPeekResultsBackground": "#00212B",
+		"editorPeekTitleBackground": "#00212B",
+		"editorPeekReferenceHighlight": "#7744AA40",
+		"editorHoverBackground": "#004052"
 	}
 }
