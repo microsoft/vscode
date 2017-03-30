@@ -5,13 +5,12 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState } from 'vscode';
 import { Ref, RefType, Git } from './git';
-import { Model, Resource, Status, CommitOptions } from './model';
+import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import * as staging from './staging';
 import * as path from 'path';
 import * as os from 'os';
-import { uniqueFilter } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 
@@ -112,7 +111,12 @@ export class CommandCenter {
 		await this.model.status();
 	}
 
-	async open(resource: Resource): Promise<void> {
+	@command('git.openResource')
+	async openResource(resource: Resource): Promise<void> {
+		await this._openResource(resource);
+	}
+
+	private async _openResource(resource: Resource): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(resource);
 		const title = this.getTitle(resource);
@@ -137,7 +141,7 @@ export class CommandCenter {
 				return resource.original.with({ scheme: 'git', query: 'HEAD' });
 
 			case Status.MODIFIED:
-				return resource.sourceUri.with({ scheme: 'git', query: '~' });
+				return resource.resourceUri.with({ scheme: 'git', query: '~' });
 		}
 	}
 
@@ -146,34 +150,34 @@ export class CommandCenter {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
 			case Status.INDEX_COPIED:
-				return resource.sourceUri.with({ scheme: 'git' });
+				return resource.resourceUri.with({ scheme: 'git' });
 
 			case Status.INDEX_RENAMED:
-				return resource.sourceUri.with({ scheme: 'git' });
+				return resource.resourceUri.with({ scheme: 'git' });
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return resource.sourceUri.with({ scheme: 'git', query: 'HEAD' });
+				return resource.resourceUri.with({ scheme: 'git', query: 'HEAD' });
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
-				const uriString = resource.sourceUri.toString();
-				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.sourceUri.toString() === uriString);
+				const uriString = resource.resourceUri.toString();
+				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString);
 
-				if (indexStatus && indexStatus.rename) {
-					return indexStatus.rename;
+				if (indexStatus && indexStatus.renameResourceUri) {
+					return indexStatus.renameResourceUri;
 				}
 
-				return resource.sourceUri;
+				return resource.resourceUri;
 
 			case Status.BOTH_MODIFIED:
-				return resource.sourceUri;
+				return resource.resourceUri;
 		}
 	}
 
 	private getTitle(resource: Resource): string {
-		const basename = path.basename(resource.sourceUri.fsPath);
+		const basename = path.basename(resource.resourceUri.fsPath);
 
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
@@ -251,7 +255,7 @@ export class CommandCenter {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', resource.sourceUri);
+		return await commands.executeCommand<void>('vscode.open', resource.resourceUri);
 	}
 
 	@command('git.openChange')
@@ -262,12 +266,23 @@ export class CommandCenter {
 			return;
 		}
 
-		return await this.open(resource);
+		return await this._openResource(resource);
 	}
 
 	@command('git.stage')
-	async stage(...uris: Uri[]): Promise<void> {
-		const resources = this.toSCMResources(uris);
+	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		if (resourceStates.length === 0) {
+			const resource = this.resolveSCMResource();
+
+			if (!resource) {
+				return;
+			}
+
+			resourceStates = [resource];
+		}
+
+		const resources = resourceStates
+			.filter(s => s instanceof Resource && (s.resourceGroup instanceof WorkingTreeGroup || s.resourceGroup instanceof MergeGroup)) as Resource[];
 
 		if (!resources.length) {
 			return;
@@ -361,8 +376,19 @@ export class CommandCenter {
 	}
 
 	@command('git.unstage')
-	async unstage(...uris: Uri[]): Promise<void> {
-		const resources = this.toSCMResources(uris);
+	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		if (resourceStates.length === 0) {
+			const resource = this.resolveSCMResource();
+
+			if (!resource) {
+				return;
+			}
+
+			resourceStates = [resource];
+		}
+
+		const resources = resourceStates
+			.filter(s => s instanceof Resource && s.resourceGroup instanceof IndexGroup) as Resource[];
 
 		if (!resources.length) {
 			return;
@@ -418,15 +444,26 @@ export class CommandCenter {
 	}
 
 	@command('git.clean')
-	async clean(...uris: Uri[]): Promise<void> {
-		const resources = this.toSCMResources(uris);
+	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		if (resourceStates.length === 0) {
+			const resource = this.resolveSCMResource();
+
+			if (!resource) {
+				return;
+			}
+
+			resourceStates = [resource];
+		}
+
+		const resources = resourceStates
+			.filter(s => s instanceof Resource && s.resourceGroup instanceof WorkingTreeGroup) as Resource[];
 
 		if (!resources.length) {
 			return;
 		}
 
 		const message = resources.length === 1
-			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].sourceUri.fsPath))
+			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
 			: localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
 
 		const yes = localize('discard', "Discard Changes");
@@ -769,20 +806,6 @@ export class CommandCenter {
 			return undefined;
 		}
 
-		if (uri.scheme === 'git-resource') {
-			const {resourceGroupId} = JSON.parse(uri.query) as { resourceGroupId: string, sourceUri: string };
-			const [resourceGroup] = this.model.resources.filter(g => g.contextKey === resourceGroupId);
-
-			if (!resourceGroup) {
-				return;
-			}
-
-			const uriStr = uri.toString();
-			const [resource] = resourceGroup.resources.filter(r => r.uri.toString() === uriStr);
-
-			return resource;
-		}
-
 		if (uri.scheme === 'git') {
 			uri = uri.with({ scheme: 'file' });
 		}
@@ -790,15 +813,9 @@ export class CommandCenter {
 		if (uri.scheme === 'file') {
 			const uriString = uri.toString();
 
-			return this.model.workingTreeGroup.resources.filter(r => r.sourceUri.toString() === uriString)[0]
-				|| this.model.indexGroup.resources.filter(r => r.sourceUri.toString() === uriString)[0];
+			return this.model.workingTreeGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| this.model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
-	}
-
-	private toSCMResources(uris: Uri[]): Resource[] {
-		return uris.filter(uniqueFilter(uri => uri.toString()))
-			.map(uri => this.resolveSCMResource(uri))
-			.filter(r => !!r) as Resource[];
 	}
 
 	dispose(): void {

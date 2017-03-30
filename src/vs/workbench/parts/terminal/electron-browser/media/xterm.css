@@ -56,12 +56,12 @@
 	text-decoration: none;
 }
 
-.monaco-workbench .panel.integrated-terminal.ctrl-held .xterm a:hover {
+.monaco-workbench .panel.integrated-terminal.ctrlcmd-held .xterm a:hover {
 	cursor: pointer;
 	text-decoration: underline;
 }
 
-.monaco-workbench .panel.integrated-terminal.ctrl-held .xterm a.xterm-invalid-link:hover {
+.monaco-workbench .panel.integrated-terminal.ctrlcmd-held .xterm a.xterm-invalid-link:hover {
 	cursor: text;
 	text-decoration: none;
 }

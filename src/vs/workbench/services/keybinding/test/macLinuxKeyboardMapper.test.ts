@@ -1383,6 +1383,54 @@ suite('keyboardMapper - LINUX en_us', () => {
 		);
 	});
 
+	test('issue #23393: resolveKeybinding Ctrl+Enter', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.Enter,
+			[{
+				label: 'Ctrl+Enter',
+				ariaLabel: 'Control+Enter',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Enter'])],
+				electronAccelerator: 'Ctrl+Enter',
+				userSettingsLabel: 'ctrl+enter',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Enter]', null],
+			}]
+		);
+	});
+
+	test('issue #23393: resolveKeyboardEvent Ctrl+[NumpadEnter]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'NumpadEnter'
+			},
+			{
+				label: 'Ctrl+Enter',
+				ariaLabel: 'Control+Enter',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Enter'])],
+				electronAccelerator: 'Ctrl+Enter',
+				userSettingsLabel: 'ctrl+enter',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Enter]', null],
+			}
+		);
+	});
+
 	test('resolveUserBinding Ctrl+[Comma] Ctrl+/', () => {
 		assertResolveUserBinding(
 			mapper,

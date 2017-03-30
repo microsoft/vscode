@@ -99,6 +99,9 @@ const MINIMUM_THRESHOLD = 0.2; // TODO@Ben Decide how much this should be.
 jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
 const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
+const MAPPED_ENCODINGS = {
+	'ibm866': 'cp866'
+};
 
 /**
  * Guesses the encoding from buffer.
@@ -117,11 +120,14 @@ export function guessEncodingByBuffer(buffer: NodeBuffer): string {
 		return null;
 	}
 
-	return lowerCaseWithoutNonAlphaNumeric(guessed.encoding);
+	return toIconvLiteEncoding(guessed.encoding);
 }
 
-function lowerCaseWithoutNonAlphaNumeric(encodingName: string): string {
-	return encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+function toIconvLiteEncoding(encodingName: string): string {
+	const normalizedEncodingName = encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+	const mapped = MAPPED_ENCODINGS[normalizedEncodingName];
+
+	return mapped || normalizedEncodingName;
 }
 
 /**

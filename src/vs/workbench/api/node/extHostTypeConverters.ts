@@ -177,32 +177,32 @@ export const TextEdit = {
 export namespace SymbolKind {
 
 	const _fromMapping: { [kind: number]: modes.SymbolKind } = Object.create(null);
-	_fromMapping[types.SymbolKind.File] = 'file';
-	_fromMapping[types.SymbolKind.Module] = 'module';
-	_fromMapping[types.SymbolKind.Namespace] = 'namespace';
-	_fromMapping[types.SymbolKind.Package] = 'package';
-	_fromMapping[types.SymbolKind.Class] = 'class';
-	_fromMapping[types.SymbolKind.Method] = 'method';
-	_fromMapping[types.SymbolKind.Property] = 'property';
-	_fromMapping[types.SymbolKind.Field] = 'field';
-	_fromMapping[types.SymbolKind.Constructor] = 'constructor';
-	_fromMapping[types.SymbolKind.Enum] = 'enum';
-	_fromMapping[types.SymbolKind.Interface] = 'interface';
-	_fromMapping[types.SymbolKind.Function] = 'function';
-	_fromMapping[types.SymbolKind.Variable] = 'variable';
-	_fromMapping[types.SymbolKind.Constant] = 'constant';
-	_fromMapping[types.SymbolKind.String] = 'string';
-	_fromMapping[types.SymbolKind.Number] = 'number';
-	_fromMapping[types.SymbolKind.Boolean] = 'boolean';
-	_fromMapping[types.SymbolKind.Array] = 'array';
-	_fromMapping[types.SymbolKind.Object] = 'object';
-	_fromMapping[types.SymbolKind.Key] = 'key';
-	_fromMapping[types.SymbolKind.Null] = 'null';
-	_fromMapping[types.SymbolKind.EnumMember] = 'enum-member';
-	_fromMapping[types.SymbolKind.Struct] = 'struct';
+	_fromMapping[types.SymbolKind.File] = modes.SymbolKind.File;
+	_fromMapping[types.SymbolKind.Module] = modes.SymbolKind.Module;
+	_fromMapping[types.SymbolKind.Namespace] = modes.SymbolKind.Namespace;
+	_fromMapping[types.SymbolKind.Package] = modes.SymbolKind.Package;
+	_fromMapping[types.SymbolKind.Class] = modes.SymbolKind.Class;
+	_fromMapping[types.SymbolKind.Method] = modes.SymbolKind.Method;
+	_fromMapping[types.SymbolKind.Property] = modes.SymbolKind.Property;
+	_fromMapping[types.SymbolKind.Field] = modes.SymbolKind.Field;
+	_fromMapping[types.SymbolKind.Constructor] = modes.SymbolKind.Constructor;
+	_fromMapping[types.SymbolKind.Enum] = modes.SymbolKind.Enum;
+	_fromMapping[types.SymbolKind.Interface] = modes.SymbolKind.Interface;
+	_fromMapping[types.SymbolKind.Function] = modes.SymbolKind.Function;
+	_fromMapping[types.SymbolKind.Variable] = modes.SymbolKind.Variable;
+	_fromMapping[types.SymbolKind.Constant] = modes.SymbolKind.Constant;
+	_fromMapping[types.SymbolKind.String] = modes.SymbolKind.String;
+	_fromMapping[types.SymbolKind.Number] = modes.SymbolKind.Number;
+	_fromMapping[types.SymbolKind.Boolean] = modes.SymbolKind.Boolean;
+	_fromMapping[types.SymbolKind.Array] = modes.SymbolKind.Array;
+	_fromMapping[types.SymbolKind.Object] = modes.SymbolKind.Object;
+	_fromMapping[types.SymbolKind.Key] = modes.SymbolKind.Key;
+	_fromMapping[types.SymbolKind.Null] = modes.SymbolKind.Null;
+	_fromMapping[types.SymbolKind.EnumMember] = modes.SymbolKind.EnumMember;
+	_fromMapping[types.SymbolKind.Struct] = modes.SymbolKind.Struct;
 
 	export function from(kind: vscode.SymbolKind): modes.SymbolKind {
-		return _fromMapping[kind] || 'property';
+		return _fromMapping[kind] || modes.SymbolKind.Property;
 	}
 
 	export function to(kind: modes.SymbolKind): vscode.SymbolKind {

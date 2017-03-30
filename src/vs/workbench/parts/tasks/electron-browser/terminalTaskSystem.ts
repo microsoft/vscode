@@ -175,8 +175,14 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		if (!terminalData) {
 			return TPromise.as<TerminateResponse>({ success: false });
 		};
-		terminalData.terminal.dispose();
-		return TPromise.as<TerminateResponse>({ success: true });
+		return new TPromise<TerminateResponse>((resolve, reject) => {
+			let terminal = terminalData.terminal;
+			const onExit = terminal.onExit(() => {
+				onExit.dispose();
+				resolve({ success: true });
+			});
+			terminal.dispose();
+		});
 	}
 
 	public terminateAll(): TPromise<TerminateResponse> {
@@ -383,6 +389,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				if (basename === 'powershell.exe') {
 					if (!shellSpecified) {
 						toAdd.push('-Command');
+					}
+				} else if (basename === 'bash.exe') {
+					if (!shellSpecified) {
+						toAdd.push('-c');
 					}
 				} else {
 					if (!shellSpecified) {

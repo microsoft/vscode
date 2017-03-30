@@ -69,8 +69,12 @@ export class MockKeybindingService implements IKeybindingService {
 		return Event.None;
 	}
 
-	public getDefaultKeybindings(): string {
+	public getDefaultKeybindingsContent(): string {
 		return null;
+	}
+
+	public getDefaultKeybindings(): ResolvedKeybindingItem[] {
+		return [];
 	}
 
 	public getKeybindings(): ResolvedKeybindingItem[] {

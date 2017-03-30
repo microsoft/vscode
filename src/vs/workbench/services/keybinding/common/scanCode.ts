@@ -239,6 +239,16 @@ export class ScanCodeBinding {
 		this.scanCode = scanCode;
 	}
 
+	public equals(other: ScanCodeBinding): boolean {
+		return (
+			this.ctrlKey === other.ctrlKey
+			&& this.shiftKey === other.shiftKey
+			&& this.altKey === other.altKey
+			&& this.metaKey === other.metaKey
+			&& this.scanCode === other.scanCode
+		);
+	}
+
 	/**
 	 * Does this keybinding refer to the key code of a modifier and it also has the modifier flag?
 	 */

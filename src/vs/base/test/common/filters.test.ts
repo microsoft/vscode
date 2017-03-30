@@ -215,6 +215,28 @@ suite('Filters', () => {
 		assertMatches('WordCCla', 'WordCharacterClassifier', '^W^o^r^d^Character^C^l^assifier', fuzzyScore);
 	});
 
+	test('fuzzyScore, #23332', function () {
+		assertMatches('dete', '"editor.quickSuggestionsDelay"', undefined, fuzzyScore);
+	});
+
+	test('fuzzyScore, #23190', function () {
+		assertMatches('c:\\do', '& \'C:\\Documents and Settings\'', '& \'^C^:^\\^D^ocuments and Settings\'', fuzzyScore);
+		assertMatches('c:\\do', '& \'c:\\Documents and Settings\'', '& \'^c^:^\\^D^ocuments and Settings\'', fuzzyScore);
+	});
+
+	test('fuzzyScore, #23581', function () {
+		assertMatches('close', 'css.lint.importStatement', '^css.^lint.imp^ort^Stat^ement', fuzzyScore);
+		assertMatches('close', 'css.colorDecorators.enable', '^css.co^l^orDecorator^s.^enable', fuzzyScore);
+		assertMatches('close', 'workbench.quickOpen.closeOnFocusOut', 'workbench.quickOpen.^c^l^o^s^eOnFocusOut', fuzzyScore);
+		assertTopScore(fuzzyScore, 'close', 2, 'css.lint.importStatement', 'css.colorDecorators.enable', 'workbench.quickOpen.closeOnFocusOut');
+	});
+
+	test('fuzzyScore, #23458', function () {
+		assertMatches('highlight', 'editorHoverHighlight', 'editorHover^H^i^g^h^l^i^g^h^t', fuzzyScore);
+		assertMatches('hhighlight', 'editorHoverHighlight', 'editor^Hover^H^i^g^h^l^i^g^h^t', fuzzyScore);
+		assertMatches('dhhighlight', 'editorHoverHighlight', undefined, fuzzyScore);
+	});
+
 	test('fuzzyScore', function () {
 		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
@@ -268,7 +290,7 @@ suite('Filters', () => {
 
 	});
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
-		let topScore = -Number.MIN_VALUE;
+		let topScore = -(100 * 10);
 		let topIdx = 0;
 		for (let i = 0; i < words.length; i++) {
 			const word = words[i];

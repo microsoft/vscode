@@ -697,10 +697,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private doTouch(): TPromise<void> {
-		if (this.inOrphanMode) {
-			return TPromise.as(void 0); // do not create the file if this model is orphaned
-		}
-
 		return this.fileService.touchFile(this.resource).then(stat => {
 
 			// Updated resolved stat with updated stat since touching it might have changed mtime

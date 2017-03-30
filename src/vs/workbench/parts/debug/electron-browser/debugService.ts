@@ -39,7 +39,7 @@ import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
 import { ToggleMarkersPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { ITaskService, TaskEvent, TaskType, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
-import { TaskError, TaskErrors } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { TaskError } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -669,13 +669,13 @@ export class DebugService implements debug.IDebugService {
 					});
 					return undefined;
 				}, (err: TaskError) => {
-					if (err.code !== TaskErrors.NotConfigured) {
-						throw err;
-					}
-
 					this.messageService.show(err.severity, {
 						message: err.message,
-						actions: [this.taskService.configureAction(), CloseAction]
+						actions: [
+							this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL),
+							this.taskService.configureAction(),
+							CloseAction
+						]
 					});
 				});
 			}, err => {
@@ -818,13 +818,7 @@ export class DebugService implements debug.IDebugService {
 		return this.taskService.tasks().then(descriptions => {
 			const filteredTasks = descriptions.filter(task => task.name === taskName);
 			if (filteredTasks.length !== 1) {
-				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName), {
-					actions: [
-						this.instantiationService.createInstance(debugactions.ConfigureAction, debugactions.ConfigureAction.ID, debugactions.ConfigureAction.LABEL),
-						this.taskService.configureAction(),
-						CloseAction
-					]
-				}));
+				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName)));
 			}
 
 			// task is already running - nothing to do.

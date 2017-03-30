@@ -700,6 +700,7 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		// enums
 		DocumentHighlightKind: modes.DocumentHighlightKind,
 		CompletionItemKind: CompletionItemKind,
+		SymbolKind: modes.SymbolKind,
 		IndentAction: IndentAction,
 	};
 }

@@ -383,6 +383,9 @@ export function matchesFuzzy2(pattern: string, word: string): number[] {
 
 export function createMatches(position: number[]): IMatch[] {
 	let ret: IMatch[] = [];
+	if (!position) {
+		return ret;
+	}
 	let last: IMatch;
 	for (const pos of position) {
 		if (last && last.end === pos) {
@@ -440,6 +443,8 @@ _seps['.'] = true;
 _seps[' '] = true;
 _seps['/'] = true;
 _seps['\\'] = true;
+_seps['\''] = true;
+_seps['"'] = true;
 
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
@@ -552,7 +557,7 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	}
 
 	let bucket: [number, number[]][] = [];
-	findAllMatches(patternLen, patternLen, wordLen, 0, [], bucket);
+	findAllMatches(patternLen, patternLen, wordLen, 0, [], bucket, false);
 
 	if (bucket.length === 0) {
 		return undefined;
@@ -570,39 +575,37 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	return topMatch;
 }
 
-function findAllMatches(patternLen: number, patternPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][]): void {
+function findAllMatches(patternLen: number, patternPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][], lastMatched: boolean): void {
 
 	while (patternPos > 0 && wordPos > 0) {
-		let value = _table[patternPos][wordPos];
+
 		let score = _scores[patternPos][wordPos];
 		let arrow = _arrows[patternPos][wordPos];
 
 		if (arrow === Arrow.Left || score < 0) {
 			// left
 			wordPos -= 1;
-
-		} else if (arrow === Arrow.Diag) {
-			// diag
-			total += value;
-			patternPos -= 1;
-			wordPos -= 1;
-			matches.unshift(wordPos);
+			if (lastMatched) {
+				total -= 5; // gap penalty
+			}
+			lastMatched = false;
 
 		} else if (arrow & Arrow.Diag) {
 
 			if (arrow & Arrow.Left) {
 				// left
-				findAllMatches(patternLen, patternPos, wordPos - 1, total, matches.slice(0), bucket);
+				findAllMatches(patternLen, patternPos, wordPos - 1, total, matches.slice(0), bucket, lastMatched);
 			}
 
 			// diag
-			total += value;
+			total += score;
 			patternPos -= 1;
 			wordPos -= 1;
 			matches.unshift(wordPos);
+			lastMatched = true;
 
 		} else {
-			// undefined
+			return undefined;
 		}
 	}
 

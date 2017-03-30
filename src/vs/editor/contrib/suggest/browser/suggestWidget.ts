@@ -308,7 +308,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private isAuto: boolean;
 	private loadingTimeout: number;
 	private currentSuggestionDetails: TPromise<void>;
+	private focusedItemIndex: number;
 	private focusedItem: ICompletionItem;
+	private ignoreFocusEvents = false;
 	private completionModel: CompletionModel;
 
 	private element: HTMLElement;
@@ -357,7 +359,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
 
-		this.list = new List(this.listElement, this, [renderer], { useShadows: false });
+		this.list = new List(this.listElement, this, [renderer], {
+			useShadows: false,
+			selectOnMouseDown: true
+		});
 
 		this.toDispose = [
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
@@ -441,6 +446,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	private onListFocus(e: IListEvent<ICompletionItem>): void {
+		if (this.ignoreFocusEvents) {
+			return;
+		}
+
 		if (!e.elements.length) {
 			if (this.currentSuggestionDetails) {
 				this.currentSuggestionDetails.cancel();
@@ -476,12 +485,27 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		const index = e.indexes[0];
 
 		this.suggestionSupportsAutoAccept.set(!item.suggestion.noAutoAccept);
+
+		const oldFocus = this.focusedItem;
+		const oldFocusIndex = this.focusedItemIndex;
+		this.focusedItemIndex = index;
 		this.focusedItem = item;
+
+		if (oldFocus) {
+			this.ignoreFocusEvents = true;
+			this.list.splice(oldFocusIndex, 1, [oldFocus]);
+			this.ignoreFocusEvents = false;
+		}
+
 		this.updateWidgetHeight();
 		this.list.reveal(index);
 
 		this.currentSuggestionDetails = item.resolve()
 			.then(() => {
+				this.ignoreFocusEvents = true;
+				this.list.splice(index, 1, [item]);
+				this.ignoreFocusEvents = false;
+
 				this.list.setFocus([index]);
 				this.updateWidgetHeight();
 				this.list.reveal(index);
@@ -596,6 +620,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			stats['wasAutomaticallyTriggered'] = !!isAuto;
 			this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
 
+			this.focusedItem = null;
+			this.focusedItemIndex = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
 			this.list.setFocus([this.completionModel.topScoreIdx]);
 			this.list.reveal(this.completionModel.topScoreIdx, 0);
@@ -793,9 +819,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	// IDelegate
 
 	getHeight(element: ICompletionItem): number {
-		const focus = this.list.getFocusedElements()[0];
-
-		if (canExpandCompletionItem(element) && element === focus) {
+		if (canExpandCompletionItem(element) && element === this.focusedItem) {
 			return this.focusHeight;
 		}
 
