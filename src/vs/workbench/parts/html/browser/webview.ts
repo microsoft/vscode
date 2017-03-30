@@ -61,7 +61,7 @@ export default class Webview {
 		this._webview.autoSize = 'on';
 
 		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
-		this._webview.setAttribute('webPreferences', 'disableBlinkFeatures=Auxclick');
+		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
 
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
