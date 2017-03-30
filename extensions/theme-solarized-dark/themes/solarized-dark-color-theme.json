@@ -325,9 +325,9 @@
 		"selectBackground": "#00212B",
 		"selectBorder": "#2AA19899",
 
-		"editorPeekResultsBackground": "#00212B",
-		"editorPeekTitleBackground": "#00212B",
-		"editorPeekEditorMatchHighlight": "#7744AA40",
+		"peekViewResultsBackground": "#00212B",
+		"peekViewTitleBackground": "#00212B",
+		"peekViewEditorMatchHighlight": "#7744AA40",
 		"editorHoverBackground": "#004052"
 	}
 }

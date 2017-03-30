@@ -467,11 +467,11 @@
 		"inputBackground": "#F5F5F5",
 		"editorFindMatch": "#BF9CAC",
 		"editorFindMatchHighlight": "#edc9d8",
-		"editorPeekEditorMatchHighlight": "#C2DFE3",
-		"editorPeekTitleBackground": "#F2F8FC",
-		"editorPeekEditorBackground": "#F2F8FC",
-		"editorPeekResultsBackground": "#F2F8FC",
-		"editorPeekResultsMatchHighlight": "#93C6D6",
+		"peekViewEditorMatchHighlight": "#C2DFE3",
+		"peekViewTitleBackground": "#F2F8FC",
+		"peekViewEditorBackground": "#F2F8FC",
+		"peekViewResultsBackground": "#F2F8FC",
+		"peekViewResultsMatchHighlight": "#93C6D6",
 		"activityBadgeBackground": "#705697"
 	}
 }
