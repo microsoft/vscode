@@ -10,6 +10,7 @@ import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 const openBlockChars = ['{', '(', '['];
