@@ -282,6 +282,10 @@ function isSelectionChangeEvent(event: IListMouseEvent<any>): boolean {
 	return isSelectionSingleChangeEvent(event) || isSelectionRangeChangeEvent(event);
 }
 
+export interface IMouseControllerOptions {
+	selectOnMouseDown?: boolean;
+}
+
 class MouseController<T> implements IDisposable {
 
 	private disposables: IDisposable[];
@@ -309,7 +313,8 @@ class MouseController<T> implements IDisposable {
 
 	constructor(
 		private list: List<T>,
-		private view: ListView<T>
+		private view: ListView<T>,
+		private options: IMouseControllerOptions = {}
 	) {
 		this.disposables = [];
 		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
@@ -334,6 +339,11 @@ class MouseController<T> implements IDisposable {
 
 		if (isSelectionChangeEvent(e)) {
 			return this.changeSelection(e, reference);
+		}
+
+		if (this.options.selectOnMouseDown) {
+			this.list.setSelection([focus]);
+			this.list.open([focus]);
 		}
 	}
 
@@ -384,7 +394,7 @@ class MouseController<T> implements IDisposable {
 	}
 }
 
-export interface IListOptions<T> extends IListViewOptions {
+export interface IListOptions<T> extends IListViewOptions, IMouseControllerOptions {
 	identityProvider?: IIdentityProvider<T>;
 	ariaLabel?: string;
 	mouseSupport?: boolean;
@@ -574,7 +584,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (typeof options.mouseSupport !== 'boolean' || options.mouseSupport) {
-			const controller = new MouseController(this, this.view);
+			const controller = new MouseController(this, this.view, options);
 			this.disposables.push(controller);
 			this._onContextMenu = controller.onContextMenu;
 		}

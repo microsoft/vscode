@@ -29,7 +29,9 @@ declare module "gulp-uglify" {
              * some - Preserve comments that start with a bang (!) or include a Closure Compiler directive (@preserve, @license, @cc_on)
              * function - Specify your own comment preservation function. You will be passed the current node and the current comment and are expected to return either true or false.
              */
-            preserveComments?: string|((node: any, comment: UglifyJS.Tokenizer) => boolean);
+            preserveComments?: string | ((node: any, comment: UglifyJS.Tokenizer) => boolean);
+
+            warnings?: boolean;
         }
 
         class GulpUglifyError {

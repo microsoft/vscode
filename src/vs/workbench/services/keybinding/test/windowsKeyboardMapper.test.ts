@@ -509,3 +509,43 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 		);
 	});
 });
+
+suite('misc', () => {
+	test('issue #23513: Toggle Sidebar Visibility and Go to Line display same key mapping in Arabic keyboard', () => {
+		const mapper = new WindowsKeyboardMapper({
+			'KeyB': {
+				'vkey': 'VK_B',
+				'value': 'لا',
+				'withShift': 'لآ',
+				'withAltGr': '',
+				'withShiftAltGr': ''
+			},
+			'KeyG': {
+				'vkey': 'VK_G',
+				'value': 'ل',
+				'withShift': 'لأ',
+				'withAltGr': '',
+				'withShiftAltGr': ''
+			}
+		});
+
+		_assertResolveKeybinding(
+			mapper,
+			KeyMod.CtrlCmd | KeyCode.KEY_B,
+			[{
+				label: 'Ctrl+لا',
+				ariaLabel: 'Control+لا',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'لا'])],
+				electronAccelerator: 'Ctrl+B',
+				userSettingsLabel: 'ctrl+b',
+				isWYSIWYG: false,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+B', null],
+			}]
+		);
+	});
+});

@@ -85,18 +85,20 @@ class EditTask implements IDisposable {
 
 	public addEdit(edit: IResourceEdit): void {
 
-		// create edit operation
-		let range: IRange;
-		if (!edit.range) {
-			range = this._model.getFullModelRange();
-		} else {
-			range = edit.range;
-		}
-		this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
-
-		// honor eol-change
 		if (typeof edit.newEol === 'number') {
+			// honor eol-change
 			this._newEol = edit.newEol;
+		}
+
+		if (edit.range || edit.newText) {
+			// create edit operation
+			let range: IRange;
+			if (!edit.range) {
+				range = this._model.getFullModelRange();
+			} else {
+				range = edit.range;
+			}
+			this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
 		}
 	}
 

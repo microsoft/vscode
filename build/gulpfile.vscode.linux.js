@@ -63,10 +63,10 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@LICENSE@@', product.licenseName))
 			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
 
-		const icon = gulp.src('resources/linux/code.png', { base: '.' })
+		const icon = gulp.src('resources/linux/code.png', { base: '.', buffer: false })
 			.pipe(rename('usr/share/pixmaps/' + product.applicationName + '.png'));
 
-		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
+		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir, buffer: false })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
 
 		let size = 0;
@@ -111,7 +111,7 @@ function buildDebPackage(arch) {
 		'mkdir -p deb',
 		'fakeroot dpkg-deb -b ' + product.applicationName + '-' + debArch + ' deb',
 		'dpkg-scanpackages deb /dev/null > Packages'
-	], { cwd: '.build/linux/deb/' + debArch});
+	], { cwd: '.build/linux/deb/' + debArch });
 }
 
 function getRpmBuildPath(rpmArch) {
@@ -139,7 +139,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@LICENSE@@', product.licenseName))
 			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
 
-		const icon = gulp.src('resources/linux/code.png', { base: '.' })
+		const icon = gulp.src('resources/linux/code.png', { base: '.', buffer: false })
 			.pipe(rename('BUILD/usr/share/pixmaps/' + product.applicationName + '.png'));
 
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
@@ -212,13 +212,13 @@ function prepareFlatpak(arch) {
 			.pipe(replace('@@LICENSE@@', product.licenseName))
 			.pipe(rename('share/appdata/' + flatpakManifest.appId + '.appdata.xml')));
 
-		all.push(gulp.src(binaryDir + '/**/*', { base:binaryDir })
+		all.push(gulp.src(binaryDir + '/**/*', { base: binaryDir, buffer: false })
 			.pipe(rename(function (p) {
 				p.dirname = 'share/' + product.applicationName + '/' + p.dirname;
 			})));
 
 		return es.merge(all).pipe(vfs.dest(destination));
-	}
+	};
 }
 
 function buildFlatpak(arch) {
@@ -249,7 +249,7 @@ function buildFlatpak(arch) {
 	}
 	return function (cb) {
 		require('flatpak-bundler').bundle(manifest, buildOptions, cb);
-	}
+	};
 }
 
 gulp.task('clean-vscode-linux-ia32-deb', util.rimraf('.build/linux/deb/i386'));

@@ -420,9 +420,9 @@
       "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.0.11.tgz"
     },
     "vscode-textmate": {
-      "version": "3.1.1",
-      "from": "vscode-textmate@3.1.1",
-      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-3.1.1.tgz"
+      "version": "3.1.2",
+      "from": "vscode-textmate@3.1.2",
+      "resolved": "https://registry.npmjs.org/vscode-textmate/-/vscode-textmate-3.1.2.tgz"
     },
     "windows-foreground-love": {
       "version": "0.1.0",

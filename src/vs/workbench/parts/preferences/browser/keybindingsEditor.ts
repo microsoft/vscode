@@ -31,6 +31,8 @@ import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 let $ = DOM.$;
 
@@ -261,10 +263,26 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.render())));
 		this._register(this.searchWidget.onNavigate(back => this._onNavigate(back)));
 
-		const openKeybindingsContainer = DOM.append(this.headerContainer, $('.open-keybindings-container'));
-		DOM.append(openKeybindingsContainer, $('span', null, localize('header-message', "For advanced customizations open and edit ")));
-		const fileElement = DOM.append(openKeybindingsContainer, $('span.file-name', null, localize('keybindings-file-name', "keybindings.json")));
+		this.createOpenKeybindingsElement(this.headerContainer);
+	}
+
+	private createOpenKeybindingsElement(parent: HTMLElement): void {
+		const openKeybindingsContainer = DOM.append(parent, $('.open-keybindings-container'));
+		DOM.append(openKeybindingsContainer, $('', null, localize('header-message', "For advanced customizations open and edit")));
+		const fileElement = DOM.append(openKeybindingsContainer, $('.file-name', null, localize('keybindings-file-name', "keybindings.json")));
+		fileElement.tabIndex = 0;
+
 		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.CLICK, () => this.preferencesService.openGlobalKeybindingSettings(true)));
+		this._register(DOM.addDisposableListener(fileElement, DOM.EventType.KEY_UP, e => {
+			let keyboardEvent = new StandardKeyboardEvent(e);
+			switch (keyboardEvent.keyCode) {
+				case KeyCode.Enter:
+					this.preferencesService.openGlobalKeybindingSettings(true);
+					keyboardEvent.preventDefault();
+					keyboardEvent.stopPropagation();
+					return;
+			}
+		}));
 	}
 
 	private createBody(parent: HTMLElement): void {

@@ -33,9 +33,11 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 				for (let key in settings) {
 					let mappings = settingToColorIdMapping[key];
 					if (mappings) {
-						let color = Color.fromHex(settings[key]);
-						for (let colorId of mappings) {
-							resultColors[colorId] = color;
+						let color = Color.fromHex(settings[key], null);
+						if (color) {
+							for (let colorId of mappings) {
+								resultColors[colorId] = color;
+							}
 						}
 					}
 					if (key !== 'foreground' && key !== 'background') {

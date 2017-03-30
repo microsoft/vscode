@@ -28,6 +28,11 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 
 function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void {
 
+	edits = edits.filter(edit => edit.range);
+	if (!edits) {
+		return;
+	}
+
 	let { range } = edits[0];
 	for (let i = 1; i < edits.length; i++) {
 		range = Range.plusRange(range, edits[i].range);

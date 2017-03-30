@@ -383,6 +383,9 @@ export function matchesFuzzy2(pattern: string, word: string): number[] {
 
 export function createMatches(position: number[]): IMatch[] {
 	let ret: IMatch[] = [];
+	if (!position) {
+		return ret;
+	}
 	let last: IMatch;
 	for (const pos of position) {
 		if (last && last.end === pos) {
@@ -440,6 +443,8 @@ _seps['.'] = true;
 _seps[' '] = true;
 _seps['/'] = true;
 _seps['\\'] = true;
+_seps['\''] = true;
+_seps['"'] = true;
 
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
@@ -602,7 +607,7 @@ function findAllMatches(patternLen: number, patternPos: number, wordPos: number,
 			matches.unshift(wordPos);
 
 		} else {
-			// undefined
+			return undefined;
 		}
 	}
 

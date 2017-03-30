@@ -14,11 +14,10 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 
 	static execute(editor: editorCommon.ICommonCodeEditor, edits: TextEdit[]) {
 		const cmd = new EditOperationsCommand(edits, editor.getSelection());
-		editor.executeCommand('formatEditsCommand', cmd);
-
 		if (typeof cmd._newEol === 'number') {
 			editor.getModel().setEOL(cmd._newEol);
 		}
+		editor.executeCommand('formatEditsCommand', cmd);
 	}
 
 	private _edits: TextEdit[];
@@ -28,8 +27,18 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 	private _selectionId: string;
 
 	constructor(edits: TextEdit[], initialSelection: Selection) {
-		this._edits = edits;
 		this._initialSelection = initialSelection;
+		this._edits = [];
+		this._newEol = undefined;
+
+		for (let edit of edits) {
+			if (typeof edit.eol === 'number') {
+				this._newEol = edit.eol;
+			}
+			if (edit.range && edit.text) {
+				this._edits.push(edit);
+			}
+		}
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
@@ -40,7 +49,6 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 			if (trimEdit !== null) { // produced above in case the edit.text is identical to the existing text
 				builder.addEditOperation(Range.lift(edit.range), edit.text);
 			}
-			this._newEol = edit.eol;
 		}
 
 		var selectionIsSet = false;
