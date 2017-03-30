@@ -134,6 +134,7 @@ export const highContrastOutline = registerColor('highContrastOutline', { light:
 export const inputBackground = registerColor('inputBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('inputBackground', 'Input field background'));
 export const inputForeground = registerColor('inputForeground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('inputForeground', 'Input field foreground'));
 export const inputBorder = registerColor('inputBorder', { dark: null, light: null, hc: highContrastBorder }, nls.localize('inputBorder', 'Input field border'));
+export const inputActiveOptionBorder = registerColor('inputActiveOptionBorder', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('inputActiveOptionBorder', 'Border color of activated options in input fields'));
 
 export const selectBackground = registerColor('selectBackground', { dark: '#3C3C3C', light: Color.white, hc: '#3C3C3C' }, nls.localize('selectBackground', 'Select field background'));
 export const selectForeground = registerColor('selectForeground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('selectForeground', 'Select field foreground'));
@@ -175,8 +176,6 @@ export const editorLinkForeground = registerColor('editorLinkForeground', { dark
  * Find widget
  */
 export const editorFindWidgetBackground = registerColor('editorFindWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorFindWidgetBackground', 'Find widget background'));
-export const editorFindCheckedBorders = registerColor('editorFindCheckedBorders', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('editorFindCheckedBorders', 'Find widget checked border color'));
-
 
 // ----- color functions
 

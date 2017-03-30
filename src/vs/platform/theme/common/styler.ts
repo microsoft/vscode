@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, editorFindCheckedBorders } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from "vs/base/common/lifecycle";
 
 export interface IThemable {
@@ -44,12 +44,12 @@ export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeSer
 	});
 }
 
-export function attachFindInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: { inputBackground?: ColorIdentifier, inputForeground?: ColorIdentifier, inputBorder?: ColorIdentifier, checkedBorderColor?: ColorIdentifier }): IDisposable {
+export function attachFindInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: { inputBackground?: ColorIdentifier, inputForeground?: ColorIdentifier, inputBorder?: ColorIdentifier, inputActiveOptionBorder?: ColorIdentifier }): IDisposable {
 	return attachStyler(themeService, widget, {
 		inputBackground: (style && style.inputBackground) || inputBackground,
 		inputForeground: (style && style.inputForeground) || inputForeground,
 		inputBorder: (style && style.inputBorder) || inputBorder,
-		checkedBorderColor: (style && style.checkedBorderColor) || editorFindCheckedBorders
+		inputActiveOptionBorder: (style && style.inputActiveOptionBorder) || inputActiveOptionBorder
 	});
 }
 

@@ -26,7 +26,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, highContrastOutline, highContrastBorder, inputBackground as findInputBackground, editorFindWidgetBackground, editorFindCheckedBorders } from "vs/platform/theme/common/colorRegistry";
+import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, highContrastOutline, highContrastBorder, inputBackground as findInputBackground, editorFindWidgetBackground, inputActiveOptionBorder } from "vs/platform/theme/common/colorRegistry";
 
 export interface IFindController {
 	replace(): void;
@@ -348,7 +348,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		let inputStyles = { checkedBorderColor: theme.getColor(editorFindCheckedBorders) };
+		let inputStyles = { inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder) };
 		this._findInput.style(inputStyles);
 	}
 

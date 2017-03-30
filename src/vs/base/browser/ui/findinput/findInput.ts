@@ -16,6 +16,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
 import { Color } from "vs/base/common/color";
+import { ICheckboxStyles } from "vs/base/browser/ui/checkbox/checkbox";
 
 export interface IFindInputOptions extends IFindInputStyles {
 	placeholder?: string;
@@ -29,7 +30,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 }
 
 export interface IFindInputStyles extends IInputBoxStyles {
-	checkedBorderColor?: Color;
+	inputActiveOptionBorder?: Color;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -44,7 +45,7 @@ export class FindInput extends Widget {
 	private validation: IInputValidator;
 	private label: string;
 
-	private checkedBorderColor: Color;
+	private inputActiveOptionBorder: Color;
 	private inputBackground: Color;
 	private inputForeground: Color;
 
@@ -77,7 +78,7 @@ export class FindInput extends Widget {
 		this.validation = options.validation;
 		this.label = options.label || NLS_DEFAULT_LABEL;
 
-		this.checkedBorderColor = options.checkedBorderColor;
+		this.inputActiveOptionBorder = options.inputActiveOptionBorder;
 		this.inputBackground = options.inputBackground;
 		this.inputForeground = options.inputForeground;
 
@@ -146,7 +147,7 @@ export class FindInput extends Widget {
 	}
 
 	public style(styles: IFindInputStyles) {
-		this.checkedBorderColor = styles.checkedBorderColor;
+		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		this.inputBackground = styles.inputBackground;
 		this.inputForeground = styles.inputForeground;
 
@@ -155,16 +156,18 @@ export class FindInput extends Widget {
 
 	protected _applyStyles() {
 		if (this.domNode) {
-			const styles: IFindInputStyles = {
-				checkedBorderColor: this.checkedBorderColor,
+			const checkBoxStyles: ICheckboxStyles = {
+				inputActiveOptionBorderColor: this.inputActiveOptionBorder,
+			};
+			this.regex.style(checkBoxStyles);
+			this.wholeWords.style(checkBoxStyles);
+			this.caseSensitive.style(checkBoxStyles);
+
+			const inputBoxStyles: IInputBoxStyles = {
 				inputBackground: this.inputBackground,
 				inputForeground: this.inputForeground
 			};
-
-			this.regex.style(styles);
-			this.wholeWords.style(styles);
-			this.caseSensitive.style(styles);
-			this.inputBox.style(styles);
+			this.inputBox.style(inputBoxStyles);
 		}
 	}
 
@@ -246,7 +249,7 @@ export class FindInput extends Widget {
 				this.setInputWidth();
 				this.validate();
 			},
-			checkedBorderColor: this.checkedBorderColor
+			inputActiveOptionBorderColor: this.inputActiveOptionBorder
 		}));
 		this.wholeWords = this._register(new WholeWordsCheckbox({
 			appendTitle: appendWholeWordsLabel,
@@ -259,7 +262,7 @@ export class FindInput extends Widget {
 				this.setInputWidth();
 				this.validate();
 			},
-			checkedBorderColor: this.checkedBorderColor
+			inputActiveOptionBorderColor: this.inputActiveOptionBorder
 		}));
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: appendCaseSensitiveLabel,
@@ -275,7 +278,7 @@ export class FindInput extends Widget {
 			onKeyDown: (e) => {
 				this._onCaseSensitiveKeyDown.fire(e);
 			},
-			checkedBorderColor: this.checkedBorderColor
+			inputActiveOptionBorderColor: this.inputActiveOptionBorder
 		}));
 
 		// Arrow-Key support to navigate between options

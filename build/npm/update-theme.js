@@ -54,7 +54,7 @@ exports.update = function (srcName, destName) {
 	} catch (e) {
 		console.log(e);
 	}
-}
+};
 
 if (path.basename(process.argv[1]) === 'update-theme.js') {
 	exports.update(process.argv[2], process.argv[3]);
