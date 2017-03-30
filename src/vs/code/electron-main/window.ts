@@ -372,7 +372,7 @@ export class VSCodeWindow {
 				this.send('vscode:runAction', 'workbench.action.navigateForward');
 			}
 		});
-		
+
 		// Swipe command support (macOS)
 		this._win.on('swipe', (e, cmd) => {
 			if (this.readyState !== ReadyState.READY) {
