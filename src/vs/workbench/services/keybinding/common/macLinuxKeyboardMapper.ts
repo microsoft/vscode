@@ -838,6 +838,11 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public simpleKeybindingToScanCodeBinding(keybinding: SimpleKeybinding): ScanCodeBinding[] {
+		// Avoid double Enter bindings (both ScanCode.NumpadEnter and ScanCode.Enter point to KeyCode.Enter)
+		if (keybinding.keyCode === KeyCode.Enter) {
+			return [new ScanCodeBinding(keybinding.ctrlKey, keybinding.shiftKey, keybinding.altKey, keybinding.metaKey, ScanCode.Enter)];
+		}
+
 		const scanCodeCombos = this._scanCodeKeyCodeMapper.lookupKeyCodeCombo(
 			new KeyCodeCombo(keybinding.ctrlKey, keybinding.shiftKey, keybinding.altKey, keybinding.keyCode)
 		);
@@ -974,7 +979,12 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	public resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): NativeResolvedKeybinding {
-		const keypress = new ScanCodeBinding(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, ScanCodeUtils.toEnum(keyboardEvent.code));
+		let code = ScanCodeUtils.toEnum(keyboardEvent.code);
+		// Treat NumpadEnter as Enter
+		if (code === ScanCode.NumpadEnter) {
+			code = ScanCode.Enter;
+		}
+		const keypress = new ScanCodeBinding(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, code);
 		return new NativeResolvedKeybinding(this, this._OS, keypress, null);
 	}
 
