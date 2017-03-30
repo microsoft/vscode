@@ -271,7 +271,7 @@
 		"editorPeekResultsSelectedForeground": "#7799ee",
 		"editorPeekEditorBackground": "#001F33",
 		"editorPeekTitleBackground": "#060621",
-		"editorPeekBorders": "#7777cc",
+		"editorPeekBorder": "#7777cc",
 		"editorPeekEditorMatchHighlight": "#ddbb5555",
 
 		"editorLineNumbers": "#406385",
