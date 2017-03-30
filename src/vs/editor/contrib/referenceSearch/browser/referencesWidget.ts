@@ -778,7 +778,7 @@ export class ReferenceWidget extends PeekViewWidget {
 export const peekViewTitleBackground = registerColor('peekViewTitleBackground', { dark: '#1E1E1E', light: '#FFFFFF', hc: '#0C141F' }, nls.localize('peekViewTitleBackground', 'Background color of the peek view title area.'));
 export const peekViewTitle = registerColor('peekViewTitle', { dark: '#FFFFFF', light: '#333333', hc: '#FFFFFF' }, nls.localize('peekViewTitle', 'Color of the peek view title.'));
 export const peekViewTitleInfo = registerColor('peekViewTitleInfo', { dark: '#ccccccb3', light: '#6c6c6cb3', hc: '#FFFFFF99' }, nls.localize('peekViewTitleInfo', 'Color of the peek view title info.'));
-export const peekViewBorder = registerColor('peekViewBorder', { dark: '#007acc', light: '#007acc', hc: '#6FC3DF' }, nls.localize('peekViewBorder', 'Color of the peek view borders and arrow'));
+export const peekViewBorder = registerColor('peekViewBorder', { dark: '#007acc', light: '#007acc', hc: '#6FC3DF' }, nls.localize('peekViewBorder', 'Color of the peek view borders and arrow.'));
 
 export const peekViewResultsBackground = registerColor('peekViewResultsBackground', { dark: '#252526', light: '#F3F3F3', hc: Color.black }, nls.localize('peekViewResultsBackground', 'Background color of the peek view result list.'));
 export const peekViewResultsMatchForeground = registerColor('peekViewResultsMatchForeground', { dark: '#bbbbbb', light: '#646465', hc: Color.white }, nls.localize('peekViewResultsMatchForeground', 'Match entry foreground in the peek view result list.'));
