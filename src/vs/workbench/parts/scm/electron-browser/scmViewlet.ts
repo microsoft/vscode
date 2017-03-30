@@ -60,16 +60,14 @@ class SCMMenuItemActionItem extends MenuItemActionItem {
 	}
 }
 
-// TODO@Joao
-// Rename contextKey to something else
 function identityProvider(r: ISCMResourceGroup | ISCMResource): string {
 	if (isSCMResource(r)) {
 		const group = r.resourceGroup;
 		const provider = group.provider;
-		return `${provider.contextKey}/${group.contextKey}/${r.sourceUri.toString()}`;
+		return `${provider.id}/${group.id}/${r.sourceUri.toString()}`;
 	} else {
 		const provider = r.provider;
-		return `${provider.contextKey}/${r.contextKey}`;
+		return `${provider.id}/${r.id}`;
 	}
 }
 

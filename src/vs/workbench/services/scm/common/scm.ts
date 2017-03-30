@@ -17,6 +17,7 @@ export interface IBaselineResourceProvider {
 }
 
 export const ISCMService = createDecorator<ISCMService>('scm');
+export const DefaultSCMProviderIdStorageKey = 'settings.workspace.scm.defaultProviderId';
 
 export interface ISCMResourceDecorations {
 	icon?: URI;
@@ -34,13 +35,13 @@ export interface ISCMResource {
 export interface ISCMResourceGroup {
 	readonly provider: ISCMProvider;
 	readonly label: string;
-	readonly contextKey?: string;
+	readonly id: string;
 	readonly resources: ISCMResource[];
 }
 
 export interface ISCMProvider extends IDisposable {
 	readonly label: string;
-	readonly contextKey?: string;
+	readonly id: string;
 	readonly resources: ISCMResourceGroup[];
 	readonly onDidChange: Event<void>;
 	readonly count?: number;

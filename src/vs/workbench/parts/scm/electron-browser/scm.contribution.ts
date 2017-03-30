@@ -33,7 +33,6 @@ class OpenSCMViewletAction extends ToggleViewletAction {
 	}
 }
 
-// TODO@Joao
 export class SwitchProvider extends Action {
 
 	static readonly ID = 'scm.switch';

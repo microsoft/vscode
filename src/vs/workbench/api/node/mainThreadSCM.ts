@@ -24,7 +24,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		public provider: ISCMProvider,
 		public features: SCMGroupFeatures,
 		public label: string,
-		public contextKey: string,
+		public id: string,
 		public resources: ISCMResource[]
 	) { }
 
@@ -76,7 +76,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	get handle(): number { return this._handle; }
 	get label(): string { return this._label; }
-	get contextKey(): string { return this._id; }
+	get id(): string { return this._id; }
 
 	get commitTemplate(): string | undefined { return this.features.commitTemplate; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
