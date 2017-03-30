@@ -11,7 +11,6 @@ import { Model, Resource, Status, CommitOptions } from './model';
 import * as staging from './staging';
 import * as path from 'path';
 import * as os from 'os';
-import { uniqueFilter } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 
@@ -271,9 +270,7 @@ export class CommandCenter {
 	}
 
 	@command('git.stage')
-	async stage(...uris: Uri[]): Promise<void> {
-		const resources = this.toSCMResources(uris);
-
+	async stage(...resources: Resource[]): Promise<void> {
 		if (!resources.length) {
 			return;
 		}
@@ -366,9 +363,7 @@ export class CommandCenter {
 	}
 
 	@command('git.unstage')
-	async unstage(...uris: Uri[]): Promise<void> {
-		const resources = this.toSCMResources(uris);
-
+	async unstage(...resources: Resource[]): Promise<void> {
 		if (!resources.length) {
 			return;
 		}
@@ -423,9 +418,7 @@ export class CommandCenter {
 	}
 
 	@command('git.clean')
-	async clean(...uris: Uri[]): Promise<void> {
-		const resources = this.toSCMResources(uris);
-
+	async clean(...resources: Resource[]): Promise<void> {
 		if (!resources.length) {
 			return;
 		}
@@ -784,12 +777,6 @@ export class CommandCenter {
 			return this.model.workingTreeGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0]
 				|| this.model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
-	}
-
-	private toSCMResources(uris: Uri[]): Resource[] {
-		return uris.filter(uniqueFilter(uri => uri.toString()))
-			.map(uri => this.resolveSCMResource(uri))
-			.filter(r => !!r) as Resource[];
 	}
 
 	dispose(): void {

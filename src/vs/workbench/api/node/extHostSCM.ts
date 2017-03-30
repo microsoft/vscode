@@ -12,6 +12,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource } from './extHost.protocol';
 import * as vscode from 'vscode';
+import * as marshalling from 'vs/base/common/marshalling';
 
 function getIconPath(decorations: vscode.SourceControlResourceThemableDecorations) {
 	if (!decorations) {
@@ -70,6 +71,8 @@ export class ExtHostSCMInputBox {
 class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceGroup {
 
 	private static _handlePool: number = 0;
+	private _resourceHandlePool: number = 0;
+	private _resourceStates: Map<ResourceStateHandle, vscode.SourceControlResourceState> = new Map<ResourceStateHandle, vscode.SourceControlResourceState>();
 
 	get id(): string {
 		return this._id;
@@ -90,16 +93,13 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._proxy.$updateGroup(this._sourceControlHandle, this._handle, { hideWhenEmpty });
 	}
 
-	private _resourcesStates: vscode.SourceControlResourceState[] = [];
-
-	get resourceStates(): vscode.SourceControlResourceState[] {
-		return this._resourcesStates;
-	}
-
 	set resourceStates(resources: vscode.SourceControlResourceState[]) {
-		this._resourcesStates = resources;
+		this._resourceStates.clear();
 
 		const rawResources = resources.map(r => {
+			const handle = this._resourceHandlePool++;
+			this._resourceStates.set(handle, r);
+
 			const sourceUri = r.resourceUri.toString();
 			const command = this._commands.toInternal(r.command);
 			const iconPath = getIconPath(r.decorations);
@@ -117,13 +117,16 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 			const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 
-			return [sourceUri, command, icons, strikeThrough] as SCMRawResource;
+			return [handle, sourceUri, command, icons, strikeThrough] as SCMRawResource;
 		});
 
 		this._proxy.$updateGroupResourceStates(this._sourceControlHandle, this._handle, rawResources);
 	}
 
-	private _handle: number = ExtHostSourceControlResourceGroup._handlePool++;
+	private _handle: GroupHandle = ExtHostSourceControlResourceGroup._handlePool++;
+	get handle(): GroupHandle {
+		return this._handle;
+	}
 
 	constructor(
 		private _proxy: MainThreadSCMShape,
@@ -135,6 +138,10 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		this._proxy.$registerGroup(_sourceControlHandle, this._handle, _id, _label);
 	}
 
+	getResourceState(handle: number): vscode.SourceControlResourceState | undefined {
+		return this._resourceStates.get(handle);
+	}
+
 	dispose(): void {
 		this._proxy.$unregisterGroup(this._sourceControlHandle, this._handle);
 	}
@@ -143,6 +150,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 class ExtHostSourceControl implements vscode.SourceControl {
 
 	private static _handlePool: number = 0;
+	private _groups: Map<GroupHandle, ExtHostSourceControlResourceGroup> = new Map<GroupHandle, ExtHostSourceControlResourceGroup>();
 
 	get id(): string {
 		return this._id;
@@ -186,7 +194,19 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	createResourceGroup(id: string, label: string): ExtHostSourceControlResourceGroup {
-		return new ExtHostSourceControlResourceGroup(this._proxy, this._commands, this._handle, id, label);
+		const group = new ExtHostSourceControlResourceGroup(this._proxy, this._commands, this._handle, id, label);
+		this._groups.set(group.handle, group);
+		return group;
+	}
+
+	getResourceState(groupHandle: GroupHandle, handle: number): vscode.SourceControlResourceState | undefined {
+		const group = this._groups.get(groupHandle);
+
+		if (!group) {
+			return undefined;
+		}
+
+		return group.getResourceState(handle);
 	}
 
 	dispose(): void {
@@ -195,13 +215,15 @@ class ExtHostSourceControl implements vscode.SourceControl {
 }
 
 type ProviderHandle = number;
+type GroupHandle = number;
+type ResourceStateHandle = number;
 
 export class ExtHostSCM {
 
 	private static _handlePool: number = 0;
 
 	private _proxy: MainThreadSCMShape;
-	private _sourceControls: Map<ProviderHandle, vscode.SourceControl> = new Map<ProviderHandle, vscode.SourceControl>();
+	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
 
 	private _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
@@ -218,6 +240,17 @@ export class ExtHostSCM {
 	) {
 		this._proxy = threadService.get(MainContext.MainThreadSCM);
 		this._inputBox = new ExtHostSCMInputBox(this._proxy);
+
+		// TODO@joao HACK
+		marshalling.ResolverRegistry[3] = value => {
+			const sourceControl = this._sourceControls.get(value.sourceControlHandle);
+
+			if (!sourceControl) {
+				return value;
+			}
+
+			return sourceControl.getResourceState(value.groupHandle, value.handle);
+		};
 	}
 
 	createSourceControl(id: string, label: string): vscode.SourceControl {

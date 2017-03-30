@@ -14,13 +14,38 @@ import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/w
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource, SCMGroupFeatures } from './extHost.protocol';
+import { Command } from 'vs/editor/common/modes';
 
 interface IMainThreadSCMResourceGroup {
+	handle: number;
+	provider: ISCMProvider;
 	uri: URI;
 	features: SCMGroupFeatures;
 	label: string;
 	contextKey?: string;
 	resources: ISCMResource[];
+}
+
+class MainThreadSCMResource implements ISCMResource {
+
+	constructor(
+		private sourceControlHandle: number,
+		private groupHandle: number,
+		private handle: number,
+		public sourceUri: URI,
+		public command: Command,
+		public resourceGroup: ISCMResourceGroup,
+		public decorations
+	) { }
+
+	toJSON(): any {
+		return {
+			$mid: 3,
+			sourceControlHandle: this.sourceControlHandle,
+			groupHandle: this.groupHandle,
+			handle: this.handle
+		};
+	}
 }
 
 class MainThreadSCMProvider implements ISCMProvider {
@@ -61,6 +86,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	$registerGroup(handle: number, id: string, label: string): void {
 		const group: IMainThreadSCMResourceGroup = {
+			handle,
+			provider: this,
 			contextKey: id,
 			label,
 			uri: null,
@@ -91,7 +118,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		}
 
 		group.resources = resources.map(rawResource => {
-			const [sourceUri, command, icons, strikeThrough] = rawResource;
+			const [handle, sourceUri, command, icons, strikeThrough] = rawResource;
 			const icon = icons[0];
 			const iconDark = icons[1] || icon;
 			const decorations = {
@@ -100,12 +127,15 @@ class MainThreadSCMProvider implements ISCMProvider {
 				strikeThrough
 			};
 
-			return {
-				sourceUri: URI.parse(sourceUri),
+			return new MainThreadSCMResource(
+				this.handle,
+				group.handle,
+				handle,
+				URI.parse(sourceUri),
 				command,
-				resourceGroup: group,
+				group,
 				decorations
-			};
+			);
 		});
 
 		this._onDidChange.fire();

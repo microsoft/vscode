@@ -260,6 +260,7 @@ export interface SCMGroupFeatures {
 }
 
 export type SCMRawResource = [
+	number /*handle*/,
 	string /*resourceUri*/,
 	modes.Command /*command*/,
 	string[] /*icons: light, dark*/,

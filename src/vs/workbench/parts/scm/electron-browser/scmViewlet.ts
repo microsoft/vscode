@@ -34,16 +34,44 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
-import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from "vs/platform/theme/common/themeService";
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
-import URI from 'vs/base/common/uri';
 import { isSCMResource } from './scmUtil';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import Severity from 'vs/base/common/severity';
+
+// TODO@Joao
+// Need to subclass MenuItemActionItem in order to respect
+// the action context coming from any action bar, without breaking
+// existing users
+class SCMMenuItemActionItem extends MenuItemActionItem {
+
+	onClick(event: MouseEvent): void {
+		event.preventDefault();
+		event.stopPropagation();
+
+		this.actionRunner.run(this._commandAction, this._context)
+			.done(undefined, err => this._messageService.show(Severity.Error, err));
+	}
+}
+
+// TODO@Joao
+// Rename contextKey to something else
+function identityProvider(r: ISCMResourceGroup | ISCMResource): string {
+	if (isSCMResource(r)) {
+		const group = r.resourceGroup;
+		const provider = group.provider;
+		return `${provider.contextKey}/${group.contextKey}/${r.sourceUri.toString()}`;
+	} else {
+		const provider = r.provider;
+		return `${provider.contextKey}/${r.contextKey}`;
+	}
+}
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -98,22 +126,20 @@ interface ResourceTemplate {
 
 class MultipleSelectionActionRunner extends ActionRunner {
 
-	constructor(private getSelectedResources: () => URI[]) {
+	constructor(private getSelectedResources: () => (ISCMResource | ISCMResourceGroup)[]) {
 		super();
 	}
 
-	/**
-	 * Calls the action.run method with the current selection. Note
-	 * that these actions already have the current scm resource context
-	 * within, so we don't want to pass in the selection if there is only
-	 * one selected element. The user should be able to select a single
-	 * item and run an action on another element and only the latter should
-	 * be influenced.
-	 */
-	runAction(action: IAction, context?: any): TPromise<any> {
+	runAction(action: IAction, context: ISCMResource | ISCMResourceGroup): TPromise<any> {
 		if (action instanceof MenuItemAction) {
 			const selection = this.getSelectedResources();
-			return selection.length > 1 ? action.run(...selection) : action.run();
+			const filteredSelection = selection.filter(s => s !== context);
+
+			if (selection.length === filteredSelection.length || selection.length === 1) {
+				return action.run(context);
+			}
+
+			return action.run(context, ...filteredSelection);
 		}
 
 		return super.runAction(action, context);
@@ -128,7 +154,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	constructor(
 		private scmMenus: SCMMenus,
 		private actionItemProvider: IActionItemProvider,
-		private getSelectedResources: () => URI[],
+		private getSelectedResources: () => ISCMResource[],
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) { }
@@ -151,6 +177,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
 		template.fileLabel.setFile(resource.sourceUri);
 		template.actionBar.clear();
+		template.actionBar.context = resource;
 		template.actionBar.push(this.scmMenus.getResourceActions(resource));
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 
@@ -263,7 +290,7 @@ export class SCMViewlet extends Viewlet {
 		];
 
 		this.list = new List(this.listContainer, delegate, renderers, {
-			identityProvider: e => e.uri.toString(),
+			identityProvider,
 			keyboardSupport: false
 		});
 
@@ -337,7 +364,11 @@ export class SCMViewlet extends Viewlet {
 	}
 
 	getActionItem(action: IAction): IActionItem {
-		return createActionItem(action, this.keybindingService, this.messageService);
+		if (!(action instanceof MenuItemAction)) {
+			return undefined;
+		}
+
+		return new SCMMenuItemActionItem(action, this.keybindingService, this.messageService);
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMResourceGroup | ISCMResource>): void {
@@ -353,12 +384,14 @@ export class SCMViewlet extends Viewlet {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => TPromise.as(actions),
+			getActionsContext: () => element,
 			actionRunner: new MultipleSelectionActionRunner(() => this.getSelectedResources())
 		});
 	}
 
-	private getSelectedResources(): URI[] {
-		return this.list.getSelectedElements().map(r => r.uri);
+	private getSelectedResources(): ISCMResource[] {
+		return this.list.getSelectedElements()
+			.filter(r => isSCMResource(r)) as ISCMResource[];
 	}
 
 	dispose(): void {

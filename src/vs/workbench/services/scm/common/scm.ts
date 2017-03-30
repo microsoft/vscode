@@ -34,6 +34,7 @@ export interface ISCMResource {
 
 export interface ISCMResourceGroup {
 	// readonly uri: URI;
+	readonly provider: ISCMProvider;
 	readonly label: string;
 	readonly contextKey?: string;
 	readonly resources: ISCMResource[];
