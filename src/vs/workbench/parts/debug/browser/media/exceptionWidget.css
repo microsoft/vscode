@@ -18,8 +18,12 @@
 	font-weight: bold;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .message {
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .description,
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+}
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
 	margin-top: 0.5em;
 }
 
