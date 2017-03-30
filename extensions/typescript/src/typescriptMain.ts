@@ -70,7 +70,6 @@ export function activate(context: ExtensionContext): void {
 	const MODE_ID_TSX = 'typescriptreact';
 	const MODE_ID_JS = 'javascript';
 	const MODE_ID_JSX = 'javascriptreact';
-	const selector = [MODE_ID_TS, MODE_ID_TSX, MODE_ID_JS, MODE_ID_JSX];
 
 	const clientHost = new TypeScriptServiceClientHost([
 		{
@@ -108,9 +107,6 @@ export function activate(context: ExtensionContext): void {
 		client.openTsServerLogFile();
 	}));
 
-	context.subscriptions.push(
-		languages.registerCompletionItemProvider(selector, new JsDocCompletionHelper(client), '*'));
-
 	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
 		if (editor) {
@@ -146,6 +142,7 @@ class LanguageProvider {
 	private typingsStatus: TypingsStatus;
 	private referenceCodeLensProvider: ReferenceCodeLensProvider;
 	private implementationCodeLensProvider: ImplementationCodeLensProvider;
+	private jsDocCompletionHelper: JsDocCompletionHelper;
 
 	private _validate: boolean = true;
 
@@ -211,6 +208,10 @@ class LanguageProvider {
 		if (this.formattingProvider.isEnabled()) {
 			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(selector, this.formattingProvider);
 		}
+
+		this.jsDocCompletionHelper = new JsDocCompletionHelper(client);
+		this.jsDocCompletionHelper.updateConfiguration();
+		this.disposables.push(languages.registerCompletionItemProvider(selector, this.jsDocCompletionHelper, '*'));
 
 		this.disposables.push(languages.registerHoverProvider(selector, new HoverProvider(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new DefinitionProvider(client)));
@@ -320,6 +321,9 @@ class LanguageProvider {
 			} else if (this.formattingProvider.isEnabled() && !this.formattingProviderRegistration) {
 				this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
 			}
+		}
+		if (this.jsDocCompletionHelper) {
+			this.jsDocCompletionHelper.updateConfiguration();
 		}
 	}
 
