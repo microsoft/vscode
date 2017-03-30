@@ -294,7 +294,7 @@
 	"colors": {
 		"editorBackground": "#002B36",
 		"editorCursor": "#D30102",
-		"editorInvisibles": "#93A1A180",
+		"editorWhitespaces": "#93A1A180",
 		"editorLineHighlight": "#073642",
 		"editorSelection": "#073642",
 

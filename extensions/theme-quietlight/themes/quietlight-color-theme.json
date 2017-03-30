@@ -454,7 +454,7 @@
 	],
 	"colors": {
 		"editorBackground": "#F5F5F5",
-		"editorInvisibles": "#AAAAAA",
+		"editorWhitespaces": "#AAAAAA",
 		"editorLineHighlight": "#E4F6D4",
 		"editorSelection": "#C9D0D9",
 		"statusBarBackground": "#705697",

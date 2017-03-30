@@ -15,8 +15,8 @@ export const editorLineHighlight = registerColor('editorLineHighlight', { dark: 
 export const editorLineHighlightBorder = registerColor('editorLineHighlightBorder', { dark: '#282828', light: '#eeeeee', hc: '#f38518' }, nls.localize('lineHighlightBorderBox', 'Background color for the border around the line at the cursor position'));
 export const editorRangeHighlight = registerColor('editorRangeHighlight', { dark: '#ffffff0b', light: '#fdff0033', hc: null }, nls.localize('rangeHighlight', 'Background color of highlighted ranges, like by quick open and find features'));
 export const editorCursor = registerColor('editorCursor', { dark: '#AEAFAD', light: Color.black, hc: Color.white }, nls.localize('caret', 'Color of the editor cursor'));
-export const editorInvisibles = registerColor('editorInvisibles', { dark: '#e3e4e229', light: '#33333333', hc: '#e3e4e229' }, nls.localize('invisibles', 'Color of whitespace characters in the editor'));
-export const editorGuide = registerColor('editorGuide', { dark: editorInvisibles, light: editorInvisibles, hc: editorInvisibles }, nls.localize('guide', 'Color of the editor indentation guides.'));
+export const editorWhitespaces = registerColor('editorWhitespaces', { dark: '#e3e4e229', light: '#33333333', hc: '#e3e4e229' }, nls.localize('editorWhitespaces', 'Color of whitespace characters in the editor'));
+export const editorGuide = registerColor('editorGuide', { dark: editorWhitespaces, light: editorWhitespaces, hc: editorWhitespaces }, nls.localize('guide', 'Color of the editor indentation guides.'));
 export const editorLineNumbers = registerColor('editorLineNumbers', { dark: '#5A5A5A', light: '#2B91AF', hc: Color.white }, nls.localize('editorLineNumbers', 'Color of editor line numbers'));
 
 
@@ -37,7 +37,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor.${theme.selector} .rangeHighlight { border: 1px dotted ${outline}; }; }`);
 	}
 
-	let invisibles = theme.getColor(editorInvisibles);
+	let invisibles = theme.getColor(editorWhitespaces);
 	if (invisibles) {
 		collector.addRule(`.vs-whitespace { color: ${invisibles} !important; }`);
 	}

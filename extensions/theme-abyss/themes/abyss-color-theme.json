@@ -259,7 +259,7 @@
 		"editorBackground": "#000c18",
 		"editorForeground": "#6688cc",
 		"editorCursor": "#ddbb88",
-		"editorInvisibles": "#103050",
+		"editorWhitespaces": "#103050",
 		"editorLineHighlight": "#082050",
 		"editorSelection": "#770811",
 		"editorGuide": "#002952",
