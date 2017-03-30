@@ -373,15 +373,27 @@ export function registerCommands(): void {
 		win: { primary: void 0 }
 	});
 
-	CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string]) {
+	CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, { preserveFocus?: boolean, pinned?: boolean }]) {
 		const editorService = accessor.get(IWorkbenchEditorService);
-		let [leftResource, rightResource, label, description] = args;
+		let [leftResource, rightResource, label, description, options] = args;
+
+		if (typeof options === 'object') {
+			if (options !== undefined) {
+				options = {
+					preserveFocus: options.preserveFocus,
+					pinned: options.pinned
+				};
+			}
+		}
+		else {
+			options = undefined;
+		}
 
 		if (!label) {
 			label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
 		}
 
-		return editorService.openEditor({ leftResource, rightResource, label, description }).then(() => {
+		return editorService.openEditor({ leftResource, rightResource, label, description, options }).then(() => {
 			return void 0;
 		});
 	});
