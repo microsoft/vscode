@@ -30,9 +30,6 @@ function replacer(key: string, value: any): any {
 	return value;
 }
 
-// TODO@Joao hack?
-export const ResolverRegistry: { [mid: number]: (value: any) => any; } = Object.create(null);
-
 function reviver(key: string, value: any): any {
 	let marshallingConst: number;
 	if (value !== void 0 && value !== null) {
@@ -42,13 +39,6 @@ function reviver(key: string, value: any): any {
 	switch (marshallingConst) {
 		case 1: return URI.revive(value);
 		case 2: return new RegExp(value.source, value.flags);
-		default:
-			const resolver = ResolverRegistry[marshallingConst];
-
-			if (resolver) {
-				return resolver(value);
-			} else {
-				return value;
-			}
+		default: return value;
 	}
 }

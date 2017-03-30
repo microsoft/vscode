@@ -12,7 +12,6 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource } from './extHost.protocol';
 import * as vscode from 'vscode';
-import * as marshalling from 'vs/base/common/marshalling';
 
 function getIconPath(decorations: vscode.SourceControlResourceThemableDecorations) {
 	if (!decorations) {
@@ -241,16 +240,21 @@ export class ExtHostSCM {
 		this._proxy = threadService.get(MainContext.MainThreadSCM);
 		this._inputBox = new ExtHostSCMInputBox(this._proxy);
 
-		// TODO@joao HACK
-		marshalling.ResolverRegistry[3] = value => {
-			const sourceControl = this._sourceControls.get(value.sourceControlHandle);
+		_commands.registerArgumentProcessor({
+			processArgument: arg => {
+				if (arg && arg.$mid === 3) {
+					const sourceControl = this._sourceControls.get(arg.sourceControlHandle);
 
-			if (!sourceControl) {
-				return value;
+					if (!sourceControl) {
+						return arg;
+					}
+
+					return sourceControl.getResourceState(arg.groupHandle, arg.handle);
+				}
+
+				return arg;
 			}
-
-			return sourceControl.getResourceState(value.groupHandle, value.handle);
-		};
+		});
 	}
 
 	createSourceControl(id: string, label: string): vscode.SourceControl {
