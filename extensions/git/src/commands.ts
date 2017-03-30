@@ -5,9 +5,9 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange } from 'vscode';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState } from 'vscode';
 import { Ref, RefType, Git } from './git';
-import { Model, Resource, Status, CommitOptions } from './model';
+import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import * as staging from './staging';
 import * as path from 'path';
 import * as os from 'os';
@@ -270,7 +270,10 @@ export class CommandCenter {
 	}
 
 	@command('git.stage')
-	async stage(...resources: Resource[]): Promise<void> {
+	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const resources = resourceStates
+			.filter(s => s instanceof Resource && (s.resourceGroup instanceof WorkingTreeGroup || s.resourceGroup instanceof MergeGroup)) as Resource[];
+
 		if (!resources.length) {
 			return;
 		}
@@ -363,7 +366,10 @@ export class CommandCenter {
 	}
 
 	@command('git.unstage')
-	async unstage(...resources: Resource[]): Promise<void> {
+	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const resources = resourceStates
+			.filter(s => s instanceof Resource && s.resourceGroup instanceof IndexGroup) as Resource[];
+
 		if (!resources.length) {
 			return;
 		}
@@ -418,7 +424,10 @@ export class CommandCenter {
 	}
 
 	@command('git.clean')
-	async clean(...resources: Resource[]): Promise<void> {
+	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		const resources = resourceStates
+			.filter(s => s instanceof Resource && s.resourceGroup instanceof WorkingTreeGroup) as Resource[];
+
 		if (!resources.length) {
 			return;
 		}

@@ -198,14 +198,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		return group;
 	}
 
-	getResourceState(groupHandle: GroupHandle, handle: number): vscode.SourceControlResourceState | undefined {
-		const group = this._groups.get(groupHandle);
-
-		if (!group) {
-			return undefined;
-		}
-
-		return group.getResourceState(handle);
+	getResourceGroup(handle: GroupHandle): ExtHostSourceControlResourceGroup | undefined {
+		return this._groups.get(handle);
 	}
 
 	dispose(): void {
@@ -249,7 +243,21 @@ export class ExtHostSCM {
 						return arg;
 					}
 
-					return sourceControl.getResourceState(arg.groupHandle, arg.handle);
+					const group = sourceControl.getResourceGroup(arg.groupHandle);
+
+					if (!group) {
+						return arg;
+					}
+
+					return group.getResourceState(arg.handle);
+				} else if (arg && arg.$mid === 4) {
+					const sourceControl = this._sourceControls.get(arg.sourceControlHandle);
+
+					if (!sourceControl) {
+						return arg;
+					}
+
+					return sourceControl.getResourceGroup(arg.groupHandle);
 				}
 
 				return arg;

@@ -16,14 +16,25 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource, SCMGroupFeatures } from './extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 
-interface IMainThreadSCMResourceGroup {
-	handle: number;
-	provider: ISCMProvider;
-	uri: URI;
-	features: SCMGroupFeatures;
-	label: string;
-	contextKey?: string;
-	resources: ISCMResource[];
+class MainThreadSCMResourceGroup implements ISCMResourceGroup {
+
+	constructor(
+		private sourceControlHandle: number,
+		private handle: number,
+		public provider: ISCMProvider,
+		public features: SCMGroupFeatures,
+		public label: string,
+		public contextKey: string,
+		public resources: ISCMResource[]
+	) { }
+
+	toJSON(): any {
+		return {
+			$mid: 4,
+			sourceControlHandle: this.sourceControlHandle,
+			groupHandle: this.handle
+		};
+	}
 }
 
 class MainThreadSCMResource implements ISCMResource {
@@ -50,8 +61,8 @@ class MainThreadSCMResource implements ISCMResource {
 
 class MainThreadSCMProvider implements ISCMProvider {
 
-	private _groups: IMainThreadSCMResourceGroup[] = [];
-	private _groupsByHandle: { [handle: number]: IMainThreadSCMResourceGroup; } = Object.create(null);
+	private _groups: MainThreadSCMResourceGroup[] = [];
+	private _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup; } = Object.create(null);
 
 	get resources(): ISCMResourceGroup[] {
 		return this._groups
@@ -85,15 +96,15 @@ class MainThreadSCMProvider implements ISCMProvider {
 	}
 
 	$registerGroup(handle: number, id: string, label: string): void {
-		const group: IMainThreadSCMResourceGroup = {
+		const group = new MainThreadSCMResourceGroup(
+			this.handle,
 			handle,
-			provider: this,
-			contextKey: id,
+			this,
+			{},
 			label,
-			uri: null,
-			resources: [],
-			features: {}
-		};
+			id,
+			[]
+		);
 
 		this._groups.push(group);
 		this._groupsByHandle[handle] = group;
@@ -110,8 +121,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this._onDidChange.fire();
 	}
 
-	$updateGroupResourceStates(handle: number, resources: SCMRawResource[]): void {
-		const group = this._groupsByHandle[handle];
+	$updateGroupResourceStates(groupHandle: number, resources: SCMRawResource[]): void {
+		const group = this._groupsByHandle[groupHandle];
 
 		if (!group) {
 			return;
@@ -129,7 +140,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 			return new MainThreadSCMResource(
 				this.handle,
-				group.handle,
+				groupHandle,
 				handle,
 				URI.parse(sourceUri),
 				command,

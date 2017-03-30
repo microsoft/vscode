@@ -71,6 +71,7 @@ export class Resource implements SourceControlResourceState {
 		};
 	}
 
+	get resourceGroup(): ResourceGroup { return this._resourceGroup; }
 	get type(): Status { return this._type; }
 	get original(): Uri { return this._resourceUri; }
 	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
@@ -139,10 +140,15 @@ export class Resource implements SourceControlResourceState {
 		return { strikeThrough: this.strikeThrough, light, dark };
 	}
 
-	constructor(private resourceGroupId: string, private _resourceUri: Uri, private _type: Status, private _renameResourceUri?: Uri) { }
+	constructor(
+		private _resourceGroup: ResourceGroup,
+		private _resourceUri: Uri,
+		private _type: Status,
+		private _renameResourceUri?: Uri
+	) { }
 }
 
-export class ResourceGroup {
+export abstract class ResourceGroup {
 
 	get id(): string { return this._id; }
 	get contextKey(): string { return this._id; }
@@ -619,30 +625,30 @@ export class Model implements Disposable {
 			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
 
 			switch (raw.x + raw.y) {
-				case '??': return workingTree.push(new Resource(WorkingTreeGroup.ID, uri, Status.UNTRACKED));
-				case '!!': return workingTree.push(new Resource(WorkingTreeGroup.ID, uri, Status.IGNORED));
-				case 'DD': return merge.push(new Resource(MergeGroup.ID, uri, Status.BOTH_DELETED));
-				case 'AU': return merge.push(new Resource(MergeGroup.ID, uri, Status.ADDED_BY_US));
-				case 'UD': return merge.push(new Resource(MergeGroup.ID, uri, Status.DELETED_BY_THEM));
-				case 'UA': return merge.push(new Resource(MergeGroup.ID, uri, Status.ADDED_BY_THEM));
-				case 'DU': return merge.push(new Resource(MergeGroup.ID, uri, Status.DELETED_BY_US));
-				case 'AA': return merge.push(new Resource(MergeGroup.ID, uri, Status.BOTH_ADDED));
-				case 'UU': return merge.push(new Resource(MergeGroup.ID, uri, Status.BOTH_MODIFIED));
+				case '??': return workingTree.push(new Resource(this.workingTreeGroup, uri, Status.UNTRACKED));
+				case '!!': return workingTree.push(new Resource(this.workingTreeGroup, uri, Status.IGNORED));
+				case 'DD': return merge.push(new Resource(this.mergeGroup, uri, Status.BOTH_DELETED));
+				case 'AU': return merge.push(new Resource(this.mergeGroup, uri, Status.ADDED_BY_US));
+				case 'UD': return merge.push(new Resource(this.mergeGroup, uri, Status.DELETED_BY_THEM));
+				case 'UA': return merge.push(new Resource(this.mergeGroup, uri, Status.ADDED_BY_THEM));
+				case 'DU': return merge.push(new Resource(this.mergeGroup, uri, Status.DELETED_BY_US));
+				case 'AA': return merge.push(new Resource(this.mergeGroup, uri, Status.BOTH_ADDED));
+				case 'UU': return merge.push(new Resource(this.mergeGroup, uri, Status.BOTH_MODIFIED));
 			}
 
 			let isModifiedInIndex = false;
 
 			switch (raw.x) {
-				case 'M': index.push(new Resource(IndexGroup.ID, uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
-				case 'A': index.push(new Resource(IndexGroup.ID, uri, Status.INDEX_ADDED)); break;
-				case 'D': index.push(new Resource(IndexGroup.ID, uri, Status.INDEX_DELETED)); break;
-				case 'R': index.push(new Resource(IndexGroup.ID, uri, Status.INDEX_RENAMED, renameUri)); break;
-				case 'C': index.push(new Resource(IndexGroup.ID, uri, Status.INDEX_COPIED)); break;
+				case 'M': index.push(new Resource(this.indexGroup, uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
+				case 'A': index.push(new Resource(this.indexGroup, uri, Status.INDEX_ADDED)); break;
+				case 'D': index.push(new Resource(this.indexGroup, uri, Status.INDEX_DELETED)); break;
+				case 'R': index.push(new Resource(this.indexGroup, uri, Status.INDEX_RENAMED, renameUri)); break;
+				case 'C': index.push(new Resource(this.indexGroup, uri, Status.INDEX_COPIED)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(WorkingTreeGroup.ID, uri, Status.MODIFIED, renameUri)); break;
-				case 'D': workingTree.push(new Resource(WorkingTreeGroup.ID, uri, Status.DELETED, renameUri)); break;
+				case 'M': workingTree.push(new Resource(this.workingTreeGroup, uri, Status.MODIFIED, renameUri)); break;
+				case 'D': workingTree.push(new Resource(this.workingTreeGroup, uri, Status.DELETED, renameUri)); break;
 			}
 		});
 

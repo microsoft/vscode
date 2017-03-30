@@ -109,6 +109,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		template.name.textContent = group.label;
 		template.count.setCount(group.resources.length);
 		template.actionBar.clear();
+		template.actionBar.context = group;
 		template.actionBar.push(this.scmMenus.getResourceGroupActions(group));
 	}
 
@@ -126,11 +127,11 @@ interface ResourceTemplate {
 
 class MultipleSelectionActionRunner extends ActionRunner {
 
-	constructor(private getSelectedResources: () => (ISCMResource | ISCMResourceGroup)[]) {
+	constructor(private getSelectedResources: () => ISCMResource[]) {
 		super();
 	}
 
-	runAction(action: IAction, context: ISCMResource | ISCMResourceGroup): TPromise<any> {
+	runAction(action: IAction, context: ISCMResource): TPromise<any> {
 		if (action instanceof MenuItemAction) {
 			const selection = this.getSelectedResources();
 			const filteredSelection = selection.filter(s => s !== context);
