@@ -52,7 +52,7 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 addSettingMapping('background', colorRegistry.editorBackground);
 addSettingMapping('selection', colorRegistry.editorSelection);
 addSettingMapping('inactiveSelection', colorRegistry.editorInactiveSelection);
-addSettingMapping('selectionHighlightColor', colorRegistry.editorSelectionHighlightColor);
+addSettingMapping('selectionHighlightColor', colorRegistry.editorSelectionHighlight);
 addSettingMapping('findMatchHighlight', colorRegistry.editorFindMatchHighlight);
 addSettingMapping('currentFindMatchHighlight', colorRegistry.editorCurrentFindMatchHighlight);
 addSettingMapping('hoverHighlight', editorHoverHighlight);

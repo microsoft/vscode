@@ -72,7 +72,7 @@ export const vs: IStandaloneThemeData = {
 		editorForeground: '#000000',
 		editorInactiveSelection: '#E5EBF1',
 		editorGuide: '#D3D3D3',
-		editorSelectionHighlightColor: '#ADD6FF4D'
+		editorSelectionHighlight: '#ADD6FF4D'
 	}
 };
 /* -------------------------------- End vs theme -------------------------------- */
@@ -142,7 +142,7 @@ export const vs_dark: IStandaloneThemeData = {
 		editorForeground: '#D4D4D4',
 		editorInactiveSelection: '#3A3D41',
 		editorGuide: '#404040',
-		editorSelectionHighlightColor: '#ADD6FF26'
+		editorSelectionHighlight: '#ADD6FF26'
 	}
 };
 /* -------------------------------- End vs-dark theme -------------------------------- */
