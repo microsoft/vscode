@@ -23,10 +23,9 @@ class BracketMode extends MockMode {
 		super(BracketMode._id);
 		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
 			brackets: [
-				['{', '}'],
-				['[', ']'],
-				['(', ')'],
-			]
+				[openBlockChars[0], closingBlockChars[0]],
+				[openBlockChars[1], closingBlockChars[1]],
+				[openBlockChars[2], closingBlockChars[2]],
 		}));
 	}
 }
