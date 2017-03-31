@@ -63,10 +63,10 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@LICENSE@@', product.licenseName))
 			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
 
-		const icon = gulp.src('resources/linux/code.png', { base: '.', buffer: false })
+		const icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename('usr/share/pixmaps/' + product.applicationName + '.png'));
 
-		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir, buffer: false })
+		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = 'usr/share/' + product.applicationName + '/' + p.dirname; }));
 
 		let size = 0;
@@ -139,7 +139,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@LICENSE@@', product.licenseName))
 			.pipe(rename('usr/share/appdata/' + product.applicationName + '.appdata.xml'));
 
-		const icon = gulp.src('resources/linux/code.png', { base: '.', buffer: false })
+		const icon = gulp.src('resources/linux/code.png', { base: '.' })
 			.pipe(rename('BUILD/usr/share/pixmaps/' + product.applicationName + '.png'));
 
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
@@ -212,7 +212,7 @@ function prepareFlatpak(arch) {
 			.pipe(replace('@@LICENSE@@', product.licenseName))
 			.pipe(rename('share/appdata/' + flatpakManifest.appId + '.appdata.xml')));
 
-		all.push(gulp.src(binaryDir + '/**/*', { base: binaryDir, buffer: false })
+		all.push(gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) {
 				p.dirname = 'share/' + product.applicationName + '/' + p.dirname;
 			})));
