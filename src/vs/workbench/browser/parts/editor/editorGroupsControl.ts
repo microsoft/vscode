@@ -1556,6 +1556,11 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		silo.style(this.layoutVertically ? 'border-left-color' : 'border-top-color', borderColor);
 		silo.style(this.layoutVertically ? 'border-right-color' : 'border-bottom-color', borderColor);
+
+		// Back to normal styles once dragging stops
+		if (!isDragging) {
+			this.updateStyles();
+		}
 	}
 
 	private updateFromDropping(element: HTMLElement, isDropping: boolean): void {
