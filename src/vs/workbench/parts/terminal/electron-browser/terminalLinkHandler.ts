@@ -51,7 +51,7 @@ export class TerminalLinkHandler {
 		});
 	}
 
-	public setWidgetManager(widgetManager: TerminalWidgetManager) {
+	public setWidgetManager(widgetManager: TerminalWidgetManager): void {
 		this._widgetManager = widgetManager;
 	}
 
@@ -129,7 +129,7 @@ export class TerminalLinkHandler {
 		callback(true);
 	}
 
-	private _addTooltipEventListeners(element: HTMLElement) {
+	private _addTooltipEventListeners(element: HTMLElement): void {
 		let timeout = null;
 		let isMessageShowing = false;
 		this._tooltipDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, () => {
