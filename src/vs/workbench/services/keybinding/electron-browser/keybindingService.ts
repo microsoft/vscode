@@ -84,8 +84,10 @@ export class KeyboardMapperFactory {
 	}
 
 	public isUSStandard(): boolean {
-		let _kbInfo = this.getCurrentKeyboardLayout();
+		return KeyboardMapperFactory._isUSStandard(this.getCurrentKeyboardLayout());
+	}
 
+	private static _isUSStandard(_kbInfo: nativeKeymap.IKeyboardLayoutInfo): boolean {
 		if (OS === OperatingSystem.Linux) {
 			const kbInfo = <nativeKeymap.ILinuxKeyboardLayoutInfo>_kbInfo;
 			return (kbInfo && kbInfo.layout === 'us');
@@ -122,11 +124,11 @@ export class KeyboardMapperFactory {
 		this._initialized = true;
 
 		this._rawMapping = rawMapping;
-		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._rawMapping);
+		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(KeyboardMapperFactory._isUSStandard(this._layoutInfo), this._rawMapping);
 		this._onDidChangeKeyboardMapper.fire();
 	}
 
-	private static _createKeyboardMapper(rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+	private static _createKeyboardMapper(isUSStandard: boolean, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
 		if (OS === OperatingSystem.Windows) {
 			return new WindowsKeyboardMapper(<IWindowsKeyboardMapping>rawMapping);
 		}
@@ -136,7 +138,7 @@ export class KeyboardMapperFactory {
 			return new MacLinuxFallbackKeyboardMapper(OS);
 		}
 
-		return new MacLinuxKeyboardMapper(<IMacLinuxKeyboardMapping>rawMapping, OS);
+		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
 	}
 
 	private static _equals(a: nativeKeymap.IKeyboardMapping, b: nativeKeymap.IKeyboardMapping): boolean {
