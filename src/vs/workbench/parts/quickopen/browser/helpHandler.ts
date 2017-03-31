@@ -12,6 +12,7 @@ import { Registry } from 'vs/platform/platform';
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryItem, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { ITree, IElementCallback } from 'vs/base/parts/tree/browser/tree';
+import { NAVIGATE_IN_GROUP_TWO_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
@@ -139,7 +140,15 @@ export class HelpHandler extends QuickOpenHandler {
 		let editorScoped: HelpEntry[] = [];
 		let entry: HelpEntry;
 
-		handlerDescriptors.sort((h1, h2) => h1.prefix.localeCompare(h2.prefix)).forEach((handlerDescriptor) => {
+		handlerDescriptors.sort((h1, h2) => {
+			if (h1.prefix === NAVIGATE_IN_GROUP_TWO_PREFIX && h2.prefix === NAVIGATE_IN_GROUP_THREE_PREFIX) {
+				return -1;
+			} else if (h1.prefix === NAVIGATE_IN_GROUP_THREE_PREFIX && h2.prefix === NAVIGATE_IN_GROUP_TWO_PREFIX) {
+				return 1;
+			} else {
+				return h1.prefix.localeCompare(h2.prefix);
+			}
+		}).forEach((handlerDescriptor) => {
 			if (handlerDescriptor.prefix !== HELP_PREFIX) {
 
 				// Descriptor has multiple help entries
