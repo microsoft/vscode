@@ -340,7 +340,7 @@ gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'],
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
 
-const apiUrl = process.env.TRANSIFEX_API_URL;
+const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
 const apiToken = process.env.TRANSIFEX_API_TOKEN;
 
@@ -353,13 +353,13 @@ gulp.task('vscode-translations-update', function() {
 		gulp.src(pathToMetadata).pipe(i18n.prepareXlfFiles()),
 		gulp.src(pathToSetup).pipe(i18n.prepareXlfFiles()),
 		gulp.src(pathToExtensions).pipe(i18n.prepareXlfFiles('vscode-extensions'))
-	).pipe(i18n.pushXlfFiles(apiUrl, apiName, apiToken));
+	).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
 });
 
 gulp.task('vscode-translations-pull', function() {
 	return es.merge(
-		i18n.pullXlfFiles('vscode-editor-workbench', apiUrl, apiName, apiToken),
-		i18n.pullXlfFiles('vscode-extensions', apiUrl, apiName, apiToken)
+		i18n.pullXlfFiles('vscode-editor-workbench', apiHostname, apiName, apiToken),
+		i18n.pullXlfFiles('vscode-extensions', apiHostname, apiName, apiToken)
 	).pipe(i18n.prepareJsonFiles()).pipe(vfs.dest('./i18n'));
 });
 

@@ -613,7 +613,7 @@ function importBundleJson(file: File, json: BundledFormat, stream: ThroughStream
 		}
 
 		let xlf = bundleXlfs[resource] ? bundleXlfs[resource] : bundleXlfs[resource] = new XLF(project);
-		xlf.addFile(source, keys, messages);
+		xlf.addFile('src/' + source, keys, messages);
 	}
 
 	for (let resource in bundleXlfs) {

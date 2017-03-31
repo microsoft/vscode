@@ -545,7 +545,7 @@ function importBundleJson(file, json, stream) {
             log('Error:', "There is a mismatch between keys and messages in " + file.relative);
         }
         var xlf = bundleXlfs[resource] ? bundleXlfs[resource] : bundleXlfs[resource] = new XLF(project);
-        xlf.addFile(source, keys, messages);
+        xlf.addFile('src/' + source, keys, messages);
     }
     for (var resource in bundleXlfs) {
         var newFilePath = bundleXlfs[resource].project + "/" + resource.replace(/\//g, '_') + ".xlf";
