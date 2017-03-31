@@ -239,6 +239,10 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		return this._editorService;
 	}
 
+	public getHeight(): number {
+		return 44;
+	}
+
 	public getInput(): IResourceInput | IEditorInput {
 		return null;
 	}

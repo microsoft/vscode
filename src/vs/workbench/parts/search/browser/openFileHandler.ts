@@ -73,6 +73,10 @@ export class FileEntry extends EditorQuickOpenEntry {
 		return this.description;
 	}
 
+	public getHeight(): number {
+		return 44;
+	}
+
 	public getIcon(): string {
 		return this.icon;
 	}

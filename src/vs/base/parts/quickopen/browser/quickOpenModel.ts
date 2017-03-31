@@ -89,6 +89,14 @@ export class QuickOpenEntry {
 	}
 
 	/**
+	 * The height of the row for rendering. Typically set to 22 for single line and 44 for
+	 * multi-line
+	 */
+	public getHeight(): number {
+		return null;
+	}
+
+	/**
 	 * Detail information about the entry that is optional and can be shown below the label
 	 */
 	public getDetail(): string {
@@ -344,6 +352,10 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getResource() : super.getResource();
 	}
 
+	public getHeight(): number {
+		return this.entry ? this.entry.getHeight() : super.getHeight();
+	}
+
 	public getIcon(): string {
 		return this.entry ? this.entry.getIcon() : super.getIcon();
 	}
@@ -452,6 +464,9 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		if (entry.getDetail()) {
 			return 44;
 		}
+		if (entry.getHeight()) {
+			return entry.getHeight();
+		}
 		return 22;
 	}
 
@@ -511,8 +526,8 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		const label = new IconLabel(row1, { supportHighlights: true });
 
 		// Description
-		const descriptionContainer = document.createElement('span');
-		row1.appendChild(descriptionContainer);
+		const descriptionContainer = document.createElement('div');
+		entry.appendChild(descriptionContainer);
 		DOM.addClass(descriptionContainer, 'quick-open-entry-description');
 		const description = new HighlightedLabel(descriptionContainer);
 

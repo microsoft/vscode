@@ -6,7 +6,6 @@
 /* ---------- Icon label ---------- */
 
 .monaco-icon-label {
-	display: inline-block; /* required for icons support :before rule */
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
