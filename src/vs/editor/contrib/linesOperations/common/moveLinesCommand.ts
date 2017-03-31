@@ -107,7 +107,10 @@ export class MoveLinesCommand implements ICommand {
 
 						const allOpenbrackets = Strings.escapeRegExpCharacters(brackets.map(x => x.open).reduce((x, y) => x + y, ''));
 
-						if (movingLineText.match(new RegExp('[^' + lineComment + '.*][' + allOpenbrackets + ']\\s*' + lineComment + '.*$'))) {
+						if (
+							movingLineText.match(new RegExp('[' + allOpenbrackets + ']\\s*(' + lineComment + '.*)?$')) &&
+							!movingLineText.match(new RegExp(lineComment + '.*[' + allOpenbrackets + ']\\s*(' + lineComment + '.*)?$'))
+						) {
 							newMovingWhitespaces += oneIndent;
 						}
 						// Replace the current line whitespaces with the moving line whitespaces
