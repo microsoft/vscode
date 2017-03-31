@@ -7,7 +7,7 @@
 
 import { scm, Uri, Disposable, SourceControl, SourceControlResourceGroup, Event, workspace, commands } from 'vscode';
 import { Model, State } from './model';
-import { StatusBarCommands } from './statusBar';
+import { StatusBarCommands } from './statusbar';
 import { CommandCenter } from './commands';
 import { mapEvent } from './util';
 import * as nls from 'vscode-nls';
