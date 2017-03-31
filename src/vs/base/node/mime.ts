@@ -87,6 +87,7 @@ export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.Re
 			}
 		}
 	}
+
 	if (autoGuessEncoding && isText && !enc) {
 		enc = encoding.guessEncodingByBuffer(buffer.slice(0, bytesRead));
 	}
@@ -98,17 +99,17 @@ export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.Re
 }
 
 function filterAndSortMimes(detectedMimes: string[], guessedMimes: string[]): string[] {
-	let mimes = detectedMimes;
+	const mimes = detectedMimes;
 
 	// Add extension based mime as first element as this is the desire of whoever created the file.
 	// Never care about application/octet-stream or application/unknown as guessed mime, as this is the fallback of the guess which is never accurate
-	let guessedMime = guessedMimes[0];
+	const guessedMime = guessedMimes[0];
 	if (guessedMime !== mime.MIME_BINARY && guessedMime !== mime.MIME_UNKNOWN) {
 		mimes.unshift(guessedMime);
 	}
 
 	// Remove duplicate elements from array and sort unspecific mime to the end
-	let uniqueSortedMimes = mimes.filter((element, position) => {
+	const uniqueSortedMimes = mimes.filter((element, position) => {
 		return element && mimes.indexOf(element) === position;
 	}).sort((mimeA, mimeB) => {
 		if (mimeA === mime.MIME_BINARY) { return 1; }
@@ -144,8 +145,7 @@ export function detectMimesFromFile(absolutePath: string, option?: DetectMimesOp
 }
 
 function handleMimeResult(nameHint: string, result: IMimeAndEncoding): IMimeAndEncoding {
-
-	let filterAndSortedMimes = filterAndSortMimes(result.mimes, mime.guessMimeTypes(nameHint));
+	const filterAndSortedMimes = filterAndSortMimes(result.mimes, mime.guessMimeTypes(nameHint));
 	result.mimes = filterAndSortedMimes;
 
 	return result;
