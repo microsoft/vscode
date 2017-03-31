@@ -244,8 +244,9 @@ export class DebugService implements debug.IDebugService {
 			}
 
 			// flush simple values
+			// always append a new line for output coming from an extension such that seperate logs go to seperate lines #23695
 			if (simpleVals.length) {
-				this.model.appendToRepl(simpleVals.join(' '), sev);
+				this.model.appendToRepl(simpleVals.join(' ') + '\n', sev);
 			}
 		}
 	}
