@@ -856,7 +856,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 					new Selection(2, 1, 2, 2),
 					[
 						'line to move',
-						lineComment + closeBracket + 'closeblock',
+						lineComment + closeBracket + 'close block',
 					],
 					new Selection(1, 1, 1, 2)
 				);
@@ -926,7 +926,7 @@ suite('Editor Contrib - Move Lines Command', () => {
 						indentation + 'blocktomove middle',
 						'blocktomove end',
 					],
-					new Selection(4, 1, 4, 2)
+					new Selection(2, 1, 4, 2)
 				);
 			});
 		});
