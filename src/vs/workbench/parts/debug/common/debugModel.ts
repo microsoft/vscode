@@ -865,8 +865,6 @@ export class Model implements IModel {
 			}
 		});
 
-		// Remove duplicate breakpoints. This can happen when an adapter updates a line number of a breakpoint
-		this.breakpoints = distinct(this.breakpoints, bp => bp.uri.toString() + bp.lineNumber);
 		this._onDidChangeBreakpoints.fire();
 	}
 

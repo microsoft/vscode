@@ -4,6 +4,6 @@
 	"colors": {
 		"editorBackground": "#000000",
 		"editorForeground": "#FFFFFF",
-		"editorGuide": "#FFFFFF"
+		"editorIndentGuides": "#FFFFFF"
 	}
 }

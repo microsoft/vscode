@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, nextTypoPermutation, fuzzyScoreGraceful } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -224,6 +224,25 @@ suite('Filters', () => {
 		assertMatches('c:\\do', '& \'c:\\Documents and Settings\'', '& \'^c^:^\\^D^ocuments and Settings\'', fuzzyScore);
 	});
 
+	test('fuzzyScore, #23581', function () {
+		assertMatches('close', 'css.lint.importStatement', '^css.^lint.imp^ort^Stat^ement', fuzzyScore);
+		assertMatches('close', 'css.colorDecorators.enable', '^css.co^l^orDecorator^s.^enable', fuzzyScore);
+		assertMatches('close', 'workbench.quickOpen.closeOnFocusOut', 'workbench.quickOpen.^c^l^o^s^eOnFocusOut', fuzzyScore);
+		assertTopScore(fuzzyScore, 'close', 2, 'css.lint.importStatement', 'css.colorDecorators.enable', 'workbench.quickOpen.closeOnFocusOut');
+	});
+
+	test('fuzzyScore, #23458', function () {
+		assertMatches('highlight', 'editorHoverHighlight', 'editorHover^H^i^g^h^l^i^g^h^t', fuzzyScore);
+		assertMatches('hhighlight', 'editorHoverHighlight', 'editor^Hover^H^i^g^h^l^i^g^h^t', fuzzyScore);
+		assertMatches('dhhighlight', 'editorHoverHighlight', undefined, fuzzyScore);
+	});
+	test('fuzzyScore, #23746', function () {
+		assertMatches('-moz', '-moz-foo', '^-^m^o^z-foo', fuzzyScore);
+		assertMatches('moz', '-moz-foo', '-^m^o^z-foo', fuzzyScore);
+		assertMatches('moz', '-moz-animation', '-^m^o^z-animation', fuzzyScore);
+		assertMatches('moza', '-moz-animation', '-^m^o^z-^animation', fuzzyScore);
+	});
+
 	test('fuzzyScore', function () {
 		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
 		assertMatches('ccm', 'cacmelCase', '^ca^c^melCase', fuzzyScore);
@@ -274,10 +293,9 @@ suite('Filters', () => {
 		assertMatches('fo', 'bar.foo', 'bar.^f^oo', fuzzyScore);
 		assertMatches('fo', 'bar/foo', 'bar/^f^oo', fuzzyScore);
 		assertMatches('fo', 'bar\\foo', 'bar\\^f^oo', fuzzyScore);
-
 	});
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
-		let topScore = -Number.MIN_VALUE;
+		let topScore = -(100 * 10);
 		let topIdx = 0;
 		for (let i = 0; i < words.length; i++) {
 			const word = words[i];
@@ -327,5 +345,29 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
 
 		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');
+	});
+
+	test('nextTypoPermutation', function () {
+
+		function assertTypos(pattern: string, ...variants: string[]) {
+			let pos = 1;
+			for (const expected of variants) {
+				const actual = nextTypoPermutation(pattern, pos);
+				assert.equal(actual, expected);
+				pos += 1;
+			}
+			assert.equal(nextTypoPermutation(pattern, pos), undefined);
+		}
+
+		assertTypos('abc', 'acb');
+		assertTypos('foboar', 'fbooar', 'foobar', 'fobaor', 'fobora');
+	});
+
+	test('fuzzyScoreGraceful', function () {
+
+		assertMatches('tkb', 'the_black_knight', '^the_^black_^knight', fuzzyScoreGraceful);
+		assertMatches('tkbk', 'the_black_knight', '^the_^blac^k_^knight', fuzzyScoreGraceful);
+		assertMatches('tkkb', 'the_black_knight', undefined, fuzzyScoreGraceful);
+		assertMatches('tkb', 'no_match', undefined, fuzzyScoreGraceful);
 	});
 });

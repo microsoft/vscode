@@ -7,6 +7,6 @@
 	"copyDefaultValue": "In Einstellungen kopieren",
 	"editTtile": "Bearbeiten",
 	"replaceDefaultValue": "In Einstellungen ersetzen",
-	"unsupportedPHPExecutablePathSetting": "Diese Einstellung muss eine Benutzereinstellung sein. Öffnen Sie zum Konfigurieren von PHP für den Arbeitsbereich eine PHP-Datei, und klicken Sie in der Statusleiste auf \"PHP-Pfad\".",
+	"unsupportedPHPExecutablePathSetting": "Diese Einstellung muss eine Benutzereinstellung sein. Öffnen Sie zum Konfigurieren von PHP für den Arbeitsbereich eine PHP-Datei, und klicken Sie in der Statusleiste auf \"PHP Path\" (PHP-Pfad).",
 	"unsupportedWorkspaceSetting": "Diese Einstellung muss eine Benutzereinstellung sein."
 }

@@ -12,7 +12,7 @@
 	"debugPanel": "デバッグ コンソール",
 	"hideActionBar": "浮動デバッグ操作バーを非表示にするかどうかを制御します",
 	"inlineValues": "デバッグ中にエディターの行内に変数値を表示します",
-	"openExplorerOnEnd": "デバッグ セッションの終わりにエクスプローラ ビューを自動的に開きます",
+	"openExplorerOnEnd": "デバッグ セッションの終わりにエクスプローラー ビューを自動的に開きます",
 	"toggleDebugPanel": "デバッグ コンソール",
 	"toggleDebugViewlet": "デバッグの表示",
 	"view": "表示"

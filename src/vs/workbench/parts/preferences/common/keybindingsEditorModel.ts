@@ -110,8 +110,10 @@ export class KeybindingsEditorModel extends EditorModel {
 					}
 				}
 
+				const commandsWithDefaultKeybindings = this.keybindingsService.getDefaultKeybindings().map(keybinding => keybinding.command);
 				for (const command of KeybindingResolver.getAllUnboundCommands(boundCommands)) {
-					this._keybindingItems.push(KeybindingsEditorModel.toKeybindingEntry(command, null, workbenchActionsRegistry, editorActions));
+					const keybindingItem = new ResolvedKeybindingItem(null, command, null, null, commandsWithDefaultKeybindings.indexOf(command) === -1);
+					this._keybindingItems.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, editorActions));
 				}
 				this._keybindingItems = this._keybindingItems.sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
 				return this;
@@ -150,7 +152,6 @@ export class KeybindingsEditorModel extends EditorModel {
 		const workbenchAction = workbenchActionsRegistry.getWorkbenchAction(command);
 		const menuCommand = MenuRegistry.getCommand(command);
 		const editorAction: EditorAction = editorActions[command];
-		keybindingItem = keybindingItem ? keybindingItem : new ResolvedKeybindingItem(null, command, null, null, true);
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
 			keybindingItem,

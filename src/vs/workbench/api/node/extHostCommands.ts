@@ -23,11 +23,16 @@ interface CommandHandler {
 	description: ICommandHandlerDescription;
 }
 
+export interface ArgumentProcessor {
+	processArgument(arg: any): any;
+}
+
 export class ExtHostCommands extends ExtHostCommandsShape {
 
 	private _commands = new Map<string, CommandHandler>();
 	private _proxy: MainThreadCommandsShape;
 	private _converter: CommandsConverter;
+	private _argumentProcessors: ArgumentProcessor[] = [];
 
 	constructor(
 		threadService: IThreadService,
@@ -40,6 +45,10 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 
 	get converter(): CommandsConverter {
 		return this._converter;
+	}
+
+	registerArgumentProcessor(processor: ArgumentProcessor): void {
+		this._argumentProcessors.push(processor);
 	}
 
 	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
@@ -110,6 +119,8 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 			}
 		}
 
+		args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r), arg));
+
 		try {
 			let result = callback.apply(thisArg, args);
 			return TPromise.as(result);
@@ -179,6 +190,10 @@ export class CommandsConverter {
 
 			result.id = '_internal_command_delegation';
 			result.arguments = [id];
+		}
+
+		if (command.tooltip) {
+			result.tooltip = command.tooltip;
 		}
 
 		return result;

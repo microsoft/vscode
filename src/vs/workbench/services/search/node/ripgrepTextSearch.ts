@@ -12,7 +12,6 @@ import { rgPath } from 'vscode-ripgrep';
 
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
-import * as strings from 'vs/base/common/strings';
 import * as glob from 'vs/base/common/glob';
 import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -25,6 +24,8 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 	private postProcessExclusions: glob.ParsedExpression;
 
 	private ripgrepParser: RipgrepParser;
+
+	private handleResultP: TPromise<any> = TPromise.wrap(null);
 
 	constructor(private config: IRawSearch) {
 	}
@@ -60,11 +61,13 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
 				const relativePath = path.relative(rootFolder, match.path);
-				(<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path))).then(globMatch => {
-					if (!globMatch) {
-						onResult(match);
-					}
-				});
+				this.handleResultP = this.handleResultP
+					.then(() => (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path))))
+					.then(globMatch => {
+						if (!globMatch) {
+							onResult(match);
+						}
+					});
 			} else {
 				onResult(match);
 			}
@@ -88,17 +91,20 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		});
 
 		this.rgProc.on('close', code => {
-			this.ripgrepParser.flush(); // Get last result
-			this.rgProc = null;
-			// console.log(`closed with ${code}`);
+			// Trigger last result, then wait on async result handling
+			this.ripgrepParser.flush();
+			this.handleResultP.then(() => {
+				this.rgProc = null;
+				// console.log(`closed with ${code}`);
 
-			if (!this.isDone) {
-				this.isDone = true;
-				done(null, {
-					limitHit: false,
-					stats: null
-				});
-			}
+				if (!this.isDone) {
+					this.isDone = true;
+					done(null, {
+						limitHit: false,
+						stats: null
+					});
+				}
+			});
 		});
 	}
 }
@@ -324,7 +330,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression): { globArgs: string[], s
 }
 
 function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.IExpression } {
-	const args = ['--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
+	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
 	if (config.includePattern) {
@@ -359,20 +365,16 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 		args.push('--encoding', encoding.toCanonicalName(config.fileEncoding));
 	}
 
+	if (config.contentPattern.isWordMatch) {
+		args.push('--word-regexp');
+	}
+
 	let searchPatternAfterDoubleDashes: string;
 	if (config.contentPattern.isRegExp) {
-		if (config.contentPattern.isWordMatch) {
-			args.push('--word-regexp');
-		}
-
 		args.push('--regexp', config.contentPattern.pattern);
 	} else {
-		if (config.contentPattern.isWordMatch) {
-			args.push('--word-regexp', '--regexp', strings.escapeRegExpCharacters(config.contentPattern.pattern));
-		} else {
-			args.push('--fixed-strings');
-			searchPatternAfterDoubleDashes = config.contentPattern.pattern;
-		}
+		searchPatternAfterDoubleDashes = config.contentPattern.pattern;
+		args.push('--fixed-strings');
 	}
 
 	// Folder to search

@@ -175,10 +175,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
 		editor.defineKeybinding(editor.activeKeybindingEntry);
-	},
-	description: {
-		description: nls.localize('keybindings.editor.define.description', "Define Keybinding"),
-		args: []
 	}
 });
 
@@ -193,10 +189,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
 		editor.removeKeybinding(editor.activeKeybindingEntry);
-	},
-	description: {
-		description: nls.localize('keybindings.editor.remove.description', "Remove Keybinding"),
-		args: []
 	}
 });
 
@@ -208,10 +200,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
 		editor.resetKeybinding(editor.activeKeybindingEntry);
-	},
-	description: {
-		description: nls.localize('keybindings.editor.reset.description', "Reset Keybinding"),
-		args: []
 	}
 });
 
@@ -220,11 +208,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-	handler: (accessor, args: any) => (accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor).search(''),
-	description: {
-		description: nls.localize('keybindings.editor.search.description', "Search Keybindings"),
-		args: []
-	}
+	handler: (accessor, args: any) => (accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor).search('')
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -235,10 +219,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
 		editor.copyKeybinding(editor.activeKeybindingEntry);
-	},
-	description: {
-		description: nls.localize('keybindings.editor.copy.description', "Copy Keybindings"),
-		args: []
 	}
 });
 

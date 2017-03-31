@@ -117,7 +117,7 @@ export function createApiFactory(
 	const extHostFileSystemEvent = col.define(ExtHostContext.ExtHostFileSystemEventService).set<ExtHostFileSystemEventService>(new ExtHostFileSystemEventService());
 	const extHostQuickOpen = col.define(ExtHostContext.ExtHostQuickOpen).set<ExtHostQuickOpen>(new ExtHostQuickOpen(threadService));
 	const extHostTerminalService = col.define(ExtHostContext.ExtHostTerminalService).set<ExtHostTerminalService>(new ExtHostTerminalService(threadService));
-	const extHostSCM = col.define(ExtHostContext.ExtHostSCM).set<ExtHostSCM>(new ExtHostSCM(threadService));
+	const extHostSCM = col.define(ExtHostContext.ExtHostSCM).set<ExtHostSCM>(new ExtHostSCM(threadService, extHostCommands));
 	const extHostTask = col.define(ExtHostContext.ExtHostTask).set<ExtHostTask>(new ExtHostTask(threadService));
 	col.define(ExtHostContext.ExtHostExtensionService).set(extensionService);
 	col.finish(false, threadService);
@@ -448,30 +448,30 @@ export function createApiFactory(
 
 		class SCM {
 
-			get activeProvider() {
+			get activeSourceControl() {
 				return extHostSCM.activeProvider;
 			}
 
-			get onDidChangeActiveProvider() {
+			get onDidChangeActiveSourceControl() {
 				return extHostSCM.onDidChangeActiveProvider;
-			}
-
-			get onDidAcceptInputValue() {
-				return mapEvent(extHostSCM.inputBox.onDidAccept, () => extHostSCM.inputBox);
 			}
 
 			get inputBox() {
 				return extHostSCM.inputBox;
 			}
 
-			registerSCMProvider(provider: vscode.SCMProvider) {
+			get onDidAcceptInputValue() {
+				return mapEvent(extHostSCM.inputBox.onDidAccept, () => extHostSCM.inputBox);
+			}
+
+			createSourceControl(id: string, label: string) {
 				telemetryService.publicLog('registerSCMProvider', {
 					extensionId: extension.id,
-					providerLabel: provider.label,
-					providerContextKey: provider.contextKey
+					providerId: id,
+					providerLabel: label
 				});
 
-				return extHostSCM.registerSCMProvider(provider);
+				return extHostSCM.createSourceControl(id, label);
 			}
 		}
 

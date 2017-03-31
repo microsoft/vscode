@@ -29,7 +29,7 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void {
 
 	edits = edits.filter(edit => edit.range);
-	if (!edits) {
+	if (!edits.length) {
 		return;
 	}
 

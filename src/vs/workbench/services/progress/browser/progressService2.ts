@@ -109,12 +109,26 @@ export class ProgressService2 implements IProgressService2 {
 		let activityProgress: IDisposable;
 		let delayHandle = setTimeout(() => {
 			delayHandle = undefined;
-			activityProgress = this._activityBar.showActivity(
+			const handle = this._activityBar.showActivity(
 				viewletId,
 				new ProgressBadge(() => ''),
 				'progress-badge'
 			);
-		}, 200);
+			const startTimeVisible = Date.now();
+			const minTimeVisible = 150;
+			activityProgress = {
+				dispose() {
+					const d = Date.now() - startTimeVisible;
+					if (d < minTimeVisible) {
+						// should at least show for Nms
+						setTimeout(() => handle.dispose(), minTimeVisible - d);
+					} else {
+						// shown long enough
+						handle.dispose();
+					}
+				}
+			};
+		}, 150);
 
 		always(promise, () => {
 			clearTimeout(delayHandle);

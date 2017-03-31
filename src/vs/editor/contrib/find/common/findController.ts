@@ -525,7 +525,7 @@ function multiCursorFind(editor: editorCommon.ICommonCodeEditor, input: IMultiCu
 			searchText = word.word;
 			currentMatch = new Selection(s.startLineNumber, word.startColumn, s.startLineNumber, word.endColumn);
 		} else {
-			searchText = editor.getModel().getValueInRange(s);
+			searchText = editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
 		}
 		if (input.changeFindSearchString) {
 			controller.setSearchString(searchText);

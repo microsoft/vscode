@@ -11,7 +11,7 @@ import * as editorColorRegistry from 'vs/editor/common/view/editorColorRegistry'
 import * as wordHighlighter from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
 import { ansiColorIdentifiers } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 import { editorHoverHighlight } from 'vs/editor/contrib/hover/browser/hover';
-import { editorPeekReferenceHighlight, editorPeekFindMatchHighlight } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
+import { peekViewEditorMatchHighlight, peekViewResultsMatchHighlight } from 'vs/editor/contrib/referenceSearch/browser/referencesWidget';
 
 const settingToColorIdMapping: { [settingId: string]: string[] } = {};
 function addSettingMapping(settingId: string, colorId: string) {
@@ -52,22 +52,22 @@ export function convertSettings(oldSettings: ITokenColorizationRule[], resultRul
 addSettingMapping('background', colorRegistry.editorBackground);
 addSettingMapping('selection', colorRegistry.editorSelection);
 addSettingMapping('inactiveSelection', colorRegistry.editorInactiveSelection);
-addSettingMapping('selectionHighlightColor', colorRegistry.editorSelectionHighlightColor);
+addSettingMapping('selectionHighlightColor', colorRegistry.editorSelectionHighlight);
 addSettingMapping('findMatchHighlight', colorRegistry.editorFindMatchHighlight);
-addSettingMapping('currentFindMatchHighlight', colorRegistry.editorCurrentFindMatchHighlight);
+addSettingMapping('currentFindMatchHighlight', colorRegistry.editorFindMatch);
 addSettingMapping('hoverHighlight', editorHoverHighlight);
 addSettingMapping('hoverHighlight', editorHoverHighlight);
 addSettingMapping('linkForeground', colorRegistry.editorLinkForeground);
 addSettingMapping('wordHighlight', wordHighlighter.editorWordHighlight);
 addSettingMapping('wordHighlightStrong', wordHighlighter.editorWordHighlightStrong);
 addSettingMapping('findRangeHighlight', colorRegistry.editorFindRangeHighlight);
-addSettingMapping('findMatchHighlight', editorPeekFindMatchHighlight);
-addSettingMapping('referenceHighlight', editorPeekReferenceHighlight);
+addSettingMapping('findMatchHighlight', peekViewResultsMatchHighlight);
+addSettingMapping('referenceHighlight', peekViewEditorMatchHighlight);
 addSettingMapping('lineHighlight', editorColorRegistry.editorLineHighlight);
 addSettingMapping('rangeHighlight', editorColorRegistry.editorRangeHighlight);
 addSettingMapping('caret', editorColorRegistry.editorCursor);
-addSettingMapping('invisibles', editorColorRegistry.editorInvisibles);
-addSettingMapping('guide', editorColorRegistry.editorGuide);
+addSettingMapping('invisibles', editorColorRegistry.editorWhitespaces);
+addSettingMapping('guide', editorColorRegistry.editorIndentGuides);
 
 const ansiColorMap = ['ansiBlack', 'ansiRed', 'ansiGreen', 'ansiYellow', 'ansiBlue', 'ansiMagenta', 'ansiCyan', 'ansiWhite',
 	'ansiBrightBlack', 'ansiBrightRed', 'ansiBrightGreen', 'ansiBrightYellow', 'ansiBrightBlue', 'ansiBrightMagenta', 'ansiBrightCyan', 'ansiBrightWhite'

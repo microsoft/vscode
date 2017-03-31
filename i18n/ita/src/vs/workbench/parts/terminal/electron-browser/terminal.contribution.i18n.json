@@ -10,6 +10,7 @@
 	"terminal.integrated.cursorBlinking": "Controlla se il cursore del terminale è intermittente o meno.",
 	"terminal.integrated.cursorStyle": "Controlla lo stile del cursore del terminale.",
 	"terminal.integrated.cwd": "Percorso di avvio esplicito in cui verrà avviato il terminale. Viene usato come directory di lavoro corrente per il processo della shell. Può risultare particolarmente utile nelle impostazioni dell'area di lavoro se la directory radice non costituisce una directory di lavoro corrente comoda.",
+	"terminal.integrated.enableBold": "Indica se abilitare il testo in grassetto nel terminale.",
 	"terminal.integrated.fontFamily": "Controlla la famiglia di caratteri del terminale. L'impostazione predefinita è il valore di editor.fontFamily.",
 	"terminal.integrated.fontLigatures": "Controlla se i caratteri legatura sono abilitati nel terminale.",
 	"terminal.integrated.fontSize": "Consente di controllare le dimensioni del carattere in pixel del terminale.",

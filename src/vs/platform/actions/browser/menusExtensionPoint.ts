@@ -36,7 +36,7 @@ namespace schema {
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
-			case 'scm/resource/context': return MenuId.SCMResourceContext;
+			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
 		}
 
 		return void 0;
@@ -111,13 +111,33 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'explorer/context': {
+				description: localize('menus.explorerContext', "The file explorer context menu"),
+				type: 'array',
+				items: menuItem
+			},
 			'editor/title/context': {
 				description: localize('menus.editorTabContext', "The editor tabs context menu"),
 				type: 'array',
 				items: menuItem
 			},
-			'explorer/context': {
-				description: localize('menus.explorerContext', "The file explorer context menu"),
+			'debug/callstack/context': {
+				description: localize('menus.debugCallstackContext', "The debug callstack context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/title': {
+				description: localize('menus.scmTitle', "The Source Control title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/resourceGroup/context': {
+				description: localize('menus.resourceGroupContext', "The Source Control resource group context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/resourceState/context': {
+				description: localize('menus.resourceStateContext', "The Source Control resource state context menu"),
 				type: 'array',
 				items: menuItem
 			}

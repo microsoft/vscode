@@ -43,6 +43,10 @@ export abstract class MoveWordCommand extends EditorCommand {
 		});
 
 		editor.setSelections(result);
+		if (result.length === 1) {
+			const pos = new Position(result[0].positionLineNumber, result[0].positionColumn);
+			editor.revealPosition(pos, false, true);
+		}
 	}
 
 	private _moveTo(from: Selection, to: Position, inSelectionMode: boolean): Selection {

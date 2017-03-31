@@ -439,6 +439,7 @@ function printTable(table: number[][], pattern: string, patternLen: number, word
 
 const _seps: { [ch: string]: boolean } = Object.create(null);
 _seps['_'] = true;
+_seps['-'] = true;
 _seps['.'] = true;
 _seps[' '] = true;
 _seps['/'] = true;
@@ -557,7 +558,7 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	}
 
 	let bucket: [number, number[]][] = [];
-	findAllMatches(patternLen, patternLen, wordLen, 0, [], bucket);
+	findAllMatches(patternLen, patternLen, wordLen, 0, [], bucket, false);
 
 	if (bucket.length === 0) {
 		return undefined;
@@ -575,36 +576,34 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	return topMatch;
 }
 
-function findAllMatches(patternLen: number, patternPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][]): void {
+function findAllMatches(patternLen: number, patternPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][], lastMatched: boolean): void {
 
 	while (patternPos > 0 && wordPos > 0) {
-		let value = _table[patternPos][wordPos];
+
 		let score = _scores[patternPos][wordPos];
 		let arrow = _arrows[patternPos][wordPos];
 
 		if (arrow === Arrow.Left || score < 0) {
 			// left
 			wordPos -= 1;
-
-		} else if (arrow === Arrow.Diag) {
-			// diag
-			total += value;
-			patternPos -= 1;
-			wordPos -= 1;
-			matches.unshift(wordPos);
+			if (lastMatched) {
+				total -= 5; // gap penalty
+			}
+			lastMatched = false;
 
 		} else if (arrow & Arrow.Diag) {
 
 			if (arrow & Arrow.Left) {
 				// left
-				findAllMatches(patternLen, patternPos, wordPos - 1, total, matches.slice(0), bucket);
+				findAllMatches(patternLen, patternPos, wordPos - 1, total, matches.slice(0), bucket, lastMatched);
 			}
 
 			// diag
-			total += value;
+			total += score;
 			patternPos -= 1;
 			wordPos -= 1;
 			matches.unshift(wordPos);
+			lastMatched = true;
 
 		} else {
 			return undefined;
@@ -625,4 +624,26 @@ function findAllMatches(patternLen: number, patternPos: number, wordPos: number,
 	total -= (1 + matches[matches.length - 1]) - patternLen; // penalty for all non matching characters between first and last
 
 	bucket.push([total, matches]);
+}
+
+
+export function nextTypoPermutation(pattern: string, patternPos: number) {
+
+	if (patternPos + 1 >= pattern.length) {
+		return undefined;
+	}
+
+	return pattern.slice(0, patternPos)
+		+ pattern[patternPos + 1]
+		+ pattern[patternPos]
+		+ pattern.slice(patternPos + 2);
+}
+
+export function fuzzyScoreGraceful(pattern: string, word: string): [number, number[]] {
+	let ret = fuzzyScore(pattern, word);
+	for (let patternPos = 1; patternPos < pattern.length - 1 && !ret; patternPos++) {
+		let pattern2 = nextTypoPermutation(pattern, patternPos);
+		ret = fuzzyScore(pattern2, word);
+	}
+	return ret;
 }

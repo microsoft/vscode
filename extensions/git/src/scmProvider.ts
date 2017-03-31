@@ -5,17 +5,19 @@
 
 'use strict';
 
-import { scm, Uri, Disposable, SCMProvider, SCMResourceGroup, Event, workspace } from 'vscode';
-import { Model, Resource, State } from './model';
+import { scm, Uri, Disposable, SourceControl, SourceControlResourceGroup, Event, workspace, commands } from 'vscode';
+import { Model, State } from './model';
+import { StatusBarCommands } from './statusbar';
 import { CommandCenter } from './commands';
 import { mapEvent } from './util';
+import * as nls from 'vscode-nls';
 
-export class GitSCMProvider implements SCMProvider {
+const localize = nls.loadMessageBundle();
+
+export class GitSCMProvider {
 
 	private disposables: Disposable[] = [];
-
 	get contextKey(): string { return 'git'; }
-	get resources(): SCMResourceGroup[] { return this.model.resources; }
 
 	get onDidChange(): Event<this> {
 		return mapEvent(this.model.onDidChange, () => this);
@@ -38,16 +40,58 @@ export class GitSCMProvider implements SCMProvider {
 		switch (countBadge) {
 			case 'off': return 0;
 			case 'tracked': return this.model.indexGroup.resources.length;
-			default: return this.model.resources.reduce((r, g) => r + g.resources.length, 0);
+			default:
+				return this.model.mergeGroup.resources.length
+					+ this.model.indexGroup.resources.length
+					+ this.model.workingTreeGroup.resources.length;
 		}
 	}
 
-	constructor(private model: Model, private commandCenter: CommandCenter) {
-		scm.registerSCMProvider(this);
+	private _sourceControl: SourceControl;
+
+	get sourceControl(): SourceControl {
+		return this._sourceControl;
 	}
 
-	open(resource: Resource): void {
-		this.commandCenter.open(resource);
+	private mergeGroup: SourceControlResourceGroup;
+	private indexGroup: SourceControlResourceGroup;
+	private workingTreeGroup: SourceControlResourceGroup;
+
+	constructor(
+		private model: Model,
+		private commandCenter: CommandCenter,
+		private statusBarCommands: StatusBarCommands
+	) {
+		this._sourceControl = scm.createSourceControl('git', 'Git');
+		this.disposables.push(this._sourceControl);
+
+		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit") };
+		this._sourceControl.quickDiffProvider = this;
+
+		this.statusBarCommands.onDidChange(this.onDidStatusBarCommandsChange, this, this.disposables);
+		this.onDidStatusBarCommandsChange();
+
+		this.mergeGroup = this._sourceControl.createResourceGroup(model.mergeGroup.id, model.mergeGroup.label);
+		this.indexGroup = this._sourceControl.createResourceGroup(model.indexGroup.id, model.indexGroup.label);
+		this.workingTreeGroup = this._sourceControl.createResourceGroup(model.workingTreeGroup.id, model.workingTreeGroup.label);
+
+		this.mergeGroup.hideWhenEmpty = true;
+		this.indexGroup.hideWhenEmpty = true;
+
+		this.disposables.push(this.mergeGroup);
+		this.disposables.push(this.indexGroup);
+		this.disposables.push(this.workingTreeGroup);
+
+		model.onDidChange(this.onDidModelChange, this, this.disposables);
+		this.updateCommitTemplate();
+	}
+
+	private async updateCommitTemplate(): Promise<void> {
+		try {
+			this._sourceControl.commitTemplate = await this.model.getCommitTemplate();
+		} catch (e) {
+			// noop
+		}
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
@@ -58,6 +102,18 @@ export class GitSCMProvider implements SCMProvider {
 		// As a mitigation for extensions like ESLint showing warnings and errors
 		// for git URIs, let's change the file extension of these uris to .git.
 		return new Uri().with({ scheme: 'git-original', query: uri.path, path: uri.path + '.git' });
+	}
+
+	private onDidModelChange(): void {
+		this.mergeGroup.resourceStates = this.model.mergeGroup.resources;
+		this.indexGroup.resourceStates = this.model.indexGroup.resources;
+		this.workingTreeGroup.resourceStates = this.model.workingTreeGroup.resources;
+		this._sourceControl.count = this.count;
+		commands.executeCommand('setContext', 'gitState', this.stateContextKey);
+	}
+
+	private onDidStatusBarCommandsChange(): void {
+		this._sourceControl.statusBarCommands = this.statusBarCommands.commands;
 	}
 
 	dispose(): void {

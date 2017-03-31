@@ -11,7 +11,7 @@ var plist = require('fast-plist');
 
 var mappings = {
 	"ansiBlack": ["terminalAnsiBlack"], "ansiRed": ["terminalAnsiRed"], "ansiGreen": ["terminalAnsiGreen"], "ansiYellow": ["terminalAnsiYellow"], "ansiBlue": ["terminalAnsiBlue"], "ansiMagenta": ["terminalAnsiMagenta"], "ansiCyan": ["terminalAnsiCyan"], "ansiWhite": ["terminalAnsiWhite"], "ansiBrightBlack": ["terminalAnsiBrightBlack"], "ansiBrightRed": ["terminalAnsiBrightRed"], "ansiBrightGreen": ["terminalAnsiBrightGreen"], "ansiBrightYellow": ["terminalAnsiBrightYellow"], "ansiBrightBlue": ["terminalAnsiBrightBlue"], "ansiBrightMagenta": ["terminalAnsiBrightMagenta"], "ansiBrightCyan": ["terminalAnsiBrightCyan"], "ansiBrightWhite": ["terminalAnsiBrightWhite"], "background": ["editorBackground"],
-	"hoverHighlight": ["editorHoverHighlight", "editorHoverHighlight"], "linkForeground": ["editorLinkForeground"], "selection": ["editorSelection"], "inactiveSelection": ["editorInactiveSelection"], "selectionHighlightColor": ["editorSelectionHighlightColor"], "wordHighlight": ["editorWordHighlight"], "wordHighlightStrong": ["editorWordHighlightStrong"], "findMatchHighlight": ["editorFindMatchHighlight", "referencesFindMatchHighlight"], "currentFindMatchHighlight": ["editorCurrentFindMatchHighlight"], "findRangeHighlight": ["editorFindRangeHighlight"], "referenceHighlight": ["referencesReferenceHighlight"], "lineHighlight": ["editorLineHighlight"], "rangeHighlight": ["editorRangeHighlight"], "caret": ["editorCursor"], "invisibles": ["editorInvisibles"], "guide": ["editorGuide"]
+	"hoverHighlight": ["editorHoverHighlight", "editorHoverHighlight"], "linkForeground": ["editorLinkForeground"], "selection": ["editorSelection"], "inactiveSelection": ["editorInactiveSelection"], "selectionHighlightColor": ["editorSelectionHighlight"], "wordHighlight": ["editorWordHighlight"], "wordHighlightStrong": ["editorWordHighlightStrong"], "findMatchHighlight": ["editorFindMatchHighlight", "referencesFindMatchHighlight"], "currentFindMatchHighlight": ["editorFindMatch"], "findRangeHighlight": ["editorFindRangeHighlight"], "referenceHighlight": ["referencesReferenceHighlight"], "lineHighlight": ["editorLineHighlight"], "rangeHighlight": ["editorRangeHighlight"], "caret": ["editorCursor"], "invisibles": ["editorWhitespaces"], "guide": ["editorIndentGuides"]
 };
 
 exports.update = function (srcName, destName) {
@@ -54,7 +54,7 @@ exports.update = function (srcName, destName) {
 	} catch (e) {
 		console.log(e);
 	}
-}
+};
 
 if (path.basename(process.argv[1]) === 'update-theme.js') {
 	exports.update(process.argv[2], process.argv[3]);

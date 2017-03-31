@@ -10,6 +10,7 @@
 	"terminal.integrated.cursorBlinking": "Controla si el cursor del terminal parpadea.",
 	"terminal.integrated.cursorStyle": "Controla el estilo de cursor del terminal.",
 	"terminal.integrated.cwd": "Una ruta de acceso de inicio explícita en la que se iniciará el terminal; se utiliza como el directorio de trabajo actual (cwd) para el proceso de shell. Puede resultar especialmente útil en una configuración de área de trabajo si la raíz de directorio no es un cwd práctico.",
+	"terminal.integrated.enableBold": "Indica si debe habilitarse el texto en negrita en el terminal.",
 	"terminal.integrated.fontFamily": "Controla la familia de fuentes del terminal, que está establecida de manera predeterminada en el valor de editor.fontFamily.",
 	"terminal.integrated.fontLigatures": "Controla si las ligaduras tipográficas están habilitadas en el terminal.",
 	"terminal.integrated.fontSize": "Controla el tamaño de la fuente en píxeles del terminal.",

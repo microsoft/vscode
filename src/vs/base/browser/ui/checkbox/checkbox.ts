@@ -23,11 +23,11 @@ export interface ICheckboxOpts extends ICheckboxStyles {
 }
 
 export interface ICheckboxStyles {
-	checkedBorderColor?: Color;
+	inputActiveOptionBorderColor?: Color;
 }
 
 const defaultOpts = {
-	checkedBorderColor: Color.fromHex('#007ACC')
+	inputActiveOptionBorderColor: Color.fromHex('#007ACC')
 };
 
 export class Checkbox extends Widget {
@@ -97,15 +97,15 @@ export class Checkbox extends Widget {
 	}
 
 	public style(styles: ICheckboxStyles) {
-		if (styles.checkedBorderColor) {
-			this._opts.checkedBorderColor = styles.checkedBorderColor;
+		if (styles.inputActiveOptionBorderColor) {
+			this._opts.inputActiveOptionBorderColor = styles.inputActiveOptionBorderColor;
 		}
 		this._applyStyles();
 	}
 
 	protected _applyStyles() {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked && this._opts.checkedBorderColor ? this._opts.checkedBorderColor.toString() : null;
+			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorderColor ? this._opts.inputActiveOptionBorderColor.toString() : null;
 		}
 	}
 

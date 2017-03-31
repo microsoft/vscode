@@ -145,6 +145,7 @@ class LanguageProvider {
 	private formattingProviderRegistration: Disposable | null;
 	private typingsStatus: TypingsStatus;
 	private referenceCodeLensProvider: ReferenceCodeLensProvider;
+	private implementationCodeLensProvider: ImplementationCodeLensProvider;
 
 	private _validate: boolean = true;
 
@@ -224,9 +225,9 @@ class LanguageProvider {
 			this.referenceCodeLensProvider.updateConfiguration();
 			this.disposables.push(languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider));
 
-			const implementationCodeLens = new ImplementationCodeLensProvider(client);
-			implementationCodeLens.updateConfiguration();
-			this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLens));
+			this.implementationCodeLensProvider = new ImplementationCodeLensProvider(client);
+			this.implementationCodeLensProvider.updateConfiguration();
+			this.disposables.push(languages.registerCodeLensProvider(selector, this.implementationCodeLensProvider));
 		}
 
 		if (client.apiVersion.has213Features()) {
@@ -306,6 +307,9 @@ class LanguageProvider {
 		}
 		if (this.referenceCodeLensProvider) {
 			this.referenceCodeLensProvider.updateConfiguration();
+		}
+		if (this.implementationCodeLensProvider) {
+			this.implementationCodeLensProvider.updateConfiguration();
 		}
 		if (this.formattingProvider) {
 			this.formattingProvider.updateConfiguration(config);

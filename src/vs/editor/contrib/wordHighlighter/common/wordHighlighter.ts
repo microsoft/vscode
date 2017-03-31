@@ -16,11 +16,11 @@ import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegi
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 
-import { registerColor, editorSelectionHighlightColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorSelectionHighlight, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
-export const editorWordHighlight = registerColor('editorWordHighlight', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable'));
-export const editorWordHighlightStrong = registerColor('editorWordHighlightStrong', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable'));
+export const editorWordHighlight = registerColor('editorWordHighlight', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
+export const editorWordHighlightStrong = registerColor('editorWordHighlightStrong', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
 
 export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
 
@@ -317,7 +317,7 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let selectionHighlight = theme.getColor(editorSelectionHighlightColor);
+	let selectionHighlight = theme.getColor(editorSelectionHighlight);
 	if (selectionHighlight) {
 		collector.addRule(`.monaco-editor.${theme.selector} .focused .selectionHighlight { background-color: ${selectionHighlight}; }`);
 		collector.addRule(`.monaco-editor.${theme.selector} .selectionHighlight { background-color: ${selectionHighlight.transparent(0.5)}; }`);

@@ -10,6 +10,7 @@
 	"terminal.integrated.cursorBlinking": "端末のカーソルを点滅させるかどうかを制御します。",
 	"terminal.integrated.cursorStyle": "端末のカーソルのスタイルを制御します。",
 	"terminal.integrated.cwd": "端末を起動する明示的な開始パスです。これはシェル プロセスの現在の作業ディレクトリ (cwd) として使用されます。特にルート ディレクトリが cwd に適していない場合に、ワークスペースの設定で役立ちます。",
+	"terminal.integrated.enableBold": "ターミナル内で太字を有効にするかどうか。",
 	"terminal.integrated.fontFamily": "端末のフォント ファミリを制御します。既定値は editor.fontFamily になります。",
 	"terminal.integrated.fontLigatures": "端末でフォントの合字が有効かどうかを制御します。",
 	"terminal.integrated.fontSize": "端末のフォント サイズをピクセル単位で制御します。",

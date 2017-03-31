@@ -27,7 +27,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IPreferencesService, IPreferencesEditorModel, ISetting } from 'vs/workbench/parts/preferences/common/preferences';
-import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
+import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel, defaultKeybindingsContents } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { KeybindingsEditorInput } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
@@ -35,6 +35,8 @@ import { ITextModelResolverService } from 'vs/editor/common/services/resolverSer
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 
 interface IWorkbenchSettingsConfiguration {
@@ -67,7 +69,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private extensionService: IExtensionService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IModelService private modelService: IModelService
 	) {
 		super();
 		this.defaultPreferencesEditorModels = new Map<URI, TPromise<IPreferencesEditorModel<any>>>();
@@ -76,6 +80,17 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			if (activeEditorInput instanceof PreferencesEditorInput) {
 				this.lastOpenedSettingsInput = activeEditorInput;
 			}
+		});
+
+		// The default keybindings.json updates based on keyboard layouts, so here we make sure
+		// if a model has been given out we update it accordingly.
+		keybindingService.onDidUpdateKeybindings(() => {
+			const model = modelService.getModel(this.defaultKeybindingsResource);
+			if (!model) {
+				// model has not been given out => nothing to do
+				return;
+			}
+			model.setValue(defaultKeybindingsContents(keybindingService));
 		});
 	}
 
@@ -165,6 +180,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void> {
+		this.telemetryService.publicLog('openKeybindings', { textual });
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
 			const editableKeybindings = URI.file(this.environmentService.appKeybindingsPath);

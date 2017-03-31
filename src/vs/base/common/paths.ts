@@ -312,7 +312,7 @@ export function isUNC(path: string): boolean {
 }
 
 // Reference: https://en.wikipedia.org/wiki/Filename
-const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[/]/g;
+const INVALID_FILE_CHARS = isWindows ? /[\\/:\*\?"<>\|]/g : /[\\/]/g;
 const WINDOWS_FORBIDDEN_NAMES = /^(con|prn|aux|clock\$|nul|lpt[0-9]|com[0-9])$/i;
 export function isValidBasename(name: string): boolean {
 	if (!name || name.length === 0 || /^\s+$/.test(name)) {

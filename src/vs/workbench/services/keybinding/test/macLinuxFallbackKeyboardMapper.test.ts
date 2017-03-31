@@ -14,7 +14,7 @@ import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/comm
 
 suite('keyboardMapper - MAC fallback', () => {
 
-	let mapper = new MacLinuxFallbackKeyboardMapper({}, OperatingSystem.Macintosh);
+	let mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Macintosh);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
 		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh), expected);
@@ -149,7 +149,7 @@ suite('keyboardMapper - MAC fallback', () => {
 
 suite('keyboardMapper - LINUX fallback', () => {
 
-	let mapper = new MacLinuxFallbackKeyboardMapper({}, OperatingSystem.Linux);
+	let mapper = new MacLinuxFallbackKeyboardMapper(OperatingSystem.Linux);
 
 	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
 		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux), expected);

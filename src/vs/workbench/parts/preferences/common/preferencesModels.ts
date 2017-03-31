@@ -692,6 +692,11 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 }
 
+export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {
+	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
+	return defaultsHeader + '\n' + keybindingService.getDefaultKeybindingsContent();
+}
+
 export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
 
 	private _content: string;
@@ -705,8 +710,7 @@ export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<an
 
 	public get content(): string {
 		if (!this._content) {
-			const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
-			this._content = defaultsHeader + '\n' + this.keybindingService.getDefaultKeybindings();
+			this._content = defaultKeybindingsContents(this.keybindingService);
 		}
 		return this._content;
 	}
