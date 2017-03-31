@@ -84,7 +84,9 @@ export class MoveLinesCommand implements ICommand {
 			}
 
 			let bracketsSupport = LanguageConfigurationRegistry.getBracketsSupport(model.getLanguageIdentifier().id);
+			const lineComment = Strings.escapeRegExpCharacters(LanguageConfigurationRegistry.getComments(model.getLanguageIdentifier().id).lineCommentToken);
 			let brackets = [];
+			// If language have brackets, use them to detect blocks
 			if (bracketsSupport) {
 				brackets = bracketsSupport.brackets;
 			}
@@ -105,7 +107,7 @@ export class MoveLinesCommand implements ICommand {
 
 						const allOpenbrackets = Strings.escapeRegExpCharacters(brackets.map(x => x.open).reduce((x, y) => x + y, ''));
 
-						if (movingLineText.match(new RegExp('[' + allOpenbrackets + ']\\s*$'))) {
+						if (movingLineText.match(new RegExp('[^' + lineComment + '.*][' + allOpenbrackets + ']\\s*' + lineComment + '.*$'))) {
 							newMovingWhitespaces += oneIndent;
 						}
 						// Replace the current line whitespaces with the moving line whitespaces

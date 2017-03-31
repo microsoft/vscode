@@ -16,6 +16,8 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 const openBlockChars = ['{', '(', '['];
 const closingBlockChars = ['}', ')', ']'];
 const indentationType = ['	', '  ', '    '];
+const lineComment = '//';
+
 class BracketMode extends MockMode {
 	private static _id = new LanguageIdentifier('bracketMode', 3);
 
@@ -26,6 +28,10 @@ class BracketMode extends MockMode {
 				[openBlockChars[0], closingBlockChars[0]],
 				[openBlockChars[1], closingBlockChars[1]],
 				[openBlockChars[2], closingBlockChars[2]],
+			],
+			comments: {
+				'lineComment': lineComment
+			}
 		}));
 	}
 }
@@ -791,6 +797,182 @@ suite('Editor Contrib - Move Lines Command', () => {
 				],
 				new Selection(3, 1, 5, 2)
 			);
+		});
+	});
+
+	test('move line up leave commented block', function () {
+		openBlockChars.forEach((openBracket: string) => {
+			indentationType.forEach((indentation: string) => {
+				testMoveLinesUpCommandWithAndWithoutPreindentation(
+					indentation,
+					[
+						lineComment + 'open block' + openBracket,
+						'line to move',
+					],
+					new Selection(2, 1, 2, 2),
+					[
+						'line to move',
+						lineComment + 'open block' + openBracket,
+					],
+					new Selection(1, 1, 1, 2)
+				);
+			});
+		});
+	});
+
+	test('move lines up leave commented block', function () {
+		openBlockChars.forEach((openBracket: string) => {
+			indentationType.forEach((indentation: string) => {
+				testMoveLinesUpCommandWithAndWithoutPreindentation(
+					indentation,
+					[
+						lineComment + 'open block' + openBracket,
+						'blocktomove start',
+						indentation + 'blocktomove middle',
+						'blocktomove end',
+					],
+					new Selection(2, 1, 4, 2),
+					[
+						'blocktomove start',
+						indentation + 'blocktomove middle',
+						'blocktomove end',
+						lineComment + 'open block' + openBracket,
+					],
+					new Selection(1, 1, 3, 2)
+				);
+			});
+		});
+	});
+
+	test('move line up enter commented block', function () {
+		closingBlockChars.forEach((closeBracket: string) => {
+			indentationType.forEach((indentation: string) => {
+				testMoveLinesUpCommandWithAndWithoutPreindentation(
+					indentation,
+					[
+						lineComment + closeBracket + 'close block',
+						'line to move',
+					],
+					new Selection(2, 1, 2, 2),
+					[
+						'line to move',
+						lineComment + closeBracket + 'closeblock',
+					],
+					new Selection(1, 1, 1, 2)
+				);
+			});
+		});
+	});
+
+	test('move lines up enter commented block', function () {
+		closingBlockChars.forEach((closeBracket: string) => {
+			indentationType.forEach((indentation: string) => {
+				testMoveLinesUpCommandWithAndWithoutPreindentation(
+					indentation,
+					[
+						lineComment + closeBracket + 'close block',
+						'blocktomove start',
+						indentation + 'blocktomove middle',
+						'blocktomove end',
+					],
+					new Selection(2, 1, 4, 2),
+					[
+						'blocktomove start',
+						indentation + 'blocktomove middle',
+						'blocktomove end',
+						lineComment + closeBracket + 'close block',
+					],
+					new Selection(1, 1, 3, 2)
+				);
+			});
+		});
+	});
+
+	test('move line down enter commented block', function () {
+		openBlockChars.forEach((openBracket: string) => {
+			indentationType.forEach((indentation: string) => {
+				testMoveLinesDownCommandWithAndWithoutPreindentation(
+					indentation,
+					[
+						'line to move',
+						lineComment + 'open block' + openBracket,
+					],
+					new Selection(1, 1, 1, 2),
+					[
+						lineComment + 'open block' + openBracket,
+						'line to move',
+					],
+					new Selection(2, 1, 2, 2)
+				);
+			});
+		});
+	});
+
+	test('move lines down enter commented block', function () {
+		openBlockChars.forEach((openBracket: string) => {
+			indentationType.forEach((indentation: string) => {
+				testMoveLinesDownCommandWithAndWithoutPreindentation(
+					indentation,
+					[
+						'blocktomove start',
+						indentation + 'blocktomove middle',
+						'blocktomove end',
+						lineComment + 'open block' + openBracket,
+					],
+					new Selection(1, 1, 3, 2),
+					[
+						lineComment + 'open block' + openBracket,
+						'blocktomove start',
+						indentation + 'blocktomove middle',
+						'blocktomove end',
+					],
+					new Selection(4, 1, 4, 2)
+				);
+			});
+		});
+	});
+
+	test('move line down leave commented block', function () {
+		closingBlockChars.forEach((closeBracket: string) => {
+			indentationType.forEach((indentation: string) => {
+				testMoveLinesDownCommandWithAndWithoutPreindentation(
+					indentation,
+					[
+						'line to move',
+						lineComment + ' ' + closeBracket,
+					],
+					new Selection(1, 1, 1, 2),
+					[
+						lineComment + ' ' + closeBracket,
+						'line to move',
+					],
+					new Selection(2, 1, 2, 2)
+				);
+			});
+		});
+	});
+
+	test('move lines down leave commented block', function () {
+		closingBlockChars.forEach((closeBracket: string) => {
+			indentationType.forEach((indentation: string) => {
+				testMoveLinesDownCommandWithAndWithoutPreindentation(
+					indentation,
+					[
+						'blocktomove start',
+						indentation + 'blocktomove middle',
+						'blocktomove end',
+						lineComment + ' ' + closeBracket,
+					],
+					new Selection(1, 1, 3, 2),
+					[
+						lineComment + ' ' + closeBracket,
+						'blocktomove start',
+						indentation + 'blocktomove middle',
+						'blocktomove end',
+					],
+					new Selection(2, 1, 4, 2)
+				);
+			});
 		});
 	});
 
