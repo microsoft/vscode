@@ -236,6 +236,12 @@ suite('Filters', () => {
 		assertMatches('hhighlight', 'editorHoverHighlight', 'editor^Hover^H^i^g^h^l^i^g^h^t', fuzzyScore);
 		assertMatches('dhhighlight', 'editorHoverHighlight', undefined, fuzzyScore);
 	});
+	test('fuzzyScore, #23746', function () {
+		assertMatches('-moz', '-moz-foo', '^-^m^o^z-foo', fuzzyScore);
+		assertMatches('moz', '-moz-foo', '-^m^o^z-foo', fuzzyScore);
+		assertMatches('moz', '-moz-animation', '-^m^o^z-animation', fuzzyScore);
+		assertMatches('moza', '-moz-animation', '-^m^o^z-^animation', fuzzyScore);
+	});
 
 	test('fuzzyScore', function () {
 		assertMatches('ab', 'abA', '^a^bA', fuzzyScore);
@@ -287,7 +293,6 @@ suite('Filters', () => {
 		assertMatches('fo', 'bar.foo', 'bar.^f^oo', fuzzyScore);
 		assertMatches('fo', 'bar/foo', 'bar/^f^oo', fuzzyScore);
 		assertMatches('fo', 'bar\\foo', 'bar\\^f^oo', fuzzyScore);
-
 	});
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
 		let topScore = -(100 * 10);

@@ -439,6 +439,7 @@ function printTable(table: number[][], pattern: string, patternLen: number, word
 
 const _seps: { [ch: string]: boolean } = Object.create(null);
 _seps['_'] = true;
+_seps['-'] = true;
 _seps['.'] = true;
 _seps[' '] = true;
 _seps['/'] = true;
