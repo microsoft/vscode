@@ -64,6 +64,24 @@
         }
       },
       {
+        "command": "git.openChangeFromUri",
+        "title": "%command.openChange%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/open-change.svg",
+          "dark": "resources/icons/dark/open-change.svg"
+        }
+      },
+      {
+        "command": "git.openFileFromUri",
+        "title": "%command.openFile%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/open-file.svg",
+          "dark": "resources/icons/dark/open-file.svg"
+        }
+      },
+      {
         "command": "git.stage",
         "title": "%command.stage%",
         "category": "Git",
@@ -228,10 +246,18 @@
         },
         {
           "command": "git.openChange",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "false"
         },
         {
           "command": "git.openFile",
+          "when": "false"
+        },
+        {
+          "command": "git.openChangeFromUri",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.openFileFromUri",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
@@ -524,12 +550,12 @@
       ],
       "editor/title": [
         {
-          "command": "git.openFile",
+          "command": "git.openFileFromUri",
           "group": "navigation",
           "when": "config.git.enabled && scmProvider == git && isInDiffEditor && resourceScheme != extension"
         },
         {
-          "command": "git.openChange",
+          "command": "git.openChangeFromUri",
           "group": "navigation",
           "when": "config.git.enabled && scmProvider == git && !isInDiffEditor && resourceScheme != extension"
         }

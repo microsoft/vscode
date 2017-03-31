@@ -261,10 +261,32 @@ export class CommandCenter {
 		return await this._openResource(resource);
 	}
 
+	@command('git.openFileFromUri')
+	async openFileFromUri(uri?: Uri): Promise<void> {
+		const resource = this.getSCMResource(uri);
+
+		if (!resource) {
+			return;
+		}
+
+		return await commands.executeCommand<void>('vscode.open', resource.resourceUri);
+	}
+
+	@command('git.openChangeFromUri')
+	async openChangeFromUri(uri?: Uri): Promise<void> {
+		const resource = this.getSCMResource(uri);
+
+		if (!resource) {
+			return;
+		}
+
+		return await this._openResource(resource);
+	}
+
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0) {
-			const resource = this.getActiveEditorSCMResource();
+			const resource = this.getSCMResource();
 
 			if (!resource) {
 				return;
@@ -370,7 +392,7 @@ export class CommandCenter {
 	@command('git.unstage')
 	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0) {
-			const resource = this.getActiveEditorSCMResource();
+			const resource = this.getSCMResource();
 
 			if (!resource) {
 				return;
@@ -438,7 +460,7 @@ export class CommandCenter {
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0) {
-			const resource = this.getActiveEditorSCMResource();
+			const resource = this.getSCMResource();
 
 			if (!resource) {
 				return;
@@ -791,8 +813,8 @@ export class CommandCenter {
 		return result;
 	}
 
-	private getActiveEditorSCMResource(): Resource | undefined {
-		let uri = window.activeTextEditor && window.activeTextEditor.document.uri;
+	private getSCMResource(uri?: Uri): Resource | undefined {
+		uri = uri ? uri : window.activeTextEditor && window.activeTextEditor.document.uri;
 
 		if (!uri) {
 			return undefined;
