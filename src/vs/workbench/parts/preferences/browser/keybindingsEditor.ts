@@ -51,7 +51,7 @@ export class KeybindingsEditorInput extends EditorInput {
 	}
 
 	getName(): string {
-		return localize('keybindingsInputName', "Keybindings");
+		return localize('keybindingsInputName', "Keyboard Shortcuts");
 	}
 
 	resolve(refresh?: boolean): TPromise<KeybindingsEditorModel> {
