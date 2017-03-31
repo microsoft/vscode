@@ -271,7 +271,7 @@ class KeyboardController<T> implements IDisposable {
 }
 
 function isSelectionSingleChangeEvent(event: IListMouseEvent<any>): boolean {
-	return platform.isMacintosh ? event.altKey : event.ctrlKey;
+	return platform.isMacintosh ? event.metaKey : event.ctrlKey;
 }
 
 function isSelectionRangeChangeEvent(event: IListMouseEvent<any>): boolean {
