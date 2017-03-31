@@ -10,6 +10,7 @@
 	"commit message": "Messaggio di commit",
 	"confirm discard": "Rimuovere le modifiche in {0}?",
 	"confirm discard all": "Rimuovere TUTTE le modifiche?",
+	"confirm discard multiple": "Rimuovere le modifiche in {0} file?",
 	"confirm revert": "Ripristinare le modifiche selezionate in {0}?",
 	"disabled": "GIT è disabilitato oppure non supportato in quest'area di lavoro",
 	"discard": "Rimuovi modifiche",

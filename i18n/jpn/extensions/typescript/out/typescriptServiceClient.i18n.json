@@ -17,6 +17,11 @@
 	"serverDied": "TypeScript 言語サービスは、直前の 5 分間に 5 回、予期せずに停止しました。",
 	"serverDiedAfterStart": "TypeScript 言語サービスは、開始直後に 5 回停止しました。サービスは再開されません。",
 	"serverDiedReportIssue": "問題の報告",
+	"tsserverLogReloadBlurb": "VS Code を再度読み込んで、'typescript.tsserver.log' の変更を適用する",
+	"typescript.openTsServerLog.enableAndReloadOption": "ログを有効にして、VS Code を再度読み込む",
+	"typescript.openTsServerLog.loggingNotEnabled": "TS サーバーのログがオフになっています。ログを有効にするには、`typescript.tsserver.log` を設定して VS Code を再度読み込んでください",
+	"typescript.openTsServerLog.noLogFile": "TS サーバーはログを開始していません。",
+	"typescript.openTsServerLog.notSupported": "TS サーバーのログには TS 2.2.2 以降が必要です",
 	"useVSCodeVersionOption": "VSCode のバージョンの使用",
 	"useWorkspaceVersionOption": "ワークスペース バージョンの使用",
 	"versionNumber.custom": "カスタム"

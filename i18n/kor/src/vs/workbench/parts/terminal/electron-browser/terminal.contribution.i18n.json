@@ -10,6 +10,7 @@
 	"terminal.integrated.cursorBlinking": "터미널 커서 깜박임 여부를 제어합니다.",
 	"terminal.integrated.cursorStyle": "터미널 커서의 스타일을 제어합니다.",
 	"terminal.integrated.cwd": "터미널이 시작될 명시적 시작 경로입니다. 셸 프로세스의 현재 작업 디렉터리(cwd)로 사용됩니다. 루트 디렉터리가 편리한 cwd가 아닌 경우 작업 영역 설정에서 특히 유용하게 사용할 수 있습니다.",
+	"terminal.integrated.enableBold": "터미널 내에서 굵은 텍스트를 사용하도록 설정할지 여부입니다.",
 	"terminal.integrated.fontFamily": "터미널의 글꼴 패밀리를 제어하며, 기본값은 editor.fontFamily의 값입니다.",
 	"terminal.integrated.fontLigatures": "터미널에서 글꼴 합자가 사용되는지를 제어합니다.",
 	"terminal.integrated.fontSize": "터미널의 글꼴 크기(픽셀)를 제어합니다.",

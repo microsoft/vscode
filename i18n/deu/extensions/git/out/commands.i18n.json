@@ -10,6 +10,7 @@
 	"commit message": "Commit-Nachricht",
 	"confirm discard": "Möchten Sie die Änderungen in {0} wirklich verwerfen?",
 	"confirm discard all": "Möchten Sie wirklich ALLE Änderungen verwerfen?",
+	"confirm discard multiple": "Möchten Sie wirklich Änderungen in {0} Dateien verwerfen?",
 	"confirm revert": "Möchten Sie ausgewählten Änderungen in {0} wirklich zurücksetzen?",
 	"disabled": "Git ist deaktiviert oder wird in diesem Arbeitsbereich nicht unterstützt.",
 	"discard": "Änderungen verwerfen",
