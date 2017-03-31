@@ -26,25 +26,70 @@ namespace Configuration {
 
 class JsDocCompletionItem extends CompletionItem {
 	constructor(
-		private client: ITypescriptServiceClient,
-		resource: Uri,
-		file: string,
+		file: Uri,
 		position: Position,
-		enabledJsDocCompletion: boolean,
+		shouldGetJSDocFromTSServer: boolean,
 	) {
 		super('/** */', CompletionItemKind.Snippet);
 		this.detail = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
 		this.insertText = '';
 		this.sortText = '\0';
+		this.command = {
+			title: 'Try Complete JSDoc',
+			command: TryCompleteJsDocCommand.COMMAND_NAME,
+			arguments: [file, position, shouldGetJSDocFromTSServer]
+		};
+	}
+}
 
-		this.tryCompleteJsDoc(resource, file, position, enabledJsDocCompletion);
+export class JsDocCompletionProvider implements CompletionItemProvider {
+	private config: Configuration;
+
+	constructor(
+		private client: ITypescriptServiceClient,
+	) {
+		this.config = { enabled: true };
+	}
+
+	public updateConfiguration(): void {
+		const jsDocCompletionConfig = workspace.getConfiguration(configurationNamespace);
+		this.config.enabled = jsDocCompletionConfig.get(Configuration.enabled, true);
+	}
+
+	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<CompletionItem[]> {
+		const file = this.client.normalizePath(document.uri);
+		if (!file) {
+			return [];
+		}
+
+		// Only show the JSdoc completion when the everything before the cursor is whitespace
+		// or could be the opening of a comment
+		const line = document.lineAt(position.line).text;
+		const prefix = line.slice(0, position.character);
+		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/)) {
+			return [new JsDocCompletionItem(document.uri, position, this.config.enabled)];
+		}
+		return [];
+	}
+
+	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken) {
+		return item;
+	}
+}
+
+export class TryCompleteJsDocCommand {
+	static COMMAND_NAME = '_typeScript.tryCompleteJsDoc';
+
+	constructor(private client: ITypescriptServiceClient) {
+
 	}
 
 	/**
 	 * Try to insert a jsdoc comment, using a template provide by typescript
 	 * if possible, otherwise falling back to a default comment format.
 	 */
-	private tryCompleteJsDoc(resource: Uri, file: string, position: Position, enabledJsDocCompletion: boolean): Thenable<boolean> {
+	public tryCompleteJsDoc(resource: Uri, position: Position, shouldGetJSDocFromTSServer: boolean): Thenable<boolean> {
+		const file = this.client.normalizePath(resource);
 		if (!file) {
 			return Promise.resolve(false);
 		}
@@ -56,7 +101,7 @@ class JsDocCompletionItem extends CompletionItem {
 
 		return this.prepForDocCompletion(editor, position)
 			.then((start: Position) => {
-				if (!enabledJsDocCompletion) {
+				if (!shouldGetJSDocFromTSServer) {
 					return this.tryInsertDefaultDoc(editor, start);
 				}
 
@@ -137,41 +182,5 @@ class JsDocCompletionItem extends CompletionItem {
 	private tryInsertDefaultDoc(editor: TextEditor, position: Position): Thenable<boolean> {
 		const snippet = new SnippetString(`/**\n * $0\n */`);
 		return editor.insertSnippet(snippet, position, { undoStopBefore: false, undoStopAfter: true });
-	}
-}
-
-export default class JsDocCompletionProvider implements CompletionItemProvider {
-
-	private config: Configuration;
-
-	constructor(
-		private client: ITypescriptServiceClient,
-	) {
-		this.config = { enabled: true };
-	}
-
-	public updateConfiguration(): void {
-		const jsDocCompletionConfig = workspace.getConfiguration(configurationNamespace);
-		this.config.enabled = jsDocCompletionConfig.get(Configuration.enabled, true);
-	}
-
-	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<CompletionItem[]> {
-		const file = this.client.normalizePath(document.uri);
-		if (!file) {
-			return [];
-		}
-
-		// Only show the JSdoc completion when the everything before the cursor is whitespace
-		// or could be the opening of a comment
-		const line = document.lineAt(position.line).text;
-		const prefix = line.slice(0, position.character);
-		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/)) {
-			return [new JsDocCompletionItem(this.client, document.uri, file, position, this.config.enabled)];
-		}
-		return [];
-	}
-
-	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken) {
-		return item;
 	}
 }
