@@ -10,6 +10,7 @@
 	"terminal.integrated.cursorBlinking": "Contrôle si le curseur du terminal clignote.",
 	"terminal.integrated.cursorStyle": "Contrôle le style du curseur du terminal.",
 	"terminal.integrated.cwd": "Chemin explicite de lancement du terminal. Il est utilisé comme répertoire de travail actif du processus d'interpréteur de commandes. Cela peut être particulièrement utile dans les paramètres d'espace de travail, si le répertoire racine n'est pas un répertoire de travail actif adéquat.",
+	"terminal.integrated.enableBold": "Spécifie l'activation ou non du texte en gras dans le terminal.",
 	"terminal.integrated.fontFamily": "Contrôle la famille de polices du terminal. La valeur par défaut est la valeur associée à editor.fontFamily.",
 	"terminal.integrated.fontLigatures": "Contrôle si les ligatures de police sont activées sur le terminal.",
 	"terminal.integrated.fontSize": "Contrôle la taille de police en pixels du terminal.",

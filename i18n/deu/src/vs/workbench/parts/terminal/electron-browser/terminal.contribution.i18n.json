@@ -10,6 +10,7 @@
 	"terminal.integrated.cursorBlinking": "Steuert, ob der Terminalcursor blinkt.",
 	"terminal.integrated.cursorStyle": "Steuert den Stil des Terminalcursors.",
 	"terminal.integrated.cwd": "Ein expliziter Startpfad zum Starten des Terminals, dies dient als das aktuelle Arbeitsverzeichnis (CWD) für den Shellprozess. Dies ist insbesondere in Arbeitsbereichseinstellungen praktisch, wenn das Stammverzeichnis kein passendes CWD ist.",
+	"terminal.integrated.enableBold": "Gibt an, ob fetter Text im Terminal zugelassen wird.",
 	"terminal.integrated.fontFamily": "Steuert die Schriftartfamilie des Terminals. Der Standardwert ist \"editor.fontFamily\".",
 	"terminal.integrated.fontLigatures": "Steuert, ob Schriftartligaturen im Terminal aktiviert sind.",
 	"terminal.integrated.fontSize": "Steuert den Schriftgrad des Terminals in Pixeln.",

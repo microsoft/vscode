@@ -10,6 +10,7 @@
 	"commit message": "Message de validation",
 	"confirm discard": "Voulez-vous vraiment abandonner les changements apportés à {0} ?",
 	"confirm discard all": "Voulez-vous vraiment abandonner TOUS les changements ?",
+	"confirm discard multiple": "Voulez-vous vraiment abandonner les changements apportés à {0} fichiers ?",
 	"confirm revert": "Voulez-vous vraiment restaurer les changements sélectionnés dans {0} ?",
 	"disabled": "Git est désactivé ou non pris en charge dans cet espace de travail",
 	"discard": "Ignorer les modifications",

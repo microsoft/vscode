@@ -10,6 +10,7 @@
 	"terminal.integrated.cursorBlinking": "控制終端機資料指標是否閃爍。",
 	"terminal.integrated.cursorStyle": "控制終端機資料指標的樣式。",
 	"terminal.integrated.cwd": "終端機啟動位置的明確起始路徑，這會用作殼層處理序的目前工作目錄 (cwd)。當根目錄不是方便的 cwd 時，這在工作區設定中特別好用。",
+	"terminal.integrated.enableBold": "是否要在終端機內啟用粗體文字。",
 	"terminal.integrated.fontFamily": "控制終端機的字型家族，預設為 editor.fontFamily 的值。",
 	"terminal.integrated.fontLigatures": "控制是否在終端機中啟用連字字型。",
 	"terminal.integrated.fontSize": "控制終端機的字型大小 (以像素為單位)。",

@@ -28,6 +28,12 @@ export function attachStyler(themeService: IThemeService, widget: IThemable, opt
 	return themeService.onThemeChange(applyStyles);
 }
 
+export function attachCheckboxStyler(widget: IThemable, themeService: IThemeService, style?: { inputActiveOptionBorderColor?: ColorIdentifier }): IDisposable {
+	return attachStyler(themeService, widget, {
+		inputActiveOptionBorderColor: (style && style.inputActiveOptionBorderColor) || inputActiveOptionBorder
+	});
+}
+
 export function attachInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: { inputBackground?: ColorIdentifier, inputForeground?: ColorIdentifier, inputBorder?: ColorIdentifier }): IDisposable {
 	return attachStyler(themeService, widget, {
 		inputBackground: (style && style.inputBackground) || inputBackground,

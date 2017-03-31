@@ -16,7 +16,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IOptions {
@@ -46,7 +46,7 @@ export class PatternInputWidget extends Widget {
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
-	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, private themeService: IThemeService, options: IOptions = Object.create(null)) {
+	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, protected themeService: IThemeService, options: IOptions = Object.create(null)) {
 		super();
 		this.onOptionChange = null;
 		this.width = options.width || 100;
@@ -189,6 +189,7 @@ export class PatternInputWidget extends Widget {
 				}
 			}
 		});
+		this._register(attachCheckboxStyler(this.pattern, this.themeService));
 
 		$(this.pattern.domNode).on('mouseover', () => {
 			if (this.isGlobPattern()) {
@@ -281,6 +282,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 				}
 			}
 		});
+		this._register(attachCheckboxStyler(this.useIgnoreFilesBox, this.themeService));
 
 		this.useExcludeSettingsBox = new Checkbox({
 			actionClassName: 'useExcludeSettings',
@@ -294,6 +296,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 				}
 			}
 		});
+		this._register(attachCheckboxStyler(this.useExcludeSettingsBox, this.themeService));
 
 		controlsDiv.appendChild(this.useIgnoreFilesBox.domNode);
 		controlsDiv.appendChild(this.useExcludeSettingsBox.domNode);

@@ -177,7 +177,7 @@ export class MenuItemAction extends ExecuteCommandAction {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 		this._cssClass = item.iconClass;
 		this._enabled = true;
-		this._options = options;
+		this._options = options || {};
 
 		this.item = item;
 		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, commandService) : undefined;

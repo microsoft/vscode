@@ -12,7 +12,7 @@ import { chain } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
 import { domEvent } from 'vs/base/browser/event';
-import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
@@ -60,16 +60,14 @@ class SCMMenuItemActionItem extends MenuItemActionItem {
 	}
 }
 
-// TODO@Joao
-// Rename contextKey to something else
 function identityProvider(r: ISCMResourceGroup | ISCMResource): string {
 	if (isSCMResource(r)) {
 		const group = r.resourceGroup;
 		const provider = group.provider;
-		return `${provider.contextKey}/${group.contextKey}/${r.sourceUri.toString()}`;
+		return `${provider.id}/${group.id}/${r.sourceUri.toString()}`;
 	} else {
 		const provider = r.provider;
-		return `${provider.contextKey}/${r.contextKey}`;
+		return `${provider.id}/${r.id}`;
 	}
 }
 
@@ -212,6 +210,7 @@ function resourceSorter(a: ISCMResource, b: ISCMResource): number {
 
 export class SCMViewlet extends Viewlet {
 
+	private activeProvider: ISCMProvider | undefined;
 	private cachedDimension: Dimension;
 	private inputBoxContainer: HTMLElement;
 	private inputBox: InputBox;
@@ -245,13 +244,21 @@ export class SCMViewlet extends Viewlet {
 
 	private setActiveProvider(activeProvider: ISCMProvider | undefined): void {
 		this.providerChangeDisposable.dispose();
+		this.activeProvider = activeProvider;
 
 		if (activeProvider) {
-			this.providerChangeDisposable = activeProvider.onDidChange(this.update, this);
+			const disposables = [activeProvider.onDidChange(this.update, this)];
+
+			if (activeProvider.onDidChangeCommitTemplate) {
+				disposables.push(activeProvider.onDidChangeCommitTemplate(this.updateInputBox, this));
+			}
+
+			this.providerChangeDisposable = combinedDisposable(disposables);
 		} else {
 			this.providerChangeDisposable = EmptyDisposable;
 		}
 
+		this.updateInputBox();
 		this.updateTitleArea();
 		this.update();
 	}
@@ -278,7 +285,7 @@ export class SCMViewlet extends Viewlet {
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.equals(KeyMod.CtrlCmd | KeyCode.Enter) || e.equals(KeyMod.CtrlCmd | KeyCode.KEY_S))
-			.on(this.scmService.input.acceptChanges, this.scmService.input, this.disposables);
+			.on(this.onDidAcceptInput, this, this.disposables);
 
 		this.listContainer = append(root, $('.scm-status.show-file-icons'));
 		const delegate = new Delegate();
@@ -312,6 +319,22 @@ export class SCMViewlet extends Viewlet {
 		return TPromise.as(null);
 	}
 
+	private onDidAcceptInput(): void {
+		if (!this.activeProvider) {
+			return;
+		}
+
+		if (!this.activeProvider.acceptInputCommand) {
+			return;
+		}
+
+		const id = this.activeProvider.acceptInputCommand.id;
+		const args = this.activeProvider.acceptInputCommand.arguments;
+
+		this.commandService.executeCommand(id, ...args)
+			.done(undefined, onUnexpectedError);
+	}
+
 	private update(): void {
 		const provider = this.scmService.activeProvider;
 
@@ -324,6 +347,18 @@ export class SCMViewlet extends Viewlet {
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => [...r, g, ...g.resources.sort(resourceSorter)], []);
 
 		this.list.splice(0, this.list.length, elements);
+	}
+
+	private updateInputBox(): void {
+		if (!this.activeProvider) {
+			return;
+		}
+
+		if (typeof this.activeProvider.commitTemplate === 'undefined') {
+			return;
+		}
+
+		this.inputBox.value = this.activeProvider.commitTemplate;
 	}
 
 	layout(dimension: Dimension = this.cachedDimension): void {
@@ -358,6 +393,17 @@ export class SCMViewlet extends Viewlet {
 
 		this.commandService.executeCommand(e.command.id, ...e.command.arguments)
 			.done(undefined, onUnexpectedError);
+	}
+
+	getTitle(): string {
+		const title = localize('source control', "Source Control");
+		const providerLabel = this.scmService.activeProvider && this.scmService.activeProvider.label;
+
+		if (providerLabel) {
+			return localize('viewletTitle', "{0}: {1}", title, providerLabel);
+		} else {
+			return title;
+		}
 	}
 
 	getActions(): IAction[] {

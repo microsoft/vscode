@@ -17,6 +17,7 @@ export interface IBaselineResourceProvider {
 }
 
 export const ISCMService = createDecorator<ISCMService>('scm');
+export const DefaultSCMProviderIdStorageKey = 'settings.workspace.scm.defaultProviderId';
 
 export interface ISCMResourceDecorations {
 	icon?: URI;
@@ -25,7 +26,6 @@ export interface ISCMResourceDecorations {
 }
 
 export interface ISCMResource {
-	// readonly uri: URI;
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
 	readonly command?: Command;
@@ -33,20 +33,22 @@ export interface ISCMResource {
 }
 
 export interface ISCMResourceGroup {
-	// readonly uri: URI;
 	readonly provider: ISCMProvider;
 	readonly label: string;
-	readonly contextKey?: string;
+	readonly id: string;
 	readonly resources: ISCMResource[];
 }
 
 export interface ISCMProvider extends IDisposable {
 	readonly label: string;
-	readonly contextKey?: string;
+	readonly id: string;
 	readonly resources: ISCMResourceGroup[];
-	// TODO: Event<void>
 	readonly onDidChange: Event<void>;
 	readonly count?: number;
+	readonly commitTemplate?: string;
+	readonly onDidChangeCommitTemplate?: Event<string>;
+	readonly acceptInputCommand?: Command;
+	readonly statusBarCommands?: Command[];
 
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
@@ -54,8 +56,6 @@ export interface ISCMProvider extends IDisposable {
 export interface ISCMInput {
 	value: string;
 	readonly onDidChange: Event<string>;
-	readonly onDidAccept: Event<string>;
-	acceptChanges(): void;
 }
 
 export interface ISCMService {

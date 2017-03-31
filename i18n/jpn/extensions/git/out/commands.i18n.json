@@ -10,6 +10,7 @@
 	"commit message": "コミット メッセージ",
 	"confirm discard": "{0} の変更を破棄しますか?",
 	"confirm discard all": "すべての変更を破棄しますか?",
+	"confirm discard multiple": "{0} 個のファイルの変更内容を破棄しますか?",
 	"confirm revert": "{0} で選択した変更を元に戻しますか?",
 	"disabled": "このワークスペースでは、Git が無効になっているか、サポートされていません",
 	"discard": "変更を破棄",

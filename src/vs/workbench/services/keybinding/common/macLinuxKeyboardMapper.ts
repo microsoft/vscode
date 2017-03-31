@@ -503,6 +503,10 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	/**
 	 * OS (can be Linux or Macintosh)
 	 */
+	private readonly _isUSStandard: boolean;
+	/**
+	 * OS (can be Linux or Macintosh)
+	 */
 	private readonly _OS: OperatingSystem;
 	/**
 	 * used only for debug purposes.
@@ -521,7 +525,8 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	 */
 	private readonly _scanCodeToDispatch: string[] = [];
 
-	constructor(rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
+	constructor(isUSStandard: boolean, rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
+		this._isUSStandard = isUSStandard;
 		this._OS = OS;
 		this._codeInfo = [];
 		this._scanCodeKeyCodeMapper = new ScanCodeKeyCodeMapper();
@@ -657,6 +662,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		];
 
 		let cnt = 0;
+		result.push(`isUSStandard: ${this._isUSStandard}`);
 		result.push(`----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------`);
 		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
 			if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== -1) {
@@ -943,6 +949,27 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 		// Check if this scanCode always maps to the same keyCode and back
 		let constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(scanCode);
+
+		if (!this._isUSStandard) {
+			// Electron cannot handle these key codes on anything else than standard US
+			const isOEMKey = (
+				constantKeyCode === KeyCode.US_SEMICOLON
+				|| constantKeyCode === KeyCode.US_EQUAL
+				|| constantKeyCode === KeyCode.US_COMMA
+				|| constantKeyCode === KeyCode.US_MINUS
+				|| constantKeyCode === KeyCode.US_DOT
+				|| constantKeyCode === KeyCode.US_SLASH
+				|| constantKeyCode === KeyCode.US_BACKTICK
+				|| constantKeyCode === KeyCode.US_OPEN_SQUARE_BRACKET
+				|| constantKeyCode === KeyCode.US_BACKSLASH
+				|| constantKeyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
+			);
+
+			if (isOEMKey) {
+				return null;
+			}
+		}
+
 		if (constantKeyCode !== -1) {
 			return this._getElectronLabelForKeyCode(constantKeyCode);
 		}

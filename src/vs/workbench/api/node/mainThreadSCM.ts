@@ -24,7 +24,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		public provider: ISCMProvider,
 		public features: SCMGroupFeatures,
 		public label: string,
-		public contextKey: string,
+		public id: string,
 		public resources: ISCMResource[]
 	) { }
 
@@ -76,7 +76,14 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	get handle(): number { return this._handle; }
 	get label(): string { return this._label; }
-	get contextKey(): string { return this._id; }
+	get id(): string { return this._id; }
+
+	get commitTemplate(): string | undefined { return this.features.commitTemplate; }
+	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
+	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
+
+	private _onDidChangeCommitTemplate = new Emitter<string>();
+	get onDidChangeCommitTemplate(): Event<string> { return this._onDidChangeCommitTemplate.event; }
 
 	private _count: number | undefined = undefined;
 	get count(): number | undefined { return this._count; }
@@ -93,6 +100,10 @@ class MainThreadSCMProvider implements ISCMProvider {
 	$updateSourceControl(features: SCMProviderFeatures): void {
 		this.features = assign(this.features, features);
 		this._onDidChange.fire();
+
+		if (typeof features.commitTemplate !== 'undefined') {
+			this._onDidChangeCommitTemplate.fire(this.commitTemplate);
+		}
 	}
 
 	$registerGroup(handle: number, id: string, label: string): void {
@@ -194,7 +205,6 @@ export class MainThreadSCM extends MainThreadSCMShape {
 
 		this.scmService.onDidChangeProvider(this.onDidChangeProvider, this, this._disposables);
 		this.scmService.input.onDidChange(this._proxy.$onInputBoxValueChange, this._proxy, this._disposables);
-		this.scmService.input.onDidAccept(this._proxy.$onInputBoxAcceptChanges, this._proxy, this._disposables);
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string): void {

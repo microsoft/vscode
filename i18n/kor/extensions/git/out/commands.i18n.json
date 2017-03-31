@@ -10,6 +10,7 @@
 	"commit message": "커밋 메시지",
 	"confirm discard": "{0}의 변경 내용을 취소하시겠습니까?",
 	"confirm discard all": "모든 변경 내용을 취소하시겠습니까?",
+	"confirm discard multiple": "{0}개 파일의 변경 내용을 취소하시겠습니까?",
 	"confirm revert": "{0}에서 선택한 변경 내용을 되돌리시겠습니까?",
 	"disabled": "Git은 이 작업 영역에서 사용하지 않도록 설정되어 있거나 지원되지 않습니다.",
 	"discard": "변경 내용 취소",

@@ -71,7 +71,7 @@ export const vs: IStandaloneThemeData = {
 		editorBackground: '#FFFFFE',
 		editorForeground: '#000000',
 		editorInactiveSelection: '#E5EBF1',
-		editorGuide: '#D3D3D3',
+		editorIndentGuides: '#D3D3D3',
 		editorSelectionHighlight: '#ADD6FF4D'
 	}
 };
@@ -141,7 +141,7 @@ export const vs_dark: IStandaloneThemeData = {
 		editorBackground: '#1E1E1E',
 		editorForeground: '#D4D4D4',
 		editorInactiveSelection: '#3A3D41',
-		editorGuide: '#404040',
+		editorIndentGuides: '#404040',
 		editorSelectionHighlight: '#ADD6FF26'
 	}
 };
@@ -202,7 +202,7 @@ export const hc_black: IStandaloneThemeData = {
 	colors: {
 		editorBackground: '#000000',
 		editorForeground: '#FFFFFF',
-		editorGuide: '#FFFFFF',
+		editorIndentGuides: '#FFFFFF',
 	}
 };
 /* -------------------------------- End hc-black theme -------------------------------- */

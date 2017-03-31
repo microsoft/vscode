@@ -244,13 +244,7 @@ export class CommandCenter {
 	}
 
 	@command('git.openFile')
-	async openFile(uri?: Uri): Promise<void> {
-		if (uri && uri.scheme === 'file') {
-			return await commands.executeCommand<void>('vscode.open', uri);
-		}
-
-		const resource = this.resolveSCMResource(uri);
-
+	async openFile(resource?: Resource): Promise<void> {
 		if (!resource) {
 			return;
 		}
@@ -259,8 +253,28 @@ export class CommandCenter {
 	}
 
 	@command('git.openChange')
-	async openChange(uri?: Uri): Promise<void> {
-		const resource = this.resolveSCMResource(uri);
+	async openChange(resource?: Resource): Promise<void> {
+		if (!resource) {
+			return;
+		}
+
+		return await this._openResource(resource);
+	}
+
+	@command('git.openFileFromUri')
+	async openFileFromUri(uri?: Uri): Promise<void> {
+		const resource = this.getSCMResource(uri);
+
+		if (!resource) {
+			return;
+		}
+
+		return await commands.executeCommand<void>('vscode.open', resource.resourceUri);
+	}
+
+	@command('git.openChangeFromUri')
+	async openChangeFromUri(uri?: Uri): Promise<void> {
+		const resource = this.getSCMResource(uri);
 
 		if (!resource) {
 			return;
@@ -272,7 +286,7 @@ export class CommandCenter {
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0) {
-			const resource = this.resolveSCMResource();
+			const resource = this.getSCMResource();
 
 			if (!resource) {
 				return;
@@ -378,7 +392,7 @@ export class CommandCenter {
 	@command('git.unstage')
 	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0) {
-			const resource = this.resolveSCMResource();
+			const resource = this.getSCMResource();
 
 			if (!resource) {
 				return;
@@ -446,7 +460,7 @@ export class CommandCenter {
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0) {
-			const resource = this.resolveSCMResource();
+			const resource = this.getSCMResource();
 
 			if (!resource) {
 				return;
@@ -799,8 +813,8 @@ export class CommandCenter {
 		return result;
 	}
 
-	private resolveSCMResource(uri?: Uri): Resource | undefined {
-		uri = uri || window.activeTextEditor && window.activeTextEditor.document.uri;
+	private getSCMResource(uri?: Uri): Resource | undefined {
+		uri = uri ? uri : window.activeTextEditor && window.activeTextEditor.document.uri;
 
 		if (!uri) {
 			return undefined;

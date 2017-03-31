@@ -17,6 +17,11 @@
 	"serverDied": "Il servizio di linguaggio Typescript è stato arrestato in modo imprevisto per cinque volte negli ultimi cinque minuti.",
 	"serverDiedAfterStart": "Il servizio di linguaggio TypeScript è stato arrestato in modo imprevisto per cinque volte dopo che è stato avviato e non verrà riavviato.",
 	"serverDiedReportIssue": "Segnala problema",
+	"tsserverLogReloadBlurb": "Ricaricare Visual Studio Code per applicare la modifica relativa a 'typescript.tsserver.log'",
+	"typescript.openTsServerLog.enableAndReloadOption": "Abilita la registrazione e ricarica Visual Studio Code",
+	"typescript.openTsServerLog.loggingNotEnabled": "La registrazione del server TypeScript è disattivata. Per abilitarla, impostare `typescript.tsserver.log` e ricaricare Visual Studio Code",
+	"typescript.openTsServerLog.noLogFile": "Il server TypeScript non ha avviato la registrazione.",
+	"typescript.openTsServerLog.notSupported": "Per la registrazione del server TypeScript è necessario almeno TypeScript 2.2.2",
 	"useVSCodeVersionOption": "Usa versione di VSCode",
 	"useWorkspaceVersionOption": "Usa versione dell'area di lavoro",
 	"versionNumber.custom": "personalizzato"

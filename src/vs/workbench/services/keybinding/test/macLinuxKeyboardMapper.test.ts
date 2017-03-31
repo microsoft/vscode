@@ -18,9 +18,9 @@ import { readRawMapping, assertMapping, IResolvedKeybinding, assertResolveKeybin
 
 const WRITE_FILE_IF_DIFFERENT = false;
 
-function createKeyboardMapper(file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
+function createKeyboardMapper(isUSStandard: boolean, file: string, OS: OperatingSystem): TPromise<MacLinuxKeyboardMapper> {
 	return readRawMapping<IMacLinuxKeyboardMapping>(file).then((rawMappings) => {
-		return new MacLinuxKeyboardMapper(rawMappings, OS);
+		return new MacLinuxKeyboardMapper(isUSStandard, rawMappings, OS);
 	});
 }
 
@@ -29,7 +29,7 @@ suite('keyboardMapper - MAC de_ch', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup((done) => {
-		createKeyboardMapper('mac_de_ch', OperatingSystem.Macintosh).then((_mapper) => {
+		createKeyboardMapper(false, 'mac_de_ch', OperatingSystem.Macintosh).then((_mapper) => {
 			mapper = _mapper;
 			done();
 		}, done);
@@ -478,7 +478,7 @@ suite('keyboardMapper - MAC en_us', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup((done) => {
-		createKeyboardMapper('mac_en_us', OperatingSystem.Macintosh).then((_mapper) => {
+		createKeyboardMapper(true, 'mac_en_us', OperatingSystem.Macintosh).then((_mapper) => {
 			mapper = _mapper;
 			done();
 		}, done);
@@ -580,7 +580,7 @@ suite('keyboardMapper - LINUX de_ch', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup((done) => {
-		createKeyboardMapper('linux_de_ch', OperatingSystem.Linux).then((_mapper) => {
+		createKeyboardMapper(false, 'linux_de_ch', OperatingSystem.Linux).then((_mapper) => {
 			mapper = _mapper;
 			done();
 		}, done);
@@ -1024,7 +1024,7 @@ suite('keyboardMapper - LINUX en_us', () => {
 	let mapper: MacLinuxKeyboardMapper;
 
 	suiteSetup((done) => {
-		createKeyboardMapper('linux_en_us', OperatingSystem.Linux).then((_mapper) => {
+		createKeyboardMapper(true, 'linux_en_us', OperatingSystem.Linux).then((_mapper) => {
 			mapper = _mapper;
 			done();
 		}, done);
@@ -1530,6 +1530,51 @@ suite('keyboardMapper - LINUX en_us', () => {
 			}
 		);
 	});
+});
+
+suite('keyboardMapper', () => {
+
+	test('issue #23706: Linux UK layout: Ctrl + Apostrophe also toggles terminal', () => {
+		let mapper = new MacLinuxKeyboardMapper(false, {
+			'Backquote': {
+				'value': '`',
+				'withShift': '¬',
+				'withAltGr': '|',
+				'withShiftAltGr': '|'
+			}
+		}, OperatingSystem.Linux);
+
+		function _simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
+			return simpleHTMLLabel(pieces, OperatingSystem.Linux);
+		}
+
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: -1,
+				code: 'Backquote'
+			},
+			{
+				label: 'Ctrl+`',
+				ariaLabel: 'Control+`',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '`'])],
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+`',
+				isWYSIWYG: true,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[Backquote]', null],
+			}
+		);
+	});
+
 });
 
 function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, kb: number, _expected: string | string[]): void {

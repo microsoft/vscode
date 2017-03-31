@@ -39,15 +39,6 @@
 	box-sizing: border-box;
 }
 
-@keyframes monaco-cursor-blink {
-	50% {
-		opacity: 0;
-	}
-	100% {
-		opacity: 1;
-	}
-}
-
 @keyframes monaco-cursor-smooth {
 	0%,
 	20% {
@@ -79,10 +70,6 @@
 	100% {
 		transform: scaleY(0);
 	}
-}
-
-.windows .cursor-blink {
-	animation: monaco-cursor-blink 1s step-start 0s infinite;
 }
 
 .cursor-smooth {

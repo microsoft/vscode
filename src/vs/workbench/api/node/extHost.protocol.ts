@@ -253,6 +253,9 @@ export abstract class MainProcessExtensionServiceShape {
 export interface SCMProviderFeatures {
 	hasQuickDiffProvider?: boolean;
 	count?: number;
+	commitTemplate?: string;
+	acceptInputCommand?: modes.Command;
+	statusBarCommands?: modes.Command[];
 }
 
 export interface SCMGroupFeatures {

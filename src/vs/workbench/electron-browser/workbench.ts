@@ -347,8 +347,8 @@ export class Workbench implements IPartService {
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
 					this.callbacks.onWorkbenchStarted({
 						customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-						restoreViewletDuration: viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0,
-						restoreEditorsDuration: editorRestoreStopWatch.elapsed(),
+						restoreViewletDuration: viewletRestoreStopWatch ? Math.round(viewletRestoreStopWatch.elapsed()) : 0,
+						restoreEditorsDuration: Math.round(editorRestoreStopWatch.elapsed()),
 						pinnedViewlets: this.activitybarPart.getPinned(),
 					});
 				}

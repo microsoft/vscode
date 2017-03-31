@@ -7,8 +7,12 @@
 
 import { scm, Uri, Disposable, SourceControl, SourceControlResourceGroup, Event, workspace, commands } from 'vscode';
 import { Model, State } from './model';
+import { StatusBarCommands } from './statusbar';
 import { CommandCenter } from './commands';
 import { mapEvent } from './util';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 export class GitSCMProvider {
 
@@ -53,10 +57,19 @@ export class GitSCMProvider {
 	private indexGroup: SourceControlResourceGroup;
 	private workingTreeGroup: SourceControlResourceGroup;
 
-	constructor(private model: Model, private commandCenter: CommandCenter) {
+	constructor(
+		private model: Model,
+		private commandCenter: CommandCenter,
+		private statusBarCommands: StatusBarCommands
+	) {
 		this._sourceControl = scm.createSourceControl('git', 'Git');
-		this._sourceControl.quickDiffProvider = this;
 		this.disposables.push(this._sourceControl);
+
+		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit") };
+		this._sourceControl.quickDiffProvider = this;
+
+		this.statusBarCommands.onDidChange(this.onDidStatusBarCommandsChange, this, this.disposables);
+		this.onDidStatusBarCommandsChange();
 
 		this.mergeGroup = this._sourceControl.createResourceGroup(model.mergeGroup.id, model.mergeGroup.label);
 		this.indexGroup = this._sourceControl.createResourceGroup(model.indexGroup.id, model.indexGroup.label);
@@ -70,6 +83,15 @@ export class GitSCMProvider {
 		this.disposables.push(this.workingTreeGroup);
 
 		model.onDidChange(this.onDidModelChange, this, this.disposables);
+		this.updateCommitTemplate();
+	}
+
+	private async updateCommitTemplate(): Promise<void> {
+		try {
+			this._sourceControl.commitTemplate = await this.model.getCommitTemplate();
+		} catch (e) {
+			// noop
+		}
 	}
 
 	provideOriginalResource(uri: Uri): Uri | undefined {
@@ -88,6 +110,10 @@ export class GitSCMProvider {
 		this.workingTreeGroup.resourceStates = this.model.workingTreeGroup.resources;
 		this._sourceControl.count = this.count;
 		commands.executeCommand('setContext', 'gitState', this.stateContextKey);
+	}
+
+	private onDidStatusBarCommandsChange(): void {
+		this._sourceControl.statusBarCommands = this.statusBarCommands.commands;
 	}
 
 	dispose(): void {

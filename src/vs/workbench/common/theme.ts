@@ -17,12 +17,6 @@ export const TABS_CONTAINER_BACKGROUND = registerColor('tabsContainerBackground'
 	hc: null
 }, nls.localize('tabsContainerBackground', "Background color of the tabs container. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const NO_TABS_CONTAINER_BACKGROUND = registerColor('noTabsContainerBackground', {
-	dark: editorBackground,
-	light: editorBackground,
-	hc: editorBackground
-}, nls.localize('noTabsContainerBackground', "Background color of the editor title container when no tabs are enabled."));
-
 export const ACTIVE_TAB_BACKGROUND = registerColor('activeTabBackground', {
 	dark: editorBackground,
 	light: editorBackground,
@@ -69,6 +63,12 @@ export const TAB_BORDER = registerColor('tabBorder', {
 
 // < --- Editors --- >
 
+export const EDITOR_HEADER_BACKGROUND = registerColor('editorHeaderBackground', {
+	dark: editorBackground,
+	light: editorBackground,
+	hc: editorBackground
+}, nls.localize('editorHeaderBackground', "Background color of the editor title header when no tabs are enabled."));
+
 export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroupBorder', {
 	dark: '#444444',
 	light: '#E7E7E7',
@@ -79,7 +79,7 @@ export const EDITOR_GROUP_BACKGROUND = registerColor('editorGroupBackground', {
 	dark: '#2D2D2D',
 	light: '#ECECEC',
 	hc: null
-}, nls.localize('editorGroupBackground', "Backgrouund color of an editor group. Editor groups are the containers of editors."));
+}, nls.localize('editorGroupBackground', "Background color of an editor group. Editor groups are the containers of editors."));
 
 export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorDragAndDropBackground', {
 	dark: Color.fromRGBA(new RGBA(83, 89, 93)).transparent(0.5),
@@ -134,43 +134,43 @@ export const STATUS_BAR_FOREGROUND = registerColor('statusBarForeground', {
 	dark: '#FFFFFF',
 	light: '#FFFFFF',
 	hc: '#FFFFFF'
-}, nls.localize('statusBarForeground', "Status bar foreground color. The status bar is shown in the bottom of the window"));
+}, nls.localize('statusBarForeground', "Status bar foreground color. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_BACKGROUND = registerColor('statusBarBackground', {
 	dark: '#007ACC',
 	light: '#007ACC',
 	hc: null
-}, nls.localize('statusBarBackground', "Standard status bar background color. The status bar is shown in the bottom of the window"));
+}, nls.localize('statusBarBackground', "Standard status bar background color. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBarNoFolderBackground', {
 	dark: '#68217A',
 	light: '#68217A',
 	hc: null
-}, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window"));
+}, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('statusBarItemActiveBackground', {
 	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18),
 	light: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18),
 	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18)
-}, nls.localize('statusBarItemActiveBackground', "Status bar item background color when clicking. The status bar is shown in the bottom of the window"));
+}, nls.localize('statusBarItemActiveBackground', "Status bar item background color when clicking. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItemHoverBackground', {
 	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
 	light: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
 	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12)
-}, nls.localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window"));
+}, nls.localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_INFO_ITEM_BACKGROUND = registerColor('statusBarInfoItemBackground', {
 	dark: '#388A34',
 	light: '#388A34',
 	hc: '#3883A4'
-}, nls.localize('statusBarInfoItemBackground', "Status bar info item background color. The status bar is shown in the bottom of the window"));
+}, nls.localize('statusBarInfoItemBackground', "Status bar info item background color. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND = registerColor('statusBarInfoItemHoverBackground', {
 	dark: '#369432',
 	light: '#369432',
 	hc: '#369432'
-}, nls.localize('statusBarInfoItemHoverBackground', "Status bar info item background color when hovering. The status bar is shown in the bottom of the window"));
+}, nls.localize('statusBarInfoItemHoverBackground', "Status bar info item background color when hovering. The status bar is shown in the bottom of the window."));
 
 
 

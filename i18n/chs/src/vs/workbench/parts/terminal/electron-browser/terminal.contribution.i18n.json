@@ -10,6 +10,7 @@
 	"terminal.integrated.cursorBlinking": "控制终端游标是否闪烁。",
 	"terminal.integrated.cursorStyle": "控制终端游标的样式。",
 	"terminal.integrated.cwd": "将在其中启动终端的一个显式起始路径，它用作 shell 进程的当前工作目录(cwd)。当根目录为不方便的 cwd 时，此路径在工作区设置中可能十分有用。",
+	"terminal.integrated.enableBold": "是否在终端内启用粗体文本。",
 	"terminal.integrated.fontFamily": "控制终端的字体系列，这在编辑器中是默认的。fontFamily 的值。",
 	"terminal.integrated.fontLigatures": "控制是否在终端中启用字体连字。",
 	"terminal.integrated.fontSize": "控制终端的字号(以像素为单位)。",
