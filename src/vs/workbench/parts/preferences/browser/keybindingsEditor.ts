@@ -32,7 +32,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 let $ = DOM.$;
 
@@ -82,6 +82,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	private dimension: Dimension;
 	private delayedFiltering: Delayer<void>;
+	private latestEmptyFilters: string[] = [];
+	private delayedFilterLogging: Delayer<void>;
 	private keybindingsEditorContextKey: IContextKey<boolean>;
 	private keybindingFocusContextKey: IContextKey<boolean>;
 
@@ -105,6 +107,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
 		this.keybindingFocusContextKey = CONTEXT_KEYBINDING_FOCUS.bindTo(this.contextKeyService);
+		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
 
 	createEditor(parent: Builder): void {
@@ -167,6 +170,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.selectEntry(keybindingEntry);
 		this.showOverlayContainer();
 		return this.defineKeybindingWidget.define().then(key => {
+			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_DEFINE, keybindingEntry.keybindingItem.command, key);
 			if (key) {
 				return this.keybindingEditingService.editKeybinding(key, keybindingEntry.keybindingItem.keybindingItem)
 					.then(() => {
@@ -190,6 +194,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
 		this.selectEntry(keybindingEntry);
 		if (keybindingEntry.keybindingItem.keybinding) { // This should be a pre-condition
+			this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_REMOVE, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
 			return this.keybindingEditingService.removeKeybinding(keybindingEntry.keybindingItem.keybindingItem)
 				.then(() => this.focus(),
 				error => {
@@ -202,6 +207,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
 		this.selectEntry(keybindingEntry);
+		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_RESET, keybindingEntry.keybindingItem.command, keybindingEntry.keybindingItem.keybinding);
 		return this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem)
 			.then(() => {
 				if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
@@ -217,6 +223,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	copyKeybinding(keybinding: IKeybindingItemEntry): TPromise<any> {
 		this.selectEntry(keybinding);
+		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
 		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
 			command: keybinding.keybindingItem.command,
 			key: keybinding.keybindingItem.keybinding ? keybinding.keybindingItem.keybinding.getUserSettingsLabel() : ''
@@ -255,7 +262,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			placeholder: localize('SearchKeybindings.Placeholder', "Search keybindings"),
 			navigateByArrows: true
 		}));
-		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.renderKeybindingsEntries(true))));
+		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.filterKeybindings())));
 		this._register(this.searchWidget.onNavigate(back => this._onNavigate(back)));
 
 		this.createOpenKeybindingsElement(this.headerContainer);
@@ -313,9 +320,18 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		return TPromise.as(null);
 	}
 
+	private filterKeybindings(): void {
+		this.renderKeybindingsEntries(true);
+		this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(this.searchWidget.value()));
+	}
+
 	private renderKeybindingsEntries(reset: boolean): void {
 		if (this.keybindingsEditorModel) {
-			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(this.searchWidget.value());
+			const filter = this.searchWidget.value();
+			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(filter);
+			if (keybindingsEntries.length === 0) {
+				this.latestEmptyFilters.push(filter);
+			}
 			const currentSelectedIndex = this.keybindingsList.getSelection()[0];
 			this.listEntries = [{ id: 'keybinding-header-entry', templateId: KEYBINDING_HEADER_TEMPLATE_ID }, ...keybindingsEntries];
 			this.keybindingsList.splice(0, this.keybindingsList.length, this.listEntries);
@@ -452,6 +468,30 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			id: KEYBINDINGS_EDITOR_COMMAND_COPY,
 			run: () => this.copyKeybinding(keybindingItem)
 		};
+	}
+
+	private reportFilteringUsed(filter: string): void {
+		if (filter) {
+			let data = {
+				filter,
+				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
+			};
+			this.latestEmptyFilters = [];
+			this.telemetryService.publicLog('keybindings.filter', data);
+		}
+	}
+
+	/**
+	 * Put a rough limit on the size of the telemetry data, since otherwise it could be an unbounded large amount
+	 * of data. 8192 is the max size of a property value. This is rough since that probably includes ""s, etc.
+	 */
+	private getLatestEmptyFiltersForTelemetry(): string[] {
+		let cumulativeSize = 0;
+		return this.latestEmptyFilters.filter(filterText => (cumulativeSize += filterText.length) <= 8192);
+	}
+
+	private reportKeybindingAction(action: string, command: string, keybinding: ResolvedKeybinding | string): void {
+		this.telemetryService.publicLog(action, { command, keybinding: keybinding ? (typeof keybinding === 'string' ? keybinding : keybinding.getUserSettingsLabel()) : '' });
 	}
 
 	private onKeybindingEditingError(error: any): void {
