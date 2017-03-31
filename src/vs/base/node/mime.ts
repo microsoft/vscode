@@ -88,7 +88,7 @@ export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.Re
 		}
 	}
 	if (autoGuessEncoding && isText && !enc) {
-		enc = encoding.guessEncodingByBuffer(buffer);
+		enc = encoding.guessEncodingByBuffer(buffer.slice(0, bytesRead));
 	}
 
 	return {
