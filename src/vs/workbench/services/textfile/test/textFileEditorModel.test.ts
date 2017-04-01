@@ -244,7 +244,7 @@ suite('Files - TextFileEditorModel', () => {
 		model.load().done(() => {
 			model.textEditorModel.setValue('foo');
 
-			return TPromise.timeout(50).then(() => {
+			return TPromise.timeout(100).then(() => {
 				assert.ok(!model.isDirty());
 				assert.equal(eventCounter, 2);
 
