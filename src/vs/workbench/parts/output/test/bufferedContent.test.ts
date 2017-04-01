@@ -35,7 +35,8 @@ suite('Workbench - Output Buffered Content', () => {
 		assert.equal(bufferedContent.getDelta(secondDelta).value, 'fourthfifth');
 	});
 
-	test('Buffered Content - Lots of Output', () => {
+	test('Buffered Content - Lots of Output', function () {
+		this.timeout(10000);
 		const bufferedContent = new BufferedContent();
 		bufferedContent.append('first line');
 		const firstDelta = bufferedContent.getDelta();
