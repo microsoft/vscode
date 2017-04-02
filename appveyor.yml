@@ -8,7 +8,7 @@ install:
   - npm install -g gulp mocha --silent
 
 build_script:
-  - .\scripts\npm.bat install --force
+  - .\scripts\npm.bat install
   - gulp electron
   - npm run compile
 
