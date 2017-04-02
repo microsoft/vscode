@@ -81,4 +81,6 @@ export interface IEnvironmentService {
 	sharedIPCHandle: string;
 
 	nodeCachedDataDir: string;
+
+	userIsAdmin: boolean;
 }

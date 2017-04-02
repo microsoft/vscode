@@ -31,12 +31,14 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { isWindows } from 'vs/base/common/platform';
 
 export class TitlebarPart extends Part implements ITitleService {
 
 	public _serviceBrand: any;
 
 	private static NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
+	private static NLS_USER_IS_ADMIN = nls.localize('userIsAdmin', "(Administrator)");
 	private static NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 	private static TITLE_DIRTY = '\u25cf ';
 	private static TITLE_SEPARATOR = ' - ';
@@ -153,6 +155,10 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		if (!this.isPure) {
 			title = `${title} ${TitlebarPart.NLS_UNSUPPORTED}`;
+		}
+
+		if (isWindows && this.environmentService.userIsAdmin) {
+			title = `${title} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
 		}
 
 		// Extension Development Host gets a special title to identify itself

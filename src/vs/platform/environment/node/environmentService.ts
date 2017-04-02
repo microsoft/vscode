@@ -12,6 +12,7 @@ import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
+import isElevated = require('native-is-elevated');
 
 function getUniqueUserId(): string {
 	let username: string;
@@ -130,6 +131,9 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get nodeCachedDataDir(): string { return path.join(this.userDataPath, 'CachedData'); }
+
+	@memoize
+	get userIsAdmin(): boolean { return isElevated(); }
 
 	constructor(private _args: ParsedArgs, private _execPath: string) { }
 }
