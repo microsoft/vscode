@@ -8,6 +8,7 @@
 import { Registry } from 'vs/platform/platform';
 import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
+import * as os from 'os';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
@@ -269,6 +270,15 @@ if (isMacintosh) {
 		'default': 'custom',
 		'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 	};
+
+	// macOS Sierra (10.12.x = darwin 16.x) only
+	if (os.release().indexOf('16.') === 0) {
+		properties['window.nativeTabs'] = {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured.")
+		};
+	}
 }
 
 configurationRegistry.registerConfiguration({

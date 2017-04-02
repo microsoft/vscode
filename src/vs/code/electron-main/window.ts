@@ -35,7 +35,6 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	isExtensionTestHost?: boolean;
-	titleBarStyle?: 'native' | 'custom';
 }
 
 export enum WindowMode {
@@ -199,12 +198,24 @@ export class VSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+
+		let useNativeTabs = false;
+		if (windowConfig && windowConfig.nativeTabs) {
+			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
+			useNativeTabs = true;
+		}
+
 		let useCustomTitleStyle = false;
-		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom')) {
+		if (platform.isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom')) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isDev) {
 				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
+		}
+
+		if (useNativeTabs) {
+			useCustomTitleStyle = false; // native tabs on sierra do not work with custom title style
 		}
 
 		if (useCustomTitleStyle) {
