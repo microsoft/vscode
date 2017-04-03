@@ -3743,8 +3743,8 @@
 		"c": " ",
 		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.return.type.ts",
 		"r": {
-			"dark_plus": "meta.return.type: #4EC9B0",
-			"light_plus": "meta.return.type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -3765,8 +3765,8 @@
 		"c": " ",
 		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.return.type.ts",
 		"r": {
-			"dark_plus": "meta.return.type: #4EC9B0",
-			"light_plus": "meta.return.type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -3787,8 +3787,8 @@
 		"c": " ",
 		"t": "source.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.return.type.ts",
 		"r": {
-			"dark_plus": "meta.return.type: #4EC9B0",
-			"light_plus": "meta.return.type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
