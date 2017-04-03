@@ -124,6 +124,7 @@ class SnippetsService implements ISnippetsService {
 				detail: s.extensionName || SnippetsService._defaultDetail,
 				documentation: s.description,
 				insertText: s.codeSnippet,
+				sortText: `${s.prefix}-${s.extensionName || ''}`,
 				noAutoAccept: true,
 				snippetType: 'textmate',
 				overwriteBefore
@@ -143,25 +144,11 @@ class SnippetsService implements ISnippetsService {
 			lastSuggestion = suggestion;
 		}
 
-		result.sort(SnippetsService._compareSuggestionsByDetail);
-
 		return result;
 	}
 
 	private static _compareSuggestionsByLabel(a: ISuggestion, b: ISuggestion): number {
 		return strings.compare(a.label, b.label);
-	}
-
-	private static _compareSuggestionsByDetail(a: ISuggestion, b: ISuggestion): number {
-		if (a.detail === b.detail) {
-			return 0;
-		} else if (a.detail === SnippetsService._defaultDetail) {
-			return -1;
-		} else if (b.detail === SnippetsService._defaultDetail) {
-			return 1;
-		} else {
-			return strings.compare(a.detail, b.detail);
-		}
 	}
 }
 
