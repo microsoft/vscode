@@ -7,13 +7,10 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { isFullWidthCharacter, removeAnsiEscapeCodes, endsWith } from 'vs/base/common/strings';
-import uri from 'vs/base/common/uri';
-import { isMacintosh } from 'vs/base/common/platform';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as dom from 'vs/base/browser/dom';
-import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
-import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITree, IAccessibilityProvider, IDataSource, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -24,6 +21,7 @@ import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
 
 const $ = dom.$;
 
@@ -84,23 +82,14 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private static VALUE_OUTPUT_TEMPLATE_ID = 'outputValue';
 	private static NAME_VALUE_OUTPUT_TEMPLATE_ID = 'outputNameValue';
 
-	private static FILE_LOCATION_PATTERNS: RegExp[] = [
-		// group 0: the full thing :)
-		// group 1: absolute path
-		// group 2: drive letter on windows with trailing backslash or leading slash on mac/linux
-		// group 3: line number
-		// group 4: column number
-		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/
-	];
-
 	private static LINE_HEIGHT_PX = 18;
 
 	private width: number;
 	private characterWidth: number;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		// noop
 	}
@@ -331,7 +320,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 						// flush text buffer if we have any
 						if (buffer) {
-							this.insert(this.handleLinks(buffer), currentToken || tokensContainer);
+							const linkDetector = this.instantiationService.createInstance(LinkDetector);
+							this.insert(linkDetector.handleLinks(buffer), currentToken || tokensContainer);
 							buffer = '';
 						}
 
@@ -351,7 +341,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		// flush remaining text buffer if we have any
 		if (buffer) {
-			let res = this.handleLinks(buffer);
+			const linkDetector = this.instantiationService.createInstance(LinkDetector);
+			let res = linkDetector.handleLinks(buffer);
 			if (typeof res !== 'string' || currentToken) {
 				if (!tokensContainer) {
 					tokensContainer = document.createElement('span');
@@ -370,67 +361,6 @@ export class ReplExpressionsRenderer implements IRenderer {
 		} else {
 			target.appendChild(arg);
 		}
-	}
-
-	private handleLinks(text: string): HTMLElement | string {
-		let linkContainer: HTMLElement;
-
-		for (let pattern of ReplExpressionsRenderer.FILE_LOCATION_PATTERNS) {
-			pattern.lastIndex = 0; // the holy grail of software development
-
-			const match = pattern.exec(text);
-			let resource: uri = null;
-			try {
-				resource = match && uri.file(match[1]);
-			} catch (e) { }
-
-			if (resource) {
-				linkContainer = document.createElement('span');
-
-				let textBeforeLink = text.substr(0, match.index);
-				if (textBeforeLink) {
-					let span = document.createElement('span');
-					span.textContent = textBeforeLink;
-					linkContainer.appendChild(span);
-				}
-
-				const link = document.createElement('a');
-				link.textContent = text.substr(match.index, match[0].length);
-				link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
-				linkContainer.appendChild(link);
-				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, Number(match[3]), Number(match[4]));
-
-				let textAfterLink = text.substr(match.index + match[0].length);
-				if (textAfterLink) {
-					let span = document.createElement('span');
-					span.textContent = textAfterLink;
-					linkContainer.appendChild(span);
-				}
-
-				break; // support one link per line for now
-			}
-		}
-
-		return linkContainer || text;
-	}
-
-	private onLinkClick(event: IMouseEvent, resource: uri, line: number, column: number): void {
-		const selection = window.getSelection();
-		if (selection.type === 'Range') {
-			return; // do not navigate when user is selecting
-		}
-
-		event.preventDefault();
-
-		this.editorService.openEditor({
-			resource,
-			options: {
-				selection: {
-					startLineNumber: line,
-					startColumn: column
-				}
-			}
-		}, event.ctrlKey || event.metaKey).done(null, errors.onUnexpectedError);
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
