@@ -19,7 +19,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -32,6 +31,11 @@ import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { isWindows } from 'vs/base/common/platform';
+
+export interface ITitleProperties {
+	isPure: boolean;
+	isAdmin: boolean;
+}
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -52,7 +56,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private isInactive: boolean;
 
 	private titleTemplate: string;
-	private isPure: boolean;
+	private properties: ITitleProperties;
 	private activeEditorListeners: IDisposable[];
 	private workspacePath: string;
 
@@ -64,14 +68,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWindowsService private windowsService: IWindowsService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IIntegrityService private integrityService: IIntegrityService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
-		this.isPure = true;
+		this.properties = { isPure: true, isAdmin: false };
 		this.activeEditorListeners = [];
 		this.workspacePath = contextService.hasWorkspace() ? labels.tildify(labels.getPathLabel(contextService.getWorkspace().resource), environmentService.userHome) : '';
 
@@ -87,14 +90,6 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Initial window title
 		this.setTitle(this.getWindowTitle());
-
-		// Integrity for window title
-		this.integrityService.isPure().then(r => {
-			if (!r.isPure) {
-				this.isPure = false;
-				this.setTitle(this.getWindowTitle());
-			}
-		});
 	}
 
 	private registerListeners(): void {
@@ -153,11 +148,11 @@ export class TitlebarPart extends Part implements ITitleService {
 			title = this.environmentService.appNameLong;
 		}
 
-		if (!this.isPure) {
+		if (!this.properties.isPure) {
 			title = `${title} ${TitlebarPart.NLS_UNSUPPORTED}`;
 		}
 
-		if (isWindows && this.environmentService.userIsAdmin) {
+		if (isWindows && this.properties.isAdmin) {
 			title = `${title} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
 		}
 
@@ -296,6 +291,11 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		return actions;
+	}
+
+	public updateProperties(properties: ITitleProperties): void {
+		this.properties = properties;
+		this.setTitle(this.getWindowTitle());
 	}
 
 	public setTitle(title: string): void {

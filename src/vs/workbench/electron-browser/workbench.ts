@@ -43,6 +43,8 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { WorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServiceImpl';
+import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -163,6 +165,7 @@ export class Workbench implements IPartService {
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
 	private backupFileService: IBackupFileService;
+	private integrityService: IIntegrityService;
 	private configurationEditingService: IConfigurationEditingService;
 	private titlebarPart: TitlebarPart;
 	private activitybarPart: ActivitybarPart;
@@ -433,6 +436,10 @@ export class Workbench implements IPartService {
 
 		// Services we contribute
 		serviceCollection.set(IPartService, this);
+
+		// Integrity
+		this.integrityService = this.instantiationService.createInstance(IntegrityServiceImpl);
+		serviceCollection.set(IIntegrityService, this.integrityService);
 
 		// Clipboard
 		serviceCollection.set(IClipboardService, new ClipboardService());
@@ -1004,6 +1011,8 @@ export class Workbench implements IPartService {
 		});
 
 		this.titlebarPart.create(titlebarContainer);
+
+		// TODO resolve integrity and isAdmin after timeout
 	}
 
 	private createActivityBarPart(): void {
