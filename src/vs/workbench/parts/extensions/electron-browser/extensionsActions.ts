@@ -15,6 +15,8 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { remote } from 'electron';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IFileService } from "vs/platform/files/common/files";
+import URI from "vs/base/common/uri";
 
 const dialog = remote.dialog;
 
@@ -27,6 +29,7 @@ export class OpenExtensionsFolderAction extends Action {
 		id: string,
 		label: string,
 		@IWindowsService private windowsService: IWindowsService,
+		@IFileService private fileService: IFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label, null, true);
@@ -34,7 +37,17 @@ export class OpenExtensionsFolderAction extends Action {
 
 	run(): TPromise<void> {
 		const extensionsHome = this.environmentService.extensionsPath;
-		return this.windowsService.showItemInFolder(paths.normalize(extensionsHome, true));
+
+		return this.fileService.resolveFile(URI.file(extensionsHome)).then(file => {
+			let itemToShow: string;
+			if (file.hasChildren) {
+				itemToShow = file.children[0].resource.fsPath;
+			} else {
+				itemToShow = paths.normalize(extensionsHome, true);
+			}
+
+			return this.windowsService.showItemInFolder(itemToShow);
+		});
 	}
 
 	protected isEnabled(): boolean {
