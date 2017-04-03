@@ -219,6 +219,15 @@ export class VSCodeWindow {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
+		// Set relaunch command
+		if (platform.isWindows && product.win32AppUserModelId && typeof this._win.setAppDetails === 'function') {
+			this._win.setAppDetails({
+				appId: product.win32AppUserModelId,
+				relaunchCommand: `"${process.execPath}" -n`,
+				relaunchDisplayName: product.nameLong
+			});
+		}
+
 		if (isFullscreenOrMaximized) {
 			this.win.maximize();
 
