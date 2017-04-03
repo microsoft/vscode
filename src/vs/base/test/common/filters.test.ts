@@ -211,7 +211,7 @@ suite('Filters', () => {
 	test('fuzzyScore, #23215', function () {
 		assertMatches('tit', 'win.tit', 'win.^t^i^t', fuzzyScore);
 		assertMatches('title', 'win.title', 'win.^t^i^t^l^e', fuzzyScore);
-		assertMatches('WordCla', 'WordCharacterClassifier', '^W^o^r^d^CharacterC^l^assifier', fuzzyScore);
+		assertMatches('WordCla', 'WordCharacterClassifier', '^W^o^r^dCharacter^C^l^assifier', fuzzyScore);
 		assertMatches('WordCCla', 'WordCharacterClassifier', '^W^o^r^d^Character^C^l^assifier', fuzzyScore);
 	});
 
@@ -253,13 +253,13 @@ suite('Filters', () => {
 		assertMatches('LLL', 'SVisualLoggerLogsList', 'SVisual^Logger^Logs^List', fuzzyScore);
 		assertMatches('LLLL', 'SVilLoLosLi', undefined, fuzzyScore);
 		assertMatches('LLLL', 'SVisualLoggerLogsList', undefined, fuzzyScore);
-		assertMatches('TEdit', 'TextEdit', '^T^extE^d^i^t', fuzzyScore);
-		assertMatches('TEdit', 'TextEditor', '^T^extE^d^i^tor', fuzzyScore);
+		assertMatches('TEdit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'TextEditor', '^Text^E^d^i^tor', fuzzyScore);
 		assertMatches('TEdit', 'Textedit', '^T^exte^d^i^t', fuzzyScore);
-		assertMatches('TEdit', 'text_edit', '^t^ext_e^d^i^t', fuzzyScore);
-		assertMatches('TEditDit', 'TextEditorDecorationType', '^T^extE^d^i^tor^Decorat^ion^Type', fuzzyScore);
-		assertMatches('TEdit', 'TextEditorDecorationType', '^T^extE^d^i^torDecorationType', fuzzyScore);
-		assertMatches('Tedit', 'TextEdit', '^T^extE^d^i^t', fuzzyScore);
+		assertMatches('TEdit', 'text_edit', '^text_^e^d^i^t', fuzzyScore);
+		assertMatches('TEditDit', 'TextEditorDecorationType', '^Text^E^d^i^tor^Decorat^ion^Type', fuzzyScore);
+		assertMatches('TEdit', 'TextEditorDecorationType', '^Text^E^d^i^torDecorationType', fuzzyScore);
+		assertMatches('Tedit', 'TextEdit', '^Text^E^d^i^t', fuzzyScore);
 		assertMatches('ba', '?AB?', undefined, fuzzyScore);
 		assertMatches('bkn', 'the_black_knight', 'the_^black_^k^night', fuzzyScore);
 		assertMatches('bt', 'the_black_knight', 'the_^black_knigh^t', fuzzyScore);
