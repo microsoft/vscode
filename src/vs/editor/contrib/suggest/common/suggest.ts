@@ -20,6 +20,7 @@ import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
+	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
 	AcceptOnKey: new RawContextKey<boolean>('suggestionSupportsAcceptOnKey', true),
 	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', DefaultConfig.editor.acceptSuggestionOnEnter)
 };

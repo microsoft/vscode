@@ -117,6 +117,23 @@ export class SuggestController implements IEditorContribution {
 				}
 			})
 		);
+
+		let makesTextEdit = SuggestContext.MakesTextEdit.bindTo(contextKeyService);
+		this.toDispose.push(this.widget.onDidFocus(item => {
+			const position = this.editor.getPosition();
+			const startColumn = item.position.column - item.suggestion.overwriteBefore;
+			const endColumn = position.column;
+			const oldText = this.editor.getModel().getValueInRange({
+				startLineNumber: position.lineNumber,
+				startColumn,
+				endLineNumber: position.lineNumber,
+				endColumn
+			});
+			makesTextEdit.set(oldText !== item.suggestion.insertText);
+		}));
+		this.toDispose.push({
+			dispose() { makesTextEdit.reset(); }
+		});
 	}
 
 	getId(): string {
@@ -137,7 +154,7 @@ export class SuggestController implements IEditorContribution {
 
 	private onDidSelectItem(item: ICompletionItem): void {
 		if (item) {
-			const {suggestion, position} = item;
+			const { suggestion, position } = item;
 			const columnDelta = this.editor.getPosition().column - position.column;
 
 			if (Array.isArray(suggestion.additionalTextEdits)) {
@@ -266,7 +283,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestionOnEnter',
-	precondition: SuggestContext.Visible,
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MakesTextEdit),
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
