@@ -19,7 +19,7 @@
     "precommit": "node build/gulpfile.hygiene.js"
   },
   "dependencies": {
-    "applicationinsights": "0.17.0",
+    "applicationinsights": "0.17.1",
     "chokidar": "bpasero/chokidar#vscode",
     "emmet": "ramya-rao-a/emmet#vscode",
     "fast-plist": "0.1.2",
