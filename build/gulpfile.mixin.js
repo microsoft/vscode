@@ -62,7 +62,7 @@ gulp.task('mixin', function () {
 		})();
 
 		const mixin = all
-			//.pipe(filter(['quality/' + quality + '/**'].concat(vsdaFilter)))
+			.pipe(filter(['quality/' + quality + '/**'].concat(vsdaFilter)))
 			.pipe(util.rebase(2))
 			.pipe(productJsonFilter)
 			.pipe(buffer())
