@@ -451,7 +451,7 @@ const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
 export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
-	const patternLen = pattern.length > 25 ? 25 : pattern.length;
+	const patternLen = pattern.length > 100 ? 100 : pattern.length;
 	const wordLen = word.length > 100 ? 100 : word.length;
 
 	if (patternLen === 0) {
