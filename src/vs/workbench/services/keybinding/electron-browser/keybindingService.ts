@@ -384,6 +384,16 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 	}
 
 	private _prompt(): void {
+		const openDocumentation = new Action(
+			'keybindingMigration.openDocumentation',
+			nls.localize('openDocumentation', 'Learn More'),
+			'',
+			true,
+			() => {
+				window.open('https://go.microsoft.com/fwlink/?linkid=846147'); // Don't change link.
+				return TPromise.as(true);
+			}
+		);
 		const okAction = new Action(
 			'keybindingMigration.ok',
 			nls.localize('keybindingMigration.ok', "OK"),
@@ -393,7 +403,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		);
 		this.messageService.show(Severity.Info, {
 			message: nls.localize('keybindingMigration.prompt', "Some keyboard shortcuts have changed for your keyboard layout."),
-			actions: [okAction]
+			actions: [openDocumentation, okAction]
 		});
 	}
 
