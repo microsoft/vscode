@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { join } from 'vs/base/common/paths';
+import { join } from 'path';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
@@ -269,12 +270,12 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 			iconClass = ids.nextId();
 			if (typeof icon === 'string') {
 				const path = join(extension.description.extensionFolderPath, icon);
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${path}")`);
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(path).toString()}")`);
 			} else {
 				const light = join(extension.description.extensionFolderPath, icon.light);
 				const dark = join(extension.description.extensionFolderPath, icon.dark);
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${light}")`);
-				createCSSRule(`.vs-dark .icon.${iconClass}, hc-black .icon.${iconClass}`, `background-image: url("${dark}")`);
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(light).toString()}")`);
+				createCSSRule(`.vs-dark .icon.${iconClass}, hc-black .icon.${iconClass}`, `background-image: url("${URI.file(dark).toString()}")`);
 			}
 		}
 
