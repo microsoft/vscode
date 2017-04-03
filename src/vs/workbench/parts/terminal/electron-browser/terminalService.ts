@@ -98,7 +98,13 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		this._choiceService.choose(Severity.Info, message, options).then(choice => {
 			switch (choice) {
 				case 0:
-					return this.selectDefaultWindowsShell();
+					return this.selectDefaultWindowsShell().then(shell => {
+						if (!shell) {
+							return null;
+						}
+						// Launch a new instance with the newly selected shell
+						return this.createInstance();
+					});
 				case 1:
 					return TPromise.as(null);
 				case 2:
