@@ -111,7 +111,8 @@ class InternalEditorOptionsHelper {
 		isDominatedByLongLines: boolean,
 		lineNumbersDigitCount: number,
 		canUseTranslate3d: boolean,
-		pixelRatio: number
+		pixelRatio: number,
+		isRunningOnBattery: boolean
 	): editorCommon.InternalEditorOptions {
 
 		let stopRenderingLineAfter: number;
@@ -289,7 +290,7 @@ class InternalEditorOptionsHelper {
 			roundedSelection: toBoolean(opts.roundedSelection),
 			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
 			overviewRulerBorder: toBoolean(opts.overviewRulerBorder),
-			cursorBlinking: cursorBlinkingStyleFromString(opts.cursorBlinking),
+			cursorBlinking: cursorBlinkingStyleFromString(opts.cursorBlinking, isRunningOnBattery),
 			mouseWheelZoom: toBoolean(opts.mouseWheelZoom),
 			cursorStyle: cursorStyleFromString(opts.cursorStyle),
 			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
@@ -462,16 +463,16 @@ function cursorStyleFromString(cursorStyle: string): editorCommon.TextEditorCurs
 	return editorCommon.TextEditorCursorStyle.Line;
 }
 
-function cursorBlinkingStyleFromString(cursorBlinkingStyle: string): editorCommon.TextEditorCursorBlinkingStyle {
+function cursorBlinkingStyleFromString(cursorBlinkingStyle: string, isRunningOnBattery: boolean): editorCommon.TextEditorCursorBlinkingStyle {
 	switch (cursorBlinkingStyle) {
 		case 'blink':
 			return editorCommon.TextEditorCursorBlinkingStyle.Blink;
 		case 'smooth':
-			return editorCommon.TextEditorCursorBlinkingStyle.Smooth;
+			return isRunningOnBattery ? editorCommon.TextEditorCursorBlinkingStyle.Blink : editorCommon.TextEditorCursorBlinkingStyle.Smooth;
 		case 'phase':
-			return editorCommon.TextEditorCursorBlinkingStyle.Phase;
+			return isRunningOnBattery ? editorCommon.TextEditorCursorBlinkingStyle.Blink : editorCommon.TextEditorCursorBlinkingStyle.Phase;
 		case 'expand':
-			return editorCommon.TextEditorCursorBlinkingStyle.Expand;
+			return isRunningOnBattery ? editorCommon.TextEditorCursorBlinkingStyle.Blink : editorCommon.TextEditorCursorBlinkingStyle.Expand;
 		case 'visible': // maintain compatibility
 		case 'solid':
 			return editorCommon.TextEditorCursorBlinkingStyle.Solid;
@@ -564,7 +565,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			this._isDominatedByLongLines,
 			this._lineNumbersDigitCount,
 			canUseTranslate3d,
-			this._getPixelRatio()
+			this._getPixelRatio(),
+			this._isRunningOnBattery()
 		);
 	}
 
@@ -605,6 +607,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	protected abstract _getCanUseTranslate3d(): boolean;
 
 	protected abstract _getPixelRatio(): number;
+
+	protected abstract _isRunningOnBattery(): boolean;
 
 	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
 
