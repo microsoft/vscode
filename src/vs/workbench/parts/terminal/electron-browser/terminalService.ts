@@ -100,10 +100,17 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				case 0:
 					return this.selectDefaultWindowsShell().then(shell => {
 						if (!shell) {
-							return null;
+							return TPromise.as(null);
 						}
 						// Launch a new instance with the newly selected shell
-						return this.createInstance();
+						const instance = this.createInstance({
+							executable: shell,
+							args: this._configHelper.config.shellArgs.windows
+						});
+						if (instance) {
+							this.setActiveInstance(instance);
+						}
+						return TPromise.as(null);
 					});
 				case 1:
 					return TPromise.as(null);
