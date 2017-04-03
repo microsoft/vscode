@@ -26,6 +26,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 export class TerminalPanel extends Panel {
 
 	private _actions: IAction[];
+	private _copyContextMenuAction: IAction;
 	private _contextMenuActions: IAction[];
 	private _cancelContextMenu: boolean = false;
 	private _font: ITerminalFont;
@@ -117,10 +118,11 @@ export class TerminalPanel extends Panel {
 
 	private _getContextMenuActions(): IAction[] {
 		if (!this._contextMenuActions) {
+			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, nls.localize('copy', "Copy"));
 			this._contextMenuActions = [
 				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, nls.localize('createNewTerminal', "New Terminal")),
 				new Separator(),
-				this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, nls.localize('copy', "Copy")),
+				this._copyContextMenuAction,
 				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste")),
 				new Separator(),
 				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, nls.localize('clear', "Clear"))
@@ -129,6 +131,7 @@ export class TerminalPanel extends Panel {
 				this._register(a);
 			});
 		}
+		this._copyContextMenuAction.enabled = document.activeElement.classList.contains('xterm') && window.getSelection().toString().length > 0;
 		return this._contextMenuActions;
 	}
 
