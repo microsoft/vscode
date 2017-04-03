@@ -31,5 +31,6 @@
 	"typescript.referencesCodeLens.enabled": "Enable/disable references CodeLens.",
 	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens. Requires TypeScript >= 2.2.0.",
 	"typescript.openTsServerLog.title": "Open TS Server log file",
-	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version"
+	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version",
+	"jsDocCompletion.enabled": "Enable/disable auto JSDoc comments"
 }
