@@ -322,9 +322,9 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					assert.equal(event.auto, true);
 					assert.equal(event.completionModel.items.length, 2);
 					const [first, second] = event.completionModel.items;
-					assert.equal(first.suggestion.label, 'boom');
-					assert.equal(second.suggestion.label, 'foo.bar');
-					assert.equal(event.completionModel.topScoreIdx, 1);
+					assert.equal(first.suggestion.label, 'foo.bar');
+					assert.equal(second.suggestion.label, 'boom');
+					assert.equal(event.completionModel.topScoreIdx, 0);
 				});
 			});
 		});
