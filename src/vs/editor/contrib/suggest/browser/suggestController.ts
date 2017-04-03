@@ -120,16 +120,21 @@ export class SuggestController implements IEditorContribution {
 
 		let makesTextEdit = SuggestContext.MakesTextEdit.bindTo(contextKeyService);
 		this.toDispose.push(this.widget.onDidFocus(item => {
+
 			const position = this.editor.getPosition();
 			const startColumn = item.position.column - item.suggestion.overwriteBefore;
 			const endColumn = position.column;
-			const oldText = this.editor.getModel().getValueInRange({
-				startLineNumber: position.lineNumber,
-				startColumn,
-				endLineNumber: position.lineNumber,
-				endColumn
-			});
-			makesTextEdit.set(oldText !== item.suggestion.insertText);
+			let value = true;
+			if (endColumn - startColumn === item.suggestion.insertText.length) {
+				const oldText = this.editor.getModel().getValueInRange({
+					startLineNumber: position.lineNumber,
+					startColumn,
+					endLineNumber: position.lineNumber,
+					endColumn
+				});
+				value = oldText !== item.suggestion.insertText;
+			}
+			makesTextEdit.set(value);
 		}));
 		this.toDispose.push({
 			dispose() { makesTextEdit.reset(); }
