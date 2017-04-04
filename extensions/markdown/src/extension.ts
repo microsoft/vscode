@@ -144,8 +144,8 @@ export function activate(context: vscode.ExtensionContext) {
 			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.fsPath === sourceUri.fsPath)
 			.forEach(editor => {
 				const sourceLine = Math.floor(line);
-				const text = editor.document.getText(new vscode.Range(sourceLine, 0, sourceLine + 1, 0));
-				const fraction = line - Math.floor(line);
+				const fraction = line - sourceLine;
+				const text = editor.document.lineAt(sourceLine).text;
 				const start = Math.floor(fraction * text.length);
 				editor.revealRange(
 					new vscode.Range(sourceLine, start, sourceLine + 1, 0),
@@ -157,7 +157,9 @@ export function activate(context: vscode.ExtensionContext) {
 		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
 		return vscode.workspace.openTextDocument(sourceUri)
 			.then(document => vscode.window.showTextDocument(document))
-			.then(editor => vscode.commands.executeCommand('revealLine', { lineNumber: Math.floor(line), at: 'center' }).then(() => editor))
+			.then(editor =>
+				vscode.commands.executeCommand('revealLine', { lineNumber: Math.floor(line), at: 'center' })
+					.then(() => editor))
 			.then(editor => {
 				if (editor) {
 					editor.selection = new vscode.Selection(
@@ -346,7 +348,7 @@ function showSource(mdUri: vscode.Uri) {
 
 	const docUri = vscode.Uri.parse(mdUri.query);
 	for (const editor of vscode.window.visibleTextEditors) {
-		if (editor.document.uri.fsPath === docUri.fsPath) {
+		if (editor.document.uri.scheme === docUri.scheme && editor.document.uri.fsPath === docUri.fsPath) {
 			return vscode.window.showTextDocument(editor.document, editor.viewColumn);
 		}
 	}
