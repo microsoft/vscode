@@ -554,7 +554,8 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 	}
 
 	public clear(): void {
-		this.items = lifecycle.dispose(this.items);
+		// Do not dispose action items if they were provided from outside
+		this.items = this.options.actionItemProvider ? [] : lifecycle.dispose(this.items);
 		$(this.actionsList).empty();
 	}
 
@@ -669,7 +670,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 	public dispose(): void {
 		if (this.items !== null) {
-			this.clear();
+			lifecycle.dispose(this.items);
 		}
 		this.items = null;
 
