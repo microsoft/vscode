@@ -143,7 +143,7 @@
 				},
 				"markdown.preview.fontFamily": {
 					"type": "string",
-					"default": "'Segoe WPC', 'Segoe UI', 'SFUIText-Light', 'HelveticaNeue-Light', sans-serif",
+					"default": "-apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', 'HelveticaNeue-Light', 'Ubuntu', 'Droid Sans', sans-serif",
 					"description": "%markdown.preview.fontFamily.desc%"
 				},
 				"markdown.preview.fontSize": {
