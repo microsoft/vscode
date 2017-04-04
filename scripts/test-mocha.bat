@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set ELECTRON_RUN_AS_NODE=
+set ELECTRON_RUN_AS_NODE=1
 
 pushd %~dp0\..
 
@@ -10,9 +10,15 @@ set NAMESHORT=%NAMESHORT: "=%
 set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
-rem Run tests in electron
-%CODE% .\test\electron\index.js %*
+rem TFS Builds
+if not "%BUILD_BUILDID%" == "" (
+	%CODE% .\node_modules\mocha\bin\_mocha %*
+)
 
+rem Otherwise
+if "%BUILD_BUILDID%" == "" (
+	%CODE% .\node_modules\mocha\bin\_mocha --reporter dot %*
+)
 popd
 
 endlocal
