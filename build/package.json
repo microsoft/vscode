@@ -1,0 +1,8 @@
+{
+  "name": "build",
+  "version": "1.0.0",
+  "author": "Microsoft Corporation",
+  "devDependencies": {
+    "@types/xml2js": "^0.0.33"
+  }
+}
