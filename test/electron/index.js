@@ -13,9 +13,8 @@ const optimist = require('optimist')
 	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug');
 
 const argv = optimist.argv;
-const { debug, grep, run } = argv;
 
-if (!debug) {
+if (!argv.debug) {
 	app.setPath('userData', join(tmpdir(), `vscode-tests-${Date.now()}`));
 }
 
@@ -32,11 +31,11 @@ app.on('ready', () => {
 	});
 
 	win.webContents.on('did-finish-load', () => {
-		if (debug) {
+		if (argv.debug) {
 			win.show();
 			win.webContents.openDevTools('right');
 		}
-		win.webContents.send('run', { grep, run });
+		win.webContents.send('run', argv);
 	});
 
 	win.loadURL(`file://${__dirname}/renderer.html`);
@@ -61,7 +60,7 @@ app.on('ready', () => {
 			console.error('\n');
 		}
 
-		if (!debug) {
+		if (!argv.debug) {
 			app.exit(_failures.length > 0 ? 1 : 0);
 		}
 	});

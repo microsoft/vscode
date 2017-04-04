@@ -9,22 +9,33 @@ const { ipcRenderer } = require('electron');
 const assert = require('assert');
 const glob = require('glob');
 const path = require('path');
-const loader = require('../../src/vs/loader');
-const cwd = path.join(__dirname, '../../out');
 
-loader.require.config({
-	baseUrl: cwd,
-	catchError: true,
-	nodeRequire: require,
-	nodeMain: __filename
-});
+let loader;
+let _out;
+
+function initLoader(opts) {
+	let outdir = opts.build ? 'out-build' : 'out';
+	_out = path.join(__dirname, `../../${outdir}`);
+	loader = require(`${_out}/vs/loader`);
+	loader.require.config({
+		nodeRequire: require,
+		nodeMain: __filename,
+		catchError: true,
+		baseUrl: path.join(__dirname, '../../src'),
+		paths: {
+			'vs': `../${outdir}/vs`,
+			'lib': `../${outdir}/lib`,
+			'bootstrap': `../${outdir}/bootstrap`
+		}
+	});
+}
 
 function loadTestModules(opts) {
 
 	if (opts.run) {
 		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
 		const modules = files.map(file => {
-			return path.relative(cwd, file).replace(/\.js$/, '');
+			return path.relative(_out, file).replace(/\.js$/, '');
 		});
 		return new Promise((resolve, reject) => {
 			loader.require(modules, resolve, reject);
@@ -32,7 +43,7 @@ function loadTestModules(opts) {
 	}
 
 	return new Promise((resolve, reject) => {
-		glob('**/test/**/*.test.js', { cwd }, (err, files) => {
+		glob('**/test/**/*.test.js', { cwd: _out }, (err, files) => {
 			if (err) {
 				reject(err);
 				return;
@@ -115,5 +126,6 @@ function runTests(opts) {
 }
 
 ipcRenderer.on('run', (e, opts) => {
+	initLoader(opts);
 	runTests(opts).catch(err => console.error(err));
 });
