@@ -451,6 +451,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			}
 		}
 	}
+
 	public reloadProjects(): void {
 		this.client.execute('reloadProjects', null, false);
 		this.triggerAllDiagnostics();
