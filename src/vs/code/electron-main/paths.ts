@@ -126,7 +126,11 @@ export function parseLineAndColumnAware(rawPath: string): IPathWithLineAndColumn
 	};
 }
 
-function toPath(p: IPathWithLineAndColumn): string {
+function toPath(p: IPathWithLineAndColumn, temp?: boolean): string {
+	return doToPath(p); // TODO@Ben temporary
+}
+
+function doToPath(p: IPathWithLineAndColumn): string {
 	const segments = [p.path];
 
 	if (types.isNumber(p.line)) {
