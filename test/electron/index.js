@@ -10,6 +10,7 @@ const { join } = require('path');
 const optimist = require('optimist')
 	.describe('grep', 'only run tests matching <pattern>').string('grep').alias('grep', 'g').string('g')
 	.describe('run', 'only run tests from <file>').string('run')
+	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug');
 
 const argv = optimist.argv;
