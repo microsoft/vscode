@@ -694,12 +694,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				{
 					title: localize(
 						'typescript.openTsServerLog.enableAndReloadOption',
-						'Enable logging and restart TS Server'),
+						'Enable logging and restart TS server'),
 				})
 				.then(selection => {
 					if (selection) {
 						return workspace.getConfiguration().update('typescript.tsserver.log', 'verbose', true).then(() => {
-							commands.executeCommand('typescript.restartTsServer');
+							this.restartTsServer();
 							return false;
 						});
 					}
