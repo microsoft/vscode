@@ -554,8 +554,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 	}
 
 	public clear(): void {
-		// Do not dispose action items if they were provided from outside
-		this.items = this.options.actionItemProvider ? [] : lifecycle.dispose(this.items);
+		this.items = lifecycle.dispose(this.items);
 		$(this.actionsList).empty();
 	}
 
