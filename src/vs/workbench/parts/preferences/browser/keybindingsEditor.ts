@@ -8,8 +8,10 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
+import { OS } from 'vs/base/common/platform';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -23,7 +25,6 @@ import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferences
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import { IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_DEFINE } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -43,7 +44,7 @@ export class KeybindingsEditorInput extends EditorInput {
 
 	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
-		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel);
+		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
 	}
 
 	getTypeId(): string {
@@ -703,13 +704,7 @@ class KeybindingColumn extends Column {
 		DOM.clearNode(this.keybindingColumn);
 		this.keybindingColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		if (keybindingItemEntry.keybindingItem.keybinding) {
-			let keybinding = DOM.append(this.keybindingColumn, $('.htmlkb'));
-			let htmlkb = keybindingItemEntry.keybindingItem.keybinding.getHTMLLabel();
-			htmlkb.forEach(item => keybinding.appendChild(renderHtml(item)));
-			keybinding.title = keybindingItemEntry.keybindingItem.keybinding.getAriaLabel();
-			if (keybindingItemEntry.keybindingMatches) {
-				new HighlightedLabel(DOM.append(this.keybindingColumn, $(''))).set(keybindingItemEntry.keybindingItem.keybindingItem.resolvedKeybinding.getAriaLabel(), keybindingItemEntry.keybindingMatches);
-			}
+			new KeybindingLabel(this.keybindingColumn, OS).set(keybindingItemEntry.keybindingItem.keybinding, keybindingItemEntry.keybindingMatches);
 		}
 	}
 

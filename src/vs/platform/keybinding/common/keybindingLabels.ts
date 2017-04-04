@@ -7,7 +7,6 @@
 
 import * as nls from 'vs/nls';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 
 export interface ModifierLabels {
 	readonly ctrlKey: string;
@@ -24,29 +23,29 @@ export interface Modifiers {
 	readonly metaKey: boolean;
 }
 
+export const NO_MODIFIERS: Modifiers = {
+	ctrlKey: false,
+	shiftKey: false,
+	altKey: false,
+	metaKey: false
+};
+
 export class ModifierLabelProvider {
 
-	private readonly _labels: ModifierLabels[];
+	public readonly modifierLabels: ModifierLabels[];
 
 	constructor(mac: ModifierLabels, windows: ModifierLabels, linux: ModifierLabels = windows) {
-		this._labels = [null];
-		this._labels[OperatingSystem.Macintosh] = mac;
-		this._labels[OperatingSystem.Windows] = windows;
-		this._labels[OperatingSystem.Linux] = linux;
+		this.modifierLabels = [null];
+		this.modifierLabels[OperatingSystem.Macintosh] = mac;
+		this.modifierLabels[OperatingSystem.Windows] = windows;
+		this.modifierLabels[OperatingSystem.Linux] = linux;
 	}
 
 	public toLabel(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, OS: OperatingSystem): string {
 		if (firstPartKey === null && chordPartKey === null) {
 			return null;
 		}
-		return _asString(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this._labels[OS]);
-	}
-
-	public toHTMLLabel(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, OS: OperatingSystem): IHTMLContentElement[] {
-		if (firstPartKey === null && chordPartKey === null) {
-			return null;
-		}
-		return _asHTML(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this._labels[OS]);
+		return _asString(firstPartMod, firstPartKey, chordPartMod, chordPartKey, this.modifierLabels[OS]);
 	}
 }
 
@@ -177,63 +176,4 @@ function _asString(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: 
 	}
 
 	return result;
-}
-
-function _pushKey(result: IHTMLContentElement[], str: string, append: string): void {
-	result.push({
-		tagName: 'span',
-		className: 'monaco-kbkey',
-		text: str
-	});
-	if (append) {
-		result.push({
-			tagName: 'span',
-			text: '+'
-		});
-	}
-}
-
-function _simpleAsHTML(result: IHTMLContentElement[], modifiers: Modifiers, key: string, labels: ModifierLabels): void {
-	if (key === null) {
-		return;
-	}
-
-	// translate modifier keys: Ctrl-Shift-Alt-Meta
-	if (modifiers.ctrlKey) {
-		_pushKey(result, labels.ctrlKey, labels.separator);
-	}
-
-	if (modifiers.shiftKey) {
-		_pushKey(result, labels.shiftKey, labels.separator);
-	}
-
-	if (modifiers.altKey) {
-		_pushKey(result, labels.altKey, labels.separator);
-	}
-
-	if (modifiers.metaKey) {
-		_pushKey(result, labels.metaKey, labels.separator);
-	}
-
-	// the actual key
-	_pushKey(result, key, null);
-}
-
-function _asHTML(firstPartMod: Modifiers, firstPartKey: string, chordPartMod: Modifiers, chordPartKey: string, labels: ModifierLabels): IHTMLContentElement[] {
-	let result: IHTMLContentElement[] = [];
-	_simpleAsHTML(result, firstPartMod, firstPartKey, labels);
-
-	if (chordPartKey !== null) {
-		result.push({
-			tagName: 'span',
-			text: ' '
-		});
-		_simpleAsHTML(result, chordPartMod, chordPartKey, labels);
-	}
-
-	return [{
-		tagName: 'span',
-		className: 'monaco-kb',
-		children: result
-	}];
 }

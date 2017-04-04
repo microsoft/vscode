@@ -9,8 +9,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WindowsKeyboardMapper, IWindowsKeyboardMapping } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { createKeybinding, KeyMod, KeyCode, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
+import { IResolvedKeybinding, assertResolveKeybinding, readRawMapping, assertMapping, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
 
 const WRITE_FILE_IF_DIFFERENT = false;
@@ -23,14 +22,6 @@ function createKeyboardMapper(file: string): TPromise<WindowsKeyboardMapper> {
 
 function _assertResolveKeybinding(mapper: WindowsKeyboardMapper, k: number, expected: IResolvedKeybinding[]): void {
 	assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Windows), expected);
-}
-
-function _simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
-	return simpleHTMLLabel(pieces, OperatingSystem.Windows);
-}
-
-function _chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
-	return chordHTMLLabel(firstPart, chordPart, OperatingSystem.Windows);
 }
 
 suite('keyboardMapper - WINDOWS de_ch', () => {
@@ -55,7 +46,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+A',
 				ariaLabel: 'Control+A',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'A'])],
+				labelWithoutModifiers: 'A',
+				ariaLabelWithoutModifiers: 'A',
 				electronAccelerator: 'Ctrl+A',
 				userSettingsLabel: 'ctrl+a',
 				isWYSIWYG: true,
@@ -76,7 +68,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Z'])],
+				labelWithoutModifiers: 'Z',
+				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
@@ -104,7 +97,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Z'])],
+				labelWithoutModifiers: 'Z',
+				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
@@ -125,7 +119,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+^',
 				ariaLabel: 'Control+^',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '^'])],
+				labelWithoutModifiers: '^',
+				ariaLabelWithoutModifiers: '^',
 				electronAccelerator: 'Ctrl+]',
 				userSettingsLabel: 'ctrl+]',
 				isWYSIWYG: false,
@@ -153,7 +148,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+^',
 				ariaLabel: 'Control+^',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '^'])],
+				labelWithoutModifiers: '^',
+				ariaLabelWithoutModifiers: '^',
 				electronAccelerator: 'Ctrl+]',
 				userSettingsLabel: 'ctrl+]',
 				isWYSIWYG: false,
@@ -174,7 +170,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Shift+^',
 				ariaLabel: 'Shift+^',
-				HTMLLabel: [_simpleHTMLLabel(['Shift', '^'])],
+				labelWithoutModifiers: '^',
+				ariaLabelWithoutModifiers: '^',
 				electronAccelerator: 'Shift+]',
 				userSettingsLabel: 'shift+]',
 				isWYSIWYG: false,
@@ -195,7 +192,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+§',
 				ariaLabel: 'Control+§',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', '§'])],
+				labelWithoutModifiers: '§',
+				ariaLabelWithoutModifiers: '§',
 				electronAccelerator: 'Ctrl+/',
 				userSettingsLabel: 'ctrl+/',
 				isWYSIWYG: false,
@@ -216,7 +214,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+Shift+§',
 				ariaLabel: 'Control+Shift+§',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Shift', '§'])],
+				labelWithoutModifiers: '§',
+				ariaLabelWithoutModifiers: '§',
 				electronAccelerator: 'Ctrl+Shift+/',
 				userSettingsLabel: 'ctrl+shift+/',
 				isWYSIWYG: false,
@@ -237,7 +236,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+K Ctrl+ä',
 				ariaLabel: 'Control+K Control+ä',
-				HTMLLabel: [_chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', 'ä'])],
+				labelWithoutModifiers: 'K ä',
+				ariaLabelWithoutModifiers: 'K ä',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+\\',
 				isWYSIWYG: false,
@@ -266,7 +266,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+DownArrow',
 				ariaLabel: 'Control+DownArrow',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'DownArrow'])],
+				labelWithoutModifiers: 'DownArrow',
+				ariaLabelWithoutModifiers: 'DownArrow',
 				electronAccelerator: 'Ctrl+Down',
 				userSettingsLabel: 'ctrl+down',
 				isWYSIWYG: true,
@@ -287,7 +288,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+NumPad0',
 				ariaLabel: 'Control+NumPad0',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'NumPad0'])],
+				labelWithoutModifiers: 'NumPad0',
+				ariaLabelWithoutModifiers: 'NumPad0',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+numpad0',
 				isWYSIWYG: true,
@@ -308,7 +310,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+Home',
 				ariaLabel: 'Control+Home',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Home'])],
+				labelWithoutModifiers: 'Home',
+				ariaLabelWithoutModifiers: 'Home',
 				electronAccelerator: 'Ctrl+Home',
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
@@ -336,7 +339,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+Home',
 				ariaLabel: 'Control+Home',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Home'])],
+				labelWithoutModifiers: 'Home',
+				ariaLabelWithoutModifiers: 'Home',
 				electronAccelerator: 'Ctrl+Home',
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
@@ -358,7 +362,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			[{
 				label: 'Ctrl+, Ctrl+§',
 				ariaLabel: 'Control+, Control+§',
-				HTMLLabel: [_chordHTMLLabel(['Ctrl', ','], ['Ctrl', '§'])],
+				labelWithoutModifiers: ', §',
+				ariaLabelWithoutModifiers: ', §',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+, ctrl+/',
 				isWYSIWYG: false,
@@ -386,7 +391,8 @@ suite('keyboardMapper - WINDOWS de_ch', () => {
 			{
 				label: 'Ctrl+',
 				ariaLabel: 'Control+',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ''])],
+				labelWithoutModifiers: '',
+				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
@@ -423,7 +429,8 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 			[{
 				label: 'Ctrl+K Ctrl+\\',
 				ariaLabel: 'Control+K Control+\\',
-				HTMLLabel: [_chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', '\\'])],
+				labelWithoutModifiers: 'K \\',
+				ariaLabelWithoutModifiers: 'K \\',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+\\',
 				isWYSIWYG: true,
@@ -445,7 +452,8 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
-				HTMLLabel: [_chordHTMLLabel(['Ctrl', ','], ['Ctrl', '/'])],
+				labelWithoutModifiers: ', /',
+				ariaLabelWithoutModifiers: ', /',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+, ctrl+/',
 				isWYSIWYG: true,
@@ -467,7 +475,8 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ','])],
+				labelWithoutModifiers: ',',
+				ariaLabelWithoutModifiers: ',',
 				electronAccelerator: 'Ctrl+,',
 				userSettingsLabel: 'ctrl+,',
 				isWYSIWYG: true,
@@ -495,7 +504,8 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 			{
 				label: 'Ctrl+',
 				ariaLabel: 'Control+',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ''])],
+				labelWithoutModifiers: '',
+				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
@@ -535,7 +545,8 @@ suite('misc', () => {
 			[{
 				label: 'Ctrl+لا',
 				ariaLabel: 'Control+لا',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'لا'])],
+				labelWithoutModifiers: 'لا',
+				ariaLabelWithoutModifiers: 'لا',
 				electronAccelerator: 'Ctrl+B',
 				userSettingsLabel: 'ctrl+b',
 				isWYSIWYG: false,

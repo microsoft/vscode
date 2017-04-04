@@ -26,6 +26,15 @@
 	text-align: center;
 }
 
+.defineKeybindingWidget .output {
+	display: flex;
+	justify-content: center;
+}
+
+.defineKeybindingWidget .output .htmlkb {
+	margin: 0px 4px;
+}
+
 /* Theming */
 .defineKeybindingWidget {
 	background-color: #EFEFF2;
@@ -67,33 +76,6 @@
 .monaco-editor .keybindingError {
 	box-shadow:	inset 0 0 0 1px #B9B9B9;
 	background-color: rgba(250, 100, 100, 0.2);
-}
-
-/* for keybindings rendered as HTML */
-.monaco-kb {
-	white-space: nowrap;
-}
-.monaco-kbkey {
-	display: inline-block;
-	border: solid 1px #ccc;
-	border-bottom-color: #bbb;
-	border-radius: 3px;
-	box-shadow: inset 0 -1px 0 #bbb;
-	background-color: #ddd;
-	vertical-align: middle;
-	color: #555;
-	line-height: 10px;
-	font-size: 11px;
-	padding: 3px 5px;
-}
-
-.hc-black .monaco-kbkey,
-.vs-dark .monaco-kbkey {
-	background-color: rgba(128, 128, 128, 0.17);
-	color: #ccc;
-	border: solid 1px #333;
-	border-bottom-color: #444;
-	box-shadow: inset 0 -1px 0 #444;
 }
 
 /* launcher widget */

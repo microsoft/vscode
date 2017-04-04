@@ -17,8 +17,9 @@ import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCod
 
 export interface IResolvedKeybinding {
 	label: string;
+	labelWithoutModifiers: string;
 	ariaLabel: string;
-	HTMLLabel: IHTMLContentElement[];
+	ariaLabelWithoutModifiers: string;
 	electronAccelerator: string;
 	userSettingsLabel: string;
 	isWYSIWYG: boolean;
@@ -33,8 +34,9 @@ export interface IResolvedKeybinding {
 function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
 	return {
 		label: kb.getLabel(),
+		labelWithoutModifiers: kb.getLabelWithoutModifiers(),
 		ariaLabel: kb.getAriaLabel(),
-		HTMLLabel: kb.getHTMLLabel(),
+		ariaLabelWithoutModifiers: kb.getAriaLabelWithoutModifiers(),
 		electronAccelerator: kb.getElectronAccelerator(),
 		userSettingsLabel: kb.getUserSettingsLabel(),
 		isWYSIWYG: kb.isWYSIWYG(),

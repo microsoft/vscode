@@ -8,9 +8,8 @@
 import { KeyCode, KeyCodeUtils, ResolvedKeybinding, Keybinding, SimpleKeybinding, KeybindingType, USER_SETTINGS } from 'vs/base/common/keyCodes';
 import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
-import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider, NO_MODIFIERS } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
@@ -108,6 +107,12 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OperatingSystem.Windows);
 	}
 
+	public getLabelWithoutModifiers(): string {
+		let firstPart = this._getUILabelForKeybinding(this._firstPart);
+		let chordPart = this._getUILabelForKeybinding(this._chordPart);
+		return UILabelProvider.toLabel(NO_MODIFIERS, firstPart, NO_MODIFIERS, chordPart, OperatingSystem.Windows);
+	}
+
 	private _getAriaLabelForKeybinding(keybinding: SimpleKeybinding): string {
 		if (!keybinding) {
 			return null;
@@ -124,10 +129,10 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, OperatingSystem.Windows);
 	}
 
-	public getHTMLLabel(): IHTMLContentElement[] {
-		let firstPart = this._getUILabelForKeybinding(this._firstPart);
-		let chordPart = this._getUILabelForKeybinding(this._chordPart);
-		return UILabelProvider.toHTMLLabel(this._firstPart, firstPart, this._chordPart, chordPart, OperatingSystem.Windows);
+	public getAriaLabelWithoutModifiers(): string {
+		let firstPart = this._getAriaLabelForKeybinding(this._firstPart);
+		let chordPart = this._getAriaLabelForKeybinding(this._chordPart);
+		return AriaLabelProvider.toLabel(NO_MODIFIERS, firstPart, NO_MODIFIERS, chordPart, OperatingSystem.Windows);
 	}
 
 	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string {
@@ -228,6 +233,10 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 			return false;
 		}
 		return this._firstPart.metaKey;
+	}
+
+	public getParts(): [ResolvedKeybinding, ResolvedKeybinding] {
+		return [new WindowsNativeResolvedKeybinding(this._mapper, this._firstPart, null), this._chordPart ? new WindowsNativeResolvedKeybinding(this._mapper, this._chordPart, null) : null];
 	}
 
 	public getDispatchParts(): [string, string] {

@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 /**
@@ -551,13 +550,17 @@ export abstract class ResolvedKeybinding {
 	 */
 	public abstract getLabel(): string;
 	/**
+	 * Returns the UI label of the binding without modifiers
+	 */
+	public abstract getLabelWithoutModifiers(): string;
+	/**
 	 * This prints the binding in a format suitable for ARIA.
 	 */
 	public abstract getAriaLabel(): string;
 	/**
-	 * This prints the binding in a format suitable for displaying in the UI.
+	 * Returns the ARIA label of the bindings without modifiers
 	 */
-	public abstract getHTMLLabel(): IHTMLContentElement[];
+	public abstract getAriaLabelWithoutModifiers(): string;
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
@@ -601,4 +604,8 @@ export abstract class ResolvedKeybinding {
 	 * Returns the firstPart, chordPart that should be used for dispatching.
 	 */
 	public abstract getDispatchParts(): [string, string];
+	/**
+	 * Returns the firstPart, chordPart of the keybinding
+	 */
+	public abstract getParts(): [ResolvedKeybinding, ResolvedKeybinding];
 }
