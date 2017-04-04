@@ -74,6 +74,7 @@ export interface ITypescriptServiceClient {
 	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
 	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
 	onDidEndInstallTypings: Event<Proto.EndInstallTypesEventBody>;
+	onTypesInstallerInitializationFailed: Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
 	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 
