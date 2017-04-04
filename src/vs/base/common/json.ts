@@ -12,7 +12,8 @@ export enum ScanError {
 	UnexpectedEndOfString,
 	UnexpectedEndOfNumber,
 	InvalidUnicode,
-	InvalidEscapeCharacter
+	InvalidEscapeCharacter,
+	InvalidCharacter
 }
 
 export enum SyntaxKind {
@@ -224,10 +225,15 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 				start = pos;
 				continue;
 			}
-			if (isLineBreak(ch)) {
-				result += text.substring(start, pos);
-				scanError = ScanError.UnexpectedEndOfString;
-				break;
+			if (ch >= 0 && ch <= 0x1f) {
+				if (isLineBreak(ch)) {
+					result += text.substring(start, pos);
+					scanError = ScanError.UnexpectedEndOfString;
+					break;
+				} else {
+					scanError = ScanError.InvalidCharacter;
+					break;
+				}
 			}
 			pos++;
 		}
@@ -725,7 +731,7 @@ export function getLocation(text: string, position: number): Location {
 				}
 				previousNode = void 0;
 				isAtPropertyKey = position > offset;
-				segments.push(''); // push a placeholder (will be replaced or removed)
+				segments.push(''); // push a placeholder (will be replaced)
 			},
 			onObjectProperty: (name: string, offset: number, length: number) => {
 				if (position < offset) {
@@ -794,9 +800,6 @@ export function getLocation(text: string, position: number): Location {
 		}
 	}
 
-	if (segments[segments.length - 1] === '') {
-		segments.pop();
-	}
 	return {
 		path: segments,
 		previousNode,
@@ -972,7 +975,7 @@ export function getNodeValue(node: Node): any {
 	if (node.type === 'array') {
 		return node.children.map(getNodeValue);
 	} else if (node.type === 'object') {
-		let obj: any = {};
+		let obj = {};
 		for (let prop of node.children) {
 			obj[prop.children[0].value] = getNodeValue(prop.children[1]);
 		}
