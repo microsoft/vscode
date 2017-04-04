@@ -669,7 +669,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 	public dispose(): void {
 		if (this.items !== null) {
-			this.clear();
+			lifecycle.dispose(this.items);
 		}
 		this.items = null;
 
