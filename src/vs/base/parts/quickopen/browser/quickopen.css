@@ -39,6 +39,10 @@
 	line-height: 1.8em;
 }
 
+.quick-open-widget .quick-open-tree .monaco-tree-row  > .content > .sub-content {
+	overflow: hidden;
+}
+
 .quick-open-widget.content-changing .quick-open-tree .monaco-scrollable-element .slider {
 	display: none; /* scrollbar slider causes some hectic updates when input changes quickly, so hide it while quick open changes */
 }
