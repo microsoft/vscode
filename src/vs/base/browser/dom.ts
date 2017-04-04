@@ -746,6 +746,7 @@ export function isHTMLElement(o: any): o is HTMLElement {
 export const EventType = {
 	// Mouse
 	CLICK: 'click',
+	AUXCLICK: 'auxclick', // >= Chrome 56
 	DBLCLICK: 'dblclick',
 	MOUSE_UP: 'mouseup',
 	MOUSE_DOWN: 'mousedown',
