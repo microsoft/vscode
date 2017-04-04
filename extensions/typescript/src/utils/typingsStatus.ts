@@ -98,6 +98,6 @@ export class AtaProgressReporter {
 	}
 
 	private onTypesInstallerInitializationFailed() {
-		vscode.window.showWarningMessage(localize('typesInstallerInitializationFailed', "Could not installed typings files for JS/TS language features. Please ensure that NPM is installed"));
+		vscode.window.showWarningMessage(localize('typesInstallerInitializationFailed', "Could not install typings files for JS/TS language features. Please ensure that NPM is installed"));
 	}
 }
