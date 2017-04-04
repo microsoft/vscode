@@ -474,28 +474,9 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			return this.entryItemRenderer.renderTemplate(null, templateId, container);
 		}
 
-		// Entry Group
-		let group: HTMLDivElement;
-		if (templateId === templateEntryGroup) {
-			group = document.createElement('div');
-			DOM.addClass(group, 'results-group');
-			container.appendChild(group);
-		}
-
-		// Action Bar
-		DOM.addClass(container, 'actions');
-
 		const entryContainer = document.createElement('div');
 		DOM.addClass(entryContainer, 'sub-content');
 		container.appendChild(entryContainer);
-
-		const actionBarContainer = document.createElement('div');
-		DOM.addClass(actionBarContainer, 'primary-action-bar');
-		container.appendChild(actionBarContainer);
-
-		const actionBar = new ActionBar(actionBarContainer, {
-			actionRunner: this.actionRunner
-		});
 
 		// Entry
 		const row1 = DOM.$('.row');
@@ -521,6 +502,25 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		row2.appendChild(detailContainer);
 		DOM.addClass(detailContainer, 'quick-open-entry-meta');
 		const detail = new HighlightedLabel(detailContainer);
+
+		// Entry Group
+		let group: HTMLDivElement;
+		if (templateId === templateEntryGroup) {
+			group = document.createElement('div');
+			DOM.addClass(group, 'results-group');
+			container.appendChild(group);
+		}
+
+		// Actions
+		DOM.addClass(container, 'actions');
+
+		const actionBarContainer = document.createElement('div');
+		DOM.addClass(actionBarContainer, 'primary-action-bar');
+		container.appendChild(actionBarContainer);
+
+		const actionBar = new ActionBar(actionBarContainer, {
+			actionRunner: this.actionRunner
+		});
 
 		return {
 			container,
