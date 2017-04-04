@@ -412,4 +412,48 @@ suite('Editor Diff - DiffComputer', () => {
 		];
 		assertDiff(original, modified, expected);
 	});
+
+	test('empty diff 1', () => {
+		var original = [''];
+		var modified = ['something'];
+		var expected = [
+			createLineChange(1, 1, 1, 1, [
+				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
+			])
+		];
+		assertDiff(original, modified, expected, false, true);
+	});
+
+	test('empty diff 2', () => {
+		var original = [''];
+		var modified = ['something', 'something else'];
+		var expected = [
+			createLineChange(1, 1, 1, 2, [
+				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
+			])
+		];
+		assertDiff(original, modified, expected, false, true);
+	});
+
+	test('empty diff 3', () => {
+		var original = ['something', 'something else'];
+		var modified = [''];
+		var expected = [
+			createLineChange(1, 2, 1, 1, [
+				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
+			])
+		];
+		assertDiff(original, modified, expected, false, true);
+	});
+
+	test('empty diff 4', () => {
+		var original = ['something'];
+		var modified = [''];
+		var expected = [
+			createLineChange(1, 1, 1, 1, [
+				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
+			])
+		];
+		assertDiff(original, modified, expected, false, true);
+	});
 });
