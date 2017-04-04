@@ -4,7 +4,6 @@
 	"configuration.typescript": "TypeScript",
 	"typescript.useCodeSnippetsOnMethodSuggest.dec": "Complete functions with their parameter signature.",
 	"typescript.tsdk.desc": "Specifies the folder path containing the tsserver and lib*.d.ts files to use.",
-	"typescript.tsdk_version.desc": "Specifies the version of the tsserver. Only necessary if the tsserver is not installed using npm.",
 	"typescript.disableAutomaticTypeAcquisition": "Disables automatic type acquisition. Requires TypeScript >= 2.0.6 and a restart after changing it.",
 	"typescript.check.tscVersion": "Check if a global install TypeScript compiler (e.g. tsc) differs from the used TypeScript language service.",
 	"typescript.tsserver.log": "Enables logging of the TS server to a file.",
@@ -28,8 +27,9 @@
 	"javascript.validate.enable": "Enable/disable JavaScript validation.",
 	"typescript.goToProjectConfig.title": "Go to Project Configuration",
 	"javascript.goToProjectConfig.title": "Go to Project Configuration",
-	"typescript.referencesCodeLens.enabled": "Enable/disable references CodeLens.",
-	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens.",
+	"typescript.referencesCodeLens.enabled": "Enable/disable references CodeLens. Requires TypeScript >= 2.0.6.",
+	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens. Requires TypeScript >= 2.2.0.",
 	"typescript.openTsServerLog.title": "Open TS Server log file",
-	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version"
+	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version",
+	"jsDocCompletion.enabled": "Enable/disable auto JSDoc comments"
 }

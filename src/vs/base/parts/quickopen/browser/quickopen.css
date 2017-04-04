@@ -39,6 +39,10 @@
 	line-height: 1.8em;
 }
 
+.quick-open-widget .quick-open-tree .monaco-tree-row  > .content > .sub-content {
+	overflow: hidden;
+}
+
 .quick-open-widget.content-changing .quick-open-tree .monaco-scrollable-element .slider {
 	display: none; /* scrollbar slider causes some hectic updates when input changes quickly, so hide it while quick open changes */
 }
@@ -90,17 +94,18 @@
 }
 
 .quick-open-widget .quick-open-tree .results-group {
-	float: right;
 	margin-right: 18px;
+}
+
+.quick-open-widget .quick-open-tree .monaco-tree-row.focused > .content.has-actions > .results-group,
+.quick-open-widget .quick-open-tree .monaco-tree-row:hover:not(.highlighted) > .content.has-actions > .results-group,
+.quick-open-widget .quick-open-tree .focused .monaco-tree-row.focused > .content.has-actions > .results-group {
+	margin-right: 0px;
 }
 
 .vs .quick-open-widget .quick-open-tree .results-group,
 .vs-dark .quick-open-widget .quick-open-tree .results-group {
 	opacity: 0.6;
-}
-
-.quick-open-widget .quick-open-tree .content.has-actions .results-group {
-	margin-right: 34px; /* push more to the right if we have actions */
 }
 
 .quick-open-widget .quick-open-tree .results-group-separator {
@@ -164,14 +169,4 @@
 .quick-open-widget .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.focused {
 	background: #DCEBFC;
 	color: inherit;
-}
-
-.hc-black .quick-open-widget .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar {
-	background-color: #0C141F;
 }

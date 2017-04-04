@@ -122,9 +122,9 @@ suite('CompletionModel', function () {
 
 		const [a, b, c, d] = model.items;
 		assert.equal(a.suggestion.label, '    </div');
-		assert.equal(b.suggestion.label, 'a');
-		assert.equal(c.suggestion.label, 'p');
-		assert.equal(d.suggestion.label, '    </tag');
+		assert.equal(b.suggestion.label, '    </tag');
+		assert.equal(c.suggestion.label, 'a');
+		assert.equal(d.suggestion.label, 'p');
 	});
 
 });

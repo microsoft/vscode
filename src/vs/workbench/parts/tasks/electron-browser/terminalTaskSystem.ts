@@ -297,6 +297,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		} else {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
 				[terminal, executedCommand] = this.createTerminal(task);
+				let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.SingleRun };
 				this.emit(TaskSystemEvents.Active, event);
 				let decoder = new TerminalDecoder();
 				let problemMatchers = this.resolveMatchers(task.problemMatchers);

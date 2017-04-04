@@ -15,9 +15,6 @@
 	"Class Definition": {
 		"prefix": "class",
 		"body": [
-			"/**",
-			" * ${1:name}",
-			" */",
 			"class ${1:name} {",
 			"\tconstructor(${2:parameters}) {",
 			"\t\t$0",

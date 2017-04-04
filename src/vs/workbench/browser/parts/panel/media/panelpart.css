@@ -43,6 +43,14 @@
 
 /** Actions */
 
+.monaco-workbench .panel .monaco-action-bar .action-item.select-container {
+	cursor: default;
+}
+
+.monaco-workbench .panel .monaco-action-bar .action-item .select-box {
+	cursor: pointer;
+}
+
 .monaco-workbench .hide-panel-action {
 	background: url('close.svg') center center no-repeat;
 }

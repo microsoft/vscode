@@ -16,7 +16,7 @@ import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard
 import 'vs/editor/browser/editor.all';
 
 // Menus/Actions
-import 'vs/platform/actions/browser/menusExtensionPoint';
+import 'vs/platform/actions/electron-browser/menusExtensionPoint';
 
 // Workbench
 import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
