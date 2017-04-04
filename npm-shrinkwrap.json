@@ -13,9 +13,9 @@
       "resolved": "https://registry.npmjs.org/anymatch/-/anymatch-1.3.0.tgz"
     },
     "applicationinsights": {
-      "version": "0.17.0",
-      "from": "applicationinsights@0.17.0",
-      "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.17.0.tgz"
+      "version": "0.17.1",
+      "from": "applicationinsights@0.17.1",
+      "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.17.1.tgz"
     },
     "arr-diff": {
       "version": "2.0.0",
