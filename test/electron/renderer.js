@@ -95,7 +95,7 @@ function createCoverageReport(opts) {
 
 		let coveragePath = path.join(path.dirname(__dirname), '../.build/coverage');
 		let reportTypes = [];
-		if (opts.run || opts.grep) {
+		if (opts.run || opts.runGlob) {
 			// single file running
 			coveragePath += '-single';
 			reportTypes = ['lcovonly'];
@@ -121,8 +121,10 @@ function loadTestModules(opts) {
 		});
 	}
 
+	const pattern = opts.runGlob || _tests_glob;
+
 	return new Promise((resolve, reject) => {
-		glob(_tests_glob, { cwd: _out }, (err, files) => {
+		glob(pattern, { cwd: _out }, (err, files) => {
 			if (err) {
 				reject(err);
 				return;
