@@ -9,6 +9,7 @@ import * as errors from 'vs/base/common/errors';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as nls from 'vs/nls';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class LinkDetector {
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
@@ -18,11 +19,15 @@ export class LinkDetector {
 		// group 3: line number
 		// group 4: column number
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/g
+		///((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/g original
+		///(?:at |^|[\(<\'\"\[])(?:file:\/\/)?((?:(\/|[a-zA-Z]:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?):(\d+)(?::(\d+))?(?:$|[\)>\'\"\]])/g second original
+
+		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?):(\d+)(?::(\d+))?/g
 	];
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		// noop
 	}
@@ -38,7 +43,7 @@ export class LinkDetector {
 			while (match !== null) {
 				let resource: uri = null;
 				try {
-					resource = match && uri.file(match[1]);
+					resource = match && (match[2] ? uri.file(match[1]) : this.contextService.toResource(match[1]));
 				} catch (e) { }
 
 				if (resource) {
@@ -59,7 +64,7 @@ export class LinkDetector {
 					linkContainer.appendChild(link);
 
 					const line = Number(match[3]);
-					const column = Number(match[4]);
+					const column = match[4] ? Number(match[4]) : null;
 					link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, line, column);
 
 					lastMatchIndex = pattern.lastIndex;
@@ -82,7 +87,7 @@ export class LinkDetector {
 		return linkContainer || text;
 	}
 
-	private onLinkClick(event: IMouseEvent, resource: uri, line: number, column: number): void {
+	private onLinkClick(event: IMouseEvent, resource: uri, line: number, column: number = 0): void {
 		const selection = window.getSelection();
 		if (selection.type === 'Range') {
 			return; // do not navigate when user is selecting
