@@ -6,29 +6,25 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import { Builder, $ } from 'vs/base/browser/builder';
 import types = require('vs/base/common/types');
 import { Registry } from 'vs/platform/platform';
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntryItem, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { ITree, IElementCallback } from 'vs/base/parts/tree/browser/tree';
+import { QuickOpenModel, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 export const HELP_PREFIX = '?';
 
-class HelpEntry extends QuickOpenEntryItem {
+class HelpEntry extends QuickOpenEntryGroup {
 	private prefix: string;
 	private description: string;
-	private groupLabel: string;
-	private useBorder: boolean;
 	private quickOpenService: IQuickOpenService;
 	private openOnPreview: boolean;
 
 	constructor(prefix: string, description: string, quickOpenService: IQuickOpenService, openOnPreview: boolean) {
 		super();
 
-		this.prefix = prefix;
+		this.prefix = prefix || '\u2026';
 		this.description = description;
 		this.quickOpenService = quickOpenService;
 		this.openOnPreview = openOnPreview;
@@ -44,71 +40,6 @@ class HelpEntry extends QuickOpenEntryItem {
 
 	public getDescription(): string {
 		return this.description;
-	}
-
-	public getHeight(): number {
-		return 22;
-	}
-
-	public getGroupLabel(): string {
-		return this.groupLabel;
-	}
-
-	public setGroupLabel(groupLabel: string): void {
-		this.groupLabel = groupLabel;
-	}
-
-	public showBorder(): boolean {
-		return this.useBorder;
-	}
-
-	public setShowBorder(showBorder: boolean): void {
-		this.useBorder = showBorder;
-	}
-
-	public render(tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
-		const builder = $(container);
-
-		builder.div({ class: 'quick-open-entry' }, builder => {
-
-			// Support border
-			if (this.showBorder()) {
-				$(container).addClass('results-group-separator');
-			} else {
-				$(container).removeClass('results-group-separator');
-			}
-
-			builder.div({ class: 'row' }, builder => {
-
-				// Prefix
-				const label = $(builder).div({
-					text: this.prefix,
-					'class': 'quick-open-help-entry-label'
-				});
-
-				if (!this.prefix) {
-					label.text('\u2026');
-				}
-
-				// Description
-				$(builder).span({
-					text: this.description,
-					'class': 'quick-open-entry-description'
-				});
-
-				// Add a container for the group
-				if (this.getGroupLabel()) {
-					$(builder).div((div: Builder) => {
-						div.addClass('results-group');
-						div.attr({
-							text: this.getGroupLabel()
-						});
-					});
-				}
-			});
-		});
-
-		return null;
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {

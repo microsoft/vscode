@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
-import { ITree, IElementCallback } from 'vs/base/parts/tree/browser/tree';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import filters = require('vs/base/common/filters');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
@@ -19,7 +19,6 @@ import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything, compareByScore as doCompareByScore } from 'vs/base/common/comparers';
 import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { LegacyRenderer, ILegacyTemplateData } from 'vs/base/parts/tree/browser/treeDefaults';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import DOM = require('vs/base/browser/dom');
 
@@ -272,23 +271,6 @@ export class QuickOpenEntry {
 	}
 }
 
-export class QuickOpenEntryItem extends QuickOpenEntry {
-
-	/**
-	 * Must return the height as being used by the render function.
-	 */
-	public getHeight(): number {
-		return 0;
-	}
-
-	/**
-	 * Allows to present the quick open entry in a custom way inside the tree.
-	 */
-	public render(tree: ITree, container: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
-		return null;
-	}
-}
-
 export class QuickOpenEntryGroup extends QuickOpenEntry {
 	private entry: QuickOpenEntry;
 	private groupLabel: string;
@@ -377,25 +359,6 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 	}
 }
 
-const templateEntry = 'quickOpenEntry';
-const templateEntryGroup = 'quickOpenEntryGroup';
-const templateEntryItem = 'quickOpenEntryItem';
-
-class EntryItemRenderer extends LegacyRenderer {
-
-	public getTemplateId(tree: ITree, element: any): string {
-		return templateEntryItem;
-	}
-
-	protected render(tree: ITree, element: any, container: HTMLElement, previousCleanupFn?: IElementCallback): IElementCallback {
-		if (element instanceof QuickOpenEntryItem) {
-			return (<QuickOpenEntryItem>element).render(tree, container, previousCleanupFn);
-		}
-
-		return super.render(tree, element, container, previousCleanupFn);
-	}
-}
-
 class NoActionProvider implements IActionProvider {
 
 	public hasActions(tree: ITree, element: any): boolean {
@@ -433,33 +396,28 @@ export interface IQuickOpenEntryGroupTemplateData extends IQuickOpenEntryTemplat
 	group: HTMLDivElement;
 }
 
+const templateEntry = 'quickOpenEntry';
+const templateEntryGroup = 'quickOpenEntryGroup';
+
 class Renderer implements IRenderer<QuickOpenEntry> {
 
 	private actionProvider: IActionProvider;
 	private actionRunner: IActionRunner;
-	private entryItemRenderer: EntryItemRenderer;
 
 	constructor(actionProvider: IActionProvider = new NoActionProvider(), actionRunner: IActionRunner = null) {
 		this.actionProvider = actionProvider;
 		this.actionRunner = actionRunner;
-		this.entryItemRenderer = new EntryItemRenderer();
 	}
 
 	public getHeight(entry: QuickOpenEntry): number {
-		if (entry instanceof QuickOpenEntryItem) {
-			return (<QuickOpenEntryItem>entry).getHeight();
-		}
 		if (entry.getDetail()) {
 			return 44;
 		}
+
 		return 22;
 	}
 
 	public getTemplateId(entry: QuickOpenEntry): string {
-		if (entry instanceof QuickOpenEntryItem) {
-			return templateEntryItem;
-		}
-
 		if (entry instanceof QuickOpenEntryGroup) {
 			return templateEntryGroup;
 		}
@@ -468,12 +426,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 	}
 
 	public renderTemplate(templateId: string, container: HTMLElement): IQuickOpenEntryGroupTemplateData {
-
-		// Entry Item
-		if (templateId === templateEntryItem) {
-			return this.entryItemRenderer.renderTemplate(null, templateId, container);
-		}
-
 		const entryContainer = document.createElement('div');
 		DOM.addClass(entryContainer, 'sub-content');
 		container.appendChild(entryContainer);
@@ -535,13 +487,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 	}
 
 	public renderElement(entry: QuickOpenEntry, templateId: string, templateData: any): void {
-
-		// Entry Item
-		if (templateId === templateEntryItem) {
-			this.entryItemRenderer.renderElement(null, entry, templateId, <ILegacyTemplateData>templateData);
-			return;
-		}
-
 		const data: IQuickOpenEntryTemplateData = templateData;
 
 		// Action Bar
@@ -602,23 +547,19 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 	}
 
 	public disposeTemplate(templateId: string, templateData: any): void {
-		if (templateId === templateEntryItem) {
-			this.entryItemRenderer.disposeTemplate(null, templateId, templateData);
-		} else {
-			const data = templateData as IQuickOpenEntryGroupTemplateData;
-			data.actionBar.dispose();
-			data.actionBar = null;
-			data.container = null;
-			data.entry = null;
-			data.description.dispose();
-			data.description = null;
-			data.detail.dispose();
-			data.detail = null;
-			data.group = null;
-			data.icon = null;
-			data.label.dispose();
-			data.label = null;
-		}
+		const data = templateData as IQuickOpenEntryGroupTemplateData;
+		data.actionBar.dispose();
+		data.actionBar = null;
+		data.container = null;
+		data.entry = null;
+		data.description.dispose();
+		data.description = null;
+		data.detail.dispose();
+		data.detail = null;
+		data.group = null;
+		data.icon = null;
+		data.label.dispose();
+		data.label = null;
 	}
 }
 
