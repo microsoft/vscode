@@ -346,7 +346,7 @@ function showSource(mdUri: vscode.Uri) {
 
 	const docUri = vscode.Uri.parse(mdUri.query);
 	for (const editor of vscode.window.visibleTextEditors) {
-		if (editor.document.uri.toString() === docUri.toString()) {
+		if (editor.document.uri.fsPath === docUri.fsPath) {
 			return vscode.window.showTextDocument(editor.document, editor.viewColumn);
 		}
 	}
