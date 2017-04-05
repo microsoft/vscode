@@ -31,7 +31,7 @@ import { getCodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import { getHover } from 'vs/editor/contrib/hover/common/hover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import { provideReferences } from 'vs/editor/contrib/referenceSearch/common/referenceSearch';
+import { provideReferences } from 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
 import { getCodeActions } from 'vs/editor/contrib/quickFix/common/quickFix';
 import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
 import { rename } from 'vs/editor/contrib/rename/browser/rename';
