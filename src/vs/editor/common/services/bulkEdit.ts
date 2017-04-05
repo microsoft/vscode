@@ -104,7 +104,15 @@ class EditTask implements IDisposable {
 
 	public apply(): void {
 		if (this._edits.length > 0) {
-			this._edits.sort(EditTask._editCompare);
+
+			this._edits = this._edits.map((value, index) => ({ value, index })).sort((a, b) => {
+				let ret = Range.compareRangesUsingStarts(a.value.range, b.value.range);
+				if (ret === 0) {
+					ret = a.index - b.index;
+				}
+				return ret;
+			}).map(element => element.value);
+
 			this._initialSelections = this._getInitialSelections();
 			this._model.pushEditOperations(this._initialSelections, this._edits, (edits) => this._getEndCursorSelections(edits));
 		}
@@ -149,10 +157,6 @@ class EditTask implements IDisposable {
 
 	public getEndCursorSelection(): Selection {
 		return this._endCursorSelection;
-	}
-
-	private static _editCompare(a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation): number {
-		return Range.compareRangesUsingStarts(a.range, b.range);
 	}
 
 	dispose() {
