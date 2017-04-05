@@ -1318,7 +1318,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Otherwise: normal quit
 		else {
 			setTimeout(() => {
-				app.quit();
+				this.lifecycleService.quit();
 			}, 10 /* delay to unwind callback stack (IPC) */);
 		}
 	}

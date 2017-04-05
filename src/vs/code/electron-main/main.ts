@@ -58,7 +58,6 @@ import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as fs from 'original-fs';
 
-
 ipc.on('vscode:fetchShellEnv', (event, windowId) => {
 	const win = BrowserWindow.fromId(windowId);
 	getShellEnvironment().then(shellEnv => {
@@ -71,6 +70,7 @@ ipc.on('vscode:fetchShellEnv', (event, windowId) => {
 
 function quit(accessor: ServicesAccessor, errorOrMessage?: Error | string): void {
 	const logService = accessor.get(ILogService);
+	const lifecycleService = accessor.get(ILifecycleService);
 
 	let exitCode = 0;
 	if (typeof errorOrMessage === 'string') {
@@ -84,7 +84,7 @@ function quit(accessor: ServicesAccessor, errorOrMessage?: Error | string): void
 		}
 	}
 
-	process.exit(exitCode); // in main, process.exit === app.exit
+	lifecycleService.kill(exitCode);
 }
 
 // TODO@Joao wow this is huge, clean up!
@@ -247,7 +247,7 @@ function main(accessor: ServicesAccessor, mainIpcServer: Server, userEnv: platfo
 			logService.log('IPC#vscode:exit', code);
 
 			dispose();
-			process.exit(code); // in main, process.exit === app.exit
+			lifecycleService.kill(code);
 		});
 
 		// Lifecycle
@@ -397,12 +397,12 @@ function start(): void {
 		args = validatePaths(args);
 	} catch (err) {
 		console.error(err.message);
-		process.exit(1);
+		app.exit(1);
+
 		return;
 	}
 
 	const instantiationService = createServices(args);
-
 
 	return instantiationService.invokeFunction(accessor => {
 		const environmentService = accessor.get(IEnvironmentService);

@@ -47,10 +47,15 @@ export interface ILifecycleService {
 
 	ready(): void;
 	registerWindow(vscodeWindow: VSCodeWindow): void;
+
 	unload(vscodeWindow: VSCodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
+
+	relaunch(options?: { addArgs?: string[], removeArgs?: string[] });
+
 	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
-	relaunch(options: { addArgs?: string[], removeArgs?: string[] });
 	isQuitRequested(): boolean;
+
+	kill(code?: number);
 }
 
 export class LifecycleService implements ILifecycleService {
@@ -210,6 +215,7 @@ export class LifecycleService implements ILifecycleService {
 						if (fromUpdate) {
 							this.storageService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
 						}
+
 						this.pendingQuitPromiseComplete(false /* no veto */);
 						this.pendingQuitPromiseComplete = null;
 						this.pendingQuitPromise = null;
@@ -221,6 +227,10 @@ export class LifecycleService implements ILifecycleService {
 		}
 
 		return this.pendingQuitPromise;
+	}
+
+	public kill(code?: number): void {
+		app.exit(code);
 	}
 
 	public relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void {
@@ -238,10 +248,17 @@ export class LifecycleService implements ILifecycleService {
 			}
 		}
 
-		this.storageService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
+		let vetod = false;
+		app.once('quit', () => {
+			if (!vetod) {
+				this.storageService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
+				app.relaunch({ args });
+			}
+		});
 
-		app.quit();
-		app.once('quit', () => app.relaunch({ args }));
+		this.quit().then(veto => {
+			vetod = veto;
+		});
 	}
 
 	public isQuitRequested(): boolean {
