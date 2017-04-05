@@ -371,7 +371,7 @@ function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 		environmentService.extensionsPath,
 		environmentService.nodeCachedDataDir
 	];
-	return TPromise.join(paths.map(p => mkdirp(p))) as TPromise<any>;
+	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
 }
 
 function createServices(args: ParsedArgs): IInstantiationService {

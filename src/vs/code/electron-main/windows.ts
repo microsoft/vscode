@@ -730,7 +730,7 @@ export class WindowsManager implements IWindowsMainService {
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
-		configuration.nodeCachedDataDir = this.environmentService.isBuilt && this.environmentService.nodeCachedDataDir;
+		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
 
 		return configuration;
 	}
