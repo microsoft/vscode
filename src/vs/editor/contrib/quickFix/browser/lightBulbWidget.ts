@@ -11,7 +11,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { TrackedRangeStickiness, MouseTargetType } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { QuickFixComputeEvent } from 'vs/editor/contrib/quickFix/common/quickFixModel';
+import { QuickFixComputeEvent } from './quickFixModel';
 
 export class LightBulbWidget implements IDisposable {
 
