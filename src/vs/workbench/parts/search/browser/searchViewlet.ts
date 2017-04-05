@@ -521,7 +521,7 @@ export class SearchViewlet extends Viewlet {
 				}
 
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				let focusEditor = (keyboard && (!event.payload || !event.payload.preserveFocus)) || doubleClick;
+				let focusEditor = (keyboard && (!event.payload || !event.payload.preserveFocus)) || doubleClick || event.payload.focusEditor;
 
 				if (element instanceof Match) {
 					let selectedMatch: Match = element;
