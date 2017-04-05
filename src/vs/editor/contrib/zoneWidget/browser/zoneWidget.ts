@@ -273,9 +273,17 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this.editor.revealPosition(position);
 
 		// Render the widget as zone (rendering) and widget (lifecycle)
-		let viewZoneDomNode = document.createElement('div'),
-			lineHeight = this.editor.getConfiguration().lineHeight,
-			arrowHeight = 0, frameThickness = 0;
+		const viewZoneDomNode = document.createElement('div');
+		const lineHeight = this.editor.getConfiguration().lineHeight;
+
+		// adjust heightInLines to viewport
+		const maxHeightInLines = (this.editor.getLayoutInfo().height / lineHeight) * .8;
+		if (heightInLines >= maxHeightInLines) {
+			heightInLines = maxHeightInLines;
+		}
+
+		let arrowHeight = 0;
+		let frameThickness = 0;
 
 		// Render the arrow one 1/3 of an editor line height
 		if (this.options.showArrow) {
