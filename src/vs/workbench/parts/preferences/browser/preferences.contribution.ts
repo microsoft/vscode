@@ -20,7 +20,7 @@ import { KeybindingsEditor, KeybindingsEditorInput } from 'vs/workbench/parts/pr
 import { OpenGlobalSettingsAction, OpenGlobalKeybindingsAction, OpenWorkspaceSettingsAction, ConfigureLanguageBasedSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import {
 	IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_SEARCH,
-	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET
+	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/parts/preferences/browser/preferencesService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -209,6 +209,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 	handler: (accessor, args: any) => (accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor).search('')
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
+	primary: null,
+	handler: (accessor, args: any) => {
+		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
+		editor.showConflicts(editor.activeKeybindingEntry);
+	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

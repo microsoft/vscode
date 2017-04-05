@@ -266,7 +266,7 @@ export class WorkbenchShell {
 						const action = this.workbench.getInstantiationService().createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
 
 						createIssue = action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`).then(() => {
-							return this.windowsService.showItemInFolder(profileStartup.dir);
+							return this.windowsService.showItemInFolder(profileFiles[0]);
 						});
 					}
 					createIssue.then(() => this.windowsService.relaunch({ removeArgs: ['--prof-startup'] }));

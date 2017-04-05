@@ -17,6 +17,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
+import URI from 'vs/base/common/uri';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -149,6 +150,10 @@ class ToggleWordWrapAction extends EditorAction {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const model = editor.getModel();
 
+		if (!canToggleWordWrap(model.uri)) {
+			return;
+		}
+
 		// Read the current state
 		const currentState = readWordWrapState(model, configurationService, codeEditorService);
 		// Compute the new state
@@ -200,6 +205,10 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 				return;
 			}
 
+			if (!canToggleWordWrap(newModel.uri)) {
+				return;
+			}
+
 			// Read current configured values and toggle state
 			const desiredState = readWordWrapState(newModel, this.configurationService, this.codeEditorService);
 
@@ -223,6 +232,13 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 	public getId(): string {
 		return ToggleWordWrapController._ID;
 	}
+}
+
+function canToggleWordWrap(uri: URI): boolean {
+	if (!uri) {
+		return false;
+	}
+	return (uri.scheme !== 'output' && uri.scheme !== 'vscode');
 }
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {

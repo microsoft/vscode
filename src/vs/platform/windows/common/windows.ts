@@ -33,6 +33,7 @@ export interface IWindowsService {
 	clearRecentPathsList(): TPromise<void>;
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(windowId: number): TPromise<void>;
+	isFocused(windowId: number): TPromise<boolean>;
 	isMaximized(windowId: number): TPromise<boolean>;
 	maximizeWindow(windowId: number): TPromise<void>;
 	unmaximizeWindow(windowId: number): TPromise<void>;
@@ -83,6 +84,7 @@ export interface IWindowService {
 	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
+	isFocused(): TPromise<boolean>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	isMaximized(): TPromise<boolean>;
 	maximizeWindow(): TPromise<void>;

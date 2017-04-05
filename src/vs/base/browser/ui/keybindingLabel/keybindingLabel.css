@@ -1,0 +1,31 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-kb {
+	white-space: nowrap;
+}
+
+.monaco-kbkey {
+	display: inline-block;
+	border: solid 1px #ccc;
+	border-bottom-color: #bbb;
+	border-radius: 3px;
+	box-shadow: inset 0 -1px 0 #bbb;
+	background-color: #ddd;
+	vertical-align: middle;
+	color: #555;
+	line-height: 10px;
+	font-size: 11px;
+	padding: 3px 5px;
+}
+
+.hc-black .monaco-kbkey,
+.vs-dark .monaco-kbkey {
+	background-color: rgba(128, 128, 128, 0.17);
+	color: #ccc;
+	border: solid 1px #333;
+	border-bottom-color: #444;
+	box-shadow: inset 0 -1px 0 #444;
+}

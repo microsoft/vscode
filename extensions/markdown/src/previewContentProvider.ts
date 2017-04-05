@@ -14,6 +14,10 @@ const localize = nls.loadMessageBundle();
 
 export interface ContentSecurityPolicyArbiter {
 	isEnhancedSecurityDisableForWorkspace(): boolean;
+
+	addTrustedWorkspace(rootPath: string): Thenable<void>;
+
+	removeTrustedWorkspace(rootPath: string): Thenable<void>;
 }
 
 const previewStrings = {
@@ -28,7 +32,7 @@ export function isMarkdownFile(document: vscode.TextDocument) {
 }
 
 export function getMarkdownUri(uri: vscode.Uri) {
-	return uri.with({ scheme: 'markdown', path: uri.path + '.rendered', query: uri.toString() });
+	return uri.with({ scheme: 'markdown', path: uri.fsPath + '.rendered', query: uri.toString() });
 }
 
 export class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
@@ -143,8 +147,8 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 			}
 
 			const initialData = {
-				previewUri: encodeURIComponent(uri.toString(true)),
-				source: encodeURIComponent(sourceUri.toString(true)),
+				previewUri: uri.toString(),
+				source: sourceUri.toString(),
 				line: initialLine,
 				scrollPreviewWithEditorSelection: !!markdownConfig.get('preview.scrollPreviewWithEditorSelection', true),
 				scrollEditorWithPreview: !!markdownConfig.get('preview.scrollEditorWithPreview', true),

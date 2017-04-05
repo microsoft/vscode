@@ -160,6 +160,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
 	private _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
 	private _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
+	private _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
 
 	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
@@ -263,6 +264,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	get onDidEndInstallTypings(): Event<Proto.EndInstallTypesEventBody> {
 		return this._onDidEndInstallTypings.event;
+	}
+
+	get onTypesInstallerInitializationFailed(): Event<Proto.TypesInstallerInitializationFailedEventBody> {
+		return this._onTypesInstallerInitializationFailed.event;
 	}
 
 	private get output(): OutputChannel {
@@ -1016,6 +1021,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					const data = (event as Proto.EndInstallTypesEvent).body;
 					if (data) {
 						this._onDidEndInstallTypings.fire(data);
+					}
+				} else if (event.event === 'typesInstallerInitializationFailed') {
+					const data = (event as Proto.TypesInstallerInitializationFailedEvent).body;
+					if (data) {
+						this._onTypesInstallerInitializationFailed.fire(data);
 					}
 				}
 			} else {

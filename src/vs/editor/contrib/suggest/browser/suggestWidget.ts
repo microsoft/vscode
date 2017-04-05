@@ -23,8 +23,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { Context as SuggestContext } from '../common/suggest';
-import { ICompletionItem, CompletionModel } from '../common/completionModel';
+import { Context as SuggestContext } from './suggest';
+import { ICompletionItem, CompletionModel } from './completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 

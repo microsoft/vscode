@@ -129,14 +129,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private onFileChanges(e: FileChangesEvent): void {
 
-		// Handle added if we are in orphan mode
-		if (this.inOrphanMode && e.contains(this.resource, FileChangeType.ADDED)) {
-			this.setOrphaned(false);
-		}
-
-		// Handle deletes
-		if (!this.inOrphanMode && e.contains(this.resource, FileChangeType.DELETED)) {
-			this.setOrphaned(true);
+		// Track ADD and DELETES for updates of this model to orphan-mode
+		const newInOrphanMode = e.contains(this.resource, FileChangeType.DELETED) && !e.contains(this.resource, FileChangeType.ADDED);
+		if (this.inOrphanMode !== newInOrphanMode) {
+			this.setOrphaned(newInOrphanMode);
 		}
 	}
 

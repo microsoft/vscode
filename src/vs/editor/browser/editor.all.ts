@@ -32,7 +32,7 @@ import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/multicursor/common/multicursor';
 import 'vs/editor/contrib/multicursor/browser/menuPreventer';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
-import 'vs/editor/contrib/quickFix/browser/quickFix';
+import 'vs/editor/contrib/quickFix/browser/quickFixCommands';
 import 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
 import 'vs/editor/contrib/rename/browser/rename';
 import 'vs/editor/contrib/smartSelect/common/smartSelect';

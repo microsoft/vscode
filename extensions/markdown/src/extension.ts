@@ -11,13 +11,9 @@ import TelemetryReporter from 'vscode-extension-telemetry';
 import { MarkdownEngine } from './markdownEngine';
 import DocumentLinkProvider from './documentLinkProvider';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
-import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile, ContentSecurityPolicyArbiter } from './previewContentProvider';
+import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
+import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './previewContentProvider';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
-
-import * as nls from 'vscode-nls';
-
-const localize = nls.loadMessageBundle();
-
 
 interface IPackageInfo {
 	name: string;
@@ -28,36 +24,6 @@ interface IPackageInfo {
 interface OpenDocumentLinkArgs {
 	path: string;
 	fragment: string;
-}
-
-enum PreviewSecuritySelection {
-	None,
-	DisableEnhancedSecurityForWorkspace,
-	EnableEnhancedSecurityForWorkspace
-}
-
-interface PreviewSecurityPickItem extends vscode.QuickPickItem {
-	id: PreviewSecuritySelection;
-}
-
-class ExtensionContentSecurityPolicyArbiter implements ContentSecurityPolicyArbiter {
-	private readonly key = 'trusted_preview_workspace:';
-
-	constructor(
-		private globalState: vscode.Memento
-	) { }
-
-	public isEnhancedSecurityDisableForWorkspace(): boolean {
-		return this.globalState.get<boolean>(this.key + vscode.workspace.rootPath, false);
-	}
-
-	public addTrustedWorkspace(rootPath: string): Thenable<void> {
-		return this.globalState.update(this.key + rootPath, true);
-	}
-
-	public removeTrustedWorkspace(rootPath: string): Thenable<void> {
-		return this.globalState.update(this.key + rootPath, false);
-	}
 }
 
 const resolveExtensionResources = (extension: vscode.Extension<any>, stylePath: string): vscode.Uri => {
@@ -82,7 +48,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const contentProvider = new MDDocumentContentProvider(engine, context, cspArbiter);
 	const contentProviderRegistration = vscode.workspace.registerTextDocumentContentProvider('markdown', contentProvider);
-
+	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, contentProvider);
 	if (vscode.workspace.getConfiguration('markdown').get('enableExperimentalExtensionApi', false)) {
 		for (const extension of vscode.extensions.all) {
 			const contributes = extension.packageJSON && extension.packageJSON.contributes;
@@ -144,8 +110,8 @@ export function activate(context: vscode.ExtensionContext) {
 			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.fsPath === sourceUri.fsPath)
 			.forEach(editor => {
 				const sourceLine = Math.floor(line);
-				const text = editor.document.getText(new vscode.Range(sourceLine, 0, sourceLine + 1, 0));
-				const fraction = line - Math.floor(line);
+				const fraction = line - sourceLine;
+				const text = editor.document.lineAt(sourceLine).text;
 				const start = Math.floor(fraction * text.length);
 				editor.revealRange(
 					new vscode.Range(sourceLine, start, sourceLine + 1, 0),
@@ -157,7 +123,9 @@ export function activate(context: vscode.ExtensionContext) {
 		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
 		return vscode.workspace.openTextDocument(sourceUri)
 			.then(document => vscode.window.showTextDocument(document))
-			.then(editor => vscode.commands.executeCommand('revealLine', { lineNumber: Math.floor(line), at: 'center' }).then(() => editor))
+			.then(editor =>
+				vscode.commands.executeCommand('revealLine', { lineNumber: Math.floor(line), at: 'center' })
+					.then(() => editor))
 			.then(editor => {
 				if (editor) {
 					editor.selection = new vscode.Selection(
@@ -190,65 +158,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewSecuritySelector', (resource: string | undefined) => {
-		const workspacePath = vscode.workspace.rootPath || resource;
-		if (!workspacePath) {
-			return;
-		}
-
-		let sourceUri: vscode.Uri | null = null;
-		if (resource) {
-			sourceUri = vscode.Uri.parse(decodeURIComponent(resource));
-		}
-
-		if (!sourceUri && vscode.window.activeTextEditor) {
-			const activeDocument = vscode.window.activeTextEditor.document;
-			if (activeDocument.uri.scheme === 'markdown') {
-				sourceUri = activeDocument.uri;
-			} else {
-				sourceUri = getMarkdownUri(activeDocument.uri);
-			}
-		}
-
-		vscode.window.showQuickPick<PreviewSecurityPickItem>(
-			[
-				{
-					id: PreviewSecuritySelection.EnableEnhancedSecurityForWorkspace,
-					label: localize(
-						'preview.showPreviewSecuritySelector.disallowScriptsForWorkspaceTitle',
-						'Disable script execution in markdown previews for this workspace'),
-					description: '',
-					detail: cspArbiter.isEnhancedSecurityDisableForWorkspace()
-						? ''
-						: localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
-				}, {
-					id: PreviewSecuritySelection.DisableEnhancedSecurityForWorkspace,
-					label: localize(
-						'preview.showPreviewSecuritySelector.allowScriptsForWorkspaceTitle',
-						'Enable script execution in markdown previews for this workspace'),
-					description: '',
-					detail: cspArbiter.isEnhancedSecurityDisableForWorkspace()
-						? localize('preview.showPreviewSecuritySelector.currentSelection', 'Current setting')
-						: ''
-				},
-			], {
-				placeHolder: localize('preview.showPreviewSecuritySelector.title', 'Change security settings for the Markdown preview'),
-			}).then(selection => {
-				if (!workspacePath) {
-					return false;
-				}
-				switch (selection && selection.id) {
-					case PreviewSecuritySelection.DisableEnhancedSecurityForWorkspace:
-						return cspArbiter.addTrustedWorkspace(workspacePath).then(() => true);
-
-					case PreviewSecuritySelection.EnableEnhancedSecurityForWorkspace:
-						return cspArbiter.removeTrustedWorkspace(workspacePath).then(() => true);
-				}
-				return false;
-			}).then(shouldUpdate => {
-				if (shouldUpdate && sourceUri) {
-					contentProvider.update(sourceUri);
-				}
-			});
+		previewSecuritySelector.showSecutitySelectorForWorkspace(resource);
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
@@ -346,7 +256,7 @@ function showSource(mdUri: vscode.Uri) {
 
 	const docUri = vscode.Uri.parse(mdUri.query);
 	for (const editor of vscode.window.visibleTextEditors) {
-		if (editor.document.uri.toString() === docUri.toString()) {
+		if (editor.document.uri.scheme === docUri.scheme && editor.document.uri.fsPath === docUri.fsPath) {
 			return vscode.window.showTextDocument(editor.document, editor.viewColumn);
 		}
 	}

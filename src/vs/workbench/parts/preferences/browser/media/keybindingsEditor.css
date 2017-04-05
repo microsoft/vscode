@@ -13,6 +13,23 @@
 	padding: 0px 10px 11px 0;
 }
 
+.keybindings-editor > .keybindings-header > .search-container {
+	position: relative;
+}
+
+.keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence {
+	position: absolute;
+	top: 0;
+	right: 10px;
+	margin-top: 5px;
+	background: url('sort_precedence.svg') center center no-repeat;
+}
+
+.hc-black .keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence,
+.vs-dark .keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence {
+	background: url('sort_precedence_inverse.svg') center center no-repeat;
+}
+
 .keybindings-editor > .keybindings-header .search-container > .settings-search-input {
 	vertical-align: middle;
 }
@@ -66,6 +83,9 @@
 	display: flex;
 }
 
+.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header.focused,
+.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header.selected,
+.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header:hover,
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.keybindings-list-header,
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.even:not(.focused):not(.selected):not(:hover),
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(:focus) .monaco-list-row.focused.even:not(.selected):not(:hover),
@@ -75,12 +95,6 @@
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row:hover {
 	background-color: rgba(128, 128, 128, 0.15);
-}
-
-.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header.focused,
-.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header.selected,
-.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header:hover {
-	background-color: transparent;
 }
 
 .keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row > .header {
@@ -102,7 +116,7 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command {
-	flex: 1;
+	flex: 0.75;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command.vertical-align-column {
@@ -117,7 +131,7 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding {
-	flex: 1;
+	flex: 0.5;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding .monaco-highlighted-label {
@@ -125,7 +139,7 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .source {
-	flex: 0.5;
+	flex: 0.25;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .when {

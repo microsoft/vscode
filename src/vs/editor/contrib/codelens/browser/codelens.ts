@@ -537,8 +537,8 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}
 
-		let centeredRange = this._editor.getCenteredRangeInViewport();
-		let shouldRestoreCenteredRange = (groups.length !== this._lenses.length && this._editor.getScrollTop() !== 0);
+		const centeredRange = this._editor.getCenteredRangeInViewport();
+		const shouldRestoreCenteredRange = centeredRange && (groups.length !== this._lenses.length && this._editor.getScrollTop() !== 0);
 		this._editor.changeDecorations((changeAccessor) => {
 			this._editor.changeViewZones((accessor) => {
 

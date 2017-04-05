@@ -7,8 +7,7 @@
 
 import { KeyMod, KeyCode, createKeybinding, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { IResolvedKeybinding, assertResolveKeybinding, simpleHTMLLabel, chordHTMLLabel, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
+import { IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
 import { MacLinuxFallbackKeyboardMapper } from "vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper";
 import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
 
@@ -20,21 +19,14 @@ suite('keyboardMapper - MAC fallback', () => {
 		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Macintosh), expected);
 	}
 
-	function _simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
-		return simpleHTMLLabel(pieces, OperatingSystem.Macintosh);
-	}
-
-	function _chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
-		return chordHTMLLabel(firstPart, chordPart, OperatingSystem.Macintosh);
-	}
-
 	test('resolveKeybinding Cmd+Z', () => {
 		_assertResolveKeybinding(
 			KeyMod.CtrlCmd | KeyCode.KEY_Z,
 			[{
 				label: '⌘Z',
 				ariaLabel: 'Command+Z',
-				HTMLLabel: [_simpleHTMLLabel(['⌘', 'Z'])],
+				labelWithoutModifiers: 'Z',
+				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Cmd+Z',
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
@@ -54,7 +46,8 @@ suite('keyboardMapper - MAC fallback', () => {
 			[{
 				label: '⌘K ⌘=',
 				ariaLabel: 'Command+K Command+=',
-				HTMLLabel: [_chordHTMLLabel(['⌘', 'K'], ['⌘', '='])],
+				labelWithoutModifiers: 'K =',
+				ariaLabelWithoutModifiers: 'K =',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+k cmd+=',
 				isWYSIWYG: true,
@@ -82,7 +75,8 @@ suite('keyboardMapper - MAC fallback', () => {
 			{
 				label: '⌘Z',
 				ariaLabel: 'Command+Z',
-				HTMLLabel: [_simpleHTMLLabel(['⌘', 'Z'])],
+				labelWithoutModifiers: 'Z',
+				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Cmd+Z',
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
@@ -104,7 +98,8 @@ suite('keyboardMapper - MAC fallback', () => {
 			[{
 				label: '⌘, ⌘/',
 				ariaLabel: 'Command+, Command+/',
-				HTMLLabel: [_chordHTMLLabel(['⌘', ','], ['⌘', '/'])],
+				labelWithoutModifiers: ', /',
+				ariaLabelWithoutModifiers: ', /',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+, cmd+/',
 				isWYSIWYG: true,
@@ -132,7 +127,8 @@ suite('keyboardMapper - MAC fallback', () => {
 			{
 				label: '⌘',
 				ariaLabel: 'Command+',
-				HTMLLabel: [_simpleHTMLLabel(['⌘', ''])],
+				labelWithoutModifiers: '',
+				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+',
 				isWYSIWYG: true,
@@ -155,21 +151,14 @@ suite('keyboardMapper - LINUX fallback', () => {
 		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux), expected);
 	}
 
-	function _simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
-		return simpleHTMLLabel(pieces, OperatingSystem.Linux);
-	}
-
-	function _chordHTMLLabel(firstPart: string[], chordPart: string[]): IHTMLContentElement {
-		return chordHTMLLabel(firstPart, chordPart, OperatingSystem.Linux);
-	}
-
 	test('resolveKeybinding Ctrl+Z', () => {
 		_assertResolveKeybinding(
 			KeyMod.CtrlCmd | KeyCode.KEY_Z,
 			[{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Z'])],
+				labelWithoutModifiers: 'Z',
+				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
@@ -189,7 +178,8 @@ suite('keyboardMapper - LINUX fallback', () => {
 			[{
 				label: 'Ctrl+K Ctrl+=',
 				ariaLabel: 'Control+K Control+=',
-				HTMLLabel: [_chordHTMLLabel(['Ctrl', 'K'], ['Ctrl', '='])],
+				labelWithoutModifiers: 'K =',
+				ariaLabelWithoutModifiers: 'K =',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+=',
 				isWYSIWYG: true,
@@ -217,7 +207,8 @@ suite('keyboardMapper - LINUX fallback', () => {
 			{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'Z'])],
+				labelWithoutModifiers: 'Z',
+				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
@@ -239,7 +230,8 @@ suite('keyboardMapper - LINUX fallback', () => {
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
-				HTMLLabel: [_chordHTMLLabel(['Ctrl', ','], ['Ctrl', '/'])],
+				labelWithoutModifiers: ', /',
+				ariaLabelWithoutModifiers: ', /',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+, ctrl+/',
 				isWYSIWYG: true,
@@ -261,7 +253,8 @@ suite('keyboardMapper - LINUX fallback', () => {
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ','])],
+				labelWithoutModifiers: ',',
+				ariaLabelWithoutModifiers: ',',
 				electronAccelerator: 'Ctrl+,',
 				userSettingsLabel: 'ctrl+,',
 				isWYSIWYG: true,
@@ -289,7 +282,8 @@ suite('keyboardMapper - LINUX fallback', () => {
 			{
 				label: 'Ctrl+',
 				ariaLabel: 'Control+',
-				HTMLLabel: [_simpleHTMLLabel(['Ctrl', ''])],
+				labelWithoutModifiers: '',
+				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,

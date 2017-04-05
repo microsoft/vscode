@@ -12,6 +12,7 @@ import { ISuggestionItem } from './suggest';
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
 	score?: number;
+	idx?: number;
 }
 
 export interface ICompletionStats {
@@ -30,7 +31,7 @@ export class CompletionModel {
 
 	private _lineContext: LineContext;
 	private _column: number;
-	private _items: ICompletionItem[];
+	private _items: ISuggestionItem[];
 
 	private _filteredItems: ICompletionItem[];
 	private _topScoreIdx: number;
@@ -105,10 +106,10 @@ export class CompletionModel {
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
-		let topScore = -(100 * 10);
 
-		for (const item of this._items) {
+		for (let i = 0; i < this._items.length; i++) {
 
+			const item = <ICompletionItem>this._items[i];
 			const { suggestion, container } = item;
 
 			// collect those supports that signaled having
@@ -124,28 +125,20 @@ export class CompletionModel {
 			}
 
 			let match = fuzzyScore(word, suggestion.label);
-			if (!match) {
-				if (typeof suggestion.filterText === 'string') {
-					match = fuzzyScore(word, suggestion.filterText);
-				} else {
-					continue;
-				}
-				if (match) {
-					match = fuzzyScore(word.replace(/^\W+|\W+$/, ''), suggestion.label);
-				} else {
-					continue;
-				}
-			}
-
 			if (match) {
 				item.score = match[0];
 				item.matches = match[1];
-
-				if (item.score > topScore) {
-					topScore = item.score;
-					this._topScoreIdx = this._filteredItems.length;
+			} else {
+				if (typeof suggestion.filterText === 'string') {
+					match = fuzzyScore(word, suggestion.filterText);
 				}
+				if (!match) {
+					continue;
+				}
+				item.score = match[0];
+				item.matches = []; // don't use the filterText-matches
 			}
+			item.idx = i;
 
 			this._filteredItems.push(item);
 
@@ -155,6 +148,22 @@ export class CompletionModel {
 				case 'snippet': this._stats.snippetCount++; break;
 				case 'text': this._stats.textCount++; break;
 			}
+		}
+
+		this._filteredItems.sort(CompletionModel._compareCompletionItems);
+	}
+
+	private static _compareCompletionItems(a: ICompletionItem, b: ICompletionItem) {
+		if (a.score > b.score) {
+			return -1;
+		} else if (a.score < b.score) {
+			return 1;
+		} else if (a.idx < b.idx) {
+			return -1;
+		} else if (a.idx > b.idx) {
+			return 1;
+		} else {
+			return 0;
 		}
 	}
 }

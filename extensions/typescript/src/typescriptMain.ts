@@ -39,7 +39,7 @@ import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
-import JsDocCompletionHelper from './features/jsDocCompletionProvider';
+import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
 import ImplementationCodeLensProvider from './features/implementationsCodeLensProvider';
 
 import * as BuildStatus from './utils/buildStatus';
@@ -70,7 +70,6 @@ export function activate(context: ExtensionContext): void {
 	const MODE_ID_TSX = 'typescriptreact';
 	const MODE_ID_JS = 'javascript';
 	const MODE_ID_JSX = 'javascriptreact';
-	const selector = [MODE_ID_TS, MODE_ID_TSX, MODE_ID_JS, MODE_ID_JSX];
 
 	const clientHost = new TypeScriptServiceClientHost([
 		{
@@ -108,9 +107,6 @@ export function activate(context: ExtensionContext): void {
 		client.openTsServerLogFile();
 	}));
 
-	context.subscriptions.push(
-		languages.registerCompletionItemProvider(selector, new JsDocCompletionHelper(client), '*'));
-
 	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
 		if (editor) {
@@ -119,6 +115,9 @@ export function activate(context: ExtensionContext): void {
 	};
 	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true)));
 	context.subscriptions.push(commands.registerCommand('javascript.goToProjectConfig', goToProjectConfig.bind(null, false)));
+
+	const jsDocCompletionCommand = new TryCompleteJsDocCommand(client);
+	context.subscriptions.push(commands.registerCommand(TryCompleteJsDocCommand.COMMAND_NAME, jsDocCompletionCommand.tryCompleteJsDoc, jsDocCompletionCommand));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 	client.onReady().then(() => {
@@ -146,6 +145,7 @@ class LanguageProvider {
 	private typingsStatus: TypingsStatus;
 	private referenceCodeLensProvider: ReferenceCodeLensProvider;
 	private implementationCodeLensProvider: ImplementationCodeLensProvider;
+	private JsDocCompletionProvider: JsDocCompletionProvider;
 
 	private _validate: boolean = true;
 
@@ -211,6 +211,10 @@ class LanguageProvider {
 		if (this.formattingProvider.isEnabled()) {
 			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(selector, this.formattingProvider);
 		}
+
+		this.JsDocCompletionProvider = new JsDocCompletionProvider(client);
+		this.JsDocCompletionProvider.updateConfiguration();
+		this.disposables.push(languages.registerCompletionItemProvider(selector, this.JsDocCompletionProvider, '*'));
 
 		this.disposables.push(languages.registerHoverProvider(selector, new HoverProvider(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new DefinitionProvider(client)));
@@ -320,6 +324,9 @@ class LanguageProvider {
 			} else if (this.formattingProvider.isEnabled() && !this.formattingProviderRegistration) {
 				this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
 			}
+		}
+		if (this.JsDocCompletionProvider) {
+			this.JsDocCompletionProvider.updateConfiguration();
 		}
 	}
 

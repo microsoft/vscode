@@ -30,12 +30,21 @@ export const enum LanguageId {
  * @internal
  */
 export class LanguageIdentifier {
+
+	/**
+	 * A string identifier. Unique across languages. e.g. 'javascript'.
+	 */
 	public readonly language: string;
+
+	/**
+	 * A numeric identifier. Unique across languages. e.g. 5
+	 * Will vary at runtime based on registration order, etc.
+	 */
 	public readonly id: LanguageId;
 
-	constructor(sid: string, iid: LanguageId) {
-		this.language = sid;
-		this.id = iid;
+	constructor(language: string, id: LanguageId) {
+		this.language = language;
+		this.id = id;
 	}
 }
 

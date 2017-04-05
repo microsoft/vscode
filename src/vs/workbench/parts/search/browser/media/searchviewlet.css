@@ -313,12 +313,12 @@
 }
 
 .vs .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludeSettings {
-	background: url('configure.svg') center center no-repeat;
+	background: url('excludeSettings.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludeSettings,
 .hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludeSettings {
-	background: url('configure-inverse.svg') center center no-repeat;
+	background: url('excludeSettings-dark.svg') center center no-repeat;
 }
 
 .search-viewlet .findInFileMatch,

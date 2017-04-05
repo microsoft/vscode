@@ -5,12 +5,13 @@
 'use strict';
 
 import 'vs/css!./lightBulbWidget';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { TrackedRangeStickiness, MouseTargetType } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { QuickFixComputeEvent } from 'vs/editor/contrib/quickFix/common/quickFixModel';
+import { QuickFixComputeEvent } from './quickFixModel';
 
 export class LightBulbWidget implements IDisposable {
 
@@ -27,6 +28,7 @@ export class LightBulbWidget implements IDisposable {
 	private _decorationIds: string[] = [];
 	private _currentLine: number;
 	private _model: QuickFixComputeEvent;
+	private _futureFixes = new CancellationTokenSource();
 
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
@@ -63,9 +65,11 @@ export class LightBulbWidget implements IDisposable {
 	set model(e: QuickFixComputeEvent) {
 		this._model = e;
 		this.hide();
-		const modelNow = this._model;
+		this._futureFixes = new CancellationTokenSource();
+		const { token } = this._futureFixes;
+
 		e.fixes.done(fixes => {
-			if (modelNow === this._model && fixes && fixes.length > 0) {
+			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
 				this.show(e);
 			} else {
 				this.hide();
@@ -99,6 +103,7 @@ export class LightBulbWidget implements IDisposable {
 
 	hide(): void {
 		this._decorationIds = this._editor.deltaDecorations(this._decorationIds, []);
+		this._futureFixes.cancel();
 		this._currentLine = undefined;
 	}
 }

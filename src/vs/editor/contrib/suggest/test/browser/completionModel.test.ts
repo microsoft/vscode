@@ -7,8 +7,8 @@
 import * as assert from 'assert';
 import { IPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestion, ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
-import { ISuggestionItem } from 'vs/editor/contrib/suggest/common/suggest';
-import { CompletionModel } from 'vs/editor/contrib/suggest/common/completionModel';
+import { ISuggestionItem } from 'vs/editor/contrib/suggest/browser/suggest';
+import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
 
 suite('CompletionModel', function () {
 
@@ -122,9 +122,9 @@ suite('CompletionModel', function () {
 
 		const [a, b, c, d] = model.items;
 		assert.equal(a.suggestion.label, '    </div');
-		assert.equal(b.suggestion.label, 'a');
-		assert.equal(c.suggestion.label, 'p');
-		assert.equal(d.suggestion.label, '    </tag');
+		assert.equal(b.suggestion.label, '    </tag');
+		assert.equal(c.suggestion.label, 'a');
+		assert.equal(d.suggestion.label, 'p');
 	});
 
 });

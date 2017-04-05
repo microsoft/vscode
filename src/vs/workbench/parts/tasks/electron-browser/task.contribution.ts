@@ -893,52 +893,54 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private computeWorkspaceTasks(): TPromise<WorkspaceTaskResult> {
-		let { config, hasParseErrors } = this.getConfiguration();
-		if (hasParseErrors) {
-			return TPromise.as({ taskSet: undefined, hasErrors: true });
-		}
 		let configPromise: TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; hasErrors: boolean }>;
-		if (config) {
-			let engine = TaskConfig.ExecutionEngine.from(config);
-			if (engine === ExecutionEngine.Process && this.hasDetectorSupport(config)) {
-				configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value) => {
-					let hasErrors = this.printStderr(value.stderr);
-					let detectedConfig = value.config;
-					if (!detectedConfig) {
-						return config;
-					}
-					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
-					let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
-					if (!result.tasks) {
-						if (detectedConfig.tasks) {
-							result.tasks = detectedConfig.tasks;
-						}
-					} else {
-						result.tasks.forEach(task => configuredTasks[task.taskName] = task);
-						detectedConfig.tasks.forEach((task) => {
-							if (!configuredTasks[task.taskName]) {
-								result.tasks.push(task);
-							}
-						});
-					}
-					return { config: result, hasErrors };
-				});
-			} else {
-				configPromise = TPromise.as({ config, hasErrors: false });
+		{
+			let { config, hasParseErrors } = this.getConfiguration();
+			if (hasParseErrors) {
+				return TPromise.as({ taskSet: undefined, hasErrors: true });
 			}
-		} else {
-			configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
-				let hasErrors = this.printStderr(value.stderr);
-				return { config: value.config, hasErrors };
-			});
+			if (config) {
+				let engine = TaskConfig.ExecutionEngine.from(config);
+				if (engine === ExecutionEngine.Process && this.hasDetectorSupport(config)) {
+					configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value) => {
+						let hasErrors = this.printStderr(value.stderr);
+						let detectedConfig = value.config;
+						if (!detectedConfig) {
+							return config;
+						}
+						let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
+						let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
+						if (!result.tasks) {
+							if (detectedConfig.tasks) {
+								result.tasks = detectedConfig.tasks;
+							}
+						} else {
+							result.tasks.forEach(task => configuredTasks[task.taskName] = task);
+							detectedConfig.tasks.forEach((task) => {
+								if (!configuredTasks[task.taskName]) {
+									result.tasks.push(task);
+								}
+							});
+						}
+						return { config: result, hasErrors };
+					});
+				} else {
+					configPromise = TPromise.as({ config, hasErrors: false });
+				}
+			} else {
+				configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
+					let hasErrors = this.printStderr(value.stderr);
+					return { config: value.config, hasErrors };
+				});
+			}
 		}
-		return configPromise.then((value) => {
+		return configPromise.then((resolved) => {
 			return ProblemMatcherRegistry.onReady().then(() => {
-				if (!value || !value.config) {
-					return { taskSet: undefined, hasErrors: value !== void 0 ? value.hasErrors : false };
+				if (!resolved || !resolved.config) {
+					return { taskSet: undefined, hasErrors: resolved !== void 0 ? resolved.hasErrors : false };
 				}
 				let problemReporter = new ProblemReporter(this.outputChannel);
-				let parseResult = TaskConfig.parse(config, problemReporter);
+				let parseResult = TaskConfig.parse(resolved.config, problemReporter);
 				let hasErrors = false;
 				if (!parseResult.validationStatus.isOK()) {
 					hasErrors = true;

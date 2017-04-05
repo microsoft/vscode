@@ -73,13 +73,13 @@
 }
 
 .cursor-smooth {
-	animation: monaco-cursor-smooth 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-smooth 0.5s ease-in-out 0s 20 alternate;
 }
 
 .cursor-phase {
-	animation: monaco-cursor-phase 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-phase 0.5s ease-in-out 0s 20 alternate;
 }
 
 .cursor-expand > .cursor {
-	animation: monaco-cursor-expand 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-expand 0.5s ease-in-out 0s 20 alternate;
 }

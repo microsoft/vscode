@@ -16,7 +16,7 @@ import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard
 import 'vs/editor/browser/editor.all';
 
 // Menus/Actions
-import 'vs/platform/actions/browser/menusExtensionPoint';
+import 'vs/platform/actions/electron-browser/menusExtensionPoint';
 
 // Workbench
 import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
@@ -81,6 +81,8 @@ import 'vs/workbench/parts/terminal/electron-browser/terminalPanel'; // can be p
 import 'vs/workbench/electron-browser/workbench';
 
 import 'vs/workbench/parts/trust/electron-browser/unsupportedWorkspaceSettings.contribution';
+
+import 'vs/workbench/parts/relauncher/electron-browser/relauncher.contribution';
 
 import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
 

@@ -44,8 +44,7 @@ script:
   - gulp electron --silent
   - gulp compile --silent --max_old_space_size=4096
   - gulp optimize-vscode --silent --max_old_space_size=4096
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --reporter dot --coverage; else ./scripts/test.sh --reporter dot; fi
-  - ./scripts/test-electron.sh
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --coverage; else ./scripts/test.sh; fi
   - ./scripts/test-integration.sh
 
 after_success:

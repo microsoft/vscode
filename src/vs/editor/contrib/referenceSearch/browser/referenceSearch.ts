@@ -17,11 +17,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
-import { Location } from 'vs/editor/common/modes';
+import { Location, ReferenceProviderRegistry } from 'vs/editor/common/modes';
 import { IPeekViewService, PeekContext, getOuterEditor } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
-import { provideReferences } from '../common/referenceSearch';
 import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from './referencesController';
 import { ReferencesModel } from './referencesModel';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -190,3 +191,33 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek')),
 	handler: closeActiveReferenceSearch
 });
+
+
+export function provideReferences(model: editorCommon.IReadOnlyModel, position: Position): TPromise<Location[]> {
+
+	// collect references from all providers
+	const promises = ReferenceProviderRegistry.ordered(model).map(provider => {
+		return asWinJsPromise((token) => {
+			return provider.provideReferences(model, position, { includeDeclaration: true }, token);
+		}).then(result => {
+			if (Array.isArray(result)) {
+				return <Location[]>result;
+			}
+			return undefined;
+		}, err => {
+			onUnexpectedExternalError(err);
+		});
+	});
+
+	return TPromise.join(promises).then(references => {
+		let result: Location[] = [];
+		for (let ref of references) {
+			if (ref) {
+				result.push(...ref);
+			}
+		}
+		return result;
+	});
+}
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);

@@ -52,7 +52,6 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private isVisible: boolean;
 	private isBuilt: boolean;
-	private focusProcessActionItem: FocusProcessActionItem;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -79,12 +78,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusProcessAction.ID) {
-					if (!this.focusProcessActionItem) {
-						this.focusProcessActionItem = this.instantiationService.createInstance(FocusProcessActionItem, action);
-						this.toDispose.push(this.focusProcessActionItem);
-					}
-
-					return this.focusProcessActionItem;
+					return this.instantiationService.createInstance(FocusProcessActionItem, action);
 				}
 
 				return null;
