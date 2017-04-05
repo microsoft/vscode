@@ -571,6 +571,10 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 function findAllMatches(patternLen: number, patternPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][], lastMatched: boolean): void {
 
+	if (bucket.length >= 10) {
+		return;
+	}
+
 	let simpleMatchCount = 0;
 
 	while (patternPos > 0 && wordPos > 0) {

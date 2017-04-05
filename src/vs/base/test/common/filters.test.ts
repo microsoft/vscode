@@ -294,6 +294,17 @@ suite('Filters', () => {
 		assertMatches('fo', 'bar/foo', 'bar/^f^oo', fuzzyScore);
 		assertMatches('fo', 'bar\\foo', 'bar\\^f^oo', fuzzyScore);
 	});
+
+	test('fuzzyScore, many matches', function () {
+
+		assertMatches(
+			'aaaaaa',
+			'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+			'^a^a^a^a^a^aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+			fuzzyScore
+		);
+	});
+
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
 		let topScore = -(100 * 10);
 		let topIdx = 0;
