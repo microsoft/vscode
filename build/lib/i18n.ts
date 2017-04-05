@@ -570,18 +570,21 @@ export function prepareXlfFiles(projectName?: string, extensionName?: string): T
 }
 
 const editorProject: string = 'vscode-editor',
-	workbenchProject: string = 'vscode-workbench';
+	workbenchProject: string = 'vscode-workbench',
+	setupProject: string = 'vscode-setup';
 
 /**
- * Ensure to update this when new resources are pushed to Transifex.
+ * Ensure to update those arrays when new resources are pushed to Transifex.
  * Used because Transifex does not have API method to pull all project resources.
  */
-const editorWorkbenchResources: Resource[] = [
+const editorResources: Resource[] = [
 	{ name: 'vs/platform', project: editorProject },
 	{ name: 'vs/editor/contrib', project: editorProject },
 	{ name: 'vs/editor', project: editorProject },
 	{ name: 'vs/base', project: editorProject },
-	{ name: 'vs/code', project: workbenchProject },
+	{ name: 'vs/code', project: workbenchProject }
+];
+const workbenchResources: Resource[] = [
 	{ name: 'vs/workbench', project: workbenchProject },
 	{ name: 'vs/workbench/parts/cli', project: workbenchProject },
 	{ name: 'vs/workbench/parts/codeEditor', project: workbenchProject },
@@ -618,7 +621,7 @@ const editorWorkbenchResources: Resource[] = [
 	{ name: 'vs/workbench/services/mode', project: workbenchProject },
 	{ name: 'vs/workbench/services/textfile', project: workbenchProject },
 	{ name: 'vs/workbench/services/themes', project: workbenchProject },
-	{ name: 'setup', project: workbenchProject }
+	{ name: 'setup_messages', project: workbenchProject }
 ];
 
 export function getResource(sourceFile: string): Resource {
@@ -715,14 +718,18 @@ function importModuleOrPackageJson(file: File, json: ModuleJsonFormat | PackageJ
 	}
 }
 
-var islXlf: XLF,
-	islProcessed: number = 0;
-
 function importIsl(file: File, stream: ThroughStream) {
-	const islFiles = ['Default.isl', 'messages.en.isl'];
-	const projectName = workbenchProject;
+	let projectName: string,
+		resourceFile: string;
+	if (path.basename(file.path) === 'Default.isl') {
+		projectName = setupProject;
+		resourceFile = 'setup_default.xlf';
+	} else {
+		projectName = workbenchProject;
+		resourceFile = 'setup_messages.xlf';
+	}
 
-	let xlf = islXlf ? islXlf : islXlf = new XLF(projectName),
+	let xlf = new XLF(projectName),
 		keys: string[] = [],
 		messages: string[] = [];
 
@@ -761,11 +768,9 @@ function importIsl(file: File, stream: ThroughStream) {
 	xlf.addFile(originalPath, keys, messages);
 
 	// Emit only upon all ISL files combined into single XLF instance
-	if (++islProcessed === islFiles.length) {
-		const newFilePath = path.join(projectName, 'setup.xlf');
-		const xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8')});
-		stream.emit('data', xlfFile);
-	}
+	const newFilePath = path.join(projectName, resourceFile);
+	const xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8')});
+	stream.emit('data', xlfFile);
 }
 
 export function pushXlfFiles(apiHostname: string, username: string, password: string): ThroughStream {
@@ -906,14 +911,15 @@ function updateResource(project: string, slug: string, xlfFile: File, apiHostnam
 }
 
 function obtainProjectResources(projectName: string): Resource[] {
-	let resources: Resource[];
+	let resources: Resource[] = [];
 
-	if (projectName === 'vscode-editor-workbench') {
-		resources = editorWorkbenchResources;
+	if (projectName === 'vscode-editor') {
+		resources = editorResources;
+	} else if (projectName === 'vscode-workbench') {
+		resources = workbenchResources;
 	} else if (projectName === 'vscode-extensions') {
 		let extensionsToLocalize: string[] = glob.sync('./extensions/**/*.nls.json').map(extension => extension.split('/')[2]);
 		let resourcesToPull: string[] = [];
-		resources = [];
 
 		extensionsToLocalize.forEach(extension => {
 			if (resourcesToPull.indexOf(extension) === -1) { // remove duplicate elements returned by glob
@@ -921,12 +927,14 @@ function obtainProjectResources(projectName: string): Resource[] {
 				resources.push({ name: extension, project: projectName });
 			}
 		});
+	} else if (projectName === 'vscode-setup') {
+		resources.push({ name: 'setup_default', project: setupProject });
 	}
 
 	return resources;
 }
 
-export function pullXlfFiles(projectName: string, apiHostname: string, username: string, password: string, resources?: Resource[]): NodeJS.ReadableStream {
+export function pullXlfFiles(projectName: string, apiHostname: string, username: string, password: string, languages: string[], resources?: Resource[]): NodeJS.ReadableStream {
 	if (!resources) {
 		resources = obtainProjectResources(projectName);
 	}
@@ -935,7 +943,7 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 	}
 
 	const credentials = `${username}:${password}`;
-	let expectedTranslationsCount = vscodeLanguages.length * resources.length;
+	let expectedTranslationsCount = languages.length * resources.length;
 	let translationsRetrieved = 0, called = false;
 
 	return readable(function(count, callback) {
@@ -948,39 +956,47 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 			called = true;
 			const stream = this;
 
-			vscodeLanguages.map(function(language) {
+			// Retrieve XLF files from main projects
+			languages.map(function(language) {
 				resources.map(function(resource) {
-					const slug = resource.name.replace(/\//g, '_');
-					const project = resource.project;
-					const iso639 = iso639_3_to_2[language];
-					const options = {
-						hostname: apiHostname,
-						path: `/api/2/project/${project}/resource/${slug}/translation/${iso639}?file&mode=onlyreviewed`,
-						auth: credentials,
-						method: 'GET'
-					};
-
-					let request = http.request(options, (res) => {
-							let xlfBuffer: string = '';
-							res.on('data', (data) => xlfBuffer += data);
-							res.on('end', () => {
-								if (res.statusCode === 200) {
-									stream.emit('data', new File({ contents: new Buffer(xlfBuffer), path: `${project}/${language}/${slug}.xlf` }));
-								} else {
-									throw new Error(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
-								}
-								translationsRetrieved++;
-							});
-					});
-					request.on('error', (err) => {
-						throw new Error(`Failed to query resource ${slug} with the following error: ${err}`);
-					});
-					request.end();
+					retrieveResource(language, resource, apiHostname, credentials).then((file: File) => {
+						stream.emit('data', file);
+						translationsRetrieved++;
+					}).catch(error => { throw new Error(error); });
 				});
 			});
 		}
 
 		callback();
+	});
+}
+
+function retrieveResource(language: string, resource: Resource, apiHostname, credentials): Promise<File> {
+	return new Promise<File>((resolve, reject) => {
+		const slug = resource.name.replace(/\//g, '_');
+		const project = resource.project;
+		const iso639 = iso639_3_to_2[language];
+		const options = {
+			hostname: apiHostname,
+			path: `/api/2/project/${project}/resource/${slug}/translation/${iso639}?file&mode=onlyreviewed`,
+			auth: credentials,
+			method: 'GET'
+		};
+
+		let request = http.request(options, (res) => {
+				let xlfBuffer: string = '';
+				res.on('data', (data) => xlfBuffer += data);
+				res.on('end', () => {
+					if (res.statusCode === 200) {
+						resolve(new File({ contents: new Buffer(xlfBuffer), path: `${project}/${language}/${slug}.xlf` }));
+					}
+					reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
+				});
+		});
+		request.on('error', (err) => {
+			reject(`Failed to query resource ${slug} with the following error: ${err}`);
+		});
+		request.end();
 	});
 }
 

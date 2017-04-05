@@ -340,6 +340,25 @@ gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'],
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
 
+// Transifex Localizations
+const vscodeLanguages = [
+	'chs',
+	'cht',
+	'jpn',
+	'kor',
+	'deu',
+	'fra',
+	'esn',
+	'rus',
+	'ita'
+];
+
+const setupDefaultLanguages = [
+	'chs',
+	'cht',
+	'kor'
+];
+
 const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
 const apiToken = process.env.TRANSIFEX_API_TOKEN;
@@ -358,8 +377,10 @@ gulp.task('vscode-translations-push', function() {
 
 gulp.task('vscode-translations-pull', function() {
 	return es.merge(
-		i18n.pullXlfFiles('vscode-editor-workbench', apiHostname, apiName, apiToken),
-		i18n.pullXlfFiles('vscode-extensions', apiHostname, apiName, apiToken)
+		i18n.pullXlfFiles('vscode-editor', apiHostname, apiName, apiToken, vscodeLanguages),
+		i18n.pullXlfFiles('vscode-workbench', apiHostname, apiName, apiToken, vscodeLanguages),
+		i18n.pullXlfFiles('vscode-extensions', apiHostname, apiName, apiToken, vscodeLanguages),
+		i18n.pullXlfFiles('vscode-setup', apiHostname, apiName, apiToken, setupDefaultLanguages)
 	).pipe(vfs.dest('../vscode-localization'));
 });
 
