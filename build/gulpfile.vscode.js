@@ -344,7 +344,7 @@ const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
 const apiToken = process.env.TRANSIFEX_API_TOKEN;
 
-gulp.task('vscode-translations-update', function() {
+gulp.task('vscode-translations-push', function() {
 	const pathToMetadata = './out-vscode/nls.metadata.json';
 	const pathToExtensions = './extensions/**/*.nls.json';
 	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
@@ -360,7 +360,11 @@ gulp.task('vscode-translations-pull', function() {
 	return es.merge(
 		i18n.pullXlfFiles('vscode-editor-workbench', apiHostname, apiName, apiToken),
 		i18n.pullXlfFiles('vscode-extensions', apiHostname, apiName, apiToken)
-	).pipe(i18n.prepareJsonFiles()).pipe(vfs.dest('./i18n'));
+	).pipe(vfs.dest('../vscode-localization'));
+});
+
+gulp.task('vscode-translations-import', function() {
+	return gulp.src('../vscode-localization/**/*.xlf').pipe(i18n.prepareJsonFiles()).pipe(vfs.dest('./i18n'));
 });
 
 // Sourcemaps

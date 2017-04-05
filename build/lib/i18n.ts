@@ -31,7 +31,7 @@ interface Item {
 	comment: string;
 }
 
-export interface Resource {
+interface Resource {
 	name: string;
 	project: string;
 }
@@ -569,9 +569,59 @@ export function prepareXlfFiles(projectName?: string, extensionName?: string): T
 	);
 }
 
-export function getResource(sourceFile: string): Resource {
-	const editorProject: string = 'vscode-editor',
-		workbenchProject: string = 'vscode-workbench';
+const editorProject: string = 'vscode-editor',
+	workbenchProject: string = 'vscode-workbench';
+
+/**
+ * Ensure to update this when new resources are pushed to Transifex.
+ * Used because Transifex does not have API method to pull all project resources.
+ */
+const editorWorkbenchResources: Resource[] = [
+	{ name: 'vs/platform', project: editorProject },
+	{ name: 'vs/editor/contrib', project: editorProject },
+	{ name: 'vs/editor', project: editorProject },
+	{ name: 'vs/base', project: editorProject },
+	{ name: 'vs/code', project: workbenchProject },
+	{ name: 'vs/workbench', project: workbenchProject },
+	{ name: 'vs/workbench/parts/cli', project: workbenchProject },
+	{ name: 'vs/workbench/parts/codeEditor', project: workbenchProject },
+	{ name: 'vs/workbench/parts/debug', project: workbenchProject },
+	{ name: 'vs/workbench/parts/emmet', project: workbenchProject },
+	{ name: 'vs/workbench/parts/execution', project: workbenchProject },
+	{ name: 'vs/workbench/parts/explorers', project: workbenchProject },
+	{ name: 'vs/workbench/parts/extensions', project: workbenchProject },
+	{ name: 'vs/workbench/parts/feedback', project: workbenchProject },
+	{ name: 'vs/workbench/parts/files', project: workbenchProject },
+	{ name: 'vs/workbench/parts/git', project: workbenchProject },
+	{ name: 'vs/workbench/parts/html', project: workbenchProject },
+	{ name: 'vs/workbench/parts/markers', project: workbenchProject },
+	{ name: 'vs/workbench/parts/nps', project: workbenchProject },
+	{ name: 'vs/workbench/parts/output', project: workbenchProject },
+	{ name: 'vs/workbench/parts/performance', project: workbenchProject },
+	{ name: 'vs/workbench/parts/preferences', project: workbenchProject },
+	{ name: 'vs/workbench/parts/quickopen', project: workbenchProject },
+	{ name: 'vs/workbench/parts/scm', project: workbenchProject },
+	{ name: 'vs/workbench/parts/search', project: workbenchProject },
+	{ name: 'vs/workbench/parts/snippets', project: workbenchProject },
+	{ name: 'vs/workbench/parts/tasks', project: workbenchProject },
+	{ name: 'vs/workbench/parts/terminal', project: workbenchProject },
+	{ name: 'vs/workbench/parts/themes', project: workbenchProject },
+	{ name: 'vs/workbench/parts/trust', project: workbenchProject },
+	{ name: 'vs/workbench/parts/update', project: workbenchProject },
+	{ name: 'vs/workbench/parts/watermark', project: workbenchProject },
+	{ name: 'vs/workbench/parts/welcome', project: workbenchProject },
+	{ name: 'vs/workbench/services/configuration', project: workbenchProject },
+	{ name: 'vs/workbench/services/editor', project: workbenchProject },
+	{ name: 'vs/workbench/services/files', project: workbenchProject },
+	{ name: 'vs/workbench/services/keybinding', project: workbenchProject },
+	{ name: 'vs/workbench/services/message', project: workbenchProject },
+	{ name: 'vs/workbench/services/mode', project: workbenchProject },
+	{ name: 'vs/workbench/services/textfile', project: workbenchProject },
+	{ name: 'vs/workbench/services/themes', project: workbenchProject },
+	{ name: 'setup', project: workbenchProject }
+];
+
+function getResource(sourceFile: string): Resource {
 	let resource: string;
 
 	if (sourceFile.startsWith('vs/platform')) {
@@ -670,7 +720,7 @@ var islXlf: XLF,
 
 function importIsl(file: File, stream: ThroughStream) {
 	const islFiles = ['Default.isl', 'messages.en.isl'];
-	const projectName = 'vscode-workbench';
+	const projectName = workbenchProject;
 
 	let xlf = islXlf ? islXlf : islXlf = new XLF(projectName),
 		keys: string[] = [],
@@ -855,27 +905,11 @@ function updateResource(project: string, slug: string, xlfFile: File, apiHostnam
 	});
 }
 
-function getMetadataResources(pathToMetadata: string) : Resource[] {
-	const metadata = fs.readFileSync(pathToMetadata).toString('utf8');
-	const json = JSON.parse(metadata);
-	let slugs = [];
-
-	for (let source in json['keys']) {
-		let projectResource = getResource(source);
-		if (!slugs.find(slug => slug.name === projectResource.name && slug.project === projectResource.project)) {
-			slugs.push(projectResource);
-		}
-	}
-
-	return slugs;
-}
-
 function obtainProjectResources(projectName: string): Resource[] {
 	let resources: Resource[];
 
 	if (projectName === 'vscode-editor-workbench') {
-		resources = getMetadataResources('./out-vscode/nls.metadata.json');
-		resources.push({ name: 'setup', project: 'vscode-workbench' });
+		resources = editorWorkbenchResources;
 	} else if (projectName === 'vscode-extensions') {
 		let extensionsToLocalize: string[] = glob.sync('./extensions/**/*.nls.json').map(extension => extension.split('/')[2]);
 		let resourcesToPull: string[] = [];
@@ -931,7 +965,7 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 							res.on('data', (data) => xlfBuffer += data);
 							res.on('end', () => {
 								if (res.statusCode === 200) {
-									stream.emit('data', new File({ contents: new Buffer(xlfBuffer) }));
+									stream.emit('data', new File({ contents: new Buffer(xlfBuffer), path: `${project}/${language}/${slug}.xlf` }));
 								} else {
 									throw new Error(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
 								}
