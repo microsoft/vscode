@@ -10,7 +10,7 @@ import { IModel, IPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestion, LanguageId } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/common/suggest';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');

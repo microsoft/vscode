@@ -21,9 +21,9 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
-import { SuggestModel } from '../common/suggestModel';
-import { ICompletionItem } from '../common/completionModel';
+import { Context as SuggestContext } from './suggest';
+import { SuggestModel } from './suggestModel';
+import { ICompletionItem } from './completionModel';
 import { SuggestWidget } from './suggestWidget';
 
 class AcceptOnCharacterOracle {

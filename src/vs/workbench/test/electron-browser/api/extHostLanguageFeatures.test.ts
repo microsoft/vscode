@@ -36,7 +36,7 @@ import { getCodeActions } from 'vs/editor/contrib/quickFix/common/quickFix';
 import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
 import { rename } from 'vs/editor/contrib/rename/browser/rename';
 import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/common/parameterHints';
-import { provideSuggestionItems } from 'vs/editor/contrib/suggest/common/suggest';
+import { provideSuggestionItems } from 'vs/editor/contrib/suggest/browser/suggest';
 import { getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/common/format';
 import { getLinks } from 'vs/editor/contrib/links/common/links';
 import { asWinJsPromise } from 'vs/base/common/async';

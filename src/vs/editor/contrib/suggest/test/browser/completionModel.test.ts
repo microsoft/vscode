@@ -7,8 +7,8 @@
 import * as assert from 'assert';
 import { IPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestion, ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
-import { ISuggestionItem } from 'vs/editor/contrib/suggest/common/suggest';
-import { CompletionModel } from 'vs/editor/contrib/suggest/common/completionModel';
+import { ISuggestionItem } from 'vs/editor/contrib/suggest/browser/suggest';
+import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
 
 suite('CompletionModel', function () {
 
