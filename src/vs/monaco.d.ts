@@ -4687,7 +4687,7 @@ declare module monaco.languages {
 
     /**
      * The implementation provider interface defines the contract between extensions and
-     * the go to implementation feature.
+     * the find all implementations feature.
      */
     export interface ImplementationProvider {
         /**
