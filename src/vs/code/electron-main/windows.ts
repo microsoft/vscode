@@ -780,7 +780,7 @@ export class WindowsManager implements IWindowsMainService {
 		// No path argument, check settings for what to do now
 		else {
 			let reopenFolders: string;
-			if (this.lifecycleService.wasUpdated) {
+			if (this.lifecycleService.wasRestarted) {
 				reopenFolders = ReopenFoldersSetting.ALL; // always reopen all folders when an update was applied
 			} else {
 				const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
@@ -841,7 +841,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
 			else {
-				allowFullscreen = this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen);
+				allowFullscreen = this.lifecycleService.wasRestarted || (windowConfig && windowConfig.restoreFullscreen);
 			}
 
 			if (state.mode === WindowMode.Fullscreen && !allowFullscreen) {

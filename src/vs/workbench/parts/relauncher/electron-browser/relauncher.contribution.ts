@@ -56,13 +56,13 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		}
 
 		// Update channel
-		if (config.update && config.update.channel !== this.updateChannel) {
+		if (config.update && typeof config.update.channel === 'string' && config.update.channel !== this.updateChannel) {
 			this.updateChannel = config.update.channel;
 			changed = true;
 		}
 
 		// Crash reporter
-		if (config.telemetry && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
+		if (config.telemetry && typeof config.telemetry.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
 			this.enableCrashReporter = config.telemetry.enableCrashReporter;
 			changed = true;
 		}

@@ -27,9 +27,9 @@ export interface ILifecycleService {
 	_serviceBrand: any;
 
 	/**
-	 * Will be true if an update was applied. Will only be true for each update once.
+	 * Will be true if the program was restarted (e.g. due to explicit request or update).
 	 */
-	wasUpdated: boolean;
+	wasRestarted: boolean;
 
 	/**
 	 * Due to the way we handle lifecycle with eventing, the general app.on('before-quit')
@@ -49,6 +49,7 @@ export interface ILifecycleService {
 	registerWindow(vscodeWindow: VSCodeWindow): void;
 	unload(vscodeWindow: VSCodeWindow, reason: UnloadReason): TPromise<boolean /* veto */>;
 	quit(fromUpdate?: boolean): TPromise<boolean /* veto */>;
+	relaunch(options: { addArgs?: string[], removeArgs?: string[] });
 	isQuitRequested(): boolean;
 }
 
@@ -56,14 +57,14 @@ export class LifecycleService implements ILifecycleService {
 
 	_serviceBrand: any;
 
-	private static QUIT_FROM_UPDATE_MARKER = 'quit.from.update'; // use a marker to find out if an update was applied in the previous session
+	private static QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 
 	private windowToCloseRequest: { [windowId: string]: boolean };
 	private quitRequested: boolean;
 	private pendingQuitPromise: TPromise<boolean>;
 	private pendingQuitPromiseComplete: TValueCallback<boolean>;
 	private oneTimeListenerTokenGenerator: number;
-	private _wasUpdated: boolean;
+	private _wasRestarted: boolean;
 
 	private _onBeforeQuit = new Emitter<void>();
 	onBeforeQuit: Event<void> = this._onBeforeQuit.event;
@@ -79,21 +80,21 @@ export class LifecycleService implements ILifecycleService {
 		this.windowToCloseRequest = Object.create(null);
 		this.quitRequested = false;
 		this.oneTimeListenerTokenGenerator = 0;
-		this._wasUpdated = false;
+		this._wasRestarted = false;
 
-		this.handleUpdated();
+		this.handleRestarted();
 	}
 
-	private handleUpdated(): void {
-		this._wasUpdated = !!this.storageService.getItem(LifecycleService.QUIT_FROM_UPDATE_MARKER);
+	private handleRestarted(): void {
+		this._wasRestarted = !!this.storageService.getItem(LifecycleService.QUIT_FROM_RESTART_MARKER);
 
-		if (this._wasUpdated) {
-			this.storageService.removeItem(LifecycleService.QUIT_FROM_UPDATE_MARKER); // remove the marker right after if found
+		if (this._wasRestarted) {
+			this.storageService.removeItem(LifecycleService.QUIT_FROM_RESTART_MARKER); // remove the marker right after if found
 		}
 	}
 
-	public get wasUpdated(): boolean {
-		return this._wasUpdated;
+	public get wasRestarted(): boolean {
+		return this._wasRestarted;
 	}
 
 	public ready(): void {
@@ -207,7 +208,7 @@ export class LifecycleService implements ILifecycleService {
 				app.once('will-quit', () => {
 					if (this.pendingQuitPromiseComplete) {
 						if (fromUpdate) {
-							this.storageService.setItem(LifecycleService.QUIT_FROM_UPDATE_MARKER, true);
+							this.storageService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
 						}
 						this.pendingQuitPromiseComplete(false /* no veto */);
 						this.pendingQuitPromiseComplete = null;
@@ -220,6 +221,27 @@ export class LifecycleService implements ILifecycleService {
 		}
 
 		return this.pendingQuitPromise;
+	}
+
+	public relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): void {
+		const args = process.argv.slice(1);
+		if (options && options.addArgs) {
+			args.push(...options.addArgs);
+		}
+
+		if (options && options.removeArgs) {
+			for (const a of options.removeArgs) {
+				const idx = args.indexOf(a);
+				if (idx >= 0) {
+					args.splice(idx, 1);
+				}
+			}
+		}
+
+		this.storageService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
+
+		app.quit();
+		app.once('quit', () => app.relaunch({ args }));
 	}
 
 	public isQuitRequested(): boolean {
