@@ -775,6 +775,10 @@ export class TestWindowService implements IWindowService {
 
 	public _serviceBrand: any;
 
+	isFocused(): TPromise<boolean> {
+		return TPromise.as(false);
+	}
+
 	getCurrentWindowId(): number {
 		return 0;
 	}
@@ -885,6 +889,10 @@ export class TestWindowsService implements IWindowsService {
 
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
+
+	isFocused(windowId: number): TPromise<boolean> {
+		return TPromise.as(false);
+	}
 
 	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);

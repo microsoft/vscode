@@ -27,6 +27,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'clearRecentPathsList'): TPromise<void>;
 	call(command: 'getRecentlyOpen', arg: number): TPromise<{ files: string[]; folders: string[]; }>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
+	call(command: 'isFocused', arg: number): TPromise<boolean>;
 	call(command: 'isMaximized', arg: number): TPromise<boolean>;
 	call(command: 'maximizeWindow', arg: number): TPromise<void>;
 	call(command: 'unmaximizeWindow', arg: number): TPromise<void>;
@@ -76,6 +77,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'clearRecentPathsList': return this.service.clearRecentPathsList();
 			case 'getRecentlyOpen': return this.service.getRecentlyOpen(arg);
 			case 'focusWindow': return this.service.focusWindow(arg);
+			case 'isFocused': return this.service.isFocused(arg);
 			case 'isMaximized': return this.service.isMaximized(arg);
 			case 'maximizeWindow': return this.service.maximizeWindow(arg);
 			case 'unmaximizeWindow': return this.service.unmaximizeWindow(arg);
@@ -165,6 +167,10 @@ export class WindowsChannelClient implements IWindowsService {
 
 	focusWindow(windowId: number): TPromise<void> {
 		return this.channel.call('focusWindow', windowId);
+	}
+
+	isFocused(windowId: number): TPromise<boolean> {
+		return this.channel.call('isFocused', windowId);
 	}
 
 	isMaximized(windowId: number): TPromise<boolean> {
