@@ -90,16 +90,25 @@ export class KeybindingsEditorModel extends EditorModel {
 
 	public fetch(searchValue: string): IKeybindingItemEntry[] {
 		searchValue = searchValue.trim();
-		return searchValue ? this.fetchKeybindingItems(searchValue) :
+		const quoteAtFirstChar = searchValue.charAt(0) === '"';
+		const quoteAtLastChar = searchValue.charAt(searchValue.length - 1) === '"';
+		if (quoteAtFirstChar) {
+			searchValue = searchValue.substring(1);
+		}
+		if (quoteAtLastChar) {
+			searchValue = searchValue.substring(0, searchValue.length - 1);
+		}
+		searchValue = searchValue.trim();
+		return searchValue ? this.fetchKeybindingItems(searchValue, quoteAtFirstChar && quoteAtLastChar) :
 			this._keybindingItems.map(keybindingItem => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
 	}
 
-	private fetchKeybindingItems(searchValue: string): IKeybindingItemEntry[] {
+	private fetchKeybindingItems(searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
 		const result: IKeybindingItemEntry[] = [];
 		const words = searchValue.split(' ');
-		const keybindingWords = searchValue.indexOf('+') !== -1 ? searchValue.split('+') : words;
+		const keybindingWords = this.splitKeybindingWords(words);
 		for (const keybindingItem of this._keybindingItems) {
-			let keybindingMatches = new KeybindingItemMatches(this.modifierLabels, keybindingItem, searchValue, words, keybindingWords);
+			let keybindingMatches = new KeybindingItemMatches(this.modifierLabels, keybindingItem, searchValue, words, keybindingWords, completeMatch);
 			if (keybindingMatches.commandIdMatches
 				|| keybindingMatches.commandLabelMatches
 				|| keybindingMatches.commandDefaultLabelMatches
@@ -118,6 +127,14 @@ export class KeybindingsEditorModel extends EditorModel {
 					whenMatches: keybindingMatches.whenMatches
 				});
 			}
+		}
+		return result;
+	}
+
+	private splitKeybindingWords(wordsSeparatedBySpaces: string[]): string[] {
+		const result = [];
+		for (const word of wordsSeparatedBySpaces) {
+			result.push(...word.split('+'));
 		}
 		return result;
 	}
@@ -232,7 +249,7 @@ class KeybindingItemMatches {
 	public readonly whenMatches: IMatch[] = null;
 	public readonly keybindingMatches: KeybindingMatches = null;
 
-	constructor(private modifierLabels: ModifierLabels, keybindingItem: IKeybindingItem, private searchValue: string, private words: string[], private keybindingWords: string[]) {
+	constructor(private modifierLabels: ModifierLabels, keybindingItem: IKeybindingItem, private searchValue: string, private words: string[], private keybindingWords: string[], private completeMatch: boolean) {
 		this.commandIdMatches = this.matches(searchValue, keybindingItem.command, or(matchesWords, matchesCamelCase), words);
 		this.commandLabelMatches = keybindingItem.commandLabel ? this.matches(searchValue, keybindingItem.commandLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandLabel, true), words) : null;
 		this.commandDefaultLabelMatches = keybindingItem.commandDefaultLabel ? this.matches(searchValue, keybindingItem.commandDefaultLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandDefaultLabel, true), words) : null;
@@ -277,18 +294,57 @@ class KeybindingItemMatches {
 				chordPart: { metaKey: true, altKey: true, shiftKey: true, ctrlKey: true, keyCode: true }
 			};
 		}
+
 		const [firstPart, chordPart] = keybinding.getParts();
+		let firstPartMatch: KeybindingMatch = {};
+		let chordPartMatch: KeybindingMatch = {};
+
 		const matchedWords = [];
-		const firstPartMatch: KeybindingMatch = {};
-		const chordPartMatch: KeybindingMatch = {};
-		for (const word of words) {
-			let firstPartMatched = this.matchPart(firstPart, firstPartMatch, word);
-			let chordPartMatched = this.matchPart(chordPart, chordPartMatch, word);
-			if (firstPartMatched || chordPartMatched) {
-				matchedWords.push(word);
+		let firstPartMatchedWords = [];
+		let chordPartMatchedWords = [];
+		let matchFirstPart = true;
+		for (let index = 0; index < words.length; index++) {
+			const word = words[index];
+			let firstPartMatched = false;
+			let chordPartMatched = false;
+
+			matchFirstPart = matchFirstPart && !firstPartMatch.keyCode;
+			let matchChordPart = !chordPartMatch.keyCode;
+
+			if (matchFirstPart) {
+				firstPartMatched = this.matchPart(firstPart, firstPartMatch, word);
+				if (firstPartMatch.keyCode) {
+					for (const cordPartMatchedWordIndex of chordPartMatchedWords) {
+						if (firstPartMatchedWords.indexOf(cordPartMatchedWordIndex) === -1) {
+							matchedWords.splice(matchedWords.indexOf(cordPartMatchedWordIndex), 1);
+						}
+					}
+					chordPartMatch = {};
+					chordPartMatchedWords = [];
+					matchChordPart = false;
+				}
 			}
+
+			if (matchChordPart) {
+				chordPartMatched = this.matchPart(chordPart, chordPartMatch, word);
+			}
+
+			if (firstPartMatched) {
+				firstPartMatchedWords.push(index);
+			}
+			if (chordPartMatched) {
+				chordPartMatchedWords.push(index);
+			}
+			if (firstPartMatched || chordPartMatched) {
+				matchedWords.push(index);
+			}
+
+			matchFirstPart = matchFirstPart && this.isModifier(word);
 		}
 		if (matchedWords.length !== words.length) {
+			return null;
+		}
+		if (this.completeMatch && (!this.isCompleteMatch(firstPart, firstPartMatch) || !this.isCompleteMatch(chordPart, chordPartMatch))) {
 			return null;
 		}
 		return this.hasAnyMatch(firstPartMatch) || this.hasAnyMatch(chordPartMatch) ? { firstPart: firstPartMatch, chordPart: chordPartMatch } : null;
@@ -343,6 +399,10 @@ class KeybindingItemMatches {
 		if (!keybinding.hasMetaModifier()) {
 			return false;
 		}
+		return this.wordMatchesMetaModifier(word);
+	}
+
+	private wordMatchesMetaModifier(word: string): boolean {
 		if (matchesPrefix(this.modifierLabels.ui.metaKey, word)) {
 			return true;
 		}
@@ -350,6 +410,9 @@ class KeybindingItemMatches {
 			return true;
 		}
 		if (matchesPrefix(this.modifierLabels.user.metaKey, word)) {
+			return true;
+		}
+		if (matchesPrefix(localize('meta', "meta"), word)) {
 			return true;
 		}
 		return false;
@@ -362,6 +425,10 @@ class KeybindingItemMatches {
 		if (!keybinding.hasCtrlModifier()) {
 			return false;
 		}
+		return this.wordMatchesCtrlModifier(word);
+	}
+
+	private wordMatchesCtrlModifier(word: string): boolean {
 		if (matchesPrefix(this.modifierLabels.ui.ctrlKey, word)) {
 			return true;
 		}
@@ -381,6 +448,10 @@ class KeybindingItemMatches {
 		if (!keybinding.hasShiftModifier()) {
 			return false;
 		}
+		return this.wordMatchesShiftModifier(word);
+	}
+
+	private wordMatchesShiftModifier(word: string): boolean {
 		if (matchesPrefix(this.modifierLabels.ui.shiftKey, word)) {
 			return true;
 		}
@@ -400,6 +471,10 @@ class KeybindingItemMatches {
 		if (!keybinding.hasAltModifier()) {
 			return false;
 		}
+		return this.wordMatchesAltModifier(word);
+	}
+
+	private wordMatchesAltModifier(word: string): boolean {
 		if (matchesPrefix(this.modifierLabels.ui.altKey, word)) {
 			return true;
 		}
@@ -418,5 +493,43 @@ class KeybindingItemMatches {
 			keybindingMatch.metaKey ||
 			keybindingMatch.shiftKey ||
 			keybindingMatch.keyCode;
+	}
+
+	private isCompleteMatch(part: ResolvedKeybinding, match: KeybindingMatch): boolean {
+		if (!part) {
+			return true;
+		}
+		if (!match.keyCode) {
+			return false;
+		}
+		if (part.hasMetaModifier() && !match.metaKey) {
+			return false;
+		}
+		if (part.hasAltModifier() && !match.altKey) {
+			return false;
+		}
+		if (part.hasCtrlModifier() && !match.ctrlKey) {
+			return false;
+		}
+		if (part.hasShiftModifier() && !match.shiftKey) {
+			return false;
+		}
+		return true;
+	}
+
+	private isModifier(word: string): boolean {
+		if (this.wordMatchesAltModifier(word)) {
+			return true;
+		}
+		if (this.wordMatchesCtrlModifier(word)) {
+			return true;
+		}
+		if (this.wordMatchesMetaModifier(word)) {
+			return true;
+		}
+		if (this.wordMatchesShiftModifier(word)) {
+			return true;
+		}
+		return false;
 	}
 }
