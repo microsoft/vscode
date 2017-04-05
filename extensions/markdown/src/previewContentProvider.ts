@@ -14,6 +14,10 @@ const localize = nls.loadMessageBundle();
 
 export interface ContentSecurityPolicyArbiter {
 	isEnhancedSecurityDisableForWorkspace(): boolean;
+
+	addTrustedWorkspace(rootPath: string): Thenable<void>;
+
+	removeTrustedWorkspace(rootPath: string): Thenable<void>;
 }
 
 const previewStrings = {
