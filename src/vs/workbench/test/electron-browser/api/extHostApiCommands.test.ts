@@ -69,6 +69,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		instantiationService.stub(ICommandService, {
 			_serviceBrand: undefined,
 			executeCommand(id, args): any {
+				if (!CommandsRegistry.getCommands()[id]) {
+					return TPromise.wrapError(id + ' NOT known');
+				}
 				let { handler } = CommandsRegistry.getCommands()[id];
 				return TPromise.as(instantiationService.invokeFunction(handler, args));
 			}

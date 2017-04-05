@@ -5,7 +5,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -13,16 +12,15 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { QuickFixContextMenu } from './quickFixWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
@@ -154,17 +152,3 @@ export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<Co
 	return TPromise.join(promises).then(() => allResults);
 }
 
-CommonEditorRegistry.registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
-
-	const { resource, range } = args;
-	if (!(resource instanceof URI) || !Range.isIRange(range)) {
-		throw illegalArgument();
-	}
-
-	const model = accessor.get(IModelService).getModel(resource);
-	if (!model) {
-		throw illegalArgument();
-	}
-
-	return getCodeActions(model, model.validateRange(range));
-});

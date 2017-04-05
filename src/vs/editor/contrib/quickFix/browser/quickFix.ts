@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 
 export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<CodeAction[]> {
 
@@ -26,4 +29,19 @@ export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<Co
 
 	return TPromise.join(promises).then(() => allResults);
 }
+
+CommonEditorRegistry.registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
+
+	const { resource, range } = args;
+	if (!(resource instanceof URI) || !Range.isIRange(range)) {
+		throw illegalArgument();
+	}
+
+	const model = accessor.get(IModelService).getModel(resource);
+	if (!model) {
+		throw illegalArgument();
+	}
+
+	return getCodeActions(model, model.validateRange(range));
+});
 
