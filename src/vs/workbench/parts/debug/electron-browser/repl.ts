@@ -18,7 +18,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';

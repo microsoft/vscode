@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Model } from 'vs/editor/common/model/model';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
-import { QuickFixOracle } from 'vs/editor/contrib/quickFix/common/quickFixModel';
+import { QuickFixOracle } from 'vs/editor/contrib/quickFix/browser/quickFixModel';
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
 
 

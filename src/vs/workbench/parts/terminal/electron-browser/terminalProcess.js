@@ -45,7 +45,7 @@ var exitCode;
 // Allow any trailing data events to be sent before the exit event is sent.
 // See https://github.com/Tyriar/node-pty/issues/72
 function queueProcessExit() {
-	closeTimeout = setTimeout(() => {
+	closeTimeout = setTimeout(function () {
 		ptyProcess.kill();
 		process.exit(exitCode);
 	}, 250);

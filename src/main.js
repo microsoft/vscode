@@ -125,7 +125,13 @@ function getNodeCachedDataDir() {
 		return Promise.resolve(undefined);
 	}
 
-	var dir = path.join(app.getPath('userData'), 'CachedData');
+	// find commit id
+	var productJson = require(path.join(__dirname, '../product.json'));
+	if (!productJson.commit) {
+		return Promise.resolve(undefined);
+	}
+
+	var dir = path.join(app.getPath('userData'), 'CachedData', productJson.commit);
 
 	return mkdirp(dir).then(undefined, function (err) { /*ignore*/ });
 }
