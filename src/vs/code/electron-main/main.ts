@@ -76,6 +76,31 @@ import { VSCodeApplication } from "vs/code/electron-main/app";
 //
 // Helpers
 //
+
+function createServices(args: ParsedArgs): IInstantiationService {
+	const services = new ServiceCollection();
+
+	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
+	services.set(ILogService, new SyncDescriptor(MainLogService));
+	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
+	services.set(IStorageService, new SyncDescriptor(StorageService));
+	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
+	services.set(IRequestService, new SyncDescriptor(RequestService));
+	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
+	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
+
+	return new InstantiationService(services, true);
+}
+
+function createPaths(environmentService: IEnvironmentService): TPromise<any> {
+	const paths = [
+		environmentService.appSettingsHome,
+		environmentService.extensionsPath,
+		environmentService.nodeCachedDataDir
+	];
+	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
+}
+
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
 	const environmentService = accessor.get(IEnvironmentService);
@@ -160,30 +185,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	}
 
 	return setup(true);
-}
-
-function createPaths(environmentService: IEnvironmentService): TPromise<any> {
-	const paths = [
-		environmentService.appSettingsHome,
-		environmentService.extensionsPath,
-		environmentService.nodeCachedDataDir
-	];
-	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
-}
-
-function createServices(args: ParsedArgs): IInstantiationService {
-	const services = new ServiceCollection();
-
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
-	services.set(ILogService, new SyncDescriptor(MainLogService));
-	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
-	services.set(IStorageService, new SyncDescriptor(StorageService));
-	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
-	services.set(IRequestService, new SyncDescriptor(RequestService));
-	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
-	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
-
-	return new InstantiationService(services, true);
 }
 
 function quit(accessor: ServicesAccessor, errorOrMessage?: Error | string): void {
