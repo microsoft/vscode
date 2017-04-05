@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
 
+import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
 import * as glob from 'vs/base/common/glob';
@@ -365,12 +366,11 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 		args.push('--encoding', encoding.toCanonicalName(config.fileEncoding));
 	}
 
-	if (config.contentPattern.isWordMatch) {
-		args.push('--word-regexp');
-	}
-
 	let searchPatternAfterDoubleDashes: string;
-	if (config.contentPattern.isRegExp) {
+	if (config.contentPattern.isWordMatch) {
+		const regexp = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, { wholeWord: config.contentPattern.isWordMatch });
+		args.push('--regexp', regexp.source);
+	} else if (config.contentPattern.isRegExp) {
 		args.push('--regexp', config.contentPattern.pattern);
 	} else {
 		searchPatternAfterDoubleDashes = config.contentPattern.pattern;
