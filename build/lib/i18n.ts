@@ -31,7 +31,7 @@ interface Item {
 	comment: string;
 }
 
-interface Resource {
+export interface Resource {
 	name: string;
 	project: string;
 }
@@ -621,7 +621,7 @@ const editorWorkbenchResources: Resource[] = [
 	{ name: 'setup', project: workbenchProject }
 ];
 
-function getResource(sourceFile: string): Resource {
+export function getResource(sourceFile: string): Resource {
 	let resource: string;
 
 	if (sourceFile.startsWith('vs/platform')) {

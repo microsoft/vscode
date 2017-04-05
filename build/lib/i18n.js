@@ -580,6 +580,7 @@ function getResource(sourceFile) {
     }
     throw new Error("Could not identify the XLF bundle for " + sourceFile);
 }
+exports.getResource = getResource;
 function importBundleJson(file, json, stream) {
     var bundleXlfs = Object.create(null);
     for (var source in json.keys) {
