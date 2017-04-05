@@ -141,7 +141,7 @@ var XLF = (function () {
     };
     XLF.prototype.addStringItem = function (item) {
         if (!item.id || !item.message) {
-            //throw new Error('No item ID or value specified.');
+            throw new Error('No item ID or value specified.');
         }
         this.appendNewLine("<trans-unit id=\"" + item.id + "\">", 4);
         this.appendNewLine("<source xml:lang=\"en\">" + item.message + "</source>", 6);
@@ -542,7 +542,7 @@ function importBundleJson(file, json, stream) {
         var keys = json.keys[source];
         var messages = json.messages[source];
         if (keys.length !== messages.length) {
-            log('Error:', "There is a mismatch between keys and messages in " + file.relative);
+            throw new Error("There is a mismatch between keys and messages in " + file.relative);
         }
         var xlf = bundleXlfs[resource] ? bundleXlfs[resource] : bundleXlfs[resource] = new XLF(project);
         xlf.addFile('src/' + source, keys, messages);
@@ -557,7 +557,7 @@ function importBundleJson(file, json, stream) {
 var extensions = Object.create(null);
 function importModuleOrPackageJson(file, json, projectName, stream, extensionName) {
     if (ModuleJsonFormat.is(json) && json['keys'].length !== json['messages'].length) {
-        log('Error:', "There is a mismatch between keys and messages in " + file.relative);
+        throw new Error("There is a mismatch between keys and messages in " + file.relative);
     }
     // Prepare the source path for <original/> attribute in XLF & extract messages from JSON
     var formattedSourcePath = file.relative.replace(/\\/g, '/');
@@ -615,7 +615,7 @@ function importIsl(file, stream) {
         }
         var sections = line.split('=');
         if (sections.length !== 2) {
-            log('Error:', "Badly formatted message found: " + line);
+            throw new Error("Badly formatted message found: " + line);
         }
         else {
             var key = sections[0];
@@ -654,8 +654,6 @@ function pushXlfFiles(apiHostname, username, password) {
                 promise = createResource(project, slug, file, apiHostname, credentials);
             }
             updateCreatePromises.push(promise);
-        }).catch(function (reason) {
-            log('Error:', reason);
         });
     }, function () {
         var _this = this;
@@ -663,8 +661,8 @@ function pushXlfFiles(apiHostname, username, password) {
         Promise.all(tryGetPromises).then(function () {
             Promise.all(updateCreatePromises).then(function () {
                 _this.emit('end');
-            }).catch(function (reason) { return log('Error:', reason); });
-        }).catch(function (reason) { return log('Error:', reason); });
+            }).catch(function (reason) { throw new Error(reason); });
+        }).catch(function (reason) { throw new Error(reason); });
     });
 }
 exports.pushXlfFiles = pushXlfFiles;
@@ -686,7 +684,8 @@ function tryGetResource(project, slug, apiHostname, credentials) {
             else {
                 reject("Failed to query resource " + project + "/" + slug + ". Response: " + response.statusCode + " " + response.statusMessage);
             }
-        }).on('error', function (err) {
+        });
+        request.on('error', function (err) {
             reject("Failed to get " + project + "/" + slug + " on Transifex: " + err);
         });
         request.end();
@@ -717,7 +716,8 @@ function createResource(project, slug, xlfFile, apiHostname, credentials) {
             else {
                 reject("Something went wrong in the request creating " + slug + " in " + project + ". " + res.statusCode);
             }
-        }).on('error', function (err) {
+        });
+        request.on('error', function (err) {
             reject("Failed to create " + project + "/" + slug + " on Transifex: " + err);
         });
         request.write(data);
@@ -757,7 +757,8 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
             else {
                 reject("Something went wrong in the request updating " + slug + " in " + project + ". " + res.statusCode);
             }
-        }).on('error', function (err) {
+        });
+        request.on('error', function (err) {
             reject("Failed to update " + project + "/" + slug + " on Transifex: " + err);
         });
         request.write(data);
@@ -835,12 +836,13 @@ function pullXlfFiles(projectName, apiHostname, username, password, resources) {
                                 stream_1.emit('data', new File({ contents: new Buffer(xlfBuffer) }));
                             }
                             else {
-                                log('Error:', slug + " in " + project + " returned no data. Response code: " + res.statusCode + ".");
+                                throw new Error(slug + " in " + project + " returned no data. Response code: " + res.statusCode + ".");
                             }
                             translationsRetrieved++;
                         });
-                    }).on('error', function (err) {
-                        log('Error:', "Failed to query resource " + slug + " with the following error: " + err);
+                    });
+                    request.on('error', function (err) {
+                        throw new Error("Failed to query resource " + slug + " with the following error: " + err);
                     });
                     request.end();
                 });
@@ -870,7 +872,7 @@ function prepareJsonFiles() {
                 stream.emit('data', translatedFile);
             });
         }, function (rejectReason) {
-            log('Error:', rejectReason);
+            throw new Error("XLF parsing error: " + rejectReason);
         });
     });
 }

@@ -36,5 +36,3 @@ const extensions = [
 ];
 
 extensions.forEach(extension => npmInstall(`extensions/${extension}`));
-
-npmInstall('build'); // typings used in the build folder

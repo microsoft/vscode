@@ -186,7 +186,7 @@ export class XLF {
 
     private addStringItem(item: Item): void {
         if (!item.id || !item.message) {
-            //throw new Error('No item ID or value specified.');
+            throw new Error('No item ID or value specified.');
         }
 
         this.appendNewLine(`<trans-unit id="${item.id}">`, 4);
@@ -609,7 +609,7 @@ function importBundleJson(file: File, json: BundledFormat, stream: ThroughStream
 		const keys = json.keys[source];
 		const messages = json.messages[source];
 		if (keys.length !== messages.length) {
-			log('Error:', `There is a mismatch between keys and messages in ${file.relative}`);
+			throw new Error(`There is a mismatch between keys and messages in ${file.relative}`);
 		}
 
 		let xlf = bundleXlfs[resource] ? bundleXlfs[resource] : bundleXlfs[resource] = new XLF(project);
@@ -627,7 +627,7 @@ function importBundleJson(file: File, json: BundledFormat, stream: ThroughStream
 var extensions: Map<{ xlf: XLF, processed: number }> = Object.create(null);
 function importModuleOrPackageJson(file: File, json: ModuleJsonFormat | PackageJsonFormat, projectName: string, stream: ThroughStream, extensionName?: string): void {
 	if (ModuleJsonFormat.is(json) && json['keys'].length !== json['messages'].length) {
-		log('Error:', `There is a mismatch between keys and messages in ${file.relative}`);
+		throw new Error(`There is a mismatch between keys and messages in ${file.relative}`);
 	}
 
 	// Prepare the source path for <original/> attribute in XLF & extract messages from JSON
@@ -696,7 +696,7 @@ function importIsl(file: File, stream: ThroughStream) {
 		}
 		let sections: string[] = line.split('=');
 		if (sections.length !== 2) {
-			log('Error:', `Badly formatted message found: ${line}`);
+			throw new Error(`Badly formatted message found: ${line}`);
 		} else {
 			let key = sections[0];
 			let value = sections[1];
@@ -738,8 +738,6 @@ export function pushXlfFiles(apiHostname: string, username: string, password: st
 				promise = createResource(project, slug, file, apiHostname, credentials);
 			}
 			updateCreatePromises.push(promise);
-		}).catch((reason) => {
-			log('Error:', reason);
 		});
 
 	}, function() {
@@ -747,8 +745,8 @@ export function pushXlfFiles(apiHostname: string, username: string, password: st
 		Promise.all(tryGetPromises).then(() => {
 			Promise.all(updateCreatePromises).then(() => {
 				this.emit('end');
-			}).catch((reason) => log('Error:', reason));
-		}).catch((reason) => log('Error:', reason));
+			}).catch((reason) => { throw new Error(reason); });
+		}).catch((reason) => { throw new Error(reason); });
 	});
 }
 
@@ -769,7 +767,8 @@ function tryGetResource(project: string, slug: string, apiHostname: string, cred
 			} else {
 				reject(`Failed to query resource ${project}/${slug}. Response: ${response.statusCode} ${response.statusMessage}`);
 			}
-		}).on('error', (err) => {
+		});
+		request.on('error', (err) => {
 			reject(`Failed to get ${project}/${slug} on Transifex: ${err}`);
 		});
 
@@ -802,7 +801,8 @@ function createResource(project: string, slug: string, xlfFile: File, apiHostnam
 			} else {
 				reject(`Something went wrong in the request creating ${slug} in ${project}. ${res.statusCode}`);
 			}
-		}).on('error', (err) => {
+		});
+		request.on('error', (err) => {
 			reject(`Failed to create ${project}/${slug} on Transifex: ${err}`);
 		});
 
@@ -845,7 +845,8 @@ function updateResource(project: string, slug: string, xlfFile: File, apiHostnam
 			} else {
 				reject(`Something went wrong in the request updating ${slug} in ${project}. ${res.statusCode}`);
 			}
-		}).on('error', (err) => {
+		});
+		request.on('error', (err) => {
 			reject(`Failed to update ${project}/${slug} on Transifex: ${err}`);
 		});
 
@@ -914,7 +915,7 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 			const stream = this;
 
 			vscodeLanguages.map(function(language) {
-				resources.map(function (resource) {
+				resources.map(function(resource) {
 					const slug = resource.name.replace(/\//g, '_');
 					const project = resource.project;
 					const iso639 = iso639_3_to_2[language];
@@ -932,12 +933,13 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 								if (res.statusCode === 200) {
 									stream.emit('data', new File({ contents: new Buffer(xlfBuffer) }));
 								} else {
-									log('Error:', `${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
+									throw new Error(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
 								}
 								translationsRetrieved++;
 							});
-					}).on('error', (err) => {
-						log('Error:', `Failed to query resource ${slug} with the following error: ${err}`);
+					});
+					request.on('error', (err) => {
+						throw new Error(`Failed to query resource ${slug} with the following error: ${err}`);
 					});
 					request.end();
 				});
@@ -973,7 +975,7 @@ export function prepareJsonFiles(): ThroughStream {
 				});
 			},
 			function(rejectReason) {
-				log('Error:', rejectReason);
+				throw new Error(`XLF parsing error: ${rejectReason}`);
 			}
 		);
 	});
