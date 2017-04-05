@@ -96,6 +96,19 @@ export class VSCodeApplication {
 			}
 		});
 
+		app.on('will-quit', () => {
+			this.logService.log('App#will-quit: disposing resources');
+
+			this.dispose();
+		});
+
+		ipc.on('vscode:exit', (event, code: number) => {
+			this.logService.log('IPC#vscode:exit', code);
+
+			this.dispose();
+			this.lifecycleService.kill(code);
+		});
+
 		ipc.on(machineIdIpcChannel, (event, machineId: string) => {
 			this.logService.log('IPC#vscode-machineId');
 			this.storageService.setItem(machineIdStorageKey, machineId);
@@ -110,37 +123,12 @@ export class VSCodeApplication {
 				console.error('Error fetching shell env', err);
 			});
 		});
-
-		app.on('will-quit', () => {
-			this.logService.log('App#will-quit: disposing resources');
-
-			this.dispose();
-		});
-
-		ipc.on('vscode:exit', (event, code: number) => {
-			this.logService.log('IPC#vscode:exit', code);
-
-			this.dispose();
-			this.lifecycleService.kill(code);
-		});
 	}
 
 	public startup(): void {
 		this.logService.log('Starting VS Code in verbose mode');
 		this.logService.log(`from: ${this.environmentService.appRoot}`);
 		this.logService.log('args:', this.environmentService.args);
-
-		// Setup Windows mutex
-		let windowsMutex: Mutex = null;
-		if (platform.isWindows) {
-			try {
-				const Mutex = (require.__$__nodeRequire('windows-mutex') as any).Mutex;
-				windowsMutex = new Mutex(product.win32MutexName);
-				this.toDispose.push({ dispose: () => windowsMutex.release() });
-			} catch (e) {
-				// noop
-			}
-		}
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
@@ -167,8 +155,11 @@ export class VSCodeApplication {
 		// Services
 		const appInstantiationService = this.initServices();
 
-		// Do Startup
-		appInstantiationService.invokeFunction(accessor => this.doStartup(accessor));
+		// Open Windows
+		appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+
+		// Post Open Windows Tasks
+		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
 	}
 
 	private initServices(): IInstantiationService {
@@ -198,7 +189,7 @@ export class VSCodeApplication {
 		return this.instantiationService.createChild(services);
 	}
 
-	private doStartup(accessor: ServicesAccessor): void {
+	private openFirstWindow(accessor: ServicesAccessor): void {
 		const appInstantiationService = accessor.get(IInstantiationService);
 
 		// TODO@Joao: unfold this
@@ -249,6 +240,22 @@ export class VSCodeApplication {
 			this.windowsMainService.open({ context: OpenContext.DOCK, cli: args, pathsToOpen: global.macOpenFiles, initialStartup: true }); // mac: open-file event received on startup
 		} else {
 			this.windowsMainService.open({ context, cli: args, forceNewWindow: args['new-window'] || (!args._.length && args['unity-launch']), diffMode: args.diff, initialStartup: true }); // default: read paths from cli
+		}
+	}
+
+	private afterWindowOpen(accessor: ServicesAccessor): void {
+		const appInstantiationService = accessor.get(IInstantiationService);
+
+		// Setup Windows mutex
+		let windowsMutex: Mutex = null;
+		if (platform.isWindows) {
+			try {
+				const Mutex = (require.__$__nodeRequire('windows-mutex') as any).Mutex;
+				windowsMutex = new Mutex(product.win32MutexName);
+				this.toDispose.push({ dispose: () => windowsMutex.release() });
+			} catch (e) {
+				// noop
+			}
 		}
 
 		// Install Menu
