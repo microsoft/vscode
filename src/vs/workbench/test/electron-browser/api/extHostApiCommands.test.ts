@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import { Model as EditorModel } from 'vs/editor/common/model/model';
-import { TestThreadService } from 'vs/workbench/test/node/api/testThreadService';
+import { TestThreadService } from './testThreadService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
