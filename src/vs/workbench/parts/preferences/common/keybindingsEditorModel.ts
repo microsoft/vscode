@@ -73,6 +73,7 @@ const wordFilter = or(matchesPrefix, matchesWords, matchesContiguousSubString);
 export class KeybindingsEditorModel extends EditorModel {
 
 	private _keybindingItems: IKeybindingItem[];
+	private _keybindingItemsSortedByPrecedence: IKeybindingItem[];
 	private modifierLabels: ModifierLabels;
 
 	constructor(
@@ -88,7 +89,7 @@ export class KeybindingsEditorModel extends EditorModel {
 		};
 	}
 
-	public fetch(searchValue: string): IKeybindingItemEntry[] {
+	public fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
 		searchValue = searchValue.trim();
 		const quoteAtFirstChar = searchValue.charAt(0) === '"';
 		const quoteAtLastChar = searchValue.charAt(searchValue.length - 1) === '"';
@@ -99,15 +100,18 @@ export class KeybindingsEditorModel extends EditorModel {
 			searchValue = searchValue.substring(0, searchValue.length - 1);
 		}
 		searchValue = searchValue.trim();
-		return searchValue ? this.fetchKeybindingItems(searchValue, quoteAtFirstChar && quoteAtLastChar) :
-			this._keybindingItems.map(keybindingItem => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+		return this.fetchKeybindingItems(sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems, searchValue, quoteAtFirstChar && quoteAtLastChar);
 	}
 
-	private fetchKeybindingItems(searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
+	private fetchKeybindingItems(keybindingItems: IKeybindingItem[], searchValue: string, completeMatch: boolean): IKeybindingItemEntry[] {
+		if (!searchValue) {
+			return keybindingItems.map(keybindingItem => ({ id: KeybindingsEditorModel.getId(keybindingItem), keybindingItem, templateId: KEYBINDING_ENTRY_TEMPLATE_ID }));
+		}
+
 		const result: IKeybindingItemEntry[] = [];
 		const words = searchValue.split(' ');
 		const keybindingWords = this.splitKeybindingWords(words);
-		for (const keybindingItem of this._keybindingItems) {
+		for (const keybindingItem of keybindingItems) {
 			let keybindingMatches = new KeybindingItemMatches(this.modifierLabels, keybindingItem, searchValue, words, keybindingWords, completeMatch);
 			if (keybindingMatches.commandIdMatches
 				|| keybindingMatches.commandLabelMatches
@@ -148,11 +152,11 @@ export class KeybindingsEditorModel extends EditorModel {
 					return editorActions;
 				}, {});
 
-				this._keybindingItems = [];
+				this._keybindingItemsSortedByPrecedence = [];
 				const boundCommands: Map<string, boolean> = new Map<string, boolean>();
 				for (const keybinding of this.keybindingsService.getKeybindings()) {
 					if (keybinding.command) { // Skip keybindings without commands
-						this._keybindingItems.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.command, keybinding, workbenchActionsRegistry, editorActions));
+						this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.command, keybinding, workbenchActionsRegistry, editorActions));
 						boundCommands.set(keybinding.command, true);
 					}
 				}
@@ -160,9 +164,9 @@ export class KeybindingsEditorModel extends EditorModel {
 				const commandsWithDefaultKeybindings = this.keybindingsService.getDefaultKeybindings().map(keybinding => keybinding.command);
 				for (const command of KeybindingResolver.getAllUnboundCommands(boundCommands)) {
 					const keybindingItem = new ResolvedKeybindingItem(null, command, null, null, commandsWithDefaultKeybindings.indexOf(command) === -1);
-					this._keybindingItems.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, editorActions));
+					this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, editorActions));
 				}
-				this._keybindingItems = this._keybindingItems.sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
+				this._keybindingItems = this._keybindingItemsSortedByPrecedence.slice(0).sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
 				return this;
 			});
 	}

@@ -13,6 +13,23 @@
 	padding: 0px 10px 11px 0;
 }
 
+.keybindings-editor > .keybindings-header > .search-container {
+	position: relative;
+}
+
+.keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence {
+	position: absolute;
+	top: 0;
+	right: 10px;
+	margin-top: 5px;
+	background: url('sort_precedence.svg') center center no-repeat;
+}
+
+.hc-black .keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence,
+.vs-dark .keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence {
+	background: url('sort_precedence_inverse.svg') center center no-repeat;
+}
+
 .keybindings-editor > .keybindings-header .search-container > .settings-search-input {
 	vertical-align: middle;
 }
