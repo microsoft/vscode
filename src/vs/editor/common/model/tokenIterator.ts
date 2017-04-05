@@ -4,116 +4,143 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { LineToken } from 'vs/editor/common/core/lineTokens';
+import { Position } from 'vs/editor/common/core/position';
+import { StandardTokenType } from 'vs/editor/common/modes';
 
-var getStartIndex = EditorCommon.LineTokensBinaryEncoding.getStartIndex;
-var inflate = EditorCommon.LineTokensBinaryEncoding.inflate;
+class TokenInfo implements editorCommon.ITokenInfo {
+	_tokenInfoBrand: void;
 
-export class TokenIterator implements EditorCommon.ITokenIterator {
+	readonly _actual: LineToken;
+	public readonly lineNumber: number;
+	public readonly startColumn: number;
+	public readonly endColumn: number;
+	public readonly type: StandardTokenType;
 
-	private _model:EditorCommon.ITokenizedModel;
-	private _currentLineNumber:number;
-	private _currentTokenIndex:number;
-	private _currentLineTokens:EditorCommon.ILineTokens;
-	private _currentTokens:number[];
-	private _map:EditorCommon.ITokensInflatorMap;
-	private _next:EditorCommon.ITokenInfo;
-	private _prev:EditorCommon.ITokenInfo;
+	constructor(actual: LineToken, lineNumber: number) {
+		this._actual = actual;
+		this.lineNumber = lineNumber;
+		this.startColumn = this._actual.startOffset + 1;
+		this.endColumn = this._actual.endOffset + 1;
+		this.type = this._actual.tokenType;
+	}
+}
 
-	constructor(model:EditorCommon.ITokenizedModel, position:EditorCommon.IPosition) {
+function findClosestNonEmptyLine(model: editorCommon.ITokenizedModel, position: Position): Position {
+	const lineNumber = position.lineNumber;
+	if (model.getLineMaxColumn(lineNumber) !== 1) {
+		return position;
+	}
+
+	const lineCount = model.getLineCount();
+
+	// we need to go up or down
+	let distance = 1;
+	while (true) {
+		let aboveLineNumber = lineNumber - distance;
+		let belowLineNumber = lineNumber + distance;
+
+		if (aboveLineNumber < 1 && belowLineNumber > lineCount) {
+			// No more lines above or below
+			break;
+		}
+
+		if (aboveLineNumber >= 1) {
+			let aboveMaxColumn = model.getLineMaxColumn(aboveLineNumber);
+			if (aboveMaxColumn !== 1) {
+				// bingo!
+				return new Position(aboveLineNumber, aboveMaxColumn);
+			}
+		}
+
+		if (belowLineNumber <= lineCount) {
+			let belowMaxColumn = model.getLineMaxColumn(belowLineNumber);
+			if (belowMaxColumn !== 1) {
+				// bingo!
+				return new Position(belowLineNumber, 1);
+			}
+		}
+
+		distance++;
+	}
+	return null;
+}
+
+export class TokenIterator implements editorCommon.ITokenIterator {
+
+	private _model: editorCommon.ITokenizedModel;
+	private _lineCount: number;
+	private _prev: TokenInfo;
+	private _next: TokenInfo;
+
+	constructor(model: editorCommon.ITokenizedModel, position: Position) {
 		this._model = model;
-		this._currentLineNumber = position.lineNumber;
-		this._currentTokenIndex = 0;
-		this._readLineTokens(this._currentLineNumber);
-		this._next = null;
+		this._lineCount = this._model.getLineCount();
 		this._prev = null;
+		this._next = null;
 
-		// start with a position to next/prev run
-		var columnIndex = position.column - 1, tokenEndIndex = Number.MAX_VALUE;
-
-		for (var i = this._currentTokens.length - 1; i >= 0; i--) {
-			if (getStartIndex(this._currentTokens[i]) <= columnIndex && columnIndex <= tokenEndIndex) {
-				this._currentTokenIndex = i;
-				this._next = this._current();
-				this._prev = this._current();
-				break;
+		position = findClosestNonEmptyLine(model, position);
+		if (position) {
+			this._model.forceTokenization(position.lineNumber);
+			let lineTokens = this._model.getLineTokens(position.lineNumber);
+			let currentToken = lineTokens.findTokenAtOffset(position.column - 1);
+			if (currentToken) {
+				this._prev = this._next = new TokenInfo(currentToken, position.lineNumber);
 			}
-			tokenEndIndex = getStartIndex(this._currentTokens[i]);
 		}
 	}
 
-	private _readLineTokens(lineNumber:number): void {
-		this._currentLineTokens = this._model.getLineTokens(lineNumber, false);
-		this._currentTokens = this._currentLineTokens.getBinaryEncodedTokens();
-		this._map = this._currentLineTokens.getBinaryEncodedTokensMap();
-	}
+	private _advanceNext(): void {
+		if (!this._next) {
+			return;
+		}
 
-	private _advanceNext() {
+		let lineNumber = this._next.lineNumber;
+		let next = this._next._actual.next();
+		while (!next && lineNumber < this._lineCount) {
+			lineNumber++;
+			this._model.forceTokenization(lineNumber);
+			let currentLineTokens = this._model.getLineTokens(lineNumber);
+			next = currentLineTokens.firstToken();
+		}
+
 		this._prev = this._next;
-		this._next = null;
-		if (this._currentTokenIndex + 1 < this._currentTokens.length) {
-			// There are still tokens on current line
-			this._currentTokenIndex++;
-			this._next = this._current();
-
+		if (next) {
+			this._next = new TokenInfo(next, lineNumber);
 		} else {
-			// find the next line with tokens
-			while (this._currentLineNumber + 1 <= this._model.getLineCount()) {
-				this._currentLineNumber++;
-				this._readLineTokens(this._currentLineNumber);
-				if (this._currentTokens.length > 0) {
-					this._currentTokenIndex = 0;
-					this._next = this._current();
-					break;
-				}
-			}
-			if (this._next === null) {
-				// prepare of a previous run
-				this._readLineTokens(this._currentLineNumber);
-				this._currentTokenIndex = this._currentTokens.length;
-				this._advancePrev();
-				this._next = null;
-			}
+			this._next = null;
 		}
 	}
 
-	private _advancePrev() {
+	private _advancePrev(): void {
+		if (!this._prev) {
+			return;
+		}
+
+		let lineNumber = this._prev.lineNumber;
+		let prev = this._prev._actual.prev();
+		while (!prev && lineNumber > 1) {
+			lineNumber--;
+			this._model.forceTokenization(lineNumber);
+			let currentLineTokens = this._model.getLineTokens(lineNumber);
+			prev = currentLineTokens.lastToken();
+		}
+
 		this._next = this._prev;
-		this._prev = null;
-		if (this._currentTokenIndex > 0) {
-			// There are still tokens on current line
-			this._currentTokenIndex--;
-			this._prev = this._current();
-
+		if (prev) {
+			this._prev = new TokenInfo(prev, lineNumber);
 		} else {
-			// find previous line with tokens
-			while (this._currentLineNumber > 1) {
-				this._currentLineNumber--;
-				this._readLineTokens(this._currentLineNumber);
-				if (this._currentTokens.length > 0) {
-					this._currentTokenIndex = this._currentTokens.length - 1;
-					this._prev = this._current();
-					break;
-				}
-			}
+			this._prev = null;
 		}
-	}
-
-	private _current(): EditorCommon.ITokenInfo {
-		return {
-			token: inflate(this._map, this._currentTokens[this._currentTokenIndex]),
-			lineNumber: this._currentLineNumber,
-			startColumn: getStartIndex(this._currentTokens[this._currentTokenIndex]) + 1,
-			endColumn: this._currentTokenIndex + 1 < this._currentTokens.length ? getStartIndex(this._currentTokens[this._currentTokenIndex + 1]) + 1 : this._model.getLineContent(this._currentLineNumber).length + 1
-		};
 	}
 
 	public hasNext(): boolean {
 		return this._next !== null;
 	}
 
-	public next(): EditorCommon.ITokenInfo {
-		var result = this._next;
+	public next(): editorCommon.ITokenInfo {
+		const result = this._next;
 		this._advanceNext();
 		return result;
 	}
@@ -122,15 +149,15 @@ export class TokenIterator implements EditorCommon.ITokenIterator {
 		return this._prev !== null;
 	}
 
-	public prev(): EditorCommon.ITokenInfo {
-		var result = this._prev;
+	public prev(): editorCommon.ITokenInfo {
+		const result = this._prev;
 		this._advancePrev();
 		return result;
 	}
 
 	public _invalidate() {
 		// replace all public functions with errors
-		var errorFn = function(): any {
+		var errorFn = function (): any {
 			throw new Error('iteration isn\'t valid anymore');
 		};
 		this.hasNext = errorFn;

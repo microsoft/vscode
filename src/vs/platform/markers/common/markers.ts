@@ -7,12 +7,12 @@
 import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import Event from 'vs/base/common/event';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export var IMarkerService = createDecorator<IMarkerService>('markerService');
+export const IMarkerService = createDecorator<IMarkerService>('markerService');
 
 export interface IMarkerService {
-	serviceId : ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	getStatistics(): MarkerStatistics;
 
@@ -20,22 +20,21 @@ export interface IMarkerService {
 
 	changeAll(owner: string, data: IResourceMarker[]): void;
 
-	remove(owner: string, resources: URI[]): void
+	remove(owner: string, resources: URI[]): void;
 
-	read(filter?: { owner?: string; resource?: URI; selector?:RegExp, take?: number; }): IMarker[];
+	read(filter?: { owner?: string; resource?: URI; take?: number; }): IMarker[];
 
 	onMarkerChanged: Event<URI[]>;
 }
 
-export enum MarkerType {
-	transient = 1,
-	permanent = 2
-}
-
+/**
+ * A structure defining a problem/warning/etc.
+ */
 export interface IMarkerData {
 	code?: string;
 	severity: Severity;
 	message: string;
+	source?: string;
 	startLineNumber: number;
 	startColumn: number;
 	endLineNumber: number;
@@ -44,7 +43,7 @@ export interface IMarkerData {
 
 export interface IResourceMarker {
 	resource: URI;
-	marker:IMarkerData;
+	marker: IMarkerData;
 }
 
 export interface IMarker {
@@ -53,6 +52,7 @@ export interface IMarker {
 	severity: Severity;
 	code?: string;
 	message: string;
+	source?: string;
 	startLineNumber: number;
 	startColumn: number;
 	endLineNumber: number;
@@ -63,5 +63,5 @@ export interface MarkerStatistics {
 	errors: number;
 	warnings: number;
 	infos: number;
-	unknwons: number;
+	unknowns: number;
 }

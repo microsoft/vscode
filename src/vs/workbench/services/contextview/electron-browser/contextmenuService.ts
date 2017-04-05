@@ -5,92 +5,116 @@
 
 'use strict';
 
+import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
-import actions = require('vs/base/common/actions');
-import {Separator} from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import dom = require('vs/base/browser/dom');
-import {$} from 'vs/base/browser/builder';
-import {KeybindingsUtils} from 'vs/platform/keybinding/common/keybindingsUtils';
-import {IContextMenuService, IContextMenuDelegate} from 'vs/platform/contextview/browser/contextView';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IMessageService} from 'vs/platform/message/common/message';
+import { IContextMenuService, IContextMenuDelegate, ContextSubMenu, IEvent } from 'vs/platform/contextview/browser/contextView';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-import remote = require('remote');
-
-const Menu = remote.require('menu');
-const MenuItem = remote.require('menu-item');
+import { remote, webFrame } from 'electron';
 
 export class ContextMenuService implements IContextMenuService {
-	public serviceId = IContextMenuService;
-	private telemetryService: ITelemetryService;
-	private messageService: IMessageService;
 
-	constructor(messageService: IMessageService, telemetryService: ITelemetryService) {
-		this.messageService = messageService;
-		this.telemetryService = telemetryService;
+	public _serviceBrand: any;
+
+	constructor(
+		@IMessageService private messageService: IMessageService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IKeybindingService private keybindingService: IKeybindingService
+	) {
 	}
 
 	public showContextMenu(delegate: IContextMenuDelegate): void {
-		let menu = new Menu();
-		let actionToRun: actions.IAction = null;
+		delegate.getActions().then(actions => {
+			if (!actions.length) {
+				return TPromise.as(null);
+			}
 
-		delegate.getActions().done((actions: actions.IAction[]) => {
-			actions.forEach(a => {
-				if (a instanceof Separator) {
-					menu.append(new MenuItem({ type: 'separator' }));
+			return TPromise.timeout(0).then(() => { // https://github.com/Microsoft/vscode/issues/3638
+				const menu = this.createMenu(delegate, actions);
+				const anchor = delegate.getAnchor();
+				let x: number, y: number;
+
+				if (dom.isHTMLElement(anchor)) {
+					let elementPosition = dom.getDomNodePagePosition(anchor);
+
+					x = elementPosition.left;
+					y = elementPosition.top + elementPosition.height;
 				} else {
-					let keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(a) : undefined;
-					let accelerator: string;
-					if (keybinding) {
-						accelerator = keybinding.toElectronAccelerator();
-					}
+					const pos = <{ x: number; y: number; }>anchor;
+					x = pos.x;
+					y = pos.y;
+				}
 
-					let item = new MenuItem({
-						label: a.label,
-						checked: a.checked,
-						accelerator: accelerator,
-						click: () => {
-							actionToRun = a;
-						}
-					});
+				let zoom = webFrame.getZoomFactor();
+				x *= zoom;
+				y *= zoom;
 
-					item.enabled = a.enabled;
-					menu.append(item);
+				menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
+				if (delegate.onHide) {
+					delegate.onHide(undefined);
 				}
 			});
 		});
+	}
 
-		let anchor = delegate.getAnchor();
-		let x: number, y: number;
+	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[]): Electron.Menu {
+		const menu = new remote.Menu();
+		const actionRunner = delegate.actionRunner || new ActionRunner();
 
-		if (dom.isHTMLElement(anchor)) {
-			let $anchor = $(<HTMLElement> anchor);
-			let elementPosition = $anchor.getPosition();
-			let elementSize = $anchor.getTotalSize();
+		entries.forEach(e => {
+			if (e instanceof Separator) {
+				menu.append(new remote.MenuItem({ type: 'separator' }));
+			} else if (e instanceof ContextSubMenu) {
+				const submenu = new remote.MenuItem({
+					submenu: this.createMenu(delegate, e.entries),
+					label: e.label
+				});
 
-			x = elementPosition.left;
-			y = elementPosition.top + elementSize.height;
-		} else {
-			let pos = <{ x: number; y: number; }> anchor;
-			x = pos.x;
-			y = pos.y;
-		}
+				menu.append(submenu);
+			} else {
+				const options: Electron.MenuItemOptions = {
+					label: e.label,
+					checked: !!e.checked || !!e.radio,
+					type: !!e.checked ? 'checkbox' : !!e.radio ? 'radio' : void 0,
+					enabled: !!e.enabled,
+					click: (menuItem, win, event) => {
+						this.runAction(actionRunner, e, delegate, event);
+					}
+				};
 
-		menu.popup(remote.getCurrentWindow(), Math.floor(x), Math.floor(y));
+				const keybinding = !!delegate.getKeyBinding ? delegate.getKeyBinding(e) : undefined;
+				if (keybinding) {
+					const electronAccelerator = keybinding.getElectronAccelerator();
+					if (electronAccelerator) {
+						options.accelerator = electronAccelerator;
+					} else {
+						const label = keybinding.getLabel();
+						if (label) {
+							options.label = `${options.label} (${label})`;
+						}
+					}
+				}
 
-		if (delegate.onHide) {
-			delegate.onHide(false);
-		}
+				const item = new remote.MenuItem(options);
 
-		if (!actionToRun) {
-			return;
-		}
+				menu.append(item);
+			}
+		});
 
+		return menu;
+	}
+
+	private runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IEvent): void {
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
-		let result = actionToRun.run(delegate.getActionsContext ? delegate.getActionsContext() : null);
 
-		if (result) {
-			result.done(null, e => this.messageService.show(severity.Error, e));
-		}
+		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
+		const res = actionRunner.run(actionToRun, context) || TPromise.as(null);
+
+		res.done(null, e => this.messageService.show(severity.Error, e));
 	}
 }

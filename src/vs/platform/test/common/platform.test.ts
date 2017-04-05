@@ -27,7 +27,7 @@ suite('Platform / Registry', () => {
 
 	test('registry - knows, as', function () {
 
-		var ext = {};
+		let ext = {};
 
 		Platform.Registry.add('knows,as', ext);
 
@@ -45,7 +45,7 @@ suite('Platform / Registry', () => {
 		try {
 			Platform.Registry.add('foo-dup', { bar: false });
 			assert.ok(false);
-		} catch(e) {
+		} catch (e) {
 			assert.ok(true);
 		}
 	});

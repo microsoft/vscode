@@ -8,41 +8,35 @@ import winjs = require('vs/base/common/winjs.base');
 import lifecycle = require('vs/base/common/lifecycle');
 import async = require('vs/base/common/async');
 import WorkbenchEditorCommon = require('vs/workbench/common/editor');
-import resourceei = require('vs/workbench/browser/parts/editor/resourceEditorInput');
-import stringei = require('vs/workbench/browser/parts/editor/stringEditorInput');
-import diffei = require('vs/workbench/browser/parts/editor/diffEditorInput');
+import stringei = require('vs/workbench/common/editor/stringEditorInput');
+import diffei = require('vs/workbench/common/editor/diffEditorInput');
 import git = require('vs/workbench/parts/git/common/git');
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditorInput} from 'vs/platform/editor/common/editor';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 import IGitService = git.IGitService;
 
 export interface IEditorInputWithStatus {
-	getFileStatus():git.IFileStatus;
+	getFileStatus(): git.IFileStatus;
 }
 
 export function isGitEditorInput(input: IEditorInput): boolean {
-	return input instanceof GitDiffEditorInput || input instanceof GitIndexEditorInput || input instanceof NativeGitIndexStringEditorInput;
+	return input instanceof GitDiffEditorInput || input instanceof NativeGitIndexStringEditorInput;
 }
 
 export class GitDiffEditorInput
 	extends diffei.DiffEditorInput
-	implements IEditorInputWithStatus
-{
+	implements IEditorInputWithStatus {
 	private status: git.IFileStatus;
 
-	constructor(name:string, description:string, originalInput:WorkbenchEditorCommon.EditorInput, modifiedInput:WorkbenchEditorCommon.EditorInput, status:git.IFileStatus) {
+	constructor(name: string, description: string, originalInput: WorkbenchEditorCommon.EditorInput, modifiedInput: WorkbenchEditorCommon.EditorInput, status: git.IFileStatus) {
 		super(name, description, originalInput, modifiedInput);
 
 		this.status = status;
 	}
 
-	public getId(): string {
-		throw new Error('To implement.');
-	}
-
-	public getFileStatus():git.IFileStatus {
+	public getFileStatus(): git.IFileStatus {
 		return this.status;
 	}
 
@@ -51,12 +45,12 @@ export class GitDiffEditorInput
 			return true;
 		}
 
-		var originalInput = this.getOriginalInput();
+		var originalInput = this.originalInput;
 		if (originalInput && originalInput.matches(otherInput)) {
 			return true;
 		}
 
-		var modifiedInput = this.getModifiedInput();
+		var modifiedInput = this.modifiedInput;
 		if (modifiedInput && modifiedInput.matches(otherInput)) {
 			return true;
 		}
@@ -67,65 +61,41 @@ export class GitDiffEditorInput
 
 export class GitWorkingTreeDiffEditorInput extends GitDiffEditorInput {
 
-	static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.GitWorkingTreeDiffEditorInput';
+	static ID = 'vs.git.workingTreeDiffInput';
 
-	constructor(name:string, description:string, originalInput:WorkbenchEditorCommon.EditorInput, modifiedInput:WorkbenchEditorCommon.EditorInput, status:git.IFileStatus) {
+	constructor(name: string, description: string, originalInput: WorkbenchEditorCommon.EditorInput, modifiedInput: WorkbenchEditorCommon.EditorInput, status: git.IFileStatus) {
 		super(name, description, originalInput, modifiedInput, status);
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return GitWorkingTreeDiffEditorInput.ID;
 	}
 }
 
 export class GitIndexDiffEditorInput extends GitDiffEditorInput {
 
-	static ID:string = 'Monaco.IDE.UI.Viewlets.GitViewlet.GitIndexDiffEditorInput';
+	static ID: string = 'vs.git.indexDiffInput';
 
-	constructor(name:string, description:string, originalInput:WorkbenchEditorCommon.EditorInput, modifiedInput:WorkbenchEditorCommon.EditorInput, status:git.IFileStatus) {
+	constructor(name: string, description: string, originalInput: WorkbenchEditorCommon.EditorInput, modifiedInput: WorkbenchEditorCommon.EditorInput, status: git.IFileStatus) {
 		super(name, description, originalInput, modifiedInput, status);
 	}
 
-	public getId(): string {
+	public getTypeId(): string {
 		return GitIndexDiffEditorInput.ID;
-	}
-}
-
-export class GitIndexEditorInput
-	extends resourceei.ResourceEditorInput
-	implements IEditorInputWithStatus
-{
-	public static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.GitIndexEditorInput';
-
-	private status: git.IFileStatus;
-
-	constructor(name: any, description:string, url: string, mime: string, status: git.IFileStatus, @IInstantiationService instantiationService: IInstantiationService) {
-		super(name, description, url, mime, void 0, void 0, void 0, instantiationService);
-
-		this.status = status;
-	}
-
-	public getId(): string {
-		return GitIndexEditorInput.ID;
-	}
-
-	public getFileStatus(): git.IFileStatus {
-		return this.status;
 	}
 }
 
 export class NativeGitIndexStringEditorInput
 	extends stringei.StringEditorInput
-	implements IEditorInputWithStatus
-{
-	public static ID = 'Monaco.IDE.UI.Viewlets.GitViewlet.NativeGitIndexStringEditorInput';
+	implements IEditorInputWithStatus {
+	public static ID = 'vs.git.stringEditorInput';
 
 	private gitService: IGitService;
 	private editorService: IWorkbenchEditorService;
 	private status: git.IFileStatus;
 	private path: string;
 	private treeish: string;
-	private delayer: async.ThrottledDelayer;
+	private delayer: async.ThrottledDelayer<WorkbenchEditorCommon.EditorModel>;
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(name: any, description: string, mime: string, status: git.IFileStatus, path: string, treeish: string,
@@ -140,22 +110,22 @@ export class NativeGitIndexStringEditorInput
 		this.status = status;
 		this.path = path;
 		this.treeish = treeish;
-		this.delayer = new async.ThrottledDelayer(1000);
+		this.delayer = new async.ThrottledDelayer<WorkbenchEditorCommon.EditorModel>(1000);
 
 		this.toDispose = [];
 		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.STATE_CHANGED, () => this.onGitServiceStateChange()));
 		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.OPERATION_END, () => this.onGitServiceStateChange()));
 	}
 
-	public getId(): string {
-		return GitIndexEditorInput.ID;
+	public getTypeId(): string {
+		return NativeGitIndexStringEditorInput.ID;
 	}
 
 	public getFileStatus(): git.IFileStatus {
 		return this.status;
 	}
 
-	public resolve(refresh?:boolean):winjs.TPromise<WorkbenchEditorCommon.EditorModel> {
+	public resolve(refresh?: boolean): winjs.TPromise<WorkbenchEditorCommon.EditorModel> {
 		if (refresh || !this.getValue()) {
 			return this.gitService.buffer(this.path, this.treeish).then(contents => {
 				if (this.getValue() !== contents) {
@@ -178,13 +148,13 @@ export class NativeGitIndexStringEditorInput
 		this.delayer.trigger(() => this.resolve(true));
 	}
 
-	public dispose():void {
+	public dispose(): void {
 		if (this.delayer) {
 			this.delayer.cancel();
 			this.delayer = null;
 		}
 
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
 }

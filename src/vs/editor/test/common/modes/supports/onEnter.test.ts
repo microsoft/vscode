@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {IIndentationRules, IBracketPair, OnEnterSupport} from 'vs/editor/common/modes/supports/onEnter';
-import {IndentAction} from 'vs/editor/common/modes';
+import * as assert from 'assert';
+import { CharacterPair, IndentAction } from 'vs/editor/common/modes/languageConfiguration';
+import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 
 suite('OnEnter', () => {
 
 	test('uses indentationRules', () => {
-		var support = new OnEnterSupport(null, {
+		var support = new OnEnterSupport({
 			indentationRules: {
 				decreaseIndentPattern: /^\s*((?!\S.*\/[*]).*[*]\/\s*)?[})\]]|^\s*(case\b.*|default):\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
 				increaseIndentPattern: /(\{[^}"']*|\([^)"']*|\[[^\]"']*|^\s*(\{\}|\(\)|\[\]|(case\b.*|default):))\s*(\/\/.*|\/[*].*[*]\/\s*)?$/,
@@ -20,8 +20,8 @@ suite('OnEnter', () => {
 			}
 		});
 
-		var testIndentAction = (oneLineAboveText:string, beforeText:string, afterText:string, expected:IndentAction) => {
-			var actual = support._actualOnEnter(oneLineAboveText, beforeText, afterText);
+		var testIndentAction = (oneLineAboveText: string, beforeText: string, afterText: string, expected: IndentAction) => {
+			var actual = support.onEnter(oneLineAboveText, beforeText, afterText);
 			if (expected === IndentAction.None) {
 				assert.equal(actual, null);
 			} else {
@@ -38,15 +38,15 @@ suite('OnEnter', () => {
 	});
 
 	test('uses brackets', () => {
-		var brackets: IBracketPair[] = [
-			{ open:'(', close:')' },
-			{ open:'begin', close:'end' }
+		var brackets: CharacterPair[] = [
+			['(', ')'],
+			['begin', 'end']
 		];
-		var support = new OnEnterSupport(null, {
+		var support = new OnEnterSupport({
 			brackets: brackets
 		});
-		var testIndentAction = (beforeText:string, afterText:string, expected:IndentAction) => {
-			var actual = support._actualOnEnter('', beforeText, afterText);
+		var testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
+			var actual = support.onEnter('', beforeText, afterText);
 			if (expected === IndentAction.None) {
 				assert.equal(actual, null);
 			} else {
@@ -75,7 +75,7 @@ suite('OnEnter', () => {
 	});
 
 	test('uses regExpRules', () => {
-		var support = new OnEnterSupport(null, {
+		var support = new OnEnterSupport({
 			regExpRules: [
 				{
 					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
@@ -87,17 +87,21 @@ suite('OnEnter', () => {
 					action: { indentAction: IndentAction.None, appendText: ' * ' }
 				},
 				{
-					beforeText: /^(\t|(\ \ ))*\ \*\ ([^\*]|\*(?!\/))*$/,
+					beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
 					action: { indentAction: IndentAction.None, appendText: '* ' }
 				},
 				{
 					beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
 					action: { indentAction: IndentAction.None, removeText: 1 }
+				},
+				{
+					beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
+					action: { indentAction: IndentAction.None, removeText: 1 }
 				}
 			]
 		});
-		var testIndentAction = (beforeText:string, afterText:string, expectedIndentAction:IndentAction, expectedAppendText:string, removeText:number = 0) => {
-			var actual = support._actualOnEnter('', beforeText, afterText);
+		var testIndentAction = (beforeText: string, afterText: string, expectedIndentAction: IndentAction, expectedAppendText: string, removeText: number = 0) => {
+			var actual = support.onEnter('', beforeText, afterText);
 			if (expectedIndentAction === null) {
 				assert.equal(actual, null, 'isNull:' + beforeText);
 			} else {
@@ -129,9 +133,9 @@ suite('OnEnter', () => {
 		testIndentAction('*/', '', null, null);
 		testIndentAction('\t/*', '', null, null);
 		testIndentAction('\t*', '', null, null);
-		testIndentAction('\t *', '', null, null);
+		testIndentAction('\t *', '', IndentAction.None, '* ');
 		testIndentAction('\t */', '', IndentAction.None, null, 1);
-		testIndentAction('\t * */', '', null, null);
+		testIndentAction('\t * */', '', IndentAction.None, null, 1);
 		testIndentAction('\t * * / * / * / */', '', null, null);
 		testIndentAction('\t * ', '', IndentAction.None, '* ');
 		testIndentAction(' * ', '', IndentAction.None, '* ');
@@ -146,5 +150,6 @@ suite('OnEnter', () => {
 		testIndentAction('   */', '', IndentAction.None, null, 1);
 		testIndentAction('     */', '', IndentAction.None, null, 1);
 		testIndentAction('\t     */', '', IndentAction.None, null, 1);
+		testIndentAction(' *--------------------------------------------------------------------------------------------*/', '', IndentAction.None, null, 1);
 	});
 });

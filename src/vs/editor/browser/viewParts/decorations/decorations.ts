@@ -6,22 +6,23 @@
 'use strict';
 
 import 'vs/css!./decorations';
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
+import { Range } from 'vs/editor/common/core/range';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
-interface IRenderResult {
-	[lineNumber:string]:string[];
-}
+export class DecorationsOverlay extends DynamicViewOverlay {
 
-export class DecorationsOverlay extends ViewEventHandler implements EditorBrowser.IDynamicViewOverlay {
+	private _context: ViewContext;
+	private _lineHeight: number;
+	private _renderResult: string[];
 
-	private _context:EditorBrowser.IViewContext;
-	private _renderResult:IRenderResult;
-
-	constructor(context:EditorBrowser.IViewContext) {
+	constructor(context: ViewContext) {
 		super();
 		this._context = context;
+		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderResult = null;
 
 		this._context.addEventHandler(this);
@@ -35,142 +36,163 @@ export class DecorationsOverlay extends ViewEventHandler implements EditorBrowse
 
 	// --- begin event handlers
 
-	public onModelFlushed(): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.lineHeight) {
+			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
 		return true;
 	}
-	public onModelDecorationsChanged(e:EditorCommon.IViewDecorationsChangedEvent): boolean {
-		return true;
-	}
-	public onModelLinesDeleted(e:EditorCommon.IViewLinesDeletedEvent): boolean {
-		return true;
-	}
-	public onModelLineChanged(e:EditorCommon.IViewLineChangedEvent): boolean {
-		return true;
-	}
-	public onModelLinesInserted(e:EditorCommon.IViewLinesInsertedEvent): boolean {
-		return true;
-	}
-	public onCursorPositionChanged(e:EditorCommon.IViewCursorPositionChangedEvent): boolean {
+	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorSelectionChanged(e:EditorCommon.IViewCursorSelectionChangedEvent): boolean {
+	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
 		return false;
 	}
-	public onCursorRevealRange(e:EditorCommon.IViewRevealRangeEvent): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		return true;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		return true;
+	}
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return true;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
+	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
 		return false;
 	}
-	public onConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return e.scrollTopChanged || e.scrollWidthChanged;
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
-		return true;
-	}
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
-		return e.vertical;
-	}
-	public onZonesChanged(): boolean {
-		return true;
-	}
-	public onScrollWidthChanged(scrollWidth:number): boolean {
-		return true;
-	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		return false;
-	}
-
 	// --- end event handlers
 
-	public shouldCallRender2(ctx:EditorBrowser.IRenderingContext): boolean {
-		if (!this.shouldRender) {
-			return false;
+	public prepareRender(ctx: RenderingContext): void {
+		let _decorations = ctx.getDecorationsInViewport();
+
+		// Keep only decorations with `className`
+		let decorations: ViewModelDecoration[] = [], decorationsLen = 0;
+		for (let i = 0, len = _decorations.length; i < len; i++) {
+			let d = _decorations[i];
+			if (d.source.options.className) {
+				decorations[decorationsLen++] = d;
+			}
 		}
-		this.shouldRender = false;
 
-		var output: IRenderResult = {},
-			lineOutput: string[],
-			decorations = ctx.getDecorationsInViewport(),
-			d:EditorCommon.IModelDecoration,
-			rng:EditorCommon.IRange,
-			linesVisibleRanges:EditorBrowser.ILineVisibleRanges[],
-			lineVisibleRanges:EditorBrowser.ILineVisibleRanges,
-			visibleRange:EditorBrowser.IHorizontalRange,
-			lineHeight = this._context.configuration.editor.lineHeight.toString(),
-			i:number, lenI:number,
-			j:number, lenJ:number,
-			k:number, lenK:number,
-			piecesCount = 0;
+		// Sort decorations for consistent render output
+		decorations = decorations.sort((a, b) => {
+			let aClassName = a.source.options.className;
+			let bClassName = b.source.options.className;
 
-		for (i = 0, lenI = decorations.length; i < lenI; i++) {
-			d = decorations[i];
-			rng = d.range;
+			if (aClassName < bClassName) {
+				return -1;
+			}
+			if (aClassName > bClassName) {
+				return 1;
+			}
 
-			if (!d.options.className) {
+			return Range.compareRangesUsingStarts(a.range, b.range);
+		});
+
+		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+		let output: string[] = [];
+		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
+			let lineIndex = lineNumber - visibleStartLineNumber;
+			output[lineIndex] = '';
+		}
+
+		// Render first whole line decorations and then regular decorations
+		this._renderWholeLineDecorations(ctx, decorations, output);
+		this._renderNormalDecorations(ctx, decorations, output);
+		this._renderResult = output;
+	}
+
+	private _renderWholeLineDecorations(ctx: RenderingContext, decorations: ViewModelDecoration[], output: string[]): void {
+		let lineHeight = String(this._lineHeight);
+		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
+		let visibleEndLineNumber = ctx.visibleRange.endLineNumber;
+
+		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
+			let d = decorations[i];
+
+			if (!d.source.options.isWholeLine) {
 				continue;
 			}
 
-			if (d.options.isWholeLine) {
+			let decorationOutput = (
+				'<div class="cdr '
+				+ d.source.options.className
+				+ '" style="left:0;width:100%;height:'
+				+ lineHeight
+				+ 'px;"></div>'
+			);
 
-				for (j = rng.startLineNumber; j <= rng.endLineNumber; j++) {
-					if (!ctx.lineIsVisible(j)) {
-						continue;
-					}
-					if (output.hasOwnProperty(j.toString())) {
-						lineOutput = output[j.toString()];
-					} else {
-						lineOutput = [];
-						output[j.toString()] = lineOutput;
-					}
+			let startLineNumber = Math.max(d.range.startLineNumber, visibleStartLineNumber);
+			let endLineNumber = Math.min(d.range.endLineNumber, visibleEndLineNumber);
+			for (let j = startLineNumber; j <= endLineNumber; j++) {
+				let lineIndex = j - visibleStartLineNumber;
+				output[lineIndex] += decorationOutput;
+			}
+		}
+	}
 
-					piecesCount++;
-					lineOutput.push('<div class="cdr ');
-					lineOutput.push(d.options.className);
-					lineOutput.push('" style="left:0;width:100%;height:');
-					lineOutput.push(lineHeight.toString());
-					lineOutput.push('px;"></div>');
-				}
+	private _renderNormalDecorations(ctx: RenderingContext, decorations: ViewModelDecoration[], output: string[]): void {
+		let lineHeight = String(this._lineHeight);
+		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 
+		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
+			let d = decorations[i];
 
-			} else {
-				linesVisibleRanges = ctx.linesVisibleRangesForRange(rng, false);
-				if (linesVisibleRanges) {
-					for (j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
-						lineVisibleRanges = linesVisibleRanges[j];
+			if (d.source.options.isWholeLine) {
+				continue;
+			}
 
-						if (output.hasOwnProperty(lineVisibleRanges.lineNumber.toString())) {
-							lineOutput = output[lineVisibleRanges.lineNumber.toString()];
-						} else {
-							lineOutput = [];
-							output[lineVisibleRanges.lineNumber.toString()] = lineOutput;
-						}
+			let className = d.source.options.className;
 
-						for (k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
-							visibleRange = lineVisibleRanges.ranges[k];
+			let linesVisibleRanges = ctx.linesVisibleRangesForRange(d.range, /*TODO@Alex*/className === 'findMatch');
+			if (!linesVisibleRanges) {
+				continue;
+			}
 
-							piecesCount++;
-							lineOutput.push('<div class="cdr ');
-							lineOutput.push(d.options.className);
-							lineOutput.push('" style="left:');
-							lineOutput.push(visibleRange.left.toString());
-							lineOutput.push('px;width:');
-							lineOutput.push(visibleRange.width.toString());
-							lineOutput.push('px;height:');
-							lineOutput.push(lineHeight.toString());
-							lineOutput.push('px;"></div>');
-						}
-					}
+			for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
+				let lineVisibleRanges = linesVisibleRanges[j];
+				let lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
+
+				for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
+					let visibleRange = lineVisibleRanges.ranges[k];
+					let decorationOutput = (
+						'<div class="cdr '
+						+ className
+						+ '" style="left:'
+						+ String(visibleRange.left)
+						+ 'px;width:'
+						+ String(visibleRange.width)
+						+ 'px;height:'
+						+ lineHeight
+						+ 'px;"></div>'
+					);
+					output[lineIndex] += decorationOutput;
 				}
 			}
 		}
-
-		this._renderResult = output;
-
-		return true;
 	}
 
-	public render2(lineNumber:number): string[] {
-		if (this._renderResult && this._renderResult.hasOwnProperty(lineNumber.toString())) {
-			return this._renderResult[lineNumber.toString()];
+	public render(startLineNumber: number, lineNumber: number): string {
+		if (!this._renderResult) {
+			return '';
 		}
-		return null;
+		let lineIndex = lineNumber - startLineNumber;
+		if (lineIndex < 0 || lineIndex >= this._renderResult.length) {
+			throw new Error('Unexpected render request');
+		}
+		return this._renderResult[lineIndex];
 	}
 }

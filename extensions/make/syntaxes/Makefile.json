@@ -1,0 +1,475 @@
+{
+	"fileTypes": [
+		"Makefile",
+		"makefile",
+		"GNUmakefile",
+		"OCamlMakefile"
+	],
+	"name": "Makefile",
+	"patterns": [
+		{
+			"include": "#comment"
+		},
+		{
+			"include": "#variable-assignment"
+		},
+		{
+			"include": "#recipe"
+		},
+		{
+			"include": "#directives"
+		}
+	],
+	"repository": {
+		"comment": {
+			"begin": "(^[ \\t]+)?(?=#)",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.whitespace.comment.leading.makefile"
+				}
+			},
+			"end": "(?!\\G)",
+			"patterns": [
+				{
+					"begin": "#",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.comment.makefile"
+						}
+					},
+					"end": "\\n",
+					"name": "comment.line.number-sign.makefile",
+					"patterns": [
+						{
+							"match": "\\\\\\n",
+							"name": "constant.character.escape.continuation.makefile"
+						}
+					]
+				}
+			]
+		},
+		"directives": {
+			"patterns": [
+				{
+					"begin": "^[ ]*([s\\-]?include)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.include.makefile"
+						}
+					},
+					"end": "^",
+					"patterns": [
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#variables"
+						},
+						{
+							"match": "%",
+							"name": "constant.other.placeholder.makefile"
+						}
+					]
+				},
+				{
+					"begin": "^[ ]*(vpath)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.vpath.makefile"
+						}
+					},
+					"end": "^",
+					"patterns": [
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#variables"
+						},
+						{
+							"match": "%",
+							"name": "constant.other.placeholder.makefile"
+						}
+					]
+				},
+				{
+					"begin": "^(?:(override)\\s*)?(define)\\s*([^\\s]+)\\s*(=|\\?=|:=|\\+=)?(?=\\s)",
+					"captures": {
+						"1": {
+							"name": "keyword.control.override.makefile"
+						},
+						"2": {
+							"name": "keyword.control.define.makefile"
+						},
+						"3": {
+							"name": "variable.other.makefile"
+						},
+						"4": {
+							"name": "punctuation.separator.key-value.makefile"
+						}
+					},
+					"end": "^(endef)\\b",
+					"name": "meta.scope.conditional.makefile",
+					"patterns": [
+						{
+							"begin": "\\G(?!\\n)",
+							"end": "^",
+							"patterns": [
+								{
+									"include": "#comment"
+								}
+							]
+						},
+						{
+							"include": "#variables"
+						},
+						{
+							"include": "#comment"
+						}
+					]
+				},
+				{
+					"begin": "^[ ]*(export)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.$1.makefile"
+						}
+					},
+					"end": "^",
+					"patterns": [
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#variable-assignment"
+						},
+						{
+							"match": "[^\\s]+",
+							"name": "variable.other.makefile"
+						}
+					]
+				},
+				{
+					"begin": "^[ ]*(override|private)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.$1.makefile"
+						}
+					},
+					"end": "^",
+					"patterns": [
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#variable-assignment"
+						}
+					]
+				},
+				{
+					"begin": "^[ ]*(unexport|undefine)\\b",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.control.$1.makefile"
+						}
+					},
+					"end": "^",
+					"patterns": [
+						{
+							"include": "#comment"
+						},
+						{
+							"match": "[^\\s]+",
+							"name": "variable.other.makefile"
+						}
+					]
+				},
+				{
+					"begin": "^(ifdef|ifndef)\\s*([^\\s]+)(?=\\s)",
+					"captures": {
+						"1": {
+							"name": "keyword.control.$1.makefile"
+						},
+						"2": {
+							"name": "variable.other.makefile"
+						},
+						"3": {
+							"name": "punctuation.separator.key-value.makefile"
+						}
+					},
+					"end": "^(endif)\\b",
+					"name": "meta.scope.conditional.makefile",
+					"patterns": [
+						{
+							"begin": "\\G(?!\\n)",
+							"end": "^",
+							"patterns": [
+								{
+									"include": "#comment"
+								}
+							]
+						},
+						{
+							"include": "$self"
+						}
+					]
+				},
+				{
+					"begin": "^(ifeq|ifneq)(?=\\s)",
+					"captures": {
+						"1": {
+							"name": "keyword.control.$1.makefile"
+						}
+					},
+					"end": "^(endif)\\b",
+					"name": "meta.scope.conditional.makefile",
+					"patterns": [
+						{
+							"begin": "\\G",
+							"end": "^",
+							"name": "meta.scope.condition.makefile",
+							"patterns": [
+								{
+									"include": "#variables"
+								},
+								{
+									"include": "#comment"
+								}
+							]
+						},
+						{
+							"begin": "^else(?=\\s)",
+							"beginCaptures": {
+								"0": {
+									"name": "keyword.control.else.makefile"
+								}
+							},
+							"end": "^"
+						},
+						{
+							"include": "$self"
+						}
+					]
+				}
+			]
+		},
+		"interpolation": {
+			"begin": "(?=`)",
+			"end": "(?!\\G)",
+			"name": "meta.embedded.line.shell",
+			"patterns": [
+				{
+					"begin": "`",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.makefile"
+						}
+					},
+					"contentName": "source.shell",
+					"end": "(`)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.makefile"
+						},
+						"1": {
+							"name": "source.shell"
+						}
+					},
+					"name": "string.interpolated.backtick.makefile",
+					"patterns": [
+						{
+							"include": "source.shell"
+						}
+					]
+				}
+			]
+		},
+		"recipe": {
+			"begin": "^(?!\\t)([^:]*)(:)(?!\\=)",
+			"beginCaptures": {
+				"1": {
+					"patterns": [
+						{
+							"captures": {
+								"1": {
+									"name": "support.function.target.$1.makefile"
+								}
+							},
+							"match": "^\\s*(\\.(PHONY|SUFFIXES|DEFAULT|PRECIOUS|INTERMEDIATE|SECONDARY|SECONDEXPANSION|DELETE_ON_ERROR|IGNORE|LOW_RESOLUTION_TIME|SILENT|EXPORT_ALL_VARIABLES|NOTPARALLEL|ONESHELL|POSIX))\\s*$"
+						},
+						{
+							"begin": "(?=\\S)",
+							"end": "(?=\\s|$)",
+							"name": "entity.name.function.target.makefile",
+							"patterns": [
+								{
+									"include": "#variables"
+								},
+								{
+									"match": "%",
+									"name": "constant.other.placeholder.makefile"
+								}
+							]
+						}
+					]
+				},
+				"2": {
+					"name": "punctuation.separator.key-value.makefile"
+				}
+			},
+			"end": "^(?!\\t)",
+			"name": "meta.scope.target.makefile",
+			"patterns": [
+				{
+					"begin": "\\G",
+					"end": "^",
+					"name": "meta.scope.prerequisites.makefile",
+					"patterns": [
+						{
+							"match": "\\\\\\n",
+							"name": "constant.character.escape.continuation.makefile"
+						},
+						{
+							"match": "%|\\*",
+							"name": "constant.other.placeholder.makefile"
+						},
+						{
+							"include": "#comment"
+						},
+						{
+							"include": "#variables"
+						}
+					]
+				},
+				{
+					"begin": "^\\t",
+					"name": "meta.scope.recipe.makefile",
+					"patterns": [
+						{
+							"captures": {
+								"0": {
+									"patterns": [
+										{
+											"match": "\\\\\\n",
+											"name": "constant.character.escape.continuation.makefile"
+										},
+										{
+											"include": "#variables"
+										},
+										{
+											"include": "source.shell"
+										}
+									]
+								}
+							},
+							"match": ".+\\n?"
+						}
+					],
+					"while": "^\\t"
+				}
+			]
+		},
+		"variable-assignment": {
+			"begin": "(^[ ]*|\\G\\s*)([^\\s]+)\\s*(=|\\?=|:=|\\+=)",
+			"beginCaptures": {
+				"2": {
+					"name": "variable.other.makefile"
+				},
+				"3": {
+					"name": "punctuation.separator.key-value.makefile"
+				}
+			},
+			"end": "\\n",
+			"patterns": [
+				{
+					"match": "\\\\\\n",
+					"name": "constant.character.escape.continuation.makefile"
+				},
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#variables"
+				},
+				{
+					"include": "#interpolation"
+				}
+			]
+		},
+		"variables": {
+			"patterns": [
+				{
+					"captures": {
+						"1": {
+							"name": "punctuation.definition.variable.makefile"
+						}
+					},
+					"match": "(\\$?\\$)[@%<?^+*]",
+					"name": "variable.language.makefile"
+				},
+				{
+					"begin": "\\$?\\$\\(",
+					"captures": {
+						"0": {
+							"name": "punctuation.definition.variable.makefile"
+						}
+					},
+					"end": "\\)",
+					"name": "string.interpolated.makefile",
+					"patterns": [
+						{
+							"include": "#variables"
+						},
+						{
+							"match": "\\G(MAKEFILES|VPATH|SHELL|MAKESHELL|MAKE|MAKELEVEL|MAKEFLAGS|MAKECMDGOALS|CURDIR|SUFFIXES|\\.LIBPATTERNS)(?=\\s*\\))",
+							"name": "variable.language.makefile"
+						},
+						{
+							"begin": "\\G(subst|patsubst|strip|findstring|filter(-out)?|sort|word(list)?|firstword|lastword|dir|notdir|suffix|basename|addsuffix|addprefix|join|wildcard|realpath|abspath|info|error|warning|shell|foreach|if|or|and|call|eval|value|file|guile)\\s",
+							"beginCaptures": {
+								"1": {
+									"name": "support.function.$1.makefile"
+								}
+							},
+							"end": "(?=\\))",
+							"name": "meta.scope.function-call.makefile",
+							"patterns": [
+								{
+									"include": "#variables"
+								},
+								{
+									"match": "%|\\*",
+									"name": "constant.other.placeholder.makefile"
+								}
+							]
+						},
+						{
+							"begin": "\\G(origin|flavor)\\s(?=[^\\s)]+\\s*\\))",
+							"contentName": "variable.other.makefile",
+							"end": "(?=\\))",
+							"name": "meta.scope.function-call.makefile",
+							"patterns": [
+								{
+									"include": "#variables"
+								}
+							]
+						},
+						{
+							"begin": "\\G(?!\\))",
+							"end": "(?=\\))",
+							"name": "variable.other.makefile",
+							"patterns": [
+								{
+									"include": "#variables"
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	"scopeName": "source.makefile",
+	"uuid": "FF1825E8-6B1C-11D9-B883-000D93589AF6",
+	"version": "https://github.com/textmate/make.tmbundle/commit/1a1827da81e20fdce56e2658451340c070ca44b7"
+}

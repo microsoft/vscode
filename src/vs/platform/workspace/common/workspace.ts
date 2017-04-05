@@ -5,28 +5,26 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import paths = require('vs/base/common/paths');
+import { isEqualOrParent } from 'vs/platform/files/common/files';
+import { isLinux } from 'vs/base/common/platform';
 
-export var IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
+export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
 export interface IWorkspaceContextService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
+
+	/**
+	 * Returns iff the application was opened with a workspace or not.
+	 */
+	hasWorkspace(): boolean;
 
 	/**
 	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
 	 * without workspace (empty);
 	 */
 	getWorkspace(): IWorkspace;
-
-	/**
-	 * Provides access to the configuration object the platform is running with.
-	 */
-	getConfiguration(): IConfiguration;
-
-	/**
-	 * Provides access to the options object the platform is running with.
-	 */
-	getOptions(): any;
 
 	/**
 	 * Returns iff the provided resource is inside the workspace or not.
@@ -38,7 +36,7 @@ export interface IWorkspaceContextService {
 	 * without leading or trailing slashes. Returns null if the file is not inside an opened
 	 * workspace.
 	 */
-	toWorkspaceRelativePath: (resource: URI) => string;
+	toWorkspaceRelativePath: (resource: URI, toOSPath?: boolean) => string;
 
 	/**
 	 * Given a workspace relative path, returns the resource with the absolute path.
@@ -55,93 +53,57 @@ export interface IWorkspace {
 	resource: URI;
 
 	/**
-	 * the identifier that uniquely identifies this workspace among others.
-	 */
-	id: string;
-
-	/**
-	 * the name of the workspace
-	 */
-	name: string;
-
-	/**
-	 * the last modified date of the workspace if known
-	 */
-	mtime?: number;
-
-	/**
 	 * the unique identifier of the workspace. if the workspace is deleted and recreated
 	 * the identifier also changes. this makes the uid more unique compared to the id which
 	 * is just derived from the workspace name.
 	 */
 	uid?: number;
-}
-
-export interface IConfiguration {
 
 	/**
-	 * Additional worker services
+	 * the name of the workspace
 	 */
-	additionalWorkerServices?: { serviceId: string; moduleName: string; ctorName: string; }[];
-
-	/**
-	 * Some environmental flags
-	 */
-	env?: IEnvironment;
+	name?: string;
 }
 
-export interface IEnvironment {
-	appName: string;
-	appRoot: string;
-	isBuilt: boolean;
-	execPath: string;
+export class WorkspaceContextService implements IWorkspaceContextService {
 
-	version: string;
-	commitHash: string;
+	public _serviceBrand: any;
 
-	updateFeedUrl: string;
-	updateChannel: string;
+	private workspace: IWorkspace;
 
-	extensionsGallery: {
-		serviceUrl: string;
-		itemUrl: string;
-	};
+	constructor(workspace: IWorkspace) {
+		this.workspace = workspace;
+	}
 
-	releaseNotesUrl: string;
-	productDownloadUrl: string;
+	public getWorkspace(): IWorkspace {
+		return this.workspace;
+	}
 
-	welcomePage: string;
+	public hasWorkspace(): boolean {
+		return !!this.workspace;
+	}
 
-	crashReporter: any;
+	public isInsideWorkspace(resource: URI): boolean {
+		if (resource && this.workspace) {
+			return isEqualOrParent(resource.fsPath, this.workspace.resource.fsPath, !isLinux /* ignorecase */);
+		}
 
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
+		return false;
+	}
 
-	debugPluginHostPort: number;
-	debugBrkPluginHost: boolean;
+	public toWorkspaceRelativePath(resource: URI, toOSPath?: boolean): string {
+		if (this.isInsideWorkspace(resource)) {
+			return paths.normalize(paths.relative(this.workspace.resource.fsPath, resource.fsPath), toOSPath);
+		}
 
-	logPluginHostCommunication: boolean;
-	verboseLogging: boolean;
-	enablePerformance: boolean;
+		return null;
+	}
 
-	userPluginsHome: string;
-	sharedIPCHandle: string;
-	pluginDevelopmentPath: string;
-	pluginTestsPath: string;
+	public toResource(workspaceRelativePath: string): URI {
+		if (typeof workspaceRelativePath === 'string' && this.workspace) {
+			return URI.file(paths.join(this.workspace.resource.fsPath, workspaceRelativePath));
+		}
 
-	recentPaths: string[];
-
-	enableTelemetry: boolean;
-
-	aiConfig: {
-		key: string;
-		asimovKey: string;
-	},
-
-	sendASmile: {
-		submitUrl: string,
-		reportIssueUrl: string,
-		requestFeatureUrl: string
+		return null;
 	}
 }

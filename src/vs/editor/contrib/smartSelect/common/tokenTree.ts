@@ -4,24 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IModel, IPosition } from 'vs/editor/common/editorCommon';
+import { LineToken } from 'vs/editor/common/core/lineTokens';
+import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
+import { BracketsUtils, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { LanguageId, StandardTokenType } from 'vs/editor/common/modes';
+
+export const enum TokenTreeBracket {
+	None = 0,
+	Open = 1,
+	Close = -1
+}
 
 export class Node {
 
-	start: EditorCommon.IPosition;
+	start: Position;
 
-	end: EditorCommon.IPosition;
+	end: Position;
 
-	get range(): EditorCommon.IRange {
-		return {
-			startLineNumber: this.start.lineNumber,
-			startColumn: this.start.column,
-			endLineNumber: this.end.lineNumber,
-			endColumn: this.end.column
-		};
+	get range(): Range {
+		return new Range(
+			this.start.lineNumber,
+			this.start.column,
+			this.end.lineNumber,
+			this.end.column
+		);
 	}
 
 	parent: Node;
@@ -31,13 +41,13 @@ export class NodeList extends Node {
 
 	children: Node[];
 
-	get start(): EditorCommon.IPosition {
+	get start(): Position {
 		return this.hasChildren
 			? this.children[0].start
 			: this.parent.start;
 	}
 
-	get end(): EditorCommon.IPosition {
+	get end(): Position {
 		return this.hasChildren
 			? this.children[this.children.length - 1].end
 			: this.parent.end;
@@ -45,6 +55,10 @@ export class NodeList extends Node {
 
 	get hasChildren() {
 		return this.children && this.children.length > 0;
+	}
+
+	get isEmpty() {
+		return !this.hasChildren && !this.parent;
 	}
 
 	public append(node: Node): boolean {
@@ -72,11 +86,11 @@ export class Block extends Node {
 	close: Node;
 	elements: NodeList;
 
-	get start(): EditorCommon.IPosition {
+	get start(): Position {
 		return this.open.start;
 	}
 
-	get end(): EditorCommon.IPosition {
+	get end(): Position {
 		return this.close.end;
 	}
 
@@ -87,67 +101,176 @@ export class Block extends Node {
 	}
 }
 
-interface Token {
-	range: EditorCommon.IRange;
-	bracket: Modes.Bracket;
-	type: string;
-	__debugContent?: string;
+class Token {
+	_tokenBrand: void;
+
+	readonly range: Range;
+	readonly bracket: TokenTreeBracket;
+	readonly bracketType: string;
+
+	constructor(range: Range, bracket: TokenTreeBracket, bracketType: string) {
+		this.range = range;
+		this.bracket = bracket;
+		this.bracketType = bracketType;
+	}
 }
 
 function newNode(token: Token): Node {
 	var node = new Node();
-	node.start = Position.startPosition(token.range);
-	node.end = Position.endPosition(token.range);
+	node.start = token.range.getStartPosition();
+	node.end = token.range.getEndPosition();
 	return node;
+}
+
+class RawToken {
+	_basicTokenBrand: void;
+
+	public lineNumber: number;
+	public lineText: string;
+	public startOffset: number;
+	public endOffset: number;
+	public type: StandardTokenType;
+	public languageId: LanguageId;
+
+	constructor(source: LineToken, lineNumber: number, lineText: string) {
+		this.lineNumber = lineNumber;
+		this.lineText = lineText;
+		this.startOffset = source.startOffset;
+		this.endOffset = source.endOffset;
+		this.type = source.tokenType;
+		this.languageId = source.languageId;
+	}
+}
+
+class ModelRawTokenScanner {
+
+	private _model: IModel;
+	private _lineCount: number;
+	private _versionId: number;
+	private _lineNumber: number;
+	private _lineText: string;
+	private _next: LineToken;
+
+	constructor(model: IModel) {
+		this._model = model;
+		this._lineCount = this._model.getLineCount();
+		this._versionId = this._model.getVersionId();
+		this._lineNumber = 0;
+		this._lineText = null;
+		this._advance();
+	}
+
+	private _advance(): void {
+		this._next = (this._next ? this._next.next() : null);
+		while (!this._next && this._lineNumber < this._lineCount) {
+			this._lineNumber++;
+			this._lineText = this._model.getLineContent(this._lineNumber);
+			this._model.forceTokenization(this._lineNumber);
+			let currentLineTokens = this._model.getLineTokens(this._lineNumber);
+			this._next = currentLineTokens.firstToken();
+		}
+	}
+
+	public next(): RawToken {
+		if (!this._next) {
+			return null;
+		}
+		if (this._model.getVersionId() !== this._versionId) {
+			return null;
+		}
+
+		let result = new RawToken(this._next, this._lineNumber, this._lineText);
+		this._advance();
+		return result;
+	}
 }
 
 class TokenScanner {
 
-	private _model: EditorCommon.IModel;
-	private _versionId: number;
-	private _currentLineNumber: number;
-	private _currentTokenIndex: number;
-	private _currentLineTokens: EditorCommon.ILineTokens;
+	private _rawTokenScanner: ModelRawTokenScanner;
+	private _nextBuff: Token[];
 
-	constructor(model: EditorCommon.IModel) {
-		this._model = model;
-		this._versionId = model.getVersionId();
-		this._currentLineNumber = 1;
+	private _cachedLanguageBrackets: RichEditBrackets;
+	private _cachedLanguageId: LanguageId;
+
+	constructor(model: IModel) {
+		this._rawTokenScanner = new ModelRawTokenScanner(model);
+		this._nextBuff = [];
+		this._cachedLanguageBrackets = null;
+		this._cachedLanguageId = -1;
 	}
 
 	next(): Token {
-		if (this._versionId !== this._model.getVersionId()) {
-			// model has been modified
+		if (this._nextBuff.length > 0) {
+			return this._nextBuff.shift();
+		}
+
+		const token = this._rawTokenScanner.next();
+		if (!token) {
 			return null;
 		}
-		if (this._currentLineNumber >= this._model.getLineCount() + 1) {
-			// all line visisted
-			return null;
+		const lineNumber = token.lineNumber;
+		const lineText = token.lineText;
+		const tokenType = token.type;
+		let startOffset = token.startOffset;
+		const endOffset = token.endOffset;
+
+		if (this._cachedLanguageId !== token.languageId) {
+			this._cachedLanguageId = token.languageId;
+			this._cachedLanguageBrackets = LanguageConfigurationRegistry.getBracketsSupport(this._cachedLanguageId);
 		}
-		if (!this._currentLineTokens) {
-			// no tokens for this line
-			this._currentLineTokens = this._model.getLineTokens(this._currentLineNumber);
-			this._currentTokenIndex = 0;
+		const modeBrackets = this._cachedLanguageBrackets;
+
+		if (!modeBrackets || ignoreBracketsInToken(tokenType)) {
+			return new Token(
+				new Range(lineNumber, startOffset + 1, lineNumber, endOffset + 1),
+				TokenTreeBracket.None,
+				null
+			);
 		}
-		if (this._currentTokenIndex >= this._currentLineTokens.getTokenCount()) {
-			// last token of line visited
-			this._currentLineNumber += 1;
-			this._currentLineTokens = null;
-			return this.next();
-		}
-		var token: Token = {
-			type: this._currentLineTokens.getTokenType(this._currentTokenIndex),
-			bracket: this._currentLineTokens.getTokenBracket(this._currentTokenIndex),
-			range: {
-				startLineNumber: this._currentLineNumber,
-				startColumn: 1 + this._currentLineTokens.getTokenStartIndex(this._currentTokenIndex),
-				endLineNumber: this._currentLineNumber,
-				endColumn: 1 + this._currentLineTokens.getTokenEndIndex(this._currentTokenIndex, this._model.getLineMaxColumn(this._currentLineNumber))
+
+		let foundBracket: Range;
+		do {
+			foundBracket = BracketsUtils.findNextBracketInToken(modeBrackets.forwardRegex, lineNumber, lineText, startOffset, endOffset);
+			if (foundBracket) {
+				const foundBracketStartOffset = foundBracket.startColumn - 1;
+				const foundBracketEndOffset = foundBracket.endColumn - 1;
+
+				if (startOffset < foundBracketStartOffset) {
+					// there is some text before this bracket in this token
+					this._nextBuff.push(new Token(
+						new Range(lineNumber, startOffset + 1, lineNumber, foundBracketStartOffset + 1),
+						TokenTreeBracket.None,
+						null
+					));
+				}
+
+				let bracketText = lineText.substring(foundBracketStartOffset, foundBracketEndOffset);
+				bracketText = bracketText.toLowerCase();
+
+				const bracketData = modeBrackets.textIsBracket[bracketText];
+				const bracketIsOpen = modeBrackets.textIsOpenBracket[bracketText];
+
+				this._nextBuff.push(new Token(
+					new Range(lineNumber, foundBracketStartOffset + 1, lineNumber, foundBracketEndOffset + 1),
+					bracketIsOpen ? TokenTreeBracket.Open : TokenTreeBracket.Close,
+					`${bracketData.languageIdentifier.language};${bracketData.open};${bracketData.close}`
+				));
+
+				startOffset = foundBracketEndOffset;
 			}
-		};
-		//		token.__debugContent = this._model.getValueInRange(token.range);
-		this._currentTokenIndex += 1;
-		return token;
+		} while (foundBracket);
+
+		if (startOffset < endOffset) {
+			// there is some remaining none-bracket text in this token
+			this._nextBuff.push(new Token(
+				new Range(lineNumber, startOffset + 1, lineNumber, endOffset + 1),
+				TokenTreeBracket.None,
+				null
+			));
+		}
+
+		return this._nextBuff.shift();
 	}
 }
 
@@ -157,7 +280,7 @@ class TokenTreeBuilder {
 	private _stack: Token[] = [];
 	private _currentToken: Token;
 
-	constructor(model: EditorCommon.IModel) {
+	constructor(model: IModel) {
 		this._scanner = new TokenScanner(model);
 	}
 
@@ -220,7 +343,7 @@ class TokenTreeBuilder {
 	}
 
 	private _token(): Node {
-		if (!this._accept(token => token.bracket === Modes.Bracket.None)) {
+		if (!this._accept(token => token.bracket === TokenTreeBracket.None)) {
 			return null;
 		}
 		return newNode(this._currentToken);
@@ -232,8 +355,8 @@ class TokenTreeBuilder {
 			accepted: boolean;
 
 		accepted = this._accept(token => {
-			bracketType = token.type;
-			return token.bracket === Modes.Bracket.Open;
+			bracketType = token.bracketType;
+			return token.bracket === TokenTreeBracket.Open;
 		});
 		if (!accepted) {
 			return null;
@@ -245,7 +368,7 @@ class TokenTreeBuilder {
 			// inside brackets
 		}
 
-		if (!this._accept(token => token.bracket === Modes.Bracket.Close && token.type === bracketType)) {
+		if (!this._accept(token => token.bracket === TokenTreeBracket.Close && token.bracketType === bracketType)) {
 			// missing closing bracket -> return just a node list
 			var nodelist = new NodeList();
 			nodelist.append(bracket.open);
@@ -271,12 +394,15 @@ class TokenTreeBuilder {
  *	line = { block | "token" }
  *	block = "open_bracket" { line } "close_bracket"
  */
-export function build(model: EditorCommon.IModel): Node {
+export function build(model: IModel): Node {
 	var node = new TokenTreeBuilder(model).build();
 	return node;
 }
 
-export function find(node: Node, position: EditorCommon.IPosition): Node {
+export function find(node: Node, position: IPosition): Node {
+	if (node instanceof NodeList && node.isEmpty) {
+		return null;
+	}
 
 	if (!Range.containsPosition(node.range, position)) {
 		return null;
@@ -285,8 +411,10 @@ export function find(node: Node, position: EditorCommon.IPosition): Node {
 	var result: Node;
 
 	if (node instanceof NodeList) {
-		for (var i = 0, len = node.children.length; i < len && !result; i++) {
-			result = find(node.children[i], position);
+		if (node.hasChildren) {
+			for (var i = 0, len = node.children.length; i < len && !result; i++) {
+				result = find(node.children[i], position);
+			}
 		}
 
 	} else if (node instanceof Block) {

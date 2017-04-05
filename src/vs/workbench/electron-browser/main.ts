@@ -5,77 +5,84 @@
 
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import {WorkbenchShell} from 'vs/workbench/electron-browser/shell';
-import {IOptions, IGlobalSettings} from 'vs/workbench/common/options';
+import nls = require('vs/nls');
+import { TPromise } from 'vs/base/common/winjs.base';
+import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
+import { IOptions } from 'vs/workbench/common/options';
+import * as browser from 'vs/base/browser/browser';
+import { domContentLoaded } from 'vs/base/browser/dom';
 import errors = require('vs/base/common/errors');
+import comparer = require('vs/base/common/comparers');
 import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
-import timer = require('vs/base/common/timer');
-import {assign} from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
-import {IResourceInput} from 'vs/platform/editor/common/editor';
-import {IEnv} from 'vs/base/node/env';
-import {IWorkspace, IConfiguration, IEnvironment} from 'vs/platform/workspace/common/workspace';
-
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { realpath, stat } from 'vs/base/node/pfs';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import path = require('path');
-import fs = require('fs');
-import child_process = require('child_process');
-
 import gracefulFs = require('graceful-fs');
-gracefulFs.gracefulify(fs);
+import { IPath, IOpenFileRequest } from 'vs/workbench/electron-browser/common';
+import { IInitData } from 'vs/workbench/services/timer/common/timerService';
+import { TimerService } from 'vs/workbench/services/timer/node/timerService';
 
-export interface IPath {
-	filePath: string;
-	lineNumber?: number;
-	columnNumber?: number;
-}
+import { webFrame } from 'electron';
 
-export interface IMainEnvironment extends IEnvironment {
+import fs = require('fs');
+gracefulFs.gracefulify(fs); // enable gracefulFs
+
+export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+	appRoot: string;
+	execPath: string;
+
+	userEnv: any; /* vs/code/electron-main/env/IProcessEnvironment*/
+
 	workspacePath?: string;
-	autoSaveDelay?: number;
-	filesToOpen?: IPath[];
-	filesToCreate?: IPath[];
-	extensionsToInstall?: string[];
-	userEnv: IEnv;
+
+	zoomLevel?: number;
+	fullscreen?: boolean;
 }
 
-export function startup(environment: IMainEnvironment, globalSettings: IGlobalSettings): winjs.TPromise<void> {
+export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
-	// Inherit the user environment
-	assign(process.env, environment.userEnv);
+	// Ensure others can listen to zoom level changes
+	browser.setZoomFactor(webFrame.getZoomFactor());
+	browser.setZoomLevel(webFrame.getZoomLevel());
+	browser.setFullscreen(!!configuration.fullscreen);
 
-	// Shell Configuration
-	let shellConfiguration: IConfiguration = {
-		env: environment
-	};
+	// Setup Intl
+	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));
 
 	// Shell Options
-	let filesToOpen = environment.filesToOpen && environment.filesToOpen.length ? toInputs(environment.filesToOpen) : null;
-	let filesToCreate = environment.filesToCreate && environment.filesToCreate.length ? toInputs(environment.filesToCreate) : null;
-	let shellOptions: IOptions = {
-		singleFileMode: !environment.workspacePath,
-		filesToOpen: filesToOpen,
-		filesToCreate: filesToCreate,
-		extensionsToInstall: environment.extensionsToInstall,
-		autoSaveDelay: environment.autoSaveDelay,
-		globalSettings: globalSettings
+	const filesToOpen = configuration.filesToOpen && configuration.filesToOpen.length ? toInputs(configuration.filesToOpen) : null;
+	const filesToCreate = configuration.filesToCreate && configuration.filesToCreate.length ? toInputs(configuration.filesToCreate) : null;
+	const filesToDiff = configuration.filesToDiff && configuration.filesToDiff.length ? toInputs(configuration.filesToDiff) : null;
+	const shellOptions: IOptions = {
+		filesToOpen,
+		filesToCreate,
+		filesToDiff
 	};
 
-	if (environment.enablePerformance) {
-		timer.ENABLE_TIMER = true;
-	}
+	// Resolve workspace
+	return getWorkspace(configuration.workspacePath).then(workspace => {
 
-	// Open workbench
-	return openWorkbench(getWorkspace(environment), shellConfiguration, shellOptions);
+		// Open workbench
+		return openWorkbench(configuration, workspace, shellOptions);
+	});
 }
 
-function toInputs(paths: IPath[]): IResourceInput[] {
+function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 	return paths.map(p => {
-		let input = <IResourceInput>{
-			resource: uri.file(p.filePath)
-		};
+		const input = <IResourceInput>{};
+
+		if (isUntitledFile) {
+			input.resource = uri.from({ scheme: 'untitled', path: p.filePath });
+		} else {
+			input.resource = uri.file(p.filePath);
+		}
 
 		if (p.lineNumber) {
 			input.options = {
@@ -90,57 +97,78 @@ function toInputs(paths: IPath[]): IResourceInput[] {
 	});
 }
 
-function getWorkspace(environment: IMainEnvironment): IWorkspace {
-	if (!environment.workspacePath) {
-		return null;
+function getWorkspace(workspacePath: string): TPromise<IWorkspace> {
+	if (!workspacePath) {
+		return TPromise.as(null);
 	}
 
-	let realWorkspacePath = path.normalize(fs.realpathSync(environment.workspacePath));
-	if (paths.isUNC(realWorkspacePath) && strings.endsWith(realWorkspacePath, paths.nativeSep)) {
+	return realpath(workspacePath).then(realWorkspacePath => {
+
 		// for some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
 		// someone opens root ("/").
 		// See also https://github.com/nodejs/io.js/issues/1765
-		realWorkspacePath = strings.rtrim(realWorkspacePath, paths.nativeSep);
-	}
+		if (paths.isUNC(realWorkspacePath) && strings.endsWith(realWorkspacePath, paths.nativeSep)) {
+			realWorkspacePath = strings.rtrim(realWorkspacePath, paths.nativeSep);
+		}
 
-	let workspaceResource = uri.file(realWorkspacePath);
-	let folderName = path.basename(realWorkspacePath) || realWorkspacePath;
-	let folderStat = fs.statSync(realWorkspacePath);
+		const workspaceResource = uri.file(realWorkspacePath);
+		const folderName = path.basename(realWorkspacePath) || realWorkspacePath;
 
-	let workspace: IWorkspace = {
-		'resource': workspaceResource,
-		'id': platform.isLinux ? realWorkspacePath : realWorkspacePath.toLowerCase(),
-		'name': folderName,
-		'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime(), // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
-		'mtime': folderStat.mtime.getTime()
-	};
+		return stat(realWorkspacePath).then(folderStat => {
+			return <IWorkspace>{
+				'resource': workspaceResource,
+				'name': folderName,
+				'uid': platform.isLinux ? folderStat.ino : folderStat.birthtime.getTime() // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
+			};
+		});
+	}, (error) => {
+		errors.onUnexpectedError(error);
 
-	return workspace;
+		return null; // treat invalid paths as empty workspace
+	});
 }
 
-function openWorkbench(workspace: IWorkspace, configuration: IConfiguration, options: IOptions): winjs.TPromise<void> {
-	(<any>window).MonacoEnvironment.timers.beforeReady = new Date();
+function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace, options: IOptions): TPromise<void> {
+	const environmentService = new EnvironmentService(environment, environment.execPath);
+	const contextService = new WorkspaceContextService(workspace);
+	const configurationService = new WorkspaceConfigurationService(contextService, environmentService);
+	const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, !contextService.hasWorkspace());
 
-	return (<any>winjs).Utilities.ready(() => {
-		(<any>window).MonacoEnvironment.timers.afterReady = new Date();
+	// Since the configuration service is one of the core services that is used in so many places, we initialize it
+	// right before startup of the workbench shell to have its data ready for consumers
+	return configurationService.initialize().then(() => {
+		timerService.beforeDOMContentLoaded = Date.now();
 
-		// Monaco Workbench Shell
-		let beforeOpen = new Date();
-		let shell = new WorkbenchShell(document.body, workspace, configuration, options);
-		shell.open();
+		return domContentLoaded().then(() => {
+			timerService.afterDOMContentLoaded = Date.now();
 
-		shell.joinCreation().then(() => {
-			timer.start(timer.Topic.STARTUP, 'Open Shell, Viewlet & Editor', beforeOpen, 'Workbench has opened after this event with viewlet and editor restored').stop();
-		});
+			// Open Shell
+			timerService.beforeWorkbenchOpen = Date.now();
+			const shell = new WorkbenchShell(document.body, {
+				configurationService,
+				contextService,
+				environmentService,
+				timerService
+			}, options);
+			shell.open();
 
-		// Inform user about loading issues from the loader
-		(<any>self).require.config({
-			onError: (err: any) => {
-				if (err.errorCode === 'load') {
-					shell.onUnexpectedError(errors.loaderError(err));
+			// Inform user about loading issues from the loader
+			(<any>self).require.config({
+				onError: (err: any) => {
+					if (err.errorCode === 'load') {
+						shell.onUnexpectedError(loaderError(err));
+					}
 				}
-			}
+			});
 		});
-	}, true);
+	});
+}
+
+function loaderError(err: Error): Error {
+	if (platform.isWeb) {
+		return new Error(nls.localize('loaderError', "Failed to load a required file. Either you are no longer connected to the internet or the server you are connected to is offline. Please refresh the browser to try again."));
+	}
+
+	return new Error(nls.localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err)));
 }

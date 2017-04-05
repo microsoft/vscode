@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
-import Modes = require('vs/editor/common/modes');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import { IState, FontStyle, StandardTokenType, MetadataConsts, ColorId, LanguageId } from 'vs/editor/common/modes';
+import { CharCode } from 'vs/base/common/charCode';
+import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { Position } from 'vs/editor/common/core/position';
+import { Constants } from 'vs/editor/common/core/uint';
 
 export interface ILineEdit {
 	startColumn: number;
@@ -15,133 +17,257 @@ export interface ILineEdit {
 	forceMoveMarkers: boolean;
 }
 
-export interface ILineMarker extends EditorCommon.IReadOnlyLineMarker {
-	id:string;
-	column:number;
-	stickToPreviousCharacter:boolean;
+export class LineMarker {
+	_lineMarkerBrand: void;
 
-	oldLineNumber:number;
-	oldColumn:number;
+	public readonly id: string;
+	public readonly internalDecorationId: number;
 
-	line:ModelLine;
+	public stickToPreviousCharacter: boolean;
+	public position: Position;
+
+	constructor(id: string, internalDecorationId: number, position: Position, stickToPreviousCharacter: boolean) {
+		this.id = id;
+		this.internalDecorationId = internalDecorationId;
+		this.position = position;
+		this.stickToPreviousCharacter = stickToPreviousCharacter;
+	}
+
+	public toString(): string {
+		return '{\'' + this.id + '\';' + this.position.toString() + ',' + this.stickToPreviousCharacter + '}';
+	}
+
+	public updateLineNumber(markersTracker: MarkersTracker, lineNumber: number): void {
+		if (this.position.lineNumber === lineNumber) {
+			return;
+		}
+		markersTracker.addChangedMarker(this);
+		this.position = new Position(lineNumber, this.position.column);
+	}
+
+	public updateColumn(markersTracker: MarkersTracker, column: number): void {
+		if (this.position.column === column) {
+			return;
+		}
+		markersTracker.addChangedMarker(this);
+		this.position = new Position(this.position.lineNumber, column);
+	}
+
+	public updatePosition(markersTracker: MarkersTracker, position: Position): void {
+		if (this.position.lineNumber === position.lineNumber && this.position.column === position.column) {
+			return;
+		}
+		markersTracker.addChangedMarker(this);
+		this.position = position;
+	}
+
+	public setPosition(position: Position) {
+		this.position = position;
+	}
+
+
+	public static compareMarkers(a: LineMarker, b: LineMarker): number {
+		if (a.position.column === b.position.column) {
+			return (a.stickToPreviousCharacter ? 0 : 1) - (b.stickToPreviousCharacter ? 0 : 1);
+		}
+		return a.position.column - b.position.column;
+	}
 }
 
-export interface IChangedMarkers {
-	[markerId:string]: boolean;
-}
+export class MarkersTracker {
+	_changedDecorationsBrand: void;
 
-export interface IModeTransitions {
-	toArray(topLevelMode: Modes.IMode): Modes.IModeTransition[];
+	private _changedDecorations: number[];
+	private _changedDecorationsLen: number;
+
+	constructor() {
+		this._changedDecorations = [];
+		this._changedDecorationsLen = 0;
+	}
+
+	public addChangedMarker(marker: LineMarker): void {
+		let internalDecorationId = marker.internalDecorationId;
+		if (internalDecorationId !== 0) {
+			this._changedDecorations[this._changedDecorationsLen++] = internalDecorationId;
+		}
+	}
+
+	public getDecorationIds(): number[] {
+		return this._changedDecorations;
+	}
 }
 
 export interface ITextWithMarkers {
 	text: string;
-	markers: ILineMarker[];
+	markers: LineMarker[];
 }
 
 interface ITokensAdjuster {
-	adjust(toColumn:number, delta:number, minimumAllowedColumn:number): void;
-	finish(delta:number, lineTextLength:number): void;
+	adjust(toColumn: number, delta: number, minimumAllowedColumn: number): void;
+	finish(delta: number, lineTextLength: number): void;
 }
 
 interface IMarkersAdjuster {
-	adjust(toColumn:number, delta:number, minimumAllowedColumn:number, isReplace:boolean, forceMoveMarkers:boolean): void;
-	finish(delta:number, lineTextLength:number): void;
+	adjustDelta(toColumn: number, delta: number, minimumAllowedColumn: number, moveSemantics: MarkerMoveSemantics): void;
+	adjustSet(toColumn: number, newColumn: number, moveSemantics: MarkerMoveSemantics): void;
+	finish(delta: number, lineTextLength: number): void;
 }
 
 var NO_OP_TOKENS_ADJUSTER: ITokensAdjuster = {
-	adjust: () => {},
-	finish: () => {}
+	adjust: () => { },
+	finish: () => { }
 };
 var NO_OP_MARKERS_ADJUSTER: IMarkersAdjuster = {
-	adjust: () => {},
-	finish: () => {}
+	adjustDelta: () => { },
+	adjustSet: () => { },
+	finish: () => { }
 };
 
+const enum MarkerMoveSemantics {
+	MarkerDefined = 0,
+	ForceMove = 1,
+	ForceStay = 2
+}
+
+/**
+ * Returns:
+ *  - 0 => the line consists of whitespace
+ *  - otherwise => the indent level is returned value - 1
+ */
+function computePlusOneIndentLevel(line: string, tabSize: number): number {
+	let indent = 0;
+	let i = 0;
+	let len = line.length;
+
+	while (i < len) {
+		let chCode = line.charCodeAt(i);
+		if (chCode === CharCode.Space) {
+			indent++;
+		} else if (chCode === CharCode.Tab) {
+			indent = indent - indent % tabSize + tabSize;
+		} else {
+			break;
+		}
+		i++;
+	}
+
+	if (i === len) {
+		return 0; // line only consists of whitespace
+	}
+
+	return indent + 1;
+}
+
 export class ModelLine {
-	public lineNumber:number;
-	public text:string;
-	public isInvalid:boolean;
+	private _lineNumber: number;
+	public get lineNumber(): number { return this._lineNumber; }
 
-	private _state:Modes.IState;
-	private _modeTransitions:IModeTransitions;
-	private _lineTokens:EditorCommon.ILineTokens;
-	private _markers:ILineMarker[];
+	private _text: string;
+	public get text(): string { return this._text; }
 
-	constructor(lineNumber:number, text:string) {
-		this.lineNumber = lineNumber;
-		this.text = text;
-		this.isInvalid = false;
+	/**
+	 * bits 31 - 1 => indentLevel
+	 * bit 0 => isInvalid
+	 */
+	private _metadata: number;
+
+	public get isInvalid(): boolean {
+		return (this._metadata & 0x00000001) ? true : false;
+	}
+
+	public set isInvalid(value: boolean) {
+		this._metadata = (this._metadata & 0xfffffffe) | (value ? 1 : 0);
+	}
+
+	/**
+	 * Returns:
+	 *  - -1 => the line consists of whitespace
+	 *  - otherwise => the indent level is returned value
+	 */
+	public getIndentLevel(): number {
+		return ((this._metadata & 0xfffffffe) >> 1) - 1;
+	}
+
+	private _setPlusOneIndentLevel(value: number): void {
+		this._metadata = (this._metadata & 0x00000001) | ((value & 0xefffffff) << 1);
+	}
+
+	public updateTabSize(tabSize: number): void {
+		if (tabSize === 0) {
+			// don't care mark
+			this._metadata = this._metadata & 0x00000001;
+		} else {
+			this._setPlusOneIndentLevel(computePlusOneIndentLevel(this._text, tabSize));
+		}
+	}
+
+	private _state: IState;
+	private _lineTokens: ArrayBuffer;
+	private _markers: LineMarker[];
+
+	constructor(lineNumber: number, text: string, tabSize: number) {
+		this._lineNumber = lineNumber | 0;
+		this._metadata = 0;
+		this._setText(text, tabSize);
+		this._state = null;
+		this._lineTokens = null;
+		this._markers = null;
 	}
 
 	// --- BEGIN STATE
 
-	public setState(state: Modes.IState): void {
+	public resetTokenizationState(): void {
+		this._state = null;
+		this._lineTokens = null;
+	}
+
+	public setState(state: IState): void {
 		this._state = state;
 	}
 
-	public getState(): Modes.IState {
+	public getState(): IState {
 		return this._state || null;
 	}
 
 	// --- END STATE
 
-	// --- BEGIN MODE TRANSITIONS
-
-	private _setModeTransitions(topLevelMode:Modes.IMode, modeTransitions:Modes.IModeTransition[]): void {
-		let desired = toModeTransitions(topLevelMode, modeTransitions);
-
-		if (desired === null) {
-			// saving memory
-			if (typeof this._modeTransitions === 'undefined') {
-				return;
-			}
-			this._modeTransitions = null;
-			return;
-		}
-
-		this._modeTransitions = desired;
-	}
-
-	public getModeTransitions(): IModeTransitions {
-		if (this._modeTransitions) {
-			return this._modeTransitions;
-		}
-		return DefaultModeTransitions.INSTANCE;
-	}
-
-	// --- END MODE TRANSITIONS
-
 	// --- BEGIN TOKENS
 
-	public setTokens(map: EditorCommon.ITokensInflatorMap, tokens: Modes.IToken[], topLevelMode:Modes.IMode, modeTransitions:Modes.IModeTransition[]): void {
-		this._setLineTokens(map, tokens);
-		this._setModeTransitions(topLevelMode, modeTransitions);
+	private static _getDefaultMetadata(topLevelLanguageId: LanguageId): number {
+		return (
+			(topLevelLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+			| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET)
+			| (FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+			| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+		) >>> 0;
 	}
 
-	private _setLineTokens(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]|number[]): void {
-		let desired = toLineTokens(map, tokens, this.text.length);
-
-		if (desired === null) {
-			// saving memory
-			if (typeof this._lineTokens === 'undefined') {
-				return;
-			}
+	public setTokens(topLevelLanguageId: LanguageId, tokens: Uint32Array): void {
+		if (!tokens || tokens.length === 0) {
 			this._lineTokens = null;
 			return;
 		}
-
-		this._lineTokens = desired;
+		if (tokens.length === 2) {
+			// there is one token
+			if (tokens[0] === 0 && tokens[1] === ModelLine._getDefaultMetadata(topLevelLanguageId)) {
+				this._lineTokens = null;
+				return;
+			}
+		}
+		this._lineTokens = tokens.buffer;
 	}
 
-	public getTokens(): EditorCommon.ILineTokens {
-		if (this._lineTokens) {
-			return this._lineTokens;
+	public getTokens(topLevelLanguageId: LanguageId): LineTokens {
+		let rawLineTokens = this._lineTokens;
+		if (rawLineTokens) {
+			return new LineTokens(new Uint32Array(rawLineTokens), this._text);
 		}
-		if (this.text.length === 0) {
-			return EmptyLineTokens.INSTANCE;
-		}
-		return DefaultLineTokens.INSTANCE;
+
+		let lineTokens = new Uint32Array(2);
+		lineTokens[0] = 0;
+		lineTokens[1] = ModelLine._getDefaultMetadata(topLevelLanguageId);
+		return new LineTokens(lineTokens, this._text);
 	}
 
 	// --- END TOKENS
@@ -152,57 +278,59 @@ export class ModelLine {
 			return NO_OP_TOKENS_ADJUSTER;
 		}
 
-		var lineTokens = this._lineTokens;
+		let lineTokens = new Uint32Array(this._lineTokens);
+		let tokensLength = (lineTokens.length >>> 1);
+		let tokenIndex = 0;
+		let tokenStartOffset = 0;
+		let removeTokensCount = 0;
 
-		let BIN = EditorCommon.LineTokensBinaryEncoding;
-		let tokens = lineTokens.getBinaryEncodedTokens();
-		let tokensLength = tokens.length;
-		let tokensIndex = 0;
-		let currentTokenStartIndex = 0;
-
-		let adjust = (toColumn:number, delta:number, minimumAllowedColumn:number) => {
-			// console.log('before call: tokensIndex: ' + tokensIndex + ': ' + String(this.getTokens()));
-			// console.log('adjustTokens: ' + toColumn + ' with delta: ' + delta + ' and [' + minimumAllowedColumn + ']');
-			// console.log('currentTokenStartIndex: ' + currentTokenStartIndex);
+		let adjust = (toColumn: number, delta: number, minimumAllowedColumn: number) => {
+			// console.log(`------------------------------------------------------------------`);
+			// console.log(`before call: tokenIndex: ${tokenIndex}: ${lineTokens}`);
+			// console.log(`adjustTokens: ${toColumn} with delta: ${delta} and [${minimumAllowedColumn}]`);
+			// console.log(`tokenStartOffset: ${tokenStartOffset}`);
 			let minimumAllowedIndex = minimumAllowedColumn - 1;
 
-			while (currentTokenStartIndex < toColumn && tokensIndex < tokensLength) {
+			while (tokenStartOffset < toColumn && tokenIndex < tokensLength) {
 
-				if (currentTokenStartIndex > 0 && delta !== 0) {
+				if (tokenStartOffset > 0 && delta !== 0) {
 					// adjust token's `startIndex` by `delta`
-					let deflatedType = (tokens[tokensIndex] / BIN.TYPE_OFFSET) & BIN.TYPE_MASK;
-					let deflatedBracket = (tokens[tokensIndex] / BIN.BRACKET_OFFSET) & BIN.BRACKET_MASK;
-					let newStartIndex = Math.max(minimumAllowedIndex, currentTokenStartIndex + delta);
-					let newToken = deflatedBracket * BIN.BRACKET_OFFSET + deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
+					let newTokenStartOffset = Math.max(minimumAllowedIndex, tokenStartOffset + delta);
+					lineTokens[(tokenIndex << 1)] = newTokenStartOffset;
+
+					// console.log(` * adjusted token start offset for token at ${tokenIndex}: ${newTokenStartOffset}`);
 
 					if (delta < 0) {
-						// pop all previous tokens that have become `collapsed`
-						while (tokensIndex > 0) {
-							let prevTokenStartIndex = (tokens[tokensIndex - 1] / BIN.START_INDEX_OFFSET) & BIN.START_INDEX_MASK;
-							if (prevTokenStartIndex >= newStartIndex) {
-								// Token at `tokensIndex` - 1 is now `collapsed` => pop it
-								tokens.splice(tokensIndex - 1, 1);
-								tokensLength--;
-								tokensIndex--;
+						let tmpTokenIndex = tokenIndex;
+						while (tmpTokenIndex > 0) {
+							let prevTokenStartOffset = lineTokens[((tmpTokenIndex - 1) << 1)];
+							if (prevTokenStartOffset >= newTokenStartOffset) {
+								if (prevTokenStartOffset !== Constants.MAX_UINT_32) {
+									// console.log(` * marking for deletion token at ${tmpTokenIndex - 1}`);
+									lineTokens[((tmpTokenIndex - 1) << 1)] = Constants.MAX_UINT_32;
+									removeTokensCount++;
+								}
+								tmpTokenIndex--;
 							} else {
 								break;
 							}
 						}
 					}
-					tokens[tokensIndex] = newToken;
 				}
 
-				tokensIndex++;
-
-				if (tokensIndex < tokensLength) {
-					currentTokenStartIndex = (tokens[tokensIndex] / BIN.START_INDEX_OFFSET) & BIN.START_INDEX_MASK;
+				tokenIndex++;
+				if (tokenIndex < tokensLength) {
+					tokenStartOffset = lineTokens[(tokenIndex << 1)];
 				}
 			}
-			// console.log('after call: tokensIndex: ' + tokensIndex + ': ' + String(this.getTokens()));
+			// console.log(`after call: tokenIndex: ${tokenIndex}: ${lineTokens}`);
 		};
 
-		let finish = (delta:number, lineTextLength:number) => {
-			adjust(Number.MAX_VALUE, delta, 1);
+		let finish = (delta: number, lineTextLength: number) => {
+			adjust(Constants.MAX_SAFE_SMALL_INTEGER, delta, 1);
+
+			// Mark overflowing tokens for deletion & delete marked tokens
+			this._deleteMarkedTokens(this._markOverflowingTokensForDeletion(removeTokensCount, lineTextLength));
 		};
 
 		return {
@@ -211,31 +339,93 @@ export class ModelLine {
 		};
 	}
 
-	private _setText(text:string): void {
-		this.text = text;
+	private _markOverflowingTokensForDeletion(removeTokensCount: number, lineTextLength: number): number {
+		if (!this._lineTokens) {
+			return removeTokensCount;
+		}
 
-		if (this._lineTokens) {
-			let BIN = EditorCommon.LineTokensBinaryEncoding,
-				map = this._lineTokens.getBinaryEncodedTokensMap(),
-				tokens = this._lineTokens.getBinaryEncodedTokens(),
-				lineTextLength = this.text.length;
+		let lineTokens = new Uint32Array(this._lineTokens);
+		let tokensLength = (lineTokens.length >>> 1);
 
-			// Remove overflowing tokens
-			while (tokens.length > 0) {
-				let lastTokenStartIndex = (tokens[tokens.length - 1] / BIN.START_INDEX_OFFSET) & BIN.START_INDEX_MASK;
-				if (lastTokenStartIndex < lineTextLength) {
-					// Valid token
-					break;
-				}
-				// This token now overflows the text => remove it
-				tokens.pop();
+		if (removeTokensCount + 1 === tokensLength) {
+			// no more removing, cannot end up without any tokens for mode transition reasons
+			return removeTokensCount;
+		}
+
+		for (let tokenIndex = tokensLength - 1; tokenIndex > 0; tokenIndex--) {
+			let tokenStartOffset = lineTokens[(tokenIndex << 1)];
+			if (tokenStartOffset < lineTextLength) {
+				// valid token => stop iterating
+				return removeTokensCount;
 			}
 
-			this._setLineTokens(map, tokens);
+			// this token now overflows the text => mark it for removal
+			if (tokenStartOffset !== Constants.MAX_UINT_32) {
+				// console.log(` * marking for deletion token at ${tokenIndex}`);
+				lineTokens[(tokenIndex << 1)] = Constants.MAX_UINT_32;
+				removeTokensCount++;
+
+				if (removeTokensCount + 1 === tokensLength) {
+					// no more removing, cannot end up without any tokens for mode transition reasons
+					return removeTokensCount;
+				}
+			}
+		}
+
+		return removeTokensCount;
+	}
+
+	private _deleteMarkedTokens(removeTokensCount: number): void {
+		if (removeTokensCount === 0) {
+			return;
+		}
+
+		let lineTokens = new Uint32Array(this._lineTokens);
+		let tokensLength = (lineTokens.length >>> 1);
+		let newTokens = new Uint32Array(((tokensLength - removeTokensCount) << 1)), newTokenIdx = 0;
+		for (let i = 0; i < tokensLength; i++) {
+			let startOffset = lineTokens[(i << 1)];
+			if (startOffset === Constants.MAX_UINT_32) {
+				// marked for deletion
+				continue;
+			}
+			let metadata = lineTokens[(i << 1) + 1];
+			newTokens[newTokenIdx++] = startOffset;
+			newTokens[newTokenIdx++] = metadata;
+		}
+		this._lineTokens = newTokens.buffer;
+	}
+
+	private _setText(text: string, tabSize: number): void {
+		this._text = text;
+		if (tabSize === 0) {
+			// don't care mark
+			this._metadata = this._metadata & 0x00000001;
+		} else {
+			this._setPlusOneIndentLevel(computePlusOneIndentLevel(text, tabSize));
 		}
 	}
 
-	private _createMarkersAdjuster(changedMarkers:IChangedMarkers): IMarkersAdjuster {
+	// private _printMarkers(): string {
+	// 	if (!this._markers) {
+	// 		return '[]';
+	// 	}
+	// 	if (this._markers.length === 0) {
+	// 		return '[]';
+	// 	}
+
+	// 	var markers = this._markers;
+
+	// 	var printMarker = (m:ILineMarker) => {
+	// 		if (m.stickToPreviousCharacter) {
+	// 			return '|' + m.column;
+	// 		}
+	// 		return m.column + '|';
+	// 	};
+	// 	return '[' + markers.map(printMarker).join(', ') + ']';
+	// }
+
+	private _createMarkersAdjuster(markersTracker: MarkersTracker): IMarkersAdjuster {
 		if (!this._markers) {
 			return NO_OP_MARKERS_ADJUSTER;
 		}
@@ -243,38 +433,40 @@ export class ModelLine {
 			return NO_OP_MARKERS_ADJUSTER;
 		}
 
+		this._markers.sort(LineMarker.compareMarkers);
+
 		var markers = this._markers;
 		var markersLength = markers.length;
 		var markersIndex = 0;
 		var marker = markers[markersIndex];
 
-		// var printMarkers = () => {
-		// 	return '[' + markers.map( m => m.column).join(', ') + ']';
-		// };
+		// console.log('------------- INITIAL MARKERS: ' + this._printMarkers());
 
-		let adjust = (toColumn:number, delta:number, minimumAllowedColumn:number, isReplace:boolean, forceMoveMarkers:boolean) => {
+		let adjustMarkerBeforeColumn = (toColumn: number, moveSemantics: MarkerMoveSemantics) => {
+			if (marker.position.column < toColumn) {
+				return true;
+			}
+			if (marker.position.column > toColumn) {
+				return false;
+			}
+			if (moveSemantics === MarkerMoveSemantics.ForceMove) {
+				return false;
+			}
+			if (moveSemantics === MarkerMoveSemantics.ForceStay) {
+				return true;
+			}
+			return marker.stickToPreviousCharacter;
+		};
+
+		let adjustDelta = (toColumn: number, delta: number, minimumAllowedColumn: number, moveSemantics: MarkerMoveSemantics) => {
 			// console.log('------------------------------');
-			// console.log('adjust called: toColumn: ' + toColumn + ', delta: ' + delta + ', minimumAllowedColumn: ' + minimumAllowedColumn + ', isReplace: ' + isReplace + ', forceMoveMarkers:' + forceMoveMarkers);
-			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + printMarkers());
-			while (
-				markersIndex < markersLength
-				&& (
-					marker.column < toColumn
-					|| (
-						!forceMoveMarkers
-						&& marker.column === toColumn
-						&& (isReplace || marker.stickToPreviousCharacter)
-					)
-				)
-			) {
+			// console.log('adjustDelta called: toColumn: ' + toColumn + ', delta: ' + delta + ', minimumAllowedColumn: ' + minimumAllowedColumn + ', moveSemantics: ' + MarkerMoveSemantics[moveSemantics]);
+			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
+
+			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
 				if (delta !== 0) {
-					let newColumn = Math.max(minimumAllowedColumn, marker.column + delta);
-					if (marker.column !== newColumn) {
-						changedMarkers[marker.id] = true;
-						marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
-						marker.oldColumn = marker.oldColumn || marker.column;
-						marker.column = Math.max(minimumAllowedColumn, marker.column + delta);
-					}
+					let newColumn = Math.max(minimumAllowedColumn, marker.position.column + delta);
+					marker.updateColumn(markersTracker, newColumn);
 				}
 
 				markersIndex++;
@@ -282,53 +474,84 @@ export class ModelLine {
 					marker = markers[markersIndex];
 				}
 			}
-			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + printMarkers());
+
+			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
 		};
 
-		let finish = (delta:number, lineTextLength:number) => {
-			adjust(Number.MAX_VALUE, delta, 1, false, false);
+		let adjustSet = (toColumn: number, newColumn: number, moveSemantics: MarkerMoveSemantics) => {
+			// console.log('------------------------------');
+			// console.log('adjustSet called: toColumn: ' + toColumn + ', newColumn: ' + newColumn + ', moveSemantics: ' + MarkerMoveSemantics[moveSemantics]);
+			// console.log('BEFORE::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
+
+			while (markersIndex < markersLength && adjustMarkerBeforeColumn(toColumn, moveSemantics)) {
+				marker.updateColumn(markersTracker, newColumn);
+
+				markersIndex++;
+				if (markersIndex < markersLength) {
+					marker = markers[markersIndex];
+				}
+			}
+
+			// console.log('AFTER::: markersIndex: ' + markersIndex + ' : ' + this._printMarkers());
+		};
+
+		let finish = (delta: number, lineTextLength: number) => {
+			adjustDelta(Constants.MAX_SAFE_SMALL_INTEGER, delta, 1, MarkerMoveSemantics.MarkerDefined);
+
+			// console.log('------------- FINAL MARKERS: ' + this._printMarkers());
 		};
 
 		return {
-			adjust: adjust,
+			adjustDelta: adjustDelta,
+			adjustSet: adjustSet,
 			finish: finish
 		};
 	}
 
-	public applyEdits(changedMarkers: IChangedMarkers, edits:ILineEdit[]): number {
-		// console.log('--> applyEdits: ' + JSON.stringify(edits));
-		var deltaColumn = 0;
-		var resultText = this.text;
+	public applyEdits(markersTracker: MarkersTracker, edits: ILineEdit[], tabSize: number): number {
+		let deltaColumn = 0;
+		let resultText = this._text;
 
-		var tokensAdjuster = this._createTokensAdjuster();
-		var markersAdjuster = this._createMarkersAdjuster(changedMarkers);
+		let tokensAdjuster = this._createTokensAdjuster();
+		let markersAdjuster = this._createMarkersAdjuster(markersTracker);
 
-		for (var i = 0, len = edits.length; i < len; i++) {
-			let _oldStartColumn = edits[i].startColumn;
-			let _oldEndColumn = edits[i].endColumn;
-			// console.log('_oldStartColumn: ' + _oldStartColumn + ', _oldEndColumn: ' + _oldEndColumn);
-			let startColumn = deltaColumn + edits[i].startColumn;
-			let endColumn = deltaColumn + edits[i].endColumn;
-			let text = edits[i].text;
+		for (let i = 0, len = edits.length; i < len; i++) {
+			let edit = edits[i];
+
+			// console.log();
+			// console.log('=============================');
+			// console.log('EDIT #' + i + ' [ ' + edit.startColumn + ' -> ' + edit.endColumn + ' ] : <<<' + edit.text + '>>>, forceMoveMarkers: ' + edit.forceMoveMarkers);
+			// console.log('deltaColumn: ' + deltaColumn);
+
+			let startColumn = deltaColumn + edit.startColumn;
+			let endColumn = deltaColumn + edit.endColumn;
+			let deletingCnt = endColumn - startColumn;
+			let insertingCnt = edit.text.length;
 
 			// Adjust tokens & markers before this edit
-			tokensAdjuster.adjust(_oldStartColumn - 1, deltaColumn, 1);
-			markersAdjuster.adjust(_oldStartColumn - 1 + 1, deltaColumn, 1, startColumn !== endColumn, edits[i].forceMoveMarkers);
+			// console.log('Adjust tokens & markers before this edit');
+			tokensAdjuster.adjust(edit.startColumn - 1, deltaColumn, 1);
+			markersAdjuster.adjustDelta(edit.startColumn, deltaColumn, 1, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > 0 ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined));
 
 			// Adjust tokens & markers for the common part of this edit
-			let commonLength = Math.min(endColumn - startColumn, text.length);
+			let commonLength = Math.min(deletingCnt, insertingCnt);
 			if (commonLength > 0) {
-				tokensAdjuster.adjust(_oldStartColumn - 1 + commonLength, deltaColumn, startColumn);
-				markersAdjuster.adjust(_oldStartColumn - 1 + 1 + commonLength, deltaColumn, startColumn, true, edits[i].forceMoveMarkers);
+				// console.log('Adjust tokens & markers for the common part of this edit');
+				tokensAdjuster.adjust(edit.startColumn - 1 + commonLength, deltaColumn, startColumn);
+
+				if (!edit.forceMoveMarkers) {
+					markersAdjuster.adjustDelta(edit.startColumn + commonLength, deltaColumn, startColumn, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : (deletingCnt > insertingCnt ? MarkerMoveSemantics.ForceStay : MarkerMoveSemantics.MarkerDefined));
+				}
 			}
 
 			// Perform the edit & update `deltaColumn`
-			resultText = resultText.substring(0, startColumn - 1) + text + resultText.substring(endColumn - 1);
-			deltaColumn += text.length - (endColumn - startColumn);
+			resultText = resultText.substring(0, startColumn - 1) + edit.text + resultText.substring(endColumn - 1);
+			deltaColumn += insertingCnt - deletingCnt;
 
 			// Adjust tokens & markers inside this edit
-			tokensAdjuster.adjust(_oldEndColumn, deltaColumn, startColumn);
-			markersAdjuster.adjust(_oldEndColumn + 1, deltaColumn, startColumn, false, edits[i].forceMoveMarkers);
+			// console.log('Adjust tokens & markers inside this edit');
+			tokensAdjuster.adjust(edit.endColumn, deltaColumn, startColumn);
+			markersAdjuster.adjustSet(edit.endColumn, startColumn + insertingCnt, edit.forceMoveMarkers ? MarkerMoveSemantics.ForceMove : MarkerMoveSemantics.MarkerDefined);
 		}
 
 		// Wrap up tokens & markers; adjust remaining if needed
@@ -336,26 +559,27 @@ export class ModelLine {
 		markersAdjuster.finish(deltaColumn, resultText.length);
 
 		// Save the resulting text
-		this._setText(resultText);
+		this._setText(resultText, tabSize);
 
 		return deltaColumn;
 	}
 
-	public split(changedMarkers: IChangedMarkers, splitColumn:number, forceMoveMarkers:boolean): ModelLine {
-		// console.log('--> split: ' + splitColumn);
-		var myText = this.text.substring(0, splitColumn - 1);
-		var otherText = this.text.substring(splitColumn - 1);
+	public split(markersTracker: MarkersTracker, splitColumn: number, forceMoveMarkers: boolean, tabSize: number): ModelLine {
+		// console.log('--> split @ ' + splitColumn + '::: ' + this._printMarkers());
+		var myText = this._text.substring(0, splitColumn - 1);
+		var otherText = this._text.substring(splitColumn - 1);
 
-		var otherMarkers: ILineMarker[] = null;
+		var otherMarkers: LineMarker[] = null;
 
 		if (this._markers) {
+			this._markers.sort(LineMarker.compareMarkers);
 			for (let i = 0, len = this._markers.length; i < len; i++) {
 				let marker = this._markers[i];
 
 				if (
-					marker.column > splitColumn
+					marker.position.column > splitColumn
 					|| (
-						marker.column === splitColumn
+						marker.position.column === splitColumn
 						&& (
 							forceMoveMarkers
 							|| !marker.stickToPreviousCharacter
@@ -373,58 +597,54 @@ export class ModelLine {
 				for (let i = 0, len = otherMarkers.length; i < len; i++) {
 					let marker = otherMarkers[i];
 
-					changedMarkers[marker.id] = true;
-					marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
-					marker.oldColumn = marker.oldColumn || marker.column;
-					marker.column -= splitColumn - 1;
+					marker.updateColumn(markersTracker, marker.position.column - (splitColumn - 1));
 				}
 			}
 		}
 
-		this._setText(myText);
+		this._setText(myText, tabSize);
 
-		var otherLine = new ModelLine(this.lineNumber + 1, otherText);
+		// Mark overflowing tokens for deletion & delete marked tokens
+		this._deleteMarkedTokens(this._markOverflowingTokensForDeletion(0, this._text.length));
+
+		var otherLine = new ModelLine(this._lineNumber + 1, otherText, tabSize);
 		if (otherMarkers) {
 			otherLine.addMarkers(otherMarkers);
 		}
 		return otherLine;
 	}
 
-	public append(changedMarkers: IChangedMarkers, other:ModelLine): void {
-		// console.log('--> append: ');
-		var thisTextLength = this.text.length;
-		this._setText(this.text + other.text);
+	public append(markersTracker: MarkersTracker, other: ModelLine, tabSize: number): void {
+		// console.log('--> append: THIS :: ' + this._printMarkers());
+		// console.log('--> append: OTHER :: ' + this._printMarkers());
+		let thisTextLength = this._text.length;
+		this._setText(this._text + other._text, tabSize);
 
-		let otherLineTokens = other._lineTokens;
-		if (otherLineTokens) {
+		let otherRawTokens = other._lineTokens;
+		if (otherRawTokens) {
 			// Other has real tokens
-			let otherTokens = otherLineTokens.getBinaryEncodedTokens();
+
+			let otherTokens = new Uint32Array(otherRawTokens);
 
 			// Adjust other tokens
 			if (thisTextLength > 0) {
-				let BIN = EditorCommon.LineTokensBinaryEncoding;
-
-				for (let i = 0, len = otherTokens.length; i < len; i++) {
-					let token = otherTokens[i];
-
-					let deflatedStartIndex = (token / BIN.START_INDEX_OFFSET) & BIN.START_INDEX_MASK;
-					let deflatedType = (token / BIN.TYPE_OFFSET) & BIN.TYPE_MASK;
-					let deflatedBracket = (token / BIN.BRACKET_OFFSET) & BIN.BRACKET_MASK;
-					let newStartIndex = deflatedStartIndex + thisTextLength;
-					let newToken = deflatedBracket * BIN.BRACKET_OFFSET + deflatedType * BIN.TYPE_OFFSET + newStartIndex * BIN.START_INDEX_OFFSET;
-
-					otherTokens[i] = newToken;
+				for (let i = 0, len = (otherTokens.length >>> 1); i < len; i++) {
+					otherTokens[(i << 1)] = otherTokens[(i << 1)] + thisTextLength;
 				}
 			}
 
 			// Append other tokens
-			let myLineTokens = this._lineTokens;
-			if (myLineTokens) {
+			let myRawTokens = this._lineTokens;
+			if (myRawTokens) {
 				// I have real tokens
-				this._setLineTokens(myLineTokens.getBinaryEncodedTokensMap(), myLineTokens.getBinaryEncodedTokens().concat(otherTokens));
+				let myTokens = new Uint32Array(myRawTokens);
+				let result = new Uint32Array(myTokens.length + otherTokens.length);
+				result.set(myTokens, 0);
+				result.set(otherTokens, myTokens.length);
+				this._lineTokens = result.buffer;
 			} else {
 				// I don't have real tokens
-				this._setLineTokens(otherLineTokens.getBinaryEncodedTokensMap(), otherTokens);
+				this._lineTokens = otherTokens.buffer;
 			}
 		}
 
@@ -436,37 +656,24 @@ export class ModelLine {
 			for (let i = 0, len = otherMarkers.length; i < len; i++) {
 				let marker = otherMarkers[i];
 
-				changedMarkers[marker.id] = true;
-				marker.oldLineNumber = marker.oldLineNumber || other.lineNumber;
-				marker.oldColumn = marker.oldColumn || marker.column;
-				marker.column += thisTextLength;
+				marker.updatePosition(markersTracker, new Position(this._lineNumber, marker.position.column + thisTextLength));
 			}
 
 			this.addMarkers(otherMarkers);
 		}
 	}
 
-	public addMarker(marker:ILineMarker): void {
-		marker.line = this;
+	public addMarker(marker: LineMarker): void {
 		if (!this._markers) {
 			this._markers = [marker];
 		} else {
 			this._markers.push(marker);
 		}
-
-		this._markers.sort(ModelLine._compareMarkers);
 	}
 
-	public addMarkers(markers:ILineMarker[]): void {
+	public addMarkers(markers: LineMarker[]): void {
 		if (markers.length === 0) {
 			return;
-		}
-
-		var i:number,
-			len:number;
-
-		for (i = 0, len = markers.length; i < len; i++) {
-			markers[i].line = this;
 		}
 
 		if (!this._markers) {
@@ -474,26 +681,27 @@ export class ModelLine {
 		} else {
 			this._markers = this._markers.concat(markers);
 		}
-
-		this._markers.sort(ModelLine._compareMarkers);
 	}
 
-	private static _compareMarkers(a:ILineMarker, b:ILineMarker): number {
-		if (a.column === b.column) {
-			return (a.stickToPreviousCharacter ? 0 : 1) - (b.stickToPreviousCharacter ? 0 : 1);
+	public removeMarker(marker: LineMarker): void {
+		if (!this._markers) {
+			return;
 		}
-		return a.column - b.column;
-	}
 
-	public removeMarker(marker:ILineMarker): void {
-		var index = this._indexOfMarkerId(marker.id);
-		if (index >= 0) {
+		let index = this._indexOfMarkerId(marker.id);
+		if (index < 0) {
+			return;
+		}
+
+		if (this._markers.length === 1) {
+			// was last marker on line
+			this._markers = null;
+		} else {
 			this._markers.splice(index, 1);
 		}
-		marker.line = null;
 	}
 
-	public removeMarkers(deleteMarkers: {[markerId:string]:boolean;}): void {
+	public removeMarkers(deleteMarkers: { [markerId: string]: boolean; }): void {
 		if (!this._markers) {
 			return;
 		}
@@ -501,304 +709,52 @@ export class ModelLine {
 			let marker = this._markers[i];
 
 			if (deleteMarkers[marker.id]) {
-				marker.line = null;
 				this._markers.splice(i, 1);
 				len--;
 				i--;
 			}
 		}
+		if (this._markers.length === 0) {
+			this._markers = null;
+		}
 	}
 
-	public getMarkers(): ILineMarker[] {
+	public getMarkers(): LineMarker[] {
+		if (!this._markers) {
+			return null;
+		}
+		return this._markers;
+	}
+
+	public updateLineNumber(markersTracker: MarkersTracker, newLineNumber: number): void {
+		if (this._lineNumber === newLineNumber) {
+			return;
+		}
+		if (this._markers) {
+			let markers = this._markers;
+			for (let i = 0, len = markers.length; i < len; i++) {
+				let marker = markers[i];
+				marker.updateLineNumber(markersTracker, newLineNumber);
+			}
+		}
+
+		this._lineNumber = newLineNumber;
+	}
+
+	public deleteLine(): LineMarker[] {
 		if (!this._markers) {
 			return [];
 		}
-		return this._markers.slice(0);
+		return this._markers;
 	}
 
-	public updateLineNumber(changedMarkers: IChangedMarkers, newLineNumber: number): void {
-		if (this._markers) {
-			var markers = this._markers,
-				i: number,
-				len: number,
-				marker: ILineMarker;
-
-			for (i = 0, len = markers.length; i < len; i++) {
-				marker = markers[i];
-
-				changedMarkers[marker.id] = true;
-				marker.oldLineNumber = marker.oldLineNumber || this.lineNumber;
+	private _indexOfMarkerId(markerId: string): number {
+		let markers = this._markers;
+		for (let i = 0, len = markers.length; i < len; i++) {
+			if (markers[i].id === markerId) {
+				return i;
 			}
 		}
-
-		this.lineNumber = newLineNumber;
-	}
-
-	public deleteLine(changedMarkers: IChangedMarkers, setMarkersColumn:number, setMarkersOldLineNumber:number): ILineMarker[] {
-		// console.log('--> deleteLine: ');
-		if (this._markers) {
-			var markers = this._markers,
-				i: number,
-				len: number,
-				marker: ILineMarker;
-
-			// Mark all these markers as changed
-			for (i = 0, len = markers.length; i < len; i++) {
-				marker = markers[i];
-
-				changedMarkers[marker.id] = true;
-				marker.oldColumn = marker.oldColumn || marker.column;
-				marker.oldLineNumber = marker.oldLineNumber || setMarkersOldLineNumber;
-				marker.column = setMarkersColumn;
-			}
-
-			return markers;
-		}
-		return [];
-	}
-
-	private _indexOfMarkerId(markerId:string): number {
-
-		if (this._markers) {
-			var markers = this._markers,
-				i: number,
-				len: number;
-
-			for (i = 0, len = markers.length; i < len; i++) {
-				if (markers[i].id === markerId) {
-					return i;
-				}
-			}
-		}
-
-		return -1;
-	}
-}
-
-function areDeflatedTokens(tokens:Modes.IToken[]|number[]): tokens is number[] {
-	return (typeof tokens[0] === 'number');
-}
-
-function toLineTokens(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]|number[], textLength:number): EditorCommon.ILineTokens {
-	if (textLength === 0) {
-		return null;
-	}
-	if (!tokens || tokens.length === 0) {
-		return null;
-	}
-	if (tokens.length === 1) {
-		if (areDeflatedTokens(tokens)) {
-			if (tokens[0] === 0) {
-				return null;
-			}
-		} else {
-			if (tokens[0].startIndex === 0 && tokens[0].type === '' && !tokens[0].bracket) {
-				return null;
-			}
-		}
-	}
-	return new LineTokens(map, tokens);
-}
-
-var getStartIndex = EditorCommon.LineTokensBinaryEncoding.getStartIndex;
-var getType = EditorCommon.LineTokensBinaryEncoding.getType;
-var getBracket = EditorCommon.LineTokensBinaryEncoding.getBracket;
-var findIndexOfOffset = EditorCommon.LineTokensBinaryEncoding.findIndexOfOffset;
-
-export class LineTokens implements EditorCommon.ILineTokens {
-
-	private map:EditorCommon.ITokensInflatorMap;
-	private _tokens:number[];
-
-	constructor(map:EditorCommon.ITokensInflatorMap, tokens:Modes.IToken[]|number[]) {
-		this.map = map;
-		if (areDeflatedTokens(tokens)) {
-			this._tokens = tokens;
-		} else {
-			this._tokens = EditorCommon.LineTokensBinaryEncoding.deflateArr(map, tokens);
-		}
-	}
-
-	public toString(): string {
-		return EditorCommon.LineTokensBinaryEncoding.inflateArr(this.map, this._tokens).toString();
-	}
-
-	public getBinaryEncodedTokensMap(): EditorCommon.ITokensInflatorMap {
-		return this.map;
-	}
-
-	public getBinaryEncodedTokens(): number[] {
-		return this._tokens;
-	}
-
-	public getTokenCount(): number {
-		return this._tokens.length;
-	}
-
-	public getTokenStartIndex(tokenIndex:number): number {
-		return getStartIndex(this._tokens[tokenIndex]);
-	}
-
-	public getTokenType(tokenIndex:number): string {
-		return getType(this.map, this._tokens[tokenIndex]);
-	}
-
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return getBracket(this._tokens[tokenIndex]);
-	}
-
-	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
-		if (tokenIndex + 1 < this._tokens.length) {
-			return getStartIndex(this._tokens[tokenIndex + 1]);
-		}
-		return textLength;
-	}
-
-	public equals(other:EditorCommon.ILineTokens): boolean {
-		return this === other;
-	}
-
-	public findIndexOfOffset(offset:number): number {
-		return findIndexOfOffset(this._tokens, offset);
-	}
-}
-
-class EmptyLineTokens implements EditorCommon.ILineTokens {
-
-	public static INSTANCE = new EmptyLineTokens();
-	private static TOKENS = <number[]>[];
-
-	public getBinaryEncodedTokens(): number[] {
-		return EmptyLineTokens.TOKENS;
-	}
-
-	public getBinaryEncodedTokensMap(): EditorCommon.ITokensInflatorMap {
-		return null;
-	}
-
-	public getTokenCount(): number {
-		return 0;
-	}
-
-	public getTokenStartIndex(tokenIndex:number): number {
-		return 0;
-	}
-
-	public getTokenType(tokenIndex:number): string {
-		return Strings.empty;
-	}
-
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return 0;
-	}
-
-	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
-		return 0;
-	}
-
-	public equals(other:EditorCommon.ILineTokens): boolean {
-		return other === this;
-	}
-
-	public findIndexOfOffset(offset:number): number {
-		return 0;
-	}
-}
-
-export class DefaultLineTokens implements EditorCommon.ILineTokens {
-
-	public static INSTANCE = new DefaultLineTokens();
-	private static TOKENS = <number[]> [0];
-
-	public getBinaryEncodedTokensMap(): EditorCommon.ITokensInflatorMap {
-		return null;
-	}
-
-	public getBinaryEncodedTokens(): number[] {
-		return DefaultLineTokens.TOKENS;
-	}
-
-	public getTokenCount(): number {
-		return 1;
-	}
-
-	public getTokenStartIndex(tokenIndex:number): number {
-		return 0;
-	}
-
-	public getTokenType(tokenIndex:number): string {
-		return Strings.empty;
-	}
-
-	public getTokenBracket(tokenIndex:number): Modes.Bracket {
-		return 0;
-	}
-
-	public getTokenEndIndex(tokenIndex:number, textLength:number): number {
-		return textLength;
-	}
-
-	public equals(other:EditorCommon.ILineTokens): boolean {
-		return this === other;
-	}
-
-	public findIndexOfOffset(offset:number): number {
-		return 0;
-	}
-
-}
-
-function toModeTransitions(topLevelMode:Modes.IMode, modeTransitions:Modes.IModeTransition[]): IModeTransitions {
-
-	if (!modeTransitions || modeTransitions.length === 0) {
-		return null;
-	} else if (modeTransitions.length === 1 && modeTransitions[0].startIndex === 0) {
-		if (modeTransitions[0].mode === topLevelMode) {
-			return null;
-		} else {
-			return new SingleModeTransition(modeTransitions[0].mode);
-		}
-	}
-
-	return new ModeTransitions(modeTransitions);
-}
-
-class DefaultModeTransitions implements IModeTransitions {
-	public static INSTANCE = new DefaultModeTransitions();
-
-	public toArray(topLevelMode:Modes.IMode): Modes.IModeTransition[] {
-		return [{
-			startIndex: 0,
-			mode: topLevelMode
-		}];
-	}
-}
-
-class SingleModeTransition implements IModeTransitions {
-
-	private _mode: Modes.IMode;
-
-	constructor(mode:Modes.IMode) {
-		this._mode = mode;
-	}
-
-	public toArray(topLevelMode:Modes.IMode): Modes.IModeTransition[] {
-		return [{
-			startIndex: 0,
-			mode: this._mode
-		}];
-	}
-}
-
-class ModeTransitions implements IModeTransitions {
-
-	private _modeTransitions: Modes.IModeTransition[];
-
-	constructor(modeTransitions:Modes.IModeTransition[]) {
-		this._modeTransitions = modeTransitions;
-	}
-
-	public toArray(topLevelMode:Modes.IMode): Modes.IModeTransition[] {
-		return this._modeTransitions.slice(0);
+		return undefined;
 	}
 }

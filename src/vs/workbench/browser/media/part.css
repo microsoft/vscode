@@ -10,64 +10,57 @@
 /* title styles are defined for two classes because the editor puts the title into the content */
 
 .monaco-workbench > .part > .title,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title {
 	height: 35px;
-	padding-left: 8px; /* use padding and not margin to avoid overflow issues */
-	padding-right: 8px;
-	-webkit-box-sizing:	border-box;
-	-o-box-sizing: border-box;
-	-moz-box-sizing: border-box;
-	-ms-box-sizing: border-box;
+	display: flex;
 	box-sizing:	border-box;
 	overflow: hidden;
 }
 
-.monaco-workbench > .part > .title > .title-label,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
-	padding: 12px 0 0 12px;
+.monaco-workbench > .part > .title {
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
+.monaco-workbench > .part > .title > .title-label {
+	line-height: 35px;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label {
-	position: relative;
+.monaco-workbench > .part > .title > .title-label {
+	padding-left: 12px;
 }
 
-.monaco-workbench > .part > .title > .title-label span,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label span {
-	line-height: normal;
+.monaco-workbench > .part > .title > .title-label span {
 	font-size: 11px;
 	cursor: default;
 }
 
-.monaco-workbench > .part > .title > .title-label a,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-label a {
+.monaco-workbench > .part > .title > .title-label a {
 	text-decoration: none;
-	line-height: normal;
 	font-size: 13px;
-	cursor: pointer;
+	cursor: default;
 }
 
-.monaco-workbench > .part > .title > .title-actions,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions {
-	float: right;
+.monaco-workbench > .part > .title > .title-actions {
 	height: 35px;
+	flex: 1;
+	padding-left: 5px;
 }
 
-.monaco-workbench > .part > .title > .title-actions .action-label,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label {
+.monaco-workbench > .part > .title > .title-actions .action-label {
 	display: block;
-	margin: 4px 0 0;
-	width: 28px;
-	height: 30px;
+	height: 35px;
+	line-height: 35px;
+	min-width: 28px;
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
 }
 
-.monaco-workbench > .part > .title > .title-actions .action-label .label,
-.monaco-workbench > .part.editor > .content > .one-editor-container > .title .title-actions .action-label .label {
+.monaco-workbench > .part > .title > .title-actions .action-label .label {
 	display: none;
 }
 
@@ -79,14 +72,10 @@
 	position: absolute;
 	left: 0;
 	top: 33px; /* at the bottom of the 35px height title container */
-	z-index: 1;
+	z-index: 5; /* on top of things */
 	height: 2px;
 }
 
 .monaco-workbench > .part > .content  .progress-container .progress-bit {
 	height: 2px;
-}
-
-.monaco-workbench > .part > .status {
-	display: none; /* Parts have to opt in to show title area */
 }

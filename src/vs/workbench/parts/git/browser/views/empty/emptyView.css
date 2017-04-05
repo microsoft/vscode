@@ -28,35 +28,3 @@
 	padding: 4px 4px 4px 0;
 	margin-bottom: 10px;
 }
-
-.git-viewlet > .empty-view .button {
-	-moz-box-sizing: border-box;
-	box-sizing: border-box;
-	display: inline-block;
-	width: 100%;
-	padding: 4px;
-	text-align: center;
-	color: white;
-	background: #007ACC;
-}
-
-.git-viewlet > .empty-view .button.disabled {
-	opacity: 0.4;
-	cursor: default;
-}
-
-.git-viewlet > .empty-view .button:hover {
-	text-decoration: none;
-}
-
-.git-viewlet > .empty-view .button:not(.disabled):hover {
-	background: #006BB3;
-}
-
-.git-viewlet > .empty-view .button:not(.disabled):active {
-	background: #005F9E;
-}
-
-.vs-dark .git-viewlet > .empty-view .button {
-	background: #0E639C;
-}

@@ -4,37 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import * as nls from 'vs/nls';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 
-class ToggleTabFocusModeAction extends EditorAction {
+@editorAction
+export class ToggleTabFocusModeAction extends EditorAction {
 
-	static ID = 'editor.action.toggleTabFocusMode';
+	public static ID = 'editor.action.toggleTabFocusMode';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, Behaviour.TextFocus);
+	constructor() {
+		super({
+			id: ToggleTabFocusModeAction.ID,
+			label: nls.localize({ key: 'toggle.tabMovesFocus', comment: ['Turn on/off use of tab key for moving focus around VS Code'] }, "Toggle Tab Key Moves Focus"),
+			alias: 'Toggle Tab Key Moves Focus',
+			precondition: null,
+			kbOpts: {
+				kbExpr: null,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_M,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M }
+			}
+		});
 	}
 
-	public run():TPromise<boolean> {
-
-		if(this.editor.getConfiguration().tabFocusMode) {
-			this.editor.updateOptions({tabFocusMode: false});
-		} else {
-			this.editor.updateOptions({tabFocusMode: true});
-		}
-
-		return TPromise.as(true);
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let oldValue = TabFocus.getTabFocusMode();
+		TabFocus.setTabFocusMode(!oldValue);
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleTabFocusModeAction, ToggleTabFocusModeAction.ID, nls.localize('toggle.tabfocusmode', "Toggle Use of Tab Key for Setting Focus"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_M,
-	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_M }
-}));

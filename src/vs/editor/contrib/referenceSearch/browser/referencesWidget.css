@@ -1,0 +1,103 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* -- zone widget */
+.monaco-editor .zone-widget .zone-widget-container.reference-zone-widget {
+	border-top-width: 1px;
+	border-bottom-width: 1px;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.reference-zone-widget.results-loaded {
+	-webkit-transition: height 100ms ease-in;
+	transition: height 100ms ease-in;
+}
+
+.monaco-editor .reference-zone-widget .inline {
+	display: inline-block;
+	vertical-align: top;
+}
+
+.monaco-editor .reference-zone-widget .label {
+	font-size: 0.9em;
+	text-align: center;
+	color: #646465;
+	margin-top: 6px;
+}
+
+.monaco-editor .reference-zone-widget .messages {
+	height: 100%;
+	width: 100%;
+	text-align: center;
+	padding: 3em 0;
+}
+
+.monaco-editor .reference-zone-widget .ref-tree {
+	line-height: 22px;
+	font-size: 13px;
+}
+
+.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.has-children > .content:before	{
+	border-left-color: #A6A6A6;
+}
+
+.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.has-children > .content:after {
+	border-left-color: rgba(51, 153, 255, .2);
+}
+
+.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.expanded > .content:before {
+	border-right-color: #646465;
+	border-left-color: transparent;
+}
+
+.monaco-editor .reference-zone-widget .ref-tree .reference {
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.monaco-editor .reference-zone-widget .ref-tree .reference-file {
+	position: relative;
+	line-height: 22px;
+}
+
+.monaco-editor .reference-zone-widget .ref-tree .reference-file .directory {
+	opacity: 0.7;
+	margin-left: 0.5em;
+	font-size: 0.9em;
+}
+
+.monaco-editor .reference-zone-widget .monaco-count-badge {
+	margin-right: 12px;
+}
+
+/* dark room */
+
+.monaco-editor.vs-dark .reference-zone-widget .ref-tree .block,
+.monaco-editor.vs-dark .reference-zone-widget .overlay {
+	background-color: #1e1e1e;
+}
+
+.monaco-editor.vs-dark .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.has-children > .content:before	{
+	border-left-color: white;
+}
+
+.monaco-editor.vs-dark .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.has-children > .content:after {
+	border-left-color: rgba(51, 153, 255, .2);
+}
+
+.monaco-editor.vs-dark .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.expanded > .content:before {
+	border-right-color: white;
+	border-left-color: transparent;
+}
+
+/* High Contrast Theming */
+
+.monaco-editor.hc-black .reference-zone-widget .ref-tree .reference-file {
+	line-height: 20px;
+	font-weight: bold;
+}
+
+.monaco-editor.hc-black .reference-zone-widget .ref-tree .reference-file .directory {
+	font-weight: normal;
+}

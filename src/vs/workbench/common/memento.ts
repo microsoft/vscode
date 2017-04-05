@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
 import types = require('vs/base/common/types');
-import {IStorageService, StorageScope} from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 /**
  * Supported memento scopes.

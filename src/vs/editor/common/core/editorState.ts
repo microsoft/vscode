@@ -4,35 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
+import * as strings from 'vs/base/common/strings';
+import { CodeEditorStateFlag, ICodeEditorState, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
-export class EditorState implements EditorCommon.ICodeEditorState {
+export class EditorState implements ICodeEditorState {
 
-	private flags:EditorCommon.CodeEditorStateFlag[];
+	private flags: CodeEditorStateFlag[];
 
-	private position:EditorCommon.IEditorPosition;
-	private selection:EditorCommon.IEditorRange;
-	private modelVersionId:string;
-	private scrollLeft:number;
-	private scrollTop:number;
+	private position: Position;
+	private selection: Range;
+	private modelVersionId: string;
+	private scrollLeft: number;
+	private scrollTop: number;
 
-	constructor(editor:EditorCommon.ICommonCodeEditor, flags:EditorCommon.CodeEditorStateFlag[]) {
+	constructor(editor: ICommonCodeEditor, flags: CodeEditorStateFlag[]) {
 		this.flags = flags;
 
 		flags.forEach((flag) => {
-			switch(flag) {
-				case EditorCommon.CodeEditorStateFlag.Value:
+			switch (flag) {
+				case CodeEditorStateFlag.Value:
 					var model = editor.getModel();
-					this.modelVersionId = model ? Strings.format('{0}#{1}', model.getAssociatedResource().toString(), model.getVersionId()) : null;
+					this.modelVersionId = model ? strings.format('{0}#{1}', model.uri.toString(), model.getVersionId()) : null;
 					break;
-				case EditorCommon.CodeEditorStateFlag.Position:
+				case CodeEditorStateFlag.Position:
 					this.position = editor.getPosition();
 					break;
-				case EditorCommon.CodeEditorStateFlag.Selection:
+				case CodeEditorStateFlag.Selection:
 					this.selection = editor.getSelection();
 					break;
-				case EditorCommon.CodeEditorStateFlag.Scroll:
+				case CodeEditorStateFlag.Scroll:
 					this.scrollLeft = editor.getScrollLeft();
 					this.scrollTop = editor.getScrollTop();
 					break;
@@ -40,29 +42,29 @@ export class EditorState implements EditorCommon.ICodeEditorState {
 		});
 	}
 
-	private _equals(other:any):boolean {
+	private _equals(other: any): boolean {
 
-		if(!(other instanceof EditorState)) {
+		if (!(other instanceof EditorState)) {
 			return false;
 		}
-		var state = <EditorState> other;
+		var state = <EditorState>other;
 
-		if(this.modelVersionId !== state.modelVersionId) {
+		if (this.modelVersionId !== state.modelVersionId) {
 			return false;
 		}
-		if(this.scrollLeft !== state.scrollLeft || this.scrollTop !== state.scrollTop) {
+		if (this.scrollLeft !== state.scrollLeft || this.scrollTop !== state.scrollTop) {
 			return false;
 		}
-		if(!this.position && state.position || this.position && !state.position || this.position && state.position && !this.position.equals(state.position)) {
+		if (!this.position && state.position || this.position && !state.position || this.position && state.position && !this.position.equals(state.position)) {
 			return false;
 		}
-		if(!this.selection && state.selection || this.selection && !state.selection || this.selection && state.selection && !this.selection.equalsRange(state.selection)) {
+		if (!this.selection && state.selection || this.selection && !state.selection || this.selection && state.selection && !this.selection.equalsRange(state.selection)) {
 			return false;
 		}
 		return true;
 	}
 
-	public validate(editor:EditorCommon.ICommonCodeEditor):boolean {
+	public validate(editor: ICommonCodeEditor): boolean {
 		return this._equals(new EditorState(editor, this.flags));
 	}
 }

@@ -4,56 +4,64 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IEventEmitter } from 'vs/base/common/eventEmitter';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as browser from 'vs/base/browser/browser';
+import * as dom from 'vs/base/browser/dom';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Range } from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { Configuration } from 'vs/editor/browser/config/configuration';
+import { KeyboardHandler, IKeyboardHandlerHelper } from 'vs/editor/browser/controller/keyboardHandler';
+import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { ViewController, TriggerCursorHandler } from 'vs/editor/browser/view/viewController';
+import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
+import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
+import { LayoutProvider } from 'vs/editor/common/viewLayout/viewLayout';
+import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
+import { CurrentLineHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
+import { CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineMarginHighlight/currentLineMarginHighlight';
+import { DecorationsOverlay } from 'vs/editor/browser/viewParts/decorations/decorations';
+import { GlyphMarginOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
+import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
+import { IndentGuidesOverlay } from 'vs/editor/browser/viewParts/indentGuides/indentGuides';
+import { ViewLines } from 'vs/editor/browser/viewParts/lines/viewLines';
+import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
+import { LinesDecorationsOverlay } from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
+import { MarginViewLineDecorationsOverlay } from 'vs/editor/browser/viewParts/marginDecorations/marginDecorations';
+import { ViewOverlayWidgets } from 'vs/editor/browser/viewParts/overlayWidgets/overlayWidgets';
+import { DecorationsOverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/decorationsOverviewRuler';
+import { OverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/overviewRuler';
+import { Rulers } from 'vs/editor/browser/viewParts/rulers/rulers';
+import { ScrollDecorationViewPart } from 'vs/editor/browser/viewParts/scrollDecoration/scrollDecoration';
+import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/selections';
+import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
+import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
+import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
+import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
+import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
+import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
+import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
-import Lifecycle = require('vs/base/common/lifecycle');
-import DomUtils = require('vs/base/browser/dom');
-import EventEmitter = require('vs/base/common/eventEmitter');
-import Errors = require('vs/base/common/errors');
-import Timer = require('vs/base/common/timer');
+export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
-import {ViewEventHandler} from 'vs/editor/common/viewModel/viewEventHandler';
-import {KeyboardHandler} from 'vs/editor/browser/controller/keyboardHandler';
-import {PointerHandler} from 'vs/editor/browser/controller/pointerHandler';
-import {LayoutProvider} from 'vs/editor/browser/viewLayout/layoutProvider';
-import {Configuration} from 'vs/editor/browser/config/configuration';
-import {ViewEventDispatcher} from 'vs/editor/browser/view/viewEventDispatcher';
-import {ViewController} from 'vs/editor/browser/view/viewController';
-import {ContentViewOverlays, MarginViewOverlays} from 'vs/editor/browser/view/viewOverlays';
+	private eventDispatcher: ViewEventDispatcher;
 
-// -- START VIEW PARTS
-import {ViewZones} from 'vs/editor/browser/viewParts/viewZones/viewZones';
-import {ViewLines} from 'vs/editor/browser/viewParts/lines/viewLines';
-import {OverviewRuler} from 'vs/editor/browser/viewParts/overviewRuler/overviewRuler';
-import {DecorationsOverviewRuler} from 'vs/editor/browser/viewParts/overviewRuler/decorationsOverviewRuler';
-import {ViewCursors} from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
-import {ViewContentWidgets} from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
-import {ViewOverlayWidgets} from 'vs/editor/browser/viewParts/overlayWidgets/overlayWidgets';
-import {CurrentLineHighlightOverlay} from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
-import {SelectionsOverlay} from 'vs/editor/browser/viewParts/selections/selections';
-import {DecorationsOverlay} from 'vs/editor/browser/viewParts/decorations/decorations';
-import {GlyphMarginOverlay} from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
-import {LinesDecorationsOverlay} from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
-import {LineNumbersOverlay} from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
-import {ScrollDecorationViewPart} from 'vs/editor/browser/viewParts/scrollDecoration/scrollDecoration';
-// -- END VIEW PARTS
-
-import Browser = require('vs/base/browser/browser');
-
-import EditorCommon = require('vs/editor/common/editorCommon');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import {Range} from 'vs/editor/common/core/range';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
-
-export class View extends ViewEventHandler implements EditorBrowser.IView, Lifecycle.IDisposable {
-
-	private eventDispatcher:ViewEventDispatcher;
-
-	private listenersToRemove:EventEmitter.ListenerUnbind[];
-	private listenersToDispose:Lifecycle.IDisposable[];
+	private listenersToRemove: IDisposable[];
+	private listenersToDispose: IDisposable[];
 
 	private layoutProvider: LayoutProvider;
-	public context: EditorBrowser.IViewContext;
+	private _scrollbar: EditorScrollbar;
+	public _context: ViewContext;
 
 	// The view lines
 	private viewLines: ViewLines;
@@ -62,90 +70,79 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 	private viewZones: ViewZones;
 	private contentWidgets: ViewContentWidgets;
 	private overlayWidgets: ViewOverlayWidgets;
-	private viewParts: EditorBrowser.IViewPart[];
+	private viewCursors: ViewCursors;
+	private viewParts: ViewPart[];
 
 	private keyboardHandler: KeyboardHandler;
 	private pointerHandler: PointerHandler;
 
-	private outgoingEventBus: EventEmitter.EventEmitter;
+	private outgoingEvents: ViewOutgoingEvents;
 
 	// Dom nodes
-	private linesContent: HTMLElement;
-	public domNode: HTMLElement;
-	public textArea: HTMLTextAreaElement;
-	private textAreaCover: HTMLElement;
-	private linesContentContainer: HTMLElement;
-	private overflowGuardContainer: HTMLElement;
+	private linesContent: FastDomNode<HTMLElement>;
+	public domNode: FastDomNode<HTMLElement>;
+	public textArea: FastDomNode<HTMLTextAreaElement>;
+	private textAreaCover: FastDomNode<HTMLElement>;
+	private overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
-	private hasFocus:boolean;
+	private hasFocus: boolean;
 	private _isDisposed: boolean;
 
-	private handleAccumulatedModelEventsTimeout:number;
-	private accumulatedModelEvents: EventEmitter.IEmitterEvent[];
-	private _renderAnimationFrame: Lifecycle.IDisposable;
+	private handleAccumulatedModelEventsTimeout: number;
+	private accumulatedModelEvents: viewEvents.ViewEvent[];
+	private _renderAnimationFrame: IDisposable;
 
-	private _editorId: number;
-	private _keybindingService: IKeybindingService;
-	private _editorTextFocusContextKey: IKeybindingContextKey<boolean>;
-
-	constructor(editorId:number, configuration:Configuration, model:EditorCommon.IViewModel, keybindingService: IKeybindingService) {
+	constructor(
+		commandService: ICommandService,
+		configuration: Configuration,
+		model: IViewModel,
+		private triggerCursorHandler: TriggerCursorHandler
+	) {
 		super();
 		this._isDisposed = false;
-		this._editorId = editorId;
 		this._renderAnimationFrame = null;
-		this.outgoingEventBus = new EventEmitter.EventEmitter();
+		this.outgoingEvents = new ViewOutgoingEvents(model);
 
-		var viewController = new ViewController(model, configuration, this.outgoingEventBus);
+		let viewController = new ViewController(model, triggerCursorHandler, this.outgoingEvents, commandService);
 
 		this.listenersToRemove = [];
 		this.listenersToDispose = [];
 
 		// The event dispatcher will always go through _renderOnce before dispatching any events
-		this.eventDispatcher = new ViewEventDispatcher((callback:()=>void) => this._renderOnce(callback));
+		this.eventDispatcher = new ViewEventDispatcher((callback: () => void) => this._renderOnce(callback));
 
-		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
-		this.linesContent = document.createElement('div');
-		this.linesContent.className = EditorBrowser.ClassNames.LINES_CONTENT + ' monaco-editor-background';
-		this.domNode = document.createElement('div');
-		Configuration.applyEditorStyling(this.domNode, configuration.editor.stylingInfo);
-
-		this.overflowGuardContainer = document.createElement('div');
-		this.overflowGuardContainer.className = EditorBrowser.ClassNames.OVERFLOW_GUARD;
+		// Ensure the view is the first event handler in order to update the layout
+		this.eventDispatcher.addEventHandler(this);
 
 		// The layout provider has such responsibilities as:
 		// - scrolling (i.e. viewport / full size) & co.
 		// - whitespaces (a.k.a. view zones) management & co.
 		// - line heights updating & co.
-		this.layoutProvider = new LayoutProvider(configuration, model, this.eventDispatcher, this.linesContent, this.domNode, this.overflowGuardContainer);
-		this.eventDispatcher.addEventHandler(this.layoutProvider);
+		this.layoutProvider = new LayoutProvider(configuration, model.getLineCount(), this.eventDispatcher);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
-		this.context = new ViewContext(
-				editorId, configuration, model, this.eventDispatcher,
-				(eventHandler:EditorBrowser.IViewEventHandler) => this.eventDispatcher.addEventHandler(eventHandler),
-				(eventHandler:EditorBrowser.IViewEventHandler) => this.eventDispatcher.removeEventHandler(eventHandler)
-		);
+		this._context = new ViewContext(configuration, model, this.eventDispatcher);
 
-		this.createTextArea(keybindingService);
+		this.createTextArea();
 		this.createViewParts();
+		this._setLayout();
 
 		// Keyboard handler
-		this.keyboardHandler = new KeyboardHandler(this.context, viewController, this.createKeyboardHandlerHelper());
+		this.keyboardHandler = new KeyboardHandler(this._context, viewController, this.createKeyboardHandlerHelper());
 
 		// Pointer handler
-		this.pointerHandler = new PointerHandler(this.context, viewController, this.createPointerHandlerHelper());
+		this.pointerHandler = new PointerHandler(this._context, viewController, this.createPointerHandlerHelper());
 
 		this.hasFocus = false;
 		this.codeEditorHelper = null;
 
-		this.eventDispatcher.addEventHandler(this);
 
 		// The view lines rendering calls model.getLineTokens() that might emit events that its tokens have changed.
 		// This delayed processing of incoming model events acts as a guard against undesired/unexpected recursion.
 		this.handleAccumulatedModelEventsTimeout = -1;
 		this.accumulatedModelEvents = [];
-		this.listenersToRemove.push(model.addBulkListener((events:EventEmitter.IEmitterEvent[]) => {
+		this.listenersToRemove.push(model.addEventListener((events: viewEvents.ViewEvent[]) => {
 			this.accumulatedModelEvents = this.accumulatedModelEvents.concat(events);
 			if (this.handleAccumulatedModelEventsTimeout === -1) {
 				this.handleAccumulatedModelEventsTimeout = setTimeout(() => {
@@ -157,122 +154,149 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 	}
 
 	private _flushAnyAccumulatedEvents(): void {
-		var toEmit = this.accumulatedModelEvents;
+		let toEmit = this.accumulatedModelEvents;
 		this.accumulatedModelEvents = [];
 		if (toEmit.length > 0) {
 			this.eventDispatcher.emitMany(toEmit);
 		}
 	}
 
-	private createTextArea(keybindingService: IKeybindingService): void {
+	private createTextArea(): void {
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
-		this.textArea = <HTMLTextAreaElement>document.createElement('textarea');
-		this._keybindingService = keybindingService.createScoped(this.textArea);
-		this._editorTextFocusContextKey = this._keybindingService.createKey(EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS, undefined);
-		this.textArea.className = EditorBrowser.ClassNames.TEXTAREA;
+		this.textArea = createFastDomNode(document.createElement('textarea'));
+		PartFingerprints.write(this.textArea.domNode, PartFingerprint.TextArea);
+		this.textArea.setClassName(editorBrowser.ClassNames.TEXTAREA);
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
-		this.textArea.setAttribute('aria-label', nls.localize('editorViewAccessibleLabel', "Editor content"));
+		this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-multiline', 'true');
-		DomUtils.StyleMutator.setTop(this.textArea, 0);
-		DomUtils.StyleMutator.setLeft(this.textArea, 0);
-		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
-		DomUtils.StyleMutator.setFontSize(this.textArea, this.context.configuration.editor.fontSize);
-		DomUtils.StyleMutator.setLineHeight(this.textArea, this.context.configuration.editor.lineHeight);
+		this.textArea.setAttribute('aria-haspopup', 'false');
+		this.textArea.setAttribute('aria-autocomplete', 'both');
 
-		this.listenersToDispose.push(DomUtils.addDisposableListener(this.textArea, 'focus', () => this._setHasFocus(true)));
-		this.listenersToDispose.push(DomUtils.addDisposableListener(this.textArea, 'blur', () => this._setHasFocus(false)));
+		this.textArea.setTop(0);
+		this.textArea.setLeft(0);
+
+		this.listenersToDispose.push(dom.addDisposableListener(this.textArea.domNode, 'focus', () => this._setHasFocus(true)));
+		this.listenersToDispose.push(dom.addDisposableListener(this.textArea.domNode, 'blur', () => this._setHasFocus(false)));
 
 		// On top of the text area, we position a dom node to cover it up
 		// (there have been reports of tiny blinking cursors)
 		// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
-		this.textAreaCover = document.createElement('div');
-		if (this.context.configuration.editor.glyphMargin) {
-			this.textAreaCover.className = 'monaco-editor-background ' + EditorBrowser.ClassNames.GLYPH_MARGIN + ' ' + EditorBrowser.ClassNames.TEXTAREA_COVER;
+		this.textAreaCover = createFastDomNode(document.createElement('div'));
+		if (this._context.configuration.editor.viewInfo.glyphMargin) {
+			this.textAreaCover.setClassName('monaco-editor-background ' + editorBrowser.ClassNames.GLYPH_MARGIN + ' ' + editorBrowser.ClassNames.TEXTAREA_COVER);
 		} else {
-			if (this.context.configuration.editor.lineNumbers) {
-				this.textAreaCover.className = 'monaco-editor-background ' + EditorBrowser.ClassNames.LINE_NUMBERS + ' ' + EditorBrowser.ClassNames.TEXTAREA_COVER;
+			if (this._context.configuration.editor.viewInfo.renderLineNumbers) {
+				this.textAreaCover.setClassName('monaco-editor-background ' + editorBrowser.ClassNames.LINE_NUMBERS + ' ' + editorBrowser.ClassNames.TEXTAREA_COVER);
 			} else {
-				this.textAreaCover.className = 'monaco-editor-background ' + EditorBrowser.ClassNames.TEXTAREA_COVER;
+				this.textAreaCover.setClassName('monaco-editor-background ' + editorBrowser.ClassNames.TEXTAREA_COVER);
 			}
 		}
-		this.textAreaCover.style.position = 'absolute';
-		DomUtils.StyleMutator.setWidth(this.textAreaCover, 1);
-		DomUtils.StyleMutator.setHeight(this.textAreaCover, 1);
-		DomUtils.StyleMutator.setTop(this.textAreaCover, 0);
-		DomUtils.StyleMutator.setLeft(this.textAreaCover, 0);
+		this.textAreaCover.setPosition('absolute');
+		this.textAreaCover.setWidth(1);
+		this.textAreaCover.setHeight(1);
+		this.textAreaCover.setTop(0);
+		this.textAreaCover.setLeft(0);
 	}
 
 	private createViewParts(): void {
+		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
+		this.linesContent = createFastDomNode(document.createElement('div'));
+		this.linesContent.setClassName(editorBrowser.ClassNames.LINES_CONTENT + ' monaco-editor-background');
+		this.linesContent.setPosition('absolute');
+
+		this.domNode = createFastDomNode(document.createElement('div'));
+		this.domNode.setClassName(this._context.configuration.editor.viewInfo.editorClassName);
+
+		this.overflowGuardContainer = createFastDomNode(document.createElement('div'));
+		PartFingerprints.write(this.overflowGuardContainer.domNode, PartFingerprint.OverflowGuard);
+		this.overflowGuardContainer.setClassName(editorBrowser.ClassNames.OVERFLOW_GUARD);
+
 		this.viewParts = [];
 
+		this._scrollbar = new EditorScrollbar(this._context, this.layoutProvider.getScrollable(), this.linesContent, this.domNode, this.overflowGuardContainer);
+		this.viewParts.push(this._scrollbar);
+
 		// View Lines
-		this.viewLines = new ViewLines(this.context, this.layoutProvider);
+		this.viewLines = new ViewLines(this._context, this.linesContent, this.layoutProvider);
 
 		// View Zones
-		this.viewZones = new ViewZones(this.context, this.layoutProvider);
+		this.viewZones = new ViewZones(this._context, this.layoutProvider);
 		this.viewParts.push(this.viewZones);
 
 		// Decorations overview ruler
-		var decorationsOverviewRuler = new DecorationsOverviewRuler(
-				this.context, this.layoutProvider.getScrollHeight(),
-				(lineNumber:number) => this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber)
+		let decorationsOverviewRuler = new DecorationsOverviewRuler(
+			this._context, this.layoutProvider.getScrollHeight(),
+			(lineNumber: number) => this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber)
 		);
 		this.viewParts.push(decorationsOverviewRuler);
 
 
-		var scrollDecoration = new ScrollDecorationViewPart(this.context);
+		let scrollDecoration = new ScrollDecorationViewPart(this._context);
 		this.viewParts.push(scrollDecoration);
 
-		var contentViewOverlays = new ContentViewOverlays(this.context, this.layoutProvider);
+		let contentViewOverlays = new ContentViewOverlays(this._context);
 		this.viewParts.push(contentViewOverlays);
-		contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this.context, this.layoutProvider));
-		contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this.context));
-		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this.context));
+		contentViewOverlays.addDynamicOverlay(new CurrentLineHighlightOverlay(this._context));
+		contentViewOverlays.addDynamicOverlay(new SelectionsOverlay(this._context));
+		contentViewOverlays.addDynamicOverlay(new DecorationsOverlay(this._context));
+		contentViewOverlays.addDynamicOverlay(new IndentGuidesOverlay(this._context));
 
-		var marginViewOverlays = new MarginViewOverlays(this.context, this.layoutProvider);
+		let marginViewOverlays = new MarginViewOverlays(this._context);
 		this.viewParts.push(marginViewOverlays);
-		marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this.context));
-		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this.context));
-		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this.context));
+		marginViewOverlays.addDynamicOverlay(new CurrentLineMarginHighlightOverlay(this._context));
+		marginViewOverlays.addDynamicOverlay(new GlyphMarginOverlay(this._context));
+		marginViewOverlays.addDynamicOverlay(new MarginViewLineDecorationsOverlay(this._context));
+		marginViewOverlays.addDynamicOverlay(new LinesDecorationsOverlay(this._context));
+		marginViewOverlays.addDynamicOverlay(new LineNumbersOverlay(this._context));
 
+		let margin = new Margin(this._context);
+		margin.getDomNode().appendChild(this.viewZones.marginDomNode.domNode);
+		margin.getDomNode().appendChild(marginViewOverlays.getDomNode());
+		this.viewParts.push(margin);
 
 		// Content widgets
-		this.contentWidgets = new ViewContentWidgets(this.context, this.domNode);
+		this.contentWidgets = new ViewContentWidgets(this._context, this.domNode);
 		this.viewParts.push(this.contentWidgets);
 
-		var viewCursors = new ViewCursors(this.context);
-		this.viewParts.push(viewCursors);
+		this.viewCursors = new ViewCursors(this._context);
+		this.viewParts.push(this.viewCursors);
 
 		// Overlay widgets
-		this.overlayWidgets = new ViewOverlayWidgets(this.context);
+		this.overlayWidgets = new ViewOverlayWidgets(this._context);
 		this.viewParts.push(this.overlayWidgets);
+
+		let rulers = new Rulers(this._context);
+		this.viewParts.push(rulers);
+
+		let minimap = new Minimap(this._context, this.layoutProvider, this._scrollbar);
+		this.viewParts.push(minimap);
 
 		// -------------- Wire dom nodes up
 
-		this.linesContentContainer = this.layoutProvider.getScrollbarContainerDomNode();
-		this.linesContentContainer.style.position = 'absolute';
-
 		if (decorationsOverviewRuler) {
-			var overviewRulerData = this.layoutProvider.getOverviewRulerInsertData();
+			let overviewRulerData = this._scrollbar.getOverviewRulerLayoutInfo();
 			overviewRulerData.parent.insertBefore(decorationsOverviewRuler.getDomNode(), overviewRulerData.insertBefore);
 		}
 
-		this.linesContent.appendChild(contentViewOverlays.getDomNode());
-		this.linesContent.appendChild(this.viewZones.domNode);
-		this.linesContent.appendChild(this.viewLines.domNode);
-		this.linesContent.appendChild(this.contentWidgets.domNode);
-		this.linesContent.appendChild(viewCursors.getDomNode());
-		this.overflowGuardContainer.appendChild(marginViewOverlays.getDomNode());
-		this.overflowGuardContainer.appendChild(this.linesContentContainer);
-		this.overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-		this.overflowGuardContainer.appendChild(this.overlayWidgets.domNode);
-		this.overflowGuardContainer.appendChild(this.textArea);
-		this.overflowGuardContainer.appendChild(this.textAreaCover);
-		this.domNode.appendChild(this.overflowGuardContainer);
+		this.linesContent.domNode.appendChild(contentViewOverlays.getDomNode());
+		this.linesContent.domNode.appendChild(rulers.domNode);
+		this.linesContent.domNode.appendChild(this.viewZones.domNode.domNode);
+		this.linesContent.domNode.appendChild(this.viewLines.getDomNode());
+		this.linesContent.domNode.appendChild(this.contentWidgets.domNode);
+		this.linesContent.domNode.appendChild(this.viewCursors.getDomNode());
+		this.overflowGuardContainer.domNode.appendChild(margin.getDomNode());
+		this.overflowGuardContainer.domNode.appendChild(this._scrollbar.getDomNode());
+		this.overflowGuardContainer.domNode.appendChild(scrollDecoration.getDomNode());
+		this.overflowGuardContainer.domNode.appendChild(this.overlayWidgets.getDomNode());
+		this.overflowGuardContainer.domNode.appendChild(this.textArea.domNode);
+		this.overflowGuardContainer.domNode.appendChild(this.textAreaCover.domNode);
+		this.overflowGuardContainer.domNode.appendChild(minimap.getDomNode());
+		this.domNode.domNode.appendChild(this.overflowGuardContainer.domNode);
+		this.domNode.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {
@@ -280,10 +304,10 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		this._renderNow();
 	}
 
-	private createPointerHandlerHelper(): EditorBrowser.IPointerHandlerHelper {
+	private createPointerHandlerHelper(): IPointerHandlerHelper {
 		return {
-			viewDomNode: this.domNode,
-			linesContentDomNode: this.linesContent,
+			viewDomNode: this.domNode.domNode,
+			linesContentDomNode: this.linesContent.domNode,
 
 			focusTextArea: () => {
 				if (this._isDisposed) {
@@ -296,29 +320,24 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 				return (this.accumulatedModelEvents.length > 0);
 			},
 
-			getScrollTop: () => {
-				if (this._isDisposed) {
-					throw new Error('ViewImpl.pointerHandler.getScrollTop: View is disposed');
-				}
-				return this.layoutProvider.getScrollTop();
-			},
-			setScrollTop: (scrollTop: number) => {
-				if (this._isDisposed) {
-					throw new Error('ViewImpl.pointerHandler.setScrollTop: View is disposed');
-				}
-				this.layoutProvider.setScrollTop(scrollTop);
-			},
 			getScrollLeft: () => {
 				if (this._isDisposed) {
 					throw new Error('ViewImpl.pointerHandler.getScrollLeft: View is disposed');
 				}
 				return this.layoutProvider.getScrollLeft();
 			},
-			setScrollLeft: (scrollLeft: number) => {
+			getScrollTop: () => {
 				if (this._isDisposed) {
-					throw new Error('ViewImpl.pointerHandler.setScrollLeft: View is disposed');
+					throw new Error('ViewImpl.pointerHandler.getScrollTop: View is disposed');
 				}
-				this.layoutProvider.setScrollLeft(scrollLeft);
+				return this.layoutProvider.getScrollTop();
+			},
+
+			setScrollPosition: (position: editorCommon.INewScrollPosition) => {
+				if (this._isDisposed) {
+					throw new Error('ViewImpl.pointerHandler.setScrollPosition: View is disposed');
+				}
+				this.layoutProvider.setScrollPosition(position);
 			},
 
 			isAfterLines: (verticalOffset: number) => {
@@ -345,13 +364,24 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 				}
 				return this.layoutProvider.getWhitespaceAtVerticalOffset(verticalOffset);
 			},
+			getLastViewCursorsRenderData: () => {
+				if (this._isDisposed) {
+					throw new Error('ViewImpl.pointerHandler.getLastViewCursorsRenderData: View is disposed');
+				}
+				return this.viewCursors.getLastRenderData() || [];
+			},
 			shouldSuppressMouseDownOnViewZone: (viewZoneId: number) => {
 				if (this._isDisposed) {
 					throw new Error('ViewImpl.pointerHandler.shouldSuppressMouseDownOnViewZone: View is disposed');
 				}
 				return this.viewZones.shouldSuppressMouseDownOnViewZone(viewZoneId);
 			},
-
+			shouldSuppressMouseDownOnWidget: (widgetId: string) => {
+				if (this._isDisposed) {
+					throw new Error('ViewImpl.pointerHandler.shouldSuppressMouseDownOnWidget: View is disposed');
+				}
+				return this.contentWidgets.shouldSuppressMouseDownOnWidget(widgetId);
+			},
 			getPositionFromDOMInfo: (spanNode: HTMLElement, offset: number) => {
 				if (this._isDisposed) {
 					throw new Error('ViewImpl.pointerHandler.getPositionFromDOMInfo: View is disposed');
@@ -365,12 +395,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 					throw new Error('ViewImpl.pointerHandler.visibleRangeForPosition2: View is disposed');
 				}
 				this._flushAccumulatedAndRenderNow();
-				var correctionTop = 0;
-				// FF is very weird
-//				if (Env.browser.canUseTranslate3d && Env.browser.isFirefox) {
-//					correctionTop = this.layoutProvider.getCurrentViewport().top;
-//				}
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), 0, correctionTop, false);
+				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column));
 				if (!visibleRanges) {
 					return null;
 				}
@@ -387,7 +412,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		};
 	}
 
-	private createKeyboardHandlerHelper(): EditorBrowser.IKeyboardHandlerHelper {
+	private createKeyboardHandlerHelper(): IKeyboardHandlerHelper {
 		return {
 			viewDomNode: this.domNode,
 			textArea: this.textArea,
@@ -396,79 +421,114 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 					throw new Error('ViewImpl.keyboardHandler.visibleRangeForPositionRelativeToEditor: View is disposed');
 				}
 				this._flushAccumulatedAndRenderNow();
-				var linesViewPortData = this.layoutProvider.getLinesViewportData();
-				var correctionTop = 0;
-				// FF is very weird
-//				if (Env.browser.canUseTranslate3d && Env.browser.isFirefox) {
-//					correctionTop = this.layoutProvider.getCurrentViewport().top;
-//				}
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), linesViewPortData.visibleRangesDeltaTop, correctionTop, false);
+				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column));
 				if (!visibleRanges) {
 					return null;
 				}
 				return visibleRanges[0];
+			},
+			getVerticalOffsetForLineNumber: (lineNumber: number) => {
+				if (this._isDisposed) {
+					throw new Error('ViewImpl.keyboardHandler.getVerticalOffsetForLineNumber: View is disposed');
+				}
+				return this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber);
+			},
+			flushAnyAccumulatedEvents: () => {
+				this._flushAnyAccumulatedEvents();
 			}
 		};
 	}
 
-	// --- begin event handlers
+	public setAriaActiveDescendant(id: string): void {
+		if (id) {
+			this.textArea.setAttribute('role', 'combobox');
+			if (this.textArea.getAttribute('aria-activedescendant') !== id) {
+				this.textArea.setAttribute('aria-haspopup', 'true');
+				this.textArea.setAttribute('aria-activedescendant', id);
+			}
+		} else {
+			this.textArea.setAttribute('role', 'textbox');
+			this.textArea.removeAttribute('aria-activedescendant');
+			this.textArea.removeAttribute('aria-haspopup');
+		}
+	}
 
-	public onLayoutChanged(layoutInfo:EditorCommon.IEditorLayoutInfo): boolean {
-		if (Browser.isChrome) {
+	private _setLayout(): void {
+		const layoutInfo = this._context.configuration.editor.layoutInfo;
+		if (browser.isChrome) {
+			/* tslint:disable:no-unused-variable */
 			// Access overflowGuardContainer.clientWidth to prevent relayouting bug in Chrome
 			// See Bug 19676: Editor misses a layout event
-			var clientWidth = this.overflowGuardContainer.clientWidth + 'px';
+			let clientWidth = this.overflowGuardContainer.domNode.clientWidth + 'px';
+			/* tslint:enable:no-unused-variable */
 		}
-		DomUtils.StyleMutator.setWidth(this.domNode, layoutInfo.width);
-		DomUtils.StyleMutator.setHeight(this.domNode, layoutInfo.height);
+		this.domNode.setWidth(layoutInfo.width);
+		this.domNode.setHeight(layoutInfo.height);
 
-		DomUtils.StyleMutator.setWidth(this.overflowGuardContainer, layoutInfo.width);
-		DomUtils.StyleMutator.setHeight(this.overflowGuardContainer, layoutInfo.height);
+		this.overflowGuardContainer.setWidth(layoutInfo.width);
+		this.overflowGuardContainer.setHeight(layoutInfo.height);
 
-		DomUtils.StyleMutator.setWidth(this.linesContent, 1000000);
-		DomUtils.StyleMutator.setHeight(this.linesContent, 1000000);
+		this.linesContent.setWidth(1000000);
+		this.linesContent.setHeight(1000000);
 
-		DomUtils.StyleMutator.setLeft(this.linesContentContainer, layoutInfo.contentLeft);
-		DomUtils.StyleMutator.setWidth(this.linesContentContainer, layoutInfo.contentWidth);
-		DomUtils.StyleMutator.setHeight(this.linesContentContainer, layoutInfo.contentHeight);
-
-		this.outgoingEventBus.emit(EditorCommon.EventType.ViewLayoutChanged, layoutInfo);
-		return false;
 	}
-	public onConfigurationChanged(e: EditorCommon.IConfigurationChangedEvent): boolean {
-		if (e.stylingInfo) {
-			Configuration.applyEditorStyling(this.domNode, this.context.configuration.editor.stylingInfo);
+
+	// --- begin event handlers
+
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
+		if (e.viewInfo.editorClassName) {
+			this.domNode.setClassName(this._context.configuration.editor.viewInfo.editorClassName);
 		}
-		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
-		DomUtils.StyleMutator.setFontSize(this.textArea, this.context.configuration.editor.fontSize);
-		DomUtils.StyleMutator.setLineHeight(this.textArea, this.context.configuration.editor.lineHeight);
+		if (e.viewInfo.ariaLabel) {
+			this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
+		}
+		if (e.layoutInfo) {
+			this._setLayout();
+		}
+		this.layoutProvider.onConfigurationChanged(e);
 		return false;
 	}
-	public onScrollChanged(e:EditorCommon.IScrollEvent): boolean {
-		this.outgoingEventBus.emit('scroll', {
-			scrollTop: this.layoutProvider.getScrollTop(),
-			scrollLeft: this.layoutProvider.getScrollLeft()
-		});
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		this.layoutProvider.onFlushed(this._context.model.getLineCount());
 		return false;
 	}
-	public onScrollHeightChanged(scrollHeight:number): boolean {
-		this.outgoingEventBus.emit('scrollSize', {
-			scrollWidth: this.layoutProvider.getScrollWidth(),
-			scrollHeight: this.layoutProvider.getScrollHeight()
-		});
-		return super.onScrollHeightChanged(scrollHeight);
-	}
-	public onViewFocusChanged(isFocused:boolean): boolean {
-		DomUtils.toggleClass(this.domNode, 'focused', isFocused);
-		if (isFocused) {
-			this._editorTextFocusContextKey.set(true);
-			this.outgoingEventBus.emit(EditorCommon.EventType.ViewFocusGained, {});
+	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
+		this.domNode.toggleClassName('focused', e.isFocused);
+		if (e.isFocused) {
+			this.outgoingEvents.emitViewFocusGained();
 		} else {
-			this._editorTextFocusContextKey.reset();
-			this.outgoingEventBus.emit(EditorCommon.EventType.ViewFocusLost, {});
+			this.outgoingEvents.emitViewFocusLost();
 		}
 		return false;
 	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		this.layoutProvider.onLinesDeleted(e);
+		return false;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		this.layoutProvider.onLinesInserted(e);
+		return false;
+	}
+	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
+		return e.revealCursor ? this.revealCursor() : false;
+	}
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		this.outgoingEvents.emitScrollChanged(e);
+		return false;
+	}
+	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
+		let currentScrollTop = this.layoutProvider.getScrollTop();
+		let newScrollTop = currentScrollTop + e.deltaLines * this._context.configuration.editor.lineHeight;
+		this.layoutProvider.setScrollPosition({
+			scrollTop: newScrollTop
+		});
+		return e.revealCursor ? this.revealCursor() : false;
+	}
+	private revealCursor(): boolean {
+		this.triggerCursorHandler('revealCursor', editorCommon.Handler.CursorMove, { to: editorCommon.CursorMovePosition.ViewPortIfOutside });
+		return false;
+	}
+
 	// --- end event handlers
 
 	public dispose(): void {
@@ -484,138 +544,146 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		this.accumulatedModelEvents = [];
 
 		this.eventDispatcher.removeEventHandler(this);
-		this.outgoingEventBus.dispose();
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
-
-		this.listenersToDispose = Lifecycle.disposeAll(this.listenersToDispose);
+		this.outgoingEvents.dispose();
+		this.listenersToRemove = dispose(this.listenersToRemove);
+		this.listenersToDispose = dispose(this.listenersToDispose);
 
 		this.keyboardHandler.dispose();
 		this.pointerHandler.dispose();
 
 		this.viewLines.dispose();
 
-		// Destroy IViewPart second
-		for (var i = 0, len = this.viewParts.length; i < len; i++) {
+		// Destroy view parts
+		for (let i = 0, len = this.viewParts.length; i < len; i++) {
 			this.viewParts[i].dispose();
 		}
 		this.viewParts = [];
 
 		this.layoutProvider.dispose();
-		this._keybindingService.dispose();
 	}
 
 	// --- begin Code Editor APIs
 
-	private codeEditorHelper:EditorBrowser.ICodeEditorHelper;
-	public getCodeEditorHelper(): EditorBrowser.ICodeEditorHelper {
+	private codeEditorHelper: editorBrowser.ICodeEditorHelper;
+	public getCodeEditorHelper(): editorBrowser.ICodeEditorHelper {
 		if (!this.codeEditorHelper) {
 			this.codeEditorHelper = {
-				getScrollTop: () => {
-					if (this._isDisposed) {
-						throw new Error('ViewImpl.codeEditorHelper.getScrollTop: View is disposed');
-					}
-					return this.layoutProvider.getScrollTop();
-				},
-				setScrollTop: (scrollTop: number) => {
-					if (this._isDisposed) {
-						throw new Error('ViewImpl.codeEditorHelper.setScrollTop: View is disposed');
-					}
-					this.layoutProvider.setScrollTop(scrollTop);
-				},
-				getScrollLeft: () => {
-					if (this._isDisposed) {
-						throw new Error('ViewImpl.codeEditorHelper.getScrollLeft: View is disposed');
-					}
-					return this.layoutProvider.getScrollLeft();
-				},
-				setScrollLeft: (scrollLeft: number) => {
-					if (this._isDisposed) {
-						throw new Error('ViewImpl.codeEditorHelper.setScrollLeft: View is disposed');
-					}
-					this.layoutProvider.setScrollLeft(scrollLeft);
-				},
-				getScrollHeight: () => {
-					if (this._isDisposed) {
-						throw new Error('ViewImpl.codeEditorHelper.getScrollHeight: View is disposed');
-					}
-					return this.layoutProvider.getScrollHeight();
-				},
 				getScrollWidth: () => {
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.getScrollWidth: View is disposed');
 					}
 					return this.layoutProvider.getScrollWidth();
 				},
-				getVerticalOffsetForPosition: (modelLineNumber:number, modelColumn:number) => {
+
+				getScrollLeft: () => {
+					if (this._isDisposed) {
+						throw new Error('ViewImpl.codeEditorHelper.getScrollLeft: View is disposed');
+					}
+					return this.layoutProvider.getScrollLeft();
+				},
+
+				getScrollHeight: () => {
+					if (this._isDisposed) {
+						throw new Error('ViewImpl.codeEditorHelper.getScrollHeight: View is disposed');
+					}
+					return this.layoutProvider.getScrollHeight();
+				},
+
+				getScrollTop: () => {
+					if (this._isDisposed) {
+						throw new Error('ViewImpl.codeEditorHelper.getScrollTop: View is disposed');
+					}
+					return this.layoutProvider.getScrollTop();
+				},
+
+				setScrollPosition: (scrollPosition: editorCommon.INewScrollPosition) => {
+					if (this._isDisposed) {
+						throw new Error('ViewImpl.codeEditorHelper.setScrollPosition: View is disposed');
+					}
+					this.layoutProvider.setScrollPosition(scrollPosition);
+				},
+
+				getVerticalOffsetForPosition: (modelLineNumber: number, modelColumn: number) => {
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.getVerticalOffsetForPosition: View is disposed');
 					}
-					var modelPosition = this.context.model.validateModelPosition({
+					let modelPosition = this._context.model.validateModelPosition({
 						lineNumber: modelLineNumber,
 						column: modelColumn
 					});
-					var viewPosition = this.context.model.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
+					let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 					return this.layoutProvider.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 				},
+
 				delegateVerticalScrollbarMouseDown: (browserEvent: MouseEvent) => {
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.delegateVerticalScrollbarMouseDown: View is disposed');
 					}
-					this.layoutProvider.delegateVerticalScrollbarMouseDown(browserEvent);
+					this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 				},
+
 				getOffsetForColumn: (modelLineNumber: number, modelColumn: number) => {
 					if (this._isDisposed) {
 						throw new Error('ViewImpl.codeEditorHelper.getOffsetForColumn: View is disposed');
 					}
-					var modelPosition = this.context.model.validateModelPosition({
+					let modelPosition = this._context.model.validateModelPosition({
 						lineNumber: modelLineNumber,
 						column: modelColumn
 					});
-					var viewPosition = this.context.model.convertModelPositionToViewPosition(modelPosition.lineNumber, modelPosition.column);
+					let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 					this._flushAccumulatedAndRenderNow();
-					var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column), 0, 0, false);
+					let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column));
 					if (!visibleRanges) {
 						return -1;
 					}
 					return visibleRanges[0].left;
+				},
+
+				getTargetAtClientPoint: (clientX: number, clientY: number): editorBrowser.IMouseTarget => {
+					if (this._isDisposed) {
+						throw new Error('ViewImpl.codeEditorHelper.getTargetAtClientPoint: View is disposed');
+					}
+					return this.pointerHandler.getTargetAtClientPoint(clientX, clientY);
+				},
+
+				getCompletelyVisibleViewRange: (): Range => {
+					if (this._isDisposed) {
+						throw new Error('ViewImpl.codeEditorHelper.getCompletelyVisibleViewRange: View is disposed');
+					}
+
+					// Ensure we share the state of the view model
+					this._flushAnyAccumulatedEvents();
+
+					const partialData = this.layoutProvider.getLinesViewportData();
+					const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
+					const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
+
+					return new Range(
+						startViewLineNumber, this._context.model.getLineMinColumn(startViewLineNumber),
+						endViewLineNumber, this._context.model.getLineMaxColumn(endViewLineNumber)
+					);
 				}
+
 			};
 		}
 		return this.codeEditorHelper;
 	}
 
-	public getCenteredRangeInViewport(): EditorCommon.IEditorRange {
-		if (this._isDisposed) {
-			throw new Error('ViewImpl.getCenteredRangeInViewport: View is disposed');
-		}
-		var viewLineNumber = this.layoutProvider.getCenteredViewLineNumberInViewport();
-		var viewModel = this.context.model;
-		var currentCenteredViewRange = new Range(viewLineNumber, 1, viewLineNumber, viewModel.getLineMaxColumn(viewLineNumber));
-		return viewModel.convertViewRangeToModelRange(currentCenteredViewRange);
-	}
-
-//	public getLineInfoProvider():view.ILineInfoProvider {
-//		return this.viewLines;
-//	}
-
-	public getInternalEventBus(): EventEmitter.IEventEmitter {
+	public getInternalEventBus(): IEventEmitter {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.getInternalEventBus: View is disposed');
 		}
-		return this.outgoingEventBus;
+		return this.outgoingEvents.getInternalEventBus();
 	}
 
-	public saveState(): EditorCommon.IViewState {
+	public saveState(): editorCommon.IViewState {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.saveState: View is disposed');
 		}
 		return this.layoutProvider.saveState();
 	}
 
-	public restoreState(state: EditorCommon.IViewState): void {
+	public restoreState(state: editorCommon.IViewState): void {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.restoreState: View is disposed');
 		}
@@ -627,15 +695,12 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.focus: View is disposed');
 		}
-		// Chrome does not trigger the focus event at all if focus is in url bar and clicking into the editor
-		// Calling .focus() and then .select() seems to be a good workaround for Chrome in this case
-		var state = DomUtils.saveParentsScrollTop(this.textArea);
-		this.textArea.focus();
-		DomUtils.selectTextInInputElement(this.textArea);
-		DomUtils.restoreParentsScrollTop(this.textArea, state);
+		this.keyboardHandler.focusTextArea();
 
 		// IE does not trigger the focus event immediately, so we must help it a little bit
-		this._setHasFocus(true);
+		if (document.activeElement === this.textArea.domNode) {
+			this._setHasFocus(true);
+		}
 	}
 
 	public isFocused(): boolean {
@@ -650,131 +715,134 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 			throw new Error('ViewImpl.createOverviewRuler: View is disposed');
 		}
 		return new OverviewRuler(
-				this.context, cssClassName, this.layoutProvider.getScrollHeight(), minimumHeight, maximumHeight,
-				(lineNumber:number) => this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber)
+			this._context, cssClassName, this.layoutProvider.getScrollHeight(), minimumHeight, maximumHeight,
+			(lineNumber: number) => this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber)
 		);
 	}
 
-	public change(callback: (changeAccessor: EditorBrowser.IViewZoneChangeAccessor) => any): boolean {
+	public change(callback: (changeAccessor: editorBrowser.IViewZoneChangeAccessor) => any): boolean {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.change: View is disposed');
 		}
-		var zonesHaveChanged = false;
+		let zonesHaveChanged = false;
+
 		this._renderOnce(() => {
 			// Handle events to avoid "adjusting" newly inserted view zones
 			this._flushAnyAccumulatedEvents();
-			var changeAccessor:EditorBrowser.IViewZoneChangeAccessor = {
-				addZone: (zone:EditorBrowser.IViewZone): number => {
+			let changeAccessor: editorBrowser.IViewZoneChangeAccessor = {
+				addZone: (zone: editorBrowser.IViewZone): number => {
 					zonesHaveChanged = true;
 					return this.viewZones.addZone(zone);
 				},
-				removeZone: (id:number): void => {
+				removeZone: (id: number): void => {
+					if (!id) {
+						return;
+					}
 					zonesHaveChanged = this.viewZones.removeZone(id) || zonesHaveChanged;
 				},
 				layoutZone: (id: number): void => {
+					if (!id) {
+						return;
+					}
 					zonesHaveChanged = this.viewZones.layoutZone(id) || zonesHaveChanged;
 				}
 			};
 
-			var r: any = null;
-			try {
-				r = callback(changeAccessor);
-			} catch (e) {
-				Errors.onUnexpectedError(e);
-			}
+			safeInvoke1Arg(callback, changeAccessor);
 
 			// Invalidate changeAccessor
 			changeAccessor.addZone = null;
 			changeAccessor.removeZone = null;
 
 			if (zonesHaveChanged) {
-				this.context.privateViewEventBus.emit(EditorCommon.EventType.ViewZonesChanged, null);
+				this.layoutProvider.onHeightMaybeChanged();
+				this._context.privateViewEventBus.emit(new viewEvents.ViewZonesChangedEvent());
 			}
-
-			return r;
 		});
 		return zonesHaveChanged;
 	}
 
-	public getWhitespaces(): EditorCommon.IEditorWhitespace[]{
+	public getWhitespaces(): editorCommon.IEditorWhitespace[] {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.getWhitespaces: View is disposed');
 		}
 		return this.layoutProvider.getWhitespaces();
 	}
 
-	public addContentWidget(widgetData: EditorBrowser.IContentWidgetData): void {
+	public addContentWidget(widgetData: editorBrowser.IContentWidgetData): void {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.addContentWidget: View is disposed');
 		}
-		this._renderOnce(() => {
-			this.contentWidgets.addWidget(widgetData.widget);
-			this.layoutContentWidget(widgetData);
-		});
+		this.contentWidgets.addWidget(widgetData.widget);
+		this.layoutContentWidget(widgetData);
+		this._scheduleRender();
 	}
 
-	public layoutContentWidget(widgetData: EditorBrowser.IContentWidgetData): void {
+	public layoutContentWidget(widgetData: editorBrowser.IContentWidgetData): void {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.layoutContentWidget: View is disposed');
 		}
-		this._renderOnce(() => {
-			var position1 = widgetData.position ? widgetData.position.position : null;
-			var preference1 = widgetData.position ? widgetData.position.preference : null;
-			this.contentWidgets.setWidgetPosition(widgetData.widget, position1, preference1);
-		});
+
+		let newPosition = widgetData.position ? widgetData.position.position : null;
+		let newPreference = widgetData.position ? widgetData.position.preference : null;
+		this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newPreference);
+		this._scheduleRender();
 	}
 
-	public removeContentWidget(widgetData: EditorBrowser.IContentWidgetData): void {
+	public removeContentWidget(widgetData: editorBrowser.IContentWidgetData): void {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.removeContentWidget: View is disposed');
 		}
-		this._renderOnce(() => {
-			this.contentWidgets.removeWidget(widgetData.widget);
-		});
+		this.contentWidgets.removeWidget(widgetData.widget);
+		this._scheduleRender();
 	}
 
-	public addOverlayWidget(widgetData: EditorBrowser.IOverlayWidgetData): void {
+	public addOverlayWidget(widgetData: editorBrowser.IOverlayWidgetData): void {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.addOverlayWidget: View is disposed');
 		}
-		this._renderOnce(() => {
-			this.overlayWidgets.addWidget(widgetData.widget);
-			this.layoutOverlayWidget(widgetData);
-		});
+		this.overlayWidgets.addWidget(widgetData.widget);
+		this.layoutOverlayWidget(widgetData);
+		this._scheduleRender();
 	}
 
-	public layoutOverlayWidget(widgetData: EditorBrowser.IOverlayWidgetData): void {
+	public layoutOverlayWidget(widgetData: editorBrowser.IOverlayWidgetData): void {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.layoutOverlayWidget: View is disposed');
 		}
-		this._renderOnce(() => {
-			var preference2 = widgetData.position ? widgetData.position.preference : null;
-			this.overlayWidgets.setWidgetPosition(widgetData.widget, preference2);
-		});
+
+		let newPreference = widgetData.position ? widgetData.position.preference : null;
+		let shouldRender = this.overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
+		if (shouldRender) {
+			this._scheduleRender();
+		}
 	}
 
-	public removeOverlayWidget(widgetData: EditorBrowser.IOverlayWidgetData): void {
+	public removeOverlayWidget(widgetData: editorBrowser.IOverlayWidgetData): void {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.removeOverlayWidget: View is disposed');
 		}
-		this._renderOnce(() => {
-			this.overlayWidgets.removeWidget(widgetData.widget);
-		});
+		this.overlayWidgets.removeWidget(widgetData.widget);
+		this._scheduleRender();
 	}
 
-	public render(): void {
+	public render(now: boolean, everything: boolean): void {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.render: View is disposed');
 		}
-		// Force a render with a layout event
-		this.layoutProvider.emitLayoutChangedEvent();
-	}
-
-	public renderOnce(callback: () => any): any {
-		if (this._isDisposed) {
-			throw new Error('ViewImpl.renderOnce: View is disposed');
+		if (everything) {
+			// Force everything to render...
+			this.viewLines.forceShouldRender();
+			for (let i = 0, len = this.viewParts.length; i < len; i++) {
+				let viewPart = this.viewParts[i];
+				viewPart.forceShouldRender();
+			}
 		}
-		return this._renderOnce(callback);
+		if (now) {
+			this._flushAccumulatedAndRenderNow();
+		} else {
+			this._scheduleRender();
+		}
 	}
 
 	// --- end Code Editor APIs
@@ -783,13 +851,9 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 		if (this._isDisposed) {
 			throw new Error('ViewImpl._renderOnce: View is disposed');
 		}
-		return this.outgoingEventBus.deferredEmit(() => {
-			try {
-				var r = callback ? callback() : null;
-			} finally {
-				this._scheduleRender();
-			}
-
+		return this.outgoingEvents.deferredEmit(() => {
+			let r = safeInvokeNoArg(callback);
+			this._scheduleRender();
 			return r;
 		});
 	}
@@ -799,7 +863,7 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 			throw new Error('ViewImpl._scheduleRender: View is disposed');
 		}
 		if (this._renderAnimationFrame === null) {
-			this._renderAnimationFrame = DomUtils.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 100);
+			this._renderAnimationFrame = dom.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 100);
 		}
 	}
 
@@ -809,152 +873,85 @@ export class View extends ViewEventHandler implements EditorBrowser.IView, Lifec
 	}
 
 	private _renderNow(): void {
-		if (this._isDisposed) {
-			throw new Error('ViewImpl._renderNow: View is disposed');
-		}
-		this.actualRender();
+		safeInvokeNoArg(() => this._actualRender());
 	}
 
-	private createRenderingContext(linesViewportData:EditorCommon.IViewLinesViewportData): EditorBrowser.IRenderingContext {
-
-		var vInfo = this.layoutProvider.getCurrentViewport();
-
-		var deltaTop = linesViewportData.visibleRangesDeltaTop;
-		var correctionTop = 0;
-		// FF is very weird
-//		if (Env.browser.canUseTranslate3d && Env.browser.isFirefox) {
-//			correctionTop = vInfo.top;
-//		}
-
-		var r:EditorBrowser.IRenderingContext = {
-			linesViewportData: linesViewportData,
-			scrollWidth: this.layoutProvider.getScrollWidth(),
-			scrollHeight: this.layoutProvider.getScrollHeight(),
-
-			visibleRange: linesViewportData.visibleRange,
-			bigNumbersDelta: linesViewportData.bigNumbersDelta,
-
-			viewportWidth: vInfo.width,
-			viewportHeight: vInfo.height,
-			viewportLeft: vInfo.left,
-			viewportTop: vInfo.top,
-
-			getScrolledTopFromAbsoluteTop: (absoluteTop:number) => {
-				return this.layoutProvider.getScrolledTopFromAbsoluteTop(absoluteTop);
-			},
-
-			getViewportVerticalOffsetForLineNumber: (lineNumber:number) => {
-				var verticalOffset = this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber);
-				var scrolledTop = this.layoutProvider.getScrolledTopFromAbsoluteTop(verticalOffset);
-				return scrolledTop;
-			},
-
-			heightInPxForLine: (lineNumber:number) => {
-				return this.layoutProvider.heightInPxForLine(lineNumber);
-			},
-
-			getDecorationsInViewport: () => linesViewportData.getDecorationsInViewport(),
-
-			visibleRangesForRange: (range:EditorCommon.IRange, includeNewLines:boolean) => {
-				return this.viewLines.visibleRangesForRange2(range, deltaTop, correctionTop, includeNewLines);
-			},
-
-			linesVisibleRangesForRange: (range:EditorCommon.IRange, includeNewLines:boolean) => {
-				return this.viewLines.linesVisibleRangesForRange(range, includeNewLines);
-			},
-
-			visibleRangeForPosition: (position:EditorCommon.IPosition) => {
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(position.lineNumber, position.column, position.lineNumber, position.column), deltaTop, correctionTop, false);
-				if (!visibleRanges) {
-					return null;
-				}
-				return visibleRanges[0];
-			},
-
-			visibleRangeForPosition2: (lineNumber:number, column:number) => {
-				var visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column), deltaTop, correctionTop, false);
-				if (!visibleRanges) {
-					return null;
-				}
-				return visibleRanges[0];
-			},
-
-			lineIsVisible: (lineNumber:number) => {
-				return linesViewportData.visibleRange.startLineNumber <= lineNumber && lineNumber <= linesViewportData.visibleRange.endLineNumber;
+	private _getViewPartsToRender(): ViewPart[] {
+		let result: ViewPart[] = [];
+		for (let i = 0, len = this.viewParts.length; i < len; i++) {
+			let viewPart = this.viewParts[i];
+			if (viewPart.shouldRender()) {
+				result.push(viewPart);
 			}
-		};
-		return r;
+		}
+		return result;
 	}
 
-	private actualRender(): void {
-		if (this._isDisposed) {
-			throw new Error('ViewImpl.actualRender: View is disposed');
-		}
-		if (!DomUtils.isInDOM(this.domNode)) {
+	private _actualRender(): void {
+		if (!dom.isInDOM(this.domNode.domNode)) {
 			return;
 		}
 
-		var t = Timer.start(Timer.Topic.EDITOR, 'View.render');
+		let viewPartsToRender = this._getViewPartsToRender();
 
-		var i:number,
-			len:number;
-
-		try {
-
-			for (i = 0, len = this.viewParts.length; i < len; i++) {
-				this.viewParts[i].onBeforeForcedLayout();
-			}
-
-			var linesViewportData = this.viewLines.render();
-
-			var renderingContext = this.createRenderingContext(linesViewportData);
-
-			// Render the rest of the parts
-			for (i = 0, len = this.viewParts.length; i < len; i++) {
-				this.viewParts[i].onReadAfterForcedLayout(renderingContext);
-			}
-
-			for (i = 0, len = this.viewParts.length; i < len; i++) {
-				this.viewParts[i].onWriteAfterForcedLayout();
-			}
-		} catch (err) {
-			Errors.onUnexpectedError(err);
+		if (!this.viewLines.shouldRender() && viewPartsToRender.length === 0) {
+			// Nothing to render
+			this.keyboardHandler.writeToTextArea();
+			return;
 		}
 
-		t.stop();
+		let partialViewportData = this.layoutProvider.getLinesViewportData();
+		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
+
+		let viewportData = new ViewportData(partialViewportData, this._context.model);
+
+		if (this.viewLines.shouldRender()) {
+			this.viewLines.renderText(viewportData, () => {
+				this.keyboardHandler.writeToTextArea();
+			});
+			this.viewLines.onDidRender();
+
+			// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
+			viewPartsToRender = this._getViewPartsToRender();
+		} else {
+			this.keyboardHandler.writeToTextArea();
+		}
+
+		let renderingContext = new RenderingContext(this.layoutProvider, viewportData, this.viewLines);
+
+		// Render the rest of the parts
+		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
+			let viewPart = viewPartsToRender[i];
+			viewPart.prepareRender(renderingContext);
+		}
+
+		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
+			let viewPart = viewPartsToRender[i];
+			viewPart.render(renderingContext);
+			viewPart.onDidRender();
+		}
 	}
 
-	private _setHasFocus(newHasFocus:boolean): void {
+	private _setHasFocus(newHasFocus: boolean): void {
 		if (this.hasFocus !== newHasFocus) {
 			this.hasFocus = newHasFocus;
-			this.context.privateViewEventBus.emit(EditorCommon.EventType.ViewFocusChanged, this.hasFocus);
+			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(this.hasFocus));
 		}
 	}
 }
 
-class ViewContext implements EditorBrowser.IViewContext {
+function safeInvokeNoArg(func: Function): any {
+	try {
+		return func();
+	} catch (e) {
+		onUnexpectedError(e);
+	}
+}
 
-	public editorId:number;
-	public configuration:EditorCommon.IConfiguration;
-	public model: EditorCommon.IViewModel;
-	public privateViewEventBus:EditorCommon.IViewEventBus;
-	public addEventHandler:(eventHandler:EditorBrowser.IViewEventHandler)=>void;
-	public removeEventHandler:(eventHandler:EditorBrowser.IViewEventHandler)=>void;
-
-	constructor(
-					editorId:number,
-					configuration:EditorCommon.IConfiguration,
-					model: EditorCommon.IViewModel,
-					privateViewEventBus:EditorCommon.IViewEventBus,
-					addEventHandler:(eventHandler:EditorBrowser.IViewEventHandler)=>void,
-					removeEventHandler:(eventHandler:EditorBrowser.IViewEventHandler)=>void
-				)
-	{
-		this.editorId = editorId;
-		this.configuration = configuration;
-		this.model = model;
-		this.privateViewEventBus = privateViewEventBus;
-		this.addEventHandler = addEventHandler;
-		this.removeEventHandler = removeEventHandler;
+function safeInvoke1Arg(func: Function, arg1: any): any {
+	try {
+		return func(arg1);
+	} catch (e) {
+		onUnexpectedError(e);
 	}
 }

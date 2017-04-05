@@ -1,0 +1,13 @@
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px"
+	 height="16px" viewBox="0 0 16 16" enable-background="new 0 0 16 16" xml:space="preserve">
+<g id="icon_x5F_bg">
+	<g>
+		<path fill="#424242" d="M11,3V1h-1v5v1h1h2h1V4V3H11z M13,6h-2V4h2V6z"/>
+		<path fill="#424242" d="M2,15h7V9H2V15z M4,10h3v1H5v2h2v1H4V10z"/>
+	</g>
+</g>
+<g id="color_x5F_importance">
+	<path fill="#00539C" d="M3.979,3.5L4,6L3,5v1.5L4.5,8L6,6.5V5L5,6L4.979,3.5c0-0.275,0.225-0.5,0.5-0.5H9V2H5.479
+		C4.651,2,3.979,2.673,3.979,3.5z"/>
+</g>
+</svg>

@@ -4,24 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise as Promise} from 'vs/base/common/winjs.base';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IProcessEnvironment } from 'vs/base/common/platform';
 
-export interface IOptions {
-	cwd: string;
-	env?: any;
-}
-
-export var IExecutionService = createDecorator<IExecutionService>('executionService')
-
-export interface IExecutionService {
-	serviceId: ServiceIdentifier<any>;
-	exec(file: string, args: string[], cwd: string|IOptions): Promise<any>;
-}
-
-export var ITerminalService = createDecorator<ITerminalService>('nativeTerminalService')
+export const ITerminalService = createDecorator<ITerminalService>('nativeTerminalService');
 
 export interface ITerminalService {
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 	openTerminal(path: string): void;
+	runInTerminal(title: string, cwd: string, args: string[], env: IProcessEnvironment): TPromise<void>;
 }

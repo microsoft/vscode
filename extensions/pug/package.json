@@ -1,0 +1,22 @@
+{
+	"name": "pug",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js davidrios/jade-tmbundle Syntaxes/Jade.tmLanguage ./syntaxes/pug.tmLanguage.json"
+	},
+	"contributes": {
+		"languages": [{
+			"id": "jade",
+			"extensions": [ ".jade", ".pug" ],
+			"aliases": [ "Pug", "Jade", "jade" ],
+			"configuration": "./language-configuration.json"
+		}],
+		"grammars": [{
+			"language": "jade",
+			"scopeName": "text.jade",
+			"path": "./syntaxes/pug.tmLanguage.json"
+		}]
+	}
+}

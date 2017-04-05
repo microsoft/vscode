@@ -4,164 +4,91 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {Registry} from 'vs/platform/platform';
-import errors = require('vs/base/common/errors');
-import arrays = require('vs/base/common/arrays');
-import {IAction, Action} from 'vs/base/common/actions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import {ICommonCodeEditor, IEditorActionDescriptorData} from 'vs/editor/common/editorCommon';
-import {EditorInputAction} from 'vs/workbench/browser/parts/editor/baseEditor';
-import {IOutputChannelRegistry, Extensions, IOutputService, OUTPUT_EDITOR_INPUT_ID, OUTPUT_MODE_ID} from 'vs/workbench/parts/output/common/output';
-import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
-import {SelectActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {IWorkbenchEditorService}  from 'vs/workbench/services/editor/common/editorService';
-import {IQuickOpenService} from 'vs/workbench/services/quickopen/browser/quickOpenService';
-import {IInstantiationService, INullService} from 'vs/platform/instantiation/common/instantiation';
+import { IAction, Action } from 'vs/base/common/actions';
+import { IOutputService, OUTPUT_PANEL_ID } from 'vs/workbench/parts/output/common/output';
+import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { TogglePanelAction } from 'vs/workbench/browser/panel';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { attachSelectBoxStyler } from "vs/platform/theme/common/styler";
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
-export class GlobalShowOutputAction extends Action {
-
-	public static ID = 'workbench.action.output.showOutput';
-	public static LABEL = nls.localize('showOutput', "Show Output");
-
-	constructor(
-		id: string,
-		label: string,
-		@IOutputService private outputService: IOutputService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
-	) {
-		super(id, label);
-
-		this.order = 20; // Allow other actions to position before or after
-		this.class = 'output-action showoutput';
-	}
-
-	public run(event?: any): Promise {
-		let channelToOpen: string = null;
-
-		// Check for previously opened output
-		let channels = <OutputEditorInput[]>this.quickOpenService.getEditorHistory().filter((i) => i instanceof OutputEditorInput);
-		if (channels.length > 0) {
-
-			// See if output is already opened and just focus it
-			let editors = this.editorService.getVisibleEditors();
-			if (editors.some((e) => {
-				if (e.input instanceof OutputEditorInput) {
-					this.editorService.focusEditor(e);
-
-					return true;
-				}
-
-				return false;
-			})) {
-				return Promise.as(null);
-			}
-
-			// Otherwise pick a channel from the list
-			channelToOpen = channels[0].getChannel();
-		}
-
-		// Fallback to any contributed channel otherwise if we don't have history
-		else {
-			channelToOpen = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels()[0];
-		}
-
-		let sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-
-		return this.outputService.showOutput(channelToOpen, sideBySide, false /* Do not preserve Focus */);
-	}
-}
-
-export class ToggleOutputAction extends Action {
+export class ToggleOutputAction extends TogglePanelAction {
 
 	public static ID = 'workbench.action.output.toggleOutput';
 	public static LABEL = nls.localize('toggleOutput', "Toggle Output");
 
 	constructor(
 		id: string, label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IPartService partService: IPartService,
+		@IPanelService panelService: IPanelService,
 	) {
-		super(id, label);
-	}
-
-	public run(event?: any): Promise {
-		let activeInput = this.editorService.getActiveEditorInput();
-
-		// Restore Previous Non-Output Editor
-		if (activeInput instanceof OutputEditorInput) {
-			let history = this.quickOpenService.getEditorHistory();
-			for (let i = 1; i < history.length; i++) {
-				if (!(history[i] instanceof OutputEditorInput)) {
-					return this.editorService.openEditor(history[i]);
-				}
-			}
-		}
-
-		// Show Output
-		else {
-			let action = this.instantiationService.createInstance(GlobalShowOutputAction, GlobalShowOutputAction.ID, GlobalShowOutputAction.LABEL);
-			action.run().done(() => action.dispose(), errors.onUnexpectedError);
-		}
-
-		return Promise.as(true);
+		super(id, label, OUTPUT_PANEL_ID, panelService, partService);
 	}
 }
 
-export class ClearOutputAction extends EditorInputAction {
+export class ClearOutputAction extends Action {
 
-	constructor( @INullService ns) {
-		super('workbench.output.action.clearOutput', nls.localize('clearOutput', "Clear Output"), 'output-action clear-output');
-	}
-
-	public run(): Promise {
-		let outputEditorInput = <OutputEditorInput>this.input;
-		outputEditorInput.clearOutput();
-
-		return Promise.as(true);
-	}
-}
-
-export class ClearOutputEditorAction extends EditorAction {
-
-	public static ID = 'editor.action.clearoutput';
+	public static ID = 'workbench.output.action.clearOutput';
+	public static LABEL = nls.localize('clearOutput', "Clear Output");
 
 	constructor(
-		descriptor: IEditorActionDescriptorData,
-		editor: ICommonCodeEditor,
-		@IWorkbenchEditorService private myEditorService: IWorkbenchEditorService
+		id: string, label: string,
+		@IOutputService private outputService: IOutputService,
+		@IPanelService private panelService: IPanelService
 	) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu);
+		super(id, label, 'output-action clear-output');
 	}
 
-	public getGroupId(): string {
-		return 'clear';
-	}
+	public run(): TPromise<any> {
+		this.outputService.getActiveChannel().clear();
+		this.panelService.getActivePanel().focus();
 
-	public isSupported(): boolean {
-		let model = this.editor.getModel();
-		let mode = model && model.getMode();
-
-		return mode && mode.getId() === OUTPUT_MODE_ID && super.isSupported();
-	}
-
-	public run(): TPromise<boolean> {
-		let input = this.myEditorService.getActiveEditorInput();
-		if (input && input.getId() === OUTPUT_EDITOR_INPUT_ID) {
-			let outputEditorInput = <OutputEditorInput>input;
-			outputEditorInput.clearOutput();
-
-			return Promise.as(true);
-		}
-
-		return TPromise.as(false);
+		return TPromise.as(true);
 	}
 }
 
-export class SwitchOutputAction extends EditorInputAction {
+export class ToggleOutputScrollLockAction extends Action {
+
+	public static ID = 'workbench.output.action.toggleOutputScrollLock';
+	public static LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
+
+	private toDispose: IDisposable[] = [];
+
+	constructor(id: string, label: string,
+		@IOutputService private outputService: IOutputService) {
+		super(id, label, 'output-action output-scroll-unlock');
+		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this.setClass(this.outputService.getActiveChannel().scrollLock)));
+	}
+
+	public run(): TPromise<any> {
+		const activeChannel = this.outputService.getActiveChannel();
+		if (activeChannel) {
+			activeChannel.scrollLock = !activeChannel.scrollLock;
+			this.setClass(activeChannel.scrollLock);
+		}
+
+		return TPromise.as(true);
+	}
+
+	private setClass(locked: boolean) {
+		if (locked) {
+			this.class = 'output-action output-scroll-lock';
+		} else {
+			this.class = 'output-action output-scroll-unlock';
+		}
+	}
+
+	public dispose() {
+		super.dispose();
+		this.toDispose = dispose(this.toDispose);
+	}
+}
+
+export class SwitchOutputAction extends Action {
 
 	public static ID = 'workbench.output.action.switchBetweenOutputs';
 
@@ -171,49 +98,42 @@ export class SwitchOutputAction extends EditorInputAction {
 		this.class = 'output-action switch-to-output';
 	}
 
-	public isEnabled(): boolean {
-		return super.isEnabled() && this.input instanceof OutputEditorInput;
-	}
-
-	public run(channel?: string): Promise {
-		return this.outputService.showOutput(channel);
+	public run(channelId?: string): TPromise<any> {
+		return this.outputService.getChannel(channelId).show();
 	}
 }
 
 export class SwitchOutputActionItem extends SelectActionItem {
-	private input: OutputEditorInput;
 
 	constructor(
 		action: IAction,
-		input: OutputEditorInput,
-		@IOutputService private outputService: IOutputService
+		@IOutputService private outputService: IOutputService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(null, action, SwitchOutputActionItem.getChannels(outputService, input), SwitchOutputActionItem.getChannels(outputService, input).indexOf(input.getChannel()));
+		super(null, action, [], 0);
 
-		this.input = input;
+		this.toDispose.push(this.outputService.onOutputChannel(() => this.setOptions(this.getOptions(), this.getSelected(undefined))));
+		this.toDispose.push(this.outputService.onActiveOutputChannel(activeChannelId => this.setOptions(this.getOptions(), this.getSelected(activeChannelId))));
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
-		this.outputService.onOutputChannel.add(this.onOutputChannel, this);
+		this.setOptions(this.getOptions(), this.getSelected(this.outputService.getActiveChannel().id));
 	}
 
-	private onOutputChannel(): void {
-		let channels = SwitchOutputActionItem.getChannels(this.outputService, this.input);
-		let selected = channels.indexOf(this.input.getChannel());
+	protected getActionContext(option: string): string {
+		const channel = this.outputService.getChannels().filter(channelData => channelData.label === option).pop();
 
-		this.setOptions(channels, selected);
+		return channel ? channel.id : option;
 	}
 
-	private static getChannels(outputService: IOutputService, input: OutputEditorInput): string[] {
-		const contributedChannels = (<IOutputChannelRegistry>Registry.as(Extensions.OutputChannels)).getChannels();
-		const usedChannels = outputService.getChannels();
-		usedChannels.push(input.getChannel());
-
-		return arrays.distinct(contributedChannels.concat(usedChannels)).sort(); // sort by name
+	private getOptions(): string[] {
+		return this.outputService.getChannels().map(c => c.label);
 	}
 
-	public dispose(): void {
-		super.dispose();
+	private getSelected(outputId: string): number {
+		if (!outputId) {
+			return undefined;
+		}
 
-		this.outputService.onOutputChannel.remove(this.onOutputChannel, this);
-		delete this.input;
+		return Math.max(0, this.outputService.getChannels().map(c => c.id).indexOf(outputId));
 	}
 }

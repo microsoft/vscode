@@ -4,121 +4,151 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorLayoutInfo} from 'vs/editor/common/editorCommon';
+import { RenderMinimap, EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/editorCommon';
 
 export interface IEditorLayoutProviderOpts {
-	outerWidth:number;
-	outerHeight:number;
+	outerWidth: number;
+	outerHeight: number;
 
-	showGlyphMargin:boolean;
-	lineHeight:number;
+	showGlyphMargin: boolean;
+	lineHeight: number;
 
-	showLineNumbers:boolean;
-	lineNumbersMinChars:number;
-	lineDecorationsWidth:number;
-	maxDigitWidth:number;
+	showLineNumbers: boolean;
+	lineNumbersMinChars: number;
+	lineNumbersDigitCount: number;
 
-	lineCount: number;
+	lineDecorationsWidth: number;
 
-	verticalScrollbarWidth:number;
-	verticalScrollbarHasArrows:boolean;
+	typicalHalfwidthCharacterWidth: number;
+	maxDigitWidth: number;
+
+	verticalScrollbarWidth: number;
+	verticalScrollbarHasArrows: boolean;
 	scrollbarArrowSize: number;
-	horizontalScrollbarHeight:number;
+	horizontalScrollbarHeight: number;
+
+	minimap: boolean;
+	minimapRenderCharacters: boolean;
+	minimapMaxColumn: number;
+	pixelRatio: number;
 }
 
 export class EditorLayoutProvider {
+	public static compute(_opts: IEditorLayoutProviderOpts): EditorLayoutInfo {
+		const outerWidth = _opts.outerWidth | 0;
+		const outerHeight = _opts.outerHeight | 0;
+		const showGlyphMargin = Boolean(_opts.showGlyphMargin);
+		const lineHeight = _opts.lineHeight | 0;
+		const showLineNumbers = Boolean(_opts.showLineNumbers);
+		const lineNumbersMinChars = _opts.lineNumbersMinChars | 0;
+		const lineNumbersDigitCount = _opts.lineNumbersDigitCount | 0;
+		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
+		const typicalHalfwidthCharacterWidth = Number(_opts.typicalHalfwidthCharacterWidth);
+		const maxDigitWidth = Number(_opts.maxDigitWidth);
+		const verticalScrollbarWidth = _opts.verticalScrollbarWidth | 0;
+		const verticalScrollbarHasArrows = Boolean(_opts.verticalScrollbarHasArrows);
+		const scrollbarArrowSize = _opts.scrollbarArrowSize | 0;
+		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
+		const minimap = Boolean(_opts.minimap);
+		const minimapRenderCharacters = Boolean(_opts.minimapRenderCharacters);
+		const minimapMaxColumn = _opts.minimapMaxColumn | 0;
+		const pixelRatio = Number(_opts.pixelRatio);
 
-	public static compute(opts:IEditorLayoutProviderOpts): IEditorLayoutInfo {
-		let lineNumbersWidth = this.computeLineNumbersWidth(opts);
-		let glyphMarginWidth = this.computeGlyphMarginWidth(opts);
+		let lineNumbersWidth = 0;
+		if (showLineNumbers) {
+			let digitCount = Math.max(lineNumbersDigitCount, lineNumbersMinChars);
+			lineNumbersWidth = Math.round(digitCount * maxDigitWidth);
+		}
 
-		let contentWidth = opts.outerWidth - glyphMarginWidth - lineNumbersWidth - opts.lineDecorationsWidth;
+		let glyphMarginWidth = 0;
+		if (showGlyphMargin) {
+			glyphMarginWidth = lineHeight;
+		}
 
 		let glyphMarginLeft = 0;
 		let lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
 		let decorationsLeft = lineNumbersLeft + lineNumbersWidth;
-		let contentLeft = decorationsLeft + opts.lineDecorationsWidth;
+		let contentLeft = decorationsLeft + lineDecorationsWidth;
 
-		let verticalArrowSize = (opts.verticalScrollbarHasArrows ? opts.scrollbarArrowSize : 0);
+		let remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
-		return {
-			width: opts.outerWidth,
-			height: opts.outerHeight,
+		let renderMinimap: RenderMinimap;
+		let minimapWidth: number;
+		let contentWidth: number;
+		if (!minimap) {
+			minimapWidth = 0;
+			renderMinimap = RenderMinimap.None;
+			contentWidth = remainingWidth;
+		} else {
+			let minimapCharWidth: number;
+			if (pixelRatio >= 2) {
+				renderMinimap = minimapRenderCharacters ? RenderMinimap.Large : RenderMinimap.LargeBlocks;
+				minimapCharWidth = 2 / pixelRatio;
+			} else {
+				renderMinimap = minimapRenderCharacters ? RenderMinimap.Small : RenderMinimap.SmallBlocks;
+				minimapCharWidth = 1 / pixelRatio;
+			}
+
+			// Given:
+			// viewportColumn = (contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth
+			// minimapWidth = viewportColumn * minimapCharWidth
+			// contentWidth = remainingWidth - minimapWidth
+			// What are good values for contentWidth and minimapWidth ?
+
+			// minimapWidth = ((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth) * minimapCharWidth
+			// typicalHalfwidthCharacterWidth * minimapWidth = (contentWidth - verticalScrollbarWidth) * minimapCharWidth
+			// typicalHalfwidthCharacterWidth * minimapWidth = (remainingWidth - minimapWidth - verticalScrollbarWidth) * minimapCharWidth
+			// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth) * minimapCharWidth
+			// minimapWidth = ((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
+
+			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)));
+			let minimapColumns = minimapWidth / minimapCharWidth;
+			if (minimapColumns > minimapMaxColumn) {
+				minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
+			}
+			contentWidth = remainingWidth - minimapWidth;
+		}
+
+		let viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth));
+
+		let verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
+
+		return new EditorLayoutInfo({
+			width: outerWidth,
+			height: outerHeight,
 
 			glyphMarginLeft: glyphMarginLeft,
 			glyphMarginWidth: glyphMarginWidth,
-			glyphMarginHeight: opts.outerHeight,
+			glyphMarginHeight: outerHeight,
 
 			lineNumbersLeft: lineNumbersLeft,
 			lineNumbersWidth: lineNumbersWidth,
-			lineNumbersHeight: opts.outerHeight,
+			lineNumbersHeight: outerHeight,
 
 			decorationsLeft: decorationsLeft,
-			decorationsWidth: opts.lineDecorationsWidth,
-			decorationsHeight: opts.outerHeight,
+			decorationsWidth: lineDecorationsWidth,
+			decorationsHeight: outerHeight,
 
 			contentLeft: contentLeft,
 			contentWidth: contentWidth,
-			contentHeight: opts.outerHeight,
+			contentHeight: outerHeight,
 
-			verticalScrollbarWidth: opts.verticalScrollbarWidth,
-			horizontalScrollbarHeight: opts.horizontalScrollbarHeight,
+			renderMinimap: renderMinimap,
+			minimapWidth: minimapWidth,
 
-			overviewRuler: {
+			viewportColumn: viewportColumn,
+
+			verticalScrollbarWidth: verticalScrollbarWidth,
+			horizontalScrollbarHeight: horizontalScrollbarHeight,
+
+			overviewRuler: new OverviewRulerPosition({
 				top: verticalArrowSize,
-				width: opts.verticalScrollbarWidth,
-				height: (opts.outerHeight - 2 * verticalArrowSize - opts.horizontalScrollbarHeight),
+				width: verticalScrollbarWidth,
+				height: (outerHeight - 2 * verticalArrowSize),
 				right: 0
-			}
-		};
+			})
+		});
 	}
 
-	public static layoutEqual(a:IEditorLayoutInfo, b:IEditorLayoutInfo): boolean {
-		return (
-			a.width === b.width
-			&& a.height === b.height
-			&& a.glyphMarginLeft === b.glyphMarginLeft
-			&& a.glyphMarginWidth === b.glyphMarginWidth
-			&& a.glyphMarginHeight === b.glyphMarginHeight
-			&& a.lineNumbersLeft === b.lineNumbersLeft
-			&& a.lineNumbersWidth === b.lineNumbersWidth
-			&& a.lineNumbersHeight === b.lineNumbersHeight
-			&& a.decorationsLeft === b.decorationsLeft
-			&& a.decorationsWidth === b.decorationsWidth
-			&& a.decorationsHeight === b.decorationsHeight
-			&& a.contentLeft === b.contentLeft
-			&& a.contentWidth === b.contentWidth
-			&& a.contentHeight === b.contentHeight
-			&& a.verticalScrollbarWidth === b.verticalScrollbarWidth
-			&& a.horizontalScrollbarHeight === b.horizontalScrollbarHeight
-			&& a.overviewRuler.top === b.overviewRuler.top
-			&& a.overviewRuler.width === b.overviewRuler.width
-			&& a.overviewRuler.height === b.overviewRuler.height
-			&& a.overviewRuler.right === b.overviewRuler.right
-		);
-	}
 
-	private static computeGlyphMarginWidth(opts:IEditorLayoutProviderOpts): number {
-		if (opts.showGlyphMargin) {
-			return opts.lineHeight;
-		}
-		return 0;
-	}
-
-	private static digitCount(n:number): number {
-		var r = 0;
-		while (n) {
-			n = Math.floor(n / 10);
-			r++;
-		}
-		return r ? r : 1;
-	}
-
-	private static computeLineNumbersWidth(opts:IEditorLayoutProviderOpts): number {
-		if (opts.showLineNumbers) {
-			var digitCount = Math.max(this.digitCount(opts.lineCount), opts.lineNumbersMinChars);
-			return Math.round(digitCount * opts.maxDigitWidth);
-		}
-		return 0;
-	}
 }

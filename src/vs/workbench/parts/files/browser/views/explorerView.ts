@@ -4,37 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {Builder, $} from 'vs/base/browser/builder';
+import nls = require('vs/nls');
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
-import {ThrottledDelayer} from 'vs/base/common/async';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
+import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
-import {Action, IActionRunner} from 'vs/base/common/actions';
-import {prepareActions} from 'vs/workbench/browser/actionBarRegistry';
-import {ITree} from 'vs/base/parts/tree/common/tree';
-import {Tree} from 'vs/base/parts/tree/browser/treeImpl';
-import {EditorEvent, EventType as WorkbenchEventType} from 'vs/workbench/browser/events';
-import {LocalFileChangeEvent, IFilesConfiguration} from 'vs/workbench/parts/files/common/files';
-import {IFileStat, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, EventType as FileEventType, IFileService} from 'vs/platform/files/common/files';
-import {FileImportedEvent, RefreshViewExplorerAction, NewFolderAction, NewFileAction} from 'vs/workbench/parts/files/browser/fileActions';
-import {FileEditorInput} from 'vs/workbench/parts/files/browser/editors/fileEditorInput';
-import {FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState} from 'vs/workbench/parts/files/browser/views/explorerViewer';
-import lifecycle = require('vs/base/common/lifecycle');
-import DOM = require('vs/base/browser/dom');
-import {CollapseAction, CollapsibleViewletView} from 'vs/workbench/browser/viewlet';
-import {FileStat} from 'vs/workbench/parts/files/browser/views/explorerViewModel';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IPartService} from 'vs/workbench/services/part/common/partService';
-import {IWorkspace} from 'vs/platform/workspace/common/workspace';
-import {IStorageService} from 'vs/platform/storage/common/storage';
-import {IConfigurationService, IConfigurationServiceEvent, ConfigurationServiceEventTypes} from 'vs/platform/configuration/common/configuration';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IProgressService} from 'vs/platform/progress/common/progress';
-import {IWorkspaceContextService} from 'vs/platform/workspace/common/workspace';
-import {IContextMenuService} from 'vs/platform/contextview/browser/contextView';
-import {IMessageService, Severity} from 'vs/platform/message/common/message';
+import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
+import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
+import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
+import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
+import { toResource } from 'vs/workbench/common/editor';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import * as DOM from 'vs/base/browser/dom';
+import { CollapseAction, CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
+import { FileStat } from 'vs/workbench/parts/files/common/explorerViewModel';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
+import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { isLinux } from 'vs/base/common/platform';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -45,16 +51,24 @@ export class ExplorerView extends CollapsibleViewletView {
 	private static MEMENTO_LAST_ACTIVE_FILE_RESOURCE = 'explorer.memento.lastActiveFileResource';
 	private static MEMENTO_EXPANDED_FOLDER_RESOURCES = 'explorer.memento.expandedFolderResources';
 
-	private workspace: IWorkspace;
+	private static COMMON_SCM_FOLDERS = ['.git', '.svn', '.hg'];
 
 	private explorerViewer: ITree;
 	private filter: FileFilter;
 	private viewletState: FileViewletState;
 
-	private explorerRefreshDelayer: ThrottledDelayer;
-	private explorerImportDelayer: ThrottledDelayer;
+	private explorerRefreshDelayer: ThrottledDelayer<void>;
+	private explorerImportDelayer: ThrottledDelayer<void>;
+
+	private resourceContext: ResourceContextKey;
+	private folderContext: IContextKey<boolean>;
+
+	private filesExplorerFocussedContext: IContextKey<boolean>;
+	private explorerFocussedContext: IContextKey<boolean>;
 
 	private shouldRefresh: boolean;
+
+	private autoReveal: boolean;
 
 	private settings: any;
 
@@ -62,126 +76,148 @@ export class ExplorerView extends CollapsibleViewletView {
 		viewletState: FileViewletState,
 		actionRunner: IActionRunner,
 		settings: any,
+		headerSize: number,
 		@IMessageService messageService: IMessageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEventService private eventService: IEventService,
-		@IStorageService private storageService: IStorageService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IProgressService private progressService: IProgressService,
+		@IListService private listService: IListService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService
 	) {
-		super(actionRunner, false, 'explorerView', messageService, contextMenuService);
-
-		this.workspace = contextService.getWorkspace();
+		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
 		this.settings = settings;
 		this.viewletState = viewletState;
 		this.actionRunner = actionRunner;
+		this.autoReveal = true;
 
-		this.explorerRefreshDelayer = new ThrottledDelayer(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
-		this.explorerImportDelayer = new ThrottledDelayer(ExplorerView.EXPLORER_IMPORT_REFRESH_DELAY);
+		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
+		this.explorerImportDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_IMPORT_REFRESH_DELAY);
+
+		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
+		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
+
+		this.filesExplorerFocussedContext = FilesExplorerFocussedContext.bindTo(contextKeyService);
+		this.explorerFocussedContext = ExplorerFocussedContext.bindTo(contextKeyService);
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		super.renderHeader(container);
+		const titleDiv = $('div.title').appendTo(container);
+		$('span').text(this.contextService.getWorkspace().name).title(labels.getPathLabel(this.contextService.getWorkspace().resource.fsPath)).appendTo(titleDiv);
 
-		let titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.workspace.name).appendTo(titleDiv);
+		super.renderHeader(container);
 	}
 
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		DOM.addClass(this.treeContainer, 'explorer-folders-view');
+		DOM.addClass(this.treeContainer, 'show-file-icons');
 
 		this.tree = this.createViewer($(this.treeContainer));
 
-		this.fillToolBar();
+		if (this.toolBar) {
+			this.toolBar.setActions(prepareActions(this.getActions()), [])();
+		}
+
+		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
+			DOM.toggleClass(this.treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
+		};
+
+		this.themeService.onDidFileIconThemeChange(onFileIconThemeChange);
+		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 
-	private fillToolBar(): void {
-		let actions: Action[] = [];
+	public getActions(): IAction[] {
+		const actions: Action[] = [];
 
-		// New File
 		actions.push(this.instantiationService.createInstance(NewFileAction, this.getViewer(), null));
-
-		// New Folder
 		actions.push(this.instantiationService.createInstance(NewFolderAction, this.getViewer(), null));
-
-		// Refresh
 		actions.push(this.instantiationService.createInstance(RefreshViewExplorerAction, this, 'explorer-action refresh-explorer'));
-
-		// Collapse
 		actions.push(this.instantiationService.createInstance(CollapseAction, this.getViewer(), true, 'explorer-action collapse-explorer'));
 
 		// Set Order
 		for (let i = 0; i < actions.length; i++) {
-			let action = actions[i];
+			const action = actions[i];
 			action.order = 10 * (i + 1);
 		}
 
-		this.toolBar.setActions(prepareActions(actions), [])();
+		return actions;
 	}
 
 	public create(): TPromise<void> {
 
-		// Load Config
-		return this.configurationService.loadConfiguration().then((configuration: IFilesConfiguration) => {
+		// Update configuration
+		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		this.onConfigurationUpdated(configuration);
 
-			// Update configuration
-			this.onConfigurationUpdated(configuration);
+		// Load and Fill Viewer
+		return this.doRefresh().then(() => {
 
-			// Load and Fill Viewer
-			return this.refresh(false, false).then(() => {
+			// When the explorer viewer is loaded, listen to changes to the editor input
+			this.toDispose.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 
-				// When the explorer viewer is loaded, listen to changes to the editor input
-				this.toDispose.push(this.eventService.addListener2(WorkbenchEventType.EDITOR_INPUT_CHANGING, (e: EditorEvent) => this.onEditorInputChanging(e)));
-
-				// Also handle configuration updates
-				this.toDispose.push(this.configurationService.addListener2(ConfigurationServiceEventTypes.UPDATED, (e: IConfigurationServiceEvent) => this.onConfigurationUpdated(e.config, true)));
-			});
+			// Also handle configuration updates
+			this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true)));
 		});
 	}
 
-	private onEditorInputChanging(e: EditorEvent): void {
-
-		// During workbench startup, the editor area might restore more than one editor from a previous
-		// session. When this happens there might be editor input changing events for side editors that
-		// don't have focus. In these cases we do not adjust explorer selection for non-focused editors
-		// because we only want to react for the editor that has focus.
-		if (!this.partService.isCreated() && e.editorOptions && e.editorOptions.preserveFocus) {
-			return;
+	private onEditorsChanged(): void {
+		if (!this.autoReveal) {
+			return; // do not touch selection or focus if autoReveal === false
 		}
 
-		let clearFocusAndSelection = true;
+		let clearSelection = true;
+		let clearFocus = false;
 
-		// Handle File Input
-		if (e.editorInput && e.editorInput instanceof FileEditorInput) {
-			let fileInput = (<FileEditorInput>e.editorInput);
+		// Handle files
+		const activeFile = this.getActiveFile();
+		if (activeFile) {
 
 			// Always remember last opened file
-			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = fileInput.getResource().toString();
+			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = activeFile.toString();
 
-			// Reveal file if input is FileEditorInput
-			if (this.isVisible) {
-				if (this.contextService.isInsideWorkspace(fileInput.getResource())) {
-					this.select(fileInput.getResource(), false /* Prevent reveal so that upon opening a file the tree does not jump around */).done(null, errors.onUnexpectedError);
-					clearFocusAndSelection = false;
+			// Select file if input is inside workspace
+			if (this.isVisible && this.contextService.isInsideWorkspace(activeFile)) {
+				const selection = this.hasSelection(activeFile);
+				if (!selection) {
+					this.select(activeFile).done(null, errors.onUnexpectedError);
 				}
+
+				clearSelection = false;
 			}
 		}
 
+		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
+		const activeInput = this.editorService.getActiveEditorInput();
+		if (activeInput instanceof UntitledEditorInput || !activeInput) {
+			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
+			clearFocus = true;
+		}
+
 		// Otherwise clear
-		if (this.isVisible && clearFocusAndSelection) {
-			this.explorerViewer.setSelection([]);
-			this.explorerViewer.setFocus();
+		if (clearSelection) {
+			this.explorerViewer.clearSelection();
+		}
+
+		if (clearFocus) {
+			this.explorerViewer.clearFocus();
 		}
 	}
 
 	private onConfigurationUpdated(configuration: IFilesConfiguration, refresh?: boolean): void {
+		if (this.isDisposed) {
+			return; // guard against possible race condition when config change causes recreate of views
+		}
+
+		this.autoReveal = configuration && configuration.explorer && configuration.explorer.autoReveal;
 
 		// Push down config updates to components of viewer
 		let needsRefresh = false;
@@ -191,17 +227,31 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Refresh viewer as needed
 		if (refresh && needsRefresh) {
-			this.refresh(false, false).done(null, errors.onUnexpectedError);
+			this.doRefresh().done(null, errors.onUnexpectedError);
 		}
 	}
 
-	public focus(): void {
-		super.focus();
+	public focusBody(): void {
+		let keepFocus = false;
+
+		// Make sure the current selected element is revealed
+		if (this.explorerViewer) {
+			if (this.autoReveal) {
+				const selection = this.explorerViewer.getSelection();
+				if (selection.length > 0) {
+					this.reveal(selection[0], 0.5).done(null, errors.onUnexpectedError);
+				}
+			}
+
+			// Pass Focus to Viewer
+			this.explorerViewer.DOMFocus();
+			keepFocus = true;
+		}
 
 		// Open the focused element in the editor if there is currently no file opened
-		let input = this.editorService.getActiveEditorInput();
-		if (!input || !(input instanceof FileEditorInput)) {
-			this.openFocusedElement();
+		const activeFile = this.getActiveFile();
+		if (!activeFile) {
+			this.openFocusedElement(keepFocus);
 		}
 	}
 
@@ -212,35 +262,38 @@ export class ExplorerView extends CollapsibleViewletView {
 			if (visible) {
 
 				// If a refresh was requested and we are now visible, run it
-				let refreshPromise = Promise.as(null);
+				let refreshPromise = TPromise.as(null);
 				if (this.shouldRefresh) {
-					refreshPromise = this.refresh(false, false);
+					refreshPromise = this.doRefresh();
 					this.shouldRefresh = false; // Reset flag
 				}
 
-				// Always reveal the current navigated file in explorer if input is file editor input
-				let activeResource = this.getActiveEditorInputResource();
-				if (activeResource) {
+				if (!this.autoReveal) {
+					return refreshPromise; // do not react to setVisible call if autoReveal === false
+				}
+
+				// Always select the current navigated file in explorer if input is file editor input
+				// unless autoReveal is set to false
+				const activeFile = this.getActiveFile();
+				if (activeFile) {
 					return refreshPromise.then(() => {
-						return this.select(activeResource);
+						return this.select(activeFile);
 					});
 				}
 
 				// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
 				if (!this.partService.isCreated()) {
-					return Promise.as(null);
+					return TPromise.as(null);
 				}
 
 				// Otherwise restore last used file: By lastActiveFileResource
-				let root = this.getInput();
 				let lastActiveFileResource: URI;
 				if (this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]) {
 					lastActiveFileResource = URI.parse(this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE]);
 				}
 
-				if (lastActiveFileResource && root && root.find(lastActiveFileResource)) {
-					let editorInput = this.instantiationService.createInstance(FileEditorInput, lastActiveFileResource, void 0, void 0);
-					this.openOrFocusEditor(editorInput).done(null, errors.onUnexpectedError);
+				if (lastActiveFileResource && this.root && this.root.find(lastActiveFileResource)) {
+					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } }).done(null, errors.onUnexpectedError);
 
 					return refreshPromise;
 				}
@@ -250,151 +303,149 @@ export class ExplorerView extends CollapsibleViewletView {
 					this.openFocusedElement();
 				});
 			}
+			return undefined;
 		});
 	}
 
-	private openFocusedElement(): boolean {
-		let stat: FileStat = this.explorerViewer.getFocus();
+	private openFocusedElement(preserveFocus?: boolean): void {
+		const stat: FileStat = this.explorerViewer.getFocus();
 		if (stat && !stat.isDirectory) {
-			let editorInput = this.instantiationService.createInstance(FileEditorInput, stat.resource, stat.mime, void 0);
-			this.openOrFocusEditor(editorInput).done(null, errors.onUnexpectedError);
-
-			return true;
+			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, revealIfVisible: true } }).done(null, errors.onUnexpectedError);
 		}
-
-		return false;
 	}
 
-	private openOrFocusEditor(input: FileEditorInput): Promise {
+	private getActiveFile(): URI {
+		const input = this.editorService.getActiveEditorInput();
 
-		// First try to find if input already visible
-		let editors = this.editorService.getVisibleEditors();
-		if (editors) {
-			for (let i = 0; i < editors.length; i++) {
-				let editor = editors[i];
-				if (input.matches(editor.input)) {
-					return this.editorService.focusEditor(editor);
-				}
-			}
+		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)
+		if (input instanceof DiffEditorInput) {
+			return null;
 		}
 
-		// Otherwise open in active slot
-		return this.editorService.openEditor(input);
+		// check for files
+		return toResource(input, { supportSideBySide: true, filter: 'file' });
 	}
 
-	private getActiveEditorInputResource(): URI {
-
-		// Try with Editor Input
-		let input = this.editorService.getActiveEditorInput();
-		if (input && input instanceof FileEditorInput) {
-			return (<FileEditorInput>input).getResource();
-		}
-
-		return null;
-	}
-
-	private getInput(): FileStat {
+	private get root(): FileStat {
 		return this.explorerViewer ? (<FileStat>this.explorerViewer.getInput()) : null;
 	}
 
 	public createViewer(container: Builder): ITree {
-		let dataSource = this.instantiationService.createInstance(FileDataSource);
-		let renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner);
-		let controller = this.instantiationService.createInstance(FileController, this.viewletState);
-		let sorter = new FileSorter();
+		const dataSource = this.instantiationService.createInstance(FileDataSource);
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
+		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
+		const sorter = new FileSorter();
 		this.filter = this.instantiationService.createInstance(FileFilter);
-		let dnd = this.instantiationService.createInstance(FileDragAndDrop);
+		const dnd = this.instantiationService.createInstance(FileDragAndDrop);
+		const accessibilityProvider = this.instantiationService.createInstance(FileAccessibilityProvider);
 
 		this.explorerViewer = new Tree(container.getHTMLElement(), {
-			dataSource: dataSource,
-			renderer: renderer,
-			controller: controller,
-			sorter: sorter,
+			dataSource,
+			renderer,
+			controller,
+			sorter,
 			filter: this.filter,
-			dnd: dnd
+			dnd,
+			accessibilityProvider
 		}, {
-				autoExpandSingleChildren: true
+				autoExpandSingleChildren: true,
+				ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
+				twistiePixels: 12,
+				showTwistie: false,
+				keyboardSupport: false
 			});
 
-		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
+		// Register to list service
+		this.toDispose.push(this.listService.register(this.explorerViewer, [this.explorerFocussedContext, this.filesExplorerFocussedContext]));
 
 		// Update Viewer based on File Change Events
-		this.toDispose.push(this.eventService.addListener2('files.internal:fileChanged', (e: LocalFileChangeEvent) => this.onLocalFileChange(e)));
-		this.toDispose.push(this.eventService.addListener2(FileEventType.FILE_CHANGES, (e: FileChangesEvent) => this.onFileChanges(e)));
+		this.toDispose.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
+		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+
+		// Update resource context based on focused element
+		this.toDispose.push(this.explorerViewer.addListener2('focus', (e: { focus: FileStat }) => {
+			this.resourceContext.set(e.focus && e.focus.resource);
+			this.folderContext.set(e.focus && e.focus.isDirectory);
+		}));
+
+		// Open when selecting via keyboard
+		this.toDispose.push(this.explorerViewer.addListener2('selection', event => {
+			if (event && event.payload && event.payload.origin === 'keyboard') {
+				const element = this.tree.getFocus();
+
+				if (element instanceof FileStat) {
+					if (element.isDirectory) {
+						this.explorerViewer.toggleExpansion(element);
+					}
+
+					controller.openEditor(element, { pinned: false, sideBySide: false, preserveFocus: false });
+				}
+			}
+		}));
 
 		return this.explorerViewer;
 	}
 
-	private onLocalFileChange(e: LocalFileChangeEvent): void {
+	public getOptimalWidth(): number {
+		const parentNode = this.explorerViewer.getHTMLElement();
+		const childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item > a'));
+
+		return DOM.getLargestChildWidth(parentNode, childNodes);
+	}
+
+	private onFileOperation(e: FileOperationEvent): void {
+		if (!this.root) {
+			return; // ignore if not yet created
+		}
+
 		let modelElement: FileStat;
 		let parent: FileStat;
 		let parentResource: URI;
 		let parentElement: FileStat;
 
 		// Add
-		if (e.gotAdded()) {
-			let addedElement = e.getAfter();
+		if (e.operation === FileOperation.CREATE || e.operation === FileOperation.IMPORT || e.operation === FileOperation.COPY) {
+			const addedElement = e.target;
 			parentResource = URI.file(paths.dirname(addedElement.resource.fsPath));
-			parentElement = this.getInput().find(parentResource);
+			parentElement = this.root.find(parentResource);
 
 			if (parentElement) {
 
 				// Add the new file to its parent (Model)
-				let childElement = FileStat.create(addedElement);
+				const childElement = FileStat.create(addedElement);
+				parentElement.removeChild(childElement); // make sure to remove any previous version of the file if any
 				parentElement.addChild(childElement);
 
-				let refreshPromise = () => {
+				// Refresh the Parent (View)
+				this.explorerViewer.refresh(parentElement).then(() => {
+					return this.reveal(childElement, 0.5).then(() => {
 
-					// Refresh the Parent (View)
-					return this.explorerViewer.refresh(parentElement).then(() => {
-						return this.reveal(childElement, 0.5).then(() => {
-
-							// Focus new element
-							this.explorerViewer.setFocus(childElement);
-
-							// Open new file in editor
-							if (!childElement.isDirectory) {
-								let editorInput = this.instantiationService.createInstance(FileEditorInput, childElement.resource, childElement.mime, void 0);
-								return this.editorService.openEditor(editorInput);
-							}
-						});
+						// Focus new element
+						this.explorerViewer.setFocus(childElement);
 					});
-				};
-
-				// For file imports, use a delayer to not refresh too many times when multiple files are imported
-				if (e instanceof FileImportedEvent) {
-					this.explorerImportDelayer.trigger(refreshPromise).done(null, errors.onUnexpectedError);
-				}
-
-				// Otherwise just refresh immediately
-				else {
-					refreshPromise().done(null, errors.onUnexpectedError);
-				}
+				}).done(null, errors.onUnexpectedError);
 			}
 		}
 
 		// Move (including Rename)
-		else if (e.gotMoved()) {
-			let oldElement = e.getBefore();
-			let newElement = e.getAfter();
+		else if (e.operation === FileOperation.MOVE) {
+			const oldResource = e.resource;
+			const newElement = e.target;
 
-			let oldParentResource = URI.file(paths.dirname(oldElement.resource.fsPath));
-			let newParentResource = URI.file(paths.dirname(newElement.resource.fsPath));
+			const oldParentResource = URI.file(paths.dirname(oldResource.fsPath));
+			const newParentResource = URI.file(paths.dirname(newElement.resource.fsPath));
 
 			// Only update focus if renamed/moved element is selected
-			let updateFocus = false;
-			let focus: FileStat = this.explorerViewer.getFocus();
-			if (focus && focus.resource && focus.resource.toString() === oldElement.resource.toString()) {
-				updateFocus = true;
+			let restoreFocus = false;
+			const focus: FileStat = this.explorerViewer.getFocus();
+			if (focus && focus.resource && isEqual(focus.resource.fsPath, oldResource.fsPath)) {
+				restoreFocus = true;
 			}
 
 			// Handle Rename
-			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
-				modelElement = this.getInput().find(oldElement.resource);
+			if (oldParentResource && newParentResource && isEqual(oldParentResource.fsPath, newParentResource.fsPath)) {
+				modelElement = this.root.find(oldResource);
 				if (modelElement) {
-					if (!modelElement.isDirectory && !modelElement.mime) {
-						return;
-					}
 
 					// Rename File (Model)
 					modelElement.rename(newElement);
@@ -405,7 +456,7 @@ export class ExplorerView extends CollapsibleViewletView {
 						this.explorerViewer.refresh(parent).done(() => {
 
 							// Select in Viewer if set
-							if (updateFocus) {
+							if (restoreFocus) {
 								this.explorerViewer.setFocus(modelElement);
 							}
 						}, errors.onUnexpectedError);
@@ -415,9 +466,9 @@ export class ExplorerView extends CollapsibleViewletView {
 
 			// Handle Move
 			else if (oldParentResource && newParentResource) {
-				let oldParent = this.getInput().find(oldParentResource);
-				let newParent = this.getInput().find(newParentResource);
-				modelElement = this.getInput().find(oldElement.resource);
+				const oldParent = this.root.find(oldParentResource);
+				const newParent = this.root.find(newParentResource);
+				modelElement = this.root.find(oldResource);
 
 				if (oldParent && newParent && modelElement) {
 
@@ -429,18 +480,15 @@ export class ExplorerView extends CollapsibleViewletView {
 					}, () => {
 
 						// Update new parent
-						this.explorerViewer.refresh(newParent, true).done(() => {
-							return this.explorerViewer.expand(newParent);
-						}, errors.onUnexpectedError);
+						this.explorerViewer.refresh(newParent, true).done(() => this.explorerViewer.expand(newParent), errors.onUnexpectedError);
 					});
 				}
 			}
 		}
 
 		// Delete
-		else if (e.gotDeleted()) {
-			let deletedElement = e.getBefore();
-			modelElement = this.getInput().find(deletedElement.resource);
+		else if (e.operation === FileOperation.DELETE) {
+			modelElement = this.root.find(e.resource);
 			if (modelElement && modelElement.parent) {
 				parent = modelElement.parent;
 
@@ -448,83 +496,74 @@ export class ExplorerView extends CollapsibleViewletView {
 				parent.removeChild(modelElement);
 
 				// Refresh Parent (View)
+				const restoreFocus = this.explorerViewer.isDOMFocused();
 				this.explorerViewer.refresh(parent).done(() => {
 
 					// Ensure viewer has keyboard focus if event originates from viewer
-					this.explorerViewer.DOMFocus();
+					if (restoreFocus) {
+						this.explorerViewer.DOMFocus();
+					}
 				}, errors.onUnexpectedError);
 			}
-		}
-
-		// Imported which replaced an existing file
-		else if (e instanceof FileImportedEvent) {
-			let importedElement: IFileStat = (<FileImportedEvent>e).getAfter();
-			parentResource = URI.file(paths.dirname(importedElement.resource.fsPath));
-			parentElement = this.getInput().find(parentResource);
-
-			if (parentElement) {
-				this.explorerViewer.refresh(parentElement).then(() => {
-					let editorInput = this.instantiationService.createInstance(FileEditorInput, importedElement.resource, importedElement.mime, void 0);
-					return this.editorService.openEditor(editorInput);
-				}).done(null, errors.onUnexpectedError);
-			}
-		}
-
-		// Refresh if the event indicates that '/' got updated (from a place outside the explorer viewlet)
-		else if (this.workspace && e.gotUpdated() && e.getAfter().resource.toString() === this.workspace.resource.toString() && !this.explorerViewer.getHighlight()) {
-			this.refreshFromEvent();
 		}
 	}
 
 	private onFileChanges(e: FileChangesEvent): void {
 
-		// Ensure memento state does not capture a deleted file
-		let lastActiveResource: string = this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
-		if (lastActiveResource && e.contains(URI.parse(lastActiveResource), FileChangeType.DELETED)) {
-			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = null;
-		}
+		// Ensure memento state does not capture a deleted file (we run this from a timeout because
+		// delete events can result in UI activity that will fill the memento again when multiple
+		// editors are closing)
+		setTimeout(() => {
+			const lastActiveResource: string = this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE];
+			if (lastActiveResource && e.contains(URI.parse(lastActiveResource), FileChangeType.DELETED)) {
+				this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = null;
+			}
+		});
 
 		// Check if an explorer refresh is necessary (delayed to give internal events a chance to react first)
 		// Note: there is no guarantee when the internal events are fired vs real ones. Code has to deal with the fact that one might
 		// be fired first over the other or not at all.
-		Promise.timeout(ExplorerView.EXPLORER_FILE_CHANGES_REACT_DELAY).then(() => {
+		setTimeout(() => {
 			if (!this.shouldRefresh && this.shouldRefreshFromEvent(e)) {
 				this.refreshFromEvent();
 			}
-		});
+		}, ExplorerView.EXPLORER_FILE_CHANGES_REACT_DELAY);
 	}
 
 	private shouldRefreshFromEvent(e: FileChangesEvent): boolean {
 
 		// Filter to the ones we care
 		e = this.filterToAddRemovedOnWorkspacePath(e, (event, segments) => {
-			if (segments[0] !== '.git') {
-				return true; // we like all things outside .git
+			if (
+				segments[0] !== ExplorerView.COMMON_SCM_FOLDERS[0] &&
+				segments[0] !== ExplorerView.COMMON_SCM_FOLDERS[1] &&
+				segments[0] !== ExplorerView.COMMON_SCM_FOLDERS[2]
+			) {
+				return true; // we like all things outside common SCM folders
 			}
 
-			return segments.length === 1; // we only care about the .git folder itself
+			return segments.length === 1; // otherwise we only care about the SCM folder itself
 		});
 
 		// We only ever refresh from files/folders that got added or deleted
 		if (e.gotAdded() || e.gotDeleted()) {
-			let added = e.getAdded();
-			let deleted = e.getDeleted();
+			const added = e.getAdded();
+			const deleted = e.getDeleted();
 
-			let root = this.getInput();
-			if (!root) {
+			if (!this.root) {
 				return false;
 			}
 
 			// Check added: Refresh if added file/folder is not part of resolved root and parent is part of it
-			let ignoredPaths: { [fsPath: string]: boolean } = <{ [fsPath: string]: boolean }>{};
+			const ignoredPaths: { [fsPath: string]: boolean } = <{ [fsPath: string]: boolean }>{};
 			for (let i = 0; i < added.length; i++) {
-				let change = added[i];
+				const change = added[i];
 				if (!this.contextService.isInsideWorkspace(change.resource)) {
 					continue; // out of workspace file
 				}
 
 				// Find parent
-				let parent = paths.dirname(change.resource.fsPath);
+				const parent = paths.dirname(change.resource.fsPath);
 
 				// Continue if parent was already determined as to be ignored
 				if (ignoredPaths[parent]) {
@@ -532,8 +571,8 @@ export class ExplorerView extends CollapsibleViewletView {
 				}
 
 				// Compute if parent is visible and added file not yet part of it
-				let parentStat = root.find(URI.file(parent));
-				if (parentStat && parentStat.isDirectoryResolved && !root.find(change.resource)) {
+				const parentStat = this.root.find(URI.file(parent));
+				if (parentStat && parentStat.isDirectoryResolved && !this.root.find(change.resource)) {
 					return true;
 				}
 
@@ -545,12 +584,12 @@ export class ExplorerView extends CollapsibleViewletView {
 
 			// Check deleted: Refresh if deleted file/folder part of resolved root
 			for (let j = 0; j < deleted.length; j++) {
-				let del = deleted[j];
+				const del = deleted[j];
 				if (!this.contextService.isInsideWorkspace(del.resource)) {
 					continue; // out of workspace file
 				}
 
-				if (root.find(del.resource)) {
+				if (this.root.find(del.resource)) {
 					return true;
 				}
 			}
@@ -560,17 +599,17 @@ export class ExplorerView extends CollapsibleViewletView {
 	}
 
 	private filterToAddRemovedOnWorkspacePath(e: FileChangesEvent, fn: (change: IFileChange, workspacePathSegments: string[]) => boolean): FileChangesEvent {
-		return new FileChangesEvent(e.changes.filter((change) => {
+		return new FileChangesEvent(e.changes.filter(change => {
 			if (change.type === FileChangeType.UPDATED) {
 				return false; // we only want added / removed
 			}
 
-			let workspacePath = this.contextService.toWorkspaceRelativePath(change.resource);
+			const workspacePath = this.contextService.toWorkspaceRelativePath(change.resource);
 			if (!workspacePath) {
 				return false; // not inside workspace
 			}
 
-			let segments = workspacePath.split(/\//);
+			const segments = workspacePath.split(/\//);
 
 			return fn(change, segments);
 		}));
@@ -580,10 +619,10 @@ export class ExplorerView extends CollapsibleViewletView {
 		if (this.isVisible) {
 			this.explorerRefreshDelayer.trigger(() => {
 				if (!this.explorerViewer.getHighlight()) {
-					return this.refresh(false, false);
+					return this.doRefresh();
 				}
 
-				return Promise.as(null);
+				return TPromise.as(null);
 			}).done(null, errors.onUnexpectedError);
 		} else {
 			this.shouldRefresh = true;
@@ -592,24 +631,49 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	/**
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
-	 *
-	 * @param focus if set to true, the explorer viewer will receive keyboard focus
-	 * @param reveal if set to true, the current active input will be revealed in the explorer
 	 */
-	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		let root = this.getInput();
-		let targetsToResolve: URI[] = [];
+	public refresh(): TPromise<void> {
+		if (!this.explorerViewer || this.explorerViewer.getHighlight()) {
+			return TPromise.as(null);
+		}
+
+		// Focus
+		this.explorerViewer.DOMFocus();
+
+		// Find resource to focus from active editor input if set
+		let resourceToFocus: URI;
+		if (this.autoReveal) {
+			resourceToFocus = this.getActiveFile();
+			if (!resourceToFocus) {
+				const selection = this.explorerViewer.getSelection();
+				if (selection && selection.length === 1) {
+					resourceToFocus = (<FileStat>selection[0]).resource;
+				}
+			}
+		}
+
+		return this.doRefresh().then(() => {
+			if (resourceToFocus) {
+				return this.select(resourceToFocus, true);
+			}
+
+			return TPromise.as(null);
+		});
+	}
+
+	private doRefresh(): TPromise<void> {
+		const targetsToResolve: URI[] = [];
 		let targetsToExpand: URI[] = [];
 
 		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
-			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map(e => URI.parse(e));
+			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
 		}
 
 		// First time refresh: Receive target through active editor input or selection and also include settings from previous session
-		if (!root) {
-			let activeResource = this.getActiveEditorInputResource();
-			if (activeResource) {
-				targetsToResolve.push(activeResource);
+		if (!this.root) {
+			const activeFile = this.getActiveFile();
+			if (activeFile) {
+				targetsToResolve.push(activeFile);
 			}
 
 			if (targetsToExpand.length) {
@@ -619,70 +683,41 @@ export class ExplorerView extends CollapsibleViewletView {
 
 		// Subsequent refresh: Receive targets through expanded folders in tree
 		else {
-			this.getResolvedDirectories(root, targetsToResolve);
-		}
-
-		// Determine the path to reveal if we are set to reveal
-		let revealResource: URI;
-		if (reveal) {
-			revealResource = this.getActiveEditorInputResource();
-			if (!revealResource) {
-				let selection = this.explorerViewer.getSelection();
-				if (selection && selection.length === 1) {
-					revealResource = (<FileStat>selection[0]).resource;
-				}
-			}
+			this.getResolvedDirectories(this.root, targetsToResolve);
 		}
 
 		// Load Root Stat with given target path configured
-		let options: IResolveFileOptions = { resolveTo: targetsToResolve };
-		let promise = this.fileService.resolveFile(this.workspace.resource, options).then((stat: IFileStat) => {
-			let explorerPromise: Promise;
+		const options: IResolveFileOptions = { resolveTo: targetsToResolve };
+		const promise = this.fileService.resolveFile(this.contextService.getWorkspace().resource, options).then(stat => {
+			let explorerPromise: TPromise<void>;
 
 			// Convert to model
-			let modelStat = FileStat.create(stat, options.resolveTo);
+			const modelStat = FileStat.create(stat, options.resolveTo);
 
 			// First time refresh: The stat becomes the input of the viewer
-			if (!root) {
+			if (!this.root) {
 				explorerPromise = this.explorerViewer.setInput(modelStat).then(() => {
 
 					// Make sure to expand all folders that where expanded in the previous session
 					if (targetsToExpand) {
-						return this.explorerViewer.expandAll(targetsToExpand.map(expand => this.getInput().find(expand)));
+						return this.explorerViewer.expandAll(targetsToExpand.map(expand => this.root.find(expand)));
 					}
 
-					return Promise.as(null);
+					return TPromise.as(null);
 				});
 			}
 
 			// Subsequent refresh: Merge stat into our local model and refresh tree
 			else {
-				FileStat.mergeLocalWithDisk(modelStat, root);
+				FileStat.mergeLocalWithDisk(modelStat, this.root);
 
-				explorerPromise = this.explorerViewer.refresh(root);
+				explorerPromise = this.explorerViewer.refresh(this.root);
 			}
 
-			return explorerPromise.then(() => {
-				let revealPromise: Promise;
+			return explorerPromise;
+		}, (e: any) => TPromise.wrapError(e));
 
-				// Reveal if path is set
-				if (revealResource) {
-					revealPromise = this.select(revealResource);
-				} else {
-					revealPromise = Promise.as(null);
-				}
-
-				return revealPromise.then(() => {
-
-					// Focus if set
-					if (focus) {
-						this.explorerViewer.DOMFocus();
-					}
-				});
-			});
-		}, (e: any) => Promise.wrapError(e));
-
-		this.progressService.showWhile(promise, instantProgress ? 0 : this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
+		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
 		return promise;
 	}
@@ -692,12 +727,12 @@ export class ExplorerView extends CollapsibleViewletView {
 	 */
 	private getResolvedDirectories(stat: FileStat, resolvedDirectories: URI[]): void {
 		if (stat.isDirectoryResolved) {
-			if (stat.resource.toString() !== this.workspace.resource.toString()) {
+			if (!isEqual(stat.resource.fsPath, this.contextService.getWorkspace().resource.fsPath)) {
 
 				// Drop those path which are parents of the current one
 				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
-					let resource = resolvedDirectories[i];
-					if (stat.resource.toString().indexOf(resource.toString()) === 0) {
+					const resource = resolvedDirectories[i];
+					if (isEqualOrParent(stat.resource.fsPath, resource.fsPath, !isLinux /* ignorecase */)) {
 						resolvedDirectories.splice(i);
 					}
 				}
@@ -708,7 +743,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 			// Recurse into children
 			for (let i = 0; i < stat.children.length; i++) {
-				let child = stat.children[i];
+				const child = stat.children[i];
 				this.getResolvedDirectories(child, resolvedDirectories);
 			}
 		}
@@ -718,52 +753,60 @@ export class ExplorerView extends CollapsibleViewletView {
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer. Will try to
 	 * resolve the path from the disk in case the explorer is not yet expanded to the file yet.
 	 */
-	public select(resource: URI, reveal: boolean = true): TPromise<void> {
+	public select(resource: URI, reveal: boolean = this.autoReveal): TPromise<void> {
 
 		// Require valid path
-		if (!resource || resource.toString() === this.workspace.resource.toString()) {
-			return Promise.as(null);
+		if (!resource || isEqual(resource.fsPath, this.contextService.getWorkspace().resource.fsPath)) {
+			return TPromise.as(null);
 		}
 
 		// If path already selected, just reveal and return
-		let currentSelection: FileStat[] = this.explorerViewer.getSelection();
-		for (let i = 0; i < currentSelection.length; i++) {
-			if (currentSelection[i].resource.toString() === resource.toString()) {
-				return reveal ? this.reveal(currentSelection[i], 0.5) : Promise.as(null);
-			}
+		const selection = this.hasSelection(resource);
+		if (selection) {
+			return reveal ? this.reveal(selection, 0.5) : TPromise.as(null);
 		}
 
 		// First try to get the stat object from the input to avoid a roundtrip
-		let root = this.getInput();
-		if (!root) {
-			return Promise.as(null);
+		if (!this.root) {
+			return TPromise.as(null);
 		}
 
-		let fileStat = root.find(resource);
+		const fileStat = this.root.find(resource);
 		if (fileStat) {
-			return this.doRevealAndSelect(fileStat);
+			return this.doSelect(fileStat, reveal);
 		}
 
 		// Stat needs to be resolved first and then revealed
-		let options: IResolveFileOptions = { resolveTo: [resource] };
-		return this.fileService.resolveFile(this.workspace.resource, options).then((stat: IFileStat) => {
+		const options: IResolveFileOptions = { resolveTo: [resource] };
+		return this.fileService.resolveFile(this.contextService.getWorkspace().resource, options).then(stat => {
 
 			// Convert to model
-			let modelStat = FileStat.create(stat, options.resolveTo);
+			const modelStat = FileStat.create(stat, options.resolveTo);
 
 			// Update Input with disk Stat
-			FileStat.mergeLocalWithDisk(modelStat, root);
+			FileStat.mergeLocalWithDisk(modelStat, this.root);
 
 			// Select and Reveal
-			return this.explorerViewer.refresh(root).then(() => {
-				return this.doRevealAndSelect(root.find(resource));
-			});
+			return this.explorerViewer.refresh(this.root).then(() => this.doSelect(this.root.find(resource), reveal));
+
 		}, (e: any) => this.messageService.show(Severity.Error, e));
 	}
 
-	private doRevealAndSelect(fileStat: FileStat): TPromise<void> {
+	private hasSelection(resource: URI): FileStat {
+		const currentSelection: FileStat[] = this.explorerViewer.getSelection();
+
+		for (let i = 0; i < currentSelection.length; i++) {
+			if (isEqual(currentSelection[i].resource.fsPath, resource.fsPath)) {
+				return currentSelection[i];
+			}
+		}
+
+		return null;
+	}
+
+	private doSelect(fileStat: FileStat, reveal: boolean): TPromise<void> {
 		if (!fileStat) {
-			return Promise.as(null);
+			return TPromise.as(null);
 		}
 
 		// Special case: we are asked to reveal and select an element that is not visible
@@ -771,11 +814,19 @@ export class ExplorerView extends CollapsibleViewletView {
 		if (!this.filter.isVisible(this.tree, fileStat)) {
 			fileStat = fileStat.parent;
 			if (!fileStat) {
-				return Promise.as(null);
+				return TPromise.as(null);
 			}
 		}
 
-		return this.reveal(fileStat, 0.5).then(() => {
+		// Reveal depending on flag
+		let revealPromise: TPromise<void>;
+		if (reveal) {
+			revealPromise = this.reveal(fileStat, 0.5);
+		} else {
+			revealPromise = TPromise.as(null);
+		}
+
+		return revealPromise.then(() => {
 			if (!fileStat.isDirectory) {
 				this.explorerViewer.setSelection([fileStat]); // Since folders can not be opened, only select files
 			}
@@ -787,10 +838,9 @@ export class ExplorerView extends CollapsibleViewletView {
 	public shutdown(): void {
 
 		// Keep list of expanded folders to restore on next load
-		let root = this.getInput();
-		if (root) {
-			let expanded = this.explorerViewer.getExpandedElements()
-				.filter((e: FileStat) => e.resource.toString() !== this.workspace.resource.toString())
+		if (this.root) {
+			const expanded = this.explorerViewer.getExpandedElements()
+				.filter((e: FileStat) => !isEqual(e.resource.fsPath, this.contextService.getWorkspace().resource.fsPath))
 				.map((e: FileStat) => e.resource.toString());
 
 			this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES] = expanded;

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
-import {CommentMode} from 'vs/editor/test/common/testModes';
-import {BlockCommentCommand} from 'vs/editor/contrib/comment/common/blockCommentCommand';
-import {Selection} from 'vs/editor/common/core/selection';
+import { Selection } from 'vs/editor/common/core/selection';
+import { BlockCommentCommand } from 'vs/editor/contrib/comment/common/blockCommentCommand';
+import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
+import { CommentMode } from 'vs/editor/test/common/commentMode';
 
 function testBlockCommentCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	var mode = new CommentMode({ lineCommentTokens: ['!@#'], blockCommentStartToken: '<0', blockCommentEndToken: '0>' });
-	testCommand(lines, mode, selection, (sel) => new BlockCommentCommand(sel), expectedLines, expectedSelection);
+	let mode = new CommentMode({ lineComment: '!@#', blockComment: ['<0', '0>'] });
+	testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new BlockCommentCommand(sel), expectedLines, expectedSelection);
+	mode.dispose();
 }
 
 suite('Editor Contrib - Block Comment Command', () => {

@@ -1,11 +1,11 @@
-var ts = require('./typescript/typescriptServices');
-var lazy = require('lazy.js');
-var event_stream_1 = require('event-stream');
-var File = require('vinyl');
-var sm = require('source-map');
-var assign = require('object-assign');
-var clone = require('clone');
-var path = require('path');
+"use strict";
+var ts = require("./typescript/typescriptServices");
+var lazy = require("lazy.js");
+var event_stream_1 = require("event-stream");
+var File = require("vinyl");
+var sm = require("source-map");
+var assign = require("object-assign");
+var path = require("path");
 var CollectStepResult;
 (function (CollectStepResult) {
     CollectStepResult[CollectStepResult["Yes"] = 0] = "Yes";
@@ -27,25 +27,12 @@ function collect(node, fn) {
     loop(node);
     return result;
 }
-function zip(stream, zipper) {
-    if (zipper === void 0) { zipper = function (a, b) { return [a, b]; }; }
-    var pass = event_stream_1.through();
-    var oneBuffer = [];
-    var otherBuffer = [];
-    var result = pass.pipe(event_stream_1.through(function (f) {
-        oneBuffer.push(f);
-        flush();
-    }), function () {
-        flush();
-        result.emit('end');
-    });
-    function flush() {
-        while (oneBuffer.length > 0 && otherBuffer.length > 0) {
-            result.emit('data', zipper(oneBuffer.shift(), otherBuffer.shift()));
-        }
+function clone(object) {
+    var result = {};
+    for (var id in object) {
+        result[id] = object[id];
     }
-    stream.pipe(event_stream_1.through(function (f) { return otherBuffer.push(f); }));
-    return event_stream_1.duplex(pass, result);
+    return result;
 }
 function template(lines) {
     var indent = '', wrap = '';
@@ -84,7 +71,6 @@ function nls() {
 function isImportNode(node) {
     return node.kind === 212 /* ImportDeclaration */ || node.kind === 211 /* ImportEqualsDeclaration */;
 }
-var nls;
 (function (nls_1) {
     function fileFrom(file, contents, path) {
         if (path === void 0) { path = file.path; }
@@ -119,7 +105,7 @@ var nls;
             this.lib = ts.ScriptSnapshot.fromString('');
         }
         return SingleFileServiceHost;
-    })();
+    }());
     nls_1.SingleFileServiceHost = SingleFileServiceHost;
     function isCallExpressionWithinTextSpanCollectStep(textSpan, node) {
         if (!ts.textSpanContainsTextSpan({ start: node.pos, length: node.end - node.pos }, textSpan)) {
@@ -140,13 +126,13 @@ var nls;
             .filter(function (n) { return n.kind === 211 /* ImportEqualsDeclaration */; })
             .map(function (n) { return n; })
             .filter(function (d) { return d.moduleReference.kind === 222 /* ExternalModuleReference */; })
-            .filter(function (d) { return d.moduleReference.expression.getText() === "'vs/nls'"; });
+            .filter(function (d) { return d.moduleReference.expression.getText() === '\'vs/nls\''; });
         // import ... from 'vs/nls';
         var importDeclarations = imports
             .filter(function (n) { return n.kind === 212 /* ImportDeclaration */; })
             .map(function (n) { return n; })
             .filter(function (d) { return d.moduleSpecifier.kind === 8 /* StringLiteral */; })
-            .filter(function (d) { return d.moduleSpecifier.getText() === "'vs/nls'"; })
+            .filter(function (d) { return d.moduleSpecifier.getText() === '\'vs/nls\''; })
             .filter(function (d) { return !!d.importClause && !!d.importClause.namedBindings; });
         var nlsExpressions = importEqualsDeclarations
             .map(function (d) { return d.moduleReference.expression; })
@@ -264,7 +250,7 @@ var nls;
                 .flatten().toArray().join('');
         };
         return TextModel;
-    })();
+    }());
     nls_1.TextModel = TextModel;
     function patchJavascript(patches, contents, moduleId) {
         var model = new nls.TextModel(contents);

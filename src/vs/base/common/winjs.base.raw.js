@@ -1,51 +1,88 @@
-/// <loc filename="Metadata\base_loc_oam.xml" format="messagebundle" />
-/*! @minifier_do_not_preserve
-  © Microsoft. All rights reserved.
+/**
+ * Extracted from https://github.com/winjs/winjs
+ * Version: 4.4.0(ec3258a9f3a36805a187848984e3bb938044178d)
+ * Copyright (c) Microsoft Corporation.
+ * All Rights Reserved.
+ * Licensed under the MIT License.
+ */
+(function() {
 
-  This library is supported for use in Windows Store apps only.
+var _modules = {};
+_modules["WinJS/Core/_WinJS"] = {};
 
-  Build: 1.0.9200.20602.win8_ldr.130108-1504
+var _winjs = function(moduleId, deps, factory) {
+    var exports = {};
+    var exportsPassedIn = false;
 
-  Version: Microsoft.WinJS.1.0
-*/
-
-/*
-	Note: Copied out of base.js.
-	Changes:
-		- we have only kept the first 2554 lines.
-		- we have patched WinJS.xhr to add the hedader X-Requested-With:XMLHttpRequest
-		- we have wrapped the entire code in an if statement to make WinJS re-entrant (if already defined)
-		- we have to define setImmediate if not running in IE 10 since its a IE 10 only function
-		- we have removed some getter syntax
-*/
-
-// MONACO CHANGE: Make WinJS re-entrant (if already defined)
-if (typeof WinJS === 'undefined') {
-
-// MONACO CHANGE: define setImmediate
-(function (global) {
-    if (!global.setImmediate) {
-        if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
-            // running in node
-            global.setImmediate = function(callback) {
-                return process.nextTick(callback);
-            };
-        } else {
-            // running in browser
-            global.setImmediate = function(callback) {
-                return setTimeout(callback, 0);
-            };
+    var depsValues = deps.map(function(dep) {
+        if (dep === 'exports') {
+            exportsPassedIn = true;
+            return exports;
         }
-	}
+        return _modules[dep];
+    });
 
-})(this);
+    var result = factory.apply({}, depsValues);
 
-/// <reference path="ms-appx://Microsoft.WinJS.1.0/js/base.js" />
-(function baseInit(global, undefined) {
+    _modules[moduleId] = exportsPassedIn ? exports : result;
+};
+
+
+_winjs("WinJS/Core/_Global", [], function () {
     "use strict";
 
-    function initializeProperties(target, members) {
+    // Appease jshint
+    /* global window, self, global */
+
+    var globalObject =
+        typeof window !== 'undefined' ? window :
+        typeof self !== 'undefined' ? self :
+        typeof global !== 'undefined' ? global :
+        {};
+    return globalObject;
+});
+
+_winjs("WinJS/Core/_BaseCoreUtils", ["WinJS/Core/_Global"], function baseCoreUtilsInit(_Global) {
+    "use strict";
+
+    var hasWinRT = !!_Global.Windows;
+
+    function markSupportedForProcessing(func) {
+        /// <signature helpKeyword="WinJS.Utilities.markSupportedForProcessing">
+        /// <summary locid="WinJS.Utilities.markSupportedForProcessing">
+        /// Marks a function as being compatible with declarative processing, such as WinJS.UI.processAll
+        /// or WinJS.Binding.processAll.
+        /// </summary>
+        /// <param name="func" type="Function" locid="WinJS.Utilities.markSupportedForProcessing_p:func">
+        /// The function to be marked as compatible with declarative processing.
+        /// </param>
+        /// <returns type="Function" locid="WinJS.Utilities.markSupportedForProcessing_returnValue">
+        /// The input function.
+        /// </returns>
+        /// </signature>
+        func.supportedForProcessing = true;
+        return func;
+    }
+
+    return {
+        hasWinRT: hasWinRT,
+        markSupportedForProcessing: markSupportedForProcessing,
+        _setImmediate: _Global.setImmediate ? _Global.setImmediate.bind(_Global) : function (handler) {
+            _Global.setTimeout(handler, 0);
+        }
+    };
+});
+_winjs("WinJS/Core/_WriteProfilerMark", ["WinJS/Core/_Global"], function profilerInit(_Global) {
+    "use strict";
+
+    return _Global.msWriteProfilerMark || function () { };
+});
+_winjs("WinJS/Core/_Base", ["WinJS/Core/_WinJS","WinJS/Core/_Global","WinJS/Core/_BaseCoreUtils","WinJS/Core/_WriteProfilerMark"], function baseInit(_WinJS, _Global, _BaseCoreUtils, _WriteProfilerMark) {
+    "use strict";
+
+    function initializeProperties(target, members, prefix) {
         var keys = Object.keys(members);
+        var isArray = Array.isArray(target);
         var properties;
         var i, len;
         for (i = 0, len = keys.length; i < len; i++) {
@@ -57,6 +94,9 @@ if (typeof WinJS === 'undefined') {
                     if (member.enumerable === undefined) {
                         member.enumerable = enumerable;
                     }
+                    if (prefix && member.setName && typeof member.setName === 'function') {
+                        member.setName(prefix + "." + key);
+                    }
                     properties = properties || {};
                     properties[key] = member;
                     continue;
@@ -64,27 +104,54 @@ if (typeof WinJS === 'undefined') {
             }
             if (!enumerable) {
                 properties = properties || {};
-                properties[key] = { value: member, enumerable: enumerable, configurable: true, writable: true }
+                properties[key] = { value: member, enumerable: enumerable, configurable: true, writable: true };
                 continue;
             }
-            target[key] = member;
+            if (isArray) {
+                target.forEach(function (target) {
+                    target[key] = member;
+                });
+            } else {
+                target[key] = member;
+            }
         }
         if (properties) {
-            Object.defineProperties(target, properties);
+            if (isArray) {
+                target.forEach(function (target) {
+                    Object.defineProperties(target, properties);
+                });
+            } else {
+                Object.defineProperties(target, properties);
+            }
         }
     }
 
-    (function (rootNamespace) {
+    (function () {
 
-        // Create the rootNamespace in the global namespace
-        if (!global[rootNamespace]) {
-            global[rootNamespace] = Object.create(Object.prototype);
-        }
-
-        // Cache the rootNamespace we just created in a local variable
-        var _rootNamespace = global[rootNamespace];
+        var _rootNamespace = _WinJS;
         if (!_rootNamespace.Namespace) {
             _rootNamespace.Namespace = Object.create(Object.prototype);
+        }
+
+        function createNamespace(parentNamespace, name) {
+            var currentNamespace = parentNamespace || {};
+            if (name) {
+                var namespaceFragments = name.split(".");
+                if (currentNamespace === _Global && namespaceFragments[0] === "WinJS") {
+                    currentNamespace = _WinJS;
+                    namespaceFragments.splice(0, 1);
+                }
+                for (var i = 0, len = namespaceFragments.length; i < len; i++) {
+                    var namespaceName = namespaceFragments[i];
+                    if (!currentNamespace[namespaceName]) {
+                        Object.defineProperty(currentNamespace, namespaceName,
+                            { value: {}, writable: false, enumerable: true, configurable: true }
+                        );
+                    }
+                    currentNamespace = currentNamespace[namespaceName];
+                }
+            }
+            return currentNamespace;
         }
 
         function defineWithParent(parentNamespace, name, members) {
@@ -105,21 +172,10 @@ if (typeof WinJS === 'undefined') {
             /// The newly-defined namespace.
             /// </returns>
             /// </signature>
-            var currentNamespace = parentNamespace,
-                namespaceFragments = name.split(".");
-
-            for (var i = 0, len = namespaceFragments.length; i < len; i++) {
-                var namespaceName = namespaceFragments[i];
-                if (!currentNamespace[namespaceName]) {
-                    Object.defineProperty(currentNamespace, namespaceName,
-                        { value: {}, writable: false, enumerable: true, configurable: true }
-                    );
-                }
-                currentNamespace = currentNamespace[namespaceName];
-            }
+            var currentNamespace = createNamespace(parentNamespace, name);
 
             if (members) {
-                initializeProperties(currentNamespace, members);
+                initializeProperties(currentNamespace, members, name || "<ANONYMOUS>");
             }
 
             return currentNamespace;
@@ -140,7 +196,74 @@ if (typeof WinJS === 'undefined') {
             /// The newly-defined namespace.
             /// </returns>
             /// </signature>
-            return defineWithParent(global, name, members);
+            return defineWithParent(_Global, name, members);
+        }
+
+        var LazyStates = {
+            uninitialized: 1,
+            working: 2,
+            initialized: 3,
+        };
+
+        function lazy(f) {
+            var name;
+            var state = LazyStates.uninitialized;
+            var result;
+            return {
+                setName: function (value) {
+                    name = value;
+                },
+                get: function () {
+                    switch (state) {
+                        case LazyStates.initialized:
+                            return result;
+
+                        case LazyStates.uninitialized:
+                            state = LazyStates.working;
+                            try {
+                                _WriteProfilerMark("WinJS.Namespace._lazy:" + name + ",StartTM");
+                                result = f();
+                            } finally {
+                                _WriteProfilerMark("WinJS.Namespace._lazy:" + name + ",StopTM");
+                                state = LazyStates.uninitialized;
+                            }
+                            f = null;
+                            state = LazyStates.initialized;
+                            return result;
+
+                        case LazyStates.working:
+                            throw "Illegal: reentrancy on initialization";
+
+                        default:
+                            throw "Illegal";
+                    }
+                },
+                set: function (value) {
+                    switch (state) {
+                        case LazyStates.working:
+                            throw "Illegal: reentrancy on initialization";
+
+                        default:
+                            state = LazyStates.initialized;
+                            result = value;
+                            break;
+                    }
+                },
+                enumerable: true,
+                configurable: true,
+            };
+        }
+
+        // helper for defining AMD module members
+        function moduleDefine(exports, name, members) {
+            var target = [exports];
+            var publicNS = null;
+            if (name) {
+                publicNS = createNamespace(_Global, name);
+                target.push(publicNS);
+            }
+            initializeProperties(target, members, name || "<ANONYMOUS>");
+            return publicNS;
         }
 
         // Establish members of the "WinJS.Namespace" namespace
@@ -148,13 +271,17 @@ if (typeof WinJS === 'undefined') {
 
             defineWithParent: { value: defineWithParent, writable: true, enumerable: true, configurable: true },
 
-            define: { value: define, writable: true, enumerable: true, configurable: true }
+            define: { value: define, writable: true, enumerable: true, configurable: true },
+
+            _lazy: { value: lazy, writable: true, enumerable: true, configurable: true },
+
+            _moduleDefine: { value: moduleDefine, writable: true, enumerable: true, configurable: true }
 
         });
 
-    })("WinJS");
+    })();
 
-    (function (WinJS) {
+    (function () {
 
         function define(constructor, instanceMembers, staticMembers) {
             /// <signature helpKeyword="WinJS.Class.define">
@@ -175,7 +302,7 @@ if (typeof WinJS === 'undefined') {
             /// </returns>
             /// </signature>
             constructor = constructor || function () { };
-            WinJS.Utilities.markSupportedForProcessing(constructor);
+            _BaseCoreUtils.markSupportedForProcessing(constructor);
             if (instanceMembers) {
                 initializeProperties(constructor.prototype, instanceMembers);
             }
@@ -210,7 +337,7 @@ if (typeof WinJS === 'undefined') {
                 constructor = constructor || function () { };
                 var basePrototype = baseClass.prototype;
                 constructor.prototype = Object.create(basePrototype);
-                WinJS.Utilities.markSupportedForProcessing(constructor);
+                _BaseCoreUtils.markSupportedForProcessing(constructor);
                 Object.defineProperty(constructor.prototype, "constructor", { value: constructor, writable: true, configurable: true, enumerable: true });
                 if (instanceMembers) {
                     initializeProperties(constructor.prototype, instanceMembers);
@@ -246,325 +373,52 @@ if (typeof WinJS === 'undefined') {
         }
 
         // Establish members of "WinJS.Class" namespace
-        WinJS.Namespace.define("WinJS.Class", {
+        _WinJS.Namespace.define("WinJS.Class", {
             define: define,
             derive: derive,
             mix: mix
         });
 
-    })(global.WinJS);
+    })();
 
-})(this);
-
-
-(function baseUtilsInit(global, WinJS) {
-    "use strict";
-
-    var hasWinRT = !!global.Windows;
-
-    var strings = {
-		// MONACOCHANGE
-        //get notSupportedForProcessing() { return WinJS.Resources._getWinJSString("base/notSupportedForProcessing").value; }
-		notSupportedForProcessing: "Value is not supported within a declarative processing context, if you want it to be supported mark it using WinJS.Utilities.markSupportedForProcessing. The value was: '{0}'"
+    return {
+        Namespace: _WinJS.Namespace,
+        Class: _WinJS.Class
     };
 
-    function nop(v) {
-        return v;
-    }
-
-    function getMemberFiltered(name, root, filter) {
-        return name.split(".").reduce(function (currentNamespace, name) {
-            if (currentNamespace) {
-                return filter(currentNamespace[name]);
-            }
-            return null;
-        }, root);
-    }
-
-    // Establish members of "WinJS.Utilities" namespace
-    WinJS.Namespace.define("WinJS.Utilities", {
-        // Used for mocking in tests
-        _setHasWinRT: {
-            value: function (value) {
-                hasWinRT = value;
-            },
-            configurable: false,
-            writable: false,
-            enumerable: false
-        },
-
-        /// <field type="Boolean" locid="WinJS.Utilities.hasWinRT" helpKeyword="WinJS.Utilities.hasWinRT">Determine if WinRT is accessible in this script context.</field>
-        hasWinRT: {
-            get: function () { return hasWinRT; },
-            configurable: false,
-            enumerable: true
-        },
-
-        _getMemberFiltered: getMemberFiltered,
-
-        getMember: function (name, root) {
-            /// <signature helpKeyword="WinJS.Utilities.getMember">
-            /// <summary locid="WinJS.Utilities.getMember">
-            /// Gets the leaf-level type or namespace specified by the name parameter.
-            /// </summary>
-            /// <param name="name" locid="WinJS.Utilities.getMember_p:name">
-            /// The name of the member.
-            /// </param>
-            /// <param name="root" locid="WinJS.Utilities.getMember_p:root">
-            /// The root to start in. Defaults to the global object.
-            /// </param>
-            /// <returns type="Object" locid="WinJS.Utilities.getMember_returnValue">
-            /// The leaf-level type or namespace in the specified parent namespace.
-            /// </returns>
-            /// </signature>
-            if (!name) {
-                return null;
-            }
-            return getMemberFiltered(name, root || global, nop);
-        },
-
-        ready: function (callback, async) {
-            /// <signature helpKeyword="WinJS.Utilities.ready">
-            /// <summary locid="WinJS.Utilities.ready">
-            /// Ensures that the specified function executes only after the DOMContentLoaded event has fired
-            /// for the current page.
-            /// </summary>
-            /// <returns type="WinJS.Promise" locid="WinJS.Utilities.ready_returnValue">A promise that completes after DOMContentLoaded has occurred.</returns>
-            /// <param name="callback" optional="true" locid="WinJS.Utilities.ready_p:callback">
-            /// A function that executes after DOMContentLoaded has occurred.
-            /// </param>
-            /// <param name="async" optional="true" locid="WinJS.Utilities.ready_p:async">
-            /// If true, the callback should be executed asynchronously.
-            /// </param>
-            /// </signature>
-            return new WinJS.Promise(function (c, e) {
-                function complete() {
-                    if (callback) {
-                        try {
-                            callback();
-                            c();
-                        }
-                        catch (err) {
-                            e(err);
-                        }
-                    }
-                    else {
-                        c();
-                    }
-                }
-
-                var readyState = WinJS.Utilities.testReadyState;
-                if (!readyState) {
-                    if (global.document) {
-                        readyState = document.readyState;
-                    }
-                    else {
-                        readyState = "complete";
-                    }
-                }
-                if (readyState === "complete" || (global.document && document.body !== null)) {
-                    if (async) {
-                        global.setImmediate(complete);
-                    }
-                    else {
-                        complete();
-                    }
-                }
-                else {
-                    global.addEventListener("DOMContentLoaded", complete, false);
-                }
-            });
-        },
-
-        /// <field type="Boolean" locid="WinJS.Utilities.strictProcessing" helpKeyword="WinJS.Utilities.strictProcessing">Determines if strict declarative processing is enabled in this script context.</field>
-        strictProcessing: {
-            get: function () { return true; },
-            configurable: false,
-            enumerable: true,
-        },
-
-        markSupportedForProcessing: {
-            value: function (func) {
-                /// <signature helpKeyword="WinJS.Utilities.markSupportedForProcessing">
-                /// <summary locid="WinJS.Utilities.markSupportedForProcessing">
-                /// Marks a function as being compatible with declarative processing, such as WinJS.UI.processAll
-                /// or WinJS.Binding.processAll.
-                /// </summary>
-                /// <param name="func" type="Function" locid="WinJS.Utilities.markSupportedForProcessing_p:func">
-                /// The function to be marked as compatible with declarative processing.
-                /// </param>
-                /// <returns type="Function" locid="WinJS.Utilities.markSupportedForProcessing_returnValue">
-                /// The input function.
-                /// </returns>
-                /// </signature>
-                func.supportedForProcessing = true;
-                return func;
-            },
-            configurable: false,
-            writable: false,
-            enumerable: true
-        },
-
-        requireSupportedForProcessing: {
-            value: function (value) {
-                /// <signature helpKeyword="WinJS.Utilities.requireSupportedForProcessing">
-                /// <summary locid="WinJS.Utilities.requireSupportedForProcessing">
-                /// Asserts that the value is compatible with declarative processing, such as WinJS.UI.processAll
-                /// or WinJS.Binding.processAll. If it is not compatible an exception will be thrown.
-                /// </summary>
-                /// <param name="value" type="Object" locid="WinJS.Utilities.requireSupportedForProcessing_p:value">
-                /// The value to be tested for compatibility with declarative processing. If the
-                /// value is a function it must be marked with a property 'supportedForProcessing'
-                /// with a value of true.
-                /// </param>
-                /// <returns type="Object" locid="WinJS.Utilities.requireSupportedForProcessing_returnValue">
-                /// The input value.
-                /// </returns>
-                /// </signature>
-                var supportedForProcessing = true;
-
-                supportedForProcessing = supportedForProcessing && !(value === global);
-                supportedForProcessing = supportedForProcessing && !(value === global.location);
-                supportedForProcessing = supportedForProcessing && !(value instanceof HTMLIFrameElement);
-                supportedForProcessing = supportedForProcessing && !(typeof value === "function" && !value.supportedForProcessing);
-
-                switch (global.frames.length) {
-                    case 0:
-                        break;
-
-                    case 1:
-                        supportedForProcessing = supportedForProcessing && !(value === global.frames[0]);
-                        break;
-
-                    default:
-                        for (var i = 0, len = global.frames.length; supportedForProcessing && i < len; i++) {
-                            supportedForProcessing = supportedForProcessing && !(value === global.frames[i]);
-                        }
-                        break;
-                }
-
-                if (supportedForProcessing) {
-                    return value;
-                }
-
-                throw new WinJS.ErrorFromName("WinJS.Utilities.requireSupportedForProcessing", WinJS.Resources._formatString(strings.notSupportedForProcessing, value));
-            },
-            configurable: false,
-            writable: false,
-            enumerable: true
-        },
-
-    });
-
-    WinJS.Namespace.define("WinJS", {
-        validation: false,
-
-        strictProcessing: {
-            value: function () {
-                /// <signature helpKeyword="WinJS.strictProcessing">
-                /// <summary locid="WinJS.strictProcessing">
-                /// Strict processing is always enforced, this method has no effect.
-                /// </summary>
-                /// </signature>
-            },
-            configurable: false,
-            writable: false,
-            enumerable: false
-        },
-    });
-})(this, this.WinJS);
-
-
-(function logInit(WinJS) {
+});
+_winjs("WinJS/Core/_ErrorFromName", ["WinJS/Core/_Base"], function errorsInit(_Base) {
     "use strict";
 
-    var spaceR = /\s+/g;
-    var typeR = /^(error|warn|info|log)$/;
-
-    function format(message, tag, type) {
-        /// <signature helpKeyword="WinJS.Utilities.formatLog">
-        /// <summary locid="WinJS.Utilities.formatLog">
-        /// Adds tags and type to a logging message.
+    var ErrorFromName = _Base.Class.derive(Error, function (name, message) {
+        /// <signature helpKeyword="WinJS.ErrorFromName">
+        /// <summary locid="WinJS.ErrorFromName">
+        /// Creates an Error object with the specified name and message properties.
         /// </summary>
-        /// <param name="message" type="String" locid="WinJS.Utilities.startLog_p:message">The message to be formatted.</param>
-        /// <param name="tag" type="String" locid="WinJS.Utilities.startLog_p:tag">The tag(s) to be applied to the message. Multiple tags should be separated by spaces.</param>
-        /// <param name="type" type="String" locid="WinJS.Utilities.startLog_p:type">The type of the message.</param>
-        /// <returns type="String" locid="WinJS.Utilities.startLog_returnValue">The formatted message.</returns>
+        /// <param name="name" type="String" locid="WinJS.ErrorFromName_p:name">The name of this error. The name is meant to be consumed programmatically and should not be localized.</param>
+        /// <param name="message" type="String" optional="true" locid="WinJS.ErrorFromName_p:message">The message for this error. The message is meant to be consumed by humans and should be localized.</param>
+        /// <returns type="Error" locid="WinJS.ErrorFromName_returnValue">Error instance with .name and .message properties populated</returns>
         /// </signature>
-        var m = message;
-        if (typeof (m) === "function") { m = m(); }
-
-        return ((type && typeR.test(type)) ? ("") : (type ? (type + ": ") : "")) +
-            (tag ? tag.replace(spaceR, ":") + ": " : "") +
-            m;
-    }
-    function defAction(message, tag, type) {
-        var m = WinJS.Utilities.formatLog(message, tag, type);
-        console[(type && typeR.test(type)) ? type : "log"](m);
-    }
-    function escape(s) {
-        // \s (whitespace) is used as separator, so don't escape it
-        return s.replace(/[-[\]{}()*+?.,\\^$|#]/g, "\\$&");
-    }
-    WinJS.Namespace.define("WinJS.Utilities", {
-        startLog: function (options) {
-            /// <signature helpKeyword="WinJS.Utilities.startLog">
-            /// <summary locid="WinJS.Utilities.startLog">
-            /// Configures a logger that writes messages containing the specified tags from WinJS.log to console.log.
-            /// </summary>
-            /// <param name="options" type="String" locid="WinJS.Utilities.startLog_p:options">The tags for messages to log. Multiple tags should be separated by spaces.</param>
-            /// </signature>
-            /// <signature>
-            /// <summary locid="WinJS.Utilities.startLog2">
-            /// Configure a logger to write WinJS.log output.
-            /// </summary>
-            /// <param name="options" type="Object" locid="WinJS.Utilities.startLog_p:options2">
-            /// May contain .type, .tags, .excludeTags and .action properties.
-            /// - .type is a required tag.
-            /// - .excludeTags is a space-separated list of tags, any of which will result in a message not being logged.
-            /// - .tags is a space-separated list of tags, any of which will result in a message being logged.
-            /// - .action is a function that, if present, will be called with the log message, tags and type. The default is to log to the console.
-            /// </param>
-            /// </signature>
-            options = options || {};
-            if (typeof options === "string") {
-                options = { tags: options };
-            }
-            var el = options.type && new RegExp("^(" + escape(options.type).replace(spaceR, " ").split(" ").join("|") + ")$");
-            var not = options.excludeTags && new RegExp("(^|\\s)(" + escape(options.excludeTags).replace(spaceR, " ").split(" ").join("|") + ")(\\s|$)", "i");
-            var has = options.tags && new RegExp("(^|\\s)(" + escape(options.tags).replace(spaceR, " ").split(" ").join("|") + ")(\\s|$)", "i");
-            var action = options.action || defAction;
-
-            if (!el && !not && !has && !WinJS.log) {
-                WinJS.log = action;
-                return;
-            }
-
-            var result = function (message, tag, type) {
-                if (!((el && !el.test(type))          // if the expected log level is not satisfied
-                    || (not && not.test(tag))         // if any of the excluded categories exist
-                    || (has && !has.test(tag)))) {    // if at least one of the included categories doesn't exist
-                        action(message, tag, type);
-                    }
-
-                result.next && result.next(message, tag, type);
-            };
-            result.next = WinJS.log;
-            WinJS.log = result;
-        },
-        stopLog: function () {
-            /// <signature helpKeyword="WinJS.Utilities.stopLog">
-            /// <summary locid="WinJS.Utilities.stopLog">
-            /// Removes the previously set up logger.
-            /// </summary>
-            /// </signature>
-            delete WinJS.log;
-        },
-        formatLog: format
+        this.name = name;
+        this.message = message || name;
+    }, {
+        /* empty */
+    }, {
+        supportedForProcessing: false,
     });
-})(this.WinJS);
 
-(function eventsInit(WinJS, undefined) {
+    _Base.Namespace.define("WinJS", {
+        // ErrorFromName establishes a simple pattern for returning error codes.
+        //
+        ErrorFromName: ErrorFromName
+    });
+
+    return ErrorFromName;
+
+});
+
+
+_winjs("WinJS/Core/_Events", ["exports","WinJS/Core/_Base"], function eventsInit(exports, _Base) {
     "use strict";
 
 
@@ -591,10 +445,10 @@ if (typeof WinJS === 'undefined') {
                 }
             },
             enumerable: true
-        }
+        };
     }
 
-    function createEventProperties(events) {
+    function createEventProperties() {
         /// <signature helpKeyword="WinJS.Utilities.createEventProperties">
         /// <summary locid="WinJS.Utilities.createEventProperties">
         /// Creates an object that has one property for each name passed to the function.
@@ -614,7 +468,7 @@ if (typeof WinJS === 'undefined') {
         return props;
     }
 
-    var EventMixinEvent = WinJS.Class.define(
+    var EventMixinEvent = _Base.Class.define(
         function EventMixinEvent_ctor(type, detail, target) {
             this.detail = detail;
             this.target = target;
@@ -661,7 +515,7 @@ if (typeof WinJS === 'undefined') {
             /// The type (name) of the event.
             /// </param>
             /// <param name="listener" locid="WinJS.Utilities.eventMixin.addEventListener_p:listener">
-            /// The listener to invoke when the event gets raised.
+            /// The listener to invoke when the event is raised.
             /// </param>
             /// <param name="useCapture" locid="WinJS.Utilities.eventMixin.addEventListener_p:useCapture">
             /// if true initiates capture, otherwise false.
@@ -738,173 +592,35 @@ if (typeof WinJS === 'undefined') {
         }
     };
 
-    WinJS.Namespace.define("WinJS.Utilities", {
+    _Base.Namespace._moduleDefine(exports, "WinJS.Utilities", {
         _createEventProperty: createEventProperty,
         createEventProperties: createEventProperties,
         eventMixin: eventMixin
     });
 
-})(this.WinJS);
+});
 
 
-(function resourcesInit(global, WinJS, undefined) {
+_winjs("WinJS/Core/_Trace", ["WinJS/Core/_Global"], function traceInit(_Global) {
     "use strict";
 
-    var resourceMap;
-    var mrtEventHook = false;
-    var contextChangedET = "contextchanged";
+    function nop(v) {
+        return v;
+    }
 
-    var ListenerType = WinJS.Class.mix(WinJS.Class.define(null, { /* empty */ }, { supportedForProcessing: false }), WinJS.Utilities.eventMixin);
-    var listeners = new ListenerType();
-
-    var strings = {
-		// MONACO CHANGE
-        //get malformedFormatStringInput() { return WinJS.Resources._getWinJSString("base/malformedFormatStringInput").value; },
-		malformedFormatStringInput: "Malformed, did you mean to escape your '{0}'?"
+    return {
+        _traceAsyncOperationStarting: (_Global.Debug && _Global.Debug.msTraceAsyncOperationStarting && _Global.Debug.msTraceAsyncOperationStarting.bind(_Global.Debug)) || nop,
+        _traceAsyncOperationCompleted: (_Global.Debug && _Global.Debug.msTraceAsyncOperationCompleted && _Global.Debug.msTraceAsyncOperationCompleted.bind(_Global.Debug)) || nop,
+        _traceAsyncCallbackStarting: (_Global.Debug && _Global.Debug.msTraceAsyncCallbackStarting && _Global.Debug.msTraceAsyncCallbackStarting.bind(_Global.Debug)) || nop,
+        _traceAsyncCallbackCompleted: (_Global.Debug && _Global.Debug.msTraceAsyncCallbackCompleted && _Global.Debug.msTraceAsyncCallbackCompleted.bind(_Global.Debug)) || nop
     };
-
-    WinJS.Namespace.define("WinJS.Resources", {
-        addEventListener: function (type, listener, useCapture) {
-            /// <signature helpKeyword="WinJS.Resources.addEventListener">
-            /// <summary locid="WinJS.Resources.addEventListener">
-            /// Registers an event handler for the specified event.
-            /// </summary>
-            /// <param name="type" type="String" locid="WinJS.Resources.addEventListener_p:type">
-            /// The name of the event to handle.
-            /// </param>
-            /// <param name="listener" type="Function" locid="WinJS.Resources.addEventListener_p:listener">
-            /// The listener to invoke when the event gets raised.
-            /// </param>
-            /// <param name="useCapture" type="Boolean" locid="WinJS.Resources.addEventListener_p:useCapture">
-            /// Set to true to register the event handler for the capturing phase; set to false to register for the bubbling phase.
-            /// </param>
-            /// </signature>
-            if (WinJS.Utilities.hasWinRT && !mrtEventHook) {
-                if (type === contextChangedET) {
-                    try {
-                        Windows.ApplicationModel.Resources.Core.ResourceManager.current.defaultContext.qualifierValues.addEventListener("mapchanged", function (e) {
-                            WinJS.Resources.dispatchEvent(contextChangedET, { qualifier: e.key, changed: e.target[e.key] });
-                        }, false);
-
-                        mrtEventHook = true;
-                    } catch (e) {
-                    }
-                }
-            }
-            listeners.addEventListener(type, listener, useCapture);
-        },
-        removeEventListener: listeners.removeEventListener.bind(listeners),
-        dispatchEvent: listeners.dispatchEvent.bind(listeners),
-
-        _formatString: function (string) {
-            var args = arguments;
-            if (args.length > 1) {
-                string = string.replace(/({{)|(}})|{(\d+)}|({)|(})/g, function (unused, left, right, index, illegalLeft, illegalRight) {
-                    if (illegalLeft || illegalRight) { throw WinJS.Resources._formatString(strings.malformedFormatStringInput, illegalLeft || illegalRight); }
-                    return (left && "{") || (right && "}") || args[(index|0) + 1];
-                });
-            }
-            return string;
-        },
-
-        _getStringWinRT: function (resourceId) {
-            if (!resourceMap) {
-                var mainResourceMap = Windows.ApplicationModel.Resources.Core.ResourceManager.current.mainResourceMap;
-                try {
-                    resourceMap = mainResourceMap.getSubtree('Resources');
-                }
-                catch (e) {
-                }
-                if (!resourceMap) {
-                    resourceMap = mainResourceMap;
-                }
-            }
-
-            var stringValue;
-            var langValue;
-            var resCandidate;
-            try {
-                resCandidate = resourceMap.getValue(resourceId);
-                if (resCandidate) {
-                    stringValue = resCandidate.valueAsString;
-                    if (stringValue === undefined) {
-                        stringValue = resCandidate.toString();
-                    }
-                }
-            }
-            catch (e) {}
-
-            if (!stringValue) {
-                return { value: resourceId, empty: true };
-            }
-
-            try {
-                langValue = resCandidate.getQualifierValue("Language");
-            }
-            catch (e) {
-                return { value: stringValue };
-            }
-
-            return { value: stringValue, lang: langValue };
-        },
-
-        _getStringJS: function (resourceId) {
-            var str = global.strings && global.strings[resourceId];
-            if (typeof str === "string") {
-                str = { value: str };
-            }
-            return str || { value: resourceId, empty: true };
-        }
-    });
-
-    Object.defineProperties(WinJS.Resources, WinJS.Utilities.createEventProperties(contextChangedET));
-
-    var getStringImpl;
-
-    WinJS.Resources.getString = function (resourceId) {
-        /// <signature helpKeyword="WinJS.Resources.getString">
-        /// <summary locid="WinJS.Resources.getString">
-        /// Retrieves the resource string that has the specified resource id.
-        /// </summary>
-        /// <param name="resourceId" type="Number" locid="WinJS.Resources.getString._p:resourceId">
-        /// The resource id of the string to retrieve.
-        /// </param>
-        /// <returns type="Object" locid="WinJS.Resources.getString_returnValue">
-        /// An object that can contain these properties:
-        ///
-        /// value:
-        /// The value of the requested string. This property is always present.
-        ///
-        /// empty:
-        /// A value that specifies whether the requested string wasn't found.
-        /// If its true, the string wasn't found. If its false or undefined,
-        /// the requested string was found.
-        ///
-        /// lang:
-        /// The language of the string, if specified. This property is only present
-        /// for multi-language resources.
-        ///
-        /// </returns>
-        /// </signature>
-        getStringImpl =
-            getStringImpl ||
-                (WinJS.Utilities.hasWinRT
-                    ? WinJS.Resources._getStringWinRT
-                    : WinJS.Resources._getStringJS);
-
-        return getStringImpl(resourceId);
-    };
-
-
-})(this, this.WinJS);
-
-
-(function promiseInit(global, WinJS, undefined) {
+});
+_winjs("WinJS/Promise/_StateMachine", ["WinJS/Core/_Global","WinJS/Core/_BaseCoreUtils","WinJS/Core/_Base","WinJS/Core/_ErrorFromName","WinJS/Core/_Events","WinJS/Core/_Trace"], function promiseStateMachineInit(_Global, _BaseCoreUtils, _Base, _ErrorFromName, _Events, _Trace) {
     "use strict";
 
-    global.Debug && (global.Debug.setNonUserCodeExceptions = true);
+    _Global.Debug && (_Global.Debug.setNonUserCodeExceptions = true);
 
-    var ListenerType = WinJS.Class.mix(WinJS.Class.define(null, { /*empty*/ }, { supportedForProcessing: false }), WinJS.Utilities.eventMixin);
+    var ListenerType = _Base.Class.mix(_Base.Class.define(null, { /*empty*/ }, { supportedForProcessing: false }), _Events.eventMixin);
     var promiseEventListeners = new ListenerType();
     // make sure there is a listeners collection so that we can do a more trivial check below
     promiseEventListeners._listeners = {};
@@ -912,11 +628,11 @@ if (typeof WinJS === 'undefined') {
     var canceledName = "Canceled";
     var tagWithStack = false;
     var tag = {
-        promise:            0x01,
-        thenPromise:        0x02,
-        errorPromise:       0x04,
-        exceptionPromise:   0x08,
-        completePromise:    0x10,
+        promise: 0x01,
+        thenPromise: 0x02,
+        errorPromise: 0x04,
+        exceptionPromise: 0x08,
+        completePromise: 0x10,
     };
     tag.all = tag.promise | tag.thenPromise | tag.errorPromise | tag.exceptionPromise | tag.completePromise;
 
@@ -1007,24 +723,33 @@ if (typeof WinJS === 'undefined') {
         name: "waiting",
         enter: function (promise) {
             var waitedUpon = promise._value;
-            var error = function (value) {
-                if (waitedUpon._errorId) {
-                    promise._chainedError(value, waitedUpon);
-                } else {
-                    // Because this is an interop boundary we want to indicate that this
-                    //  error has been handled by the promise infrastructure before we
-                    //  begin a new handling chain.
-                    //
-                    callonerror(promise, value, detailsForHandledError, waitedUpon, error);
-                    promise._error(value);
-                }
-            };
-            error.handlesOnError = true;
-            waitedUpon.then(
-                promise._completed.bind(promise),
-                error,
-                promise._progress.bind(promise)
-            );
+            // We can special case our own intermediate promises which are not in a
+            //  terminal state by just pushing this promise as a listener without
+            //  having to create new indirection functions
+            if (waitedUpon instanceof ThenPromise &&
+                waitedUpon._state !== state_error &&
+                waitedUpon._state !== state_success) {
+                pushListener(waitedUpon, { promise: promise });
+            } else {
+                var error = function (value) {
+                    if (waitedUpon._errorId) {
+                        promise._chainedError(value, waitedUpon);
+                    } else {
+                        // Because this is an interop boundary we want to indicate that this
+                        //  error has been handled by the promise infrastructure before we
+                        //  begin a new handling chain.
+                        //
+                        callonerror(promise, value, detailsForHandledError, waitedUpon, error);
+                        promise._error(value);
+                    }
+                };
+                error.handlesOnError = true;
+                waitedUpon.then(
+                    promise._completed.bind(promise),
+                    error,
+                    promise._progress.bind(promise)
+                );
+            }
         },
         cancel: function (promise) {
             promise._setState(state_waiting_canceled);
@@ -1123,7 +848,7 @@ if (typeof WinJS === 'undefined') {
                 var queue = [promise];
                 var p;
                 while (queue.length) {
-                    p = queue.pop();
+                    p = queue.shift();
                     p._state._notify(p, queue);
                 }
             }
@@ -1172,7 +897,7 @@ if (typeof WinJS === 'undefined') {
                 var queue = [promise];
                 var p;
                 while (queue.length) {
-                    p = queue.pop();
+                    p = queue.shift();
                     p._state._notify(p, queue);
                 }
             }
@@ -1221,7 +946,7 @@ if (typeof WinJS === 'undefined') {
     // would have to remember to do things like pumping the state machine to catch state transitions.
     //
 
-    var PromiseStateMachine = WinJS.Class.define(null, {
+    var PromiseStateMachine = _Base.Class.define(null, {
         _listeners: null,
         _nextState: null,
         _state: null,
@@ -1248,7 +973,7 @@ if (typeof WinJS === 'undefined') {
             /// After the handlers have finished executing, this function throws any error that would have been returned
             /// from then() as a promise in the error state.
             /// </summary>
-            /// <param name="onComplete" type="Function" locid="WinJS.PromiseStateMachine.done_p:onComplete">
+            /// <param name='onComplete' type='Function' locid="WinJS.PromiseStateMachine.done_p:onComplete">
             /// The function to be called if the promise is fulfilled successfully with a value.
             /// The fulfilled value is passed as the single argument. If the value is null,
             /// the fulfilled value is returned. The value returned
@@ -1256,12 +981,12 @@ if (typeof WinJS === 'undefined') {
             /// then(). If an exception is thrown while executing the function, the promise returned
             /// by then() moves into the error state.
             /// </param>
-            /// <param name="onError" type="Function" optional="true" locid="WinJS.PromiseStateMachine.done_p:onError">
+            /// <param name='onError' type='Function' optional='true' locid="WinJS.PromiseStateMachine.done_p:onError">
             /// The function to be called if the promise is fulfilled with an error. The error
             /// is passed as the single argument. If it is null, the error is forwarded.
             /// The value returned from the function is the fulfilled value of the promise returned by then().
             /// </param>
-            /// <param name="onProgress" type="Function" optional="true" locid="WinJS.PromiseStateMachine.done_p:onProgress">
+            /// <param name='onProgress' type='Function' optional='true' locid="WinJS.PromiseStateMachine.done_p:onProgress">
             /// the function to be called if the promise reports progress. Data about the progress
             /// is passed as the single argument. Promises are not required to support
             /// progress.
@@ -1276,19 +1001,19 @@ if (typeof WinJS === 'undefined') {
             /// the error handling to be performed if the promise fails to fulfill
             /// a value, and the handling of progress notifications along the way.
             /// </summary>
-            /// <param name="onComplete" type="Function" locid="WinJS.PromiseStateMachine.then_p:onComplete">
+            /// <param name='onComplete' type='Function' locid="WinJS.PromiseStateMachine.then_p:onComplete">
             /// The function to be called if the promise is fulfilled successfully with a value.
             /// The value is passed as the single argument. If the value is null, the value is returned.
             /// The value returned from the function becomes the fulfilled value of the promise returned by
             /// then(). If an exception is thrown while this function is being executed, the promise returned
             /// by then() moves into the error state.
             /// </param>
-            /// <param name="onError" type="Function" optional="true" locid="WinJS.PromiseStateMachine.then_p:onError">
+            /// <param name='onError' type='Function' optional='true' locid="WinJS.PromiseStateMachine.then_p:onError">
             /// The function to be called if the promise is fulfilled with an error. The error
             /// is passed as the single argument. If it is null, the error is forwarded.
             /// The value returned from the function becomes the fulfilled value of the promise returned by then().
             /// </param>
-            /// <param name="onProgress" type="Function" optional="true" locid="WinJS.PromiseStateMachine.then_p:onProgress">
+            /// <param name='onProgress' type='Function' optional='true' locid="WinJS.PromiseStateMachine.then_p:onProgress">
             /// The function to be called if the promise reports progress. Data about the progress
             /// is passed as the single argument. Promises are not required to support
             /// progress.
@@ -1416,7 +1141,8 @@ if (typeof WinJS === 'undefined') {
         );
     }
     function done(promise, onComplete, onError, onProgress) {
-        pushListener(promise, { c: onComplete, e: onError, p: onProgress });
+        var asyncOpID = _Trace._traceAsyncOperationStarting("WinJS.Promise.done");
+        pushListener(promise, { c: onComplete, e: onError, p: onProgress, asyncOpID: asyncOpID });
     }
     function error(promise, value, onerrorDetails, context) {
         promise._value = value;
@@ -1435,11 +1161,17 @@ if (typeof WinJS === 'undefined') {
             var listener = len === 1 ? listeners : listeners[i];
             var onComplete = listener.c;
             var target = listener.promise;
+
+            _Trace._traceAsyncOperationCompleted(listener.asyncOpID, _Global.Debug && _Global.Debug.MS_ASYNC_OP_STATUS_SUCCESS);
+
             if (target) {
+                _Trace._traceAsyncCallbackStarting(listener.asyncOpID);
                 try {
                     target._setCompleteValue(onComplete ? onComplete(value) : value);
                 } catch (ex) {
                     target._setExceptionValue(ex);
+                } finally {
+                    _Trace._traceAsyncCallbackCompleted();
                 }
                 if (target._state !== state_waiting && target._listeners) {
                     queue.push(target);
@@ -1461,18 +1193,29 @@ if (typeof WinJS === 'undefined') {
             var listener = len === 1 ? listeners : listeners[i];
             var onError = listener.e;
             var target = listener.promise;
+
+            var errorID = _Global.Debug && (value && value.name === canceledName ? _Global.Debug.MS_ASYNC_OP_STATUS_CANCELED : _Global.Debug.MS_ASYNC_OP_STATUS_ERROR);
+            _Trace._traceAsyncOperationCompleted(listener.asyncOpID, errorID);
+
             if (target) {
+                var asyncCallbackStarted = false;
                 try {
                     if (onError) {
+                        _Trace._traceAsyncCallbackStarting(listener.asyncOpID);
+                        asyncCallbackStarted = true;
                         if (!onError.handlesOnError) {
                             callonerror(target, value, detailsForHandledError, promise, onError);
                         }
-                        target._setCompleteValue(onError(value))
+                        target._setCompleteValue(onError(value));
                     } else {
                         target._setChainedErrorValue(value, promise);
                     }
                 } catch (ex) {
                     target._setExceptionValue(ex);
+                } finally {
+                    if (asyncCallbackStarted) {
+                        _Trace._traceAsyncCallbackCompleted();
+                    }
                 }
                 if (target._state !== state_waiting && target._listeners) {
                     queue.push(target);
@@ -1543,7 +1286,8 @@ if (typeof WinJS === 'undefined') {
     }
     function then(promise, onComplete, onError, onProgress) {
         var result = new ThenPromise(promise);
-        pushListener(promise, { promise: result, c: onComplete, e: onError, p: onProgress });
+        var asyncOpID = _Trace._traceAsyncOperationStarting("WinJS.Promise.then");
+        pushListener(promise, { promise: result, c: onComplete, e: onError, p: onProgress, asyncOpID: asyncOpID });
         return result;
     }
 
@@ -1551,11 +1295,11 @@ if (typeof WinJS === 'undefined') {
     // Internal implementation detail promise, ThenPromise is created when a promise needs
     // to be returned from a then() method.
     //
-    var ThenPromise = WinJS.Class.derive(PromiseStateMachine,
+    var ThenPromise = _Base.Class.derive(PromiseStateMachine,
         function (creator) {
 
             if (tagWithStack && (tagWithStack === true || (tagWithStack & tag.thenPromise))) {
-                this._stack = WinJS.Promise._getStack();
+                this._stack = Promise._getStack();
             }
 
             this._creator = creator;
@@ -1577,11 +1321,11 @@ if (typeof WinJS === 'undefined') {
     // and WinJS.Promise.wrapError.
     //
 
-    var ErrorPromise = WinJS.Class.define(
+    var ErrorPromise = _Base.Class.define(
         function ErrorPromise_ctor(value) {
 
             if (tagWithStack && (tagWithStack === true || (tagWithStack & tag.errorPromise))) {
-                this._stack = WinJS.Promise._getStack();
+                this._stack = Promise._getStack();
             }
 
             this._value = value;
@@ -1647,9 +1391,7 @@ if (typeof WinJS === 'undefined') {
                 }
                 // force the exception to be thrown asyncronously to avoid any try/catch blocks
                 //
-                setImmediate(function () {
-                    throw value;
-                });
+                Promise._doneHandler(value);
             },
             then: function ErrorPromise_then(unused, onError) {
                 /// <signature helpKeyword="WinJS.PromiseStateMachine.then">
@@ -1709,11 +1451,11 @@ if (typeof WinJS === 'undefined') {
         }
     );
 
-    var ExceptionPromise = WinJS.Class.derive(ErrorPromise,
+    var ExceptionPromise = _Base.Class.derive(ErrorPromise,
         function ExceptionPromise_ctor(value) {
 
             if (tagWithStack && (tagWithStack === true || (tagWithStack & tag.exceptionPromise))) {
-                this._stack = WinJS.Promise._getStack();
+                this._stack = Promise._getStack();
             }
 
             this._value = value;
@@ -1725,11 +1467,11 @@ if (typeof WinJS === 'undefined') {
         }
     );
 
-    var CompletePromise = WinJS.Class.define(
+    var CompletePromise = _Base.Class.define(
         function CompletePromise_ctor(value) {
 
             if (tagWithStack && (tagWithStack === true || (tagWithStack & tag.completePromise))) {
-                this._stack = WinJS.Promise._getStack();
+                this._stack = Promise._getStack();
             }
 
             if (value && typeof value === "object" && typeof value.then === "function") {
@@ -1785,9 +1527,7 @@ if (typeof WinJS === 'undefined') {
                     }
                 } catch (ex) {
                     // force the exception to be thrown asynchronously to avoid any try/catch blocks
-                    setImmediate(function () {
-                        throw ex;
-                    });
+                    Promise._doneHandler(ex);
                 }
             },
             then: function CompletePromise_then(onComplete) {
@@ -1840,25 +1580,25 @@ if (typeof WinJS === 'undefined') {
 
     function timeout(timeoutMS) {
         var id;
-        return new WinJS.Promise(
+        return new Promise(
             function (c) {
                 if (timeoutMS) {
-                    id = setTimeout(c, timeoutMS);
+                    id = _Global.setTimeout(c, timeoutMS);
                 } else {
-                    setImmediate(c);
+                    _BaseCoreUtils._setImmediate(c);
                 }
             },
             function () {
                 if (id) {
-                    clearTimeout(id);
+                    _Global.clearTimeout(id);
                 }
             }
         );
     }
 
     function timeoutWithPromise(timeout, promise) {
-        var cancelPromise = function () { promise.cancel(); }
-        var cancelTimeout = function () { timeout.cancel(); }
+        var cancelPromise = function () { promise.cancel(); };
+        var cancelTimeout = function () { timeout.cancel(); };
         timeout.then(cancelPromise);
         promise.then(cancelTimeout, cancelTimeout);
         return promise;
@@ -1866,7 +1606,7 @@ if (typeof WinJS === 'undefined') {
 
     var staticCanceledPromise;
 
-    var Promise = WinJS.Class.derive(PromiseStateMachine,
+    var Promise = _Base.Class.derive(PromiseStateMachine,
         function Promise_ctor(init, oncancel) {
             /// <signature helpKeyword="WinJS.Promise">
             /// <summary locid="WinJS.Promise">
@@ -1887,7 +1627,7 @@ if (typeof WinJS === 'undefined') {
             /// </signature>
 
             if (tagWithStack && (tagWithStack === true || (tagWithStack & tag.promise))) {
-                this._stack = WinJS.Promise._getStack();
+                this._stack = Promise._getStack();
             }
 
             this._oncancel = oncancel;
@@ -1906,18 +1646,20 @@ if (typeof WinJS === 'undefined') {
             _oncancel: null,
 
             _cancelAction: function () {
-				try {
-            		if (this._oncancel) {
-						this._oncancel();
-					} else {
-						throw new Error('Promise did not implement oncancel');
-					}
-				} catch (ex) {
-					// Access fields to get them created
-					var msg = ex.message;
-					var stack = ex.stack;
-					promiseEventListeners.dispatchEvent('error', ex);
-				}
+                // BEGIN monaco change
+                try {
+                    if (this._oncancel) {
+                        this._oncancel();
+                    } else {
+                        throw new Error('Promise did not implement oncancel');
+                    }
+                } catch (ex) {
+                    // Access fields to get them created
+                    var msg = ex.message;
+                    var stack = ex.stack;
+                    promiseEventListeners.dispatchEvent('error', ex);
+                }
+                // END monaco change
             },
             _cleanupAction: function () { this._oncancel = null; }
         }, {
@@ -1954,9 +1696,8 @@ if (typeof WinJS === 'undefined') {
                 /// </returns>
                 /// </signature>
                 return new Promise(
-                    function (complete, error, progress) {
+                    function (complete, error) {
                         var keys = Object.keys(values);
-                        var errors = Array.isArray(values) ? [] : {};
                         if (keys.length === 0) {
                             complete();
                         }
@@ -1967,7 +1708,7 @@ if (typeof WinJS === 'undefined') {
                                 function (e) {
                                     if (e instanceof Error && e.name === canceledName) {
                                         if ((++canceled) === keys.length) {
-                                            complete(WinJS.Promise.cancel);
+                                            complete(Promise.cancel);
                                         }
                                         return;
                                     }
@@ -2011,7 +1752,7 @@ if (typeof WinJS === 'undefined') {
             /// </field>
             cancel: {
                 get: function () {
-                    return (staticCanceledPromise = staticCanceledPromise || new ErrorPromise(new WinJS.ErrorFromName(canceledName)));
+                    return (staticCanceledPromise = staticCanceledPromise || new ErrorPromise(new _ErrorFromName(canceledName)));
                 }
             },
             dispatchEvent: function Promise_dispatchEvent(eventType, details) {
@@ -2079,7 +1820,7 @@ if (typeof WinJS === 'undefined') {
                                         }
                                     });
                                     if (canceledCount === errorCount) {
-                                        complete(WinJS.Promise.cancel);
+                                        complete(Promise.cancel);
                                     } else {
                                         error(errors);
                                     }
@@ -2252,364 +1993,79 @@ if (typeof WinJS === 'undefined') {
             },
             _veryExpensiveTagWithStack_tag: tag,
             _getStack: function () {
-                if (Debug.debuggerEnabled) {
+                if (_Global.Debug && _Global.Debug.debuggerEnabled) {
                     try { throw new Error(); } catch (e) { return e.stack; }
                 }
             },
 
-        }
-    );
-    Object.defineProperties(Promise, WinJS.Utilities.createEventProperties(errorET));
-
-    var SignalPromise = WinJS.Class.derive(PromiseStateMachine,
-        function (cancel) {
-            this._oncancel = cancel;
-            this._setState(state_created);
-            this._run();
-        }, {
-            _cancelAction: function () { this._oncancel && this._oncancel(); },
-            _cleanupAction: function () { this._oncancel = null; }
-        }, {
-            supportedForProcessing: false
-        }
-    );
-
-    var Signal = WinJS.Class.define(
-        function Signal_ctor(oncancel) {
-            this._promise = new SignalPromise(oncancel);
-        }, {
-            promise: {
-                get: function () { return this._promise; }
-            },
-
-            cancel: function Signal_cancel() {
-                this._promise.cancel();
-            },
-            complete: function Signal_complete(value) {
-                this._promise._completed(value);
-            },
-            error: function Signal_error(value) {
-                this._promise._error(value);
-            },
-            progress: function Signal_progress(value) {
-                this._promise._progress(value);
-            }
-        }, {
-            supportedForProcessing: false,
-        }
-    );
-
-    // Publish WinJS.Promise
-    //
-    WinJS.Namespace.define("WinJS", {
-        Promise: Promise,
-        _Signal: Signal
-    });
-
-}(this, this.WinJS));
-
-(function errorsInit(global, WinJS) {
-    "use strict";
-
-
-    WinJS.Namespace.define("WinJS", {
-        // ErrorFromName establishes a simple pattern for returning error codes.
-        //
-        ErrorFromName: WinJS.Class.derive(Error, function (name, message) {
-            /// <signature helpKeyword="WinJS.ErrorFromName">
-            /// <summary locid="WinJS.ErrorFromName">
-            /// Creates an Error object with the specified name and message properties.
-            /// </summary>
-            /// <param name="name" type="String" locid="WinJS.ErrorFromName_p:name">The name of this error. The name is meant to be consumed programmatically and should not be localized.</param>
-            /// <param name="message" type="String" optional="true" locid="WinJS.ErrorFromName_p:message">The message for this error. The message is meant to be consumed by humans and should be localized.</param>
-            /// <returns type="Error" locid="WinJS.ErrorFromName_returnValue">Error instance with .name and .message properties populated</returns>
-            /// </signature>
-            this.name = name;
-            this.message = message || name;
-        }, {
-            /* empty */
-        }, {
-            supportedForProcessing: false,
-        })
-    });
-
-})(this, this.WinJS);
-
-
-(function xhrInit(WinJS) {
-    "use strict";
-
-
-    WinJS.Namespace.define("WinJS", {
-        xhr: function (options) {
-            /// <signature helpKeyword="WinJS.xhr">
-            /// <summary locid="WinJS.xhr">
-            /// Wraps calls to XMLHttpRequest in a promise.
-            /// </summary>
-            /// <param name="options" type="Object" locid="WinJS.xhr_p:options">
-            /// The options that are applied to the XMLHttpRequest object. They are: type,
-            /// url, user, password, headers, responseType, data, and customRequestInitializer.
-            /// </param>
-            /// <returns type="WinJS.Promise" locid="WinJS.xhr_returnValue">
-            /// A promise that returns the XMLHttpRequest object when it completes.
-            /// </returns>
-            /// </signature>
-            var req;
-            return new WinJS.Promise(
-                function (c, e, p) {
-                    /// <returns value="c(new XMLHttpRequest())" locid="WinJS.xhr.constructor._returnValue" />
-                    req = new XMLHttpRequest();
-                    req.onreadystatechange = function () {
-                        if (req._canceled) { return; }
-
-                        if (req.readyState === 4) {
-							// MONACO CHANGE: Handle 1223: http://bugs.jquery.com/ticket/1450
-                            if ((req.status >= 200 && req.status < 300) || req.status === 1223) {
-                                c(req);
-                            } else {
-                                e(req);
-                            }
-                            req.onreadystatechange = function () { };
-                        } else {
-                            p(req);
-                        }
-                    };
-
-                    req.open(
-                        options.type || "GET",
-                        options.url,
-                        // Promise based XHR does not support sync.
-                        //
-                        true,
-                        options.user,
-                        options.password
-                    );
-                    req.responseType = options.responseType || "";
-
-                    Object.keys(options.headers || {}).forEach(function (k) {
-                        req.setRequestHeader(k, options.headers[k]);
-                    });
-
-                    if (options.customRequestInitializer) {
-                        options.customRequestInitializer(req);
-                    }
-
-                    req.send(options.data);
-                },
-                function () {
-                    req._canceled = true;
-                    req.abort();
+            _cancelBlocker: function Promise__cancelBlocker(input, oncancel) {
+                //
+                // Returns a promise which on cancelation will still result in downstream cancelation while
+                //  protecting the promise 'input' from being  canceled which has the effect of allowing
+                //  'input' to be shared amoung various consumers.
+                //
+                if (!Promise.is(input)) {
+                    return Promise.wrap(input);
                 }
-            );
+                var complete;
+                var error;
+                var output = new Promise(
+                    function (c, e) {
+                        complete = c;
+                        error = e;
+                    },
+                    function () {
+                        complete = null;
+                        error = null;
+                        oncancel && oncancel();
+                    }
+                );
+                input.then(
+                    function (v) { complete && complete(v); },
+                    function (e) { error && error(e); }
+                );
+                return output;
+            },
+
         }
-    });
+    );
+    Object.defineProperties(Promise, _Events.createEventProperties(errorET));
 
-})(this.WinJS);
+    Promise._doneHandler = function (value) {
+        _BaseCoreUtils._setImmediate(function Promise_done_rethrow() {
+            throw value;
+        });
+    };
 
+    return {
+        PromiseStateMachine: PromiseStateMachine,
+        Promise: Promise,
+        state_created: state_created
+    };
+});
 
-(function safeHTMLInit(global, WinJS, undefined) {
+_winjs("WinJS/Promise", ["WinJS/Core/_Base","WinJS/Promise/_StateMachine"], function promiseInit( _Base, _StateMachine) {
     "use strict";
 
-
-    var setInnerHTML,
-        setInnerHTMLUnsafe,
-        setOuterHTML,
-        setOuterHTMLUnsafe,
-        insertAdjacentHTML,
-        insertAdjacentHTMLUnsafe;
-
-    var strings = {
-		// MONACO CHANGE
-        //get nonStaticHTML() { return WinJS.Resources._getWinJSString("base/nonStaticHTML").value; },
-		nonStaticHTML: "Unable to add dynamic content. A script attempted to inject dynamic content, or elements previously modified dynamically, that might be unsafe. For example, using the innerHTML property or the document.write method to add a script element will generate this exception. If the content is safe and from a trusted source, use a method to explicitly manipulate elements and attributes, such as createElement, or use setInnerHTMLUnsafe (or other unsafe method)."
-    };
-
-    setInnerHTML = setInnerHTMLUnsafe = function (element, text) {
-        /// <signature helpKeyword="WinJS.Utilities.setInnerHTML">
-        /// <summary locid="WinJS.Utilities.setInnerHTML">
-        /// Sets the innerHTML property of the specified element to the specified text.
-        /// </summary>
-        /// <param name="element" type="HTMLElement" locid="WinJS.Utilities.setInnerHTML_p:element">
-        /// The element on which the innerHTML property is to be set.
-        /// </param>
-        /// <param name="text" type="String" locid="WinJS.Utilities.setInnerHTML_p:text">
-        /// The value to be set to the innerHTML property.
-        /// </param>
-        /// </signature>
-        element.innerHTML = text;
-    };
-    setOuterHTML = setOuterHTMLUnsafe = function (element, text) {
-        /// <signature helpKeyword="WinJS.Utilities.setOuterHTML">
-        /// <summary locid="WinJS.Utilities.setOuterHTML">
-        /// Sets the outerHTML property of the specified element to the specified text.
-        /// </summary>
-        /// <param name="element" type="HTMLElement" locid="WinJS.Utilities.setOuterHTML_p:element">
-        /// The element on which the outerHTML property is to be set.
-        /// </param>
-        /// <param name="text" type="String" locid="WinJS.Utilities.setOuterHTML_p:text">
-        /// The value to be set to the outerHTML property.
-        /// </param>
-        /// </signature>
-        element.outerHTML = text;
-    };
-    insertAdjacentHTML = insertAdjacentHTMLUnsafe = function (element, position, text) {
-        /// <signature helpKeyword="WinJS.Utilities.insertAdjacentHTML">
-        /// <summary locid="WinJS.Utilities.insertAdjacentHTML">
-        /// Calls insertAdjacentHTML on the specified element.
-        /// </summary>
-        /// <param name="element" type="HTMLElement" locid="WinJS.Utilities.insertAdjacentHTML_p:element">
-        /// The element on which insertAdjacentHTML is to be called.
-        /// </param>
-        /// <param name="position" type="String" locid="WinJS.Utilities.insertAdjacentHTML_p:position">
-        /// The position relative to the element at which to insert the HTML.
-        /// </param>
-        /// <param name="text" type="String" locid="WinJS.Utilities.insertAdjacentHTML_p:text">
-        /// The value to be provided to insertAdjacentHTML.
-        /// </param>
-        /// </signature>
-        element.insertAdjacentHTML(position, text);
-    };
-
-    var msApp = global.MSApp;
-    if (msApp) {
-        setInnerHTMLUnsafe = function (element, text) {
-            /// <signature helpKeyword="WinJS.Utilities.setInnerHTMLUnsafe">
-            /// <summary locid="WinJS.Utilities.setInnerHTMLUnsafe">
-            /// Sets the innerHTML property of the specified element to the specified text.
-            /// </summary>
-            /// <param name='element' type='HTMLElement' locid="WinJS.Utilities.setInnerHTMLUnsafe_p:element">
-            /// The element on which the innerHTML property is to be set.
-            /// </param>
-            /// <param name='text' type="String" locid="WinJS.Utilities.setInnerHTMLUnsafe_p:text">
-            /// The value to be set to the innerHTML property.
-            /// </param>
-            /// </signature>
-            msApp.execUnsafeLocalFunction(function () {
-                element.innerHTML = text;
-            });
-        };
-        setOuterHTMLUnsafe = function (element, text) {
-            /// <signature helpKeyword="WinJS.Utilities.setOuterHTMLUnsafe">
-            /// <summary locid="WinJS.Utilities.setOuterHTMLUnsafe">
-            /// Sets the outerHTML property of the specified element to the specified text
-            /// in the context of msWWA.execUnsafeLocalFunction.
-            /// </summary>
-            /// <param name="element" type="HTMLElement" locid="WinJS.Utilities.setOuterHTMLUnsafe_p:element">
-            /// The element on which the outerHTML property is to be set.
-            /// </param>
-            /// <param name="text" type="String" locid="WinJS.Utilities.setOuterHTMLUnsafe_p:text">
-            /// The value to be set to the outerHTML property.
-            /// </param>
-            /// </signature>
-            msApp.execUnsafeLocalFunction(function () {
-                element.outerHTML = text;
-            });
-        };
-        insertAdjacentHTMLUnsafe = function (element, position, text) {
-            /// <signature helpKeyword="WinJS.Utilities.insertAdjacentHTMLUnsafe">
-            /// <summary locid="WinJS.Utilities.insertAdjacentHTMLUnsafe">
-            /// Calls insertAdjacentHTML on the specified element in the context
-            /// of msWWA.execUnsafeLocalFunction.
-            /// </summary>
-            /// <param name="element" type="HTMLElement" locid="WinJS.Utilities.insertAdjacentHTMLUnsafe_p:element">
-            /// The element on which insertAdjacentHTML is to be called.
-            /// </param>
-            /// <param name="position" type="String" locid="WinJS.Utilities.insertAdjacentHTMLUnsafe_p:position">
-            /// The position relative to the element at which to insert the HTML.
-            /// </param>
-            /// <param name="text" type="String" locid="WinJS.Utilities.insertAdjacentHTMLUnsafe_p:text">
-            /// Value to be provided to insertAdjacentHTML.
-            /// </param>
-            /// </signature>
-            msApp.execUnsafeLocalFunction(function () {
-                element.insertAdjacentHTML(position, text);
-            });
-        };
-    }
-    else if (global.msIsStaticHTML) {
-        var check = function (str) {
-            if (!global.msIsStaticHTML(str)) {
-                throw new WinJS.ErrorFromName("WinJS.Utitilies.NonStaticHTML", strings.nonStaticHTML);
-            }
-        }
-        // If we ever get isStaticHTML we can attempt to recreate the behavior we have in the local
-        // compartment, in the mean-time all we can do is sanitize the input.
-        //
-        setInnerHTML = function (element, text) {
-            /// <signature helpKeyword="WinJS.Utilities.setInnerHTML">
-            /// <summary locid="WinJS.Utilities.msIsStaticHTML.setInnerHTML">
-            /// Sets the innerHTML property of a element to the specified text
-            /// if it passes a msIsStaticHTML check.
-            /// </summary>
-            /// <param name="element" type="HTMLElement" locid="WinJS.Utilities.msIsStaticHTML.setInnerHTML_p:element">
-            /// The element on which the innerHTML property is to be set.
-            /// </param>
-            /// <param name="text" type="String" locid="WinJS.Utilities.msIsStaticHTML.setInnerHTML_p:text">
-            /// The value to be set to the innerHTML property.
-            /// </param>
-            /// </signature>
-            check(text);
-            element.innerHTML = text;
-        };
-        setOuterHTML = function (element, text) {
-            /// <signature helpKeyword="WinJS.Utilities.setOuterHTML">
-            /// <summary locid="WinJS.Utilities.msIsStaticHTML.setOuterHTML">
-            /// Sets the outerHTML property of a element to the specified text
-            /// if it passes a msIsStaticHTML check.
-            /// </summary>
-            /// <param name="element" type="HTMLElement" locid="WinJS.Utilities.msIsStaticHTML.setOuterHTML_p:element">
-            /// The element on which the outerHTML property is to be set.
-            /// </param>
-            /// <param name="text" type="String" locid="WinJS.Utilities.msIsStaticHTML.setOuterHTML_p:text">
-            /// The value to be set to the outerHTML property.
-            /// </param>
-            /// </signature>
-            check(text);
-            element.outerHTML = text;
-        };
-        insertAdjacentHTML = function (element, position, text) {
-            /// <signature helpKeyword="WinJS.Utilities.insertAdjacentHTML">
-            /// <summary locid="WinJS.Utilities.msIsStaticHTML.insertAdjacentHTML">
-            /// Calls insertAdjacentHTML on the element if it passes
-            /// a msIsStaticHTML check.
-            /// </summary>
-            /// <param name="element" type="HTMLElement" locid="WinJS.Utilities.msIsStaticHTML.insertAdjacentHTML_p:element">
-            /// The element on which insertAdjacentHTML is to be called.
-            /// </param>
-            /// <param name="position" type="String" locid="WinJS.Utilities.msIsStaticHTML.insertAdjacentHTML_p:position">
-            /// The position relative to the element at which to insert the HTML.
-            /// </param>
-            /// <param name="text" type="String" locid="WinJS.Utilities.msIsStaticHTML.insertAdjacentHTML_p:text">
-            /// The value to be provided to insertAdjacentHTML.
-            /// </param>
-            /// </signature>
-            check(text);
-            element.insertAdjacentHTML(position, text);
-        };
-    }
-
-    WinJS.Namespace.define("WinJS.Utilities", {
-        setInnerHTML: setInnerHTML,
-        setInnerHTMLUnsafe: setInnerHTMLUnsafe,
-        setOuterHTML: setOuterHTML,
-        setOuterHTMLUnsafe: setOuterHTMLUnsafe,
-        insertAdjacentHTML: insertAdjacentHTML,
-        insertAdjacentHTMLUnsafe: insertAdjacentHTMLUnsafe
+    _Base.Namespace.define("WinJS", {
+        Promise: _StateMachine.Promise
     });
 
-}(this, this.WinJS));
+    return _StateMachine.Promise;
+});
 
+var exported = _modules["WinJS/Core/_WinJS"];
 
+if (typeof exports === 'undefined' && typeof define === 'function' && define.amd) {
+    define(exported);
+} else {
+    module.exports = exported;
+}
 
-// MONACO CHANGE
-} // if (typeof WinJS === 'undefined')
+if (typeof process !== 'undefined' && typeof process.nextTick === 'function') {
+    _modules["WinJS/Core/_BaseCoreUtils"]._setImmediate = function(handler) {
+        return process.nextTick(handler);
+    };
+}
 
-(function(global) {
-
-    if (typeof exports === 'undefined' && typeof define === 'function' && define.amd) {
-        define(global.WinJS);
-    } else {
-        module.exports = global.WinJS;
-    }
-
-})(this);
+})();

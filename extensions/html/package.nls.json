@@ -1,0 +1,22 @@
+{
+	"html.format.enable.desc": "Enable/disable default HTML formatter (requires restart)",
+	"html.format.wrapLineLength.desc": "Maximum amount of characters per line (0 = disable).",
+	"html.format.unformatted.desc": "List of tags, comma separated, that shouldn't be reformatted. 'null' defaults to all tags listed at https://www.w3.org/TR/html5/dom.html#phrasing-content.",
+	"html.format.contentUnformatted.desc": "List of tags, comma separated, where the content shouldn't be reformatted. 'null' defaults to the 'pre' tag.",
+	"html.format.indentInnerHtml.desc": "Indent <head> and <body> sections.",
+	"html.format.preserveNewLines.desc": "Whether existing line breaks before elements should be preserved. Only works before elements, not inside tags or for text.",
+	"html.format.maxPreserveNewLines.desc": "Maximum number of line breaks to be preserved in one chunk. Use 'null' for unlimited.",
+	"html.format.indentHandlebars.desc": "Format and indent {{#foo}} and {{/foo}}.",
+	"html.format.endWithNewline.desc": "End with a newline.",
+	"html.format.extraLiners.desc": "List of tags, comma separated, that should have an extra newline before them. 'null' defaults to \"head, body, /html\".",
+	"html.format.wrapAttributes.desc": "Wrap attributes.",
+	"html.format.wrapAttributes.auto": "Wrap attributes only when line length is exceeded.",
+	"html.format.wrapAttributes.force": "Wrap each attribute except first.",
+	"html.format.wrapAttributes.forcealign": "Wrap each attribute except first and keep aligned.",
+	"html.format.wrapAttributes.forcemultiline": "Wrap each attribute.",
+	"html.suggest.angular1.desc":  "Configures if the built-in HTML language support suggests Angular V1 tags and properties.",
+	"html.suggest.ionic.desc": "Configures if the built-in HTML language support suggests Ionic tags, properties and values.",
+	"html.suggest.html5.desc":"Configures if the built-in HTML language support suggests HTML5 tags, properties and values.",
+	"html.validate.scripts": "Configures if the built-in HTML language support validates embedded scripts.",
+	"html.validate.styles": "Configures if the built-in HTML language support validates embedded styles."
+}

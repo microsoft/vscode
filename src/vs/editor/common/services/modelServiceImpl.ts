@@ -4,54 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEmitterEvent} from 'vs/base/common/eventEmitter';
-import {IModeService} from 'vs/editor/common/services/modeService';
-import {IMarker, IMarkerService} from 'vs/platform/markers/common/markers';
-import {IMirrorModelEvents, MirrorModel} from 'vs/editor/common/model/mirrorModel';
-import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import {IResourceService} from 'vs/editor/common/services/resourceService';
-import {IModelService} from 'vs/editor/common/services/modelService';
-import {Remotable, IThreadService, ThreadAffinity, IThreadSynchronizableObject} from 'vs/platform/thread/common/thread';
-import {AllWorkersAttr} from 'vs/platform/thread/common/threadService';
-import {IHTMLContentElement} from 'vs/base/common/htmlContent';
-import {EventSource} from 'vs/base/common/eventSource';
-import URI from 'vs/base/common/uri';
-import {URL} from 'vs/base/common/network';
+import * as nls from 'vs/nls';
+import network = require('vs/base/common/network');
+import Event, { Emitter } from 'vs/base/common/event';
+import { EmitterEvent } from 'vs/base/common/eventEmitter';
+import { MarkedString } from 'vs/base/common/htmlContent';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import {EventProvider} from 'vs/base/common/eventProvider';
-import {IDisposable, disposeAll} from 'vs/base/common/lifecycle';
-import {TPromise} from 'vs/base/common/winjs.base';
-import Errors = require('vs/base/common/errors');
-import {anonymize} from 'vs/platform/telemetry/common/telemetry';
-import {Model} from 'vs/editor/common/model/model';
+import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
+import { Range } from 'vs/editor/common/core/range';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { Model } from 'vs/editor/common/model/model';
+import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import * as platform from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
+import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
+import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 
-export interface IRawModelData {
-	url:URL;
-	versionId:number;
-	value:EditorCommon.IRawText;
-	properties:any;
-	modeId:string;
-}
-
-function MODEL_ID(resource:URI): string {
+function MODEL_ID(resource: URI): string {
 	return resource.toString();
 }
 
 class ModelData implements IDisposable {
-	model: EditorCommon.IModel;
-	isSyncedToWorkers: boolean;
+	model: editorCommon.IModel;
 
 	private _markerDecorations: string[];
 	private _modelEventsListener: IDisposable;
 
-	constructor(model: EditorCommon.IModel, eventsHandler:(modelData:ModelData, events:IEmitterEvent[])=>void) {
+	constructor(model: editorCommon.IModel, eventsHandler: (modelData: ModelData, events: EmitterEvent[]) => void) {
 		this.model = model;
-		this.isSyncedToWorkers = false;
 
 		this._markerDecorations = [];
-		this._modelEventsListener = model.addBulkListener2((events) => eventsHandler(this, events));
+		this._modelEventsListener = model.addBulkListener((events) => eventsHandler(this, events));
 	}
 
 	public dispose(): void {
@@ -62,22 +50,22 @@ class ModelData implements IDisposable {
 	}
 
 	public getModelId(): string {
-		return MODEL_ID(this.model.getAssociatedResource());
+		return MODEL_ID(this.model.uri);
 	}
 
-	public acceptMarkerDecorations(newDecorations:EditorCommon.IModelDeltaDecoration[]): void {
+	public acceptMarkerDecorations(newDecorations: editorCommon.IModelDeltaDecoration[]): void {
 		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, newDecorations);
 	}
 }
 
 class ModelMarkerHandler {
 
-	public static setMarkers(modelData:ModelData, markers:IMarker[]):void {
+	public static setMarkers(modelData: ModelData, markerService: IMarkerService): void {
 
 		// Limit to the first 500 errors/warnings
-		markers = markers.slice(0, 500);
+		const markers = markerService.read({ resource: modelData.model.uri, take: 500 });
 
-		let newModelDecorations:EditorCommon.IModelDeltaDecoration[] = markers.map((marker) => {
+		let newModelDecorations: editorCommon.IModelDeltaDecoration[] = markers.map((marker) => {
 			return {
 				range: this._createDecorationRange(modelData.model, marker),
 				options: this._createDecorationOption(marker)
@@ -87,46 +75,43 @@ class ModelMarkerHandler {
 		modelData.acceptMarkerDecorations(newModelDecorations);
 	}
 
-	private static _createDecorationRange(model:EditorCommon.IModel, rawMarker: IMarker): EditorCommon.IRange {
+	private static _createDecorationRange(model: editorCommon.IModel, rawMarker: IMarker): Range {
 		let marker = model.validateRange(new Range(rawMarker.startLineNumber, rawMarker.startColumn, rawMarker.endLineNumber, rawMarker.endColumn));
-		let ret: EditorCommon.IEditorRange = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
+		let ret: Range = new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn);
 		if (ret.isEmpty()) {
 			let word = model.getWordAtPosition(ret.getStartPosition());
 			if (word) {
-				ret.startColumn = word.startColumn;
-				ret.endColumn = word.endColumn;
+				ret = new Range(ret.startLineNumber, word.startColumn, ret.endLineNumber, word.endColumn);
 			} else {
 				let maxColumn = model.getLineLastNonWhitespaceColumn(marker.startLineNumber) ||
 					model.getLineMaxColumn(marker.startLineNumber);
 
 				if (maxColumn === 1) {
 					// empty line
-//					console.warn('marker on empty line:', marker);
+					// console.warn('marker on empty line:', marker);
 				} else if (ret.endColumn >= maxColumn) {
 					// behind eol
-					ret.endColumn = maxColumn;
-					ret.startColumn = maxColumn - 1;
+					ret = new Range(ret.startLineNumber, maxColumn - 1, ret.endLineNumber, maxColumn);
 				} else {
 					// extend marker to width = 1
-					ret.endColumn += 1;
+					ret = new Range(ret.startLineNumber, ret.startColumn, ret.endLineNumber, ret.endColumn + 1);
 				}
 			}
 		} else if (rawMarker.endColumn === Number.MAX_VALUE && rawMarker.startColumn === 1 && ret.startLineNumber === ret.endLineNumber) {
 			let minColumn = model.getLineFirstNonWhitespaceColumn(rawMarker.startLineNumber);
 			if (minColumn < ret.endColumn) {
-				ret.startColumn = minColumn;
+				ret = new Range(ret.startLineNumber, minColumn, ret.endLineNumber, ret.endColumn);
 				rawMarker.startColumn = minColumn;
 			}
 		}
 		return ret;
 	}
 
-	private static _createDecorationOption(marker:IMarker): EditorCommon.IModelDecorationOptions {
+	private static _createDecorationOption(marker: IMarker): editorCommon.IModelDecorationOptions {
 
 		let className: string;
 		let color: string;
 		let darkColor: string;
-		let htmlMessage: IHTMLContentElement[] = null;
 
 		switch (marker.severity) {
 			case Severity.Ignore:
@@ -134,76 +119,199 @@ class ModelMarkerHandler {
 				break;
 			case Severity.Warning:
 			case Severity.Info:
-				className = EditorCommon.ClassName.EditorWarningDecoration;
+				className = editorCommon.ClassName.EditorWarningDecoration;
 				color = 'rgba(18,136,18,0.7)';
 				darkColor = 'rgba(18,136,18,0.7)';
 				break;
 			case Severity.Error:
 			default:
-				className = EditorCommon.ClassName.EditorErrorDecoration;
+				className = editorCommon.ClassName.EditorErrorDecoration;
 				color = 'rgba(255,18,18,0.7)';
 				darkColor = 'rgba(255,18,18,0.7)';
 				break;
 		}
 
-		if (typeof marker.message === 'string') {
-			htmlMessage = [{ isText: true, text: marker.message }];
-		} else if (Array.isArray(marker.message)) {
-			htmlMessage = <IHTMLContentElement[]><any>marker.message;
-		} else if (marker.message) {
-			htmlMessage = [marker.message];
+		let hoverMessage: MarkedString[] = null;
+		let {message, source} = marker;
+
+		if (typeof message === 'string') {
+			message = message.trim();
+
+			if (source) {
+				if (/\n/g.test(message)) {
+					message = nls.localize('diagAndSourceMultiline', "[{0}]\n{1}", source, message);
+				} else {
+					message = nls.localize('diagAndSource', "[{0}] {1}", source, message);
+				}
+			}
+
+			hoverMessage = [{ language: '_', value: message }];
 		}
 
 		return {
-			stickiness: EditorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className,
-			htmlMessage: htmlMessage,
+			hoverMessage,
 			overviewRuler: {
 				color,
 				darkColor,
-				position: EditorCommon.OverviewRulerLane.Right
+				position: editorCommon.OverviewRulerLane.Right
 			}
 		};
 	}
 }
 
+interface IRawConfig {
+	files?: {
+		eol?: any;
+	};
+	editor?: {
+		tabSize?: any;
+		insertSpaces?: any;
+		detectIndentation?: any;
+		trimAutoWhitespace?: any;
+	};
+}
+
+const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? editorCommon.DefaultEndOfLine.LF : editorCommon.DefaultEndOfLine.CRLF;
+
 export class ModelServiceImpl implements IModelService {
-	public serviceId = IModelService;
+	public _serviceBrand: any;
 
 	private _markerService: IMarkerService;
 	private _markerServiceSubscription: IDisposable;
-	private _threadService: IThreadService;
-	private _workerHelper: ModelServiceWorkerHelper;
+	private _configurationService: IConfigurationService;
+	private _configurationServiceSubscription: IDisposable;
 
-	private _onModelAdded: EventSource<(model: EditorCommon.IModel) => void>;
-	private _onModelRemoved: EventSource<(model: EditorCommon.IModel) => void>;
-	private _onModelModeChanged: EventSource<(model: EditorCommon.IModel, oldModeId:string) => void>;
+	private _onModelAdded: Emitter<editorCommon.IModel>;
+	private _onModelRemoved: Emitter<editorCommon.IModel>;
+	private _onModelModeChanged: Emitter<{ model: editorCommon.IModel; oldModeId: string; }>;
+
+	private _modelCreationOptionsByLanguage: {
+		[language: string]: editorCommon.ITextModelCreationOptions;
+	};
 
 	/**
 	 * All the models known in the system.
 	 */
-	private _models: {[modelId:string]:ModelData;};
+	private _models: { [modelId: string]: ModelData; };
 
-	constructor(threadService: IThreadService, markerService: IMarkerService) {
-		this._threadService = threadService;
+	constructor(
+		@IMarkerService markerService: IMarkerService,
+		@IConfigurationService configurationService: IConfigurationService,
+	) {
 		this._markerService = markerService;
-		this._workerHelper = this._threadService.getRemotable(ModelServiceWorkerHelper);
-
+		this._configurationService = configurationService;
 		this._models = {};
+		this._modelCreationOptionsByLanguage = Object.create(null);
+		this._onModelAdded = new Emitter<editorCommon.IModel>();
+		this._onModelRemoved = new Emitter<editorCommon.IModel>();
+		this._onModelModeChanged = new Emitter<{ model: editorCommon.IModel; oldModeId: string; }>();
 
-		this._onModelAdded = new EventSource<(model: EditorCommon.IModel) => void>();
-		this._onModelRemoved = new EventSource<(model: EditorCommon.IModel) => void>();
-		this._onModelModeChanged = new EventSource<(model: EditorCommon.IModel, oldModeId:string) => void>();
-
-		if(this._markerService) {
+		if (this._markerService) {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
+		}
+
+		this._configurationServiceSubscription = this._configurationService.onDidUpdateConfiguration(e => this._updateModelOptions());
+		this._updateModelOptions();
+	}
+
+	private static _readModelOptions(config: IRawConfig): editorCommon.ITextModelCreationOptions {
+		let tabSize = DEFAULT_INDENTATION.tabSize;
+		if (config.editor && typeof config.editor.tabSize !== 'undefined') {
+			let parsedTabSize = parseInt(config.editor.tabSize, 10);
+			if (!isNaN(parsedTabSize)) {
+				tabSize = parsedTabSize;
+			}
+		}
+
+		let insertSpaces = DEFAULT_INDENTATION.insertSpaces;
+		if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
+			insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
+		}
+
+		let newDefaultEOL = DEFAULT_EOL;
+		const eol = config.files && config.files.eol;
+		if (eol === '\r\n') {
+			newDefaultEOL = editorCommon.DefaultEndOfLine.CRLF;
+		} else if (eol === '\n') {
+			newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
+		}
+
+		let trimAutoWhitespace = DEFAULT_TRIM_AUTO_WHITESPACE;
+		if (config.editor && typeof config.editor.trimAutoWhitespace !== 'undefined') {
+			trimAutoWhitespace = (config.editor.trimAutoWhitespace === 'false' ? false : Boolean(config.editor.trimAutoWhitespace));
+		}
+
+		let detectIndentation = DEFAULT_INDENTATION.detectIndentation;
+		if (config.editor && typeof config.editor.detectIndentation !== 'undefined') {
+			detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
+		}
+
+		return {
+			tabSize: tabSize,
+			insertSpaces: insertSpaces,
+			detectIndentation: detectIndentation,
+			defaultEOL: newDefaultEOL,
+			trimAutoWhitespace: trimAutoWhitespace
+		};
+	}
+
+	public getCreationOptions(language: string): editorCommon.ITextModelCreationOptions {
+		let creationOptions = this._modelCreationOptionsByLanguage[language];
+		if (!creationOptions) {
+			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration({ overrideIdentifier: language }));
+			this._modelCreationOptionsByLanguage[language] = creationOptions;
+		}
+		return creationOptions;
+	}
+
+	private _updateModelOptions(): void {
+		let oldOptionsByLanguage = this._modelCreationOptionsByLanguage;
+		this._modelCreationOptionsByLanguage = Object.create(null);
+
+		// Update options on all models
+		let keys = Object.keys(this._models);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let modelId = keys[i];
+			let modelData = this._models[modelId];
+			const language = modelData.model.getLanguageIdentifier().language;
+			const oldOptions = oldOptionsByLanguage[language];
+			const newOptions = this.getCreationOptions(language);
+			ModelServiceImpl._setModelOptionsForModel(modelData.model, newOptions, oldOptions);
+		}
+	}
+
+	private static _setModelOptionsForModel(model: editorCommon.IModel, newOptions: editorCommon.ITextModelCreationOptions, currentOptions: editorCommon.ITextModelCreationOptions): void {
+		if (currentOptions
+			&& (currentOptions.detectIndentation === newOptions.detectIndentation)
+			&& (currentOptions.insertSpaces === newOptions.insertSpaces)
+			&& (currentOptions.tabSize === newOptions.tabSize)
+			&& (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)
+		) {
+			// Same indent opts, no need to touch the model
+			return;
+		}
+
+		if (newOptions.detectIndentation) {
+			model.detectIndentation(newOptions.insertSpaces, newOptions.tabSize);
+			model.updateOptions({
+				trimAutoWhitespace: newOptions.trimAutoWhitespace
+			});
+		} else {
+			model.updateOptions({
+				insertSpaces: newOptions.insertSpaces,
+				tabSize: newOptions.tabSize,
+				trimAutoWhitespace: newOptions.trimAutoWhitespace
+			});
 		}
 	}
 
 	public dispose(): void {
-		if(this._markerServiceSubscription) {
+		if (this._markerServiceSubscription) {
 			this._markerServiceSubscription.dispose();
 		}
+		this._configurationServiceSubscription.dispose();
 	}
 
 	private _handleMarkerChange(changedResources: URI[]): void {
@@ -213,20 +321,33 @@ export class ModelServiceImpl implements IModelService {
 			if (!modelData) {
 				return;
 			}
-			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: resource, take: 500 }));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService);
 		});
+	}
+
+	private _cleanUp(model: editorCommon.IModel): void {
+		// clean up markers for internal, transient models
+		if (model.uri.scheme === network.Schemas.inMemory
+			|| model.uri.scheme === network.Schemas.internal
+			|| model.uri.scheme === network.Schemas.vscode) {
+			if (this._markerService) {
+				this._markerService.read({ resource: model.uri }).map(marker => marker.owner).forEach(owner => this._markerService.remove(owner, [model.uri]));
+			}
+		}
 	}
 
 	// --- begin IModelService
 
-	private _createModelData(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URL): ModelData {
+	private _createModelData(value: string | IRawTextSource, languageIdentifier: LanguageIdentifier, resource: URI): ModelData {
 		// create & save the model
-		let model = new Model(value, modeOrPromise, resource);
-		let modelId = MODEL_ID(model.getAssociatedResource());
+		const options = this.getCreationOptions(languageIdentifier.language);
+		const rawTextSource = (typeof value === 'string' ? RawTextSource.fromString(value) : value);
+		let model: Model = new Model(rawTextSource, options, languageIdentifier, resource);
+		let modelId = MODEL_ID(model.uri);
 
 		if (this._models[modelId]) {
 			// There already exists a model with this id => this is a programmer error
-			throw new Error('ModelService: Cannot add model ' + anonymize(modelId) + ' because it already exists!');
+			throw new Error('ModelService: Cannot add model because it already exists!');
 		}
 
 		let modelData = new ModelData(model, (modelData, events) => this._onModelEvents(modelData, events));
@@ -235,19 +356,32 @@ export class ModelServiceImpl implements IModelService {
 		return modelData;
 	}
 
-	public createModel(value:string, modeOrPromise:TPromise<Modes.IMode>|Modes.IMode, resource: URL): EditorCommon.IModel {
-		let modelData = this._createModelData(value, modeOrPromise, resource);
-		let modelId = modelData.getModelId();
+	public updateModel(model: editorCommon.IModel, value: string | IRawTextSource): void {
+		let options = this.getCreationOptions(model.getLanguageIdentifier().language);
+		const textSource = TextSource.create(value, options.defaultEOL);
+
+		// Return early if the text is already set in that form
+		if (model.equals(textSource)) {
+			return;
+		}
+
+		// Otherwise update model
+		model.setValueFromTextSource(textSource);
+	}
+
+	public createModel(value: string | IRawTextSource, modeOrPromise: TPromise<IMode> | IMode, resource: URI): editorCommon.IModel {
+		let modelData: ModelData;
+
+		if (!modeOrPromise || TPromise.is(modeOrPromise)) {
+			modelData = this._createModelData(value, PLAINTEXT_LANGUAGE_IDENTIFIER, resource);
+			this.setMode(modelData.model, modeOrPromise);
+		} else {
+			modelData = this._createModelData(value, modeOrPromise.getLanguageIdentifier(), resource);
+		}
 
 		// handle markers (marker service => model)
 		if (this._markerService) {
-			ModelMarkerHandler.setMarkers(modelData, this._markerService.read({ resource: modelData.model.getAssociatedResource() }));
-		}
-
-		if (!modelData.model.isTooLargeForHavingARichMode()) {
-			// send this model to the workers
-			modelData.isSyncedToWorkers = true;
-			this._workerHelper.$_acceptNewModel(ModelServiceImpl._getBoundModelData(modelData.model));
+			ModelMarkerHandler.setMarkers(modelData, this._markerService);
 		}
 
 		this._onModelAdded.fire(modelData.model);
@@ -255,7 +389,22 @@ export class ModelServiceImpl implements IModelService {
 		return modelData.model;
 	}
 
-	public destroyModel(resource: URL): void {
+	public setMode(model: editorCommon.IModel, modeOrPromise: TPromise<IMode> | IMode): void {
+		if (!modeOrPromise) {
+			return;
+		}
+		if (TPromise.is(modeOrPromise)) {
+			modeOrPromise.then((mode) => {
+				if (!model.isDisposed()) {
+					model.setMode(mode.getLanguageIdentifier());
+				}
+			});
+		} else {
+			model.setMode(modeOrPromise.getLanguageIdentifier());
+		}
+	}
+
+	public destroyModel(resource: URI): void {
 		// We need to support that not all models get disposed through this service (i.e. model.dispose() should work!)
 		let modelData = this._models[MODEL_ID(resource)];
 		if (!modelData) {
@@ -264,17 +413,19 @@ export class ModelServiceImpl implements IModelService {
 		modelData.model.dispose();
 	}
 
-	public getModels(): EditorCommon.IModel[] {
-		let ret: EditorCommon.IModel[] = [];
-		for (let modelId in this._models) {
-			if (this._models.hasOwnProperty(modelId)) {
-				ret.push(this._models[modelId].model);
-			}
+	public getModels(): editorCommon.IModel[] {
+		let ret: editorCommon.IModel[] = [];
+
+		let keys = Object.keys(this._models);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let modelId = keys[i];
+			ret.push(this._models[modelId].model);
 		}
+
 		return ret;
 	}
 
-	public getModel(resource: URL): EditorCommon.IModel {
+	public getModel(resource: URI): editorCommon.IModel {
 		let modelId = MODEL_ID(resource);
 		let modelData = this._models[modelId];
 		if (!modelData) {
@@ -283,166 +434,55 @@ export class ModelServiceImpl implements IModelService {
 		return modelData.model;
 	}
 
-	public get onModelAdded(): EventProvider<(model:EditorCommon.IModel)=>void> {
-		return this._onModelAdded ? this._onModelAdded.value : null;
+	public get onModelAdded(): Event<editorCommon.IModel> {
+		return this._onModelAdded ? this._onModelAdded.event : null;
 	}
 
-	public get onModelRemoved(): EventProvider<(model:EditorCommon.IModel)=>void> {
-		return this._onModelRemoved ? this._onModelRemoved.value : null;
+	public get onModelRemoved(): Event<editorCommon.IModel> {
+		return this._onModelRemoved ? this._onModelRemoved.event : null;
 	}
 
-	public get onModelModeChanged(): EventProvider<(model:EditorCommon.IModel, oldModeId:string)=>void> {
-		return this._onModelModeChanged ? this._onModelModeChanged.value : null;
+	public get onModelModeChanged(): Event<{ model: editorCommon.IModel; oldModeId: string; }> {
+		return this._onModelModeChanged ? this._onModelModeChanged.event : null;
 	}
 
 	// --- end IModelService
 
-	private _onModelDisposing(model:EditorCommon.IModel): void {
-		let modelId = MODEL_ID(model.getAssociatedResource());
+	private _onModelDisposing(model: editorCommon.IModel): void {
+		let modelId = MODEL_ID(model.uri);
 		let modelData = this._models[modelId];
-
-		// TODO@Joh why are we removing markers here?
-		if (this._markerService) {
-			var markers = this._markerService.read({ resource: model.getAssociatedResource() }),
-				owners: { [o: string]: any } = Object.create(null);
-
-			markers.forEach(marker => owners[marker.owner] = this);
-			Object.keys(owners).forEach(owner => this._markerService.changeOne(owner, model.getAssociatedResource(), []));
-		}
-
-		if (modelData.isSyncedToWorkers) {
-			// Dispose model in workers
-			this._workerHelper.$_acceptDidDisposeModel(model.getAssociatedResource());
-		}
 
 		delete this._models[modelId];
 		modelData.dispose();
 
+		this._cleanUp(model);
 		this._onModelRemoved.fire(model);
 	}
 
-	private static _getBoundModelData(model:EditorCommon.IModel): IRawModelData {
-		return {
-			url: model.getAssociatedResource(),
-			versionId: model.getVersionId(),
-			properties: model.getProperties(),
-			value: model.toRawText(),
-			modeId: model.getMode().getId()
-		};
-	}
+	private _onModelEvents(modelData: ModelData, events: EmitterEvent[]): void {
 
-	private _onModelEvents(modelData:ModelData, events:IEmitterEvent[]): void {
-		let eventsForWorkers: IMirrorModelEvents = { contentChanged: [], propertiesChanged: null };
-
+		// First look for dispose
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			let data = e.getData();
-
-			switch (e.getType()) {
-				case EditorCommon.EventType.ModelDispose:
-					this._onModelDisposing(modelData.model);
-					// no more event processing
-					return;
-
-				case EditorCommon.EventType.ModelContentChanged:
-					if (modelData.isSyncedToWorkers) {
-						eventsForWorkers.contentChanged.push(<EditorCommon.IModelContentChangedEvent>data);
-					}
-					break;
-
-				case EditorCommon.EventType.ModelPropertiesChanged:
-					if (modelData.isSyncedToWorkers) {
-						eventsForWorkers.propertiesChanged = <EditorCommon.IModelPropertiesChangedEvent>data;
-					}
-					break;
-
-				case EditorCommon.EventType.ModelModeChanged:
-					let modeChangedEvent = <EditorCommon.IModelModeChangedEvent>data;
-					if (modelData.isSyncedToWorkers) {
-						// Forward mode change to all the workers
-						this._workerHelper.$_acceptDidChangeModelMode(modelData.getModelId(), modeChangedEvent.oldMode.getId(), modeChangedEvent.newMode.getId());
-					}
-					this._onModelModeChanged.fire(modelData.model, modeChangedEvent.oldMode.getId());
-					break;
+			if (e.getType() === editorCommon.EventType.ModelDispose) {
+				this._onModelDisposing(modelData.model);
+				// no more processing since model got disposed
+				return;
 			}
 		}
 
-		if (eventsForWorkers.contentChanged.length > 0 || eventsForWorkers.propertiesChanged) {
-			// Forward events to all the workers
-			this._workerHelper.$_acceptModelEvents(modelData.getModelId(), eventsForWorkers);
-		}
-	}
-}
-
-@Remotable.WorkerContext('ModelServiceWorkerHelper', ThreadAffinity.All)
-export class ModelServiceWorkerHelper {
-
-	private _resourceService:IResourceService;
-	private _modeService:IModeService;
-
-	constructor(
-		@IResourceService resourceService: IResourceService,
-		@IModeService modeService: IModeService
-	) {
-		this._resourceService = resourceService;
-		this._modeService = modeService;
-	}
-
-	public $_acceptNewModel(data:IRawModelData): TPromise<void> {
-		// Create & insert the mirror model eagerly in the resource service
-		let mirrorModel = new MirrorModel(this._resourceService, data.versionId, data.value, null, data.url, data.properties);
-		this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
-
-		// Block worker execution until the mode is instantiated
-		return this._modeService.getOrCreateMode(data.modeId).then((mode) => {
-			// Changing mode should trigger a remove & an add, therefore:
-
-			// (1) Remove from resource service
-			this._resourceService.remove(mirrorModel.getAssociatedResource());
-
-			// (2) Change mode
-			mirrorModel.setMode(mode);
-
-			// (3) Insert again to resource service (it will have the new mode)
-			this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
-		});
-	}
-
-	public $_acceptDidChangeModelMode(modelId:string, oldModeId:string, newModeId:string): TPromise<void> {
-		let mirrorModel = this._resourceService.get(URI.parse(modelId));
-
-		// Block worker execution until the mode is instantiated
-		return this._modeService.getOrCreateMode(newModeId).then((mode) => {
-			// Changing mode should trigger a remove & an add, therefore:
-
-			// (1) Remove from resource service
-			this._resourceService.remove(mirrorModel.getAssociatedResource());
-
-			// (2) Change mode
-			mirrorModel.setMode(mode);
-
-			// (3) Insert again to resource service (it will have the new mode)
-			this._resourceService.insert(mirrorModel.getAssociatedResource(), mirrorModel);
-		});
-	}
-
-	public $_acceptDidDisposeModel(url:URL): void {
-		let model = <MirrorModel>this._resourceService.get(url);
-		this._resourceService.remove(url);
-		if (model) {
-			model.dispose();
-		}
-	}
-
-	public $_acceptModelEvents(modelId: string, events:IMirrorModelEvents): void {
-		let model = <MirrorModel>this._resourceService.get(new URL(modelId));
-		if (!model) {
-			throw new Error('Received model events for missing model ' + anonymize(modelId));
-		}
-		try {
-			model.onEvents(events);
-		} catch (err) {
-			Errors.onUnexpectedError(err);
+		// Second, look for mode change
+		for (let i = 0, len = events.length; i < len; i++) {
+			let e = events[i];
+			if (e.getType() === editorCommon.EventType.ModelLanguageChanged) {
+				const model = modelData.model;
+				const oldModeId = (<editorCommon.IModelLanguageChangedEvent>e.getData()).oldLanguage;
+				const newModeId = model.getLanguageIdentifier().language;
+				const oldOptions = this.getCreationOptions(oldModeId);
+				const newOptions = this.getCreationOptions(newModeId);
+				ModelServiceImpl._setModelOptionsForModel(model, newOptions, oldOptions);
+				this._onModelModeChanged.fire({ model, oldModeId });
+			}
 		}
 	}
 }

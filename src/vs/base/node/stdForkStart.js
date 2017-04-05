@@ -28,10 +28,12 @@ var log = (function() {
 
 var stdInPipeName = process.env['STDIN_PIPE_NAME'];
 var stdOutPipeName = process.env['STDOUT_PIPE_NAME'];
+var stdErrPipeName = process.env['STDERR_PIPE_NAME'];
 
 log('STDIN_PIPE_NAME: ' + stdInPipeName);
 log('STDOUT_PIPE_NAME: ' + stdOutPipeName);
-log('ATOM_SHELL_INTERNAL_RUN_AS_NODE: ' + process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE']);
+log('STDERR_PIPE_NAME: ' + stdErrPipeName);
+log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 
 // stdout redirection to named pipe
 (function() {
@@ -46,8 +48,14 @@ log('ATOM_SHELL_INTERNAL_RUN_AS_NODE: ' + process.env['ATOM_SHELL_INTERNAL_RUN_A
 	// handle process.stdout
 	process.__defineGetter__('stdout', function() { return stdOutStream; });
 
+	// Create a writing stream to the stderr pipe
+	var stdErrStream = net.connect(stdErrPipeName);
+
+	// unref stdErrStream to behave like a normal standard out
+	stdErrStream.unref();
+
 	// handle process.stderr
-	process.__defineGetter__('stderr', function() { return stdOutStream; });
+	process.__defineGetter__('stderr', function() { return stdErrStream; });
 
 	var fsWriteSyncString = function(fd, str, position, encoding) {
 		//  fs.writeSync(fd, string[, position[, encoding]]);
@@ -81,14 +89,18 @@ log('ATOM_SHELL_INTERNAL_RUN_AS_NODE: ' + process.env['ATOM_SHELL_INTERNAL_RUN_A
 			slicedBuffer = buffer.slice(off, off + len);
 		}
 
-		stdOutStream.write(slicedBuffer);
+		if (fd === 1) {
+			stdOutStream.write(slicedBuffer);
+		} else {
+			stdErrStream.write(slicedBuffer);
+		}
 		return slicedBuffer.length;
 	};
 
-	// handle fs.writeSync(1, ...)
+	// handle fs.writeSync(1, ...) and fs.writeSync(2, ...)
 	var originalWriteSync = fs.writeSync;
 	fs.writeSync = function(fd, data, position, encoding) {
-		if (fd !== 1) {
+		if (fd !== 1 && fd !== 2) {
 			return originalWriteSync.apply(fs, arguments);
 		}
 		// usage:
@@ -136,7 +148,8 @@ log('ATOM_SHELL_INTERNAL_RUN_AS_NODE: ' + process.env['ATOM_SHELL_INTERNAL_RUN_A
 		// Unset the custom environmental variables that should not get inherited
 		delete process.env['STDIN_PIPE_NAME'];
 		delete process.env['STDOUT_PIPE_NAME'];
-		delete process.env['ATOM_SHELL_INTERNAL_RUN_AS_NODE'];
+		delete process.env['STDERR_PIPE_NAME'];
+		delete process.env['ELECTRON_RUN_AS_NODE'];
 
 		require(program);
 

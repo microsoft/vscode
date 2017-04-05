@@ -48,7 +48,7 @@
 		<string>fcgi</string>
 		<string>gemspec</string>
 		<string>irbrc</string>
-		<string>capfile</string>
+		<string>Capfile</string>
 		<string>ru</string>
 		<string>prawn</string>
 		<string>Cheffile</string>
@@ -61,6 +61,7 @@
 		<string>Berksfile</string>
 		<string>Berksfile.lock</string>
 		<string>Thorfile</string>
+		<string>Puppetfile</string>
 	</array>
 	<key>firstLineMatch</key>
 	<string>^#!/.*\bruby</string>
@@ -418,7 +419,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?![\s,)])</string>
+					<string>(?=[&amp;*_a-zA-Z])</string>
 					<key>end</key>
 					<string>(?=[,)])</string>
 					<key>patterns</key>
@@ -940,7 +941,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?=(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)HTML)\b\1))</string>
+			<string>(?=(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)HTML)\b\1))</string>
 			<key>comment</key>
 			<string>Heredoc with embedded html</string>
 			<key>end</key>
@@ -951,7 +952,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)HTML)\b\1)</string>
+					<string>(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)HTML)\b\1)</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>0</key>
@@ -998,7 +999,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?=(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)SQL)\b\1))</string>
+			<string>(?=(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)SQL)\b\1))</string>
 			<key>comment</key>
 			<string>Heredoc with embedded sql</string>
 			<key>end</key>
@@ -1009,7 +1010,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)SQL)\b\1)</string>
+					<string>(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)SQL)\b\1)</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>0</key>
@@ -1056,7 +1057,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?=(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)CSS)\b\1))</string>
+			<string>(?=(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)CSS)\b\1))</string>
 			<key>comment</key>
 			<string>Heredoc with embedded css</string>
 			<key>end</key>
@@ -1067,7 +1068,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)CSS)\b\1)</string>
+					<string>(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)CSS)\b\1)</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>0</key>
@@ -1114,18 +1115,18 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?=(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)CPP)\b\1))</string>
+			<string>(?=(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)CPP)\b\1))</string>
 			<key>comment</key>
 			<string>Heredoc with embedded c++</string>
 			<key>end</key>
 			<string>(?!\G)</string>
 			<key>name</key>
-			<string>meta.embedded.block.c++</string>
+			<string>meta.embedded.block.cpp</string>
 			<key>patterns</key>
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)CPP)\b\1)</string>
+					<string>(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)CPP)\b\1)</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>0</key>
@@ -1135,7 +1136,7 @@
 						</dict>
 					</dict>
 					<key>contentName</key>
-					<string>source.c++</string>
+					<string>source.cpp</string>
 					<key>end</key>
 					<string>\s*\2$\n?</string>
 					<key>endCaptures</key>
@@ -1160,7 +1161,7 @@
 						</dict>
 						<dict>
 							<key>include</key>
-							<string>source.c++</string>
+							<string>source.cpp</string>
 						</dict>
 						<dict>
 							<key>include</key>
@@ -1172,7 +1173,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?=(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)C)\b\1))</string>
+			<string>(?=(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)C)\b\1))</string>
 			<key>comment</key>
 			<string>Heredoc with embedded c</string>
 			<key>end</key>
@@ -1183,7 +1184,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)C)\b\1)</string>
+					<string>(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)C)\b\1)</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>0</key>
@@ -1230,7 +1231,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?=(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)(?:JS|JAVASCRIPT))\b\1))</string>
+			<string>(?=(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)(?:JS|JAVASCRIPT))\b\1))</string>
 			<key>comment</key>
 			<string>Heredoc with embedded javascript</string>
 			<key>end</key>
@@ -1241,7 +1242,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)(?:JS|JAVASCRIPT))\b\1)</string>
+					<string>(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)(?:JS|JAVASCRIPT))\b\1)</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>0</key>
@@ -1288,7 +1289,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?=(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)JQUERY)\b\1))</string>
+			<string>(?=(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)JQUERY)\b\1))</string>
 			<key>comment</key>
 			<string>Heredoc with embedded jQuery javascript</string>
 			<key>end</key>
@@ -1299,7 +1300,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)JQUERY)\b\1)</string>
+					<string>(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)JQUERY)\b\1)</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>0</key>
@@ -1346,7 +1347,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?=(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)(?:SH|SHELL))\b\1))</string>
+			<string>(?=(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)(?:SH|SHELL))\b\1))</string>
 			<key>comment</key>
 			<string>Heredoc with embedded shell</string>
 			<key>end</key>
@@ -1357,7 +1358,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)(?:SH|SHELL))\b\1)</string>
+					<string>(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)(?:SH|SHELL))\b\1)</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>0</key>
@@ -1404,7 +1405,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?=(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)LUA)\b\1))</string>
+			<string>(?=(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)LUA)\b\1))</string>
 			<key>comment</key>
 			<string>Heredoc with embedded lua</string>
 			<key>end</key>
@@ -1415,7 +1416,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)LUA)\b\1)</string>
+					<string>(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)LUA)\b\1)</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>0</key>
@@ -1462,7 +1463,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?=(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)RUBY)\b\1))</string>
+			<string>(?=(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)RUBY)\b\1))</string>
 			<key>comment</key>
 			<string>Heredoc with embedded ruby</string>
 			<key>end</key>
@@ -1473,7 +1474,7 @@
 			<array>
 				<dict>
 					<key>begin</key>
-					<string>(?&gt;&lt;&lt;-("?)((?:[_\w]+_|)RUBY)\b\1)</string>
+					<string>(?&gt;&lt;&lt;[-~]("?)((?:[_\w]+_|)RUBY)\b\1)</string>
 					<key>beginCaptures</key>
 					<dict>
 						<key>0</key>
@@ -1559,7 +1560,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?&gt;&lt;&lt;-(\w+))</string>
+			<string>(?&gt;&lt;&lt;[-~](\w+))</string>
 			<key>beginCaptures</key>
 			<dict>
 				<key>0</key>
@@ -1736,7 +1737,7 @@
 		<key>heredoc</key>
 		<dict>
 			<key>begin</key>
-			<string>^&lt;&lt;-?\w+</string>
+			<string>^&lt;&lt;[-~]?\w+</string>
 			<key>end</key>
 			<string>$</string>
 			<key>patterns</key>
@@ -4088,3 +4089,4 @@
 	<string>E00B62AC-6B1C-11D9-9B1F-000D93589AF6</string>
 </dict>
 </plist>
+

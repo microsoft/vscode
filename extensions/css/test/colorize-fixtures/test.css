@@ -1,0 +1,159 @@
+/* css Zen Garden default style v1.02 */
+/* css released under Creative Commons License - http://creativecommons.org/licenses/by-nc-sa/1.0/  */
+/* This file based on 'Tranquille' by Dave Shea */
+/* You may use this file as a foundation for any new work, but you may find it easier to start from scratch. */
+/* Not all elements are defined in this file, so you'll most likely want to refer to the xhtml as well. */
+/* Your images should be linked as if the CSS file sits in the same folder as the images. ie. no paths. */
+/* basic elements */
+
+@import "mystyle.css";
+@import url("mystyle.css");
+@import url("bluish.css") projection, tv;
+
+.html {
+    padding: 0;
+    font-style: 0;
+}
+body {
+    font: 75% georgia, sans-serif;
+    line-height: 1.88889;
+    color: #555753;
+    background: #fff url(blossoms.jpg) no-repeat bottom right;
+    margin: 0;
+    padding: 0;
+    background-image: -webkit-linear-gradient(top, start-color, end-color);
+    background-image: -webkit-gradient(linear, left top, left bottom, from(start-color), to(end-color));
+    background-image: -moz-linear-gradient(top, start-color, end-color);
+    background-image: linear-gradient(to bottom, start-color, end-color);
+}
+
+p {
+    margin-top: 0;
+    text-align: justify;
+}
+
+h3 {
+    font: italic normal 1.4em georgia, sans-serif;
+    letter-spacing: 1px;
+    margin-bottom: 0;
+    color: #7D775C;
+}
+
+a:link {
+    font-weight: bold;
+    text-decoration: none;
+    color: #B7A5DF;
+}
+
+a:visited {
+    font-weight: bold;
+    text-decoration: none;
+    color: #D4CDDC;
+    cursor: pointer;
+}
+
+a:hover,
+a:focus,
+a:active {
+    text-decoration: underline;
+    color: #9685BA;
+}
+
+abbr {
+    border-bottom: none;
+}
+
+
+/* specific divs */
+
+.page-wrapper {
+    background: url(zen-bg.jpg) no-repeat top left;
+    padding: 0 175px 0 110px;
+    margin: 0;
+    position: relative;
+}
+
+.intro {
+    min-width: 470px;
+    width: 100%;
+}
+
+header h1 {
+    background: transparent url(h1.gif) no-repeat top left;
+    margin-top: 10px;
+    display: block;
+    width: 219px;
+    height: 87px;
+    float: left;
+    text-indent: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+header {
+    padding-top: 20px;
+    height: 87px;
+}
+
+.summary {
+    clear: both;
+    margin: 20px 20px 20px 10px;
+    width: 160px;
+    float: left;
+}
+
+.summary p {
+    font: italic 1.1em/2.2 georgia;
+    text-align: center;
+}
+
+.preamble {
+    clear: right;
+    padding: 0px 10px 0 10px;
+}
+
+.supporting {
+    padding-left: 10px;
+    margin-bottom: 40px;
+}
+
+#footer {
+    text-align: center
+}
+
+footer a:link,
+footer a:visited {
+    margin-right: 20px;
+}
+
+.sidebar {
+    margin-left: 600px;
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+.sidebar .wrapper {
+    font: 10px verdana, sans-serif;
+    background: transparent url(paper-bg.jpg) top left repeat-y;
+    padding: 10px;
+    margin-top: 150px;
+    width: 130px;
+}
+
+.sidebar li a:link {
+    color: #988F5E;
+}
+
+.sidebar li a:visited {
+    color: '#B3AE94';
+}
+
+.extra1 {
+    background: transparent url(cr2.gif) top left no-repeat;
+    position: absolute;
+    top: 40px;
+    right: 0;
+    width: 148px;
+    height: 110px;
+}

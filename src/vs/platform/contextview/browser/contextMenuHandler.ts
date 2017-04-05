@@ -6,21 +6,17 @@
 'use strict';
 
 import 'vs/css!./contextMenuHandler';
-import Builder = require('vs/base/browser/builder');
-import WinJS = require('vs/base/common/winjs.base');
-import Lifecycle = require('vs/base/common/lifecycle');
-import Mouse = require('vs/base/browser/mouseEvent');
-import Actions = require('vs/base/common/actions');
-import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
-import Menu = require('vs/base/browser/ui/menu/menu');
-import Events = require('vs/base/common/events');
+import { $, Builder } from 'vs/base/browser/builder';
+import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IActionRunner, ActionRunner, IAction } from 'vs/base/common/actions';
+import { Menu } from 'vs/base/browser/ui/menu/menu';
+import { EventType } from 'vs/base/common/events';
 import Severity from 'vs/base/common/severity';
 
-import {IContextViewService, IContextMenuDelegate} from './contextView';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IMessageService} from 'vs/platform/message/common/message';
-
-var $ = Builder.$;
+import { IContextViewService, IContextMenuDelegate } from 'vs/platform/contextview/browser/contextView';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IMessageService } from 'vs/platform/message/common/message';
 
 export class ContextMenuHandler {
 
@@ -28,27 +24,27 @@ export class ContextMenuHandler {
 	private messageService: IMessageService;
 	private telemetryService: ITelemetryService;
 
-	private actionRunner: Actions.IActionRunner;
-	private $el: Builder.Builder;
+	private actionRunner: IActionRunner;
+	private $el: Builder;
 	private menuContainerElement: HTMLElement;
-	private toDispose: Lifecycle.IDisposable[];
+	private toDispose: IDisposable[];
 
-	constructor(element: HTMLElement, contextViewService:IContextViewService, telemetryService:ITelemetryService, messageService:IMessageService) {
+	constructor(element: HTMLElement, contextViewService: IContextViewService, telemetryService: ITelemetryService, messageService: IMessageService) {
 		this.setContainer(element);
 
 		this.contextViewService = contextViewService;
 		this.telemetryService = telemetryService;
 		this.messageService = messageService;
 
-		this.actionRunner = new Actions.ActionRunner();
+		this.actionRunner = new ActionRunner();
 		this.menuContainerElement = null;
 		this.toDispose = [];
 
-		var hideViewOnRun = false;
+		let hideViewOnRun = false;
 
-		this.toDispose.push(this.actionRunner.addListener2(Events.EventType.BEFORE_RUN, (e: any) => {
+		this.toDispose.push(this.actionRunner.addListener2(EventType.BEFORE_RUN, (e: any) => {
 			if (this.telemetryService) {
-				this.telemetryService.publicLog('workbenchActionExecuted', {id: e.action.id, From: 'contextMenu'});
+				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
 			}
 
 			hideViewOnRun = !!e.retainActionItem;
@@ -58,7 +54,7 @@ export class ContextMenuHandler {
 			}
 		}));
 
-		this.toDispose.push(this.actionRunner.addListener2(Events.EventType.RUN, (e: any) => {
+		this.toDispose.push(this.actionRunner.addListener2(EventType.RUN, (e: any) => {
 			if (hideViewOnRun) {
 				this.contextViewService.hideContextView(false);
 			}
@@ -82,8 +78,8 @@ export class ContextMenuHandler {
 		}
 	}
 
-	public showContextMenu(delegate: IContextMenuDelegate):void {
-		delegate.getActions().done((actions: Actions.IAction[]) => {
+	public showContextMenu(delegate: IContextMenuDelegate): void {
+		delegate.getActions().done((actions: IAction[]) => {
 			this.contextViewService.showContextView({
 				getAnchor: () => delegate.getAnchor(),
 				canRelayout: false,
@@ -91,29 +87,29 @@ export class ContextMenuHandler {
 				render: (container) => {
 					this.menuContainerElement = container;
 
-					var className = delegate.getMenuClassName ? delegate.getMenuClassName() : '';
+					let className = delegate.getMenuClassName ? delegate.getMenuClassName() : '';
 
 					if (className) {
 						container.className += ' ' + className;
 					}
 
-					var menu = new Menu.Menu(container, actions, {
+					let menu = new Menu(container, actions, {
 						actionItemProvider: delegate.getActionItem,
 						context: delegate.getActionsContext ? delegate.getActionsContext() : null,
 						actionRunner: this.actionRunner
 					});
 
-					var listener1 = menu.addListener2(Events.EventType.CANCEL, (e: any) => {
+					let listener1 = menu.addListener2(EventType.CANCEL, (e: any) => {
 						this.contextViewService.hideContextView(true);
 					});
 
-					var listener2 = menu.addListener2(Events.EventType.BLUR, (e: any) => {
+					let listener2 = menu.addListener2(EventType.BLUR, (e: any) => {
 						this.contextViewService.hideContextView(true);
 					});
 
 					menu.focus();
 
-					return Lifecycle.combinedDispose(listener1, listener2, menu);
+					return combinedDisposable([listener1, listener2, menu]);
 				},
 
 				onHide: (didCancel?: boolean) => {
@@ -127,13 +123,13 @@ export class ContextMenuHandler {
 		});
 	}
 
-	private onMouseDown(e: MouseEvent):void {
+	private onMouseDown(e: MouseEvent): void {
 		if (!this.menuContainerElement) {
 			return;
 		}
 
-		var event = new Mouse.StandardMouseEvent(e);
-		var element = event.target;
+		let event = new StandardMouseEvent(e);
+		let element = event.target;
 
 		while (element) {
 			if (element === this.menuContainerElement) {
@@ -146,7 +142,7 @@ export class ContextMenuHandler {
 		this.contextViewService.hideContextView();
 	}
 
-	public dispose():void {
+	public dispose(): void {
 		this.setContainer(null);
 	}
 }

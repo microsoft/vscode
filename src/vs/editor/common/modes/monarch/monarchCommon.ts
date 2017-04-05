@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Modes = require('vs/editor/common/modes');
-
 /*
  * This module exports common types and functionality shared between
  * the Monarch compiler that compiles JSON to ILexer, and the Monarch
@@ -17,11 +15,16 @@ import Modes = require('vs/editor/common/modes');
  * Inside monarch we use fully typed definitions and compiled versions of the more abstract JSON descriptions.
  */
 
+export const enum MonarchBracket {
+	None = 0,
+	Open = 1,
+	Close = -1
+}
+
 export interface ILexerMin {
+	languageId: string;
 	noThrow: boolean;
 	ignoreCase: boolean;
-	displayName: string;
-	name: string;
 	usesEmbedded: boolean;
 	defaultToken: string;
 	stateNames: Object;
@@ -31,36 +34,10 @@ export interface ILexer extends ILexerMin {
 	maxStack: number;
 	start: string;
 	ignoreCase: boolean;
-	lineComment: string;
-	blockCommentStart: string;
-	blockCommentEnd: string;
 	tokenPostfix: string;
-	suggestSupport: {
-		textualCompletions: boolean;
-		disableAutoTrigger: boolean;
-		triggerCharacters: string[];
-		snippets: Modes.ISuggestion[];
-	};
 
 	tokenizer: IRule[][];
 	brackets: IBracket[];
-	wordDefinition: RegExp;
-	autoClosingPairs: Modes.IAutoClosingPairConditional[];
-
-	standardBrackets: Modes.IBracketPair[];
-	enhancedBrackets: Modes.IRegexBracketPair[];
-	outdentTriggers: string;
-}
-
-export interface IAutoIndent {
-	match: RegExp;
-	matchAfter: RegExp;
-}
-
-export interface IAutoComplete {
-	triggers: string;
-	match: RegExp;
-	complete: string;
 }
 
 export interface IBracket {
@@ -88,7 +65,7 @@ export interface IAction {
 	tokenSubst?: boolean;
 	next?: string;
 	nextEmbedded?: string;
-	bracket?: Modes.Bracket;
+	bracket?: MonarchBracket;
 	log?: string;
 	switchTo?: string;
 	goBack?: number;
@@ -130,7 +107,7 @@ export function sanitize(s: string) {
  * Logs a message.
  */
 export function log(lexer: ILexerMin, msg: string) {
-	console.log(`${lexer.name}: ${msg}`);
+	console.log(`${lexer.languageId}: ${msg}`);
 }
 
 // Throwing errors
@@ -139,7 +116,7 @@ export function log(lexer: ILexerMin, msg: string) {
  * Throws error. May actually just log the error and continue.
  */
 export function throwError(lexer: ILexerMin, msg: string) {
-	throw new Error(`${lexer.name}: ${msg}`);
+	throw new Error(`${lexer.languageId}: ${msg}`);
 }
 
 // Helper functions for rule finding and substitution
@@ -156,16 +133,26 @@ export function throwError(lexer: ILexerMin, msg: string) {
 export function substituteMatches(lexer: ILexerMin, str: string, id: string, matches: string[], state: string) {
 	var re = /\$((\$)|(#)|(\d\d?)|[sS](\d\d?)|@(\w+))/g;
 	var stateMatches: string[] = null;
-	return str.replace(re, function(full, sub?, dollar?, hash?, n?, s?, attr?, ofs?, total?) {
-		if (!empty(dollar)) return '$'; // $$
-		if (!empty(hash)) return fixCase(lexer, id);   // default $#
-		if (!empty(n) && n < matches.length) return fixCase(lexer, matches[n]); // $n
-		if (!empty(attr) && lexer && typeof (lexer[attr]) === 'string') return lexer[attr]; //@attribute
+	return str.replace(re, function (full, sub?, dollar?, hash?, n?, s?, attr?, ofs?, total?) {
+		if (!empty(dollar)) {
+			return '$'; // $$
+		}
+		if (!empty(hash)) {
+			return fixCase(lexer, id);   // default $#
+		}
+		if (!empty(n) && n < matches.length) {
+			return fixCase(lexer, matches[n]); // $n
+		}
+		if (!empty(attr) && lexer && typeof (lexer[attr]) === 'string') {
+			return lexer[attr]; //@attribute
+		}
 		if (stateMatches === null) { // split state on demand
 			stateMatches = state.split('.');
 			stateMatches.unshift(state);
 		}
-		if (!empty(s) && s < stateMatches.length) return fixCase(lexer, stateMatches[s]); //$Sn
+		if (!empty(s) && s < stateMatches.length) {
+			return fixCase(lexer, stateMatches[s]); //$Sn
+		}
 		return '';
 	});
 }
@@ -176,11 +163,16 @@ export function substituteMatches(lexer: ILexerMin, str: string, id: string, mat
 export function findRules(lexer: ILexer, state: string): IRule[] {
 	while (state && state.length > 0) {
 		var rules = lexer.tokenizer[state];
-		if (rules) return rules;
+		if (rules) {
+			return rules;
+		}
 
 		var idx = state.lastIndexOf('.');
-		if (idx < 0) state = null; // no further parent
-		else state = state.substr(0, idx);
+		if (idx < 0) {
+			state = null; // no further parent
+		} else {
+			state = state.substr(0, idx);
+		}
 	}
 	return null;
 }
@@ -193,11 +185,16 @@ export function findRules(lexer: ILexer, state: string): IRule[] {
 export function stateExists(lexer: ILexerMin, state: string): boolean {
 	while (state && state.length > 0) {
 		var exist = lexer.stateNames[state];
-		if (exist) return true;
+		if (exist) {
+			return true;
+		}
 
 		var idx = state.lastIndexOf('.');
-		if (idx < 0) state = null; // no further parent
-		else state = state.substr(0, idx);
+		if (idx < 0) {
+			state = null; // no further parent
+		} else {
+			state = state.substr(0, idx);
+		}
 	}
 	return false;
 }

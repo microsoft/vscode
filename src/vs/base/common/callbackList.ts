@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IDisposable} from 'vs/base/common/lifecycle';
-import {onUnexpectedError} from 'vs/base/common/errors';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export default class CallbackList {
 
@@ -30,7 +30,7 @@ export default class CallbackList {
 			return;
 		}
 
-		var foundCallbackWithDifferentContext = false;
+		let foundCallbackWithDifferentContext = false;
 		for (var i = 0, len = this._callbacks.length; i < len; i++) {
 			if (this._callbacks[i] === callback) {
 				if (this._contexts[i] === context) {
@@ -51,10 +51,10 @@ export default class CallbackList {
 
 	public invoke(...args: any[]): any[] {
 		if (!this._callbacks) {
-			return;
+			return undefined;
 		}
 
-		var ret: any[] = [],
+		const ret: any[] = [],
 			callbacks = this._callbacks.slice(0),
 			contexts = this._contexts.slice(0);
 
@@ -70,6 +70,13 @@ export default class CallbackList {
 
 	public isEmpty(): boolean {
 		return !this._callbacks || this._callbacks.length === 0;
+	}
+
+	public entries(): [Function, any][] {
+		if (!this._callbacks) {
+			return [];
+		}
+		return this._callbacks.map((fn, index) => <[Function, any]>[fn, this._contexts[index]]);
 	}
 
 	public dispose(): void {

@@ -1,0 +1,172 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench > .welcomeOverlay {
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	height: 100%;
+	width: 100%;
+	z-index: 9999;
+	background: rgba(0,0,0,0.52);
+	font-size: 10px;
+	transition: font-size .25s;
+}
+
+.vs .monaco-workbench > .welcomeOverlay {
+	background: rgba(255,255,255,.52);
+}
+
+#workbench\.parts\.editor {
+	transition: filter .25s, opacity .2s;
+}
+
+.monaco-workbench.blur-background #workbench\.parts\.panel,
+.monaco-workbench.blur-background #workbench\.parts\.sidebar,
+.monaco-workbench.blur-background #workbench\.parts\.editor {
+	filter: blur(2px);
+	opacity: .4;
+}
+
+.hc-black .monaco-workbench.blur-background #workbench\.parts\.panel,
+.hc-black .monaco-workbench.blur-background #workbench\.parts\.sidebar,
+.hc-black .monaco-workbench.blur-background #workbench\.parts\.editor {
+	opacity: .2;
+}
+
+.monaco-workbench > .welcomeOverlay > .key {
+	font-size: 1.6em;
+}
+
+.monaco-workbench > .welcomeOverlay > .key {
+	color: #000;
+}
+
+.vs-dark .monaco-workbench > .welcomeOverlay > .key,
+.hc-black .monaco-workbench > .welcomeOverlay > .key {
+	color: #FFF;
+}
+
+.monaco-workbench > .welcomeOverlay > .key > .label {
+	padding: 0 1ex;
+}
+
+.monaco-workbench > .welcomeOverlay > .key > .shortcut {
+	letter-spacing: 0.15em;
+	font-size: 0.8125em;
+	color: #d7ba7d;
+	font-family: "Lucida Grande", sans-serif;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.explorer {
+	position: absolute;
+	top: 13px;
+	left: 60px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.search {
+	position: absolute;
+	top: 63px;
+	left: 60px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.git {
+	position: absolute;
+	top: 113px;
+	left: 60px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.debug {
+	position: absolute;
+	top: 163px;
+	left: 60px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.extensions {
+	position: absolute;
+	top: 213px;
+	left: 60px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.watermark {
+	position: absolute;
+	top: calc(50% + 30px);
+	left: calc(50% + 30px);
+}
+
+.monaco-workbench > .welcomeOverlay > .key.watermark > .label {
+	vertical-align: super;
+}
+
+@media (max-height: 500px) {
+	.monaco-workbench > .welcomeOverlay > .key.watermark {
+		display: none;
+	}
+}
+
+.monaco-workbench > .welcomeOverlay > .key.problems {
+	position: absolute;
+	bottom: 25px;
+	left: 45px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.problems > .label,
+.monaco-workbench > .welcomeOverlay > .key.problems > .shortcut {
+	vertical-align: super;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.openfile {
+	position: absolute;
+	bottom: 25px;
+	right: 45px;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.openfile > .label {
+	vertical-align: super;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.commandPalette {
+	position: absolute;
+	top: 210px;
+	left: calc(50% - 52px);
+	transition: top .25s, left .25s;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.commandPalette > .label {
+	vertical-align: sub;
+}
+
+.monaco-workbench > .welcomeOverlay > .key.commandPalette > .shortcut {
+	padding-left: 0.5em;
+	vertical-align: sub;
+}
+
+.monaco-workbench > .welcomeOverlay > .commandPalettePlaceholder {
+	position: absolute;
+	top: 2px;
+	left: calc(50% - 193px);
+	width: 386px;
+	height: 197px;
+	background-image: url('media/commandpalette.svg');
+	background-repeat: no-repeat;
+	background-size: 100%;
+}
+
+.vs-dark .monaco-workbench > .welcomeOverlay > .commandPalettePlaceholder,
+.hc-black .monaco-workbench > .welcomeOverlay > .commandPalettePlaceholder {
+	background-image: url('media/commandpalette-dark.svg');
+}
+@media screen and (max-width: 880px) {
+	.monaco-workbench > .welcomeOverlay {
+		font-size: 8px;
+	}
+	.monaco-workbench > .welcomeOverlay > .commandPalettePlaceholder {
+		display: none;
+	}
+	.monaco-workbench > .welcomeOverlay > .key.commandPalette {
+		top: 10px;
+		left: 50%;
+	}
+}

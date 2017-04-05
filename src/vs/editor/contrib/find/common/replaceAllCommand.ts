@@ -4,29 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 
 interface IEditOperation {
-	range:EditorCommon.IEditorRange;
-	text:string;
+	range: Range;
+	text: string;
 }
 
-export class ReplaceAllCommand implements EditorCommon.ICommand {
+export class ReplaceAllCommand implements editorCommon.ICommand {
 
-	private _ranges: EditorCommon.IEditorRange[];
+	private _editorSelection: Selection;
+	private _trackedEditorSelectionId: string;
+	private _ranges: Range[];
 	private _replaceStrings: string[];
 
-	constructor(ranges: EditorCommon.IEditorRange[], replaceStrings:string[]) {
+	constructor(editorSelection: Selection, ranges: Range[], replaceStrings: string[]) {
+		this._editorSelection = editorSelection;
 		this._ranges = ranges;
 		this._replaceStrings = replaceStrings;
 	}
 
-	public getEditOperations(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		if (this._ranges.length > 0) {
 			// Collect all edit operations
-			var ops:IEditOperation[] = [];
+			var ops: IEditOperation[] = [];
 			for (var i = 0; i < this._ranges.length; i++) {
 				ops.push({
 					range: this._ranges[i],
@@ -40,7 +43,7 @@ export class ReplaceAllCommand implements EditorCommon.ICommand {
 			});
 
 			// Merge operations that touch each other
-			var resultOps:IEditOperation[] = [];
+			var resultOps: IEditOperation[] = [];
 			var previousOp = ops[0];
 			for (var i = 1; i < ops.length; i++) {
 				if (previousOp.range.endLineNumber === ops[i].range.startLineNumber && previousOp.range.endColumn === ops[i].range.startColumn) {
@@ -58,16 +61,11 @@ export class ReplaceAllCommand implements EditorCommon.ICommand {
 				builder.addEditOperation(resultOps[i].range, resultOps[i].text);
 			}
 		}
+
+		this._trackedEditorSelectionId = builder.trackSelection(this._editorSelection);
 	}
 
-	public computeCursorState(model:EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
-		var inverseEditOperations = helper.getInverseEditOperations();
-		var srcRange = inverseEditOperations[inverseEditOperations.length - 1].range;
-		return Selection.createSelection(
-			srcRange.endLineNumber,
-			srcRange.endColumn,
-			srcRange.endLineNumber,
-			srcRange.endColumn
-		);
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
+		return helper.getTrackedSelection(this._trackedEditorSelectionId);
 	}
 }

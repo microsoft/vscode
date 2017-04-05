@@ -2,7 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
+
+import { once } from 'vs/base/common/functional';
 
 export const empty: IDisposable = Object.freeze({
 	dispose() { }
@@ -12,60 +15,120 @@ export interface IDisposable {
 	dispose(): void;
 }
 
-export function disposeAll<T extends IDisposable>(arr: T[]): T[] {
-	for (var i = 0, len = arr.length; i < len; i++) {
-		if(arr[i]) {
-			arr[i].dispose();
+export function dispose<T extends IDisposable>(disposable: T): T;
+export function dispose<T extends IDisposable>(...disposables: T[]): T[];
+export function dispose<T extends IDisposable>(disposables: T[]): T[];
+export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T | T[] {
+
+	if (Array.isArray(first)) {
+		first.forEach(d => d && d.dispose());
+		return [];
+	} else if (rest.length === 0) {
+		if (first) {
+			first.dispose();
+			return first;
 		}
-	}
-
-	return [];
-}
-
-export function combinedDispose(...disposables: IDisposable[]): IDisposable {
-	return {
-		dispose: () => disposeAll(disposables)
-	};
-}
-
-export function combinedDispose2(disposables: IDisposable[]): IDisposable {
-	return {
-		dispose: () => disposeAll(disposables)
-	};
-}
-
-export function fnToDisposable(fn: ()=>void): IDisposable {
-	return {
-		dispose: () => fn()
-	};
-}
-
-export function toDisposable(...fns: (()=>void)[]): IDisposable {
-	return combinedDispose2(fns.map(fnToDisposable));
-}
-
-function callAll(arg:any):any {
-	if (!arg) {
-		return null;
-	} else if(typeof arg === 'function') {
-		arg();
-		return null;
-	} else if(Array.isArray(arg)) {
-		while(arg.length > 0) {
-			arg.pop()();
-		}
-		return arg;
+		return undefined;
 	} else {
-		return null;
+		dispose(first);
+		dispose(rest);
+		return [];
 	}
 }
 
-export interface CallAll {
-	(fn: Function): Function;
-	(fn: Function[]): Function[];
+export function combinedDisposable(disposables: IDisposable[]): IDisposable {
+	return { dispose: () => dispose(disposables) };
 }
 
-/**
- * Calls all functions that are being passed to it.
- */
-export var cAll: CallAll = callAll;
+export function toDisposable(...fns: (() => void)[]): IDisposable {
+	return combinedDisposable(fns.map(fn => ({ dispose: fn })));
+}
+
+export abstract class Disposable implements IDisposable {
+
+	private _toDispose: IDisposable[];
+
+	constructor() {
+		this._toDispose = [];
+	}
+
+	public dispose(): void {
+		this._toDispose = dispose(this._toDispose);
+	}
+
+	protected _register<T extends IDisposable>(t: T): T {
+		this._toDispose.push(t);
+		return t;
+	}
+}
+
+export class Disposables extends Disposable {
+
+	public add<T extends IDisposable>(e: T): T;
+	public add(...elements: IDisposable[]): void;
+	public add<T extends IDisposable>(arg: T | T[]): T {
+		if (!Array.isArray(arg)) {
+			return this._register(arg);
+		} else {
+			for (let element of arg) {
+				return this._register(element);
+			}
+			return undefined;
+		}
+	}
+}
+
+export class OneDisposable implements IDisposable {
+
+	private _value: IDisposable;
+
+	set value(value: IDisposable) {
+		if (this._value) {
+			this._value.dispose();
+		}
+		this._value = value;
+	}
+
+	dispose() {
+		this.value = null;
+	}
+}
+
+export interface IReference<T> extends IDisposable {
+	readonly object: T;
+}
+
+export abstract class ReferenceCollection<T> {
+
+	private references: { [key: string]: { readonly object: T; counter: number; } } = Object.create(null);
+
+	constructor() { }
+
+	acquire(key: string): IReference<T> {
+		let reference = this.references[key];
+
+		if (!reference) {
+			reference = this.references[key] = { counter: 0, object: this.createReferencedObject(key) };
+		}
+
+		const { object } = reference;
+		const dispose = once(() => {
+			if (--reference.counter === 0) {
+				this.destroyReferencedObject(reference.object);
+				delete this.references[key];
+			}
+		});
+
+		reference.counter++;
+
+		return { object, dispose };
+	}
+
+	protected abstract createReferencedObject(key: string): T;
+	protected abstract destroyReferencedObject(object: T): void;
+}
+
+export class ImmortalReference<T> implements IReference<T> {
+	constructor(public object: T) { }
+	dispose(): void { /* noop */ }
+}

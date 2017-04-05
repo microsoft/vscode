@@ -1,0 +1,9 @@
+{
+	"$schema": "vscode://schemas/color-theme",
+	"name": "High Contrast Default Colors",
+	"colors": {
+		"editorBackground": "#000000",
+		"editorForeground": "#FFFFFF",
+		"editorIndentGuides": "#FFFFFF"
+	}
+}

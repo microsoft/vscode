@@ -6,51 +6,18 @@
 
 import 'vs/css!./actionsRenderer';
 import Lifecycle = require('vs/base/common/lifecycle');
-import WinJS = require('vs/base/common/winjs.base');
 import Builder = require('vs/base/browser/builder');
 import Dom = require('vs/base/browser/dom');
 import Actions = require('vs/base/common/actions');
 import Events = require('vs/base/common/events');
 import ActionBar = require('vs/base/browser/ui/actionbar/actionbar');
 import TreeDefaults = require('./treeDefaults');
-import Tree = require('vs/base/parts/tree/common/tree');
+import Tree = require('vs/base/parts/tree/browser/tree');
 
 var $ = Builder.$;
 
-export interface IActionProvider {
-
-	hasActions(tree:Tree.ITree, element:any):boolean;
-	/// <summary>
-	/// Returns whether or not the element has actions. These show up in place right
-	/// to the element in the tree.
-	/// </summary>
-
-	getActions(tree:Tree.ITree, element:any):WinJS.TPromise<Actions.IAction[]>;
-	/// <summary>
-	/// Returns a promise of an array with the actions of the element that should show
-	/// up in place right to the element in the tree.
-	/// </summary>
-
-	hasSecondaryActions(tree:Tree.ITree, element:any):boolean;
-	/// <summary>
-	/// Returns whether or not the element has secondary actions. These show up once the
-	/// user has expanded the element's action bar.
-	/// </summary>
-
-	getSecondaryActions(tree:Tree.ITree, element:any):WinJS.TPromise<Actions.IAction[]>;
-	/// <summary>
-	/// Returns a promise of an array with the secondary actions of the element that should
-	/// show up once the user has expanded the element's action bar.
-	/// </summary>
-
-	getActionItem(tree:Tree.ITree, element:any, action:Actions.IAction):ActionBar.IActionItem;
-	/// <summary>
-	/// Returns an action item to render an action.
-	/// </summary>
-}
-
 export interface IActionsRendererOptions {
-	actionProvider: IActionProvider;
+	actionProvider: Tree.IActionProvider;
 	actionRunner?: Actions.IActionRunner;
 }
 
@@ -59,7 +26,7 @@ export class ActionsRenderer extends TreeDefaults.LegacyRenderer implements Life
 	private static CONTENTS_CLEANUP_FN_KEY: string = '__$ActionsRenderer.contentCleanupFn';
 	private static NO_OP = () => { /* noop */ };
 
-	protected actionProvider:IActionProvider;
+	protected actionProvider: Tree.IActionProvider;
 	protected actionRunner: Actions.IActionRunner;
 
 	constructor(opts: IActionsRendererOptions) {
@@ -68,11 +35,11 @@ export class ActionsRenderer extends TreeDefaults.LegacyRenderer implements Life
 		this.actionRunner = opts.actionRunner;
 	}
 
-	public getHeight(tree:Tree.ITree, element:any):number {
+	public getHeight(tree: Tree.ITree, element: any): number {
 		return this.getContentHeight(tree, element);
 	}
 
-	protected render(tree:Tree.ITree, element:any, container:HTMLElement, previousCleanupFn?: Tree.IElementCallback): Tree.IElementCallback {
+	protected render(tree: Tree.ITree, element: any, container: HTMLElement, previousCleanupFn?: Tree.IElementCallback): Tree.IElementCallback {
 		try {
 			Dom.clearNode(container);
 		} catch (e) {
@@ -136,15 +103,15 @@ export class ActionsRenderer extends TreeDefaults.LegacyRenderer implements Life
 		return cleanupFn;
 	}
 
-	/* protected */ public getContentHeight(tree:Tree.ITree, element:any):number {
+	/* protected */ public getContentHeight(tree: Tree.ITree, element: any): number {
 		return 20;
 	}
 
-	/* protected */ public renderContents(tree:Tree.ITree, element:any, container:HTMLElement, previousCleanupFn:Tree.IElementCallback):Tree.IElementCallback {
+	/* protected */ public renderContents(tree: Tree.ITree, element: any, container: HTMLElement, previousCleanupFn: Tree.IElementCallback): Tree.IElementCallback {
 		return null;
 	}
 
-	/* protected */ public getActionContext(tree:Tree.ITree, element:any):any {
+	/* protected */ public getActionContext(tree: Tree.ITree, element: any): any {
 		return null;
 	}
 

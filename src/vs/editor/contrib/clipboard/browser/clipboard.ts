@@ -6,174 +6,171 @@
 'use strict';
 
 import 'vs/css!./clipboard';
-import nls = require('vs/nls');
-import {ServicesAccessor} from 'vs/platform/instantiation/common/instantiation';
-import Lifecycle = require('vs/base/common/lifecycle');
-import {TPromise} from 'vs/base/common/winjs.base';
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import Browser = require('vs/base/browser/browser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import config = require('vs/editor/common/config/config');
-import {IKeybindings} from 'vs/platform/keybinding/common/keybindingService';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import * as nls from 'vs/nls';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import * as browser from 'vs/base/browser/browser';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { findFocusedEditor } from 'vs/editor/common/config/config';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { editorAction, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { CopyOptions } from 'vs/editor/common/controller/textAreaHandler';
 
-class ClipboardWritingAction extends EditorAction {
+import EditorContextKeys = editorCommon.EditorContextKeys;
 
-	private toUnhook:Function[];
+const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, condition:Behaviour, @INullService ns) {
-		super(descriptor, editor, condition);
-		this.toUnhook = [];
-		this.toUnhook.push(this.editor.addListener(EditorCommon.EventType.CursorSelectionChanged, (e:EditorCommon.ICursorSelectionChangedEvent) => {
-			this.resetEnablementState();
-		}));
+function conditionalEditorAction(testCommand: string) {
+	if (!browser.supportsExecCommand(testCommand)) {
+		return () => { };
 	}
-
-	public dispose(): void {
-		this.toUnhook = Lifecycle.cAll(this.toUnhook);
-		super.dispose();
-	}
-
-	public getEnablementState(): boolean {
-		if (Browser.enableEmptySelectionClipboard) {
-			return true;
-		} else {
-			return !this.editor.getSelection().isEmpty();
-		}
-	}
+	return editorAction;
 }
 
-function editorCursorIsInEditableRange(editor:EditorCommon.ICommonCodeEditor): boolean {
-	var model = editor.getModel();
-	if (!model) {
-		return false;
+function conditionalCopyWithSyntaxHighlighting() {
+	if (browser.isEdgeOrIE || !browser.supportsExecCommand('copy')) {
+		return () => { };
 	}
-	var hasEditableRange = model.hasEditableRange();
-	if (!hasEditableRange) {
-		return true;
-	}
-	var editableRange = model.getEditableRange();
-	var editorPosition = editor.getPosition();
-	return editableRange.containsPosition(editorPosition);
+
+	return editorAction;
 }
 
-class ExecCommandCutAction extends ClipboardWritingAction {
+abstract class ExecCommandAction extends EditorAction {
 
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange, ns);
+	private browserCommand: string;
+
+	constructor(browserCommand: string, opts: IActionOptions) {
+		super(opts);
+		this.browserCommand = browserCommand;
 	}
 
-	public getGroupId(): string {
-		return '3_edit/2_cut';
-	}
-
-	public getEnablementState(): boolean {
-		return super.getEnablementState() && editorCursorIsInEditableRange(this.editor);
-	}
-
-	public run(): TPromise<boolean> {
-		this.editor.focus();
-		document.execCommand('cut');
-		return TPromise.as(true);
-	}
-}
-
-class ExecCommandCopyAction extends ClipboardWritingAction {
-
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.ShowInContextMenu, ns);
-	}
-
-	public getGroupId(): string {
-		return '3_edit/1_copy';
-	}
-
-	public run(): TPromise<boolean> {
-		this.editor.focus();
-		document.execCommand('copy');
-		return TPromise.as(true);
-	}
-}
-
-class ExecCommandPasteAction extends EditorAction {
-
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, Behaviour.Writeable | Behaviour.WidgetFocus | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
-	}
-
-	public getGroupId(): string {
-		return '3_edit/3_paste';
-	}
-
-	public getEnablementState(): boolean {
-		return editorCursorIsInEditableRange(this.editor);
-	}
-
-	public run(): TPromise<boolean> {
-		this.editor.focus();
-		document.execCommand('paste');
-		return null;
-	}
-}
-
-interface IClipboardCommand extends IKeybindings {
-	ctor: EditorCommon.IEditorActionContributionCtor;
-	id: string;
-	label: string;
-	execCommand: string;
-}
-function registerClipboardAction(desc:IClipboardCommand) {
-	if (!Browser.supportsExecCommand(desc.execCommand)) {
-		return;
-	}
-
-	CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(desc.ctor, desc.id, desc.label, {
-		handler: execCommandToHandler.bind(null, desc.id, desc.execCommand),
-		context: ContextKey.None,
-		primary: desc.primary,
-		secondary: desc.secondary,
-		win: desc.win,
-		linux: desc.linux,
-		mac: desc.mac
-	}));
-}
-
-registerClipboardAction({
-	ctor: ExecCommandCutAction,
-	id: 'editor.action.clipboardCutAction',
-	label: nls.localize('actions.clipboard.cutLabel', "Cut"),
-	execCommand: 'cut',
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
-	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
-});
-registerClipboardAction({
-	ctor: ExecCommandCopyAction,
-	id: 'editor.action.clipboardCopyAction',
-	label: nls.localize('actions.clipboard.copyLabel', "Copy"),
-	execCommand: 'copy',
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
-	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
-});
-registerClipboardAction({
-	ctor: ExecCommandPasteAction,
-	id: 'editor.action.clipboardPasteAction',
-	label: nls.localize('actions.clipboard.pasteLabel', "Paste"),
-	execCommand: 'paste',
-	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
-	win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
-});
-
-function execCommandToHandler(actionId: string, browserCommand: string, accessor: ServicesAccessor, args: any): void {
-	// If editor text focus
-	if (args.context[EditorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS]) {
-		var focusedEditor = config.findFocusedEditor(actionId, accessor, args, false);
-		if (focusedEditor) {
-			focusedEditor.trigger('keyboard', actionId, args);
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		let focusedEditor = findFocusedEditor(this.id, accessor, false);
+		// Only if editor text focus (i.e. not if editor has widget focus).
+		if (focusedEditor && focusedEditor.isFocused()) {
+			focusedEditor.trigger('keyboard', this.id, args);
 			return;
 		}
+
+		document.execCommand(this.browserCommand);
 	}
 
-	document.execCommand(browserCommand);
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		editor.focus();
+		document.execCommand(this.browserCommand);
+	}
+}
+
+@conditionalEditorAction('cut')
+class ExecCommandCutAction extends ExecCommandAction {
+
+	constructor() {
+		super('cut', {
+			id: 'editor.action.clipboardCutAction',
+			label: nls.localize('actions.clipboard.cutLabel', "Cut"),
+			alias: 'Cut',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
+			},
+			menuOpts: {
+				group: CLIPBOARD_CONTEXT_MENU_GROUP,
+				order: 1
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+
+		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+			return;
+		}
+
+		super.run(accessor, editor);
+	}
+}
+
+@conditionalEditorAction('copy')
+class ExecCommandCopyAction extends ExecCommandAction {
+
+	constructor() {
+		super('copy', {
+			id: 'editor.action.clipboardCopyAction',
+			label: nls.localize('actions.clipboard.copyLabel', "Copy"),
+			alias: 'Copy',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
+			},
+			menuOpts: {
+				group: CLIPBOARD_CONTEXT_MENU_GROUP,
+				order: 2
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+
+		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+			return;
+		}
+
+		super.run(accessor, editor);
+	}
+}
+
+@conditionalEditorAction('paste')
+class ExecCommandPasteAction extends ExecCommandAction {
+
+	constructor() {
+		super('paste', {
+			id: 'editor.action.clipboardPasteAction',
+			label: nls.localize('actions.clipboard.pasteLabel', "Paste"),
+			alias: 'Paste',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
+			},
+			menuOpts: {
+				group: CLIPBOARD_CONTEXT_MENU_GROUP,
+				order: 3
+			}
+		});
+	}
+}
+
+@conditionalCopyWithSyntaxHighlighting()
+class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
+
+	constructor() {
+		super('copy', {
+			id: 'editor.action.clipboardCopyWithSyntaxHighlightingAction',
+			label: nls.localize('actions.clipboard.copyWithSyntaxHighlightingLabel', "Copy With Syntax Highlighting"),
+			alias: 'Copy With Syntax Highlighting',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: null
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+
+		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+			return;
+		}
+
+		CopyOptions.forceCopyWithSyntaxHighlighting = true;
+		super.run(accessor, editor);
+		CopyOptions.forceCopyWithSyntaxHighlighting = false;
+	}
 }

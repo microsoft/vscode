@@ -4,37 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Range} from 'vs/editor/common/core/range';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Errors = require('vs/base/common/errors');
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ICursorStateComputer, IEditableTextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { Selection } from 'vs/editor/common/core/selection';
 
 interface IEditOperation {
-	operations: EditorCommon.IIdentifiedSingleEditOperation[];
+	operations: IIdentifiedSingleEditOperation[];
 }
 
 interface IStackElement {
 	beforeVersionId: number;
-	beforeCursorState: EditorCommon.IEditorSelection[];
+	beforeCursorState: Selection[];
 
 	editOperations: IEditOperation[];
 
-	afterCursorState: EditorCommon.IEditorSelection[];
+	afterCursorState: Selection[];
 	afterVersionId: number;
 }
 
 export interface IUndoRedoResult {
-	selections: EditorCommon.IEditorSelection[];
+	selections: Selection[];
 	recordedVersionId: number;
 }
 
 export class EditStack {
 
-	private model:EditorCommon.IEditableTextModel;
-	private currentOpenStackElement:IStackElement;
-	private past:IStackElement[];
-	private future:IStackElement[];
+	private model: IEditableTextModel;
+	private currentOpenStackElement: IStackElement;
+	private past: IStackElement[];
+	private future: IStackElement[];
 
-	constructor(model:EditorCommon.IEditableTextModel) {
+	constructor(model: IEditableTextModel) {
 		this.model = model;
 		this.currentOpenStackElement = null;
 		this.past = [];
@@ -54,7 +54,7 @@ export class EditStack {
 		this.future = [];
 	}
 
-	public pushEditOperation(beforeCursorState: EditorCommon.IEditorSelection[], editOperations:EditorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer:EditorCommon.ICursorStateComputer): EditorCommon.IEditorSelection[] {
+	public pushEditOperation(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] {
 		// No support for parallel universes :(
 		this.future = [];
 
@@ -68,7 +68,7 @@ export class EditStack {
 			};
 		}
 
-		var inverseEditOperation:IEditOperation = {
+		var inverseEditOperation: IEditOperation = {
 			operations: this.model.applyEdits(editOperations)
 		};
 
@@ -76,9 +76,10 @@ export class EditStack {
 		try {
 			this.currentOpenStackElement.afterCursorState = cursorStateComputer ? cursorStateComputer(inverseEditOperation.operations) : null;
 		} catch (e) {
-			Errors.onUnexpectedError(e);
+			onUnexpectedError(e);
 			this.currentOpenStackElement.afterCursorState = null;
 		}
+
 		this.currentOpenStackElement.afterVersionId = this.model.getVersionId();
 		return this.currentOpenStackElement.afterCursorState;
 	}
@@ -97,7 +98,7 @@ export class EditStack {
 						operations: this.model.applyEdits(pastStackElement.editOperations[i].operations)
 					};
 				}
-			} catch(e) {
+			} catch (e) {
 				this.clear();
 				return null;
 			}
@@ -129,7 +130,7 @@ export class EditStack {
 						operations: this.model.applyEdits(futureStackElement.editOperations[i].operations)
 					};
 				}
-			} catch(e) {
+			} catch (e) {
 				this.clear();
 				return null;
 			}

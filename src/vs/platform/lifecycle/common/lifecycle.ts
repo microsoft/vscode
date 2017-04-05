@@ -4,23 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import winjs = require('vs/base/common/winjs.base');
-import {EventProvider} from 'vs/base/common/eventProvider';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import Event from 'vs/base/common/event';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export var ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
+export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
-export interface IBeforeShutdownParticipant {
+/**
+ * An event that is send out when the window is about to close. Clients have a chance to veto the closing by either calling veto
+ * with a boolean "true" directly or with a promise that resolves to a boolean. Returning a promise is useful
+ * in cases of long running operations on shutdown.
+ *
+ * Note: It is absolutely important to avoid long running promises on this call. Please try hard to return
+ * a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
+ */
+export interface ShutdownEvent {
+	veto(value: boolean | TPromise<boolean>): void;
+	reason: ShutdownReason;
+}
 
-	/**
-	 * Called when the window is about to close. Clients have a chance to veto the closing by either returning
-	 * a boolean "true" directly or via a promise that resolves to a boolean. Returning a promise is useful
-	 * in cases of long running operations on shutdown.
-	 *
-	 * Note: It is absolutely important to avoid long running promises on this call. Please try hard to return
-	 * a boolean directly. Returning a promise has quite an impact on the shutdown sequence!
-	 */
-	beforeShutdown(): boolean|winjs.TPromise<boolean>;
+export enum ShutdownReason {
+
+	/** Window is closed */
+	CLOSE,
+
+	/** Application is quit */
+	QUIT,
+
+	/** Window is reloaded */
+	RELOAD,
+
+	/** Other configuration loaded into window */
+	LOAD
 }
 
 /**
@@ -29,16 +44,32 @@ export interface IBeforeShutdownParticipant {
  */
 export interface ILifecycleService {
 
-	serviceId: ServiceIdentifier<any>;
+	_serviceBrand: any;
 
 	/**
-	 * Participate before shutting down to be able to veto.
+	 * A flag indicating if the application is in the process of shutting down. This will be true
+	 * before the onWillShutdown event is fired and false if the shutdown is being vetoed.
 	 */
-	addBeforeShutdownParticipant(p: IBeforeShutdownParticipant): void;
+	willShutdown: boolean;
+
+	/**
+	 * Fired before shutdown happens. Allows listeners to veto against the
+	 * shutdown.
+	 */
+	onWillShutdown: Event<ShutdownEvent>;
 
 	/**
 	 * Fired when no client is preventing the shutdown from happening. Can be used to dispose heavy resources
 	 * like running processes. Can also be used to save UI state to storage.
+	 *
+	 * The event carries a shutdown reason that indicates how the shutdown was triggered.
 	 */
-	onShutdown: EventProvider<() => void>;
+	onShutdown: Event<ShutdownReason>;
 }
+
+export const NullLifecycleService: ILifecycleService = {
+	_serviceBrand: null,
+	willShutdown: false,
+	onWillShutdown: () => ({ dispose() { } }),
+	onShutdown: (reason) => ({ dispose() { } })
+};

@@ -5,23 +5,24 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import { flatten } from 'vs/base/common/arrays';
+import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import {merge} from 'vs/base/common/arrays';
-import {IStringDictionary, forEach, values} from 'vs/base/common/collections';
-import {TPromise} from 'vs/base/common/winjs.base';
-import {IEventService} from 'vs/platform/event/common/event';
-import {IEditorService} from 'vs/platform/editor/common/editor';
-import {IRange, ISelection, IEditorSelection, IModel, IIdentifiedSingleEditOperation} from 'vs/editor/common/editorCommon';
-import {ICodeEditor} from 'vs/editor/browser/editorBrowser';
-import {Range} from 'vs/editor/common/core/range';
-import {Selection} from 'vs/editor/common/core/selection';
-import {IFileChange, EventType as FileEventType, FileChangesEvent} from 'vs/platform/files/common/files';
-import {EditOperation} from 'vs/editor/common/core/editOperation';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IFileService, IFileChange } from 'vs/platform/files/common/files';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export interface IResourceEdit {
 	resource: URI;
 	range?: IRange;
 	newText: string;
+	newEol?: EndOfLineSequence;
 }
 
 interface IRecording {
@@ -32,74 +33,97 @@ interface IRecording {
 
 class ChangeRecorder {
 
-	private _eventService: IEventService;
+	private _fileService: IFileService;
 
-	constructor(eventService: IEventService) {
-		this._eventService = eventService;
+	constructor(fileService?: IFileService) {
+		this._fileService = fileService;
 	}
 
 	public start(): IRecording {
 
-		var changes: IStringDictionary<IFileChange[]> = Object.create(null);
+		const changes: IStringDictionary<IFileChange[]> = Object.create(null);
 
-		var stop = this._eventService.addListener(FileEventType.FILE_CHANGES,(event: FileChangesEvent) => {
-			event.changes.forEach(change => {
+		let stop: IDisposable;
+		if (this._fileService) {
+			stop = this._fileService.onFileChanges((event) => {
+				event.changes.forEach(change => {
 
-				var key = String(change.resource),
-					array = changes[key];
+					const key = String(change.resource);
+					let array = changes[key];
 
-				if (!array) {
-					changes[key] = array = [];
-				}
+					if (!array) {
+						changes[key] = array = [];
+					}
 
-				array.push(change);
+					array.push(change);
+				});
 			});
-		});
+		}
 
 		return {
-			stop,
+			stop: () => { return stop && stop.dispose(); },
 			hasChanged: (resource: URI) => !!changes[resource.toString()],
-			allChanges: () => merge(values(changes))
+			allChanges: () => flatten(values(changes))
 		};
 	}
 }
 
-class EditTask {
+class EditTask implements IDisposable {
 
-	private _initialSelections: IEditorSelection[];
-	private _endCursorSelection: IEditorSelection;
-	private _model: IModel;
+	private _initialSelections: Selection[];
+	private _endCursorSelection: Selection;
+	private get _model(): IModel { return this._modelReference.object.textEditorModel; }
+	private _modelReference: IReference<ITextEditorModel>;
 	private _edits: IIdentifiedSingleEditOperation[];
+	private _newEol: EndOfLineSequence;
 
-	constructor(model: IModel) {
+	constructor(modelReference: IReference<ITextEditorModel>) {
 		this._endCursorSelection = null;
-		this._model = model;
+		this._modelReference = modelReference;
 		this._edits = [];
 	}
 
 	public addEdit(edit: IResourceEdit): void {
-		var range: IRange;
-		if (!edit.range) {
-			range = this._model.getFullModelRange();
-		} else {
-			range = edit.range;
+
+		if (typeof edit.newEol === 'number') {
+			// honor eol-change
+			this._newEol = edit.newEol;
 		}
-		this._edits.push(EditOperation.replace(Range.lift(range), edit.newText));
+
+		if (edit.range || edit.newText) {
+			// create edit operation
+			let range: IRange;
+			if (!edit.range) {
+				range = this._model.getFullModelRange();
+			} else {
+				range = edit.range;
+			}
+			this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
+		}
 	}
 
 	public apply(): void {
-		if (this._edits.length === 0) {
-			return;
-		}
-		this._edits.sort(EditTask._editCompare);
+		if (this._edits.length > 0) {
 
-		this._initialSelections = this._getInitialSelections();
-		this._model.pushEditOperations(this._initialSelections, this._edits, (edits) => this._getEndCursorSelections(edits));
+			this._edits = this._edits.map((value, index) => ({ value, index })).sort((a, b) => {
+				let ret = Range.compareRangesUsingStarts(a.value.range, b.value.range);
+				if (ret === 0) {
+					ret = a.index - b.index;
+				}
+				return ret;
+			}).map(element => element.value);
+
+			this._initialSelections = this._getInitialSelections();
+			this._model.pushEditOperations(this._initialSelections, this._edits, (edits) => this._getEndCursorSelections(edits));
+		}
+		if (this._newEol !== undefined) {
+			this._model.setEOL(this._newEol);
+		}
 	}
 
-	protected _getInitialSelections(): IEditorSelection[] {
-		var firstRange = this._edits[0].range;
-		var initialSelection = Selection.createSelection(
+	protected _getInitialSelections(): Selection[] {
+		const firstRange = this._edits[0].range;
+		const initialSelection = new Selection(
 			firstRange.startLineNumber,
 			firstRange.startColumn,
 			firstRange.endLineNumber,
@@ -108,12 +132,12 @@ class EditTask {
 		return [initialSelection];
 	}
 
-	private _getEndCursorSelections(inverseEditOperations:IIdentifiedSingleEditOperation[]): IEditorSelection[] {
-		var relevantEditIndex = 0;
-		for (var i = 0; i < inverseEditOperations.length; i++) {
-			var editRange = inverseEditOperations[i].range;
-			for (var j = 0; j < this._initialSelections.length; j++) {
-				var selectionRange = this._initialSelections[j];
+	private _getEndCursorSelections(inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] {
+		let relevantEditIndex = 0;
+		for (let i = 0; i < inverseEditOperations.length; i++) {
+			const editRange = inverseEditOperations[i].range;
+			for (let j = 0; j < this._initialSelections.length; j++) {
+				const selectionRange = this._initialSelections[j];
 				if (Range.areIntersectingOrTouching(editRange, selectionRange)) {
 					relevantEditIndex = i;
 					break;
@@ -121,8 +145,8 @@ class EditTask {
 			}
 		}
 
-		var srcRange = inverseEditOperations[relevantEditIndex].range;
-		this._endCursorSelection = Selection.createSelection(
+		const srcRange = inverseEditOperations[relevantEditIndex].range;
+		this._endCursorSelection = new Selection(
 			srcRange.endLineNumber,
 			srcRange.endColumn,
 			srcRange.endLineNumber,
@@ -131,42 +155,45 @@ class EditTask {
 		return [this._endCursorSelection];
 	}
 
-	public getEndCursorSelection(): IEditorSelection {
+	public getEndCursorSelection(): Selection {
 		return this._endCursorSelection;
 	}
 
-	private static _editCompare(a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation): number {
-		return Range.compareRangesUsingStarts(a.range, b.range);
+	dispose() {
+		if (this._model) {
+			this._modelReference.dispose();
+			this._modelReference = null;
+		}
 	}
 }
 
 class SourceModelEditTask extends EditTask {
 
-	private _knownInitialSelections:IEditorSelection[];
+	private _knownInitialSelections: Selection[];
 
-	constructor(model: IModel, initialSelections:IEditorSelection[]) {
-		super(model);
+	constructor(modelReference: IReference<ITextEditorModel>, initialSelections: Selection[]) {
+		super(modelReference);
 		this._knownInitialSelections = initialSelections;
 	}
 
-	protected _getInitialSelections(): IEditorSelection[] {
+	protected _getInitialSelections(): Selection[] {
 		return this._knownInitialSelections;
 	}
 }
 
-class BulkEditModel {
+class BulkEditModel implements IDisposable {
 
-	private _editorService: IEditorService;
+	private _textModelResolverService: ITextModelResolverService;
 	private _numberOfResourcesToModify: number = 0;
 	private _numberOfChanges: number = 0;
 	private _edits: IStringDictionary<IResourceEdit[]> = Object.create(null);
 	private _tasks: EditTask[];
 	private _sourceModel: URI;
-	private _sourceSelections: IEditorSelection[];
+	private _sourceSelections: Selection[];
 	private _sourceModelTask: SourceModelEditTask;
 
-	constructor(editorService: IEditorService, sourceModel: URI, sourceSelections: IEditorSelection[], edits: IResourceEdit[]) {
-		this._editorService = editorService;
+	constructor(textModelResolverService: ITextModelResolverService, sourceModel: URI, sourceSelections: Selection[], edits: IResourceEdit[], private progress: IProgressRunner = null) {
+		this._textModelResolverService = textModelResolverService;
 		this._sourceModel = sourceModel;
 		this._sourceSelections = sourceSelections;
 		this._sourceModelTask = null;
@@ -185,7 +212,7 @@ class BulkEditModel {
 	}
 
 	private _addEdit(edit: IResourceEdit): void {
-		var array = this._edits[edit.resource.toString()];
+		let array = this._edits[edit.resource.toString()];
 		if (!array) {
 			this._edits[edit.resource.toString()] = array = [];
 			this._numberOfResourcesToModify += 1;
@@ -201,58 +228,86 @@ class BulkEditModel {
 		}
 
 		this._tasks = [];
-		var promises: TPromise<any>[] = [];
+		const promises: TPromise<any>[] = [];
+
+		if (this.progress) {
+			this.progress.total(this._numberOfResourcesToModify * 2);
+		}
 
 		forEach(this._edits, entry => {
-			var promise = this._editorService.resolveEditorModel({ resource: URI.parse(entry.key) }).then(model => {
+			const promise = this._textModelResolverService.createModelReference(URI.parse(entry.key)).then(ref => {
+				const model = ref.object;
+
 				if (!model || !model.textEditorModel) {
 					throw new Error(`Cannot load file ${entry.key}`);
 				}
 
-				var textEditorModel = <IModel>model.textEditorModel,
-					task: EditTask;
+				const textEditorModel = model.textEditorModel;
+				let task: EditTask;
 
-				if (textEditorModel.getAssociatedResource().equals(this._sourceModel)) {
-					this._sourceModelTask = new SourceModelEditTask(textEditorModel, this._sourceSelections);
+				if (this._sourceModel && textEditorModel.uri.toString() === this._sourceModel.toString()) {
+					this._sourceModelTask = new SourceModelEditTask(ref, this._sourceSelections);
 					task = this._sourceModelTask;
 				} else {
-					task = new EditTask(textEditorModel);
+					task = new EditTask(ref);
 				}
 
 				entry.value.forEach(edit => task.addEdit(edit));
 				this._tasks.push(task);
+				if (this.progress) {
+					this.progress.worked(1);
+				}
 			});
 			promises.push(promise);
 		});
 
+
 		return TPromise.join(promises).then(_ => this);
 	}
 
-	public apply(): IEditorSelection {
-		this._tasks.forEach(task => task.apply());
-		var r: IEditorSelection = null;
+	public apply(): Selection {
+		this._tasks.forEach(task => this.applyTask(task));
+		let r: Selection = null;
 		if (this._sourceModelTask) {
 			r = this._sourceModelTask.getEndCursorSelection();
 		}
 		return r;
 	}
+
+	private applyTask(task): void {
+		task.apply();
+		if (this.progress) {
+			this.progress.worked(1);
+		}
+	}
+
+	dispose(): void {
+		this._tasks = dispose(this._tasks);
+	}
 }
 
 export interface BulkEdit {
+	progress(progress: IProgressRunner);
 	add(edit: IResourceEdit[]): void;
 	finish(): TPromise<ISelection>;
 }
 
-export function bulkEdit(eventService:IEventService, editorService:IEditorService, editor:ICodeEditor, edits:IResourceEdit[]):TPromise<any> {
-	let bulk = createBulkEdit(eventService, editorService, editor);
+export function bulkEdit(textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor, edits: IResourceEdit[], fileService?: IFileService, progress: IProgressRunner = null): TPromise<any> {
+	let bulk = createBulkEdit(textModelResolverService, editor, fileService);
 	bulk.add(edits);
+	bulk.progress(progress);
 	return bulk.finish();
 }
 
-export function createBulkEdit(eventService: IEventService, editorService: IEditorService, editor: ICodeEditor): BulkEdit {
+export function createBulkEdit(textModelResolverService: ITextModelResolverService, editor?: ICommonCodeEditor, fileService?: IFileService): BulkEdit {
 
 	let all: IResourceEdit[] = [];
-	let recording = new ChangeRecorder(eventService).start();
+	let recording = new ChangeRecorder(fileService).start();
+	let progressRunner: IProgressRunner;
+
+	function progress(progress: IProgressRunner) {
+		progressRunner = progress;
+	}
 
 	function add(edits: IResourceEdit[]): void {
 		all.push(...edits);
@@ -271,12 +326,13 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 		if (names) {
 			return nls.localize('conflict', "These files have changed in the meantime: {0}", names.join(', '));
 		}
+		return undefined;
 	}
 
 	function finish(): TPromise<ISelection> {
 
 		if (all.length === 0) {
-			return;
+			return TPromise.as(undefined);
 		}
 
 		let concurrentEdits = getConcurrentEdits();
@@ -285,14 +341,14 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 		}
 
 		let uri: URI;
-		let selections: IEditorSelection[];
+		let selections: Selection[];
 
-		if (editor) {
-			uri = editor.getModel().getAssociatedResource();
+		if (editor && editor.getModel()) {
+			uri = editor.getModel().uri;
 			selections = editor.getSelections();
 		}
 
-		let model = new BulkEditModel(editorService, uri, selections, all);
+		const model = new BulkEditModel(textModelResolverService, uri, selections, all, progressRunner);
 
 		return model.prepare().then(_ => {
 
@@ -302,12 +358,16 @@ export function createBulkEdit(eventService: IEventService, editorService: IEdit
 			}
 
 			recording.stop();
-			return model.apply();
+
+			const result = model.apply();
+			model.dispose();
+			return result;
 		});
 	}
 
 	return {
+		progress,
 		add,
 		finish
-	}
+	};
 }

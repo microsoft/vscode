@@ -1,0 +1,48 @@
+{
+	"name": "extension-editing",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "^1.4.0"
+	},
+	"categories": [
+		"Languages",
+		"Other"
+	],
+	"activationEvents": [
+		"onLanguage:json",
+		"onLanguage:typescript"
+	],
+	"main": "./out/extension",
+	"scripts": {
+		"compile": "gulp compile-extension:extension-editing",
+		"watch": "gulp watch-extension:extension-editing"
+	},
+	"dependencies": {
+		"jsonc-parser": "^0.3.1",
+		"vscode-nls": "^2.0.1"
+	},
+	"contributes": {
+		"jsonValidation": [
+			{
+				"fileMatch": "package.json",
+				"url": "vscode://schemas/vscode-extensions"
+			},
+			{
+				"fileMatch": "*language-configuration.json",
+				"url": "vscode://schemas/language-configuration"
+			},
+			{
+				"fileMatch": "*icon-theme.json",
+				"url": "vscode://schemas/icon-theme"
+			},
+			{
+				"fileMatch": "*color-theme.json",
+				"url": "vscode://schemas/color-theme"
+			}
+		]
+	},
+	"devDependencies": {
+		"@types/node": "^7.0.4"
+	}
+}

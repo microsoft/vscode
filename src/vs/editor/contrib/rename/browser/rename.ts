@@ -5,324 +5,263 @@
 
 'use strict';
 
-import 'vs/css!./rename';
-import {TPromise} from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
+import * as nls from 'vs/nls';
+import { isPromiseCanceledError, onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import Severity from 'vs/base/common/severity';
-import EventEmitter = require('vs/base/common/eventEmitter');
-import {Range} from 'vs/editor/common/core/range';
-import {IMessageService} from 'vs/platform/message/common/message';
-import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
-import {IKeybindingService, IKeybindingContextKey} from 'vs/platform/keybinding/common/keybindingService';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFileService } from 'vs/platform/files/common/files';
+import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { IRange, ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { BulkEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import RenameInputField from './renameInputField';
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { IThemeService } from "vs/platform/theme/common/themeService";
+import { sequence, asWinJsPromise } from 'vs/base/common/async';
+import { WorkspaceEdit, RenameProviderRegistry } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
 
-class LinkedEditingController {
+export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
 
-	private editor: EditorCommon.ICommonCodeEditor;
-	private listenersToRemove:EventEmitter.ListenerUnbind[];
-	private decorations:string[];
-	private isDisposed: boolean;
-	private _onDispose: () => void;
+	const supports = RenameProviderRegistry.ordered(model);
+	const rejects: string[] = [];
+	let hasResult = false;
 
-	constructor(editor: EditorCommon.ICommonCodeEditor, selections: EditorCommon.ISelection[], ranges: EditorCommon.IRange[], onDispose: () => void) {
-		this._onDispose = onDispose;
-		this.editor = editor;
-		this.isDisposed = false;
-
-		// Decorate editing ranges
-		this.editor.changeDecorations((changeAccessor:EditorCommon.IModelDecorationsChangeAccessor) => {
-			var newDecorations: EditorCommon.IModelDeltaDecoration[] = [];
-			for (var i = 0, len = selections.length; i < len; i++) {
-				var className = 'linked-editing-placeholder';
-				newDecorations.push({
-					range: ranges[i],
-					options: {
-						className: className
+	const factory = supports.map(support => {
+		return () => {
+			if (!hasResult) {
+				return asWinJsPromise((token) => {
+					return support.provideRenameEdits(model, position, newName, token);
+				}).then(result => {
+					if (!result) {
+						// ignore
+					} else if (!result.rejectReason) {
+						hasResult = true;
+						return result;
+					} else {
+						rejects.push(result.rejectReason);
 					}
+					return undefined;
+				}, err => {
+					onUnexpectedExternalError(err);
+					return TPromise.wrapError<WorkspaceEdit>('provider failed');
 				});
 			}
+			return undefined;
+		};
+	});
 
-			this.decorations = changeAccessor.deltaDecorations([], newDecorations);
-		});
+	return sequence(factory).then((values): WorkspaceEdit => {
+		let result = values[0];
+		if (rejects.length > 0) {
+			return {
+				edits: undefined,
+				rejectReason: rejects.join('\n')
+			};
+		} else if (!result) {
+			return {
+				edits: undefined,
+				rejectReason: nls.localize('no result', "No result.")
+			};
+		} else {
+			return result;
+		}
+	});
+}
 
-		// Begin linked editing (multi-cursor)
-		this.editor.setSelections(selections);
 
-		this.listenersToRemove = [];
-		this.listenersToRemove.push(this.editor.addListener(EditorCommon.EventType.CursorPositionChanged, (e:EditorCommon.ICursorPositionChangedEvent) => {
-			if (this.isDisposed) {
-				return;
-			}
-			var cursorCount = 1 + e.secondaryPositions.length;
-			if (cursorCount !== this.decorations.length) {
-				this.dispose();
-			}
-		}));
+// ---  register actions and commands
+
+const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false);
+
+@editorContribution
+class RenameController implements IEditorContribution {
+
+	private static ID = 'editor.contrib.renameController';
+
+	public static get(editor: ICommonCodeEditor): RenameController {
+		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
-	public onEnterOrEscape(): boolean {
-		if (this.isDisposed) {
-			return;
-		}
-		// Basically cancel multi-cursor
-		this.editor.setSelection(this.editor.getSelection());
-		this.dispose();
-		return true;
+	private _renameInputField: RenameInputField;
+	private _renameInputVisible: IContextKey<boolean>;
+
+	constructor(
+		private editor: ICodeEditor,
+		@IMessageService private _messageService: IMessageService,
+		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService,
+		@IProgressService private _progressService: IProgressService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@optional(IFileService) private _fileService: IFileService
+	) {
+		this._renameInputField = new RenameInputField(editor, themeService);
+		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 	}
 
 	public dispose(): void {
-		if (this.isDisposed) {
-			return;
-		}
-		this.isDisposed = true;
-		this._onDispose();
-
-		this.decorations = this.editor.deltaDecorations(this.decorations, []);
-
-		this.listenersToRemove.forEach((element) => {
-			element();
-		});
-		this.listenersToRemove = [];
+		this._renameInputField.dispose();
 	}
 
-}
-
-class LocalProgressService implements IProgressService {
-	public serviceId = IProgressService;
-
-	constructor(private _editor:EditorCommon.ICommonCodeEditor) {
-		//
+	public getId(): string {
+		return RenameController.ID;
 	}
 
-	showWhile<T>(promise:TPromise<T>, delay?:number):TPromise<T> {
+	public run(): TPromise<void> {
 
-		var decoration: string,
-			delayHandle: number;
+		const selection = this.editor.getSelection(),
+			word = this.editor.getModel().getWordAtPosition(selection.getStartPosition());
 
-		delayHandle = setTimeout(() => {
-			decoration = this._addDecoration();
-		}, delay || 0);
-
-		return promise.then((value) => {
-			clearTimeout(delayHandle);
-			this._removeDecoration(decoration);
-			return value;
-		}, (err) => {
-			clearTimeout(delayHandle);
-			this._removeDecoration(decoration);
-			throw err;
-		});
-	}
-
-	private _addDecoration():string {
-
-		var position = this._editor.getPosition(),
-			word = this._editor.getModel().getWordAtPosition(position),
-			decorationId:string;
-
-		var decorations = this._editor.deltaDecorations([], [{
-			range: {
-				startLineNumber: position.lineNumber,
-				startColumn: word.startColumn,
-				endLineNumber: position.lineNumber,
-				endColumn: word.endColumn
-			},
-			options: {
-				inlineClassName: 'word-level-progress'
-			}
-		}]);
-
-		return decorations[0];
-	}
-
-	private _removeDecoration(decorationId:string):void {
-		if(decorationId) {
-			this._editor.changeDecorations((accessor) => {
-				accessor.deltaDecorations([decorationId], []);
-			});
-		}
-	}
-
-	public show(...args:any[]):IProgressRunner {
-		throw new Error('not implemented');
-	}
-}
-
-export class ChangeAllAction extends EditorAction {
-
-	public static ID = 'editor.action.changeAll';
-
-	private _idPool:number;
-	private _messageService:IMessageService;
-	private _progressService: IProgressService;
-	private _currentController: LinkedEditingController;
-	private _changeAllMode: IKeybindingContextKey<boolean>;
-
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @IMessageService messageService: IMessageService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(descriptor, editor, Behaviour.WidgetFocus | Behaviour.Writeable | Behaviour.ShowInContextMenu | Behaviour.UpdateOnCursorPositionChange);
-		this._idPool = 0;
-		this._messageService = messageService;
-		this._progressService = new LocalProgressService(this.editor);
-		this._currentController = null;
-		this._changeAllMode = keybindingService.createKey(CONTEXT_CHANGE_ALL_MODE, false);
-	}
-
-	public getGroupId(): string {
-		return '2_change/1_changeAll';
-	}
-
-	public isSupported():boolean {
-		var mode = this.editor.getModel().getMode();
-
-		return !!mode && !!mode.occurrencesSupport && super.isSupported();
-	}
-
-	public computeInfos(editor:EditorCommon.ICommonCodeEditor):TPromise<Modes.IOccurence[]> {
-		var selection = editor.getSelection();
-		var position = selection.getStartPosition();
-		var model = editor.getModel();
-
-		return this.editor.getModel().getMode().occurrencesSupport.findOccurrences(model.getAssociatedResource(), position);
-	}
-
-	public run():TPromise<boolean> {
-
-		var myId = ++this._idPool,
-			state = this.editor.captureState(EditorCommon.CodeEditorStateFlag.Position, EditorCommon.CodeEditorStateFlag.Value),
-			capturedSelection = this.editor.getSelection(),
-			infoPromise = this.computeInfos(this.editor);
-
-		if(this._progressService) {
-			this._progressService.showWhile(infoPromise, 500);
+		if (!word) {
+			return undefined;
 		}
 
-		return infoPromise.then((infos:Modes.IOccurence[]) => {
+		let lineNumber = selection.startLineNumber,
+			selectionStart = 0,
+			selectionEnd = word.word.length,
+			wordRange: IRange;
 
-			if(myId !== this._idPool) {
-				return;
-			}
-
-			if(!state.validate(this.editor)) {
-				return;
-			}
-
-			if(infos.length === 0) {
-				return;
-			}
-
-			var ranges = infos.map((info) => {
-				return info.range;
-			});
-
-			this._beginLinkedEditing(ranges, capturedSelection);
-
-			return true;
-		}, (e) => {
-			this._messageService.show(Severity.Info, e);
-		});
-	}
-
-	private _indexOf(ranges:EditorCommon.IRange[], lineNumber: number, column: number): number {
-		var pos = {
-			lineNumber: lineNumber,
-			column: column
+		wordRange = {
+			startLineNumber: lineNumber,
+			startColumn: word.startColumn,
+			endLineNumber: lineNumber,
+			endColumn: word.endColumn
 		};
-		for (var i = 0; i < ranges.length; i++) {
-			if (ranges[i].startLineNumber !== lineNumber) {
-				// Only consider ranges that start on the same line as position
-				continue;
-			}
-			if (Range.containsPosition(ranges[i], pos)) {
-				return i;
-			}
-		}
-		return -1;
-	}
 
-	private _beginLinkedEditing(ranges: EditorCommon.IRange[], capturedSelection: EditorCommon.IEditorSelection): void {
-		if (this._currentController) {
-			this._currentController.dispose();
-			this._currentController = null;
-		}
-		var editorSelection = this.editor.getSelection();
-
-		// Try to find a suitable range for the current editor position
-		var foundRangeIndex = this._indexOf(ranges, editorSelection.positionLineNumber, editorSelection.positionColumn);
-
-		if (foundRangeIndex === -1) {
-			// Current editor position is outside of one of these ranges, try again with the original editor position
-			editorSelection = capturedSelection;
-			foundRangeIndex = this._indexOf(ranges, editorSelection.positionLineNumber, editorSelection.positionColumn);
-
-			if (foundRangeIndex === -1) {
-				// These ranges are bogus!
-				return;
-			}
+		if (!selection.isEmpty() && selection.startLineNumber === selection.endLineNumber) {
+			selectionStart = Math.max(0, selection.startColumn - word.startColumn);
+			selectionEnd = Math.min(word.endColumn, selection.endColumn) - word.startColumn;
 		}
 
-		var hasSelectionInFoundRange = false;
-		if (!editorSelection.isEmpty()) {
-			if (Range.containsPosition(ranges[foundRangeIndex], { lineNumber: editorSelection.selectionStartLineNumber, column: editorSelection.selectionStartColumn})) {
-				hasSelectionInFoundRange = true;
-			}
-		}
+		this._renameInputVisible.set(true);
+		return this._renameInputField.getInput(wordRange, word.word, selectionStart, selectionEnd).then(newName => {
+			this._renameInputVisible.reset();
+			this.editor.focus();
 
-		var deltaColumnForPosition: number, deltaColumnForStartSelection: number;
-		if (hasSelectionInFoundRange) {
-			deltaColumnForPosition = editorSelection.positionColumn - ranges[foundRangeIndex].startColumn;
-			deltaColumnForStartSelection = editorSelection.selectionStartColumn - ranges[foundRangeIndex].startColumn;
-		} else {
-			deltaColumnForPosition = ranges[foundRangeIndex].endColumn - ranges[foundRangeIndex].startColumn;
-			deltaColumnForStartSelection = 0;
-		}
+			const renameOperation = this._prepareRename(newName).then(edit => {
 
-		var newEditorSelections: EditorCommon.ISelection[] = [];
-		newEditorSelections.push({
-			selectionStartLineNumber: ranges[foundRangeIndex].startLineNumber,
-			selectionStartColumn: ranges[foundRangeIndex].startColumn + deltaColumnForStartSelection,
-			positionLineNumber: ranges[foundRangeIndex].startLineNumber,
-			positionColumn: ranges[foundRangeIndex].startColumn + deltaColumnForPosition,
-		});
-
-		for (var i = 0; i < ranges.length; i++) {
-			if (i !== foundRangeIndex) {
-				newEditorSelections.push({
-					selectionStartLineNumber: ranges[i].startLineNumber,
-					selectionStartColumn: ranges[i].startColumn + deltaColumnForStartSelection,
-					positionLineNumber: ranges[i].startLineNumber,
-					positionColumn: ranges[i].startColumn + deltaColumnForPosition,
+				return edit.finish().then(selection => {
+					if (selection) {
+						this.editor.setSelection(selection);
+					}
 				});
-			}
-		}
 
-		this._changeAllMode.set(true);
-		this._currentController = new LinkedEditingController(this.editor, newEditorSelections, ranges, () => {
-			this._changeAllMode.reset();
+			}, err => {
+				if (typeof err === 'string') {
+					this._messageService.show(Severity.Info, err);
+					return undefined;
+				} else {
+					this._messageService.show(Severity.Error, nls.localize('rename.failed', "Sorry, rename failed to execute."));
+					return TPromise.wrapError(err);
+				}
+			});
+
+			this._progressService.showWhile(renameOperation, 250);
+			return renameOperation;
+
+		}, err => {
+			this._renameInputVisible.reset();
+			this.editor.focus();
+
+			if (!isPromiseCanceledError(err)) {
+				return TPromise.wrapError(err);
+			}
+			return undefined;
 		});
 	}
 
-	public leaveChangeAllMode(): void {
-		if (this._currentController) {
-			this._currentController.onEnterOrEscape();
-			this._currentController = null;
-		}
+	public acceptRenameInput(): void {
+		this._renameInputField.acceptInput();
+	}
+
+	public cancelRenameInput(): void {
+		this._renameInputField.cancelInput();
+	}
+
+	private _prepareRename(newName: string): TPromise<BulkEdit> {
+
+		// start recording of file changes so that we can figure out if a file that
+		// is to be renamed conflicts with another (concurrent) modification
+		let edit = createBulkEdit(this._textModelResolverService, <ICodeEditor>this.editor, this._fileService);
+
+		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
+			if (result.rejectReason) {
+				return TPromise.wrapError(result.rejectReason);
+			}
+			edit.add(result.edits);
+			return edit;
+		});
 	}
 }
 
-var CONTEXT_CHANGE_ALL_MODE = 'inChangeAllMode';
+// ---- action implementation
 
-var weight = CommonEditorRegistry.commandWeight(30);
+@editorAction
+export class RenameAction extends EditorAction {
 
-// register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ChangeAllAction, ChangeAllAction.ID, nls.localize('changeAll.label', "Change All Occurrences"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.F2
+	constructor() {
+		super({
+			id: 'editor.action.rename',
+			label: nls.localize('rename.label', "Rename Symbol"),
+			alias: 'Rename Symbol',
+			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasRenameProvider),
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyCode.F2
+			},
+			menuOpts: {
+				group: '1_modification',
+				order: 1.1
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+		let controller = RenameController.get(editor);
+		if (controller) {
+			return controller.run();
+		}
+		return undefined;
+	}
+}
+
+const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);
+
+CommonEditorRegistry.registerEditorCommand(new RenameCommand({
+	id: 'acceptRenameInput',
+	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
+	handler: x => x.acceptRenameInput(),
+	kbOpts: {
+		weight: CommonEditorRegistry.commandWeight(99),
+		kbExpr: EditorContextKeys.Focus,
+		primary: KeyCode.Enter
+	}
 }));
-CommonEditorRegistry.registerEditorCommand('leaveChangeAllMode', weight, { primary: KeyCode.Enter, secondary: [KeyCode.Escape] }, true, CONTEXT_CHANGE_ALL_MODE,(ctx, editor, args) => {
-	var action = <ChangeAllAction>editor.getAction(ChangeAllAction.ID);
-	action.leaveChangeAllMode();
+
+CommonEditorRegistry.registerEditorCommand(new RenameCommand({
+	id: 'cancelRenameInput',
+	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
+	handler: x => x.cancelRenameInput(),
+	kbOpts: {
+		weight: CommonEditorRegistry.commandWeight(99),
+		kbExpr: EditorContextKeys.Focus,
+		primary: KeyCode.Escape,
+		secondary: [KeyMod.Shift | KeyCode.Escape]
+	}
+}));
+
+// ---- api bridge command
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentRenameProvider', function (model, position, args) {
+	let { newName } = args;
+	if (typeof newName !== 'string') {
+		throw illegalArgument('newName');
+	}
+	return rename(model, position, newName);
 });

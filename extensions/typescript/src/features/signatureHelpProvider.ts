@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { workspace, SignatureHelpProvider, SignatureHelp, SignatureInformation, ParameterInformation, TextDocument, Position, CancellationToken } from 'vscode';
+import { SignatureHelpProvider, SignatureHelp, SignatureInformation, ParameterInformation, TextDocument, Position, CancellationToken } from 'vscode';
 
 import * as Previewer from './previewer';
 import * as Proto from '../protocol';
@@ -13,39 +13,44 @@ import { ITypescriptServiceClient } from '../typescriptService';
 
 export default class TypeScriptSignatureHelpProvider implements SignatureHelpProvider {
 
-	private client: ITypescriptServiceClient;
+	public constructor(
+		private client: ITypescriptServiceClient) { }
 
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
-	}
-
-	public provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp> {
-		let args: Proto.SignatureHelpRequestArgs = {
-			file: this.client.asAbsolutePath(document.uri),
+	public provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp | undefined | null> {
+		const filepath = this.client.normalizePath(document.uri);
+		if (!filepath) {
+			return Promise.resolve(null);
+		}
+		const args: Proto.SignatureHelpRequestArgs = {
+			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1
 		};
-		if (!args.file) {
-			return Promise.resolve<SignatureHelp>(null);
-		}
 		return this.client.execute('signatureHelp', args, token).then((response) => {
-			let info = response.body;
+			const info = response.body;
 			if (!info) {
 				return null;
 			}
 
-			let result = new SignatureHelp();
+			const result = new SignatureHelp();
 			result.activeSignature = info.selectedItemIndex;
 			result.activeParameter = info.argumentIndex;
 
-			info.items.forEach(item => {
+			info.items.forEach((item, i) => {
+				if (!info) {
+					return;
+				}
 
-				let signature = new SignatureInformation('');
+				// keep active parameter in bounds
+				if (i === info.selectedItemIndex && item.isVariadic) {
+					result.activeParameter = Math.min(info.argumentIndex, item.parameters.length - 1);
+				}
+
+				const signature = new SignatureInformation('');
 				signature.label += Previewer.plain(item.prefixDisplayParts);
 
 				item.parameters.forEach((p, i, a) => {
-
-					let parameter = new ParameterInformation(
+					const parameter = new ParameterInformation(
 						Previewer.plain(p.displayParts),
 						Previewer.plain(p.documentation));
 
@@ -56,11 +61,13 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 					}
 				});
 				signature.label += Previewer.plain(item.suffixDisplayParts);
+				signature.documentation = Previewer.plain(item.documentation);
 				result.signatures.push(signature);
 			});
 
 			return result;
 		}, (err: any) => {
+			this.client.error(`'signatureHelp' request failed with error.`, err);
 			return null;
 		});
 	}

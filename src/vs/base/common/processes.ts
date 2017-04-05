@@ -11,8 +11,7 @@ import * as Platform from 'vs/base/common/platform';
 import { IStringDictionary } from 'vs/base/common/collections';
 import * as Types from 'vs/base/common/types';
 
-import { ValidationStatus, ValidationState, ILogger, Parser, ISystemVariables } from 'vs/base/common/parsers';
-
+import { ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
 
 /**
  * Options to be passed to the external program or shell.
@@ -28,7 +27,7 @@ export interface CommandOptions {
 	 * The environment of the executed program or shell. If omitted
 	 * the parent process' environment is used.
 	 */
-	env?: { [key:string]: string; };
+	env?: { [key: string]: string; };
 }
 
 export interface Executable {
@@ -68,24 +67,32 @@ export enum Source {
  * The data send via a success callback
  */
 export interface SuccessData {
-	error?:Error;
-	cmdCode?:number;
-	terminated?:boolean;
+	error?: Error;
+	cmdCode?: number;
+	terminated?: boolean;
 }
 
 /**
  * The data send via a error callback
  */
 export interface ErrorData {
-	error?:Error;
-	terminated?:boolean;
-	stdout?:string;
-	stderr?:string;
+	error?: Error;
+	terminated?: boolean;
+	stdout?: string;
+	stderr?: string;
 }
 
 export interface TerminateResponse {
 	success: boolean;
+	code?: TerminateResponseCode;
 	error?: any;
+}
+
+export enum TerminateResponseCode {
+	Success = 0,
+	Unknown = 1,
+	AccessDenied = 2,
+	ProcessNotFound = 3,
 }
 
 export namespace Config {
@@ -108,7 +115,7 @@ export namespace Config {
 		/**
 		 * Index signature
 		 */
-		[key:string]: string | string[] | IStringDictionary<string>;
+		[key: string]: string | string[] | IStringDictionary<string>;
 	}
 
 	export interface BaseExecutable {
@@ -165,13 +172,13 @@ export interface ParserOptions {
 
 export class ExecutableParser extends Parser {
 
-	constructor(logger: ILogger, validationStatus: ValidationStatus = new ValidationStatus()) {
-		super(logger, validationStatus);
+	constructor(logger: IProblemReporter) {
+		super(logger);
 	}
 
 	public parse(json: Config.Executable, parserOptions: ParserOptions = { globals: null, emptyCommand: false, noDefaults: false }): Executable {
 		let result = this.parseExecutable(json, parserOptions.globals);
-		if (this.status.isFatal()) {
+		if (this.problemReporter.status.isFatal()) {
 			return result;
 		}
 		let osExecutable: Executable;
@@ -186,8 +193,7 @@ export class ExecutableParser extends Parser {
 			result = ExecutableParser.mergeExecutable(result, osExecutable);
 		}
 		if ((!result || !result.command) && !parserOptions.emptyCommand) {
-			this.status.state = ValidationState.Fatal;
-			this.log(NLS.localize('ExecutableParser.commandMissing', 'Error: executable info must define a command of type string.'));
+			this.fatal(NLS.localize('ExecutableParser.commandMissing', 'Error: executable info must define a command of type string.'));
 			return null;
 		}
 		if (!parserOptions.noDefaults) {
@@ -243,25 +249,4 @@ export class ExecutableParser extends Parser {
 		Parser.merge(executable, other, true);
 		return executable;
 	}
-}
-
-export function resolveCommandOptions(options: CommandOptions, variables: ISystemVariables): CommandOptions {
-	let result = Objects.clone(options);
-	if (result.cwd) {
-		result.cwd = variables.resolve(result.cwd);
-	}
-	if (result.env) {
-		result.env = variables.resolve(result.env);
-	}
-	return result;
-}
-
-export function resolveExecutable(executable: Executable, variables: ISystemVariables): Executable {
-	let result = Objects.clone(executable);
-	result.command = variables.resolve(result.command);
-	result.args = variables.resolve(result.args);
-	if (result.options) {
-		result.options = resolveCommandOptions(result.options, variables);
-	}
-	return result;
 }

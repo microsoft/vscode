@@ -12,7 +12,6 @@
 	-moz-box-sizing:	border-box;
 	-ms-box-sizing:		border-box;
 	box-sizing:			border-box;
-	font-family: "Segoe UI", "SFUIText-Light", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
 	line-height: auto !important;
 
 	/* Customizable */
@@ -58,10 +57,6 @@
 	overflow: hidden;
 }
 
-.monaco-inputbox > .wrapper > .input:focus {
-	outline: none;
-}
-
 .monaco-inputbox > .wrapper > .mirror {
 	position: absolute;
 	display: inline-block;
@@ -105,8 +100,18 @@
 /* Action bar support */
 .monaco-inputbox .monaco-action-bar {
 	position: absolute;
-	right: 0px;
+	right: 2px;
 	top: 4px;
+}
+
+.monaco-inputbox .monaco-action-bar .action-item {
+	margin-left: 2px;
+}
+
+.monaco-inputbox .monaco-action-bar .action-item .icon {
+	background-repeat: no-repeat;
+	width: 16px;
+	height: 16px;
 }
 
 /* Theming */

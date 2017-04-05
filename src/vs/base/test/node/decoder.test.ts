@@ -10,9 +10,9 @@ import decoder = require('vs/base/node/decoder');
 
 suite('Decoder', () => {
 
-	test('decoding', function() {
-		var lineDecoder = new decoder.LineDecoder();
-		var res = lineDecoder.write(new Buffer('hello'));
+	test('decoding', function () {
+		const lineDecoder = new decoder.LineDecoder();
+		let res = lineDecoder.write(new Buffer('hello'));
 		assert.equal(res.length, 0);
 
 		res = lineDecoder.write(new Buffer('\nworld'));

@@ -4,24 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import HoverOperation = require('./hoverOperation');
-import HoverWidget = require('./hoverWidgets');
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { HoverOperation, IHoverComputer } from './hoverOperation';
+import { GlyphHoverWidget } from './hoverWidgets';
+import { $ } from 'vs/base/browser/dom';
+import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
+import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
+import URI from 'vs/base/common/uri';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { MarkedString } from 'vs/base/common/htmlContent';
 
 export interface IHoverMessage {
-	value?: string;
-	range?: EditorCommon.IRange;
-	className?: string;
+	value: MarkedString;
 }
 
-class MarginComputer implements HoverOperation.IHoverComputer<IHoverMessage[]> {
+class MarginComputer implements IHoverComputer<IHoverMessage[]> {
 
-	private _editor: EditorBrowser.ICodeEditor;
+	private _editor: ICodeEditor;
 	private _lineNumber: number;
 	private _result: IHoverMessage[];
 
-	constructor(editor:EditorBrowser.ICodeEditor) {
+	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._lineNumber = -1;
 	}
@@ -36,19 +42,35 @@ class MarginComputer implements HoverOperation.IHoverComputer<IHoverMessage[]> {
 	}
 
 	public computeSync(): IHoverMessage[] {
-		var result: IHoverMessage[] = [],
-			lineDecorations = this._editor.getLineDecorations(this._lineNumber),
-			i: number,
-			len: number,
-			d: EditorCommon.IModelDecoration;
+		const hasHoverContent = (contents: MarkedString | MarkedString[]) => {
+			return contents && (!Array.isArray(contents) || (<MarkedString[]>contents).length > 0);
+		};
+		const toHoverMessage = (contents: MarkedString): IHoverMessage => {
+			return {
+				value: contents
+			};
+		};
 
-		for (i = 0, len = lineDecorations.length; i < len; i++) {
-			d = lineDecorations[i];
+		let lineDecorations = this._editor.getLineDecorations(this._lineNumber);
 
-			if (d.options.glyphMarginClassName && d.options.hoverMessage) {
-				result.push({
-					value: d.options.hoverMessage
-				});
+		let result: IHoverMessage[] = [];
+		for (let i = 0, len = lineDecorations.length; i < len; i++) {
+			let d = lineDecorations[i];
+
+			if (!d.options.glyphMarginClassName) {
+				continue;
+			}
+
+			let hoverMessage = d.options.glyphMarginHoverMessage;
+
+			if (!hasHoverContent(hoverMessage)) {
+				continue;
+			}
+
+			if (Array.isArray(hoverMessage)) {
+				result = result.concat(hoverMessage.map(toHoverMessage));
+			} else {
+				result.push(toHoverMessage(hoverMessage));
 			}
 		}
 
@@ -68,33 +90,40 @@ class MarginComputer implements HoverOperation.IHoverComputer<IHoverMessage[]> {
 	}
 }
 
-export class ModesGlyphHoverWidget extends HoverWidget.GlyphHoverWidget {
+export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 
-	static ID = 'editor.contrib.modesGlyphHoverWidget';
+	public static ID = 'editor.contrib.modesGlyphHoverWidget';
 	private _messages: IHoverMessage[];
 	private _lastLineNumber: number;
 
 	private _computer: MarginComputer;
-	private _hoverOperation: HoverOperation.HoverOperation<IHoverMessage[]>;
+	private _hoverOperation: HoverOperation<IHoverMessage[]>;
 
-	constructor(editor: EditorBrowser.ICodeEditor) {
+	constructor(editor: ICodeEditor, private openerService: IOpenerService, private modeService: IModeService) {
 		super(ModesGlyphHoverWidget.ID, editor);
 
-		this._lastLineNumber === -1;
+		this.openerService = openerService || NullOpenerService;
+
+		this._lastLineNumber = -1;
 
 		this._computer = new MarginComputer(this._editor);
 
-		this._hoverOperation = new HoverOperation.HoverOperation(
+		this._hoverOperation = new HoverOperation(
 			this._computer,
-			(result:IHoverMessage[]) => this._withResult(result),
+			(result: IHoverMessage[]) => this._withResult(result),
 			null,
-			(result:any) => this._withResult(result)
+			(result: any) => this._withResult(result)
 		);
 
 	}
 
+	public dispose(): void {
+		this._hoverOperation.cancel();
+		super.dispose();
+	}
+
 	public onModelDecorationsChanged(): void {
-		if (this._isVisible) {
+		if (this.isVisible) {
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
@@ -124,7 +153,7 @@ export class ModesGlyphHoverWidget extends HoverWidget.GlyphHoverWidget {
 		super.hide();
 	}
 
-	public _withResult(result:IHoverMessage[]): void {
+	public _withResult(result: IHoverMessage[]): void {
 		this._messages = result;
 
 		if (this._messages.length > 0) {
@@ -136,29 +165,24 @@ export class ModesGlyphHoverWidget extends HoverWidget.GlyphHoverWidget {
 
 	private _renderMessages(lineNumber: number, messages: IHoverMessage[]): void {
 
-		var fragment = document.createDocumentFragment();
+		const fragment = document.createDocumentFragment();
 
 		messages.forEach((msg) => {
+			const renderedContents = renderMarkedString(msg.value, {
+				actionCallback: content => this.openerService.open(URI.parse(content)).then(undefined, onUnexpectedError),
+				codeBlockRenderer: (languageAlias, value): string | TPromise<string> => {
+					// In markdown, it is possible that we stumble upon language aliases (e.g. js instead of javascript)
+					const modeId = this.modeService.getModeIdForLanguageName(languageAlias);
+					return this.modeService.getOrCreateMode(modeId).then(_ => {
+						return `<div class="code">${tokenizeToString(value, modeId)}</div>`;
+					});
+				}
+			});
 
-			var row:HTMLElement = document.createElement('div');
-			var span:HTMLElement = null;
-
-			if (msg.className) {
-				span = document.createElement('span');
-				span.textContent = msg.value;
-				span.className = msg.className;
-				row.appendChild(span);
-			} else {
-				row.textContent = msg.value;
-			}
-
-			fragment.appendChild(row);
+			fragment.appendChild($('div.hover-row', null, renderedContents));
 		});
 
-		this._domNode.textContent = '';
-		this._domNode.appendChild(fragment);
-
-		// show
+		this.updateContents(fragment);
 		this.showAt(lineNumber);
 	}
 }

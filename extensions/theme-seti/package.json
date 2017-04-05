@@ -1,0 +1,20 @@
+{
+	"name": "vscode-theme-seti",
+	"private": true,
+	"version": "0.1.0",
+    "description": "A file icon theme made out of the Seti UI file icons",
+	"publisher": "vscode",
+	"scripts": {
+		"update": "node ./build/update-icon-theme.js"
+	},
+	"engines": { "vscode": "*" },
+	"contributes": {
+		"iconThemes": [
+			{
+				"id": "vs-seti",
+				"label": "Seti (Visual Studio Code)",
+				"path": "./icons/vs-seti-icon-theme.json"
+			}
+		]
+	}
+}

@@ -1,0 +1,20 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"target": "es5",
+		"lib": [
+			"es6",
+			"es2015.promise"
+		],
+		"outDir": "./out",
+		"sourceMap": true,
+		"strictNullChecks": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true
+	},
+	"exclude": [
+		"node_modules"
+	]
+}

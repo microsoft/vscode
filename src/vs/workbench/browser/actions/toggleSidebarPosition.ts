@@ -4,32 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {Promise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import {Registry} from 'vs/platform/platform';
-import {Action} from 'vs/base/common/actions';
-import {SyncActionDescriptor} from 'vs/platform/actions/common/actions';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
-import {IPartService, Position} from 'vs/workbench/services/part/common/partService';
-
-const ID = 'workbench.action.toggleSidebarPosition';
-const LABEL = nls.localize('togglePosition', "Toggle Side Bar Position");
+import { Registry } from 'vs/platform/platform';
+import { Action } from 'vs/base/common/actions';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
 
 export class ToggleSidebarPositionAction extends Action {
 
-	constructor(id: string, label: string, @IPartService private partService: IPartService) {
+	public static ID = 'workbench.action.toggleSidebarPosition';
+	public static LABEL = nls.localize('toggleLocation', "Toggle Side Bar Location");
+
+	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService private partService: IPartService,
+		@IMessageService private messageService: IMessageService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+	) {
 		super(id, label);
 
-		this.enabled = !!this.partService;
+		this.enabled = !!this.partService && !!this.configurationEditingService;
 	}
 
-	public run(): Promise {
-		let position = this.partService.getSideBarPosition();
-		this.partService.setSideBarPosition(position === Position.LEFT ? Position.RIGHT : Position.LEFT);
+	public run(): TPromise<any> {
+		const position = this.partService.getSideBarPosition();
+		const newPositionValue = (position === Position.LEFT) ? 'right' : 'left';
 
-		return Promise.as(null);
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleSidebarPositionAction.sidebarPositionConfigurationKey, value: newPositionValue }).then(null, error => {
+			this.messageService.show(Severity.Error, error);
+		});
+
+		return TPromise.as(null);
 	}
 }
 
-let registry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ID, LABEL), nls.localize('view', "View"));
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleSidebarPositionAction, ToggleSidebarPositionAction.ID, ToggleSidebarPositionAction.LABEL), 'View: Toggle Side Bar Position', nls.localize('view', "View"));

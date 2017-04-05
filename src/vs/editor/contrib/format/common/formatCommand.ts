@@ -4,37 +4,61 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Strings = require('vs/base/common/strings');
-import {Range} from 'vs/editor/common/core/range';
-import {Position} from 'vs/editor/common/core/position';
+import * as strings from 'vs/base/common/strings';
+import { Range } from 'vs/editor/common/core/range';
+import { TextEdit } from 'vs/editor/common/modes';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { Selection } from 'vs/editor/common/core/selection';
 
-export class EditOperationsCommand implements EditorCommon.ICommand {
+export class EditOperationsCommand implements editorCommon.ICommand {
 
-	private _edits:EditorCommon.ISingleEditOperation[];
-	private _initialSelection: EditorCommon.IEditorSelection;
-	private _selectionId: string;
-
-	constructor(edits:EditorCommon.ISingleEditOperation[], initialSelection: EditorCommon.IEditorSelection) {
-		this._edits = edits;
-		this._initialSelection = initialSelection;
+	static execute(editor: editorCommon.ICommonCodeEditor, edits: TextEdit[]) {
+		const cmd = new EditOperationsCommand(edits, editor.getSelection());
+		if (typeof cmd._newEol === 'number') {
+			editor.getModel().setEOL(cmd._newEol);
+		}
+		editor.executeCommand('formatEditsCommand', cmd);
 	}
 
-	public getEditOperations(model: EditorCommon.ITokenizedModel, builder: EditorCommon.IEditOperationBuilder): void {
-		this._edits
+	private _edits: TextEdit[];
+	private _newEol: editorCommon.EndOfLineSequence;
+
+	private _initialSelection: Selection;
+	private _selectionId: string;
+
+	constructor(edits: TextEdit[], initialSelection: Selection) {
+		this._initialSelection = initialSelection;
+		this._edits = [];
+		this._newEol = undefined;
+
+		for (let edit of edits) {
+			if (typeof edit.eol === 'number') {
+				this._newEol = edit.eol;
+			}
+			if (edit.range && typeof edit.text === 'string') {
+				this._edits.push(edit);
+			}
+		}
+	}
+
+	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+
+		for (let edit of this._edits) {
 			// We know that this edit.range comes from the mirror model, so it should only contain \n and no \r's
-			.map((edit) => EditOperationsCommand.trimEdit(edit, model))
-			.filter((edit) => edit !== null) // produced above in case the edit.text is identical to the existing text
-			.forEach((edit) => builder.addEditOperation(Range.lift(edit.range), edit.text));
+			let trimEdit = EditOperationsCommand.trimEdit(edit, model);
+			if (trimEdit !== null) { // produced above in case the edit.text is identical to the existing text
+				builder.addEditOperation(Range.lift(edit.range), edit.text);
+			}
+		}
 
 		var selectionIsSet = false;
 		if (Array.isArray(this._edits) && this._edits.length === 1 && this._initialSelection.isEmpty()) {
 			if (this._edits[0].range.startColumn === this._initialSelection.endColumn &&
-					this._edits[0].range.startLineNumber === this._initialSelection.endLineNumber) {
+				this._edits[0].range.startLineNumber === this._initialSelection.endLineNumber) {
 				selectionIsSet = true;
 				this._selectionId = builder.trackSelection(this._initialSelection, true);
 			} else if (this._edits[0].range.endColumn === this._initialSelection.startColumn &&
-					this._edits[0].range.endLineNumber === this._initialSelection.startLineNumber) {
+				this._edits[0].range.endLineNumber === this._initialSelection.startLineNumber) {
 				selectionIsSet = true;
 				this._selectionId = builder.trackSelection(this._initialSelection, false);
 			}
@@ -45,11 +69,11 @@ export class EditOperationsCommand implements EditorCommon.ICommand {
 		}
 	}
 
-	public computeCursorState(model: EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData): EditorCommon.IEditorSelection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		return helper.getTrackedSelection(this._selectionId);
 	}
 
-	static fixLineTerminators(edit: EditorCommon.ISingleEditOperation, model: EditorCommon.ITokenizedModel): void {
+	static fixLineTerminators(edit: editorCommon.ISingleEditOperation, model: editorCommon.ITokenizedModel): void {
 		edit.text = edit.text.replace(/\r\n|\r|\n/g, model.getEOL());
 	}
 
@@ -61,19 +85,19 @@ export class EditOperationsCommand implements EditorCommon.ICommand {
 	 * bug #15108. There the cursor was jumping since the tracked selection was in the middle of the range edit
 	 * and was lost.
 	 */
-	static trimEdit(edit:EditorCommon.ISingleEditOperation, model: EditorCommon.ITokenizedModel): EditorCommon.ISingleEditOperation {
+	static trimEdit(edit: editorCommon.ISingleEditOperation, model: editorCommon.ITokenizedModel): editorCommon.ISingleEditOperation {
 
 		this.fixLineTerminators(edit, model);
 
 		return this._trimEdit(model.validateRange(edit.range), edit.text, edit.forceMoveMarkers, model);
 	}
 
-	static _trimEdit(editRange:Range, editText:string, editForceMoveMarkers:boolean, model: EditorCommon.ITokenizedModel): EditorCommon.ISingleEditOperation {
+	static _trimEdit(editRange: Range, editText: string, editForceMoveMarkers: boolean, model: editorCommon.ITokenizedModel): editorCommon.ISingleEditOperation {
 
 		let currentText = model.getValueInRange(editRange);
 
 		// Find the equal characters in the front
-		let commonPrefixLength = Strings.commonPrefixLength(editText, currentText);
+		let commonPrefixLength = strings.commonPrefixLength(editText, currentText);
 
 		// If the two strings are identical, return no edit (no-op)
 		if (commonPrefixLength === currentText.length && commonPrefixLength === editText.length) {
@@ -89,7 +113,7 @@ export class EditOperationsCommand implements EditorCommon.ICommand {
 		}
 
 		// Find the equal characters in the rear
-		let commonSuffixLength = Strings.commonSuffixLength(editText, currentText);
+		let commonSuffixLength = strings.commonSuffixLength(editText, currentText);
 
 		if (commonSuffixLength > 0) {
 			// Apply rear trimming

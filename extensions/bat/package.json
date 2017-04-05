@@ -8,7 +8,7 @@
 			"id": "bat",
 			"extensions": [ ".bat", ".cmd"],
 			"aliases": [ "Batch", "bat" ],
-			"configuration": "./bat.configuration.json"
+			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "bat",

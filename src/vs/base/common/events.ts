@@ -58,7 +58,7 @@ export interface IHighlightEvent {
 	source: any;
 }
 
-export var EventType = {
+export const EventType = {
 	PROPERTY_CHANGED: 'propertyChanged',
 	SELECTION: 'selection',
 	FOCUS: 'focus',
@@ -67,7 +67,6 @@ export var EventType = {
 	EXPAND: 'expand',
 	COLLAPSE: 'collapse',
 	TOGGLE: 'toggle',
-	CONTENTS_CHANGED: 'contentsChanged',
 	BEFORE_RUN: 'beforeRun',
 	RUN: 'run',
 	EDIT: 'edit',
@@ -75,5 +74,5 @@ export var EventType = {
 	CANCEL: 'cancel',
 	CHANGE: 'change',
 	DISPOSE: 'dispose',
-}
+};
 

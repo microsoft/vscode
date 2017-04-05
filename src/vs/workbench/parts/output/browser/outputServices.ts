@@ -2,202 +2,382 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {EventProvider} from 'vs/base/common/eventProvider';
+import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
-import {EventSource} from 'vs/base/common/eventSource';
-import {EditorOptions} from 'vs/workbench/common/editor';
-import {StringEditor} from 'vs/workbench/browser/parts/editor/stringEditor';
-import {OUTPUT_MIME, DEFAULT_OUTPUT_CHANNEL, IOutputEvent, IOutputService} from 'vs/workbench/parts/output/common/output';
-import {OutputEditorInput} from 'vs/workbench/parts/output/browser/outputEditorInput';
-import {IWorkbenchEditorService} from 'vs/workbench/services/editor/common/editorService';
-import {IEditor, Position} from 'vs/platform/editor/common/editor';
-import {IEventService} from 'vs/platform/event/common/event';
-import {ILifecycleService} from 'vs/platform/lifecycle/common/lifecycle';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
+import Event, { Emitter } from 'vs/base/common/event';
+import { binarySearch } from 'vs/base/common/arrays';
+import URI from 'vs/base/common/uri';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IEditor } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { Registry } from 'vs/platform/platform';
+import { EditorOptions } from 'vs/workbench/common/editor';
+import { IOutputChannelIdentifier, OutputEditors, IOutputEvent, IOutputChannel, IOutputService, IOutputDelta, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH, OUTPUT_SCHEME, OUTPUT_MIME } from 'vs/workbench/parts/output/common/output';
+import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { OutputLinkProvider } from 'vs/workbench/parts/output/common/outputLinkProvider';
+import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
+
+const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
+
+export class BufferedContent {
+
+	private data: string[] = [];
+	private dataIds: number[] = [];
+	private idPool = 0;
+	private length = 0;
+
+	public append(content: string): void {
+		this.data.push(content);
+		this.dataIds.push(++this.idPool);
+		this.length += content.length;
+		this.trim();
+	}
+
+	public clear(): void {
+		this.data.length = 0;
+		this.dataIds.length = 0;
+		this.length = 0;
+	}
+
+	private trim(): void {
+		if (this.length < MAX_OUTPUT_LENGTH * 1.2) {
+			return;
+		}
+
+		while (this.length > MAX_OUTPUT_LENGTH) {
+			this.dataIds.shift();
+			const removed = this.data.shift();
+			this.length -= removed.length;
+		}
+	}
+
+	public getDelta(previousDelta?: IOutputDelta): IOutputDelta {
+		let idx = -1;
+		if (previousDelta) {
+			idx = binarySearch(this.dataIds, previousDelta.id, (a, b) => a - b);
+		}
+
+		const id = this.idPool;
+		if (idx >= 0) {
+			const value = strings.removeAnsiEscapeCodes(this.data.slice(idx + 1).join(''));
+			return { value, id, append: true };
+		} else {
+			const value = strings.removeAnsiEscapeCodes(this.data.join(''));
+			return { value, id };
+		}
+	}
+}
 
 export class OutputService implements IOutputService {
-	public serviceId = IOutputService;
 
-	private static MAX_OUTPUT = 10000 /* Lines */ * 100 /* Guestimated chars per line */;
-	private static OUTPUT_DELAY = 300; // delay in ms to accumulate output before emitting an event about it
+	public _serviceBrand: any;
 
-	private receivedOutput: { [channel: string]: string; };
+	private receivedOutput: Map<string, BufferedContent> = new Map<string, BufferedContent>();
+	private channels: Map<string, IOutputChannel> = new Map<string, IOutputChannel>();
 
-	private sendOutputEventsTimerId: number;
-	private lastSentOutputEventsTime: number;
-	private bufferedOutput: { [channel: string]: string; };
+	private activeChannelId: string;
 
-	private _onOutput: EventSource<(event: IOutputEvent) => void>;
-	private _onOutputChannel: EventSource<(channel: string) => void>;
+	private _onOutput: Emitter<IOutputEvent>;
+	private _onOutputChannel: Emitter<string>;
+	private _onActiveOutputChannel: Emitter<string>;
+
+	private _outputLinkDetector: OutputLinkProvider;
+	private _outputContentProvider: OutputContentProvider;
+	private _outputPanel: OutputPanel;
 
 	constructor(
+		@IStorageService private storageService: IStorageService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEventService private eventService: IEventService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@IPanelService private panelService: IPanelService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IModelService modelService: IModelService,
+		@ITextModelResolverService textModelResolverService: ITextModelResolverService
 	) {
-		this._onOutput = new EventSource<(event: IOutputEvent) => void>();
-		this._onOutputChannel = new EventSource<(channel: string) => void>();
+		this._onOutput = new Emitter<IOutputEvent>();
+		this._onOutputChannel = new Emitter<string>();
+		this._onActiveOutputChannel = new Emitter<string>();
 
-		this.receivedOutput = Object.create(null);
+		const channels = this.getChannels();
+		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
 
-		this.bufferedOutput = Object.create(null);
-		this.sendOutputEventsTimerId = -1;
-		this.lastSentOutputEventsTime = -1;
+		this._outputLinkDetector = new OutputLinkProvider(contextService, modelService);
+
+		this._outputContentProvider = instantiationService.createInstance(OutputContentProvider, this);
+
+		// Register as text model content provider for output
+		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this._outputContentProvider);
+	}
+
+	public get onOutput(): Event<IOutputEvent> {
+		return this._onOutput.event;
+	}
+
+	public get onOutputChannel(): Event<string> {
+		return this._onOutputChannel.event;
+	}
+
+	public get onActiveOutputChannel(): Event<string> {
+		return this._onActiveOutputChannel.event;
+	}
+
+	public getChannel(id: string): IOutputChannel {
+		if (!this.channels.has(id)) {
+			const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(id);
+
+			const self = this;
+			this.channels.set(id, {
+				id,
+				label: channelData ? channelData.label : id,
+				getOutput(before?: IOutputDelta) {
+					return self.getOutput(id, before);
+				},
+				get scrollLock() {
+					return self._outputContentProvider.scrollLock(id);
+				},
+				set scrollLock(value: boolean) {
+					self._outputContentProvider.setScrollLock(id, value);
+				},
+				append: (output: string) => this.append(id, output),
+				show: (preserveFocus: boolean) => this.showOutput(id, preserveFocus),
+				clear: () => this.clearOutput(id),
+				dispose: () => this.removeOutput(id)
+			});
+		}
+
+		return this.channels.get(id);
+	}
+
+	public getChannels(): IOutputChannelIdentifier[] {
+		return Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannels();
+	}
+
+	private append(channelId: string, output: string): void {
+
+		// Initialize
+		if (!this.receivedOutput.has(channelId)) {
+			this.receivedOutput.set(channelId, new BufferedContent());
+
+			this._onOutputChannel.fire(channelId); // emit event that we have a new channel
+		}
+
+		// Store
+		if (output) {
+			const channel = this.receivedOutput.get(channelId);
+			channel.append(output);
+		}
+
+		this._onOutput.fire({ channelId: channelId, isClear: false });
+	}
+
+	public getActiveChannel(): IOutputChannel {
+		return this.getChannel(this.activeChannelId);
+	}
+
+	private getOutput(channelId: string, previousDelta: IOutputDelta): IOutputDelta {
+		if (this.receivedOutput.has(channelId)) {
+			return this.receivedOutput.get(channelId).getDelta(previousDelta);
+		}
+
+		return undefined;
+	}
+
+	private clearOutput(channelId: string): void {
+		if (this.receivedOutput.has(channelId)) {
+			this.receivedOutput.get(channelId).clear();
+			this._onOutput.fire({ channelId: channelId, isClear: true });
+		}
+	}
+
+	private removeOutput(channelId: string): void {
+		this.receivedOutput.delete(channelId);
+		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(channelId);
+		if (this.activeChannelId === channelId) {
+			const channels = this.getChannels();
+			this.activeChannelId = channels.length ? channels[0].id : undefined;
+			if (this._outputPanel && this.activeChannelId) {
+				this._outputPanel.setInput(OutputEditors.getInstance(this.instantiationService, this.getChannel(this.activeChannelId)), EditorOptions.create({ preserveFocus: true }));
+			}
+			this._onActiveOutputChannel.fire(this.activeChannelId);
+		}
+
+		this._onOutputChannel.fire(channelId);
+	}
+
+	private showOutput(channelId: string, preserveFocus?: boolean): TPromise<IEditor> {
+		const panel = this.panelService.getActivePanel();
+		if (this.activeChannelId === channelId && panel && panel.getId() === OUTPUT_PANEL_ID) {
+			return TPromise.as(<OutputPanel>panel);
+		}
+
+		this.activeChannelId = channelId;
+		this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannelId, StorageScope.WORKSPACE);
+		this._onActiveOutputChannel.fire(channelId); // emit event that a new channel is active
+
+		return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus).then((outputPanel: OutputPanel) => {
+			this._outputPanel = outputPanel;
+			return outputPanel && outputPanel.setInput(OutputEditors.getInstance(this.instantiationService, this.getChannel(this.activeChannelId)), EditorOptions.create({ preserveFocus: preserveFocus })).
+				then(() => outputPanel);
+		});
+	}
+}
+
+class OutputContentProvider implements ITextModelContentProvider {
+
+	private static OUTPUT_DELAY = 300;
+
+	private bufferedOutput = new Map<string, IOutputDelta>();
+	private appendOutputScheduler: { [channel: string]: RunOnceScheduler; };
+	private channelIdsWithScrollLock: Set<string> = new Set();
+	private toDispose: IDisposable[];
+
+	constructor(
+		private outputService: IOutputService,
+		@IModelService private modelService: IModelService,
+		@IModeService private modeService: IModeService,
+		@IPanelService private panelService: IPanelService
+	) {
+		this.appendOutputScheduler = Object.create(null);
+		this.toDispose = [];
 
 		this.registerListeners();
 	}
 
-	public get onOutput(): EventProvider<(event: IOutputEvent) => void> {
-		return this._onOutput.value;
-	}
-
-	public get onOutputChannel(): EventProvider<(channel: string) => void> {
-		return this._onOutputChannel.value;
-	}
-
 	private registerListeners(): void {
-		this.lifecycleService.onShutdown.add(this.dispose, this);
+		this.toDispose.push(this.outputService.onOutput(e => this.onOutputReceived(e)));
+		this.toDispose.push(this.outputService.onActiveOutputChannel(channel => this.scheduleOutputAppend(channel)));
+		this.toDispose.push(this.panelService.onDidPanelOpen(panel => {
+			if (panel.getId() === OUTPUT_PANEL_ID) {
+				this.appendOutput();
+			}
+		}));
 	}
 
-	public append(channelOrOutput: string, output?: string): void {
-		let channel: string = DEFAULT_OUTPUT_CHANNEL;
-		if (output) {
-			channel = channelOrOutput;
+	private onOutputReceived(e: IOutputEvent): void {
+		const model = this.getModel(e.channelId);
+		if (!model) {
+			return; // only react if we have a known model
+		}
+
+		// Append to model
+		if (e.isClear) {
+			model.setValue('');
 		} else {
-			output = channelOrOutput;
+			this.scheduleOutputAppend(e.channelId);
 		}
-
-		this.doAppend(channel, output);
 	}
 
-	private doAppend(channel: string, output: string): void {
-
-		// Initialize
-		if (!this.receivedOutput[channel]) {
-			this.receivedOutput[channel] = '';
-
-			this._onOutputChannel.fire(channel); // emit event that we have a new channel
-		}
-
-		// Sanitize
-		output = strings.removeAnsiEscapeCodes(output);
-
-		// Store
-		if (output) {
-			let curLength = this.receivedOutput[channel].length;
-			let addLength = output.length;
-
-			// Still below MAX_OUTPUT, so just add
-			if (addLength + curLength <= OutputService.MAX_OUTPUT) {
-				this.receivedOutput[channel] += output;
-			} else {
-
-				// New output exceeds MAX_OUTPUT, so trim beginning and use as received output
-				if (addLength > OutputService.MAX_OUTPUT) {
-					this.receivedOutput[channel] = '...' + output.substr(addLength - OutputService.MAX_OUTPUT);
-				}
-
-				// New output + existing output exceeds MAX_OUTPUT, so trim existing output that it fits new output
-				else {
-					let diff = OutputService.MAX_OUTPUT - addLength;
-					this.receivedOutput[channel] = '...' + this.receivedOutput[channel].substr(curLength - diff) + output;
-				}
-			}
-
-			// Buffer
-			let buffer = this.bufferedOutput[channel];
-			if (!buffer) {
-				buffer = output;
-			} else {
-				buffer += output;
-			}
-
-			this.bufferedOutput[channel] = buffer;
-		}
-
-		// Schedule emit delayed to prevent spam
-		this.scheduleSendOutputEvent();
+	private getModel(channel: string): IModel {
+		return this.modelService.getModel(URI.from({ scheme: OUTPUT_SCHEME, path: channel }));
 	}
 
-	private scheduleSendOutputEvent(): void {
-		if (this.sendOutputEventsTimerId !== -1) {
-			return; // sending model events already scheduled
+	private scheduleOutputAppend(channel: string): void {
+		if (!this.isVisible(channel)) {
+			return; // only if the output channel is visible
 		}
 
-		let elapsed = Date.now() - this.lastSentOutputEventsTime;
-		if (elapsed >= OutputService.OUTPUT_DELAY) {
-			this.sendOutputEvents(); // more than 300ms have passed since last events have been sent => send events now
+		let scheduler = this.appendOutputScheduler[channel];
+		if (!scheduler) {
+			scheduler = new RunOnceScheduler(() => {
+				if (this.isVisible(channel)) {
+					this.appendOutput(channel);
+				}
+			}, OutputContentProvider.OUTPUT_DELAY);
+
+			this.appendOutputScheduler[channel] = scheduler;
+			this.toDispose.push(scheduler);
+		}
+
+		if (scheduler.isScheduled()) {
+			return; // only if not already scheduled
+		}
+
+		scheduler.schedule();
+	}
+
+	private appendOutput(channel?: string): void {
+		if (!channel) {
+			const activeChannel = this.outputService.getActiveChannel();
+			channel = activeChannel && activeChannel.id;
+		}
+
+		if (!channel) {
+			return; // return if we do not have a valid channel to append to
+		}
+
+		const model = this.getModel(channel);
+		if (!model) {
+			return; // only react if we have a known model
+		}
+
+		const bufferedOutput = this.bufferedOutput.get(channel);
+		const newOutput = this.outputService.getChannel(channel).getOutput(bufferedOutput);
+		if (!newOutput) {
+			model.setValue('');
+			return;
+		}
+		this.bufferedOutput.set(channel, newOutput);
+
+		// just fill in the full (trimmed) output if we exceed max length
+		if (!newOutput.append) {
+			model.setValue(newOutput.value);
+		}
+
+		// otherwise append
+		else {
+			const lastLine = model.getLineCount();
+			const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
+
+			model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), newOutput.value)]);
+		}
+
+		if (!this.channelIdsWithScrollLock.has(channel)) {
+			// reveal last line
+			const panel = this.panelService.getActivePanel();
+			(<OutputPanel>panel).revealLastLine();
+		}
+	}
+
+	private isVisible(channel: string): boolean {
+		const panel = this.panelService.getActivePanel();
+
+		return panel && panel.getId() === OUTPUT_PANEL_ID && this.outputService.getActiveChannel().id === channel;
+	}
+
+	public scrollLock(channelId): boolean {
+		return this.channelIdsWithScrollLock.has(channelId);
+	}
+
+	public setScrollLock(channelId: string, value: boolean): void {
+		if (value) {
+			this.channelIdsWithScrollLock.add(channelId);
 		} else {
-			this.sendOutputEventsTimerId = setTimeout(() => {
-				this.sendOutputEventsTimerId = -1;
-				this.sendOutputEvents();
-			}, OutputService.OUTPUT_DELAY - elapsed);
+			this.channelIdsWithScrollLock.delete(channelId);
 		}
 	}
 
-	private sendOutputEvents(): void {
-		this.lastSentOutputEventsTime = Date.now();
+	public provideTextContent(resource: URI): TPromise<IModel> {
+		const output = this.outputService.getChannel(resource.fsPath).getOutput();
+		const content = output ? output.value : '';
 
-		for (let channel in this.bufferedOutput) {
-			this._onOutput.fire({ output: this.bufferedOutput[channel], channel });
+		let codeEditorModel = this.modelService.getModel(resource);
+		if (!codeEditorModel) {
+			codeEditorModel = this.modelService.createModel(content, this.modeService.getOrCreateMode(OUTPUT_MIME), resource);
 		}
 
-		this.bufferedOutput = Object.create(null);
-	}
-
-	public getOutput(channel = DEFAULT_OUTPUT_CHANNEL): string {
-		return this.receivedOutput[channel] || '';
-	}
-
-	public getChannels(): string[] {
-		return Object.keys(this.receivedOutput);
-	}
-
-	public clearOutput(channel = DEFAULT_OUTPUT_CHANNEL): void {
-		this.receivedOutput[channel] = '';
-
-		this._onOutput.fire({ channel: channel, output: null /* indicator to clear output */ });
-	}
-
-	public showOutput(channel: string = DEFAULT_OUTPUT_CHANNEL, sideBySide?: boolean | Position, preserveFocus?: boolean): TPromise<IEditor> {
-
-		// If already opened, focus it unless we want to preserve focus
-		let existingOutputEditor = this.findOutputEditor(channel);
-		if (existingOutputEditor) {
-			if (!preserveFocus) {
-				return this.editorService.focusEditor(existingOutputEditor);
-			}
-
-			// Still reveal last line
-			existingOutputEditor.revealLastLine();
-
-			return Promise.as(existingOutputEditor);
-		}
-
-		// Otherwise open new
-		return this.editorService.openEditor(OutputEditorInput.getInstance(this.instantiationService, channel), preserveFocus ? EditorOptions.create({ preserveFocus: true }) : null, <any> sideBySide);
-	}
-
-	private findOutputEditor(channel: string): StringEditor {
-		let editors = this.editorService.getVisibleEditors();
-		for (let i = 0; i < editors.length; i++) {
-			let editor = editors[i];
-			if (editor.input instanceof OutputEditorInput && (<OutputEditorInput>editor.input).getChannel() === channel && (<OutputEditorInput>editor.input).getMime() === OUTPUT_MIME) {
-				return <StringEditor>editor;
-			}
-		}
-
-		return null;
+		return TPromise.as(codeEditorModel);
 	}
 
 	public dispose(): void {
-		if (this.sendOutputEventsTimerId !== -1) {
-			clearTimeout(this.sendOutputEventsTimerId);
-			this.sendOutputEventsTimerId = -1;
-		}
+		this.toDispose = dispose(this.toDispose);
 	}
 }

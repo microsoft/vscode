@@ -5,24 +5,28 @@
 'use strict';
 
 import nls = require('vs/nls');
+import * as errors from 'vs/base/common/errors';
 import env = require('vs/base/common/platform');
 import DOM = require('vs/base/browser/dom');
-import {Promise, TPromise} from 'vs/base/common/winjs.base';
-import {IAction, Action} from 'vs/base/common/actions';
-import {Button} from 'vs/base/browser/ui/button/button';
-import {$} from 'vs/base/browser/builder';
-import {IActionItem} from 'vs/base/browser/ui/actionbar/actionbar';
-import {CollapsibleView} from 'vs/base/browser/ui/splitview/splitview';
-import {Registry} from 'vs/platform/platform';
-import {IWorkbenchActionRegistry, Extensions} from 'vs/workbench/browser/actionRegistry';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {StructuredSelection} from 'vs/platform/selection/common/selection';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IActionRunner, IAction } from 'vs/base/common/actions';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { $ } from 'vs/base/browser/builder';
+import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { CollapsibleView } from 'vs/base/browser/ui/splitview/splitview';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
 
 export class EmptyView extends CollapsibleView {
+	private openFolderButton: Button;
 
-	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(
+		private actionRunner: IActionRunner,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
 		super({
-			minimumSize: 2 * 24
+			minimumSize: 2 * 22,
+			ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section")
 		});
 	}
 
@@ -31,7 +35,7 @@ export class EmptyView extends CollapsibleView {
 		$('span').text(nls.localize('noWorkspace', "No Folder Opened")).appendTo(titleDiv);
 	}
 
-	public renderBody(container: HTMLElement): void {
+	protected renderBody(container: HTMLElement): void {
 		DOM.addClass(container, 'explorer-empty-view');
 
 		let titleDiv = $('div.section').appendTo(container);
@@ -39,44 +43,40 @@ export class EmptyView extends CollapsibleView {
 
 		let section = $('div.section').appendTo(container);
 
-		let button = new Button(section);
-		button.label = nls.localize('openFolder', "Open Folder");
-		button.on('click', () => {
-			this.runWorkbenchAction(env.isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
+		this.openFolderButton = new Button(section);
+		this.openFolderButton.label = nls.localize('openFolder', "Open Folder");
+		this.openFolderButton.addListener2('click', () => {
+			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
+			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
+			this.actionRunner.run(action).done(() => {
+				action.dispose();
+			}, err => {
+				action.dispose();
+				errors.onUnexpectedError(err);
+			});
 		});
 	}
 
-	private runWorkbenchAction(actionId: string): void {
-		let actionRegistry = <IWorkbenchActionRegistry> Registry.as(Extensions.WorkbenchActions);
-		let actionDescriptor = actionRegistry.getWorkbenchAction(actionId);
-
-		let action = <Action> this.instantiationService.createInstance(actionDescriptor.syncDescriptor);
-
-		return action.run().done(() => action.dispose());
+	protected layoutBody(size: number): void {
+		// no-op
 	}
 
 	public create(): TPromise<void> {
-		return Promise.as(null);
-	}
-
-	public refresh(focus: boolean, reveal: boolean, instantProgress?: boolean): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
-	public focus(): void {
-		// Ignore
-	}
-
-	public getSelection(): StructuredSelection {
-		return new StructuredSelection([]);
+	public focusBody(): void {
+		if (this.openFolderButton) {
+			this.openFolderButton.getElement().focus();
+		}
 	}
 
 	protected reveal(element: any, relativeTop?: number): TPromise<void> {
-		return Promise.as(null);
+		return TPromise.as(null);
 	}
 
 	public getActions(): IAction[] {

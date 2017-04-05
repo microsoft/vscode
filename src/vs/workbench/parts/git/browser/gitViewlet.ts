@@ -21,17 +21,17 @@ import gitless = require('vs/workbench/parts/git/browser/views/gitless/gitlessVi
 import notroot = require('vs/workbench/parts/git/browser/views/notroot/notrootView');
 import noworkspace = require('vs/workbench/parts/git/browser/views/noworkspace/noworkspaceView');
 import { DisabledView } from './views/disabled/disabledView';
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {IProgressService, IProgressRunner} from 'vs/platform/progress/common/progress';
-import {ISelection, Selection} from 'vs/platform/selection/common/selection';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
+import { HugeView } from './views/huge/hugeView';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 import IGitService = git.IGitService;
 
 export class GitViewlet
 	extends viewlet.Viewlet
-	implements view.IController
-{
+	implements view.IController {
 	private progressService: IProgressService;
 	private gitService: git.IGitService;
 	private instantiationService: IInstantiationService;
@@ -40,20 +40,20 @@ export class GitViewlet
 	private currentView: view.IView;
 	private progressRunner: IProgressRunner;
 
-	private currentDimension:$.Dimension;
-	private views: { [id:string]: view.IView; };
+	private currentDimension: $.Dimension;
+	private views: { [id: string]: view.IView; };
 
 	private toDispose: lifecycle.IDisposable[];
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService, @IProgressService progressService: IProgressService, @IInstantiationService instantiationService: IInstantiationService, @IGitService gitService: IGitService) {
-		super(contrib.VIEWLET_ID, telemetryService);
+	constructor( @ITelemetryService telemetryService: ITelemetryService, @IProgressService progressService: IProgressService, @IInstantiationService instantiationService: IInstantiationService, @IGitService gitService: IGitService, @IThemeService themeService: IThemeService) {
+		super(contrib.VIEWLET_ID, telemetryService, themeService);
 
 		this.progressService = progressService;
 		this.instantiationService = instantiationService;
 		this.gitService = gitService;
 
 		this.progressRunner = null;
-		this.views = <any> {};
+		this.views = <any>{};
 		this.toDispose = [];
 
 		var views: view.IView[] = [
@@ -61,8 +61,9 @@ export class GitViewlet
 			this.instantiationService.createInstance(empty.EmptyView, this, this.getActionRunner()),
 			this.instantiationService.createInstance(gitless.GitlessView),
 			new notroot.NotRootView(),
-			new noworkspace.NoWorkspaceView(),
-			new DisabledView()
+			this.instantiationService.createInstance(noworkspace.NoWorkspaceView, this.getActionRunner()),
+			new DisabledView(),
+			this.instantiationService.createInstance(HugeView)
 		];
 
 		views.forEach(v => {
@@ -70,14 +71,14 @@ export class GitViewlet
 			this.toDispose.push(v);
 		});
 
-		this.toUnbind.push(this.gitService.addBulkListener(() => this.onGitServiceChanges()));
+		this.toUnbind.push(this.gitService.addBulkListener2(() => this.onGitServiceChanges()));
 	}
 
 	// GitView.IController
 
 	public setView(id: string): winjs.Promise {
 		if (!this.$el) {
-			return winjs.Promise.as(null);
+			return winjs.TPromise.as(null);
 		}
 
 		var view = this.views[id];
@@ -87,10 +88,10 @@ export class GitViewlet
 		}
 
 		if (this.currentView === view) {
-			return winjs.Promise.as(null);
+			return winjs.TPromise.as(null);
 		}
 
-		var promise = winjs.Promise.as(null);
+		var promise = winjs.TPromise.as(null);
 
 		if (this.currentView) {
 			promise = this.currentView.setVisible(false);
@@ -113,15 +114,15 @@ export class GitViewlet
 
 	// Viewlet
 
-	public create(parent:$.Builder): winjs.TPromise<void> {
+	public create(parent: $.Builder): winjs.TPromise<void> {
 		super.create(parent);
 
 		this.$el = parent.div().addClass('git-viewlet');
 
-		return winjs.Promise.as(null);
+		return winjs.TPromise.as(null);
 	}
 
-	public setVisible(visible:boolean): winjs.TPromise<void> {
+	public setVisible(visible: boolean): winjs.TPromise<void> {
 		if (visible) {
 			this.onGitServiceChanges();
 
@@ -131,15 +132,16 @@ export class GitViewlet
 				if (this.currentView) {
 					return this.currentView.setVisible(visible);
 				}
+				return undefined;
 			});
 		} else {
-			return (this.currentView ? this.currentView.setVisible(visible) : winjs.Promise.as(null)).then(() => {
+			return (this.currentView ? this.currentView.setVisible(visible) : winjs.TPromise.as(null)).then(() => {
 				super.setVisible(visible);
 			});
 		}
 	}
 
-	public focus():void {
+	public focus(): void {
 		super.focus();
 
 		if (this.currentView) {
@@ -147,7 +149,7 @@ export class GitViewlet
 		}
 	}
 
-	public layout(dimension:$.Dimension = this.currentDimension):void {
+	public layout(dimension: $.Dimension = this.currentDimension): void {
 		this.currentDimension = dimension;
 
 		if (this.currentView) {
@@ -161,14 +163,6 @@ export class GitViewlet
 
 	public getSecondaryActions(): actions.IAction[] {
 		return this.currentView ? this.currentView.getSecondaryActions() : [];
-	}
-
-	public getSelection(): ISelection {
-		if (!this.currentView) {
-			return Selection.EMPTY;
-		}
-
-		return this.currentView.getSelection();
 	}
 
 	public getControl(): eventemitter.IEventEmitter {
@@ -201,6 +195,9 @@ export class GitViewlet
 		} else if (this.gitService.getState() === git.ServiceState.NotAtRepoRoot) {
 			this.setView('notroot');
 			this.progressRunner = null;
+		} else if (this.gitService.getState() === git.ServiceState.Huge) {
+			this.setView('huge');
+			this.progressRunner = null;
 		} else if (this.gitService.isIdle()) {
 			this.setView('changes');
 			this.progressRunner = null;
@@ -210,7 +207,7 @@ export class GitViewlet
 	}
 
 	public dispose(): void {
-		this.toDispose = lifecycle.disposeAll(this.toDispose);
+		this.toDispose = lifecycle.dispose(this.toDispose);
 		this.views = null;
 
 		super.dispose();

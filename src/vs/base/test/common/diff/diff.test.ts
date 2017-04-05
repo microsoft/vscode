@@ -92,7 +92,7 @@ function stringPower(str: string, power: number): string {
 function lcsTest(Algorithm: any, originalStr: string, modifiedStr: string, answerStr: string) {
 	lcsInnerTest(Algorithm, originalStr, modifiedStr, answerStr);
 	for (var i = 2; i <= 5; i++) {
-		lcsInnerTest(Algorithm, stringPower(originalStr,i), stringPower(modifiedStr,i), stringPower(answerStr,i), true);
+		lcsInnerTest(Algorithm, stringPower(originalStr, i), stringPower(modifiedStr, i), stringPower(answerStr, i), true);
 	}
 }
 
@@ -113,10 +113,12 @@ function lcsTests(Algorithm) {
 
 suite('Diff', () => {
 	test('LcsDiff - different strings tests', function () {
+		this.timeout(10000);
 		lcsTests(LcsDiff);
 	});
 
 	test('LcsDiff2 - different strings tests', function () {
+		this.timeout(10000);
 		lcsTests(LcsDiff2);
 	});
 });

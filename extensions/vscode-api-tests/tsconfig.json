@@ -3,8 +3,11 @@
 		"module": "commonjs",
 		"target": "ES5",
 		"outDir": "out",
-		"noLib": true,
-		"sourceMap": true
+		"lib": [
+			"es2015"
+		],
+		"sourceMap": true,
+		"strictNullChecks": true
 	},
 	"exclude": [
 		"node_modules"

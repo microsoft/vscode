@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
-import Schedulers = require('vs/base/common/async');
-import Errors = require('vs/base/common/errors');
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IHoverComputer<Result> {
 
@@ -28,7 +28,7 @@ export interface IHoverComputer<Result> {
 	/**
 	 * This is called whenever one of the compute* methods returns a truey value
 	 */
-	onResult: (result:Result, isFromSynchronousComputation: boolean) => void;
+	onResult: (result: Result, isFromSynchronousComputation: boolean) => void;
 
 	/**
 	 * This is what will be sent as progress/complete to the computation promise
@@ -39,7 +39,7 @@ export interface IHoverComputer<Result> {
 
 }
 
-enum ComputeHoverOperationState {
+const enum ComputeHoverOperationState {
 	IDLE = 0,
 	FIRST_WAIT = 1,
 	SECOND_WAIT = 2,
@@ -51,25 +51,25 @@ export class HoverOperation<Result> {
 	static HOVER_TIME = 300;
 
 	private _computer: IHoverComputer<Result>;
-	private _state:ComputeHoverOperationState;
+	private _state: ComputeHoverOperationState;
 
-	private _firstWaitScheduler: Schedulers.RunOnceScheduler;
-	private _secondWaitScheduler: Schedulers.RunOnceScheduler;
-	private _loadingMessageScheduler: Schedulers.RunOnceScheduler;
-	private _asyncComputationPromise:TPromise<Result>;
-	private _asyncComputationPromiseDone:boolean;
+	private _firstWaitScheduler: RunOnceScheduler;
+	private _secondWaitScheduler: RunOnceScheduler;
+	private _loadingMessageScheduler: RunOnceScheduler;
+	private _asyncComputationPromise: TPromise<void>;
+	private _asyncComputationPromiseDone: boolean;
 
-	private _completeCallback:(r:Result)=>void;
-	private _errorCallback:(err:any)=>void;
-	private _progressCallback:(progress:any)=>void;
+	private _completeCallback: (r: Result) => void;
+	private _errorCallback: (err: any) => void;
+	private _progressCallback: (progress: any) => void;
 
-	constructor(computer: IHoverComputer<Result>, success:(r:Result)=>void, error:(err:any)=>void, progress:(progress:any)=>void) {
+	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: (err: any) => void, progress: (progress: any) => void) {
 		this._computer = computer;
 		this._state = ComputeHoverOperationState.IDLE;
 
-		this._firstWaitScheduler = new Schedulers.RunOnceScheduler(() => this._triggerAsyncComputation(), this._getHoverTimeMillis() / 2);
-		this._secondWaitScheduler = new Schedulers.RunOnceScheduler(() => this._triggerSyncComputation(), this._getHoverTimeMillis() / 2);
-		this._loadingMessageScheduler = new Schedulers.RunOnceScheduler(() => this._showLoadingMessage(), 3 * this._getHoverTimeMillis());
+		this._firstWaitScheduler = new RunOnceScheduler(() => this._triggerAsyncComputation(), this._getHoverTimeMillis() / 2);
+		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), this._getHoverTimeMillis() / 2);
+		this._loadingMessageScheduler = new RunOnceScheduler(() => this._showLoadingMessage(), 3 * this._getHoverTimeMillis());
 
 		this._asyncComputationPromise = null;
 		this._asyncComputationPromiseDone = false;
@@ -96,12 +96,10 @@ export class HoverOperation<Result> {
 
 		if (this._computer.computeAsync) {
 			this._asyncComputationPromiseDone = false;
-			this._asyncComputationPromise = this._computer.computeAsync();
-
-			this._asyncComputationPromise.then((asyncResult: Result) => {
+			this._asyncComputationPromise = this._computer.computeAsync().then((asyncResult: Result) => {
 				this._asyncComputationPromiseDone = true;
 				this._withAsyncResult(asyncResult);
-			}).done(null, () => this._onError);
+			}, () => this._onError);
 		} else {
 			this._asyncComputationPromiseDone = true;
 		}
@@ -138,21 +136,21 @@ export class HoverOperation<Result> {
 		}
 	}
 
-	private _onComplete(value:Result): void {
+	private _onComplete(value: Result): void {
 		if (this._completeCallback) {
 			this._completeCallback(value);
 		}
 	}
 
-	private _onError(error:any): void {
+	private _onError(error: any): void {
 		if (this._errorCallback) {
 			this._errorCallback(error);
 		} else {
-			Errors.onUnexpectedError(error);
+			onUnexpectedError(error);
 		}
 	}
 
-	private _onProgress(value:Result): void {
+	private _onProgress(value: Result): void {
 		if (this._progressCallback) {
 			this._progressCallback(value);
 		}
@@ -175,11 +173,13 @@ export class HoverOperation<Result> {
 			this._secondWaitScheduler.cancel();
 			if (this._asyncComputationPromise) {
 				this._asyncComputationPromise.cancel();
+				this._asyncComputationPromise = null;
 			}
 		}
 		if (this._state === ComputeHoverOperationState.WAITING_FOR_ASYNC_COMPUTATION) {
 			if (this._asyncComputationPromise) {
 				this._asyncComputationPromise.cancel();
+				this._asyncComputationPromise = null;
 			}
 		}
 		this._state = ComputeHoverOperationState.IDLE;

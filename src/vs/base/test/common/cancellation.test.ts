@@ -5,38 +5,18 @@
 'use strict';
 
 import * as assert from 'assert';
-import {CancellationTokenSource, CancellationToken} from 'vs/base/common/cancellation';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 
-suite('CancellationToken', function() {
+suite('CancellationToken', function () {
 
-	test('None', function() {
+	test('None', function () {
 		assert.equal(CancellationToken.None.isCancellationRequested, false);
 		assert.equal(typeof CancellationToken.None.onCancellationRequested, 'function');
 	});
 
-	test('defaults cannot be messed with', function () {
-
-		assert.throws(function () {
-			CancellationToken.Cancelled.isCancellationRequested = false;
-		});
-
-		assert.throws(function () {
-			CancellationToken.Cancelled.onCancellationRequested = null
-		});
-
-		assert.throws(function () {
-			CancellationToken.None.isCancellationRequested = false;
-		});
-
-		assert.throws(function () {
-			CancellationToken.None.onCancellationRequested = null
-		});
-	});
-
-
 	test('cancel before token', function (done) {
 
-		var source = new CancellationTokenSource();
+		const source = new CancellationTokenSource();
 		assert.equal(source.token.isCancellationRequested, false);
 		source.cancel();
 
@@ -48,7 +28,7 @@ suite('CancellationToken', function() {
 		});
 	});
 
-	test('cancel happens only once', function() {
+	test('cancel happens only once', function () {
 
 		let source = new CancellationTokenSource();
 		assert.equal(source.token.isCancellationRequested, false);
@@ -58,7 +38,7 @@ suite('CancellationToken', function() {
 			cancelCount += 1;
 		}
 
-		source.token.onCancellationRequested(onCancel)
+		source.token.onCancellationRequested(onCancel);
 
 		source.cancel();
 		source.cancel();
@@ -85,7 +65,7 @@ suite('CancellationToken', function() {
 		assert.equal(count, 3);
 	});
 
-	test('token stays the same', function(){
+	test('token stays the same', function () {
 
 		let source = new CancellationTokenSource();
 		let token = source.token;

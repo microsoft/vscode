@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import assert = require('assert');
-import {testCommand} from 'vs/editor/test/common/commands/commandTestUtils';
-import {CopyLinesCommand} from 'vs/editor/contrib/linesOperations/common/copyLinesCommand';
-import {Selection} from 'vs/editor/common/core/selection';
+import { Selection } from 'vs/editor/common/core/selection';
+import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/common/copyLinesCommand';
+import { testCommand } from 'vs/editor/test/common/commands/commandTestUtils';
 
 function testCopyLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (sel) => new CopyLinesCommand(sel, true), expectedLines, expectedSelection);
@@ -104,6 +103,50 @@ suite('Editor Contrib - Copy Lines Command', () => {
 				'fifth'
 			],
 			new Selection(5, 3, 5, 1)
+		);
+	});
+
+	test('issue #1322: copy line up', function () {
+		testCopyLinesUpCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(3, 11, 3, 11),
+			[
+				'first',
+				'second line',
+				'third line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(3, 11, 3, 11)
+		);
+	});
+
+	test('issue #1322: copy last line up', function () {
+		testCopyLinesUpCommand(
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(5, 6, 5, 6),
+			[
+				'first',
+				'second line',
+				'third line',
+				'fourth line',
+				'fifth',
+				'fifth'
+			],
+			new Selection(5, 6, 5, 6)
 		);
 	});
 

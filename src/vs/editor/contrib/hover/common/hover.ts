@@ -5,9 +5,37 @@
 
 'use strict';
 
-import {IExtraInfoSupport} from 'vs/editor/common/modes';
-import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { coalesce } from 'vs/base/common/arrays';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { Hover, HoverProviderRegistry } from 'vs/editor/common/modes';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { Position } from 'vs/editor/common/core/position';
 
-const ExtraInfoRegistry = new LanguageFeatureRegistry<IExtraInfoSupport>('extraInfoSupport');
+export function getHover(model: IReadOnlyModel, position: Position): TPromise<Hover[]> {
 
-export default ExtraInfoRegistry;
+	const supports = HoverProviderRegistry.ordered(model);
+	const values: Hover[] = [];
+
+	const promises = supports.map((support, idx) => {
+		return asWinJsPromise((token) => {
+			return support.provideHover(model, position, token);
+		}).then((result) => {
+			if (result) {
+				let hasRange = (typeof result.range !== 'undefined');
+				let hasHtmlContent = (typeof result.contents !== 'undefined' && result.contents && result.contents.length > 0);
+				if (hasRange && hasHtmlContent) {
+					values[idx] = result;
+				}
+			}
+		}, err => {
+			onUnexpectedExternalError(err);
+		});
+	});
+
+	return TPromise.join(promises).then(() => coalesce(values));
+}
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeHoverProvider', getHover);

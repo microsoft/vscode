@@ -4,15 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {IEditorOptions} from 'vs/editor/common/editorCommon';
-import {IResourceInput} from 'vs/platform/editor/common/editor';
-import {IUserFriendlyKeybinding} from 'vs/platform/keybinding/common/keybindingService';
-
-export interface IGlobalSettings {
-	settings: any;
-	settingsParseErrors?: string[];
-	keybindings: IUserFriendlyKeybinding[];
-}
+import { IResourceInput } from 'vs/platform/editor/common/editor';
 
 export interface IOptions {
 
@@ -27,33 +19,7 @@ export interface IOptions {
 	filesToCreate?: IResourceInput[];
 
 	/**
-	 * Instructs the workbench to install the extensions from the provided local paths.
+	 * Instructs the workbench to open a diff of the provided files right after startup.
 	 */
-	extensionsToInstall?: string[]
-
-	/**
-	 * A boolean flag indicating if the workbench is in file mode where some UI gets hidden. Does not override an existing setting by the user.
-	 */
-	singleFileMode?: boolean;
-
-	/**
-	 * A number indicating the auto save delay in ms. A time of -1 indicates that
-	 * auto save indicates that auto save is turned off completly.
-	 */
-	autoSaveDelay?: number;
-
-	/**
-	 * A flag turning the workbench into readonly mode preventing file modifications.
-	 */
-	readOnly?: boolean;
-
-	/**
-	 * Editor options to be used for any editor in the workbench.
-	 */
-	editor?: IEditorOptions;
-
-	/**
-	 * The global application settings if any.
-	 */
-	globalSettings?: IGlobalSettings;
+	filesToDiff?: IResourceInput[];
 }

@@ -6,7 +6,7 @@
 /* Git viewlet */
 
 .git-viewlet {
-	height: 100%;	
+	height: 100%;
 }
 
 /* Actionbar actions */
@@ -55,15 +55,17 @@
 
 /* Dark theme actions */
 
-.vs-dark .git-action.refresh {
+.vs-dark .git-action.refresh,
+.hc-black .git-action.refresh {
 	background: url('refresh-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .git-action.commit {
-	background: url('check-inverse.svg') center center no-repeat;
-}
-
-.vs-dark .git-action.stage-and-commit {
+.vs-dark .git-action.commit,
+.hc-black .git-action.commit,
+.vs-dark .git-action.stage-and-commit,
+.hc-black .git-action.stage-and-commit,
+.vs-dark .git-action.smart-commit,
+.hc-black .git-action.smart-commit {
 	background: url('check-inverse.svg') center center no-repeat;
 }
 
@@ -75,64 +77,17 @@
 	background: url('push-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .git-action.stage {
+.vs-dark .git-action.stage,
+.hc-black .git-action.stage {
 	background: url('add-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .git-action.undo {
+.vs-dark .git-action.undo,
+.hc-black .git-action.undo {
 	background: url('undo-inverse.svg') center center no-repeat;
 }
 
-.vs-dark .git-action.unstage {
+.vs-dark .git-action.unstage,
+.hc-black .git-action.unstage {
 	background: url('subtract-inverse.svg') center center no-repeat;
-}
-
-/* High Contrast Theming */
-.hc-black .git-action {
-	background: none;
-}
-
-.hc-black .title-actions .git-action:before {
-	position: absolute;
-	top: 12px;
-	left: 8px;
-	height: 16px;
-	width: 16px;
-}
-
-.hc-black .git-action.refresh:before {
-	content: url('refresh-inverse.svg');
-}
-
-.hc-black .git-action.smart-commit:before {
-	content: url('check-inverse.svg');
-}
-
-.hc-black .git-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .git-action {
-	background: none;
-}
-
-.hc-black .git-viewlet .monaco-tree .monaco-tree-rows > .monaco-tree-row.has-children > .content:after,
-.hc-black .git-viewlet .monaco-tree .monaco-tree-rows > .monaco-tree-row.expanded > .content:before {
-	content: '';
-}
-
-.hc-black .monaco-tree .git-action:before {
-	display: inline-block;
-	position: relative;
-	top: -2px;
-	height: 16px;
-	width: 16px;
-}
-
-.hc-black .git-viewlet .git-action.stage:before {
-	content: url('add-inverse.svg');
-}
-
-.hc-black .git-viewlet .git-action.undo:before {
-	content: url('undo-inverse.svg');
-}
-
-.hc-black .git-viewlet .git-action.unstage:before {
-	content: url('subtract-inverse.svg');
 }

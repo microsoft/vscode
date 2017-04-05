@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import CodeEditorWidget = require('vs/editor/browser/widget/codeEditorWidget');
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Objects = require('vs/base/common/objects');
-import {IInstantiationService} from 'vs/platform/instantiation/common/instantiation';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {IKeybindingService} from 'vs/platform/keybinding/common/keybindingService';
-import {ICodeEditorService} from 'vs/editor/common/services/codeEditorService';
+import * as objects from 'vs/base/common/objects';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICodeEditorWidgetCreationOptions, IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CodeEditor } from 'vs/editor/browser/codeEditor';
 
-export class EmbeddedCodeEditorWidget extends CodeEditorWidget.CodeEditorWidget {
+export class EmbeddedCodeEditorWidget extends CodeEditor {
 
-	private _parentEditor: EditorBrowser.ICodeEditor;
-	private _overwriteOptions: EditorCommon.ICodeEditorWidgetCreationOptions;
+	private _parentEditor: ICodeEditor;
+	private _overwriteOptions: ICodeEditorWidgetCreationOptions;
 
 	constructor(
-		domElement:HTMLElement,
-		options:EditorCommon.ICodeEditorWidgetCreationOptions,
-		parentEditor:EditorBrowser.ICodeEditor,
+		domElement: HTMLElement,
+		options: ICodeEditorWidgetCreationOptions,
+		parentEditor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, keybindingService, telemetryService);
+		super(domElement, parentEditor.getRawConfiguration(), instantiationService, codeEditorService, commandService, contextKeyService);
 
 		this._parentEditor = parentEditor;
 		this._overwriteOptions = options;
@@ -35,16 +35,20 @@ export class EmbeddedCodeEditorWidget extends CodeEditorWidget.CodeEditorWidget 
 		// Overwrite parent's options
 		super.updateOptions(this._overwriteOptions);
 
-		this._lifetimeListeners.push(parentEditor.addListener(EditorCommon.EventType.ConfigurationChanged, (e:EditorCommon.IConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
+		this._lifetimeDispose.push(parentEditor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
 	}
 
-	private _onParentConfigurationChanged(e:EditorCommon.IConfigurationChangedEvent): void {
+	public getParentEditor(): ICodeEditor {
+		return this._parentEditor;
+	}
+
+	private _onParentConfigurationChanged(e: IConfigurationChangedEvent): void {
 		super.updateOptions(this._parentEditor.getRawConfiguration());
 		super.updateOptions(this._overwriteOptions);
 	}
 
-	public updateOptions(newOptions:EditorCommon.IEditorOptions): void {
-		Objects.mixin(this._overwriteOptions, newOptions, true);
+	public updateOptions(newOptions: IEditorOptions): void {
+		objects.mixin(this._overwriteOptions, newOptions, true);
 		super.updateOptions(this._overwriteOptions);
 	}
 }

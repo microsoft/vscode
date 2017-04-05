@@ -4,32 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {Selection} from 'vs/editor/common/core/selection';
+import { Selection } from 'vs/editor/common/core/selection';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
 
-export class InPlaceReplaceCommand implements EditorCommon.ICommand {
+export class InPlaceReplaceCommand implements editorCommon.ICommand {
 
-	private _editRange: EditorCommon.IEditorRange;
-	private _originalSelection: EditorCommon.IEditorSelection;
-	private _text:string;
+	private _editRange: Range;
+	private _originalSelection: Selection;
+	private _text: string;
 
-	constructor(editRange: EditorCommon.IEditorRange, originalSelection: EditorCommon.IEditorSelection, text:string) {
+	constructor(editRange: Range, originalSelection: Selection, text: string) {
 		this._editRange = editRange;
 		this._originalSelection = originalSelection;
 		this._text = text;
 	}
 
-	public getEditOperations(model:EditorCommon.ITokenizedModel, builder:EditorCommon.IEditOperationBuilder):void {
+	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		builder.addEditOperation(this._editRange, this._text);
 	}
 
-	public computeCursorState(model:EditorCommon.ITokenizedModel, helper: EditorCommon.ICursorStateComputerData):EditorCommon.IEditorSelection {
+	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
 		var inverseEditOperations = helper.getInverseEditOperations();
 		var srcRange = inverseEditOperations[0].range;
 
 		if (!this._originalSelection.isEmpty()) {
 			// Preserve selection and extends to typed text
-			return Selection.createSelection(
+			return new Selection(
 				srcRange.endLineNumber,
 				srcRange.endColumn - this._text.length,
 				srcRange.endLineNumber,
@@ -37,7 +38,7 @@ export class InPlaceReplaceCommand implements EditorCommon.ICommand {
 			);
 		}
 
-		return Selection.createSelection(
+		return new Selection(
 			srcRange.endLineNumber,
 			Math.min(this._originalSelection.positionColumn, srcRange.endColumn),
 			srcRange.endLineNumber,

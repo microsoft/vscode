@@ -4,103 +4,75 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Browser = require('vs/base/browser/browser');
-import DomUtils = require('vs/base/browser/dom');
-
-import EditorBrowser = require('vs/editor/browser/editorBrowser');
-import EditorCommon = require('vs/editor/common/editorCommon');
-
-interface IColorZone {
-	from: number;
-	to: number;
-}
-
-interface IColorZoneMap {
-	[color:string]:IColorZone[];
-}
-
-function zoneEquals(a:EditorBrowser.IOverviewRulerZone, b:EditorBrowser.IOverviewRulerZone): boolean {
-	return (
-		a.startLineNumber === b.startLineNumber
-		&& a.endLineNumber === b.endLineNumber
-		&& a.forceHeight === b.forceHeight
-		&& a.color === b.color
-		&& a.position === b.position
-	);
-}
-
-function zonesEqual(a:EditorBrowser.IOverviewRulerZone[], b:EditorBrowser.IOverviewRulerZone[]): boolean {
-	if (a === b) {
-		return true;
-	}
-	if (a.length !== b.length) {
-		return false;
-	}
-	for (var i = 0, len = a.length; i < len; i++) {
-		if (!zoneEquals(a[i], b[i])) {
-			return false;
-		}
-	}
-	return true;
-}
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone } from 'vs/editor/common/editorCommon';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import * as browser from 'vs/base/browser/browser';
+import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
+import { Color } from 'vs/base/common/color';
 
 export class OverviewRulerImpl {
 
-	public static hasCanvas = (window.navigator.userAgent.indexOf('MSIE 8') === -1);
-
-	// Protected
-	private _minimumHeight: number;
-	private _maximumHeight: number;
-	private _getVerticalOffsetForLine:(lineNumber:number)=>number;
-	private _zones:EditorBrowser.IOverviewRulerZone[];
-	private _renderedZones:EditorBrowser.IOverviewRulerZone[];
 	private _canvasLeftOffset: number;
+	private _domNode: FastDomNode<HTMLCanvasElement>;
+	private _lanesCount: number;
+	private _zoneManager: OverviewZoneManager;
+	private _canUseTranslate3d: boolean;
+	private _background: Color;
 
-	private _domNode: HTMLCanvasElement;
-	private _width:number;
-	private _height:number;
-	private _outerHeight:number;
-	private _lineHeight:number;
-	private _lanesCount:number;
-	private _useDarkColor:boolean;
+	private _zoomListener: IDisposable;
 
-	constructor(canvasLeftOffset:number, cssClassName:string, scrollHeight:number, lineHeight:number, minimumHeight:number, maximumHeight:number, getVerticalOffsetForLine:(lineNumber:number)=>number) {
+	constructor(canvasLeftOffset: number, cssClassName: string, scrollHeight: number, lineHeight: number, canUseTranslate3d: boolean, minimumHeight: number, maximumHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
 		this._canvasLeftOffset = canvasLeftOffset;
-		this._minimumHeight = minimumHeight;
-		this._maximumHeight = maximumHeight;
-		this._getVerticalOffsetForLine = getVerticalOffsetForLine;
-		this._zones = [];
-		this._renderedZones = [];
-		this._useDarkColor = false;
 
+		this._domNode = createFastDomNode(document.createElement('canvas'));
 
-		this._domNode = <HTMLCanvasElement>document.createElement('canvas');
-		this._domNode.className = cssClassName;
-		this._domNode.style.position = 'absolute';
-		if (Browser.canUseTranslate3d) {
-			this._domNode.style.transform = 'translate3d(0px, 0px, 0px)';
-		}
+		this._domNode.setClassName(cssClassName);
+		this._domNode.setPosition('absolute');
 
-		this._width = 0;
-		this._height = 0;
-		this._outerHeight = scrollHeight;
-		this._lineHeight = lineHeight;
 		this._lanesCount = 3;
+
+		this._canUseTranslate3d = canUseTranslate3d;
+		this._background = null;
+
+		this._zoneManager = new OverviewZoneManager(getVerticalOffsetForLine);
+		this._zoneManager.setMinimumHeight(minimumHeight);
+		this._zoneManager.setMaximumHeight(maximumHeight);
+		this._zoneManager.setUseDarkColor(false);
+		this._zoneManager.setDOMWidth(0);
+		this._zoneManager.setDOMHeight(0);
+		this._zoneManager.setOuterHeight(scrollHeight);
+		this._zoneManager.setLineHeight(lineHeight);
+
+		this._zoomListener = browser.onDidChangeZoomLevel(() => {
+			this._zoneManager.setPixelRatio(browser.getPixelRatio());
+			this._domNode.setWidth(this._zoneManager.getDOMWidth());
+			this._domNode.setHeight(this._zoneManager.getDOMHeight());
+			this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
+			this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
+			this.render(true);
+		});
+		this._zoneManager.setPixelRatio(browser.getPixelRatio());
 	}
 
 	public dispose(): void {
-		this._zones = [];
+		this._zoomListener.dispose();
+		this._zoneManager = null;
 	}
 
-	public setLayout(position:EditorCommon.IOverviewRulerPosition, render:boolean): void {
-		DomUtils.StyleMutator.setTop(this._domNode, position.top);
-		DomUtils.StyleMutator.setRight(this._domNode, position.right);
+	public setLayout(position: OverviewRulerPosition, render: boolean): void {
+		this._domNode.setTop(position.top);
+		this._domNode.setRight(position.right);
 
-		if (this._width !== position.width || this._height !== position.height) {
-			this._width = position.width;
-			this._height = position.height;
-			this._domNode.width = this._width;
-			this._domNode.height = this._height;
+		let hasChanged = false;
+		hasChanged = this._zoneManager.setDOMWidth(position.width) || hasChanged;
+		hasChanged = this._zoneManager.setDOMHeight(position.height) || hasChanged;
+
+		if (hasChanged) {
+			this._domNode.setWidth(this._zoneManager.getDOMWidth());
+			this._domNode.setHeight(this._zoneManager.getDOMHeight());
+			this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
+			this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
 
 			if (render) {
 				this.render(true);
@@ -112,7 +84,7 @@ export class OverviewRulerImpl {
 		return this._lanesCount;
 	}
 
-	public setLanesCount(newLanesCount:number, render:boolean): void {
+	public setLanesCount(newLanesCount: number, render: boolean): void {
 		this._lanesCount = newLanesCount;
 
 		if (render) {
@@ -120,8 +92,16 @@ export class OverviewRulerImpl {
 		}
 	}
 
-	public setUseDarkColor(useDarkColor:boolean, render:boolean): void {
-		this._useDarkColor = useDarkColor;
+	public setUseDarkColor(useDarkColor: boolean, render: boolean): void {
+		this._zoneManager.setUseDarkColor(useDarkColor);
+
+		if (render) {
+			this.render(true);
+		}
+	}
+
+	public setUseBackground(background: Color, render: boolean): void {
+		this._background = background;
 
 		if (render) {
 			this.render(true);
@@ -129,198 +109,151 @@ export class OverviewRulerImpl {
 	}
 
 	public getDomNode(): HTMLCanvasElement {
-		return this._domNode;
+		return this._domNode.domNode;
 	}
 
-	public getWidth(): number {
-		return this._width;
+	public getPixelWidth(): number {
+		return this._zoneManager.getCanvasWidth();
 	}
 
-	public getHeight(): number {
-		return this._height;
+	public getPixelHeight(): number {
+		return this._zoneManager.getCanvasHeight();
 	}
 
-	public setScrollHeight(scrollHeight:number, render:boolean): void {
-		this._outerHeight = scrollHeight;
+	public setScrollHeight(scrollHeight: number, render: boolean): void {
+		this._zoneManager.setOuterHeight(scrollHeight);
 		if (render) {
 			this.render(true);
 		}
 	}
 
-	public setLineHeight(lineHeight:number, render:boolean): void {
-		this._lineHeight = lineHeight;
+	public setLineHeight(lineHeight: number, render: boolean): void {
+		this._zoneManager.setLineHeight(lineHeight);
 		if (render) {
 			this.render(true);
 		}
 	}
 
-	public setZones(zones:EditorBrowser.IOverviewRulerZone[], render:boolean): void {
-		this._zones = zones;
+	public setCanUseTranslate3d(canUseTranslate3d: boolean, render: boolean): void {
+		this._canUseTranslate3d = canUseTranslate3d;
+		if (render) {
+			this.render(true);
+		}
+	}
+
+	public setZones(zones: OverviewRulerZone[], render: boolean): void {
+		this._zoneManager.setZones(zones);
 		if (render) {
 			this.render(false);
 		}
 	}
 
-	private _insertZone(colorsZones:IColorZoneMap, y1:number, y2:number, minimumHeight:number, maximumHeight:number, color:string): void {
-		var ycenter = Math.floor((y1 + y2) / 2);
-		var halfHeight = (y2 - ycenter);
-
-
-		if (halfHeight > maximumHeight / 2) {
-			halfHeight = maximumHeight / 2;
+	public render(forceRender: boolean): boolean {
+		if (this._zoneManager.getOuterHeight() === 0) {
+			return false;
 		}
-		if (halfHeight < minimumHeight / 2) {
-			halfHeight = minimumHeight / 2;
+		if (this._canUseTranslate3d) {
+			this._domNode.setTransform('translate3d(0px, 0px, 0px)');
+		} else {
+			this._domNode.setTransform('');
 		}
 
-		if (ycenter - halfHeight < 0) {
-			ycenter = halfHeight;
-		}
-		if (ycenter + halfHeight > this._height) {
-			ycenter = this._height - halfHeight;
+		const width = this._zoneManager.getCanvasWidth();
+		const height = this._zoneManager.getCanvasHeight();
+
+		let colorZones = this._zoneManager.resolveColorZones();
+		let id2Color = this._zoneManager.getId2Color();
+
+		let ctx = this._domNode.domNode.getContext('2d');
+		if (this._background === null) {
+			ctx.clearRect(0, 0, width, height);
+		} else {
+			ctx.fillStyle = this._background.toRGBHex();
+			ctx.fillRect(0, 0, width, height);
 		}
 
-		colorsZones[color] = colorsZones[color] || [];
-		colorsZones[color].push({
-			from: ycenter - halfHeight,
-			to: ycenter + halfHeight
-		});
+		if (colorZones.length > 0) {
+			let remainingWidth = width - this._canvasLeftOffset;
+
+			if (this._lanesCount >= 3) {
+				this._renderThreeLanes(ctx, colorZones, id2Color, remainingWidth);
+			} else if (this._lanesCount === 2) {
+				this._renderTwoLanes(ctx, colorZones, id2Color, remainingWidth);
+			} else if (this._lanesCount === 1) {
+				this._renderOneLane(ctx, colorZones, id2Color, remainingWidth);
+			}
+		}
+
+		return true;
 	}
 
-	private _getColorForZone(zone:EditorBrowser.IOverviewRulerZone): string {
-		if (this._useDarkColor) {
-			return zone.darkColor;
-		}
-		return zone.color;
+	private _renderOneLane(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], w: number): void {
+
+		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Left | OverviewRulerLane.Center | OverviewRulerLane.Right, this._canvasLeftOffset, w);
+
 	}
 
-	private _renderVerticalPatch(ctx:CanvasRenderingContext2D, heightRatio:number, laneMask:number, xpos:number, width:number): void {
-		var colorsZones:IColorZoneMap = {};
-		var i:number, len:number, zone:EditorBrowser.IOverviewRulerZone, y1:number, y2:number, zoneLineNumbers:number, zoneMaximumHeight:number;
-		for (i = 0, len = this._zones.length; i < len; i++) {
-			zone = this._zones[i];
+	private _renderTwoLanes(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], w: number): void {
+
+		let leftWidth = Math.floor(w / 2);
+		let rightWidth = w - leftWidth;
+		let leftOffset = this._canvasLeftOffset;
+		let rightOffset = this._canvasLeftOffset + leftWidth;
+
+		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Left | OverviewRulerLane.Center, leftOffset, leftWidth);
+		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Right, rightOffset, rightWidth);
+	}
+
+	private _renderThreeLanes(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], w: number): void {
+
+		let leftWidth = Math.floor(w / 3);
+		let rightWidth = Math.floor(w / 3);
+		let centerWidth = w - leftWidth - rightWidth;
+		let leftOffset = this._canvasLeftOffset;
+		let centerOffset = this._canvasLeftOffset + leftWidth;
+		let rightOffset = this._canvasLeftOffset + leftWidth + centerWidth;
+
+		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Left, leftOffset, leftWidth);
+		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Center, centerOffset, centerWidth);
+		this._renderVerticalPatch(ctx, colorZones, id2Color, OverviewRulerLane.Right, rightOffset, rightWidth);
+	}
+
+	private _renderVerticalPatch(ctx: CanvasRenderingContext2D, colorZones: ColorZone[], id2Color: string[], laneMask: number, xpos: number, width: number): void {
+
+		let currentColorId = 0;
+		let currentFrom = 0;
+		let currentTo = 0;
+
+		for (let i = 0, len = colorZones.length; i < len; i++) {
+			let zone = colorZones[i];
 
 			if (!(zone.position & laneMask)) {
 				continue;
 			}
 
-			y1 = this._getVerticalOffsetForLine(zone.startLineNumber);
-			y2 = this._getVerticalOffsetForLine(zone.endLineNumber) + this._lineHeight;
+			let zoneColorId = zone.colorId;
+			let zoneFrom = zone.from;
+			let zoneTo = zone.to;
 
-			y1 *= heightRatio;
-			y2 *= heightRatio;
+			if (zoneColorId !== currentColorId) {
+				ctx.fillRect(xpos, currentFrom, width, currentTo - currentFrom);
 
-			if (zone.forceHeight) {
-				y2 = y1 + zone.forceHeight;
-				this._insertZone(colorsZones, y1, y2, zone.forceHeight, zone.forceHeight, this._getColorForZone(zone));
+				currentColorId = zoneColorId;
+				ctx.fillStyle = id2Color[currentColorId];
+				currentFrom = zoneFrom;
+				currentTo = zoneTo;
 			} else {
-				// Figure out if we can render this in one continuous zone
-				zoneLineNumbers = zone.endLineNumber - zone.startLineNumber + 1;
-				zoneMaximumHeight = zoneLineNumbers * this._maximumHeight;
-
-				if (y2 - y1 > zoneMaximumHeight) {
-					// We need to draw one zone per line
-					for (var lineNumber = zone.startLineNumber; lineNumber <= zone.endLineNumber; lineNumber++) {
-						y1 = this._getVerticalOffsetForLine(lineNumber);
-						y2 = y1 + this._lineHeight;
-
-						y1 *= heightRatio;
-						y2 *= heightRatio;
-
-						this._insertZone(colorsZones, y1, y2, this._minimumHeight, this._maximumHeight, this._getColorForZone(zone));
-					}
+				if (currentTo >= zoneFrom) {
+					currentTo = Math.max(currentTo, zoneTo);
 				} else {
-					this._insertZone(colorsZones, y1, y2, this._minimumHeight, zoneMaximumHeight, this._getColorForZone(zone));
+					ctx.fillRect(xpos, currentFrom, width, currentTo - currentFrom);
+					currentFrom = zoneFrom;
+					currentTo = zoneTo;
 				}
 			}
-
 		}
 
-		var sorter = (a:IColorZone, b:IColorZone) => {
-			return a.from - b.from;
-		};
+		ctx.fillRect(xpos, currentFrom, width, currentTo - currentFrom);
 
-		// Merge color zones
-		var colorName:string, colorZones:IColorZone[], currentFrom:number, currentTo:number;
-		for (colorName in colorsZones) {
-			if (colorsZones.hasOwnProperty(colorName)) {
-				colorZones = colorsZones[colorName];
-
-				// Merge & Render zones
-				colorZones.sort(sorter);
-				currentFrom = colorZones[0].from;
-				currentTo = colorZones[0].to;
-				ctx.fillStyle = colorName;
-				for (i = 1, len = colorZones.length; i < len; i++) {
-					if (currentTo >= colorZones[i].from) {
-						currentTo = Math.max(currentTo, colorZones[i].to);
-					} else {
-						ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
-						currentFrom = colorZones[i].from;
-						currentTo = colorZones[i].to;
-					}
-				}
-				ctx.fillRect (xpos, currentFrom, width, currentTo - currentFrom);
-			}
-		}
-	}
-
-	public render(forceRender:boolean): boolean {
-		if (this._outerHeight === 0) {
-			return false;
-		}
-		if (!OverviewRulerImpl.hasCanvas) {
-			return false;
-		}
-		var shouldRender = forceRender || !zonesEqual(this._renderedZones, this._zones);
-		if (shouldRender) {
-			var heightRatio = this._height / this._outerHeight;
-
-			var ctx = this._domNode.getContext('2d');
-			ctx.clearRect (0, 0, this._width, this._height);
-
-			var remainingWidth = this._width - this._canvasLeftOffset;
-
-			if (this._lanesCount >= 3) {
-				this._renderThreeLanes(ctx, heightRatio, remainingWidth);
-			} else if (this._lanesCount === 2) {
-				this._renderTwoLanes(ctx, heightRatio, remainingWidth);
-			} else if (this._lanesCount === 1) {
-				this._renderOneLane(ctx, heightRatio, remainingWidth);
-			}
-		}
-		this._renderedZones = this._zones;
-		return shouldRender;
-	}
-
-	private _renderOneLane(ctx:CanvasRenderingContext2D, heightRatio:number, w:number): void {
-
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Left | EditorCommon.OverviewRulerLane.Center | EditorCommon.OverviewRulerLane.Right, this._canvasLeftOffset, w);
-
-	}
-
-	private _renderTwoLanes(ctx:CanvasRenderingContext2D, heightRatio:number, w:number): void {
-
-		var leftWidth = Math.floor(w / 2),
-			rightWidth = w - leftWidth,
-			leftOffset = this._canvasLeftOffset,
-			rightOffset = this._canvasLeftOffset + leftWidth;
-
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Left | EditorCommon.OverviewRulerLane.Center, leftOffset, leftWidth);
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Right, rightOffset, rightWidth);
-	}
-
-	private _renderThreeLanes(ctx:CanvasRenderingContext2D, heightRatio:number, w:number): void {
-
-		var leftWidth = Math.floor(w / 3),
-			rightWidth = Math.floor(w / 3),
-			centerWidth = w - leftWidth - rightWidth,
-			leftOffset = this._canvasLeftOffset,
-			centerOffset = this._canvasLeftOffset + leftWidth,
-			rightOffset = this._canvasLeftOffset + leftWidth + centerWidth;
-
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Left, leftOffset, leftWidth);
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Center, centerOffset, centerWidth);
-		this._renderVerticalPatch(ctx, heightRatio, EditorCommon.OverviewRulerLane.Right, rightOffset, rightWidth);
 	}
 }

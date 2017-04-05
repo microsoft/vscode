@@ -5,94 +5,67 @@
 'use strict';
 
 import nls = require('vs/nls');
-import {IConfigurationRegistry, Extensions} from 'vs/platform/configuration/common/configurationRegistry';
-import {IConfigurationService} from 'vs/platform/configuration/common/configuration';
-import {ITelemetryService} from 'vs/platform/telemetry/common/telemetry';
-import {Registry} from 'vs/platform/platform';
-import platform = require('vs/base/common/platform');
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { assign, clone } from 'vs/base/common/objects';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Registry } from 'vs/platform/platform';
+import { crashReporter } from 'electron';
+import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 
-import crashReporter = require('crash-reporter');
-import ipc = require('ipc');
+const TELEMETRY_SECTION_ID = 'telemetry';
 
-let TELEMETRY_SECTION_ID = 'telemetry';
+interface ICrashReporterConfig {
+	enableCrashReporter: boolean;
+}
 
-let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': TELEMETRY_SECTION_ID,
-	'order': 20,
+	'order': 110,
+	title: nls.localize('telemetryConfigurationTitle', "Telemetry"),
 	'type': 'object',
-	'title': nls.localize('telemetryConfigurationTitle', "Telemetry configuration"),
 	'properties': {
 		'telemetry.enableCrashReporter': {
 			'type': 'boolean',
-			'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to Microsoft.\n\t// This option requires restart of VSCode to take effect."),
+			'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to Microsoft.\nThis option requires restart to take effect."),
 			'default': true
 		}
 	}
 });
 
 export class CrashReporter {
-	private isStarted: boolean;
-	private config: any;
-	private version: string;
-	private commit: string;
-	private sessionId: string;
 
-	constructor(version: string, commit: string,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService
+	constructor(
+		configuration: Electron.CrashReporterStartOptions,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWindowsService windowsService: IWindowsService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		this.configurationService = configurationService;
-		this.telemetryService = telemetryService;
-		this.sessionId = this.telemetryService ? this.telemetryService.getSessionId() : null;
-		this.version = version;
-		this.commit = commit;
+		const config = configurationService.getConfiguration<ICrashReporterConfig>(TELEMETRY_SECTION_ID);
 
-		this.isStarted = false;
-		this.config = null;
-	}
-
-	public start(rawConfiguration:ICrashReporterConfigRenderer): void {
-		if (!this.isStarted) {
-			if (!this.config) {
-				this.configurationService.loadConfiguration(TELEMETRY_SECTION_ID).done((c) => {
-					this.config = c;
-					if (this.config && this.config.enableCrashReporter) {
-						this.doStart(rawConfiguration);
-					}
-				});
-			} else {
-				if (this.config.enableCrashReporter) {
-					this.doStart(rawConfiguration);
-				}
-			}
+		if (!config.enableCrashReporter) {
+			return;
 		}
-	}
 
-	private doStart(rawConfiguration:ICrashReporterConfigRenderer): void {
-		const config = this.toConfiguration(rawConfiguration);
+		telemetryService.getTelemetryInfo()
+			.then(info => ({
+				vscode_sessionId: info.sessionId,
+				vscode_version: pkg.version,
+				vscode_commit: product.commit,
+				vscode_machineId: info.machineId
+			}))
+			.then(extra => assign(configuration, { extra }))
+			.then(configuration => {
+				// start crash reporter right here
+				crashReporter.start(clone(configuration));
 
-		crashReporter.start(config);
-
-		//notify the main process to start the crash reporter
-		ipc.send('vscode:startCrashReporter', config);
-	}
-
-	private toConfiguration(rawConfiguration:ICrashReporterConfigRenderer): ICrashReporterConfigRenderer {
-		return JSON.parse(JSON.stringify(rawConfiguration, (key, value) => {
-			if (value === '$(sessionId)') {
-				return this.sessionId;
-			}
-
-			if (value === '$(version)') {
-				return this.version;
-			}
-
-			if (value === '$(commit)') {
-				return this.commit;
-			}
-
-			return value;
-		}));
+				// TODO: start crash reporter in the main process
+				return windowsService.startCrashReporter(configuration);
+			})
+			.done(null, onUnexpectedError);
 	}
 }

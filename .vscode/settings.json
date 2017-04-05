@@ -1,15 +1,34 @@
 {
 	"editor.insertSpaces": false,
+	"files.eol": "\n",
 	"files.trimTrailingWhitespace": true,
 	"files.exclude": {
 		".git": true,
+		".build": true,
 		"**/.DS_Store": true,
-		"**/coverage": true
+		"build/**/*.js": { "when": "$(basename).ts" }
 	},
 	"search.exclude": {
-		"**/node_modules/**": true,
+		"**/node_modules": true,
 		"**/bower_components": true,
+		".build/**": true,
 		"out*/**": true,
+		"i18n/**": true,
 		"extensions/**/out/**": true
-	}
+	},
+	"tslint.enable": true,
+	"tslint.rulesDirectory": "build/lib/tslint",
+	"lcov.path": [
+		"./.build/coverage/lcov.info",
+		"./.build/coverage-single/lcov.info"
+	],
+	"lcov.watch": [
+		{
+			"pattern": "**/*.test.js",
+			"command": "${workspaceRoot}/scripts/test.sh --coverage --run ${file}",
+			"windows": {
+				"command": "${workspaceRoot}\\scripts\\test.bat --coverage --run ${file}"
+			}
+		}
+	]
 }

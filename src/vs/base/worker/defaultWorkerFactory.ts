@@ -4,15 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import dom = require('vs/base/browser/dom');
-import env = require('vs/base/common/flags');
-import {IWorker, IWorkerCallback, IWorkerFactory} from 'vs/base/common/worker/workerClient';
+import { globals } from 'vs/base/common/platform';
+import { logOnceWebWorkerWarning, IWorker, IWorkerCallback, IWorkerFactory } from 'vs/base/common/worker/simpleWorker';
 
-function defaultGetWorkerUrl(workerId:string, label:string): string {
-	return require.toUrl('./' + workerId + '?' + encodeURIComponent(label));
+// Option for hosts to overwrite the worker script url (used in the standalone editor)
+const getCrossOriginWorkerScriptUrl: (workerId: string, label: string) => string = environment('getWorkerUrl', null);
+
+function environment(name: string, fallback: any = false): any {
+	if (globals.MonacoEnvironment && globals.MonacoEnvironment.hasOwnProperty(name)) {
+		return globals.MonacoEnvironment[name];
+	}
+
+	return fallback;
 }
-var getWorkerUrl = env.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
 
+function defaultGetWorkerUrl(workerId: string, label: string): string {
+	return require.toUrl('./' + workerId) + '#' + label;
+}
+var getWorkerUrl = getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
 
 /**
  * A worker that uses HTML5 web workers so that is has
@@ -20,106 +29,60 @@ var getWorkerUrl = env.getCrossOriginWorkerScriptUrl || defaultGetWorkerUrl;
  */
 class WebWorker implements IWorker {
 
-	private id:number;
-	private worker:any;
+	private id: number;
+	private worker: Worker;
 
-	constructor(id:number, label:string, onMessageCallback:IWorkerCallback) {
+	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
 		this.id = id;
 		this.worker = new Worker(getWorkerUrl('workerMain.js', label));
-		this.worker.onmessage = function (ev:any) {
+		this.postMessage(moduleId);
+		this.worker.onmessage = function (ev: any) {
 			onMessageCallback(ev.data);
 		};
+		if (typeof this.worker.addEventListener === 'function') {
+			this.worker.addEventListener('error', onErrorCallback);
+		}
 	}
 
 	public getId(): number {
 		return this.id;
 	}
 
-	public postMessage(msg:string): void {
-		this.worker.postMessage(msg);
+	public postMessage(msg: string): void {
+		if (this.worker) {
+			this.worker.postMessage(msg);
+		}
 	}
 
-	public terminate(): void {
+	public dispose(): void {
 		this.worker.terminate();
-	}
-}
-
-/**
- * A worker that runs in an iframe and therefore does have its
- * own global scope, but no own thread.
- */
-class FrameWorker implements IWorker {
-
-	private id: number;
-	private iframe: HTMLIFrameElement;
-
-	private onMessage: EventListener;
-	private loaded: boolean;
-	private beforeLoadMessages: any[];
-
-	constructor(id: number, onMessageCallback:IWorkerCallback) {
-		this.id = id;
-
-		// Collect all messages sent to the worker until the iframe is loaded
-		this.loaded = false;
-		this.beforeLoadMessages = [];
-
-		this.iframe = <HTMLIFrameElement> document.createElement('iframe');
-		this.iframe.id = this.iframeId();
-		this.iframe.src = require.toUrl('./workerMainCompatibility.html');
-		(<any> this.iframe).frameborder = this.iframe.height = this.iframe.width = '0';
-		this.iframe.style.display = 'none';
-		dom.addListener(this.iframe, 'load', () => this.onLoaded());
-
-		this.onMessage = function(ev:any) {
-			onMessageCallback(ev.data);
-		};
-		dom.addListener(window, 'message', this.onMessage);
-		document.body.appendChild(this.iframe);
-	}
-
-	private iframeId(): string {
-		return 'worker_iframe_' + this.id;
-	}
-
-	private onLoaded(): void {
-		this.loaded = true;
-		while (this.beforeLoadMessages.length > 0) {
-			this.postMessage(this.beforeLoadMessages.shift());
-		}
-	}
-
-	public getId(): number {
-		return this.id;
-	}
-
-	public postMessage(msg:string): void {
-		if (this.loaded === true) {
-			var iframe = window.frames[this.iframeId()];
-			if (iframe.postMessage) {
-				iframe.postMessage(msg, '*');
-			} else {
-				iframe.contentWindow.postMessage(msg, '*');
-			}
-		} else {
-			this.beforeLoadMessages.push(msg);
-		}
-	}
-
-	public terminate(): void {
-		window.removeEventListener('message', this.onMessage);
-		window.frames[this.iframeId()].close();
+		this.worker = null;
 	}
 }
 
 export class DefaultWorkerFactory implements IWorkerFactory {
-	public create(id:number, onMessageCallback:IWorkerCallback, onCrashCallback:()=>void = null):IWorker {
-		var result:IWorker = null;
-		try {
-			result = new WebWorker(id, 'service' + id, onMessageCallback);
-		} catch (e) {
-			result = new FrameWorker(id, onMessageCallback);
+
+	private static LAST_WORKER_ID = 0;
+
+	private _label: string;
+	private _webWorkerFailedBeforeError: any;
+
+	constructor(label: string) {
+		this._label = label;
+		this._webWorkerFailedBeforeError = false;
+	}
+
+	public create(moduleId: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void): IWorker {
+		let workerId = (++DefaultWorkerFactory.LAST_WORKER_ID);
+
+		if (this._webWorkerFailedBeforeError) {
+			throw this._webWorkerFailedBeforeError;
 		}
-		return result;
+
+		return new WebWorker(moduleId, workerId, this._label || 'anonymous' + workerId, onMessageCallback, (err) => {
+			logOnceWebWorkerWarning(err);
+			this._webWorkerFailedBeforeError = err;
+			onErrorCallback(err);
+		});
 	}
 }

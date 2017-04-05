@@ -12,7 +12,6 @@
 				overflow: hidden;
 				-webkit-touch-callout: none;
 				-webkit-user-select: none;
-				user-select: none;
 			}
 			body{
 				font-family: "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback";
@@ -45,7 +44,6 @@
 				font-size: 12px;
 				-webkit-touch-callout: initial;
 				-webkit-user-select: initial;
-				user-select: initial;
 			}
 			#username, #password {
 				padding: 6px 10px;
@@ -63,11 +61,15 @@
 				font-size: 13px;
 				text-align: center;
 			}
+			input {
+				font-family: "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", sans-serif, "Droid Sans Fallback" !important;
+			}
 		</style>
 		<script>
-			var shell = require('shell');
-			var ipc = require('ipc');
-			var remote = require('remote');
+			var electron = require('electron');
+			var shell = electron.shell;
+			var ipc = electron.ipcRenderer;
+			var remote = electron.remote;
 			var currentWindow = remote.getCurrentWindow();
 
 			function init(context) {
@@ -120,8 +122,8 @@
 		<section id="main">
 			<p id="host"></p>
 			<form id="form">
-				<p><input type="text" id="username" placeholder="Username"/></p>
-				<p><input type="password" id="password" placeholder="Password"/></p>
+				<p><input type="text" id="username" placeholder="Username" required/></p>
+				<p><input type="password" id="password" placeholder="Password" required/></p>
 				<p id="buttons">
 					<input id="ok" type="submit" value="OK" />
 					<input id="cancel" type="button" value="Cancel" />

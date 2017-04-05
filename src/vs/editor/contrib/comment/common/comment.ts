@@ -4,110 +4,114 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
-import {TPromise} from 'vs/base/common/winjs.base';
-import LineCommentCommand = require('./lineCommentCommand');
-import BlockCommentCommand = require('./blockCommentCommand');
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import {EditorAction, Behaviour} from 'vs/editor/common/editorAction';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
+import * as nls from 'vs/nls';
+import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { ICommand, ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { editorAction, IActionOptions, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { BlockCommentCommand } from './blockCommentCommand';
+import { LineCommentCommand, Type } from './lineCommentCommand';
 
-class CommentLineAction extends EditorAction {
+abstract class CommentLineAction extends EditorAction {
 
-	static ID = 'editor.action.commentLine';
+	private _type: Type;
 
-	private _type: LineCommentCommand.Type;
-
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, type: LineCommentCommand.Type, @INullService ns) {
-		super(descriptor, editor);
+	constructor(type: Type, opts: IActionOptions) {
+		super(opts);
 		this._type = type;
 	}
 
-	public run(): TPromise<void> {
-
-		var commands: EditorCommon.ICommand[] = [];
-		var selections = this.editor.getSelections();
-		var opts = this.editor.getIndentationOptions();
-
-		for (var i = 0; i < selections.length; i++) {
-			commands.push(new LineCommentCommand.LineCommentCommand(selections[i], opts.tabSize, this._type));
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let model = editor.getModel();
+		if (!model) {
+			return;
 		}
 
-		this.editor.executeCommands(this.id, commands);
+		var commands: ICommand[] = [];
+		var selections = editor.getSelections();
+		var opts = model.getOptions();
 
-		return TPromise.as(null);
+		for (var i = 0; i < selections.length; i++) {
+			commands.push(new LineCommentCommand(selections[i], opts.tabSize, this._type));
+		}
+
+		editor.executeCommands(this.id, commands);
 	}
+
 }
 
+@editorAction
 class ToggleCommentLineAction extends CommentLineAction {
-
-	static ID = 'editor.action.commentLine';
-
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, LineCommentCommand.Type.Toggle, ns);
+	constructor() {
+		super(Type.Toggle, {
+			id: 'editor.action.commentLine',
+			label: nls.localize('comment.line', "Toggle Line Comment"),
+			alias: 'Toggle Line Comment',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
+			}
+		});
 	}
 }
 
+@editorAction
 class AddLineCommentAction extends CommentLineAction {
-
-	static ID = 'editor.action.addCommentLine';
-
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, LineCommentCommand.Type.ForceAdd, ns);
+	constructor() {
+		super(Type.ForceAdd, {
+			id: 'editor.action.addCommentLine',
+			label: nls.localize('comment.line.add', "Add Line Comment"),
+			alias: 'Add Line Comment',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
+			}
+		});
 	}
-
 }
 
+@editorAction
 class RemoveLineCommentAction extends CommentLineAction {
-
-	static ID = 'editor.action.removeCommentLine';
-
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, LineCommentCommand.Type.ForceRemove, ns);
+	constructor() {
+		super(Type.ForceRemove, {
+			id: 'editor.action.removeCommentLine',
+			label: nls.localize('comment.line.remove', "Remove Line Comment"),
+			alias: 'Remove Line Comment',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
+			}
+		});
 	}
-
 }
 
+@editorAction
 class BlockCommentAction extends EditorAction {
 
-	static ID = 'editor.action.blockComment';
-
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor);
+	constructor() {
+		super({
+			id: 'editor.action.blockComment',
+			label: nls.localize('comment.block', "Toggle Block Comment"),
+			alias: 'Toggle Block Comment',
+			precondition: EditorContextKeys.Writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.TextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
+			}
+		});
 	}
 
-	public run(): TPromise<boolean> {
-
-		var commands: EditorCommon.ICommand[] = [];
-		var selections = this.editor.getSelections();
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		var commands: ICommand[] = [];
+		var selections = editor.getSelections();
 
 		for (var i = 0; i < selections.length; i++) {
-			commands.push(new BlockCommentCommand.BlockCommentCommand(selections[i]));
+			commands.push(new BlockCommentCommand(selections[i]));
 		}
 
-		this.editor.executeCommands(this.id, commands);
-
-		return TPromise.as(null);
+		editor.executeCommands(this.id, commands);
 	}
 }
-
-// register actions
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ToggleCommentLineAction, ToggleCommentLineAction.ID, nls.localize('comment.line', "Toggle Line Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.CtrlCmd | KeyCode.US_SLASH
-}));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(AddLineCommentAction, AddLineCommentAction.ID, nls.localize('comment.line.add', "Add Line Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C)
-}));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(RemoveLineCommentAction, RemoveLineCommentAction.ID, nls.localize('comment.line.remove', "Remove Line Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.chord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_U)
-}));
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(BlockCommentAction, BlockCommentAction.ID, nls.localize('comment.block', "Toggle Block Comment"), {
-	context: ContextKey.EditorTextFocus,
-	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_A,
-	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A }
-}));

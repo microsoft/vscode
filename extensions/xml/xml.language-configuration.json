@@ -1,0 +1,31 @@
+{
+	"comments": {
+		"lineComment": "",
+		"blockComment": ["<!--", "-->"]
+	},
+	"brackets": [
+		["<", ">"]
+	],
+	"autoClosingPairs": [
+		["<", ">"],
+		["'", "'"],
+		["\"", "\""]
+	],
+	"surroundingPairs": [
+		["<", ">"],
+		["'", "'"],
+		["\"", "\""]
+	]
+
+	// enhancedBrackets: [{
+	// 	tokenType: 'tag.tag-$1.xml',
+	// 	openTrigger: '>',
+	// 	open: /<(\w[\w\d]*)([^\/>]*(?!\/)>)[^<>]*$/i,
+	// 	closeComplete: '</$1>',
+	// 	closeTrigger: '>',
+	// 	close: /<\/(\w[\w\d]*)\s*>$/i
+	// }],
+
+	// autoClosingPairs:  [['\'', '\''], ['"', '"'] ]
+
+}

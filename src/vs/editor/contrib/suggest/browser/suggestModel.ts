@@ -4,291 +4,208 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { TimeoutTimer } from 'vs/base/common/async';
+import Event, { Emitter } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import {sequence} from 'vs/base/common/async';
-import { EventEmitter, ListenerUnbind } from 'vs/base/common/eventEmitter';
-import {onUnexpectedError, isPromiseCanceledError} from 'vs/base/common/errors';
-import strings = require('vs/base/common/strings');
-import URI from 'vs/base/common/uri';
-import timer = require('vs/base/common/timer');
-import { getSnippets } from 'vs/editor/common/modes/modesRegistry';
-import EditorCommon = require('vs/editor/common/editorCommon');
-import { ISuggestSupport, ISuggestions, ISuggestion, ISorter } from 'vs/editor/common/modes';
-import {DefaultFilter} from 'vs/editor/common/modes/modesFilters';
-import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
-import { IDisposable, disposeAll } from 'vs/base/common/lifecycle';
-import {SuggestRegistry} from '../common/suggest';
+import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition, IWordAtPosition } from 'vs/editor/common/editorCommon';
+import { ISuggestSupport, SuggestRegistry, StandardTokenType } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
+import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
+import { CompletionModel } from './completionModel';
 
-enum SuggestState {
-	NOT_ACTIVE = 0,
-	MANUAL_TRIGGER = 1,
-	AUTO_TRIGGER = 2
+export interface ICancelEvent {
+	retrigger: boolean;
 }
 
-export interface SuggestDataEvent {
-	suggestions: { completionItems: CompletionItem[]; currentWord: string; };
+export interface ITriggerEvent {
 	auto: boolean;
 }
 
-export class CompletionItem {
-
-	private static _idPool = 0;
-
-	public id: string;
-	public support: ISuggestSupport;
-	public suggestion: ISuggestion;
-	public container: ISuggestions;
-	private _resolveDetails:TPromise<CompletionItem>
-
-	constructor(support: ISuggestSupport, suggestion: ISuggestion, container:ISuggestions) {
-		this.id = '_completion_item_#' + CompletionItem._idPool++;
-		this.support = support;
-		this.suggestion = suggestion;
-		this.container = container;
-	}
-
-	resolveDetails(resource:URI, position:EditorCommon.IPosition): TPromise<CompletionItem> {
-		if (!this._resolveDetails) {
-			if (!this.support || typeof this.support.getSuggestionDetails !== 'function') {
-				this._resolveDetails = TPromise.as(this);
-			} else {
-				this._resolveDetails = this.support.getSuggestionDetails(<any>resource, position, this.suggestion).then(value => {
-					this.suggestion = value;
-					return this;
-				}, err => {
-					if (isPromiseCanceledError(err)) {
-						this._resolveDetails = undefined;
-					} else {
-						onUnexpectedError(err);
-					}
-					return this;
-				});
-			}
-		}
-		return this._resolveDetails;
-	}
+export interface ISuggestEvent {
+	completionModel: CompletionModel;
+	isFrozen: boolean;
+	auto: boolean;
 }
 
-class RawModel {
+export class LineContext {
 
-	private _items: CompletionItem[][] = [];
+	static shouldAutoTrigger(editor: ICommonCodeEditor): boolean {
+		const model = editor.getModel();
+		if (!model) {
+			return false;
+		}
+		const pos = editor.getPosition();
+		const word = model.getWordAtPosition(pos);
+		if (!word) {
+			return false;
+		}
+		if (word.endColumn !== pos.column) {
+			return false;
+		}
+		if (!isNaN(Number(word.word))) {
+			return false;
+		}
+		return true;
+	}
 
-	public size: number = 0;
-	public incomplete: boolean = false;
-
-	insertSuggestions(rank: number, suggestions: ISuggestions[], support: ISuggestSupport): boolean {
-		if (suggestions) {
-			let items: CompletionItem[] = [];
-			for (let _suggestions of suggestions) {
-
-				for (let suggestionItem of _suggestions.suggestions) {
-					items.push(new CompletionItem(support, suggestionItem, _suggestions));
-				}
-
-				this.size += _suggestions.suggestions.length;
-				this.incomplete = this.incomplete || _suggestions.incomplete;
+	static isInEditableRange(editor: ICommonCodeEditor): boolean {
+		const model = editor.getModel();
+		const position = editor.getPosition();
+		if (model.hasEditableRange()) {
+			const editableRange = model.getEditableRange();
+			if (!editableRange.containsPosition(position)) {
+				return false;
 			}
-			this._items[rank] = items;
-			return true;
 		}
+		return true;
 	}
 
-	select(ctx: SuggestionContext): CompletionItem[] {
-		let result: CompletionItem[] = [];
-		let seen: { [codeSnippet: string]: boolean } = Object.create(null);
-		for (let item of this._items) {
-			RawModel._sortAndFilter(ctx, result, seen, item);
-		}
-		return result;
-	}
+	readonly lineNumber: number;
+	readonly column: number;
+	readonly leadingLineContent: string;
+	readonly leadingWord: IWordAtPosition;
+	readonly auto;
 
-	private static _sortAndFilter(ctx: SuggestionContext, bucket: CompletionItem[], seen: { [codeSnippet: string]: boolean }, items: CompletionItem[]): void {
-		if (items && items.length) {
-			let compare = RawModel._compare;
-			let filter = DefaultFilter;
-			let [item] = items;
-			if (item.support) {
-				compare = item.support.getSorter && item.support.getSorter() || compare;
-				filter = item.support.getFilter && item.support.getFilter() || DefaultFilter;
-			}
-
-			items = items
-				.filter(item => {
-					if (!seen[item.suggestion.codeSnippet]) {
-						seen[item.suggestion.codeSnippet] = true;
-						return filter(ctx.wordBefore, item.suggestion)
-					}
-				})
-				.sort((a, b) => {
-					return compare(a.suggestion, b.suggestion)
-				});
-
-			bucket.push(...items);
-		}
-	}
-
-	private static _compare(a: ISuggestion, b: ISuggestion):number {
-		return a.label.localeCompare(b.label);
-	}
-}
-
-class SuggestionContext {
-
-	public lineNumber:number;
-	public column:number;
-	public isInEditableRange:boolean;
-
-	private auto: boolean;
-	private shouldAuto: boolean;
-	private lineContentBefore:string;
-	private lineContentAfter:string;
-
-	public wordBefore:string;
-	public wordAfter:string;
-
-	constructor(editor:EditorCommon.ICommonCodeEditor, auto: boolean) {
-		this.auto = auto;
-
-		var model = editor.getModel();
-		var position = editor.getPosition();
-
-		var lineContent = model.getLineContent(position.lineNumber);
-		this.wordBefore = '';
-		this.wordAfter = '';
-		var wordUnderCursor = model.getWordAtPosition(position);
-
-		if (wordUnderCursor) {
-			this.wordBefore = lineContent.substring(wordUnderCursor.startColumn - 1, position.column - 1);
-			this.wordAfter = lineContent.substring(position.column - 1, wordUnderCursor.endColumn - 1);
-		}
-
+	constructor(model: IModel, position: IPosition, auto: boolean) {
+		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
-		this.lineContentBefore = lineContent.substr(0, position.column - 1);
-		this.lineContentAfter = lineContent.substr(position.column - 1);
-
-		this.isInEditableRange = true;
-		if (model.hasEditableRange()) {
-			var editableRange = model.getEditableRange();
-			if (!editableRange.containsPosition(position)) {
-				this.isInEditableRange = false;
-			}
-		}
-
-		var lineContext = model.getLineContext(position.lineNumber);
-		var character = model.getLineContent(position.lineNumber).charAt(position.column - 1);
-		this.shouldAuto = SuggestRegistry.all(model)
-			.some(support => support.shouldAutotriggerSuggest(lineContext, position.column - 1, character));
-	}
-
-	public isValidForAutoSuggest(): boolean {
-		if (this.wordBefore.length === 0) {
-			// Word before position is empty
-			return false;
-		}
-		if (this.wordAfter.length > 0) {
-			// Word after position is non empty
-			return false;
-		}
-		if (!this.shouldAuto) {
-			// ISuggestSupport#shouldAutotriggerSuggest is againt this
-			return false;
-		}
-		return true;
-	}
-
-	public isValidForNewContext(newCtx:SuggestionContext):boolean {
-		if (this.lineNumber !== newCtx.lineNumber) {
-			// Line number has changed
-			return false;
-		}
-
-		if (newCtx.column < this.column - this.wordBefore.length) {
-			// column went before word start
-			return false;
-		}
-
-		if (!strings.startsWith(newCtx.lineContentBefore, this.lineContentBefore) || this.lineContentAfter !== newCtx.lineContentAfter) {
-			// Line has changed before position
-			return false;
-		}
-
-		if (newCtx.wordBefore === '' && newCtx.lineContentBefore !== this.lineContentBefore) {
-			// Most likely a space has been typed
-			return false;
-		}
-
-		return true;
-	}
-
-	public isValidForRetrigger(newCtx:SuggestionContext):boolean {
-		if (!strings.startsWith(this.lineContentBefore, newCtx.lineContentBefore) || this.lineContentAfter !== newCtx.lineContentAfter) {
-			return false;
-		}
-
-		if (this.lineContentBefore.length > newCtx.lineContentBefore.length && this.wordBefore.length === 0) {
-			return false;
-		}
-
-		if (this.auto && newCtx.wordBefore.length === 0) {
-			return false;
-		}
-
-		return true;
+		this.auto = auto;
 	}
 }
 
-export class SuggestModel extends EventEmitter {
+const enum State {
+	Idle = 0,
+	Manual = 1,
+	Auto = 2
+}
 
-	private editor: EditorCommon.ICommonCodeEditor;
-	private onAccept:(snippet: CodeSnippet, overwriteBefore:number, overwriteAfter:number)=>void;
-	private toDispose: IDisposable[];
-	private autoSuggestDelay:number;
+export class SuggestModel implements IDisposable {
 
-	private triggerAutoSuggestPromise:TPromise<void>;
-	private state:SuggestState;
+	private toDispose: IDisposable[] = [];
+	private quickSuggestDelay: number;
+	private triggerCharacterListener: IDisposable;
+	private triggerAutoSuggestPromise: TPromise<void>;
+	private triggerRefilter = new TimeoutTimer();
+	private state: State;
 
-	// Members which make sense when state is active
-	private requestPromise:TPromise<void>;
-	private requestContext:SuggestionContext;
-	private raw:RawModel;
+	private requestPromise: TPromise<void>;
+	private context: LineContext;
+	private currentPosition: Position;
 
-	constructor(editor:EditorCommon.ICommonCodeEditor, onAccept:(snippet: CodeSnippet, overwriteBefore:number, overwriteAfter:number)=>void) {
-		super();
-		this.editor = editor;
-		this.onAccept = onAccept;
-		this.toDispose = [];
+	private completionModel: CompletionModel;
 
-		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.ConfigurationChanged, () => this.onEditorConfigurationChange()));
-		this.onEditorConfigurationChange();
+	private _onDidCancel: Emitter<ICancelEvent> = new Emitter();
+	get onDidCancel(): Event<ICancelEvent> { return this._onDidCancel.event; }
 
+	private _onDidTrigger: Emitter<ITriggerEvent> = new Emitter();
+	get onDidTrigger(): Event<ITriggerEvent> { return this._onDidTrigger.event; }
+
+	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter();
+	get onDidSuggest(): Event<ISuggestEvent> { return this._onDidSuggest.event; }
+
+	constructor(private editor: ICommonCodeEditor) {
+		this.state = State.Idle;
 		this.triggerAutoSuggestPromise = null;
-		this.state = SuggestState.NOT_ACTIVE;
-
 		this.requestPromise = null;
-		this.raw = null;
-		this.requestContext = null;
+		this.completionModel = null;
+		this.context = null;
+		this.currentPosition = editor.getPosition() || new Position(1, 1);
 
-		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.CursorSelectionChanged, (e: EditorCommon.ICursorSelectionChangedEvent) => {
-			if (!e.selection.isEmpty()) {
-				this.cancel();
-				return;
-			}
-
-			if (e.source !== 'keyboard' || e.reason !== '') {
-				this.cancel();
-				return;
-			}
-
-			this.onCursorChange();
-		}));
-		this.toDispose.push(this.editor.addListener2(EditorCommon.EventType.ModelChanged, (e) => {
+		// wire up various listeners
+		this.toDispose.push(this.editor.onDidChangeModel(() => {
+			this.updateTriggerCharacters();
 			this.cancel();
 		}));
+		this.toDispose.push(editor.onDidChangeModelLanguage(() => {
+			this.updateTriggerCharacters();
+			this.cancel();
+		}));
+		this.toDispose.push(this.editor.onDidChangeConfiguration(() => {
+			this.updateTriggerCharacters();
+			this.updateQuickSuggest();
+		}));
+		this.toDispose.push(SuggestRegistry.onDidChange(() => {
+			this.updateTriggerCharacters();
+			this.updateActiveSuggestSession();
+		}));
+		this.toDispose.push(this.editor.onDidChangeCursorSelection(e => {
+			this.onCursorChange(e);
+		}));
+
+		this.updateTriggerCharacters();
+		this.updateQuickSuggest();
 	}
 
-	public cancel(silent:boolean = false, retrigger:boolean = false):boolean {
-		var actuallyCanceled = (this.state !== SuggestState.NOT_ACTIVE);
+	dispose(): void {
+		dispose([this._onDidCancel, this._onDidSuggest, this._onDidTrigger, this.triggerCharacterListener, this.triggerRefilter]);
+		this.toDispose = dispose(this.toDispose);
+		this.cancel();
+	}
+
+	// --- handle configuration & precondition changes
+
+	private updateQuickSuggest(): void {
+		this.quickSuggestDelay = this.editor.getConfiguration().contribInfo.quickSuggestionsDelay;
+
+		if (isNaN(this.quickSuggestDelay) || (!this.quickSuggestDelay && this.quickSuggestDelay !== 0) || this.quickSuggestDelay < 0) {
+			this.quickSuggestDelay = 10;
+		}
+	}
+
+	private updateTriggerCharacters(): void {
+
+		dispose(this.triggerCharacterListener);
+
+		if (this.editor.getConfiguration().readOnly
+			|| !this.editor.getModel()
+			|| !this.editor.getConfiguration().contribInfo.suggestOnTriggerCharacters) {
+
+			return;
+		}
+
+		const supportsByTriggerCharacter: { [ch: string]: ISuggestSupport[] } = Object.create(null);
+		for (const support of SuggestRegistry.all(this.editor.getModel())) {
+			if (isFalsyOrEmpty(support.triggerCharacters)) {
+				continue;
+			}
+			for (const ch of support.triggerCharacters) {
+				const array = supportsByTriggerCharacter[ch];
+				if (!array) {
+					supportsByTriggerCharacter[ch] = [support];
+				} else {
+					array.push(support);
+				}
+			}
+		}
+
+		this.triggerCharacterListener = this.editor.onDidType(text => {
+			const lastChar = text.charAt(text.length - 1);
+			const supports = supportsByTriggerCharacter[lastChar];
+
+			if (supports) {
+				// keep existing items that where not computed by the
+				// supports/providers that want to trigger now
+				const items: ISuggestionItem[] = [];
+				if (this.completionModel) {
+					for (const item of this.completionModel.items) {
+						if (supports.indexOf(item.support) < 0) {
+							items.push(item);
+						}
+					}
+				}
+				this.trigger(true, false, supports, items);
+			}
+		});
+	}
+
+	// --- trigger/retrigger/cancel suggest
+
+	cancel(retrigger: boolean = false): void {
 
 		if (this.triggerAutoSuggestPromise) {
 			this.triggerAutoSuggestPromise.cancel();
@@ -300,205 +217,220 @@ export class SuggestModel extends EventEmitter {
 			this.requestPromise = null;
 		}
 
-		this.state = SuggestState.NOT_ACTIVE;
-		this.raw = null;
-		this.requestContext = null;
+		this.state = State.Idle;
+		this.completionModel = null;
+		this.context = null;
 
-		if (!silent) {
-			this.emit('cancel', { retrigger: retrigger });
+		this._onDidCancel.fire({ retrigger });
+	}
+
+	private updateActiveSuggestSession(): void {
+		if (this.state !== State.Idle) {
+			if (!SuggestRegistry.has(this.editor.getModel())) {
+				this.cancel();
+			} else {
+				this.trigger(this.state === State.Auto, true);
+			}
+		}
+	}
+
+	private onCursorChange(e: ICursorSelectionChangedEvent): void {
+
+		const prevPosition = this.currentPosition;
+		this.currentPosition = this.editor.getPosition();
+
+		if (!e.selection.isEmpty()
+			|| e.source !== 'keyboard'
+			|| e.reason !== CursorChangeReason.NotSet) {
+
+			this.cancel();
+			return;
 		}
 
-		return actuallyCanceled;
-	}
-
-	public getRequestPosition():EditorCommon.IPosition {
-		if(!this.requestContext) {
-			return null;
-		}
-		return {
-			lineNumber: this.requestContext.lineNumber,
-			column: this.requestContext.column
-		};
-	}
-
-	private isAutoSuggest():boolean {
-		return this.state === SuggestState.AUTO_TRIGGER;
-	}
-
-	private onCursorChange():void {
 		if (!SuggestRegistry.has(this.editor.getModel())) {
 			return;
 		}
 
-		var isInactive = this.state === SuggestState.NOT_ACTIVE;
-
-		if (isInactive && !this.editor.getConfiguration().quickSuggestions) {
+		const model = this.editor.getModel();
+		if (!model) {
 			return;
 		}
 
-		var ctx = new SuggestionContext(this.editor, false);
+		if (this.state === State.Idle) {
 
-		if (isInactive) {
-			// trigger was not called or it was canceled
-			this.cancel();
+			// trigger 24x7 IntelliSense when idle, enabled, when cursor
+			// moved RIGHT, and when at a good position
+			if (this.editor.getConfiguration().contribInfo.quickSuggestions !== false
+				&& prevPosition.isBefore(this.currentPosition)
+			) {
 
-			if (ctx.isValidForAutoSuggest()) {
-				this.triggerAutoSuggestPromise = TPromise.timeout(this.autoSuggestDelay);
-				this.triggerAutoSuggestPromise.then(() => {
-					this.triggerAutoSuggestPromise = null;
-					this.trigger(true);
-				});
+				this.cancel();
+
+				if (LineContext.shouldAutoTrigger(this.editor)) {
+					this.triggerAutoSuggestPromise = TPromise.timeout(this.quickSuggestDelay);
+					this.triggerAutoSuggestPromise.then(() => {
+						const model = this.editor.getModel();
+						const pos = this.editor.getPosition();
+
+						if (!model) {
+							return;
+						}
+						// validate enabled now
+						const { quickSuggestions } = this.editor.getConfiguration().contribInfo;
+						if (quickSuggestions === false) {
+							return;
+						} else if (quickSuggestions === true) {
+							// all good
+						} else {
+							model.forceTokenization(pos.lineNumber);
+							const { tokenType } = model
+								.getLineTokens(pos.lineNumber)
+								.findTokenAtOffset(pos.column - 1);
+
+							const inValidScope = quickSuggestions.other && tokenType === StandardTokenType.Other
+								|| quickSuggestions.comments && tokenType === StandardTokenType.Comment
+								|| quickSuggestions.strings && tokenType === StandardTokenType.String;
+
+							if (!inValidScope) {
+								return;
+							}
+						}
+
+						this.triggerAutoSuggestPromise = null;
+						this.trigger(true);
+					});
+				}
 			}
 
-		} else if (this.raw && this.raw.incomplete) {
-			this.trigger(this.state === SuggestState.AUTO_TRIGGER, undefined, true);
 		} else {
-			this.onNewContext(ctx);
+			// refine active suggestion
+			this.triggerRefilter.cancelAndSet(() => {
+				const position = this.editor.getPosition();
+				const ctx = new LineContext(model, position, this.state === State.Auto);
+				this.onNewContext(ctx);
+			}, 25);
 		}
 	}
 
-	public trigger(auto: boolean, triggerCharacter?: string, retrigger: boolean = false, groups?: ISuggestSupport[][]): void {
-		var model = this.editor.getModel();
-		var characterTriggered = !!triggerCharacter;
-		if (!groups) {
-			groups = SuggestRegistry.orderedGroups(model);
-		}
-		if (groups.length === 0) {
-			return;
-		}
-		var ctx = new SuggestionContext(this.editor, auto);
-		if (!ctx.isInEditableRange) {
+	public trigger(auto: boolean, retrigger: boolean = false, onlyFrom?: ISuggestSupport[], existingItems?: ISuggestionItem[]): void {
+
+		const model = this.editor.getModel();
+
+		if (!model) {
 			return;
 		}
 
-		var $tTrigger = timer.start(timer.Topic.EDITOR, 'suggest/TRIGGER');
+		const ctx = new LineContext(model, this.editor.getPosition(), auto);
+
+		if (!LineContext.isInEditableRange(this.editor)) {
+			return;
+		}
 
 		// Cancel previous requests, change state & update UI
-		this.cancel(false, retrigger);
-		this.state = (auto || characterTriggered) ? SuggestState.AUTO_TRIGGER : SuggestState.MANUAL_TRIGGER;
-		this.emit('loading', { auto: this.isAutoSuggest(), characterTriggered: characterTriggered, retrigger: retrigger });
+		this.cancel(retrigger);
+		this.state = auto ? State.Auto : State.Manual;
+		this._onDidTrigger.fire({ auto });
 
 		// Capture context when request was sent
-		this.requestContext = ctx;
+		this.context = ctx;
 
-		// Send mode request
-		var $tRequest = timer.start(timer.Topic.EDITOR, 'suggest/REQUEST');
-		var position = this.editor.getPosition();
-		var resource = model.getAssociatedResource();
+		this.requestPromise = provideSuggestionItems(model, this.editor.getPosition(),
+			this.editor.getConfiguration().contribInfo.snippetSuggestions,
+			onlyFrom
+		).then(items => {
 
-		let raw = new RawModel();
-		let rank = 0;
-		let factory = groups.map((supports, index) => {
-			return () => {
-
-				// stop as soon as a group produced a result
-				if (raw.size !== 0) {
-					return;
-				}
-
-				// for each support in the group as for suggestions
-				let promises = supports.map(support => {
-					return support.suggest(resource, position, triggerCharacter).then(value => {
-						if (raw.insertSuggestions(rank, value, support)) {
-							rank++;
-						}
-					}, err => {
-						onUnexpectedError(err);
-					});
-				});
-
-				return TPromise.join(promises);
-			};
-		});
-
-		this.requestPromise = sequence(factory).then(() => { });
-
-		this.requestPromise.then(() => {
-			$tRequest.stop();
 			this.requestPromise = null;
-
-			if (this.state === SuggestState.NOT_ACTIVE) {
+			if (this.state === State.Idle) {
+				return;
+			}
+			const model = this.editor.getModel();
+			if (!model) {
 				return;
 			}
 
-			var snippets = getSnippets(model, position);
-			if (snippets && snippets.suggestions && snippets.suggestions.length > 0) {
-				raw.insertSuggestions(rank, [snippets], undefined);
+			if (!isFalsyOrEmpty(existingItems)) {
+				const cmpFn = getSuggestionComparator(this.editor.getConfiguration().contribInfo.snippetSuggestions);
+				items = items.concat(existingItems).sort(cmpFn);
 			}
 
-			if(raw.size > 0) {
-				this.raw = raw;
-				this.onNewContext(new SuggestionContext(this.editor, auto));
-			} else {
-				this.emit('empty', { auto: this.isAutoSuggest() });
-			}
-		}, () => {
-			$tRequest.stop();
-		}).done(() => $tTrigger.stop());
+			const ctx = new LineContext(model, this.editor.getPosition(), auto);
+			this.completionModel = new CompletionModel(items, this.context.column, {
+				leadingLineContent: ctx.leadingLineContent,
+				characterCountDelta: this.context ? ctx.column - this.context.column : 0
+			});
+			this.onNewContext(ctx);
+
+		}).then(null, onUnexpectedError);
 	}
 
-	private onNewContext(ctx:SuggestionContext):void {
-		if (this.requestContext && !this.requestContext.isValidForNewContext(ctx)) {
-			if (this.requestContext.isValidForRetrigger(ctx)) {
-				this.trigger(this.state === SuggestState.AUTO_TRIGGER, undefined, true);
-			} else {
-				this.cancel();
-			}
+	private onNewContext(ctx: LineContext): void {
 
+		if (!this.context) {
+			// happens when 24x7 IntelliSense is enabled and still in its delay
 			return;
 		}
 
-		if (this.raw) {
+		if (ctx.lineNumber !== this.context.lineNumber) {
+			// e.g. happens when pressing Enter while IntelliSense is computed
+			this.cancel();
+			return;
+		}
 
-			let completionItems = this.raw.select(ctx);
-
-			if (completionItems.length > 0) {
-				this.emit('suggest', <SuggestDataEvent> {
-					suggestions: {
-						completionItems,
-						currentWord: ctx.wordBefore
-					},
-					auto: this.isAutoSuggest()
-				});
+		if (ctx.column < this.context.column) {
+			// typed -> moved cursor LEFT -> retrigger if still on a word
+			if (ctx.leadingWord.word) {
+				this.trigger(this.context.auto, true);
 			} else {
-				this.emit('empty', { auto: this.isAutoSuggest() });
+				this.cancel();
 			}
-		}
-	}
-
-	public accept(item: CompletionItem): boolean {
-		if (this.raw === null) {
-			return false;
+			return;
 		}
 
-		var parentSuggestions = item.container;
-		var offsetFromInvocation = this.editor.getPosition().column - this.requestContext.column;
-
-		var overwriteBefore = ((typeof parentSuggestions.overwriteBefore === 'undefined')
-			? parentSuggestions.currentWord.length
-			: parentSuggestions.overwriteBefore) + offsetFromInvocation;
-
-		var overwriteAfter = (typeof parentSuggestions.overwriteAfter === 'undefined')
-			? 0
-			: Math.max(0, parentSuggestions.overwriteAfter);
-
-		this.cancel();
-		this.onAccept(new CodeSnippet(item.suggestion.codeSnippet), overwriteBefore, overwriteAfter);
-
-		return true;
-	}
-
-	private onEditorConfigurationChange(): void {
-		this.autoSuggestDelay = this.editor.getConfiguration().quickSuggestionsDelay;
-
-		if (isNaN(this.autoSuggestDelay) || (!this.autoSuggestDelay && this.autoSuggestDelay !== 0) || this.autoSuggestDelay > 2000 || this.autoSuggestDelay < 0) {
-			this.autoSuggestDelay = 10;
+		if (!this.completionModel) {
+			// happens when IntelliSense is not yet computed
+			return;
 		}
-	}
 
-	public destroy():void {
-		this.cancel(true);
-		this.toDispose = disposeAll(this.toDispose);
-		this.emit('destroy', null);
+		if (ctx.column > this.context.column && this.completionModel.incomplete) {
+			// typed -> moved cursor RIGHT & incomple model -> retrigger
+			const { complete, incomplete } = this.completionModel.resolveIncompleteInfo();
+			this.trigger(this.state === State.Auto, true, incomplete, complete);
+
+		} else {
+			// typed -> moved cursor RIGHT -> update UI
+			let oldLineContext = this.completionModel.lineContext;
+			let isFrozen = false;
+
+			this.completionModel.lineContext = {
+				leadingLineContent: ctx.leadingLineContent,
+				characterCountDelta: ctx.column - this.context.column
+			};
+
+			if (this.completionModel.items.length === 0) {
+
+				if (LineContext.shouldAutoTrigger(this.editor) && this.context.leadingWord.endColumn < ctx.leadingWord.startColumn) {
+					// retrigger when heading into a new word
+					this.trigger(this.context.auto, true);
+					return;
+				}
+
+				if (!this.context.auto) {
+					// freeze when IntelliSense was manually requested
+					this.completionModel.lineContext = oldLineContext;
+					isFrozen = this.completionModel.items.length > 0;
+
+				} else {
+					// nothing left
+					this.cancel();
+					return;
+				}
+			}
+
+			this._onDidSuggest.fire({
+				completionModel: this.completionModel,
+				auto: this.context.auto,
+				isFrozen,
+			});
+		}
 	}
 }

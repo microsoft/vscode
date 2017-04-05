@@ -1,0 +1,9 @@
+{
+	// See http://go.microsoft.com/fwlink/?LinkId=827846
+	// for the documentation about the extensions.json format
+	"recommendations": [
+		"eg2.tslint",
+		"dbaeumer.vscode-eslint",
+		"msjsdiag.debugger-for-chrome"
+	]
+}

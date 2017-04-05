@@ -12,13 +12,11 @@ import ee = require('vs/base/common/eventEmitter');
 import view = require('vs/workbench/parts/git/browser/views/view');
 import builder = require('vs/base/browser/builder');
 import actions = require('vs/base/common/actions');
-import {ISelection, Selection} from 'vs/platform/selection/common/selection';
-var $ = builder.$;
+const $ = builder.$;
 
 export class NotRootView
 	extends ee.EventEmitter
-	implements view.IView
-{
+	implements view.IView {
 	public ID = 'notroot';
 	private _element: HTMLElement;
 
@@ -47,12 +45,8 @@ export class NotRootView
 		return;
 	}
 
-	public setVisible(visible:boolean): winjs.TPromise<void> {
-		return winjs.Promise.as(null);
-	}
-
-	public getSelection(): ISelection {
-		return Selection.EMPTY;
+	public setVisible(visible: boolean): winjs.TPromise<void> {
+		return winjs.TPromise.as(null);
 	}
 
 	public getControl(): ee.IEventEmitter {

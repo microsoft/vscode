@@ -2,37 +2,63 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
 import nls = require('vs/nls');
-import {CommonEditorRegistry, ContextKey, EditorActionDescriptor} from 'vs/editor/common/editorCommonExtensions';
-import editorCommon = require('vs/editor/common/editorCommon');
-import {ExpandAbbreviationAction} from './emmetActions';
-import {KeybindingsRegistry} from 'vs/platform/keybinding/common/keybindingsRegistry';
-import {KeyMod, KeyCode} from 'vs/base/common/keyCodes';
 
-CommonEditorRegistry.registerEditorAction(new EditorActionDescriptor(ExpandAbbreviationAction,
-	ExpandAbbreviationAction.ID,
-	nls.localize('expandAbbreviationAction',
-	"Emmet: Expand Abbreviation")));
+import { Registry } from 'vs/platform/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
-KeybindingsRegistry.registerCommandRule({
-	id: ExpandAbbreviationAction.ID,
-	weight: KeybindingsRegistry.WEIGHT.editorContrib(),
-	context: [{
-		key: editorCommon.KEYBINDING_CONTEXT_EDITOR_TEXT_FOCUS
-	}, {
-		key: editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_NON_EMPTY_SELECTION,
-		operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL,
-		operand: true
-	}, {
-		key: editorCommon.KEYBINDING_CONTEXT_EDITOR_HAS_MULTIPLE_SELECTIONS,
-		operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL,
-		operand: true
-	}, {
-		key: editorCommon.KEYBINDING_CONTEXT_EDITOR_TAB_MOVES_FOCUS,
-		operator: KeybindingsRegistry.KEYBINDING_CONTEXT_OPERATOR_NOT_EQUAL,
-		operand: true
-	}],
-	primary: KeyCode.Tab
+import './actions/expandAbbreviation';
+import './actions/balance';
+import './actions/matchingPair';
+import './actions/wrapWithAbbreviation';
+import './actions/editPoints';
+import './actions/selectItem';
+import './actions/toggleComment';
+import './actions/splitJoinTag';
+import './actions/removeTag';
+import './actions/mergeLines';
+import './actions/updateImageSize';
+import './actions/evaluateMath';
+import './actions/incrementDecrement';
+import './actions/reflectCssValue';
+// import './actions/base64'; // disabled - we will revisit the implementation
+import './actions/updateTag';
+
+// Configuration: emmet
+const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	'id': 'emmet',
+	'order': 6,
+	'title': nls.localize('emmetConfigurationTitle', "Emmet"),
+	'type': 'object',
+	'properties': {
+		'emmet.triggerExpansionOnTab': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('triggerExpansionOnTab', "When enabled, emmet abbreviations are expanded when pressing TAB.")
+		},
+		'emmet.preferences': {
+			'type': 'object',
+			'default': {},
+			'description': nls.localize('emmetPreferences', "Preferences used to modify behavior of some actions and resolvers of Emmet.")
+		},
+		'emmet.syntaxProfiles': {
+			'type': 'object',
+			'default': {},
+			'description': nls.localize('emmetSyntaxProfiles', "Define profile for specified syntax or use your own profile with specific rules.")
+		},
+		'emmet.excludeLanguages': {
+			'type': 'array',
+			'default': ['markdown'],
+			'description': nls.localize('emmetExclude', "An array of languages where emmet abbreviations should not be expanded.")
+		},
+		'emmet.extensionsPath': {
+			'type': 'string',
+			'default': null,
+			'description': nls.localize('emmetExtensionsPath', 'Path to a folder containing emmet profiles, snippets and preferences')
+		}
+	}
 });

@@ -7,92 +7,213 @@
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
+import { match } from 'vs/base/common/glob';
 
 export let MIME_TEXT = 'text/plain';
 export let MIME_BINARY = 'application/octet-stream';
 export let MIME_UNKNOWN = 'application/unknown';
 
-const registeredTextMimesByFilename: { [str: string]: string; } = Object.create(null);
-const registeredTextMimesByFirstLine: { regexp: RegExp; mime: string; }[] = [];
+export interface ITextMimeAssociation {
+	id: string;
+	mime: string;
+	filename?: string;
+	extension?: string;
+	filepattern?: string;
+	firstline?: RegExp;
+	userConfigured?: boolean;
+}
 
-// This is for automatic generation at native.guplfile.js#41 => darwinBundleDocumentTypes.extensions
-export function generateKnownFilenames(onlyExtensions: boolean = true): any {
-	let filter = (ext: string) => {
-		if (onlyExtensions) {
-			return /^\./.test(ext);
-		}
-		return true;
+interface ITextMimeAssociationItem extends ITextMimeAssociation {
+	filenameLowercase?: string;
+	extensionLowercase?: string;
+	filepatternLowercase?: string;
+	filepatternOnPath?: boolean;
+}
+
+let registeredAssociations: ITextMimeAssociationItem[] = [];
+let nonUserRegisteredAssociations: ITextMimeAssociationItem[] = [];
+let userRegisteredAssociations: ITextMimeAssociationItem[] = [];
+
+/**
+ * Associate a text mime to the registry.
+ */
+export function registerTextMime(association: ITextMimeAssociation): void {
+
+	// Register
+	const associationItem = toTextMimeAssociationItem(association);
+	registeredAssociations.push(associationItem);
+	if (!associationItem.userConfigured) {
+		nonUserRegisteredAssociations.push(associationItem);
+	} else {
+		userRegisteredAssociations.push(associationItem);
+	}
+
+	// Check for conflicts unless this is a user configured association
+	if (!associationItem.userConfigured) {
+		registeredAssociations.forEach(a => {
+			if (a.mime === associationItem.mime || a.userConfigured) {
+				return; // same mime or userConfigured is ok
+			}
+
+			if (associationItem.extension && a.extension === associationItem.extension) {
+				console.warn(`Overwriting extension <<${associationItem.extension}>> to now point to mime <<${associationItem.mime}>>`);
+			}
+
+			if (associationItem.filename && a.filename === associationItem.filename) {
+				console.warn(`Overwriting filename <<${associationItem.filename}>> to now point to mime <<${associationItem.mime}>>`);
+			}
+
+			if (associationItem.filepattern && a.filepattern === associationItem.filepattern) {
+				console.warn(`Overwriting filepattern <<${associationItem.filepattern}>> to now point to mime <<${associationItem.mime}>>`);
+			}
+
+			if (associationItem.firstline && a.firstline === associationItem.firstline) {
+				console.warn(`Overwriting firstline <<${associationItem.firstline}>> to now point to mime <<${associationItem.mime}>>`);
+			}
+		});
+	}
+}
+
+function toTextMimeAssociationItem(association: ITextMimeAssociation): ITextMimeAssociationItem {
+	return {
+		id: association.id,
+		mime: association.mime,
+		filename: association.filename,
+		extension: association.extension,
+		filepattern: association.filepattern,
+		firstline: association.firstline,
+		userConfigured: association.userConfigured,
+		filenameLowercase: association.filename ? association.filename.toLowerCase() : void 0,
+		extensionLowercase: association.extension ? association.extension.toLowerCase() : void 0,
+		filepatternLowercase: association.filepattern ? association.filepattern.toLowerCase() : void 0,
+		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(paths.sep) >= 0 : false
 	};
-	let removeLeadingDot = (ext: string) => {
-		return ext.replace(/^\./, '');
-	}
-
-	let list: string[] = [];
-	list = list.concat(Object.keys(registeredTextMimesByFilename));
-
-	list = list.filter(filter).map(removeLeadingDot);
-	list.sort();
-
-	let result: string[] = [];
-	let currentLetter: string = null;
-	let previousItem: string = null;
-	let currentRow: string[] = [];
-
-	let pushCurrentRow = () => {
-		if (currentRow.length > 0) {
-			result.push('\'' + currentRow.join('\', \'') + '\'')
-		}
-	};
-
-	for (let i = 0, len = list.length; i < len; i++) {
-		let item = list[i];
-		if (item.length === 0) {
-			continue;
-		}
-		if (item === previousItem) {
-			continue;
-		}
-		let letter = item.charAt(0);
-
-		if (currentLetter !== letter) {
-			pushCurrentRow();
-			currentLetter = letter;
-			currentRow = [];
-		}
-
-		currentRow.push(item);
-		previousItem = item;
-	}
-	pushCurrentRow();
-
-	return result.join(',\n');
 }
 
 /**
- * Allow to register extra text mimes dynamically based on filename
+ * Clear text mimes from the registry.
  */
-export function registerTextMimeByFilename(nameOrExtension: string, mime: string): void {
-	if (nameOrExtension && mime) {
-		if (registeredTextMimesByFilename[nameOrExtension] && registeredTextMimesByFilename[nameOrExtension] !== mime) {
-			console.warn('Overwriting filename <<' + nameOrExtension + '>> to now point to mime <<' + mime + '>>');
-		}
-		registeredTextMimesByFilename[nameOrExtension] = mime;
+export function clearTextMimes(onlyUserConfigured?: boolean): void {
+	if (!onlyUserConfigured) {
+		registeredAssociations = [];
+		nonUserRegisteredAssociations = [];
+		userRegisteredAssociations = [];
+	} else {
+		registeredAssociations = registeredAssociations.filter(a => !a.userConfigured);
+		userRegisteredAssociations = [];
 	}
 }
 
 /**
- * Allow to register extra text mimes dynamically based on firstline
+ * Given a file, return the best matching mime type for it
  */
-export function registerTextMimeByFirstLine(firstLineRegexp: RegExp, mime: string): void {
-	if (firstLineRegexp && mime) {
-		registeredTextMimesByFirstLine.push({ regexp: firstLineRegexp, mime: mime });
+export function guessMimeTypes(path: string, firstLine?: string): string[] {
+	if (!path) {
+		return [MIME_UNKNOWN];
 	}
+
+	path = path.toLowerCase();
+	let filename = paths.basename(path);
+
+	// 1.) User configured mappings have highest priority
+	let configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
+	if (configuredMime) {
+		return [configuredMime, MIME_TEXT];
+	}
+
+	// 2.) Registered mappings have middle priority
+	let registeredMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
+	if (registeredMime) {
+		return [registeredMime, MIME_TEXT];
+	}
+
+	// 3.) Firstline has lowest priority
+	if (firstLine) {
+		let firstlineMime = guessMimeTypeByFirstline(firstLine);
+		if (firstlineMime) {
+			return [firstlineMime, MIME_TEXT];
+		}
+	}
+
+	return [MIME_UNKNOWN];
 }
 
-/**
- * Given a comma separated list of mimes in order of priority, find if the list describes a binary
- * or textual resource.
- */
+function guessMimeTypeByPath(path: string, filename: string, associations: ITextMimeAssociationItem[]): string {
+	let filenameMatch: ITextMimeAssociationItem;
+	let patternMatch: ITextMimeAssociationItem;
+	let extensionMatch: ITextMimeAssociationItem;
+
+	// We want to prioritize associations based on the order they are registered so that the last registered
+	// association wins over all other. This is for https://github.com/Microsoft/vscode/issues/20074
+	for (let i = associations.length - 1; i >= 0; i--) {
+		let association = associations[i];
+
+		// First exact name match
+		if (filename === association.filenameLowercase) {
+			filenameMatch = association;
+			break; // take it!
+		}
+
+		// Longest pattern match
+		if (association.filepattern) {
+			if (!patternMatch || association.filepattern.length > patternMatch.filepattern.length) {
+				let target = association.filepatternOnPath ? path : filename; // match on full path if pattern contains path separator
+				if (match(association.filepatternLowercase, target)) {
+					patternMatch = association;
+				}
+			}
+		}
+
+		// Longest extension match
+		if (association.extension) {
+			if (!extensionMatch || association.extension.length > extensionMatch.extension.length) {
+				if (strings.endsWith(filename, association.extensionLowercase)) {
+					extensionMatch = association;
+				}
+			}
+		}
+	}
+
+	// 1.) Exact name match has second highest prio
+	if (filenameMatch) {
+		return filenameMatch.mime;
+	}
+
+	// 2.) Match on pattern
+	if (patternMatch) {
+		return patternMatch.mime;
+	}
+
+	// 3.) Match on extension comes next
+	if (extensionMatch) {
+		return extensionMatch.mime;
+	}
+
+	return null;
+}
+
+function guessMimeTypeByFirstline(firstLine: string): string {
+	if (strings.startsWithUTF8BOM(firstLine)) {
+		firstLine = firstLine.substr(1);
+	}
+
+	if (firstLine.length > 0) {
+		for (let i = 0; i < registeredAssociations.length; ++i) {
+			let association = registeredAssociations[i];
+			if (!association.firstline) {
+				continue;
+			}
+
+			let matches = firstLine.match(association.firstline);
+			if (matches && matches.length > 0) {
+				return association.mime;
+			}
+		}
+	}
+
+	return null;
+}
+
 export function isBinaryMime(mimes: string): boolean;
 export function isBinaryMime(mimes: string[]): boolean;
 export function isBinaryMime(mimes: any): boolean {
@@ -110,71 +231,6 @@ export function isBinaryMime(mimes: any): boolean {
 	return mimeVals.indexOf(MIME_BINARY) >= 0;
 }
 
-/**
- * New function for mime type detection supporting application/unknown as concept.
- */
-export function guessMimeTypes(path: string, firstLine?: string): string[] {
-	if (!path) {
-		return [MIME_UNKNOWN];
-	}
-
-	// 1.) Firstline gets highest priority
-	if (firstLine) {
-		if (strings.startsWithUTF8BOM(firstLine)) {
-			firstLine = firstLine.substr(1);
-		}
-
-		if (firstLine.length > 0) {
-			for (let i = 0; i < registeredTextMimesByFirstLine.length; ++i) {
-
-				// Make sure the entire line matches, not just a subpart.
-				let matches = firstLine.match(registeredTextMimesByFirstLine[i].regexp);
-				if (matches && matches.length > 0 && matches[0].length === firstLine.length) {
-					return [registeredTextMimesByFirstLine[i].mime, MIME_TEXT];
-				}
-			}
-		}
-	}
-
-	// Check with file name and extension
-	path = path.toLowerCase();
-	let filename = paths.basename(path);
-	let extension = paths.extname(path);
-
-	let exactNameMatch: string;
-	let extensionMatch: string;
-
-	// Check for dynamically registered match based on filename and extension
-	for (let nameOrExtension in registeredTextMimesByFilename) {
-		let nameOrExtensionLower:string = nameOrExtension.toLowerCase();
-
-		// First exact name match
-		if (!exactNameMatch && filename === nameOrExtensionLower) {
-			exactNameMatch = nameOrExtension;
-			break; // take it!
-		}
-
-		// Longest extension match
-		if (nameOrExtension[0] === '.' && strings.endsWith(filename, nameOrExtensionLower)) {
-			if (!extensionMatch || nameOrExtensionLower.length > extensionMatch.length) {
-				extensionMatch = nameOrExtension;
-			}
-		}
-	}
-
-	// 2.) Exact name match has second highest prio
-	if (exactNameMatch) {
-		return [registeredTextMimesByFilename[exactNameMatch], MIME_TEXT];
-	}
-
-	// 3.) Match on extension comes last
-	if (extensionMatch) {
-		return [registeredTextMimesByFilename[extensionMatch], MIME_TEXT];
-	}
-
-	return [MIME_UNKNOWN];
-}
-
 export function isUnspecific(mime: string[] | string): boolean {
 	if (!mime) {
 		return true;
@@ -187,13 +243,17 @@ export function isUnspecific(mime: string[] | string): boolean {
 	return mime.length === 1 && isUnspecific(mime[0]);
 }
 
-export function suggestFilename(theMime: string, prefix: string): string {
-	for (let fileExtension in registeredTextMimesByFilename) {
-		let mime = registeredTextMimesByFilename[fileExtension];
-		if (mime === theMime) {
-			return prefix + fileExtension;
+export function suggestFilename(langId: string, prefix: string): string {
+	for (let i = 0; i < registeredAssociations.length; i++) {
+		let association = registeredAssociations[i];
+		if (association.userConfigured) {
+			continue; // only support registered ones
+		}
+
+		if (association.id === langId && association.extension) {
+			return prefix + association.extension;
 		}
 	}
 
-	return null;
+	return prefix; // without any known extension, just return the prefix
 }

@@ -11,7 +11,6 @@
 	margin: 0;
 	padding: 0;
 	position: absolute;
-	outline: none;
 	resize: none;
 	overflow: hidden;
 	background: url('keyboard.svg') center center no-repeat;

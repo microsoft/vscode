@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+	<style>
+		.container {
+			border-top: 1px solid #ccc;
+			padding-top: 5px;
+			clear: both;
+			margin-top: 30px;
+		}
+		.container .title {
+			margin-bottom: 10px;
+		}
+		.container button {
+			float: left;
+		}
+		.container textarea {
+			float: left;
+			width: 200px;
+			height: 100px;
+			margin-left: 50px;
+		}
+		.container .output {
+			float: left;
+			background: lightblue;
+			margin: 0;
+			margin-left: 50px;
+		}
+
+		.container .check {
+			float: left;
+			background: grey;
+			margin: 0;
+			margin-left: 50px;
+		}
+		.container .check.good {
+			background: lightgreen;
+		}
+	</style>
+</head>
+<body>
+	<h3>Detailed setup steps at https://github.com/Microsoft/vscode/wiki/IME-Test</h3>
+<script src="../../../../loader.js"></script>
+<script>
+	require.config({
+		baseUrl: '../../../../../../out'
+	});
+
+	require(['vs/editor/test/browser/controller/imeTester'], function(imeTester) {
+		// console.log('loaded', imeTester);
+		// imeTester.createTest();
+	});
+</script>
+</body>
+</html>

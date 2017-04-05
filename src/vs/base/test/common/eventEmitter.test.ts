@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { EventEmitter, OrderGuaranteeEventEmitter } from 'vs/base/common/eventEmitter';
 
 suite('EventEmitter', () => {
-	var eventEmitter: EventEmitter;
+	let eventEmitter: EventEmitter;
 
 	setup(() => {
 		eventEmitter = new EventEmitter();
@@ -20,8 +20,8 @@ suite('EventEmitter', () => {
 	});
 
 	test('add listener, emit other event type', function () {
-		var didCall = false;
-		eventEmitter.addListener('eventType1', function (e) {
+		let didCall = false;
+		eventEmitter.addListener2('eventType1', function (e) {
 			didCall = true;
 		});
 		eventEmitter.emit('eventType2', {});
@@ -29,8 +29,8 @@ suite('EventEmitter', () => {
 	});
 
 	test('add listener, emit event', function () {
-		var didCall = false;
-		eventEmitter.addListener('eventType', function (e) {
+		let didCall = false;
+		eventEmitter.addListener2('eventType', function (e) {
 			didCall = true;
 		});
 		eventEmitter.emit('eventType', {});
@@ -38,12 +38,12 @@ suite('EventEmitter', () => {
 	});
 
 	test('add 2 listeners, emit event', function () {
-		var didCallFirst = false;
-		eventEmitter.addListener('eventType', function (e) {
+		let didCallFirst = false;
+		eventEmitter.addListener2('eventType', function (e) {
 			didCallFirst = true;
 		});
-		var didCallSecond = false;
-		eventEmitter.addListener('eventType', function (e) {
+		let didCallSecond = false;
+		eventEmitter.addListener2('eventType', function (e) {
 			didCallSecond = true;
 		});
 		eventEmitter.emit('eventType', {});
@@ -52,23 +52,23 @@ suite('EventEmitter', () => {
 	});
 
 	test('add 1 listener, remove it, emit event', function () {
-		var didCall = false;
-		var remove = eventEmitter.addListener('eventType', function (e) {
+		let didCall = false;
+		let remove = eventEmitter.addListener2('eventType', function (e) {
 			didCall = true;
 		});
-		remove();
+		remove.dispose();
 		eventEmitter.emit('eventType', {});
 		assert(!didCall);
 	});
 
 	test('add 2 listeners, emit event, remove one while processing', function () {
-		var firstCallCount = 0;
-		var remove1 = eventEmitter.addListener('eventType', function (e) {
+		let firstCallCount = 0;
+		let remove1 = eventEmitter.addListener2('eventType', function (e) {
 			firstCallCount++;
-			remove1();
+			remove1.dispose();
 		});
-		var secondCallCount = 0;
-		eventEmitter.addListener('eventType', function (e) {
+		let secondCallCount = 0;
+		eventEmitter.addListener2('eventType', function (e) {
 			secondCallCount++;
 		});
 		eventEmitter.emit('eventType', {});
@@ -78,8 +78,8 @@ suite('EventEmitter', () => {
 	});
 
 	test('event object is assert', function () {
-		var data: any;
-		eventEmitter.addListener('eventType', function (e) {
+		let data: any;
+		eventEmitter.addListener2('eventType', function (e) {
 			data = e.data;
 		});
 		eventEmitter.emit('eventType', { data: 5 });
@@ -87,8 +87,8 @@ suite('EventEmitter', () => {
 	});
 
 	test('deferred emit', function () {
-		var calledCount = 0;
-		eventEmitter.addListener('eventType', function (e) {
+		let calledCount = 0;
+		eventEmitter.addListener2('eventType', function (e) {
 			calledCount++;
 		});
 		eventEmitter.deferredEmit(function () {
@@ -102,12 +102,12 @@ suite('EventEmitter', () => {
 	});
 
 	test('deferred emit maintains events order', function () {
-		var order = 0;
-		eventEmitter.addListener('eventType2', function (e) {
+		let order = 0;
+		eventEmitter.addListener2('eventType2', function (e) {
 			order++;
 			assert.equal(order, 1);
 		});
-		eventEmitter.addListener('eventType1', function (e) {
+		eventEmitter.addListener2('eventType1', function (e) {
 			order++;
 			assert.equal(order, 2);
 		});
@@ -119,8 +119,8 @@ suite('EventEmitter', () => {
 	});
 
 	test('deferred emit maintains events order for bulk listeners', function () {
-		var count = 0;
-		eventEmitter.addBulkListener(function (events) {
+		let count = 0;
+		eventEmitter.addBulkListener2(function (events) {
 			assert.equal(events[0].getType(), 'eventType2');
 			assert.equal(events[1].getType(), 'eventType1');
 			count++;
@@ -133,8 +133,8 @@ suite('EventEmitter', () => {
 	});
 
 	test('emit notifies bulk listeners', function () {
-		var count = 0;
-		eventEmitter.addBulkListener(function (events) {
+		let count = 0;
+		eventEmitter.addBulkListener2(function (events) {
 			count++;
 		});
 		eventEmitter.emit('eventType', {});
@@ -142,16 +142,16 @@ suite('EventEmitter', () => {
 	});
 
 	test('one event emitter, one listener', function () {
-		var emitter = new EventEmitter();
-		var eventBus = new EventEmitter();
+		let emitter = new EventEmitter();
+		let eventBus = new EventEmitter();
 
-		eventBus.addEmitter(emitter, 'emitter1');
-		var didCallFirst = false;
-		eventBus.addListener('eventType', function (e) {
+		eventBus.addEmitter2(emitter);
+		let didCallFirst = false;
+		eventBus.addListener2('eventType', function (e) {
 			didCallFirst = true;
 		});
-		var didCallSecond = false;
-		eventBus.addListener('eventType/emitter1', function (e) {
+		let didCallSecond = false;
+		eventBus.addListener2('eventType', function (e) {
 			didCallSecond = true;
 		});
 
@@ -161,22 +161,18 @@ suite('EventEmitter', () => {
 	});
 
 	test('two event emitters, two listeners, deferred emit', function () {
-		var callCnt = 0;
-		var emitter1 = new EventEmitter();
-		var emitter2 = new EventEmitter();
-		var eventBus = new EventEmitter();
+		let callCnt = 0;
+		let emitter1 = new EventEmitter();
+		let emitter2 = new EventEmitter();
+		let eventBus = new EventEmitter();
 
-		eventBus.addEmitter(emitter1, 'emitter1');
-		eventBus.addEmitter(emitter2, 'emitter2');
-		eventBus.addListener('eventType1', function (e) {
+		eventBus.addEmitter2(emitter1);
+		eventBus.addEmitter2(emitter2);
+		eventBus.addListener2('eventType1', function (e) {
 			assert(true);
 			callCnt++;
 		});
-		eventBus.addListener('eventType1/emitter1', function (e) {
-			assert(true);
-			callCnt++;
-		});
-		eventBus.addEmitterTypeListener('eventType1', 'emitter1', function (e) {
+		eventBus.addListener2('eventType1', function (e) {
 			assert(true);
 			callCnt++;
 		});
@@ -191,17 +187,17 @@ suite('EventEmitter', () => {
 	});
 
 	test('cascading emitters', function () {
-		var emitter1 = new EventEmitter();
-		var emitter2 = new EventEmitter();
-		var emitter3 = new EventEmitter();
-		var emitter4 = new EventEmitter();
+		let emitter1 = new EventEmitter();
+		let emitter2 = new EventEmitter();
+		let emitter3 = new EventEmitter();
+		let emitter4 = new EventEmitter();
 
-		emitter2.addEmitter(emitter1);
-		emitter3.addEmitter(emitter2);
-		emitter4.addEmitter(emitter3);
+		emitter2.addEmitter2(emitter1);
+		emitter3.addEmitter2(emitter2);
+		emitter4.addEmitter2(emitter3);
 
-		var didCall = false;
-		emitter4.addListener('eventType', function (e) {
+		let didCall = false;
+		emitter4.addListener2('eventType', function (e) {
 			didCall = true;
 		});
 
@@ -210,21 +206,21 @@ suite('EventEmitter', () => {
 	});
 
 	test('EventEmitter makes no order guarantees 1', () => {
-		var emitter = new EventEmitter();
-		var actualCallOrder: string[] = [];
+		let emitter = new EventEmitter();
+		let actualCallOrder: string[] = [];
 
-		emitter.addListener('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');
-			emitter.emit('bar')
+			emitter.emit('bar');
 		});
 
 
-		emitter.addListener('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener2-foo');
-		})
-		emitter.addListener('bar', function() {
+		});
+		emitter.addListener2('bar', function () {
 			actualCallOrder.push('listener2-bar');
-		})
+		});
 
 		emitter.emit('foo');
 
@@ -236,23 +232,23 @@ suite('EventEmitter', () => {
 	});
 
 	test('EventEmitter makes no order guarantees 2', () => {
-		var emitter = new EventEmitter();
-		var actualCallOrder: string[] = [];
+		let emitter = new EventEmitter();
+		let actualCallOrder: string[] = [];
 
-		emitter.addListener('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');
 			emitter.deferredEmit(() => {
-				emitter.emit('bar')
-			})
+				emitter.emit('bar');
+			});
 		});
 
 
-		emitter.addListener('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener2-foo');
-		})
-		emitter.addListener('bar', function() {
+		});
+		emitter.addListener2('bar', function () {
 			actualCallOrder.push('listener2-bar');
-		})
+		});
 
 		emitter.deferredEmit(() => {
 			emitter.emit('foo');
@@ -266,21 +262,21 @@ suite('EventEmitter', () => {
 	});
 
 	test('OrderGuaranteeEventEmitter makes order guarantees 1', () => {
-		var emitter = new OrderGuaranteeEventEmitter();
-		var actualCallOrder: string[] = [];
+		let emitter = new OrderGuaranteeEventEmitter();
+		let actualCallOrder: string[] = [];
 
-		emitter.addListener('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');
-			emitter.emit('bar')
+			emitter.emit('bar');
 		});
 
 
-		emitter.addListener('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener2-foo');
-		})
-		emitter.addListener('bar', function() {
+		});
+		emitter.addListener2('bar', function () {
 			actualCallOrder.push('listener2-bar');
-		})
+		});
 
 		emitter.emit('foo');
 
@@ -292,23 +288,23 @@ suite('EventEmitter', () => {
 	});
 
 	test('OrderGuaranteeEventEmitter makes order guarantees 2', () => {
-		var emitter = new OrderGuaranteeEventEmitter();
-		var actualCallOrder: string[] = [];
+		let emitter = new OrderGuaranteeEventEmitter();
+		let actualCallOrder: string[] = [];
 
-		emitter.addListener('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener1-foo');
 			emitter.deferredEmit(() => {
-				emitter.emit('bar')
-			})
+				emitter.emit('bar');
+			});
 		});
 
 
-		emitter.addListener('foo', function() {
+		emitter.addListener2('foo', function () {
 			actualCallOrder.push('listener2-foo');
-		})
-		emitter.addListener('bar', function() {
+		});
+		emitter.addListener2('bar', function () {
 			actualCallOrder.push('listener2-bar');
-		})
+		});
 
 		emitter.deferredEmit(() => {
 			emitter.emit('foo');

@@ -4,17 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import {TPromise} from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
+import Event from 'vs/base/common/event';
+import { Registry } from 'vs/platform/platform';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditor } from 'vs/platform/editor/common/editor';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import nls = require('vs/nls');
-import {EventProvider} from 'vs/base/common/eventProvider';
-import {Registry} from 'vs/platform/platform';
-import {createDecorator, ServiceIdentifier} from 'vs/platform/instantiation/common/instantiation';
-import {IEditor, Position} from 'vs/platform/editor/common/editor';
+import URI from 'vs/base/common/uri';
 
 /**
  * Mime type used by the output editor.
  */
-export const OUTPUT_MIME = 'text/x-monaco-output';
+export const OUTPUT_MIME = 'text/x-code-output';
+
+/**
+ * Output resource scheme.
+ */
+export const OUTPUT_SCHEME = 'output';
 
 /**
  * Id used by the output editor.
@@ -22,14 +30,9 @@ export const OUTPUT_MIME = 'text/x-monaco-output';
 export const OUTPUT_MODE_ID = 'Log';
 
 /**
- * Output editor input id.
+ * Output panel id
  */
-export const OUTPUT_EDITOR_INPUT_ID = 'vs.output';
-
-/**
- * Output from any not defined channel is here
- */
-export const DEFAULT_OUTPUT_CHANNEL = '';
+export const OUTPUT_PANEL_ID = 'workbench.panel.output';
 
 export const Extensions = {
 	OutputChannels: 'workbench.contributions.outputChannels'
@@ -37,65 +40,112 @@ export const Extensions = {
 
 export const OUTPUT_SERVICE_ID = 'outputService';
 
+export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in output */ * 100 /* Guestimated chars per line */;
+
+export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
+
 /**
  * The output event informs when new output got received.
  */
 export interface IOutputEvent {
-	output: string;
-	channel?: string;
+	channelId: string;
+	isClear: boolean;
 }
 
-export var IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
+export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
 
 /**
  * The output service to manage output from the various processes running.
  */
 export interface IOutputService {
-	serviceId: ServiceIdentifier<any>
+	_serviceBrand: any;
+
 	/**
-	 * Appends output to the given channel.
+	 * Given the channel id returns the output channel instance.
+	 * Channel should be first registered via OutputChannelRegistry.
+	 */
+	getChannel(id: string): IOutputChannel;
+
+	/**
+	 * Returns an array of all known output channels as identifiers.
+	 */
+	getChannels(): IOutputChannelIdentifier[];
+
+	/**
+	 * Returns the currently active channel.
+	 * Only one channel can be active at a given moment.
+	 */
+	getActiveChannel(): IOutputChannel;
+
+	/**
+	 * Allows to register on Output events.
+	 */
+	onOutput: Event<IOutputEvent>;
+
+	/**
+	 * Allows to register on a output channel being added or removed
+	 */
+	onOutputChannel: Event<string>;
+
+	/**
+	 * Allows to register on active output channel change.
+	 */
+	onActiveOutputChannel: Event<string>;
+}
+
+export interface IOutputDelta {
+	readonly value: string;
+	readonly id: number;
+	readonly append?: boolean;
+}
+
+export interface IOutputChannel {
+
+	/**
+	 * Identifier of the output channel.
+	 */
+	id: string;
+
+	/**
+	 * Label of the output channel to be displayed to the user.
+	 */
+	label: string;
+
+	/**
+	 * Returns the value indicating whether the channel has scroll locked.
+	 */
+	scrollLock: boolean;
+
+	/**
+	 * Appends output to the channel.
 	 */
 	append(output: string): void;
-	append(channel: string, output: string): void;
 
 	/**
-	 * Returns the received output.
-	 *
-	 * The optional channel allows to ask for output for a specific channel. If you leave the
-	 * channel out, you get the default channels output.
+	 * Returns the received output content.
+	 * If a delta is passed, returns only the content that came after the passed delta.
 	 */
-	getOutput(channel?: string): string;
+	getOutput(previousDelta?: IOutputDelta): IOutputDelta;
 
 	/**
-	 * Returns all channels that received output in the current session.
+	 * Opens the output for this channel.
 	 */
-	getChannels(): string[];
+	show(preserveFocus?: boolean): TPromise<IEditor>;
 
 	/**
-	 * Clears all received output.
-	 *
-	 * The optional channel allows to clear the output for a specific channel. If you leave the
-	 * channel out, you get clear the default channels output.
+	 * Clears all received output for this channel.
 	 */
-	clearOutput(channel?: string): void;
+	clear(): void;
 
 	/**
-	 * Opens the output for the given channel
-	 *
-	 * The optional channel allows to show the output for a specific channel. If you leave the
-	 * channel out, you show the default channels output.
+	 * Disposes the output channel.
 	 */
-	showOutput(channel?: string, sideBySide?: boolean|Position, preserveFocus?: boolean): TPromise<IEditor>;
+	dispose(): void;
+}
 
-	/**
-	 * Allows to register on Output events
-	 */
-	onOutput: EventProvider<(event: IOutputEvent) => void>;
-
-	/**
-	 * Allows to register on a new Output channel getting filled with output
-	 */
-	onOutputChannel: EventProvider<(channel: string) => void>;
+export interface IOutputChannelIdentifier {
+	id: string;
+	label: string;
 }
 
 export interface IOutputChannelRegistry {
@@ -103,30 +153,63 @@ export interface IOutputChannelRegistry {
 	/**
 	 * Make an output channel known to the output world.
 	 */
-	registerChannel(name: string): void;
+	registerChannel(id: string, name: string): void;
 
 	/**
 	 * Returns the list of channels known to the output world.
 	 */
-	getChannels(): string[];
+	getChannels(): IOutputChannelIdentifier[];
+
+	/**
+	 * Returns the channel with the passed id.
+	 */
+	getChannel(id: string): IOutputChannelIdentifier;
+
+	/**
+	 * Remove the output channel with the passed id.
+	 */
+	removeChannel(id: string): void;
 }
 
 class OutputChannelRegistry implements IOutputChannelRegistry {
-	private channels: string[];
+	private channels = new Map<string, IOutputChannelIdentifier>();
 
-	constructor() {
-		this.channels = [];
-	}
-
-	public registerChannel(name: string): void {
-		if (this.channels.indexOf(name) === -1) {
-			this.channels.push(name);
+	public registerChannel(id: string, label: string): void {
+		if (!this.channels.has(id)) {
+			this.channels.set(id, { id, label });
 		}
 	}
 
-	public getChannels(): string[] {
-		return this.channels.slice(0);
+	public getChannels(): IOutputChannelIdentifier[] {
+		const result: IOutputChannelIdentifier[] = [];
+		this.channels.forEach(value => result.push(value));
+		return result;
+	}
+
+	public getChannel(id: string): IOutputChannelIdentifier {
+		return this.channels.get(id);
+	}
+
+	public removeChannel(id: string): void {
+		this.channels.delete(id);
 	}
 }
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
+
+export class OutputEditors {
+
+	private static instances: { [channel: string]: ResourceEditorInput; } = Object.create(null);
+
+	public static getInstance(instantiationService: IInstantiationService, channel: IOutputChannel): ResourceEditorInput {
+		if (OutputEditors.instances[channel.id]) {
+			return OutputEditors.instances[channel.id];
+		}
+
+		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channel.id });
+
+		OutputEditors.instances[channel.id] = instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "Output"), channel ? nls.localize('channel', "for '{0}'", channel.label) : '', resource);
+
+		return OutputEditors.instances[channel.id];
+	}
+}

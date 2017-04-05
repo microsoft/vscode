@@ -7,38 +7,33 @@
 'use strict';
 
 import 'vs/css!./quickOutline';
-import nls = require('vs/nls');
-import Arrays = require('vs/base/common/arrays');
-import {TPromise} from 'vs/base/common/winjs.base';
-import Errors = require('vs/base/common/errors');
-import Strings = require('vs/base/common/strings');
-import EditorCommon = require('vs/editor/common/editorCommon');
-import Modes = require('vs/editor/common/modes');
-import Filters = require('vs/base/common/filters');
-import QuickOpenCommon = require('vs/base/parts/quickopen/browser/quickOpen');
-import QuickOpenWidget = require('vs/base/parts/quickopen/browser/quickOpenWidget');
-import QuickOpenModel = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import QuickOpen = require('vs/base/parts/quickopen/browser/quickOpen');
-import EditorQuickOpen = require('./editorQuickOpen');
-import {Behaviour} from 'vs/editor/common/editorAction';
-import {INullService} from 'vs/platform/instantiation/common/instantiation';
+import * as nls from 'vs/nls';
+import { matchesFuzzy } from 'vs/base/common/filters';
+import * as strings from 'vs/base/common/strings';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { ICommonCodeEditor, IRange, ModeContextKeys, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { SymbolInformation, DocumentSymbolProviderRegistry, symbolKindToCssClass } from 'vs/editor/common/modes';
+import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
+import { getDocumentSymbols, IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
-var SCOPE_PREFIX = ':';
+let SCOPE_PREFIX = ':';
 
-class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
-	private name:string;
-	private meta:string;
+class SymbolEntry extends QuickOpenEntryGroup {
+	private name: string;
 	private type: string;
 	private description: string;
-	private range:EditorCommon.IRange;
-	private editor:EditorCommon.ICommonCodeEditor;
-	private decorator:EditorQuickOpen.IDecorator;
+	private range: IRange;
+	private editor: ICommonCodeEditor;
+	private decorator: IDecorator;
 
-	constructor(name:string, meta:string, type:string, description:string, range:EditorCommon.IRange, highlights:QuickOpenModel.IHighlight[], editor:EditorCommon.ICommonCodeEditor, decorator:EditorQuickOpen.IDecorator) {
+	constructor(name: string, type: string, description: string, range: IRange, highlights: IHighlight[], editor: ICommonCodeEditor, decorator: IDecorator) {
 		super();
 
 		this.name = name;
-		this.meta = meta;
 		this.type = type;
 		this.description = description;
 		this.range = range;
@@ -47,42 +42,42 @@ class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
 		this.decorator = decorator;
 	}
 
-	public getLabel():string {
+	public getLabel(): string {
 		return this.name;
 	}
 
-	public getMeta():string {
-		return this.meta;
+	public getAriaLabel(): string {
+		return nls.localize('entryAriaLabel', "{0}, symbols", this.name);
 	}
 
-	public getIcon():string {
+	public getIcon(): string {
 		return this.type;
 	}
 
-	public getDescription():string {
+	public getDescription(): string {
 		return this.description;
 	}
 
-	public getType():string {
+	public getType(): string {
 		return this.type;
 	}
 
-	public getRange():EditorCommon.IRange {
+	public getRange(): IRange {
 		return this.range;
 	}
 
-	public run(mode:QuickOpenCommon.Mode, context:QuickOpenModel.IContext):boolean {
-		if (mode === QuickOpenCommon.Mode.OPEN) {
+	public run(mode: Mode, context: IContext): boolean {
+		if (mode === Mode.OPEN) {
 			return this.runOpen(context);
 		}
 
 		return this.runPreview();
 	}
 
-	private runOpen(context:QuickOpenModel.IContext):boolean {
+	private runOpen(context: IContext): boolean {
 
 		// Apply selection and focus
-		var range = this.toSelection();
+		let range = this.toSelection();
 		this.editor.setSelection(range);
 		this.editor.revealRangeInCenter(range);
 		this.editor.focus();
@@ -90,10 +85,10 @@ class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
 		return true;
 	}
 
-	private runPreview():boolean {
+	private runPreview(): boolean {
 
 		// Select Outline Position
-		var range = this.toSelection();
+		let range = this.toSelection();
 		this.editor.revealRangeInCenter(range);
 
 		// Decorate if possible
@@ -102,7 +97,7 @@ class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
 		return false;
 	}
 
-	private toSelection():EditorCommon.IRange {
+	private toSelection(): IRange {
 		return {
 			startLineNumber: this.range.startLineNumber,
 			startColumn: this.range.startColumn || 1,
@@ -112,130 +107,91 @@ class SymbolEntry extends QuickOpenModel.QuickOpenEntryGroup {
 	}
 }
 
-interface OutlineNode {
-	label:string;
-	type:string;
-	range:EditorCommon.IRange;
-	children?:OutlineNode[];
-	parentScope?:string[];
-}
+@editorAction
+export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
-export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenAction {
-
-	public static ID = 'editor.action.quickOutline';
-
-	private cachedResult:Modes.IOutlineEntry[];
-
-	constructor(descriptor:EditorCommon.IEditorActionDescriptorData, editor:EditorCommon.ICommonCodeEditor, @INullService ns) {
-		super(descriptor, editor, nls.localize('QuickOutlineAction.label', "Go to Symbol..."), Behaviour.WidgetFocus | Behaviour.ShowInContextMenu);
+	constructor() {
+		super(nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to"), {
+			id: 'editor.action.quickOutline',
+			label: nls.localize('QuickOutlineAction.label', "Go to Symbol..."),
+			alias: 'Go to Symbol...',
+			precondition: ModeContextKeys.hasDocumentSymbolProvider,
+			kbOpts: {
+				kbExpr: EditorContextKeys.Focus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+			},
+			menuOpts: {
+				group: 'navigation',
+				order: 3
+			}
+		});
 	}
 
-	public getGroupId(): string {
-		return '1_goto/5_visitSymbol';
-	}
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
 
-	public isSupported(): boolean {
-		var mode = this.editor.getModel().getMode();
+		let model = editor.getModel();
 
-		return !!mode && !!mode.outlineSupport && super.isSupported();
-	}
-
-	public run():TPromise<boolean> {
-		var model = this.editor.getModel();
-		var mode = model.getMode();
-		var outlineSupport = mode.outlineSupport;
-
-		// Only works for models with outline support
-		if(!outlineSupport) {
+		if (!DocumentSymbolProviderRegistry.has(model)) {
 			return null;
 		}
 
 		// Resolve outline
-		var promise = outlineSupport.getOutline(model.getAssociatedResource());
-		return promise.then((result:Modes.IOutlineEntry[])=>{
-			if (Array.isArray(result) && result.length > 0) {
-
-				// Cache result
-				this.cachedResult = result;
-
-				return super.run();
+		return getDocumentSymbols(model).then((result: IOutline) => {
+			if (result.entries.length === 0) {
+				return;
 			}
 
-			return TPromise.as(true);
-		}, (err)=>{
-			Errors.onUnexpectedError(err);
-			return false;
+			this._run(editor, result.entries);
 		});
 	}
 
-	_getModel(value:string):QuickOpenModel.QuickOpenModel {
-		var model = new QuickOpenModel.QuickOpenModel();
-		var entries = this.toQuickOpenEntries(this.cachedResult, value);
-		model.addEntries(entries);
+	private _run(editor: ICommonCodeEditor, result: SymbolInformation[]): void {
+		this._show(this.getController(editor), {
+			getModel: (value: string): QuickOpenModel => {
+				return new QuickOpenModel(this.toQuickOpenEntries(editor, result, value));
+			},
 
-		return model;
+			getAutoFocus: (searchValue: string): IAutoFocus => {
+				// Remove any type pattern (:) from search value as needed
+				if (searchValue.indexOf(SCOPE_PREFIX) === 0) {
+					searchValue = searchValue.substr(SCOPE_PREFIX.length);
+				}
+
+				return {
+					autoFocusPrefixMatch: searchValue,
+					autoFocusFirstEntry: !!searchValue
+				};
+			}
+		});
 	}
 
-	_getAutoFocus(searchValue:string):QuickOpen.IAutoFocus {
+	private toQuickOpenEntries(editor: ICommonCodeEditor, flattened: SymbolInformation[], searchValue: string): SymbolEntry[] {
+		const controller = this.getController(editor);
 
-		// Remove any type pattern (:) from search value as needed
-		if (searchValue.indexOf(SCOPE_PREFIX) === 0) {
-			searchValue = searchValue.substr(SCOPE_PREFIX.length);
-		}
-
-		return {
-			autoFocusPrefixMatch: searchValue,
-			autoFocusFirstEntry: !!searchValue
-		};
-	}
-
-	_getInputAriaLabel(): string {
-		return nls.localize('quickOutlineActionInput', "Type the name of an identifier you wish to navigate to");
-	}
-
-	private toQuickOpenEntries(outline:OutlineNode[], searchValue:string):SymbolEntry[] {
-		var results:SymbolEntry[] = [];
-
-		// Flatten
-		var flattened:OutlineNode[] = [];
-		if (outline) {
-			this.flatten(outline, flattened);
-		}
+		let results: SymbolEntry[] = [];
 
 		// Convert to Entries
-		var normalizedSearchValue = searchValue;
+		let normalizedSearchValue = searchValue;
 		if (searchValue.indexOf(SCOPE_PREFIX) === 0) {
 			normalizedSearchValue = normalizedSearchValue.substr(SCOPE_PREFIX.length);
 		}
 
-		for (var i = 0; i < flattened.length; i++) {
-			var element = flattened[i];
-			var label = Strings.trim(element.label);
-			var meta:string = null;
-
-			// Parse out parameters from method/function if present
-			if (element.type === 'method' || element.type === 'function') {
-				var indexOf = label.indexOf('(');
-				if (indexOf > 0) {
-					meta = label.substr(indexOf);
-					label = label.substr(0, indexOf);
-				} else {
-					meta = '()'; // otherwise make clear this is a method by adding ()
-				}
-			}
+		for (let i = 0; i < flattened.length; i++) {
+			let element = flattened[i];
+			let label = strings.trim(element.name);
 
 			// Check for meatch
-			var highlights = Filters.matchesFuzzy(normalizedSearchValue, label);
+			let highlights = matchesFuzzy(normalizedSearchValue, label);
 			if (highlights) {
 
 				// Show parent scope as description
-				var description:string = null;
-				if (element.parentScope) {
-					description = Arrays.tail(element.parentScope);
+				let description: string = null;
+				if (element.containerName) {
+					description = element.containerName;
 				}
 
 				// Add
-				results.push(new SymbolEntry(label, meta, element.type, description, element.range, highlights, this.editor, this));
+				results.push(new SymbolEntry(label, symbolKindToCssClass(element.kind), description, element.location.range, highlights, editor, controller));
 			}
 		}
 
@@ -250,12 +206,12 @@ export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 
 		// Mark all type groups
 		if (results.length > 0 && searchValue.indexOf(SCOPE_PREFIX) === 0) {
-			var currentType:string = null;
-			var currentResult:SymbolEntry = null;
-			var typeCounter = 0;
+			let currentType: string = null;
+			let currentResult: SymbolEntry = null;
+			let typeCounter = 0;
 
-			for (var i = 0; i < results.length; i++) {
-				var result = results[i];
+			for (let i = 0; i < results.length; i++) {
+				let result = results[i];
 
 				// Found new type
 				if (currentType !== result.getType()) {
@@ -292,8 +248,8 @@ export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 		return results;
 	}
 
-	private typeToLabel(type:string, count:number):string {
-		switch(type) {
+	private typeToLabel(type: string, count: number): string {
+		switch (type) {
 			case 'module': return nls.localize('modules', "modules ({0})", count);
 			case 'class': return nls.localize('class', "classes ({0})", count);
 			case 'interface': return nls.localize('interface', "interfaces ({0})", count);
@@ -309,85 +265,50 @@ export class QuickOutlineAction extends EditorQuickOpen.BaseEditorQuickOpenActio
 		return type;
 	}
 
-	private flatten(outline:OutlineNode[], flattened:OutlineNode[], parentScope?:string[]):void {
-		for (var i = 0; i < outline.length; i++) {
-			var element = outline[i];
-			flattened.push(element);
-
-			if (parentScope) {
-				element.parentScope = parentScope;
-			}
-
-			if (element.children) {
-				var elementScope:string[] = [];
-				if (parentScope) {
-					elementScope = parentScope.slice(0);
-				}
-				elementScope.push(element.label);
-
-				this.flatten(element.children, flattened, elementScope);
-			}
-		}
-	}
-
-	private sortNormal(searchValue:string, elementA:SymbolEntry, elementB:SymbolEntry):number {
-		var elementAName = elementA.getLabel().toLowerCase();
-		var elementBName = elementB.getLabel().toLowerCase();
+	private sortNormal(searchValue: string, elementA: SymbolEntry, elementB: SymbolEntry): number {
+		let elementAName = elementA.getLabel().toLowerCase();
+		let elementBName = elementB.getLabel().toLowerCase();
 
 		// Compare by name
-		var r = Strings.localeCompare(elementAName, elementBName);
+		let r = elementAName.localeCompare(elementBName);
 		if (r !== 0) {
 			return r;
 		}
 
 		// If name identical sort by range instead
-		var elementARange = elementA.getRange();
-		var elementBRange = elementB.getRange();
+		let elementARange = elementA.getRange();
+		let elementBRange = elementB.getRange();
 		return elementARange.startLineNumber - elementBRange.startLineNumber;
 	}
 
-	private sortScoped(searchValue:string, elementA:SymbolEntry, elementB:SymbolEntry):number {
+	private sortScoped(searchValue: string, elementA: SymbolEntry, elementB: SymbolEntry): number {
 
 		// Remove scope char
 		searchValue = searchValue.substr(SCOPE_PREFIX.length);
 
 		// Sort by type first if scoped search
-		var elementAType = elementA.getType();
-		var elementBType = elementB.getType();
-		var r = Strings.localeCompare(elementAType, elementBType);
+		let elementAType = elementA.getType();
+		let elementBType = elementB.getType();
+		let r = elementAType.localeCompare(elementBType);
 		if (r !== 0) {
 			return r;
 		}
 
 		// Special sort when searching in scoped mode
 		if (searchValue) {
-			var elementAName = elementA.getLabel().toLowerCase();
-			var elementBName = elementB.getLabel().toLowerCase();
+			let elementAName = elementA.getLabel().toLowerCase();
+			let elementBName = elementB.getLabel().toLowerCase();
 
 			// Compare by name
-			var r = Strings.localeCompare(elementAName, elementBName);
+			let r = elementAName.localeCompare(elementBName);
 			if (r !== 0) {
 				return r;
 			}
 		}
 
 		// Default to sort by range
-		var elementARange = elementA.getRange();
-		var elementBRange = elementB.getRange();
+		let elementARange = elementA.getRange();
+		let elementBRange = elementB.getRange();
 		return elementARange.startLineNumber - elementBRange.startLineNumber;
-	}
-
-	_onClose(canceled:boolean):void {
-		super._onClose(canceled);
-
-		// Clear Cache
-		this.cachedResult = null;
-	}
-
-	public dispose(): void {
-		super.dispose();
-
-		// Clear Cache
-		this.cachedResult = null;
 	}
 }

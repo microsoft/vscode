@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-define(['./winjs.base.raw', 'vs/base/common/errors'], function (raw, __Errors__) {
+define(['./winjs.base.raw', 'vs/base/common/errors'], function (winjs, __Errors__) {
 	'use strict';
-
-	var winjs = raw;
 
 	var outstandingPromiseErrors = {};
 	function promiseErrorHandler(e) {
@@ -56,42 +54,9 @@ define(['./winjs.base.raw', 'vs/base/common/errors'], function (raw, __Errors__)
 
 	winjs.Promise.addEventListener("error", promiseErrorHandler);
 
-
-	function decoratePromise(promise, completeCallback, errorCallback) {
-		var pc, pe, pp;
-
-		var resultPromise = new winjs.Promise(
-			function (c, e, p) {
-				pc = c;
-				pe = e;
-				pp = p;
-			}, function () {
-				promise.cancel();
-			}
-		);
-
-		promise.then(function (r) {
-			if (completeCallback) {
-				completeCallback(r);
-			}
-			pc(r);
-		}, function (e) {
-			if (errorCallback) {
-				errorCallback(e);
-			}
-			pe(e);
-		}, pp);
-
-		return resultPromise;
-	}
-
 	return {
-		decoratePromise: decoratePromise,
-		Class: winjs.Class,
-		xhr: winjs.xhr,
 		Promise: winjs.Promise,
 		TPromise: winjs.Promise,
-		PPromise: winjs.Promise,
-		Utilities: winjs.Utilities
+		PPromise: winjs.Promise
 	};
 });

@@ -7,15 +7,21 @@
 
 import 'vs/css!./resourceviewer';
 import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
 import mimes = require('vs/base/common/mime');
+import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import {Builder, $} from 'vs/base/browser/builder';
+import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
-import {IScrollableElement} from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { BoundedLinkedMap } from 'vs/base/common/map';
+
+
+interface MapExtToMediaMimes {
+	[index: string]: string;
+}
 
 // Known media mimes that we can handle
-const mapExtToMediaMimes = {
+const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.bmp': 'image/bmp',
 	'.gif': 'image/gif',
 	'.jpg': 'image/jpg',
@@ -61,6 +67,35 @@ const mapExtToMediaMimes = {
 	'.flv': 'video/x-flv',
 	'.avi': 'video/x-msvideo',
 	'.movie': 'video/x-sgi-movie'
+};
+
+export interface IResourceDescriptor {
+	resource: URI;
+	name: string;
+	size: number;
+	etag: string;
+}
+
+// Chrome is caching images very aggressively and so we use the ETag information to find out if
+// we need to bypass the cache or not. We could always bypass the cache everytime we show the image
+// however that has very bad impact on memory consumption because each time the image gets shown,
+// memory grows (see also https://github.com/electron/electron/issues/6275)
+const IMAGE_RESOURCE_ETAG_CACHE = new BoundedLinkedMap<{ etag: string, src: string }>(100);
+function imageSrc(descriptor: IResourceDescriptor): string {
+	const src = descriptor.resource.toString();
+
+	let cached = IMAGE_RESOURCE_ETAG_CACHE.get(src);
+	if (!cached) {
+		cached = { etag: descriptor.etag, src };
+		IMAGE_RESOURCE_ETAG_CACHE.set(src, cached);
+	}
+
+	if (cached.etag !== descriptor.etag) {
+		cached.etag = descriptor.etag;
+		cached.src = `${src}?${Date.now()}`; // bypass cache with this trick
+	}
+
+	return cached.src;
 }
 
 /**
@@ -69,16 +104,28 @@ const mapExtToMediaMimes = {
  */
 export class ResourceViewer {
 
-	public static show(name: string, url: string, container: Builder, scrollbar?: IScrollableElement): void {
+	private static KB = 1024;
+	private static MB = ResourceViewer.KB * ResourceViewer.KB;
+	private static GB = ResourceViewer.MB * ResourceViewer.KB;
+	private static TB = ResourceViewer.GB * ResourceViewer.KB;
 
+	private static MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
+
+	public static show(
+		descriptor: IResourceDescriptor,
+		container: Builder,
+		scrollbar: DomScrollableElement,
+		openExternal: (URI) => void,
+		metadataClb?: (meta: string) => void
+	): void {
 		// Ensure CSS class
-		$(container).addClass('monaco-resource-viewer');
+		$(container).setClass('monaco-resource-viewer');
 
 		// Lookup media mime if any
 		let mime: string;
-		const ext = paths.extname(url);
+		const ext = paths.extname(descriptor.resource.toString());
 		if (ext) {
-			mime = mapExtToMediaMimes[ext];
+			mime = mapExtToMediaMimes[ext.toLowerCase()];
 		}
 
 		if (!mime) {
@@ -87,78 +134,81 @@ export class ResourceViewer {
 
 		// Show Image inline
 		if (mime.indexOf('image/') >= 0) {
-			$(container)
-				.empty()
-				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
-				.img({
-					src: url + '?' + new Date().getTime() // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.onElementInternalDimensions();
-					}
-				});
-		}
+			if (descriptor.size <= ResourceViewer.MAX_IMAGE_SIZE) {
+				$(container)
+					.empty()
+					.addClass('image')
+					.img({ src: imageSrc(descriptor) })
+					.on(DOM.EventType.LOAD, (e, img) => {
+						const imgElement = <HTMLImageElement>img.getHTMLElement();
+						if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
+							$(container).addClass('oversized');
 
-		// Embed Object (only PDF for now)
-		else if (false /* PDF is currently not supported in Electron it seems */ && mime.indexOf('pdf') >= 0) {
-			var object = $(container)
-				.empty()
-				.style({ padding: 0, margin: 0 }) // We really do not want any paddings or margins when displaying PDFs
-				.element('object')
-				.attr({
-					data: url + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-					width: '100%',
-					height: '100%',
-					type: mime
-				});
-		}
+							img.on(DOM.EventType.CLICK, (e, img) => {
+								$(container).toggleClass('full-size');
 
-		// Embed Audio (if supported in browser)
-		else if (mime.indexOf('audio/') >= 0) {
-			$(container)
-				.empty()
-				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
-				.element('audio')
-				.attr({
-					src: url + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-					text: nls.localize('missingAudioSupport', "Sorry but playback of audio files is not supported."),
-					controls: 'controls'
-				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.onElementInternalDimensions();
-					}
-				});
-		}
+								scrollbar.scanDomNode();
+							});
+						}
 
-		// Embed Video (if supported in browser)
-		else if (mime.indexOf('video/') >= 0) {
-			var video = $(container)
-				.empty()
-				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
-				.element('video')
-				.attr({
-					src: url + '?' + new Date().getTime(), // We really want to avoid the browser from caching this resource, so we add a fake query param that is unique
-					text: nls.localize('missingVideoSupport', "Sorry but playback of video files is not supported."),
-					controls: 'controls'
-				}).on(DOM.EventType.LOAD, () => {
-					if (scrollbar) {
-						scrollbar.onElementInternalDimensions();
-					}
-				});
+						if (metadataClb) {
+							metadataClb(nls.localize('imgMeta', "{0}x{1} {2}", imgElement.naturalWidth, imgElement.naturalHeight, ResourceViewer.formatSize(descriptor.size)));
+						}
+
+						scrollbar.scanDomNode();
+					});
+			} else {
+				$(container)
+					.empty()
+					.p({
+						text: nls.localize('largeImageError', "The image is too large to display in the editor. ")
+					})
+					.append($('a', {
+						role: 'button',
+						class: 'open-external',
+						text: nls.localize('resourceOpenExternalButton', "Open image")
+					}).on(DOM.EventType.CLICK, (e) => {
+						openExternal(descriptor.resource);
+					}))
+					.append($('span', {
+						text: nls.localize('resourceOpenExternalText', ' using external program?')
+					}));
+			}
 		}
 
 		// Handle generic Binary Files
 		else {
 			$(container)
 				.empty()
-				.style({ paddingLeft: '20px' }) // restore CSS value in case the user saw a PDF before where we remove padding
 				.span({
-					text: nls.localize('nativeBinaryError', "The file cannot be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
+					text: nls.localize('nativeBinaryError', "The file will not be displayed in the editor because it is either binary, very large or uses an unsupported text encoding.")
 				});
 
-			if (scrollbar) {
-				scrollbar.onElementInternalDimensions();
+			if (metadataClb) {
+				metadataClb(ResourceViewer.formatSize(descriptor.size));
 			}
+
+			scrollbar.scanDomNode();
 		}
+	}
+
+	private static formatSize(size: number): string {
+		if (size < ResourceViewer.KB) {
+			return nls.localize('sizeB', "{0}B", size);
+		}
+
+		if (size < ResourceViewer.MB) {
+			return nls.localize('sizeKB', "{0}KB", (size / ResourceViewer.KB).toFixed(2));
+		}
+
+		if (size < ResourceViewer.GB) {
+			return nls.localize('sizeMB', "{0}MB", (size / ResourceViewer.MB).toFixed(2));
+		}
+
+		if (size < ResourceViewer.TB) {
+			return nls.localize('sizeGB', "{0}GB", (size / ResourceViewer.GB).toFixed(2));
+		}
+
+		return nls.localize('sizeTB', "{0}TB", (size / ResourceViewer.TB).toFixed(2));
 	}
 }
