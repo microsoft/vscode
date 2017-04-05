@@ -20,7 +20,6 @@ import countbadge = require('vs/base/browser/ui/countBadge/countBadge');
 import tree = require('vs/base/parts/tree/browser/tree');
 import treednd = require('vs/base/parts/tree/browser/treeDnd');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import actionsrenderer = require('vs/base/parts/tree/browser/actionsRenderer');
 import * as git from 'vs/workbench/parts/git/common/git';
 import gitmodel = require('vs/workbench/parts/git/common/gitModel');
 import gitactions = require('vs/workbench/parts/git/browser/gitActions');
@@ -121,7 +120,7 @@ export class DataSource implements tree.IDataSource {
 	}
 }
 
-export class ActionProvider extends ActionContainer implements actionsrenderer.IActionProvider {
+export class ActionProvider extends ActionContainer implements tree.IActionProvider {
 
 	private gitService: git.IGitService;
 
@@ -698,9 +697,9 @@ export class AccessibilityProvider implements tree.IAccessibilityProvider {
 export class Controller extends treedefaults.DefaultController {
 
 	private contextMenuService: IContextMenuService;
-	private actionProvider: actionsrenderer.IActionProvider;
+	private actionProvider: tree.IActionProvider;
 
-	constructor(actionProvider: actionsrenderer.IActionProvider, @IContextMenuService contextMenuService: IContextMenuService) {
+	constructor(actionProvider: tree.IActionProvider, @IContextMenuService contextMenuService: IContextMenuService) {
 		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_UP });
 
 		this.actionProvider = actionProvider;

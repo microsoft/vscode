@@ -9,8 +9,7 @@ import { Registry } from 'vs/platform/platform';
 import types = require('vs/base/common/types');
 import { Action, IAction } from 'vs/base/common/actions';
 import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
 /**
