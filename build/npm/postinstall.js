@@ -36,3 +36,5 @@ const extensions = [
 ];
 
 extensions.forEach(extension => npmInstall(`extensions/${extension}`));
+
+npmInstall(`build`); // node modules required for build
