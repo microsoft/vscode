@@ -264,8 +264,8 @@ export class GoToImplementationAction extends ImplementationAction {
 	constructor() {
 		super(new DefinitionActionConfig(), {
 			id: GoToImplementationAction.ID,
-			label: nls.localize('actions.goToImplementation.label', "Find All Implementations"),
-			alias: 'Find All Implementations',
+			label: nls.localize('actions.goToImplementation.label', "Go to Implementation"),
+			alias: 'Go to Implementation',
 			precondition: ContextKeyExpr.and(
 				ModeContextKeys.hasImplementationProvider,
 				ModeContextKeys.isInEmbeddedEditor.toNegated()),
@@ -275,7 +275,7 @@ export class GoToImplementationAction extends ImplementationAction {
 			},
 			menuOpts: {
 				group: 'navigation',
-				order: 1.4
+				order: 1.3
 			}
 		});
 	}
@@ -337,7 +337,7 @@ export class GoToTypeDefintionAction extends TypeDefinitionAction {
 			},
 			menuOpts: {
 				group: 'navigation',
-				order: 1.3
+				order: 1.4
 			}
 		});
 	}

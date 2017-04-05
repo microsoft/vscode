@@ -444,7 +444,7 @@ export interface DefinitionProvider {
 
 /**
  * The implementation provider interface defines the contract between extensions and
- * the find all implementations feature.
+ * the go to implementation feature.
  */
 export interface ImplementationProvider {
 	/**
