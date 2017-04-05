@@ -9,8 +9,7 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType, USER_SETTINGS } from 'vs/base/common/keyCodes';
 import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, ElectronAcceleratorLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
+import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, ElectronAcceleratorLabelProvider, NO_MODIFIERS } from 'vs/platform/keybinding/common/keybindingLabels';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
@@ -104,6 +103,12 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
+	public getLabelWithoutModifiers(): string {
+		let firstPart = this._getUILabelForScanCodeBinding(this._firstPart);
+		let chordPart = this._getUILabelForScanCodeBinding(this._chordPart);
+		return UILabelProvider.toLabel(NO_MODIFIERS, firstPart, NO_MODIFIERS, chordPart, this._OS);
+	}
+
 	private _getAriaLabelForScanCodeBinding(binding: ScanCodeBinding): string {
 		if (!binding) {
 			return null;
@@ -120,10 +125,10 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
-	public getHTMLLabel(): IHTMLContentElement[] {
-		let firstPart = this._getUILabelForScanCodeBinding(this._firstPart);
-		let chordPart = this._getUILabelForScanCodeBinding(this._chordPart);
-		return UILabelProvider.toHTMLLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
+	public getAriaLabelWithoutModifiers(): string {
+		let firstPart = this._getAriaLabelForScanCodeBinding(this._firstPart);
+		let chordPart = this._getAriaLabelForScanCodeBinding(this._chordPart);
+		return AriaLabelProvider.toLabel(NO_MODIFIERS, firstPart, NO_MODIFIERS, chordPart, this._OS);
 	}
 
 	private _getElectronAcceleratorLabelForScanCodeBinding(binding: ScanCodeBinding): string {
@@ -215,6 +220,10 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 			return false;
 		}
 		return this._firstPart.metaKey;
+	}
+
+	public getParts(): [ResolvedKeybinding, ResolvedKeybinding] {
+		return [new NativeResolvedKeybinding(this._mapper, this._OS, this._firstPart, null), this._chordPart ? new NativeResolvedKeybinding(this._mapper, this._OS, this._chordPart, null) : null];
 	}
 
 	public getDispatchParts(): [string, string] {

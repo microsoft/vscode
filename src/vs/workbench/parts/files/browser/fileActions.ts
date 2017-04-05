@@ -20,7 +20,7 @@ import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
 import { Action, IAction } from 'vs/base/common/actions';
 import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IHighlightEvent, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import labels = require('vs/base/common/labels');
@@ -30,7 +30,6 @@ import { toResource, IEditorIdentifier, EditorInput } from 'vs/workbench/common/
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
-import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';

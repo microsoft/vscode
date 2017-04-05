@@ -166,6 +166,16 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
+	isFocused(windowId: number): TPromise<boolean> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			return TPromise.as(vscodeWindow.win.isFocused());
+		}
+
+		return TPromise.as(null);
+	}
+
 	isMaximized(windowId: number): TPromise<boolean> {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 

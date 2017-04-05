@@ -131,10 +131,7 @@ export class DebugViewlet extends Viewlet {
 
 	public getActionItem(action: IAction): IActionItem {
 		if (action.id === StartAction.ID && this.contextService.getWorkspace()) {
-			if (!this.startDebugActionItem) {
-				this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
-			}
-
+			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
 		}
 

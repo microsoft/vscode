@@ -5,14 +5,15 @@
 
 import 'vs/css!./media/keybindings';
 import * as nls from 'vs/nls';
+import { OS } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { renderHtml } from 'vs/base/browser/htmlContentRenderer';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -191,7 +192,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
 		this._register(dom.addDisposableListener(this._keybindingInputWidget.inputBox.inputElement, 'blur', e => this.onCancel()));
 
-		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));;
+		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
 	}
 
 	private printKeybinding(keybinding: [ResolvedKeybinding, ResolvedKeybinding]): void {
@@ -199,10 +200,10 @@ export class DefineKeybindingWidget extends Widget {
 		this._firstPart = firstPart;
 		this._chordPart = chordPart;
 		dom.clearNode(this._outputNode);
-		this._firstPart.getHTMLLabel().forEach((item) => this._outputNode.appendChild(renderHtml(item)));
+		new KeybindingLabel(this._outputNode, OS).set(this._firstPart, null);
 		if (this._chordPart) {
-			this._outputNode.appendChild(document.createTextNode(' ' + nls.localize('defineKeybinding.chordsTo', "chord to") + ' '));
-			this._chordPart.getHTMLLabel().forEach((item) => this._outputNode.appendChild(renderHtml(item)));
+			this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
+			new KeybindingLabel(this._outputNode, OS).set(this._chordPart, null);
 		}
 	}
 

@@ -102,7 +102,7 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command {
-	flex: 1;
+	flex: 0.75;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command.vertical-align-column {
@@ -117,7 +117,7 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding {
-	flex: 1;
+	flex: 0.5;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding .monaco-highlighted-label {
@@ -125,7 +125,7 @@
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .source {
-	flex: 0.5;
+	flex: 0.25;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .when {

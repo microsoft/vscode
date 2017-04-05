@@ -82,6 +82,8 @@ import 'vs/workbench/electron-browser/workbench';
 
 import 'vs/workbench/parts/trust/electron-browser/unsupportedWorkspaceSettings.contribution';
 
+import 'vs/workbench/parts/relauncher/electron-browser/relauncher.contribution';
+
 import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
 
 import 'vs/workbench/parts/emmet/browser/emmet.browser.contribution';

@@ -19,7 +19,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
 import { ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
@@ -28,7 +27,7 @@ export class Controller extends treedefaults.DefaultController {
 
 	private contextMenu: IMenu;
 
-	constructor(private rangeHighlightDecorations: RangeHighlightDecorations, private actionProvider: IActionProvider, @IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+	constructor(private rangeHighlightDecorations: RangeHighlightDecorations, private actionProvider: tree.IActionProvider, @IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,

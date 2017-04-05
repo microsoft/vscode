@@ -276,6 +276,12 @@ connection.onDidChangeWatchedFiles((change) => {
 });
 
 let jsonDocuments = getLanguageModelCache<JSONDocument>(10, 60, document => languageService.parseJSONDocument(document));
+documents.onDidClose(e => {
+	jsonDocuments.onDocumentRemoved(e.document);
+});
+connection.onShutdown(() => {
+	jsonDocuments.dispose();
+});
 
 function getJSONDocument(document: TextDocument): JSONDocument {
 	return jsonDocuments.get(document);

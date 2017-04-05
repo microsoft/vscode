@@ -20,7 +20,6 @@ import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContex
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
-import lifecycle = require('vs/base/common/lifecycle');
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
@@ -333,7 +332,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public createViewer(container: Builder): ITree {
 		const dataSource = this.instantiationService.createInstance(FileDataSource);
-		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState, this.actionRunner);
+		const renderer = this.instantiationService.createInstance(FileRenderer, this.viewletState);
 		const controller = this.instantiationService.createInstance(FileController, this.viewletState);
 		const sorter = new FileSorter();
 		this.filter = this.instantiationService.createInstance(FileFilter);
@@ -355,8 +354,6 @@ export class ExplorerView extends CollapsibleViewletView {
 				showTwistie: false,
 				keyboardSupport: false
 			});
-
-		this.toDispose.push(lifecycle.toDisposable(() => renderer.dispose()));
 
 		// Register to list service
 		this.toDispose.push(this.listService.register(this.explorerViewer, [this.explorerFocussedContext, this.filesExplorerFocussedContext]));

@@ -74,6 +74,10 @@ export class WindowService implements IWindowService {
 		return this.windowsService.focusWindow(this.windowId);
 	}
 
+	isFocused(): TPromise<boolean> {
+		return this.windowsService.isFocused(this.windowId);
+	}
+
 	isMaximized(): TPromise<boolean> {
 		return this.windowsService.isMaximized(this.windowId);
 	}

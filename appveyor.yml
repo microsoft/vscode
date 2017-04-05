@@ -16,5 +16,4 @@ test_script:
   - node --version
   - npm --version
   - .\scripts\test.bat
-  - .\scripts\test-electron.bat
   - .\scripts\test-integration.bat
