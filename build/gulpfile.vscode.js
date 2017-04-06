@@ -29,6 +29,7 @@ const packageJson = require('../package.json');
 const product = require('../product.json');
 const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
+const i18n = require('./lib/i18n');
 
 const dependencies = Object.keys(shrinkwrap.dependencies)
 	.concat(Array.isArray(product.extraNodeModules) ? product.extraNodeModules : []); // additional dependencies from our product configuration
@@ -339,6 +340,54 @@ gulp.task('vscode-darwin-min', ['minify-vscode', 'clean-vscode-darwin'], package
 gulp.task('vscode-linux-ia32-min', ['minify-vscode', 'clean-vscode-linux-ia32'], packageTask('linux', 'ia32', { minified: true }));
 gulp.task('vscode-linux-x64-min', ['minify-vscode', 'clean-vscode-linux-x64'], packageTask('linux', 'x64', { minified: true }));
 gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], packageTask('linux', 'arm', { minified: true }));
+
+// Transifex Localizations
+const vscodeLanguages = [
+	'chs',
+	'cht',
+	'jpn',
+	'kor',
+	'deu',
+	'fra',
+	'esn',
+	'rus',
+	'ita'
+];
+
+const setupDefaultLanguages = [
+	'chs',
+	'cht',
+	'kor'
+];
+
+const apiHostname = process.env.TRANSIFEX_API_URL;
+const apiName = process.env.TRANSIFEX_API_NAME;
+const apiToken = process.env.TRANSIFEX_API_TOKEN;
+
+gulp.task('vscode-translations-push', function() {
+	const pathToMetadata = './out-vscode/nls.metadata.json';
+	const pathToExtensions = './extensions/**/*.nls.json';
+	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
+
+	return es.merge(
+		gulp.src(pathToMetadata).pipe(i18n.prepareXlfFiles()),
+		gulp.src(pathToSetup).pipe(i18n.prepareXlfFiles()),
+		gulp.src(pathToExtensions).pipe(i18n.prepareXlfFiles('vscode-extensions'))
+	).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
+});
+
+gulp.task('vscode-translations-pull', function() {
+	return es.merge(
+		i18n.pullXlfFiles('vscode-editor', apiHostname, apiName, apiToken, vscodeLanguages),
+		i18n.pullXlfFiles('vscode-workbench', apiHostname, apiName, apiToken, vscodeLanguages),
+		i18n.pullXlfFiles('vscode-extensions', apiHostname, apiName, apiToken, vscodeLanguages),
+		i18n.pullXlfFiles('vscode-setup', apiHostname, apiName, apiToken, setupDefaultLanguages)
+	).pipe(vfs.dest('../vscode-localization'));
+});
+
+gulp.task('vscode-translations-import', function() {
+	return gulp.src('../vscode-localization/**/*.xlf').pipe(i18n.prepareJsonFiles()).pipe(vfs.dest('./i18n'));
+});
 
 // Sourcemaps
 

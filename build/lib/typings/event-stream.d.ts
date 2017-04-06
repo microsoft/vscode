@@ -1,6 +1,7 @@
 declare module "event-stream" {
 	import { Stream } from 'stream';
 	import { ThroughStream } from 'through';
+	import { MapStream } from 'map-stream';
 
 	function merge(streams: Stream[]): ThroughStream;
 	function merge(...streams: Stream[]): ThroughStream;
@@ -16,4 +17,5 @@ declare module "event-stream" {
 	function mapSync<I,O>(cb: (data:I) => O): ThroughStream;
 	function map<I,O>(cb: (data:I, cb:(err?:Error, data?: O)=>void) => O): ThroughStream;
 
+	function readable(asyncFunction: Function): MapStream;
 }
