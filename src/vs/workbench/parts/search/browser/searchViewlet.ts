@@ -684,6 +684,7 @@ export class SearchViewlet extends Viewlet {
 			this.searchWidget.searchInput.setValue(selectedText);
 		}
 		this.searchWidget.focus();
+		this.searchWidget.submitSearch();
 	}
 
 	public focusNextInputBox(): void {
