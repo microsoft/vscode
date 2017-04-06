@@ -1,4 +1,4 @@
-/*---------------------------------------------------------------------------------------------
+﻿/*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
@@ -155,6 +155,8 @@ export function toCanonicalName(enc: string): string {
 			return 'koi8-u';
 		case 'macroman':
 			return 'x-mac-roman';
+		case 'utf8bom':
+			return 'utf8';
 		default:
 			const m = enc.match(/windows(\d+)/);
 			if (m) {
