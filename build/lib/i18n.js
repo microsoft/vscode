@@ -219,8 +219,8 @@ var vscodeLanguages = [
     'ita'
 ];
 var iso639_3_to_2 = {
-    'chs': 'zh-cn',
-    'cht': 'zh-tw',
+    'chs': 'zh-hans',
+    'cht': 'zh-hant',
     'csy': 'cs-cz',
     'deu': 'de',
     'enu': 'en',
@@ -239,8 +239,8 @@ var iso639_3_to_2 = {
     'trk': 'tr'
 };
 var iso639_2_to_3 = {
-    'zh-cn': 'chs',
-    'zh-tw': 'cht',
+    'zh-hans': 'chs',
+    'zh-hant': 'cht',
     'cs-cz': 'csy',
     'de': 'deu',
     'en': 'enu',
@@ -480,7 +480,7 @@ exports.processNlsFiles = processNlsFiles;
 function prepareXlfFiles(projectName, extensionName) {
     return event_stream_1.through(function (file) {
         if (!file.isBuffer()) {
-            log('Error', "Failed to read component file: " + file.relative);
+            throw new Error("Failed to read component file: " + file.relative);
         }
         var extension = path.extname(file.path);
         if (extension === '.json') {
@@ -492,7 +492,7 @@ function prepareXlfFiles(projectName, extensionName) {
                 importModuleOrPackageJson(file, json, projectName, this, extensionName);
             }
             else {
-                log('Error', 'JSON format cannot be deduced.');
+                throw new Error("JSON format cannot be deduced for " + file.relative + ".");
             }
         }
         else if (extension === '.isl') {
@@ -501,7 +501,7 @@ function prepareXlfFiles(projectName, extensionName) {
     });
 }
 exports.prepareXlfFiles = prepareXlfFiles;
-var editorProject = 'vscode-editor', workbenchProject = 'vscode-workbench', setupProject = 'vscode-setup';
+var editorProject = 'vscode-editor', workbenchProject = 'vscode-workbench', extensionsProject = 'vscode-extensions', setupProject = 'vscode-setup';
 /**
  * Ensure to update those arrays when new resources are pushed to Transifex.
  * Used because Transifex does not have API method to pull all project resources.
@@ -821,13 +821,13 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
 }
 function obtainProjectResources(projectName) {
     var resources = [];
-    if (projectName === 'vscode-editor') {
+    if (projectName === editorProject) {
         resources = editorResources;
     }
-    else if (projectName === 'vscode-workbench') {
+    else if (projectName === workbenchProject) {
         resources = workbenchResources;
     }
-    else if (projectName === 'vscode-extensions') {
+    else if (projectName === extensionsProject) {
         var extensionsToLocalize = glob.sync('./extensions/**/*.nls.json').map(function (extension) { return extension.split('/')[2]; });
         var resourcesToPull_1 = [];
         extensionsToLocalize.forEach(function (extension) {
@@ -837,7 +837,7 @@ function obtainProjectResources(projectName) {
             }
         });
     }
-    else if (projectName === 'vscode-setup') {
+    else if (projectName === setupProject) {
         resources.push({ name: 'setup_default', project: setupProject });
     }
     return resources;

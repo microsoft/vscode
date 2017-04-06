@@ -279,8 +279,8 @@ const vscodeLanguages: string[] = [
 ];
 
 const iso639_3_to_2: Map<string> = {
-	'chs': 'zh-cn',
-	'cht': 'zh-tw',
+	'chs': 'zh-hans',
+	'cht': 'zh-hant',
 	'csy': 'cs-cz',
 	'deu': 'de',
 	'enu': 'en',
@@ -300,8 +300,8 @@ const iso639_3_to_2: Map<string> = {
 };
 
 const iso639_2_to_3: Map<string> = {
-	'zh-cn': 'chs',
-	'zh-tw': 'cht',
+	'zh-hans': 'chs',
+	'zh-hant': 'cht',
 	'cs-cz': 'csy',
 	'de': 'deu',
 	'en': 'enu',
@@ -548,7 +548,7 @@ export function prepareXlfFiles(projectName?: string, extensionName?: string): T
 	return through(
 		function (file: File) {
 			if (!file.isBuffer()) {
-				log('Error', `Failed to read component file: ${file.relative}`);
+				throw new Error(`Failed to read component file: ${file.relative}`);
 			}
 
 			const extension = path.extname(file.path);
@@ -560,7 +560,7 @@ export function prepareXlfFiles(projectName?: string, extensionName?: string): T
 				} else if (PackageJsonFormat.is(json) || ModuleJsonFormat.is(json)) {
 					importModuleOrPackageJson(file, json, projectName, this, extensionName);
 				} else {
-					log('Error', 'JSON format cannot be deduced.');
+					throw new Error(`JSON format cannot be deduced for ${file.relative}.`);
 				}
 			} else if (extension === '.isl') {
 				importIsl(file, this);
@@ -571,6 +571,7 @@ export function prepareXlfFiles(projectName?: string, extensionName?: string): T
 
 const editorProject: string = 'vscode-editor',
 	workbenchProject: string = 'vscode-workbench',
+	extensionsProject: string = 'vscode-extensions',
 	setupProject: string = 'vscode-setup';
 
 /**
@@ -913,11 +914,11 @@ function updateResource(project: string, slug: string, xlfFile: File, apiHostnam
 function obtainProjectResources(projectName: string): Resource[] {
 	let resources: Resource[] = [];
 
-	if (projectName === 'vscode-editor') {
+	if (projectName === editorProject) {
 		resources = editorResources;
-	} else if (projectName === 'vscode-workbench') {
+	} else if (projectName === workbenchProject) {
 		resources = workbenchResources;
-	} else if (projectName === 'vscode-extensions') {
+	} else if (projectName === extensionsProject) {
 		let extensionsToLocalize: string[] = glob.sync('./extensions/**/*.nls.json').map(extension => extension.split('/')[2]);
 		let resourcesToPull: string[] = [];
 
@@ -927,7 +928,7 @@ function obtainProjectResources(projectName: string): Resource[] {
 				resources.push({ name: extension, project: projectName });
 			}
 		});
-	} else if (projectName === 'vscode-setup') {
+	} else if (projectName === setupProject) {
 		resources.push({ name: 'setup_default', project: setupProject });
 	}
 
