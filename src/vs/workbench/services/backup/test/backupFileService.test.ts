@@ -40,10 +40,11 @@ const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
 const workspaceResource = Uri.file(platform.isWindows ? 'c:\\workspace' : '/workspace');
 const workspaceBackupPath = path.join(backupHome, crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex'));
-const fooFile = Uri.file(platform.isWindows ? 'c:\\foo' : '/foo');
-const barFile = Uri.file(platform.isWindows ? 'c:\\bar' : '/bar');
+const fooFile = Uri.file(platform.isWindows ? 'c:\\Foo' : '/Foo');
+const barFile = Uri.file(platform.isWindows ? 'c:\\Bar' : '/Bar');
 const untitledFile = Uri.from({ scheme: 'untitled', path: 'Untitled-1' });
 const fooBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath).digest('hex'));
+const fooBackupPathLegacy = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(fooFile.fsPath.toLowerCase()).digest('hex'));
 const barBackupPath = path.join(workspaceBackupPath, 'file', crypto.createHash('md5').update(barFile.fsPath).digest('hex'));
 const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', crypto.createHash('md5').update(untitledFile.fsPath).digest('hex'));
 
@@ -59,8 +60,8 @@ class TestBackupFileService extends BackupFileService {
 		super(environmentService, fileService, new TestWindowService(), backupService);
 	}
 
-	public getBackupResource(resource: Uri): Uri {
-		return super.getBackupResource(resource);
+	public getBackupResource(resource: Uri, legacyMacWindowsFormat?: boolean): Uri {
+		return super.getBackupResource(resource, legacyMacWindowsFormat);
 	}
 }
 
@@ -104,13 +105,55 @@ suite('BackupFileService', () => {
 		});
 	});
 
-	suite('hasBackup', () => {
+	suite('loadBackupResource', () => {
 		test('should return whether a backup resource exists', done => {
 			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
 				fs.writeFileSync(fooBackupPath, 'foo');
 				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
-				service.hasBackup(fooFile).then(exists2 => {
-					assert.equal(exists2, true);
+				service.loadBackupResource(fooFile).then(resource => {
+					assert.ok(resource);
+					assert.equal(path.basename(resource.fsPath), path.basename(fooBackupPath));
+					return service.hasBackups().then(hasBackups => {
+						assert.ok(hasBackups);
+						done();
+					});
+				});
+			});
+		});
+
+		test('should return whether a backup resource exists - legacy support (read old lowercase format as fallback)', done => {
+			if (platform.isLinux) {
+				done();
+				return; // only on mac and windows
+			}
+
+			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
+				fs.writeFileSync(fooBackupPathLegacy, 'foo');
+				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+				service.loadBackupResource(fooFile).then(resource => {
+					assert.ok(resource);
+					assert.equal(path.basename(resource.fsPath), path.basename(fooBackupPathLegacy));
+					return service.hasBackups().then(hasBackups => {
+						assert.ok(hasBackups);
+						done();
+					});
+				});
+			});
+		});
+
+		test('should return whether a backup resource exists - legacy support #2 (both cases present, return case sensitive backup)', done => {
+			if (platform.isLinux) {
+				done();
+				return; // only on mac and windows
+			}
+
+			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
+				fs.writeFileSync(fooBackupPath, 'foo');
+				fs.writeFileSync(fooBackupPathLegacy, 'foo');
+				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+				service.loadBackupResource(fooFile).then(resource => {
+					assert.ok(resource);
+					assert.equal(path.basename(resource.fsPath), path.basename(fooBackupPath));
 					return service.hasBackups().then(hasBackups => {
 						assert.ok(hasBackups);
 						done();
@@ -159,6 +202,27 @@ suite('BackupFileService', () => {
 					assert.equal(fs.existsSync(untitledBackupPath), false);
 					assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'untitled')).length, 0);
 					done();
+				});
+			});
+		});
+
+		test('text file - legacy support (dicard lowercase backup file if present)', done => {
+			if (platform.isLinux) {
+				done();
+				return; // only on mac and windows
+			}
+
+			pfs.mkdirp(path.dirname(fooBackupPath)).then(() => {
+				fs.writeFileSync(fooBackupPathLegacy, 'foo');
+				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
+				service.backupResource(fooFile, 'test').then(() => {
+					assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 2);
+					service.discardResourceBackup(fooFile).then(() => {
+						assert.equal(fs.existsSync(fooBackupPath), false);
+						assert.equal(fs.existsSync(fooBackupPathLegacy), false);
+						assert.equal(fs.readdirSync(path.join(workspaceBackupPath, 'file')).length, 0);
+						done();
+					});
 				});
 			});
 		});
