@@ -111,7 +111,8 @@ suite('BackupFileService', () => {
 				fs.writeFileSync(fooBackupPath, 'foo');
 				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 				service.loadBackupResource(fooFile).then(resource => {
-					assert.equal(resource.fsPath, fooBackupPath);
+					assert.ok(resource);
+					assert.equal(path.basename(resource.fsPath), path.basename(fooBackupPath));
 					return service.hasBackups().then(hasBackups => {
 						assert.ok(hasBackups);
 						done();
@@ -130,7 +131,8 @@ suite('BackupFileService', () => {
 				fs.writeFileSync(fooBackupPathLegacy, 'foo');
 				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 				service.loadBackupResource(fooFile).then(resource => {
-					assert.equal(resource.fsPath, fooBackupPathLegacy);
+					assert.ok(resource);
+					assert.equal(path.basename(resource.fsPath), path.basename(fooBackupPathLegacy));
 					return service.hasBackups().then(hasBackups => {
 						assert.ok(hasBackups);
 						done();
@@ -150,7 +152,8 @@ suite('BackupFileService', () => {
 				fs.writeFileSync(fooBackupPathLegacy, 'foo');
 				service = new TestBackupFileService(workspaceResource, backupHome, workspacesJsonPath);
 				service.loadBackupResource(fooFile).then(resource => {
-					assert.equal(resource.fsPath, fooBackupPath);
+					assert.ok(resource);
+					assert.equal(path.basename(resource.fsPath), path.basename(fooBackupPath));
 					return service.hasBackups().then(hasBackups => {
 						assert.ok(hasBackups);
 						done();
