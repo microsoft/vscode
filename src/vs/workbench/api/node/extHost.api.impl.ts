@@ -346,9 +346,9 @@ export function createApiFactory(
 			withWindowProgress: proposedApiFunction(extension, <R>(title: string, task: (progress: vscode.Progress<string>, token: vscode.CancellationToken) => Thenable<R>): Thenable<R> => {
 				return extHostProgress.withWindowProgress(extension, title, task);
 			}),
-			withScmProgress: proposedApiFunction(extension, <R>(task: (progress: vscode.Progress<number>) => Thenable<R>) => {
+			withScmProgress<R>(task: (progress: vscode.Progress<number>) => Thenable<R>) {
 				return extHostProgress.withScmProgress(extension, task);
-			}),
+			},
 			createOutputChannel(name: string): vscode.OutputChannel {
 				return extHostOutputService.createOutputChannel(name);
 			},
