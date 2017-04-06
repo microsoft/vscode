@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as uuid from 'vs/base/common/uuid';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { OS } from 'vs/base/common/platform';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
@@ -39,8 +40,8 @@ suite('Keybindings Editor Model test', () => {
 
 	test('fetch returns default keybindings', () => {
 		const expected = [
-			aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.Escape } }),
-			aResolvedKeybindingItem({ command: 'b', firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape } })
+			aResolvedKeybindingItem({ command: 'a' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape } }),
+			aResolvedKeybindingItem({ command: 'b' + uuid.generateUuid(), firstPart: { keyCode: KeyCode.Escape }, chordPart: { keyCode: KeyCode.Escape } })
 		];
 		instantiationService.stub(IKeybindingService, 'getKeybindings', () => expected);
 		instantiationService.stub(IKeybindingService, 'getDefaultKeybindings', () => expected);
