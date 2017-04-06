@@ -334,6 +334,22 @@ export class VSCodeWindow {
 		return this._readyState;
 	}
 
+	private registerNavigationListenerOn(command: string, back: string, forward: string) {
+		this._win.on(command, (e, cmd) => {
+			if (this.readyState !== ReadyState.READY) {
+				return; // window must be ready
+			}
+
+			if (cmd === back) {
+				this.send('vscode:runAction', 'workbench.action.navigateBack');
+			} else if (cmd === forward) {
+				this.send('vscode:runAction', 'workbench.action.navigateForward');
+			} else {
+				console.warn('[electron command]: did not handle: ', command);
+			}
+		});
+
+	}
 	private registerListeners(): void {
 
 		// Remember that we loaded
@@ -360,31 +376,10 @@ export class VSCodeWindow {
 		});
 
 		// App commands support
-		this._win.on('app-command', (e, cmd) => {
-			if (this.readyState !== ReadyState.READY) {
-				return; // window must be ready
-			}
-
-			// Support navigation via mouse buttons 4/5
-			if (cmd === 'browser-backward') {
-				this.send('vscode:runAction', 'workbench.action.navigateBack');
-			} else if (cmd === 'browser-forward') {
-				this.send('vscode:runAction', 'workbench.action.navigateForward');
-			}
-		});
+		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward');
 
 		// Swipe command support (macOS)
-		this._win.on('swipe', (e, cmd) => {
-			if (this.readyState !== ReadyState.READY) {
-				return; // window must be ready
-			}
-
-			if (cmd === 'left') {
-				this.send('vscode:runAction', 'workbench.action.navigateBack');
-			} else if (cmd === 'right') {
-				this.send('vscode:runAction', 'workbench.action.navigateForward');
-			}
-		});
+		this.registerNavigationListenerOn('swipe', 'left', 'right');
 
 		// Handle code that wants to open links
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
