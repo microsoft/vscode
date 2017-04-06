@@ -69,7 +69,7 @@ import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutpu
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, TaskSet, ExecutionEngine, ShowOutput } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSet, TaskGroup, ExecutionEngine, ShowOutput } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -467,7 +467,7 @@ class ProblemReporter implements TaskConfig.IProblemReporter {
 }
 
 interface WorkspaceTaskResult {
-	taskSet: TaskSet;
+	set: TaskSet;
 	hasErrors: boolean;
 }
 
@@ -646,7 +646,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	public build(): TPromise<ITaskSummary> {
 		return this.getTaskSets().then((values) => {
-			let runnable = this.createRunnableTask(values, (set) => set.buildTasks);
+			let runnable = this.createRunnableTask(values, TaskGroup.Build);
 			if (!runnable || !runnable.task) {
 				throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask', 'No build task defined. Mark a task with \'isBuildCommand\' in the tasks.json file.'), TaskErrors.NoBuildTask);
 			}
@@ -667,7 +667,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	public runTest(): TPromise<ITaskSummary> {
 		return this.getTaskSets().then((values) => {
-			let runnable = this.createRunnableTask(values, (set) => set.testTasks);
+			let runnable = this.createRunnableTask(values, TaskGroup.Test);
 			if (!runnable || !runnable.task) {
 				throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask', 'No test task defined. Mark a task with \'isTestCommand\' in the tasks.json file.'), TaskErrors.NoTestTask);
 			}
@@ -701,22 +701,21 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	private createRunnableTask(sets: TaskSet[], idFetcher: (set: TaskSet) => string[]): { task: Task; resolver: ITaskResolver } {
+	private createRunnableTask(sets: TaskSet[], group: TaskGroup): { task: Task; resolver: ITaskResolver } {
 		let uuidMap: IStringDictionary<Task> = Object.create(null);
 		let identifierMap: IStringDictionary<Task> = Object.create(null);
 
-		let taskIds: string[] = [];
+		let primaryTasks: Task[] = [];
 		sets.forEach((set) => {
 			set.tasks.forEach((task) => {
 				uuidMap[task._id] = task;
 				identifierMap[task.identifier] = task;
+				if (group && task.group === group) {
+					primaryTasks.push(task);
+				}
 			});
-			let ids: string[] = idFetcher(set);
-			if (ids) {
-				taskIds.push(...ids);
-			}
 		});
-		if (taskIds.length === 0) {
+		if (primaryTasks.length === 0) {
 			return undefined;
 		}
 		let resolver: ITaskResolver = {
@@ -728,15 +727,15 @@ class TaskService extends EventEmitter implements ITaskService {
 				return identifierMap[id];
 			}
 		};
-		if (taskIds.length === 1) {
-			return { task: resolver.resolve(taskIds[0]), resolver };
+		if (primaryTasks.length === 1) {
+			return { task: primaryTasks[0], resolver };
 		} else {
 			let id: string = UUID.generateUuid();
 			let task: Task = {
 				_id: id,
 				name: id,
 				identifier: id,
-				dependsOn: taskIds,
+				dependsOn: primaryTasks.map(task => task._id),
 				command: undefined,
 				showOutput: ShowOutput.Never
 			};
@@ -880,7 +879,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (this._taskSystem instanceof ProcessTaskSystem) {
 				this._taskSystem.hasErrors(this._configHasErrors);
 			}
-			return value.taskSet;
+			return value.set;
 		});
 		return this._workspaceTasksPromise;
 	}
@@ -888,7 +887,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private updateWorkspaceTasks(): void {
 		this._workspaceTasksPromise = this.computeWorkspaceTasks().then(value => {
 			this._configHasErrors = value.hasErrors;
-			return value.taskSet;
+			return value.set;
 		});
 	}
 
@@ -897,7 +896,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		{
 			let { config, hasParseErrors } = this.getConfiguration();
 			if (hasParseErrors) {
-				return TPromise.as({ taskSet: undefined, hasErrors: true });
+				return TPromise.as({ set: undefined, hasErrors: true });
 			}
 			if (config) {
 				let engine = TaskConfig.ExecutionEngine.from(config);
@@ -950,7 +949,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
 					return { taskSet: undefined, hasErrors };
 				}
-				return { taskSet: parseResult.taskSet, hasErrors };
+				return { set: { tasks: parseResult.tasks }, hasErrors };
 			});
 		});
 	}

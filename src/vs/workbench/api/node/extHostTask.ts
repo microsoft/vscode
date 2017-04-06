@@ -309,6 +309,7 @@ namespace Tasks {
 			_id: uuidMap.getUUID(task.identifier),
 			name: task.name,
 			identifier: task.identifier,
+			group: types.TaskGroup.is(task.group) ? task.group : undefined,
 			command: command,
 			showOutput: behaviour.showOutput,
 			isBackground: !!task.isBackground,
@@ -381,57 +382,6 @@ class UUIDMap {
 	}
 }
 
-namespace TaskSet {
-
-	const idMaps: Map<string, UUIDMap> = new Map<string, UUIDMap>();
-
-	function getUUIDMap(extensionId: string): UUIDMap {
-		let result = idMaps.get(extensionId);
-		if (result) {
-			return result;
-		}
-		result = new UUIDMap();
-		idMaps.set(extensionId, result);
-		return result;
-	}
-
-	export function from(extension: IExtensionDescription, value: vscode.TaskSet): TaskSystem.TaskSet {
-		if (value === void 0 || value === null || !Array.isArray(value.tasks)) {
-			return { tasks: Object.create(null) };
-		}
-
-		let tasks = Tasks.from(value.tasks, getUUIDMap(extension.id));
-		let buildTasks: string[];
-		let testTasks: string[];
-		if (value.buildTasks || value.testTasks) {
-			let map: Map<string, TaskSystem.Task> = new Map<string, TaskSystem.Task>();
-			tasks.forEach(task => map.set(task.identifier, task));
-			if (Array.isArray(value.buildTasks)) {
-				buildTasks = [];
-				for (let elem of value.buildTasks) {
-					if (typeof elem === 'string' && map.has(elem)) {
-						buildTasks.push(map.get(elem)._id);
-					}
-				}
-			}
-			if (Array.isArray(value.testTasks)) {
-				testTasks = [];
-				for (let elem of value.testTasks) {
-					if (typeof elem === 'string' && map.has(elem)) {
-						testTasks.push(map.get(elem)._id);
-					}
-				}
-			}
-		}
-
-		return {
-			tasks,
-			buildTasks,
-			testTasks
-		};
-	}
-}
-
 interface HandlerData {
 	provider: vscode.TaskProvider;
 	extension: IExtensionDescription;
@@ -442,12 +392,14 @@ export class ExtHostTask extends ExtHostTaskShape {
 	private _proxy: MainThreadTaskShape;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
+	private _idMaps: Map<string, UUIDMap>;
 
 	constructor(threadService: IThreadService) {
 		super();
 		this._proxy = threadService.get(MainContext.MainThreadTask);
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
+		this._idMaps = new Map<string, UUIDMap>();
 	};
 
 	public registerTaskProvider(extension: IExtensionDescription, provider: vscode.TaskProvider): vscode.Disposable {
@@ -469,11 +421,24 @@ export class ExtHostTask extends ExtHostTaskShape {
 			return TPromise.wrapError<TaskSystem.TaskSet>(new Error('no handler found'));
 		}
 		return asWinJsPromise(token => handler.provider.provideTasks(token)).then(value => {
-			return TaskSet.from(handler.extension, value);
+			return {
+				tasks: Tasks.from(value, this.getUUIDMap(handler.extension.id)),
+				extension: handler.extension
+			};
 		});
 	}
 
 	private nextHandle(): number {
 		return this._handleCounter++;
+	}
+
+	private getUUIDMap(extensionId: string): UUIDMap {
+		let result = this._idMaps.get(extensionId);
+		if (result) {
+			return result;
+		}
+		result = new UUIDMap();
+		this._idMaps.set(extensionId, result);
+		return result;
 	}
 }

@@ -3,8 +3,7 @@
 		"target": "es6",
 		"module": "commonjs",
 		"lib": [
-			"es6",
-			"es2015.promise"
+			"es2016"
 		],
 		"outDir": "./out",
 		"strictNullChecks": true,
