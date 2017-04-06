@@ -23,10 +23,10 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IOptions } from 'vs/workbench/common/options';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, IResourceInput, IResourceDiffInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions, TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -65,7 +65,7 @@ import { ConfigurationResolverService } from 'vs/workbench/services/configuratio
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
@@ -313,18 +313,10 @@ export class Workbench implements IPartService {
 
 			// Load Editors
 			const editorRestoreStopWatch = StopWatch.create();
-			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputsWithOptions => {
+			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputs => {
 				let editorOpenPromise: TPromise<BaseEditor[]>;
-				if (inputsWithOptions.length) {
-					const editors = inputsWithOptions.map(inputWithOptions => {
-						return {
-							input: inputWithOptions.input,
-							options: inputWithOptions.options,
-							position: EditorPosition.ONE
-						};
-					});
-
-					editorOpenPromise = this.editorPart.openEditors(editors);
+				if (inputs.length) {
+					editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
 				} else {
 					editorOpenPromise = this.editorPart.restoreEditors();
 				}
@@ -370,7 +362,7 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	private resolveEditorsToOpen(): TPromise<{ input: EditorInput, options?: EditorOptions }[]> {
+	private resolveEditorsToOpen(): TPromise<IResourceInputType[]> {
 
 		// Files to open, diff or create
 		if (this.hasFilesToCreateOpenOrDiff) {
@@ -381,45 +373,34 @@ export class Workbench implements IPartService {
 
 			// Files to diff is exclusive
 			if (filesToDiff && filesToDiff.length === 2) {
-				return this.editorService.createInput({ leftResource: filesToDiff[0].resource, rightResource: filesToDiff[1].resource }).then(input => [{ input, options: EditorOptions.create({ pinned: true }) }]);
+				return TPromise.as([<IResourceDiffInput>{
+					leftResource: filesToDiff[0].resource,
+					rightResource: filesToDiff[1].resource,
+					options: { pinned: true }
+				}]);
 			}
 
 			// Otherwise: Open/Create files
 			else {
-				const inputs: EditorInput[] = [];
-				const options: EditorOptions[] = [];
-
-				// Files to create
-				inputs.push(...filesToCreate.map(resourceInput => this.untitledEditorService.createOrGet(resourceInput.resource)));
-				options.push(...filesToCreate.map(r => EditorOptions.create({ pinned: true })));
-
-				// Files to open
-				let filesToOpenInputPromise = filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput));
-
-				return TPromise.join<EditorInput>(filesToOpenInputPromise).then((inputsToOpen) => {
-					inputs.push(...inputsToOpen);
-					options.push(...filesToOpen.map(resourceInput => {
-						const options: EditorOptions = TextEditorOptions.from(resourceInput) || EditorOptions.create({ pinned: true });
-						options.pinned = true;
-
-						return options;
-					}));
-
-					return inputs.map((input, index) => { return { input, options: options[index] }; });
+				const filesToCreateInputs: IResourceInput[] = filesToCreate.map(resourceInput => {
+					return <IResourceInput>{
+						resource: this.untitledEditorService.createOrGet(resourceInput.resource).getResource(),
+						options: { pinned: true }
+					};
 				});
+
+				return TPromise.as(filesToOpen.concat(filesToCreateInputs));
 			}
 		}
 
 		// Empty workbench: some first time users will not have an untiled file; returning users will always have one
-		else if (!this.contextService.hasWorkspace() &&
-			this.telemetryService.getExperiments().openUntitledFile &&
-			!this.configurationService.lookup('workbench.welcome.enabled').value) {
+		else if (!this.contextService.hasWorkspace() && this.telemetryService.getExperiments().openUntitledFile && !this.configurationService.lookup('workbench.welcome.enabled').value) {
 			return this.backupFileService.hasBackups().then(hasBackups => {
 				if (hasBackups) {
 					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
 				}
 
-				return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
+				return TPromise.as([<IResourceInput>{ resource: this.untitledEditorService.createOrGet().getResource() }]);
 			});
 		}
 

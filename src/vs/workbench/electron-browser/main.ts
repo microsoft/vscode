@@ -84,12 +84,14 @@ function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 			input.resource = uri.file(p.filePath);
 		}
 
+		input.options = {
+			pinned: true // opening on startup is always pinned and not preview
+		};
+
 		if (p.lineNumber) {
-			input.options = {
-				selection: {
-					startLineNumber: p.lineNumber,
-					startColumn: p.columnNumber
-				}
+			input.options.selection = {
+				startLineNumber: p.lineNumber,
+				startColumn: p.columnNumber
 			};
 		}
 
