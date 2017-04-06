@@ -214,6 +214,61 @@ suite('Keybindings Editor Model test', () => {
 		});
 	});
 
+	test('filter by command id', () => {
+		const id = 'workbench.action.increaseViewSize';
+		registerCommandWithTitle(id, 'some title');
+		prepareKeybindingService();
+
+		return testObject.resolve().then(() => {
+			const actual = testObject.fetch('workbench action view size').filter(element => element.keybindingItem.command === id)[0];
+			assert.ok(actual);
+		});
+	});
+
+	test('filter by command title', () => {
+		const id = 'a' + uuid.generateUuid();
+		registerCommandWithTitle(id, 'Increase view size');
+		prepareKeybindingService();
+
+		return testObject.resolve().then(() => {
+			const actual = testObject.fetch('increase size').filter(element => element.keybindingItem.command === id)[0];
+			assert.ok(actual);
+		});
+	});
+
+	test('filter by default source', () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2' });
+		prepareKeybindingService(expected);
+
+		return testObject.resolve().then(() => {
+			const actual = testObject.fetch('default').filter(element => element.keybindingItem.command === command)[0];
+			assert.ok(actual);
+		});
+	});
+
+	test('filter by user source', () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: false });
+		prepareKeybindingService(expected);
+
+		return testObject.resolve().then(() => {
+			const actual = testObject.fetch('user').filter(element => element.keybindingItem.command === command)[0];
+			assert.ok(actual);
+		});
+	});
+
+	test('filter by when context', () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected);
+
+		return testObject.resolve().then(() => {
+			const actual = testObject.fetch('when context').filter(element => element.keybindingItem.command === command)[0];
+			assert.ok(actual);
+		});
+	});
+
 	function prepareKeybindingService(...keybindingItems: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
 		instantiationService.stub(IKeybindingService, 'getKeybindings', () => keybindingItems);
 		instantiationService.stub(IKeybindingService, 'getDefaultKeybindings', () => keybindingItems);
