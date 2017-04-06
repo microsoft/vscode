@@ -343,21 +343,20 @@ gulp.task('vscode-linux-arm-min', ['minify-vscode', 'clean-vscode-linux-arm'], p
 
 // Transifex Localizations
 const vscodeLanguages = [
-	'chs',
-	'cht',
-	'jpn',
-	'kor',
-	'deu',
-	'fra',
-	'esn',
-	'rus',
-	'ita'
+	'zh-hans',
+	'zh-hant',
+	'ja',
+	'ko',
+	'de',
+	'fr',
+	'es',
+	'ru',
+	'it'
 ];
-
 const setupDefaultLanguages = [
-	'chs',
-	'cht',
-	'kor'
+	'zh-hans',
+	'zh-hant',
+	'ko'
 ];
 
 const apiHostname = process.env.TRANSIFEX_API_URL;

@@ -279,8 +279,8 @@ const vscodeLanguages: string[] = [
 ];
 
 const iso639_3_to_2: Map<string> = {
-	'chs': 'zh-hans',
-	'cht': 'zh-hant',
+	'chs': 'zh-cn',
+	'cht': 'zh-tw',
 	'csy': 'cs-cz',
 	'deu': 'de',
 	'enu': 'en',
@@ -299,6 +299,9 @@ const iso639_3_to_2: Map<string> = {
 	'trk': 'tr'
 };
 
+/**
+ * Used to map Transifex to VS Code language code representation.
+ */
 const iso639_2_to_3: Map<string> = {
 	'zh-hans': 'chs',
 	'zh-hant': 'cht',
@@ -319,6 +322,7 @@ const iso639_2_to_3: Map<string> = {
 	'sv-se': 'sve',
 	'tr': 'trk'
 };
+
 interface IDirectoryInfo {
 	name: string;
 	iso639_2: string;
@@ -976,7 +980,7 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 	return new Promise<File>((resolve, reject) => {
 		const slug = resource.name.replace(/\//g, '_');
 		const project = resource.project;
-		const iso639 = iso639_3_to_2[language];
+		const iso639 = language.toLowerCase();
 		const options = {
 			hostname: apiHostname,
 			path: `/api/2/project/${project}/resource/${slug}/translation/${iso639}?file&mode=onlyreviewed`,
@@ -989,7 +993,7 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 				res.on('data', (data) => xlfBuffer += data);
 				res.on('end', () => {
 					if (res.statusCode === 200) {
-						resolve(new File({ contents: new Buffer(xlfBuffer), path: `${project}/${language}/${slug}.xlf` }));
+						resolve(new File({ contents: new Buffer(xlfBuffer), path: `${project}/${iso639_2_to_3[language]}/${slug}.xlf` }));
 					}
 					reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
 				});
@@ -1012,7 +1016,7 @@ export function prepareJsonFiles(): ThroughStream {
 
 					// ISL file path always starts with 'build/'
 					if (file.originalFilePath.startsWith('build/')) {
-						const defaultLanguages = { 'zh-cn': true, 'zh-tw': true, 'ko': true };
+						const defaultLanguages = { 'zh-hans': true, 'zh-hant': true, 'ko': true };
 						if (path.basename(file.originalFilePath) === 'Default' && !defaultLanguages[file.language]) {
 							return;
 						}
