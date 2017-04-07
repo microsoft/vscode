@@ -593,6 +593,16 @@
           "description": "%config.confirmSync%",
           "default": true
         },
+        "git.enableLongCommitWarning": {
+          "type": "boolean",
+          "description": "%config.enableLongCommitWarning%",
+          "default": true
+        },
+        "git.allowLargeRepositories": {
+          "type": "boolean",
+          "description": "%config.allowLargeRepositories%",
+          "default": false
+        },
         "git.countBadge": {
           "type": "string",
           "enum": [
