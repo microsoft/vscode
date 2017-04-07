@@ -236,6 +236,15 @@ function isReadOnly(operation: Operation): boolean {
 	}
 }
 
+function shouldShowProgress(operation: Operation): boolean {
+	switch (operation) {
+		case Operation.Fetch:
+			return false;
+		default:
+			return true;
+	}
+}
+
 export interface Operations {
 	isIdle(): boolean;
 	isRunning(operation: Operation): boolean;
@@ -495,7 +504,7 @@ export class Model implements Disposable {
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
-		return window.withScmProgress(async () => {
+		const run = async () => {
 			this._operations = this._operations.start(operation);
 			this._onRunOperation.fire(operation);
 
@@ -525,7 +534,11 @@ export class Model implements Disposable {
 				this._operations = this._operations.end(operation);
 				this._onDidRunOperation.fire(operation);
 			}
-		});
+		};
+
+		return shouldShowProgress(operation)
+			? window.withScmProgress(run)
+			: run();
 	}
 
 	private async retryRun<T>(runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
