@@ -11,11 +11,9 @@ import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combi
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
 import * as path from 'path';
-import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
-const exists = (path: string) => new Promise(c => fs.exists(path, c));
 
 const localize = nls.loadMessageBundle();
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
@@ -364,21 +362,6 @@ export class Model implements Disposable {
 		}
 	}
 
-	/**
-	 * Returns promise which resolves when there is no `.git/index.lock` file,
-	 * or when it has attempted way too many times. Back off mechanism.
-	 */
-	async whenUnlocked(): Promise<void> {
-		let millis = 100;
-		let retries = 0;
-
-		while (retries < 10 && await exists(path.join(this.repository.root, '.git', 'index.lock'))) {
-			retries += 1;
-			millis *= 1.4;
-			await timeout(millis);
-		}
-	}
-
 	@throttle
 	async init(): Promise<void> {
 		if (this.state !== State.NotAGitRepository) {
@@ -394,23 +377,19 @@ export class Model implements Disposable {
 		await this.run(Operation.Status);
 	}
 
-	@throttle
 	async add(...resources: Resource[]): Promise<void> {
 		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.resourceUri.fsPath)));
 	}
 
-	@throttle
 	async stage(uri: Uri, contents: string): Promise<void> {
 		const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
 	}
 
-	@throttle
 	async revertFiles(...resources: Resource[]): Promise<void> {
 		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.resourceUri.fsPath)));
 	}
 
-	@throttle
 	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
 		await this.run(Operation.Commit, async () => {
 			if (opts.all) {
@@ -421,7 +400,6 @@ export class Model implements Disposable {
 		});
 	}
 
-	@throttle
 	async clean(...resources: Resource[]): Promise<void> {
 		await this.run(Operation.Clean, async () => {
 			const toClean: string[] = [];
@@ -454,22 +432,18 @@ export class Model implements Disposable {
 		});
 	}
 
-	@throttle
 	async branch(name: string): Promise<void> {
 		await this.run(Operation.Branch, () => this.repository.branch(name, true));
 	}
 
-	@throttle
 	async checkout(treeish: string): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, []));
 	}
 
-	@throttle
 	async getCommit(ref: string): Promise<Commit> {
 		return await this.repository.getCommit(ref);
 	}
 
-	@throttle
 	async reset(treeish: string, hard?: boolean): Promise<void> {
 		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
 	}
@@ -479,12 +453,10 @@ export class Model implements Disposable {
 		await this.run(Operation.Fetch, () => this.repository.fetch());
 	}
 
-	@throttle
 	async pull(rebase?: boolean): Promise<void> {
 		await this.run(Operation.Pull, () => this.repository.pull(rebase));
 	}
 
-	@throttle
 	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, options));
 	}
@@ -503,9 +475,6 @@ export class Model implements Disposable {
 	}
 
 	async show(ref: string, uri: Uri): Promise<string> {
-		// TODO@Joao: should we make this a general concept?
-		await this.whenIdle();
-
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
 			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`]);
@@ -532,11 +501,11 @@ export class Model implements Disposable {
 
 			try {
 				await this.assertIdleState();
-				await this.whenUnlocked();
-				const result = await runOperation();
+
+				const result = await this.retryRun(runOperation);
 
 				if (!isReadOnly(operation)) {
-					await this.update();
+					await this.updateModelState();
 				}
 
 				return result;
@@ -557,6 +526,24 @@ export class Model implements Disposable {
 				this._onDidRunOperation.fire(operation);
 			}
 		});
+	}
+
+	private async retryRun<T>(runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
+		let attempt = 0;
+
+		while (true) {
+			try {
+				attempt++;
+				return await runOperation();
+			} catch (err) {
+				if (err.gitErrorCode === GitErrorCodes.RepositoryIsLocked && attempt <= 10) {
+					// quatratic backoff
+					await timeout(Math.pow(attempt, 2) * 50);
+				} else {
+					throw err;
+				}
+			}
+		}
 	}
 
 	/* We use the native Node `watch` for faster, non debounced events.
@@ -592,7 +579,7 @@ export class Model implements Disposable {
 	}
 
 	@throttle
-	private async update(): Promise<void> {
+	private async updateModelState(): Promise<void> {
 		const status = await this.repository.getStatus();
 		let HEAD: Branch | undefined;
 
