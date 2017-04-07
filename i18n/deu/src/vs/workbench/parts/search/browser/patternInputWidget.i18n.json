@@ -6,5 +6,6 @@
 {
 	"defaultLabel": "Eingabe",
 	"patternDescription": "Globmuster verwenden",
-	"patternHelpInclude": "Das Muster, mit dem eine Übereinstimmung vorliegen soll, z. B. **\\*\\*/*.js** für alle JavaScript-Dateien oder **meinOrdner/\\*\\*** für eine Übereinstimmung mit diesem Ordner und allen seinen untergeordneten Elementen.\n\n**Referenz**:\n**\\*** stimmt mit 0 oder mehr Zeichen überein.\n**?** stimmt mit 1 Zeichen überein.\n**\\*\\*** stimmt mit null oder mehr Verzeichnissen überein.\n**[a-z]** stimmt mit einem Zeichenbereich überein.\n**{a,b}** stimmt mit einem beliebigen Muster überein."
+	"patternHelpInclude": "Das Muster, mit dem eine Übereinstimmung vorliegen soll, z. B. **\\*\\*/*.js** für alle JavaScript-Dateien oder **meinOrdner/\\*\\*** für eine Übereinstimmung mit diesem Ordner und allen seinen untergeordneten Elementen.\n\n**Referenz**:\n**\\*** stimmt mit 0 oder mehr Zeichen überein.\n**?** stimmt mit 1 Zeichen überein.\n**\\*\\*** stimmt mit null oder mehr Verzeichnissen überein.\n**[a-z]** stimmt mit einem Zeichenbereich überein.\n**{a,b}** stimmt mit einem beliebigen Muster überein.",
+	"useIgnoreFilesDescription": "Ignorieren von Dateien verwenden"
 }
