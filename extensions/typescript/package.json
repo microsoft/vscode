@@ -100,11 +100,6 @@
           "default": false,
           "description": "%typescript.disableAutomaticTypeAcquisition%"
         },
-        "typescript.check.tscVersion": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.check.tscVersion%"
-        },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
           "default": false,
