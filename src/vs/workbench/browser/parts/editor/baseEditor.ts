@@ -16,6 +16,7 @@ import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -34,8 +35,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	private _options: EditorOptions;
 	private _position: Position;
 
-	constructor(id: string, telemetryService: ITelemetryService) {
-		super(id, telemetryService);
+	constructor(id: string, telemetryService: ITelemetryService, themeService: IThemeService) {
+		super(id, telemetryService, themeService);
 	}
 
 	public get input(): EditorInput {

@@ -1,13 +1,13 @@
 [
 	{
 		"c": "Shader",
-		"t": "source.shaderlab support.class.shaderlab",
+		"t": "source.shaderlab storage.type.structure.shaderlab",
 		"r": {
-			"dark_plus": "support.class: #4EC9B0",
-			"light_plus": "support.class: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
 		}
 	},
 	{
@@ -56,13 +56,13 @@
 	},
 	{
 		"c": "SubShader",
-		"t": "source.shaderlab support.class.shaderlab",
+		"t": "source.shaderlab storage.type.structure.shaderlab",
 		"r": {
-			"dark_plus": "support.class: #4EC9B0",
-			"light_plus": "support.class: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "storage.type: #569CD6",
+			"light_plus": "storage.type: #0000FF",
+			"dark_vs": "storage.type: #569CD6",
+			"light_vs": "storage.type: #0000FF",
+			"hc_black": "storage.type: #569CD6"
 		}
 	},
 	{
@@ -89,10 +89,10 @@
 	},
 	{
 		"c": "Tags",
-		"t": "source.shaderlab support.class.shaderlab",
+		"t": "source.shaderlab support.type.propertyname.shaderlab",
 		"r": {
-			"dark_plus": "support.class: #4EC9B0",
-			"light_plus": "support.class: #267F99",
+			"dark_plus": "support.type: #4EC9B0",
+			"light_plus": "support.type: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -166,29 +166,29 @@
 	},
 	{
 		"c": "CGPROGRAM",
-		"t": "source.shaderlab support.class.shaderlab",
+		"t": "source.shaderlab meta.cgblock keyword.other",
 		"r": {
-			"dark_plus": "support.class: #4EC9B0",
-			"light_plus": "support.class: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
 		"c": "      #pragma",
-		"t": "source.shaderlab keyword.control.shaderlab",
+		"t": "source.shaderlab meta.cgblock keyword.preprocessor.hlsl",
 		"r": {
-			"dark_plus": "keyword.control: #C586C0",
-			"light_plus": "keyword.control: #AF00DB",
-			"dark_vs": "keyword.control: #569CD6",
-			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
 		"c": " surface surf Lambert",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -199,7 +199,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -210,7 +210,7 @@
 	},
 	{
 		"c": "struct",
-		"t": "source.shaderlab storage.type.shaderlab",
+		"t": "source.shaderlab meta.cgblock storage.type.structured.hlsl",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -220,8 +220,30 @@
 		}
 	},
 	{
-		"c": " Input {",
-		"t": "source.shaderlab",
+		"c": " ",
+		"t": "source.shaderlab meta.cgblock",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "Input",
+		"t": "source.shaderlab meta.cgblock support.class.surface.shaderlab",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " {",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -232,7 +254,7 @@
 	},
 	{
 		"c": "          ",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -243,7 +265,7 @@
 	},
 	{
 		"c": "float4",
-		"t": "source.shaderlab storage.type.shaderlab",
+		"t": "source.shaderlab meta.cgblock storage.type.basic.hlsl",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -254,7 +276,7 @@
 	},
 	{
 		"c": " color : ",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -265,7 +287,7 @@
 	},
 	{
 		"c": "COLOR",
-		"t": "source.shaderlab support.variable.input.shaderlab",
+		"t": "source.shaderlab meta.cgblock support.variable.semantic.hlsl",
 		"r": {
 			"dark_plus": "support.variable: #9CDCFE",
 			"light_plus": "support.variable: #001080",
@@ -276,7 +298,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -287,7 +309,7 @@
 	},
 	{
 		"c": "      };",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -298,7 +320,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -309,7 +331,7 @@
 	},
 	{
 		"c": "void",
-		"t": "source.shaderlab storage.type.shaderlab",
+		"t": "source.shaderlab meta.cgblock storage.type.basic.hlsl",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -320,7 +342,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -331,7 +353,7 @@
 	},
 	{
 		"c": "surf",
-		"t": "source.shaderlab meta.function-call.shaderlab support.function.any-method.shaderlab",
+		"t": "source.shaderlab meta.cgblock support.function.hlsl",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -342,7 +364,7 @@
 	},
 	{
 		"c": " (",
-		"t": "source.shaderlab meta.function-call.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -352,8 +374,19 @@
 		}
 	},
 	{
-		"c": "Input IN, ",
-		"t": "source.shaderlab",
+		"c": "Input",
+		"t": "source.shaderlab meta.cgblock support.class.surface.shaderlab",
+		"r": {
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " IN, ",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -364,7 +397,7 @@
 	},
 	{
 		"c": "inout",
-		"t": "source.shaderlab storage.modifier.shaderlab",
+		"t": "source.shaderlab meta.cgblock storage.modifier.hlsl",
 		"r": {
 			"dark_plus": "storage.modifier: #569CD6",
 			"light_plus": "storage.modifier: #0000FF",
@@ -375,7 +408,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -386,10 +419,10 @@
 	},
 	{
 		"c": "SurfaceOutput",
-		"t": "source.shaderlab support.variable.structure.shaderlab",
+		"t": "source.shaderlab meta.cgblock support.class.surface.shaderlab",
 		"r": {
-			"dark_plus": "support.variable: #9CDCFE",
-			"light_plus": "support.variable: #001080",
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
@@ -397,7 +430,7 @@
 	},
 	{
 		"c": " o) {",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -407,30 +440,8 @@
 		}
 	},
 	{
-		"c": "          o.",
-		"t": "source.shaderlab",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "Albedo",
-		"t": "source.shaderlab support.variable.output.shaderlab",
-		"r": {
-			"dark_plus": "support.variable: #9CDCFE",
-			"light_plus": "support.variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": " = ",
-		"t": "source.shaderlab",
+		"c": "          o.Albedo = ",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -441,7 +452,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.shaderlab constant.numeric.shaderlab",
+		"t": "source.shaderlab meta.cgblock constant.numeric.hlsl",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -452,7 +463,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -463,7 +474,7 @@
 	},
 	{
 		"c": "      }",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -474,7 +485,7 @@
 	},
 	{
 		"c": "      ",
-		"t": "source.shaderlab",
+		"t": "source.shaderlab meta.cgblock",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -485,13 +496,13 @@
 	},
 	{
 		"c": "ENDCG",
-		"t": "source.shaderlab support.class.shaderlab",
+		"t": "source.shaderlab meta.cgblock keyword.other",
 		"r": {
-			"dark_plus": "support.class: #4EC9B0",
-			"light_plus": "support.class: #267F99",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
@@ -518,10 +529,10 @@
 	},
 	{
 		"c": "Fallback",
-		"t": "source.shaderlab support.variable.shaderlab",
+		"t": "source.shaderlab support.type.propertyname.shaderlab",
 		"r": {
-			"dark_plus": "support.variable: #9CDCFE",
-			"light_plus": "support.variable: #001080",
+			"dark_plus": "support.type: #4EC9B0",
+			"light_plus": "support.type: #267F99",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"

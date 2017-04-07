@@ -14,6 +14,7 @@
 	"commitMessage": "Valider le message",
 	"commitStaged": "Valider le contenu en zone de transit",
 	"commitStaged2": "Valider le contenu en zone de transit",
+	"commitStagedAmend": "Valider les modifications en attente (modifier)",
 	"commitStagedSignedOff": "Valider les changements en attente (signé)",
 	"confirmPublishMessage": "Voulez-vous vraiment publier '{0}' sur '{1}' ?",
 	"confirmPublishMessageButton": "&&Publier",

@@ -12,6 +12,7 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { QuickOpenEditorWidget } from './quickOpenEditorWidget';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
@@ -33,7 +34,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 	private rangeHighlightDecorationId: string;
 	private lastKnownEditorSelection: Selection;
 
-	constructor(editor: ICodeEditor) {
+	constructor(editor: ICodeEditor, @IThemeService private themeService: IThemeService) {
 		this.editor = editor;
 	}
 
@@ -79,7 +80,8 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 			},
 			{
 				inputAriaLabel: opts.inputAriaLabel
-			}
+			},
+			this.themeService
 		);
 
 		// Remember selection to be able to restore on cancel

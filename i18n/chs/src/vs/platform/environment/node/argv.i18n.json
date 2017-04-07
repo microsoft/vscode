@@ -19,6 +19,7 @@
 	"optionsUpperCase": "选项",
 	"paths": "路径",
 	"performance": "通过启用 \"Developer: Startup Performance\" 命令开始。",
+	"prof-startup": "启动期间运行 CPU 探查器",
 	"reuseWindow": "在上一活动窗口中强制打开文件或文件夹。",
 	"showVersions": "使用 --list-extension 时，显示已安装扩展的版本。",
 	"uninstallExtension": "卸载扩展。",

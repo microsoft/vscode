@@ -49,3 +49,8 @@
 .vs-dark .monaco-button.monaco-text-button {
 	background: #0E639C;
 }
+
+.vs .monaco-text-button:focus,
+.vs-dark .monaco-text-button:focus {
+	outline-color: rgba(255, 255, 255, .5); /* buttons have a blue color, so focus indication needs to be different */
+}

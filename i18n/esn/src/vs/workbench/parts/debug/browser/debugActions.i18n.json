@@ -34,6 +34,7 @@
 	"restartDebug": "Reiniciar",
 	"restartFrame": "Reiniciar marco",
 	"reverseContinue": "Invertir",
+	"selectAndStartDebugging": "Seleccionar e iniciar la depuración",
 	"setValue": "Establecer valor",
 	"startDebug": "Iniciar depuración",
 	"startWithoutDebugging": "Iniciar sin depurar",

@@ -2,23 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 /* marker zone */
 
 .monaco-editor .marker-widget {
 	padding-left: 2px;
-	background-color: white;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-}
-
-.monaco-editor.vs-dark .marker-widget {
-	background-color: #2D2D30;
-}
-
-/* High Contrast Theming */
-.monaco-editor.hc-black .marker-widget {
-	background-color: #0C141F;
 }
 
 .monaco-editor .marker-widget > .stale {

@@ -25,8 +25,8 @@ export class GitSCMProvider implements IWorkbenchContribution, ISCMProvider, ITe
 	get label() { return 'Git'; }
 	get resources() { return []; }
 
-	private _onDidChange = new Emitter<ISCMResourceGroup[]>();
-	get onDidChange(): Event<ISCMResourceGroup[]> {
+	private _onDidChange = new Emitter<void>();
+	get onDidChange(): Event<void> {
 		return this._onDidChange.event;
 	}
 
@@ -45,6 +45,10 @@ export class GitSCMProvider implements IWorkbenchContribution, ISCMProvider, ITe
 	}
 
 	open(uri: ISCMResource): TPromise<void> {
+		return TPromise.wrapError<void>('not implemented');
+	}
+
+	acceptChanges(): TPromise<void> {
 		return TPromise.wrapError<void>('not implemented');
 	}
 

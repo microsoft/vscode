@@ -14,6 +14,8 @@ const decoration = vscode.window.createTextEditorDecorationType({
 	color: '#b1b1b1'
 });
 
+let pendingLaunchJsonDecoration: NodeJS.Timer;
+
 export function activate(context): void {
 
 	//keybindings.json command-suggestions
@@ -26,7 +28,10 @@ export function activate(context): void {
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
 	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
 		if (vscode.window.activeTextEditor && event.document === vscode.window.activeTextEditor.document) {
-			updateLaunchJsonDecorations(vscode.window.activeTextEditor);
+			if (pendingLaunchJsonDecoration) {
+				clearTimeout(pendingLaunchJsonDecoration);
+			}
+			pendingLaunchJsonDecoration = setTimeout(() => updateLaunchJsonDecorations(vscode.window.activeTextEditor), 1000);
 		}
 	}, null, context.subscriptions));
 	updateLaunchJsonDecorations(vscode.window.activeTextEditor);

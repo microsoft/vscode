@@ -58,7 +58,11 @@ export function dirname(path: string): string {
 	} else if (~idx === 0) {
 		return path[0];
 	} else {
-		return path.substring(0, ~idx);
+		let res = path.substring(0, ~idx);
+		if (isWindows && res[res.length - 1] === ':') {
+			res += nativeSep; // make sure drive letters end with backslash
+		}
+		return res;
 	}
 }
 
@@ -305,52 +309,6 @@ export function isUNC(path: string): boolean {
 		return false;
 	}
 	return true;
-}
-
-function isPosixAbsolute(path: string): boolean {
-	return path && path[0] === '/';
-}
-
-export function makePosixAbsolute(path: string): string {
-	return isPosixAbsolute(normalize(path)) ? path : sep + path;
-}
-
-export function isEqualOrParent(path: string, candidate: string): boolean {
-
-	if (path === candidate) {
-		return true;
-	}
-
-	path = normalize(path);
-	candidate = normalize(candidate);
-
-	let candidateLen = candidate.length;
-	let lastCandidateChar = candidate.charCodeAt(candidateLen - 1);
-	if (lastCandidateChar === CharCode.Slash) {
-		candidate = candidate.substring(0, candidateLen - 1);
-		candidateLen -= 1;
-	}
-
-	if (path === candidate) {
-		return true;
-	}
-
-	if (!isLinux) {
-		// case insensitive
-		path = path.toLowerCase();
-		candidate = candidate.toLowerCase();
-	}
-
-	if (path === candidate) {
-		return true;
-	}
-
-	if (path.indexOf(candidate) !== 0) {
-		return false;
-	}
-
-	let char = path.charCodeAt(candidateLen);
-	return char === CharCode.Slash;
 }
 
 // Reference: https://en.wikipedia.org/wiki/Filename

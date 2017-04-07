@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { languages, window, commands, ExtensionContext } from 'vscode';
+import { languages, window, commands, workspace, ExtensionContext } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, Range, TextEdit } from 'vscode-languageclient';
 import { activateColorDecorations } from './colorDecorators';
 
@@ -54,7 +54,10 @@ export function activate(context: ExtensionContext) {
 		let colorRequestor = (uri: string) => {
 			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
 		};
-		disposable = activateColorDecorations(colorRequestor, { css: true, scss: true, less: true });
+		let isDecoratorEnabled = (languageId: string) => {
+			return workspace.getConfiguration().get<boolean>(languageId + '.colorDecorators.enable');
+		};
+		disposable = activateColorDecorations(colorRequestor, { css: true, scss: true, less: true }, isDecoratorEnabled);
 		context.subscriptions.push(disposable);
 	});
 

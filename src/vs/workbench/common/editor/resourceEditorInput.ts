@@ -72,6 +72,7 @@ export class ResourceEditorInput extends EditorInput {
 	getTelemetryDescriptor(): { [key: string]: any; } {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.resource);
+
 		return descriptor;
 	}
 
@@ -88,9 +89,6 @@ export class ResourceEditorInput extends EditorInput {
 				this.promise = null;
 				return TPromise.wrapError(`Unexpected model for ResourceInput: ${this.resource}`); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
 			}
-
-			// TODO@Joao this should never happen
-			model.onDispose(() => this.dispose());
 
 			return model;
 		});

@@ -12,6 +12,7 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { FindWidget, IFindController } from 'vs/editor/contrib/find/browser/findWidget';
 import { FindOptionsWidget } from 'vs/editor/contrib/find/browser/findOptionsWidget';
 import { CommonFindController, FindStartFocusAction, IFindStartOptions } from 'vs/editor/contrib/find/common/findController';
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 @editorContribution
 export class FindController extends CommonFindController implements IFindController {
@@ -23,11 +24,12 @@ export class FindController extends CommonFindController implements IFindControl
 		editor: ICodeEditor,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(editor, contextKeyService);
 
-		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService, contextKeyService));
+		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService, contextKeyService, themeService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(editor, this._state, keybindingService));
 	}
 

@@ -9,6 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import nls = require('vs/nls');
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export class OpenFolderAction extends Action {
 
@@ -23,8 +24,8 @@ export class OpenFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
-		return this.windowService.openFolderPicker();
+	run(event?: any, data?: ITelemetryData): TPromise<any> {
+		return this.windowService.openFolderPicker(undefined, data);
 	}
 }
 
@@ -41,7 +42,7 @@ export class OpenFileFolderAction extends Action {
 		super(id, label);
 	}
 
-	run(): TPromise<any> {
-		return this.windowService.openFileFolderPicker();
+	run(event?: any, data?: ITelemetryData): TPromise<any> {
+		return this.windowService.openFileFolderPicker(undefined, data);
 	}
 }

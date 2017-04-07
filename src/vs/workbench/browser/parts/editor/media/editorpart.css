@@ -3,39 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.vs .monaco-workbench .monaco-editor-background {
-	background-color: white;
-}
-
-.vs-dark .monaco-workbench .monaco-editor-background {
-	background-color: #1E1E1E;
-}
-
-.hc-black .monaco-workbench .monaco-editor-background {
-	background-color: #000;
-}
-
-.monaco-workbench .part.editor {
+.monaco-workbench > .part.editor {
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
 }
 
-.monaco-workbench .part.editor.empty {
+.monaco-workbench > .part.editor.empty {
 	background-image: url('letterpress.svg');
 }
 
-.vs-dark .monaco-workbench .part.editor.empty {
+.vs-dark .monaco-workbench > .part.editor.empty {
 	background-image: url('letterpress-dark.svg');
 }
 
-.hc-black .monaco-workbench .part.editor.empty {
+.hc-black .monaco-workbench > .part.editor.empty {
 	background-image: url('letterpress-hc.svg');
 }
 
 @media
 (-webkit-min-device-pixel-ratio: 2),
 (min-resolution: 192dppx) {
-	.monaco-workbench .part.editor {
+	.monaco-workbench > .part.editor {
 		background-size: 260px 260px;
 	}
 }

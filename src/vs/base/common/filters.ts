@@ -67,33 +67,17 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 		return null;
 	}
 
-	for (let i = 0; i < word.length; i++) {
+	let matches: boolean;
+	if (ignoreCase) {
+		matches = strings.beginsWithIgnoreCase(wordToMatchAgainst, word);
+	} else {
+		matches = wordToMatchAgainst.indexOf(word) === 0;
+	}
 
-		const wordChar = word.charCodeAt(i);
-		const wordToMatchAgainstChar = wordToMatchAgainst.charCodeAt(i);
-
-
-		if (wordChar === wordToMatchAgainstChar) {
-			// equal
-			continue;
-		}
-
-		if (ignoreCase) {
-			if (isAlphanumeric(wordChar) && isAlphanumeric(wordToMatchAgainstChar)) {
-				const diff = wordChar - wordToMatchAgainstChar;
-				if (diff === 32 || diff === -32) {
-					// ascii -> equalIgnoreCase
-					continue;
-				}
-
-			} else if (word[i].toLowerCase() === wordToMatchAgainst[i].toLowerCase()) {
-				// nonAscii -> equalIgnoreCase
-				continue;
-			}
-		}
-
+	if (!matches) {
 		return null;
 	}
+
 	return word.length > 0 ? [{ start: 0, end: word.length }] : [];
 }
 
@@ -372,4 +356,307 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 
 	// Default Filter
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
+}
+
+export function matchesFuzzy2(pattern: string, word: string): number[] {
+
+	pattern = pattern.toLowerCase();
+	word = word.toLowerCase();
+
+	let matches: number[] = [];
+	let patternPos = 0;
+	let wordPos = 0;
+	while (patternPos < pattern.length && wordPos < word.length) {
+		if (pattern[patternPos] === word[wordPos]) {
+			patternPos += 1;
+			matches.push(wordPos);
+		}
+		wordPos += 1;
+	}
+
+	if (patternPos !== pattern.length) {
+		return undefined;
+	}
+
+	return matches;
+}
+
+export function createMatches(position: number[]): IMatch[] {
+	let ret: IMatch[] = [];
+	if (!position) {
+		return ret;
+	}
+	let last: IMatch;
+	for (const pos of position) {
+		if (last && last.end === pos) {
+			last.end += 1;
+		} else {
+			last = { start: pos, end: pos + 1 };
+			ret.push(last);
+		}
+	}
+	return ret;
+}
+
+function initTable() {
+	const table: number[][] = [];
+	const row: number[] = [0];
+	for (let i = 1; i <= 100; i++) {
+		row.push(-i);
+	}
+	for (let i = 0; i < 100; i++) {
+		let thisRow = row.slice(0);
+		thisRow[0] = -i;
+		table.push(thisRow);
+	}
+	return table;
+}
+
+const _table = initTable();
+const _scores = initTable();
+const _arrows = <Arrow[][]>initTable();
+const _debug = false;
+
+function printTable(table: number[][], pattern: string, patternLen: number, word: string, wordLen: number): string {
+	function pad(s: string, n: number, pad = ' ') {
+		while (s.length < n) {
+			s = pad + s;
+		}
+		return s;
+	}
+	let ret = ` |   |${word.split('').map(c => pad(c, 3)).join('|')}\n`;
+
+	for (let i = 0; i <= patternLen; i++) {
+		if (i === 0) {
+			ret += ' |';
+		} else {
+			ret += `${pattern[i - 1]}|`;
+		}
+		ret += table[i].slice(0, wordLen + 1).map(n => pad(n.toString(), 3)).join('|') + '\n';
+	}
+	return ret;
+}
+
+const _seps: { [ch: string]: boolean } = Object.create(null);
+_seps['_'] = true;
+_seps['-'] = true;
+_seps['.'] = true;
+_seps[' '] = true;
+_seps['/'] = true;
+_seps['\\'] = true;
+_seps['\''] = true;
+_seps['"'] = true;
+
+const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
+
+export function fuzzyScore(pattern: string, word: string): [number, number[]] {
+
+	const patternLen = pattern.length > 100 ? 100 : pattern.length;
+	const wordLen = word.length > 100 ? 100 : word.length;
+
+	if (patternLen === 0) {
+		return [-1, []];
+	}
+
+	if (patternLen > wordLen) {
+		return undefined;
+	}
+
+	const lowPattern = pattern.toLowerCase();
+	const lowWord = word.toLowerCase();
+	let i = 0;
+	let j = 0;
+
+	while (i < patternLen && j < wordLen) {
+		if (lowPattern[i] === lowWord[j]) {
+			i += 1;
+		}
+		j += 1;
+	}
+	if (i !== patternLen) {
+		// no simple matches found -> return early
+		return undefined;
+	}
+
+	for (i = 1; i <= patternLen; i++) {
+
+		let lastLowWordChar = '';
+
+		for (j = 1; j <= wordLen; j++) {
+
+			let score = -1;
+			let lowWordChar = lowWord[j - 1];
+			if (lowPattern[i - 1] === lowWordChar) {
+
+				if (j === 1) {
+					if (pattern[i - 1] === word[j - 1]) {
+						score = 7;
+					} else {
+						score = 5;
+					}
+				} else if (lowWordChar !== word[j - 1]) {
+					if (pattern[i - 1] === word[j - 1]) {
+						score = 7;
+					} else {
+						score = 5;
+					}
+				} else if (_seps[lastLowWordChar]) {
+					score = 5;
+
+				} else {
+					score = 1;
+				}
+			}
+
+			_scores[i][j] = score;
+
+			let diag = _table[i - 1][j - 1] + (score > 1 ? 1 : score);
+			let top = _table[i - 1][j] + -1;
+			let left = _table[i][j - 1] + -1;
+
+			if (left >= top) {
+				// left or diag
+				if (left > diag) {
+					_table[i][j] = left;
+					_arrows[i][j] = Arrow.Left;
+				} else if (left === diag) {
+					_table[i][j] = left;
+					_arrows[i][j] = Arrow.Left | Arrow.Diag;
+				} else {
+					_table[i][j] = diag;
+					_arrows[i][j] = Arrow.Diag;
+				}
+			} else {
+				// top or diag
+				if (top > diag) {
+					_table[i][j] = top;
+					_arrows[i][j] = Arrow.Top;
+				} else if (top === diag) {
+					_table[i][j] = top;
+					_arrows[i][j] = Arrow.Top | Arrow.Diag;
+				} else {
+					_table[i][j] = diag;
+					_arrows[i][j] = Arrow.Diag;
+				}
+			}
+
+			lastLowWordChar = lowWordChar;
+		}
+	}
+
+	if (_debug) {
+		console.log(printTable(_table, pattern, patternLen, word, wordLen));
+		console.log(printTable(_arrows, pattern, patternLen, word, wordLen));
+		console.log(printTable(_scores, pattern, patternLen, word, wordLen));
+	}
+
+	let bucket: [number, number[]][] = [];
+	findAllMatches(patternLen, patternLen, wordLen, 0, [], bucket, false);
+
+	if (bucket.length === 0) {
+		return undefined;
+	}
+
+	let topMatch = bucket.shift();
+	for (const match of bucket) {
+		if (!topMatch || topMatch[0] < match[0]) {
+			topMatch = match;
+		}
+	}
+	if (_debug) {
+		console.log(`${pattern} & ${word} => ${topMatch[0]} points for ${topMatch[1]}`);
+	}
+	return topMatch;
+}
+
+function findAllMatches(patternLen: number, patternPos: number, wordPos: number, total: number, matches: number[], bucket: [number, number[]][], lastMatched: boolean): void {
+
+	if (bucket.length >= 10) {
+		return;
+	}
+
+	let simpleMatchCount = 0;
+
+	while (patternPos > 0 && wordPos > 0) {
+
+		let score = _scores[patternPos][wordPos];
+		let arrow = _arrows[patternPos][wordPos];
+
+		if (arrow === Arrow.Left) {
+			// left
+			wordPos -= 1;
+			if (lastMatched) {
+				total -= 5; // new gap penalty
+			} else if (matches.length !== 0) {
+				total -= 1; // gap penalty after first match
+			}
+			lastMatched = false;
+			simpleMatchCount = 0;
+
+		} else if (arrow & Arrow.Diag) {
+
+			if (arrow & Arrow.Left) {
+				// left
+				findAllMatches(
+					patternLen, patternPos,
+					wordPos - 1,
+					matches.length !== 0 ? total - 1 : total,
+					matches.slice(0), bucket, lastMatched
+				);
+			}
+
+			// diag
+			total += score;
+			patternPos -= 1;
+			wordPos -= 1;
+			matches.unshift(wordPos);
+			lastMatched = true;
+
+			if (score === 1) {
+				simpleMatchCount += 1;
+			} else {
+				total += simpleMatchCount * (score - 1);
+				simpleMatchCount = 0;
+			}
+
+		} else {
+			return undefined;
+		}
+	}
+
+	if (matches.length !== patternLen) {
+		// doesn't cover whole pattern
+		return undefined;
+	}
+
+	if (_scores[1][matches[0] + 1] === 1) {
+		// first match is weak
+		return undefined;
+	}
+
+	total -= wordPos >= 3 ? 9 : wordPos * 3; // late start penalty
+
+	bucket.push([total, matches]);
+}
+
+
+export function nextTypoPermutation(pattern: string, patternPos: number) {
+
+	if (patternPos + 1 >= pattern.length) {
+		return undefined;
+	}
+
+	return pattern.slice(0, patternPos)
+		+ pattern[patternPos + 1]
+		+ pattern[patternPos]
+		+ pattern.slice(patternPos + 2);
+}
+
+export function fuzzyScoreGraceful(pattern: string, word: string): [number, number[]] {
+	let ret = fuzzyScore(pattern, word);
+	for (let patternPos = 1; patternPos < pattern.length - 1 && !ret; patternPos++) {
+		let pattern2 = nextTypoPermutation(pattern, patternPos);
+		ret = fuzzyScore(pattern2, word);
+	}
+	return ret;
 }

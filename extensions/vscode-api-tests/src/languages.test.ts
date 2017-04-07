@@ -29,7 +29,7 @@ suite('languages namespace tests', () => {
 		let ran = false;
 		let uri = Uri.parse('ttt:path.far');
 
-		let r1 = languages.registerCodeActionsProvider({ pattern: '*.far' }, {
+		let r1 = languages.registerCodeActionsProvider({ pattern: '*.far', scheme: 'ttt' }, {
 			provideCodeActions(document, range, ctx): Command[] {
 
 				assert.equal(ctx.diagnostics.length, 2);

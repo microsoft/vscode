@@ -20,7 +20,7 @@
 	"disableForWorkspaceAction.label": "禁用(工作区)",
 	"disableGloballyAction": "始终",
 	"enableAction": "启用",
-	"enableAll": "禁用所有已安装的扩展",
+	"enableAll": "启用所有已安装的扩展",
 	"enableAllWorkspace": "启用此工作区的所有已安装的扩展",
 	"enableAlwaysAction.label": "启用(始终)",
 	"enableForWorkspaceAction": "工作区",

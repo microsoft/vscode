@@ -5,6 +5,13 @@
 
 'use strict';
 
+if (process.argv.indexOf('--prof-startup') >= 0) {
+	var profiler = require('v8-profiler');
+	var prefix = require('crypto').randomBytes(2).toString('hex');
+	process.env.VSCODE_PROFILES_PREFIX = prefix;
+	profiler.startProfiling('main', true);
+}
+
 // Perf measurements
 global.perfStartTime = Date.now();
 
@@ -118,7 +125,13 @@ function getNodeCachedDataDir() {
 		return Promise.resolve(undefined);
 	}
 
-	var dir = path.join(app.getPath('userData'), 'CachedData');
+	// find commit id
+	var productJson = require(path.join(__dirname, '../product.json'));
+	if (!productJson.commit) {
+		return Promise.resolve(undefined);
+	}
+
+	var dir = path.join(app.getPath('userData'), 'CachedData', productJson.commit);
 
 	return mkdirp(dir).then(undefined, function (err) { /*ignore*/ });
 }

@@ -2,17 +2,38 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/* marker zone */
 
-.monaco-editor .exception-widget {
-	background-color: white;
+.monaco-editor .zone-widget .zone-widget-container.exception-widget {
+	padding: 6px 10px;
+	white-space: pre-wrap;
+	-webkit-user-select: text;
+	-ms-user-select: text;
+	-khtml-user-select: text;
+	-moz-user-select: text;
+	-o-user-select: text;
+	user-select: text;
 }
 
-.monaco-editor.vs-dark .exception-widget {
-	background-color: #2D2D30;
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .title {
+	font-weight: bold;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .description,
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
+	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+}
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
+	margin-top: 0.5em;
 }
 
 /* High Contrast Theming */
-.monaco-editor.hc-black .exception-widget {
-	background-color: #0C141F;
+
+.monaco-workbench.mac .zone-widget .zone-widget-container.exception-widget {
+	font-size: 11px;
+}
+
+.monaco-workbench.windows .zone-widget .zone-widget-container.exception-widget,
+.monaco-workbench.linux .zone-widget .zone-widget-container.exception-widget {
+	font-size: 13px;
 }

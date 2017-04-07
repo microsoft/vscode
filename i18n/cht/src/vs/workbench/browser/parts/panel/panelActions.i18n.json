@@ -6,6 +6,8 @@
 {
 	"closePanel": "關閉面板",
 	"focusPanel": "將焦點移至面板",
+	"maximizePanel": "最大化面板大小",
+	"minimizePanel": "還原面板大小",
 	"panelActionTooltip": "{0} ({1})",
 	"toggleMaximizedPanel": "切換最大化面板",
 	"togglePanel": "切換面板",

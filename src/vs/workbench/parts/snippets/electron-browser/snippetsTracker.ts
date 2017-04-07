@@ -5,15 +5,15 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
 import workbenchExt = require('vs/workbench/common/contributions');
-import paths = require('vs/base/common/paths');
+import { join } from 'path';
 import async = require('vs/base/common/async');
 import winjs = require('vs/base/common/winjs.base');
 import { mkdirp, fileExists, readdir } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import lifecycle = require('vs/base/common/lifecycle');
-import { readAndRegisterSnippets } from 'vs/editor/node/textMate/TMSnippets';
+import { readAndRegisterSnippets } from './TMSnippets';
+import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
@@ -31,10 +31,11 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 	constructor(
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IModeService private modeService: IModeService,
+		@ISnippetsService private snippetService: ISnippetsService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		this.snippetFolder = paths.join(environmentService.appSettingsHome, 'snippets');
+		this.snippetFolder = join(environmentService.appSettingsHome, 'snippets');
 
 		this.toDispose = [];
 		this.fileWatchDelayer = new async.ThrottledDelayer<void>(SnippetsTracker.FILE_WATCH_DELAY);
@@ -72,10 +73,10 @@ export class SnippetsTracker implements workbenchExt.IWorkbenchContribution {
 		return readFilesInDir(this.snippetFolder, /\.json$/).then(snippetFiles => {
 			return winjs.TPromise.join(snippetFiles.map(snippetFile => {
 				var modeId = snippetFile.replace(/\.json$/, '').toLowerCase();
-				var snippetPath = paths.join(this.snippetFolder, snippetFile);
+				var snippetPath = join(this.snippetFolder, snippetFile);
 				let languageIdentifier = this.modeService.getLanguageIdentifier(modeId);
 				if (languageIdentifier) {
-					return readAndRegisterSnippets(languageIdentifier, snippetPath, localize('userSnippet', "User Snippet"));
+					return readAndRegisterSnippets(this.snippetService, languageIdentifier, snippetPath);
 				}
 				return undefined;
 			}));
@@ -106,7 +107,7 @@ function readFilesInDir(dirPath: string, namePattern: RegExp = null): winjs.TPro
 				if (namePattern && !namePattern.test(child)) {
 					return winjs.TPromise.as(null);
 				}
-				return fileExists(paths.join(dirPath, child)).then(isFile => {
+				return fileExists(join(dirPath, child)).then(isFile => {
 					return isFile ? child : null;
 				});
 			})

@@ -6,5 +6,6 @@
 {
 	"defaultLabel": "entrée",
 	"patternDescription": "Utiliser des modèles Glob",
-	"patternHelpInclude": "Modèle de correspondance. Exemple : **\\*\\*/*.js** pour établir une correspondance avec tous les fichiers JavaScript, ou **myFolder/\\*\\*** pour établir une correspondance avec le dossier indiqué et tous ses enfants.\n\n**Référence** :\n**\\*** correspond à 0 caractère ou plus\n**?** correspond à 1 caractère\n**\\*\\*** correspond à zéro répertoire ou plus\n**[a-z]** correspond à une plage de caractères\n**{a,b}** correspond à tous les modèles)"
+	"patternHelpInclude": "Modèle de correspondance. Exemple : **\\*\\*/*.js** pour établir une correspondance avec tous les fichiers JavaScript, ou **myFolder/\\*\\*** pour établir une correspondance avec le dossier indiqué et tous ses enfants.\n\n**Référence** :\n**\\*** correspond à 0 caractère ou plus\n**?** correspond à 1 caractère\n**\\*\\*** correspond à zéro répertoire ou plus\n**[a-z]** correspond à une plage de caractères\n**{a,b}** correspond à tous les modèles)",
+	"useIgnoreFilesDescription": "Utiliser Ignorer les fichiers"
 }

@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
-import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose } from './util';
+import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp } from './util';
 import { EventEmitter, Event } from 'vscode';
 import * as nls from 'vscode-nls';
 
@@ -250,6 +250,7 @@ export class GitError {
 export interface IGitOptions {
 	gitPath: string;
 	version: string;
+	env?: any;
 }
 
 export const GitErrorCodes = {
@@ -276,6 +277,7 @@ export class Git {
 
 	private gitPath: string;
 	private version: string;
+	private env: any;
 
 	private _onOutput = new EventEmitter<string>();
 	get onOutput(): Event<string> { return this._onOutput.event; }
@@ -283,10 +285,25 @@ export class Git {
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
 		this.version = options.version;
+		this.env = options.env || {};
 	}
 
-	open(repository: string, env: any = {}): Repository {
-		return new Repository(this, repository, env);
+	open(repository: string): Repository {
+		return new Repository(this, repository);
+	}
+
+	async init(repository: string): Promise<void> {
+		await this.exec(repository, ['init']);
+		return;
+	}
+
+	async clone(url: string, parentPath: string): Promise<string> {
+		const folderName = url.replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
+		const folderPath = path.join(parentPath, folderName);
+
+		await mkdirp(parentPath);
+		await this.exec(parentPath, ['clone', url, folderPath]);
+		return folderPath;
 	}
 
 	async getRepositoryRoot(path: string): Promise<string> {
@@ -360,7 +377,9 @@ export class Git {
 			options.stdio = ['ignore', null, null]; // Unless provided, ignore stdin and leave default streams for stdout and stderr
 		}
 
-		options.env = assign({}, process.env, options.env || {}, {
+		options.env = assign({}, process.env, this.env, options.env || {}, {
+			VSCODE_GIT_COMMAND: args[0],
+			LC_ALL: 'en_US',
 			LANG: 'en_US.UTF-8'
 		});
 
@@ -385,8 +404,7 @@ export class Repository {
 
 	constructor(
 		private _git: Git,
-		private repositoryRoot: string,
-		private env: any = {}
+		private repositoryRoot: string
 	) { }
 
 	get git(): Git {
@@ -399,28 +417,15 @@ export class Repository {
 
 	// TODO@Joao: rename to exec
 	async run(args: string[], options: any = {}): Promise<IExecutionResult> {
-		options.env = assign({}, options.env || {});
-		options.env = assign(options.env, this.env);
-
 		return await this.git.exec(this.repositoryRoot, args, options);
 	}
 
 	stream(args: string[], options: any = {}): cp.ChildProcess {
-		options.env = assign({}, options.env || {});
-		options.env = assign(options.env, this.env);
-
 		return this.git.stream(this.repositoryRoot, args, options);
 	}
 
 	spawn(args: string[], options: any = {}): cp.ChildProcess {
-		options.env = assign({}, options.env || {});
-		options.env = assign(options.env, this.env);
-
 		return this.git.spawn(args, options);
-	}
-
-	init(): Promise<any> {
-		return this.run(['init']);
 	}
 
 	async config(scope: string, key: string, value: any, options: any): Promise<string> {
@@ -707,11 +712,6 @@ export class Repository {
 
 			throw err;
 		}
-	}
-
-	async sync(): Promise<void> {
-		await this.pull();
-		await this.push();
 	}
 
 	async getStatus(): Promise<IFileStatus[]> {

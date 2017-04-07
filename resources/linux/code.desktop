@@ -2,7 +2,7 @@
 Name=@@NAME_LONG@@
 Comment=Code Editing. Redefined.
 GenericName=Text Editor
-Exec=/usr/share/@@NAME@@/@@NAME@@ --new-window-if-not-first %U
+Exec=/usr/share/@@NAME@@/@@NAME@@ --unity-launch %U
 Icon=@@NAME@@
 Type=Application
 StartupNotify=true

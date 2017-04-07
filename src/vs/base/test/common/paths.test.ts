@@ -48,6 +48,10 @@ suite('Paths', () => {
 		assert.equal(paths.dirname('/'), '/');
 		assert.equal(paths.dirname('\\'), '\\');
 		assert.equal(paths.dirname('foo'), '.');
+		if (platform.isWindows) {
+			assert.equal(paths.dirname('c:\\some\\file.txt'), 'c:\\some');
+			assert.equal(paths.dirname('c:\\some'), 'c:\\');
+		}
 	});
 
 	test('normalize', () => {
@@ -113,15 +117,6 @@ suite('Paths', () => {
 
 	});
 
-	test('makeAbsolute', () => {
-		assert.equal(paths.makePosixAbsolute('foo'), '/foo');
-		assert.equal(paths.makePosixAbsolute('foo/bar'), '/foo/bar');
-		assert.equal(paths.makePosixAbsolute('foo/bar/'), '/foo/bar/');
-		assert.equal(paths.makePosixAbsolute('/foo/bar'), '/foo/bar');
-		assert.equal(paths.makePosixAbsolute('/'), '/');
-		assert.equal(paths.makePosixAbsolute(''), '/');
-	});
-
 	test('basename', () => {
 		assert.equal(paths.basename('foo/bar'), 'bar');
 		assert.equal(paths.basename('foo\\bar'), 'bar');
@@ -163,32 +158,6 @@ suite('Paths', () => {
 		assert.equal(paths.join('foo/bar', './bar/foo'), 'foo/bar/bar/foo');
 		assert.equal(paths.join('http://localhost/test', '../next'), 'http://localhost/next');
 		assert.equal(paths.join('http://localhost/test', 'test'), 'http://localhost/test/test');
-	});
-
-	test('isEqualOrParent', () => {
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo'));
-		assert(paths.isEqualOrParent('/', '/'));
-		assert(paths.isEqualOrParent('/foo', '/'));
-		assert(paths.isEqualOrParent('/foo', '/foo/'));
-		assert(!paths.isEqualOrParent('/foo', '/f'));
-		assert(!paths.isEqualOrParent('/foo', '/foo/b'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', '/foo/bar'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/barr'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/xxx/../bar'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/./bar'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo\\bar\\'));
-		assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar/test.ts'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar/test'));
-		assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/bar/test.'));
-
-		if (!platform.isLinux) {
-			assert(paths.isEqualOrParent('/foo', '/fOO/'));
-			assert(paths.isEqualOrParent('/fOO', '/foo/'));
-			assert(paths.isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.ts'));
-			assert(!paths.isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.'));
-		}
 	});
 
 	test('extname', () => {

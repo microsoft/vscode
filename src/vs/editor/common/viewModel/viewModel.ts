@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { INewScrollPosition, IViewWhitespaceViewportData, Viewport, IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/common/editorCommon';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ViewEvent } from 'vs/editor/common/view/viewEvents';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IViewLayout {
 
@@ -20,7 +21,6 @@ export interface IViewLayout {
 	getScrollHeight(): number;
 	getScrollTop(): number;
 	getCurrentViewport(): Viewport;
-	getScrolledTopFromAbsoluteTop(top: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	setScrollPosition(position: INewScrollPosition): void;
 
@@ -62,7 +62,13 @@ export interface ICoordinatesConverter {
 	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 
-export interface IViewModel extends IEventEmitter {
+export interface IViewModelListener {
+	(events: ViewEvent[]): void;
+}
+
+export interface IViewModel {
+
+	addEventListener(listener: IViewModelListener): IDisposable;
 
 	readonly coordinatesConverter: ICoordinatesConverter;
 
@@ -219,4 +225,26 @@ export class ViewModelDecoration {
 		this.range = null;
 		this.source = source;
 	}
+}
+
+export class ViewEventsCollector {
+
+	private _events: ViewEvent[];
+	private _eventsLen = 0;
+
+	constructor() {
+		this._events = [];
+		this._eventsLen = 0;
+	}
+
+	public emit(event: ViewEvent) {
+		this._events[this._eventsLen++] = event;
+	}
+
+	public finalize(): ViewEvent[] {
+		let result = this._events;
+		this._events = null;
+		return result;
+	}
+
 }

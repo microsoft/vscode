@@ -6,7 +6,8 @@
 
 import assert = require('assert');
 import path = require('path');
-import { findBestWindowOrFolder, OpenContext, ISimpleWindow, IBestWindowOrFolderOptions } from 'vs/code/node/windowsUtils';
+import { findBestWindowOrFolder, ISimpleWindow, IBestWindowOrFolderOptions } from 'vs/code/node/windowsUtils';
+import { OpenContext } from 'vs/code/common/windows';
 
 const fixturesFolder = require.toUrl('./fixtures');
 

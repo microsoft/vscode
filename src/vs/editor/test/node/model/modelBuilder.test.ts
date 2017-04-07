@@ -6,12 +6,13 @@
 
 import * as assert from 'assert';
 import { ModelBuilder, computeHash } from 'vs/editor/node/model/modelBuilder';
-import { ITextModelCreationOptions, ITextSource2 } from 'vs/editor/common/editorCommon';
+import { ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as strings from 'vs/base/common/strings';
+import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 
 export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): string {
-	let expectedTextSource = TextModel.toTextSource(chunks.join(''));
+	let expectedTextSource = RawTextSource.fromString(chunks.join(''));
 	let expectedHash = computeHash(expectedTextSource);
 
 	let builder = new ModelBuilder();
@@ -29,7 +30,7 @@ export function testModelBuilder(chunks: string[], opts: ITextModelCreationOptio
 	return expectedHash;
 }
 
-function toTextSource(lines: string[]): ITextSource2 {
+function toTextSource(lines: string[]): IRawTextSource {
 	return {
 		BOM: '',
 		lines: lines,

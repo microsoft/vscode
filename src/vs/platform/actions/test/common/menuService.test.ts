@@ -9,7 +9,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
 
 // --- service instances
@@ -26,7 +26,7 @@ const extensionService = new class extends AbstractExtensionService<ActivatedExt
 	}
 }(true);
 
-const contextKeyService = new class extends MockKeybindingService {
+const contextKeyService = new class extends MockContextKeyService {
 	contextMatchesRules() {
 		return true;
 	}

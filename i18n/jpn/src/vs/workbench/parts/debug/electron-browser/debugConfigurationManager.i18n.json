@@ -16,7 +16,7 @@
 	"vscode.extension.contributes.breakpoints": "ブレークポイントを提供します。",
 	"vscode.extension.contributes.breakpoints.language": "この言語でブレークポイントを許可します。",
 	"vscode.extension.contributes.debuggers": "デバッグ アダプターを提供します。",
-	"vscode.extension.contributes.debuggers.adapterExecutableCommand": "VS Code が指定されている場合、このコマンドが呼び出され、デバッグ アダプターと引き渡す引数への実行可能パスが確認されます。",
+	"vscode.extension.contributes.debuggers.adapterExecutableCommand": "指定されている場合、VS Code はこのコマンドを呼び出し、デバッグ アダプターの実行可能パスと、渡す引数を決定します。",
 	"vscode.extension.contributes.debuggers.args": "アダプターに渡すオプションの引数。",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "'launch.json' を検証するための JSON スキーマ構成。",
 	"vscode.extension.contributes.debuggers.configurationSnippets": "'launch.json' に新しい構成を追加するためのスニペット。",

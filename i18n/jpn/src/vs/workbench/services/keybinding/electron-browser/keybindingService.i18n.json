@@ -13,6 +13,7 @@
 	"nonempty": "空以外の値が必要です。",
 	"optstring": "プロパティ `{0}` は省略するか、型 `string` にする必要があります",
 	"requirestring": "プロパティ `{0}` は必須で、型 `string` でなければなりません",
+	"unboundCommands": "他に使用できるコマンドは次のとおりです: ",
 	"vscode.extension.contributes.keybindings": "キー バインドを提供します。",
 	"vscode.extension.contributes.keybindings.command": "キー バインドのトリガー時に実行するコマンドの識別子。",
 	"vscode.extension.contributes.keybindings.key": "キーまたはキー シーケンス (キーは + で区切り、シーケンスはスペースで区切る。例: Ctrl+O、Ctrl+L L で同時に押す",

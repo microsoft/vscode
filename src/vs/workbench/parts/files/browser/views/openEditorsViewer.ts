@@ -8,7 +8,7 @@ import errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import { EditorLabel } from 'vs/workbench/browser/labels';
-import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
+import { DefaultController, ClickBehavior, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IDataSource, ITree, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT, DRAG_OVER_REJECT, ContextMenuEvent, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { ExternalElementsDragAndDropData, ElementsDragAndDropData, DesktopDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -28,7 +28,7 @@ import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/file
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
@@ -112,8 +112,8 @@ export class Renderer implements IRenderer {
 
 			const editorGroupActions = this.actionProvider.getEditorGroupActions();
 			editorGroupActions.forEach(a => {
-				const key = keybindingForAction(a.id, this.keybindingService);
-				editorGroupTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? this.keybindingService.getLabelFor(key) : void 0 });
+				const key = this.keybindingService.lookupKeybinding(a.id);
+				editorGroupTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? key.getLabel() : void 0 });
 			});
 
 			return editorGroupTemplate;
@@ -125,8 +125,8 @@ export class Renderer implements IRenderer {
 
 		const openEditorActions = this.actionProvider.getOpenEditorActions();
 		openEditorActions.forEach(a => {
-			const key = keybindingForAction(a.id, this.keybindingService);
-			editorTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? this.keybindingService.getLabelFor(key) : void 0 });
+			const key = this.keybindingService.lookupKeybinding(a.id);
+			editorTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? key.getLabel() : void 0 });
 		});
 
 		editorTemplate.root = this.instantiationService.createInstance(EditorLabel, container, void 0);
@@ -164,7 +164,7 @@ export class Renderer implements IRenderer {
 	}
 }
 
-export class Controller extends treedefaults.DefaultController {
+export class Controller extends DefaultController {
 
 	constructor(private actionProvider: ActionProvider, private model: IEditorStacksModel,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -173,7 +173,7 @@ export class Controller extends treedefaults.DefaultController {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
 	}
 
 	public onClick(tree: ITree, element: any, event: IMouseEvent): boolean {
@@ -226,7 +226,7 @@ export class Controller extends treedefaults.DefaultController {
 			}
 
 			tree.setSelection([element], payload);
-			this.openEditor(element, isDoubleClick, event.ctrlKey || event.metaKey);
+			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide: event.ctrlKey || event.metaKey });
 		}
 
 		return true;
@@ -261,7 +261,7 @@ export class Controller extends treedefaults.DefaultController {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.actionProvider.getSecondaryActions(tree, element),
-			getKeyBinding: (action) => keybindingForAction(action.id, this.keybindingService),
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
 					tree.DOMFocus();
@@ -273,15 +273,15 @@ export class Controller extends treedefaults.DefaultController {
 		return true;
 	}
 
-	private openEditor(element: OpenEditor, pinEditor: boolean, openToSide: boolean): void {
+	public openEditor(element: OpenEditor, options: { preserveFocus: boolean; pinned: boolean; sideBySide: boolean; }): void {
 		if (element) {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 			let position = this.model.positionOfGroup(element.editorGroup);
-			if (openToSide && position !== Position.THREE) {
+			if (options.sideBySide && position !== Position.THREE) {
 				position++;
 			}
 			this.editorGroupService.activateGroup(this.model.groupAt(position));
-			this.editorService.openEditor(element.editorInput, { preserveFocus: !pinEditor, pinned: pinEditor }, position)
+			this.editorService.openEditor(element.editorInput, options, position)
 				.done(() => this.editorGroupService.activateGroup(this.model.groupAt(position)), errors.onUnexpectedError);
 		}
 	}
@@ -416,7 +416,7 @@ export class ActionProvider extends ContributableActionProvider {
 	}
 }
 
-export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
+export class DragAndDrop extends DefaultDragAndDrop {
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -491,7 +491,7 @@ export class DragAndDrop extends treedefaults.DefaultDragAndDrop {
 
 		if (draggedElement) {
 			if (draggedElement instanceof OpenEditor) {
-				this.editorGroupService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, index);
+				this.editorGroupService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, { index });
 			} else {
 				this.editorGroupService.moveGroup(model.positionOfGroup(draggedElement), positionOfTargetGroup);
 			}

@@ -345,8 +345,9 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.emit(ProblemCollectorEvents.WatchingBeginDetected, {});
 				result = true;
 				let owner = beginMatcher.problemMatcher.owner;
-				if (matches[1]) {
-					let resource = getResource(matches[1], beginMatcher.problemMatcher);
+				let file = matches[beginMatcher.pattern.file];
+				if (file) {
+					let resource = getResource(file, beginMatcher.problemMatcher);
 					if (this.currentResourceAsString && this.currentResourceAsString === resource.toString()) {
 						this.resetCurrentResource();
 					}

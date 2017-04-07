@@ -9,10 +9,11 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { OverviewRulerImpl } from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { IRenderingContext, IRestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { Position } from 'vs/editor/common/core/position';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -22,9 +23,13 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private static _CURSOR_COLOR = 'rgba(0, 0, 102, 0.8)';
 	private static _CURSOR_COLOR_DARK = 'rgba(152, 152, 152, 0.8)';
 
+	private static _BORDER_COLOR = 'rgba(127,127,127,0.3)';
+
 	private readonly _tokensColorTrackerListener: IDisposable;
 
 	private _overviewRuler: OverviewRulerImpl;
+
+	private _renderBorder: boolean;
 
 	private _shouldUpdateDecorations: boolean;
 	private _shouldUpdateCursorPosition: boolean;
@@ -50,6 +55,9 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
 		let theme = this._context.configuration.editor.viewInfo.theme;
 		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
+		this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
+
+		this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
 
 		this._updateBackground(false);
 		this._tokensColorTrackerListener = TokenizationRegistry.onDidChange((e) => {
@@ -81,14 +89,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	// ---- begin view event handlers
 
-	public onCursorPositionChanged(e: editorCommon.IViewCursorPositionChangedEvent): boolean {
-		this._shouldUpdateCursorPosition = true;
-		this._cursorPositions = [e.position];
-		this._cursorPositions = this._cursorPositions.concat(e.secondaryPositions);
-		return true;
-	}
-
-	public onConfigurationChanged(e: editorCommon.IConfigurationChangedEvent): boolean {
+	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		let prevLanesCount = this._overviewRuler.getLanesCount();
 		let newLanesCount = this._context.configuration.editor.viewInfo.overviewRulerLanes;
 
@@ -109,6 +110,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 			shouldRender = true;
 		}
 
+		if (e.viewInfo.overviewRulerBorder) {
+			this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
+			shouldRender = true;
+		}
+
 		if (e.viewInfo.hideCursorInOverviewRuler) {
 			this._hideCursor = this._context.configuration.editor.viewInfo.hideCursorInOverviewRuler;
 			this._shouldUpdateCursorPosition = true;
@@ -126,32 +132,39 @@ export class DecorationsOverviewRuler extends ViewPart {
 			shouldRender = true;
 		}
 
+		if (e.layoutInfo) {
+			this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
+			shouldRender = true;
+		}
+
 		return shouldRender;
 	}
 
-	public onLayoutChanged(layoutInfo: editorCommon.EditorLayoutInfo): boolean {
-		this._overviewRuler.setLayout(layoutInfo.overviewRuler, false);
+	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
+		this._shouldUpdateCursorPosition = true;
+		this._cursorPositions = [e.position];
+		this._cursorPositions = this._cursorPositions.concat(e.secondaryPositions);
 		return true;
 	}
 
-	public onZonesChanged(): boolean {
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		this._shouldUpdateDecorations = true;
 		return true;
 	}
 
-	public onModelFlushed(): boolean {
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		this._shouldUpdateCursorPosition = true;
 		this._shouldUpdateDecorations = true;
 		return true;
 	}
 
-	public onModelDecorationsChanged(e: editorCommon.IViewDecorationsChangedEvent): boolean {
-		this._shouldUpdateDecorations = true;
-		return true;
-	}
-
-	public onScrollChanged(e: editorCommon.IScrollEvent): boolean {
+	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._overviewRuler.setScrollHeight(e.scrollHeight, false);
 		return super.onScrollChanged(e) || e.scrollHeightChanged;
+	}
+
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return true;
 	}
 
 	// ---- end view event handlers
@@ -199,11 +212,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return zones;
 	}
 
-	public prepareRender(ctx: IRenderingContext): void {
+	public prepareRender(ctx: RenderingContext): void {
 		// Nothing to read
 	}
 
-	public render(ctx: IRestrictedRenderingContext): void {
+	public render(ctx: RestrictedRenderingContext): void {
 		if (this._shouldUpdateDecorations || this._shouldUpdateCursorPosition) {
 
 			if (this._shouldUpdateDecorations) {
@@ -229,11 +242,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		let hasRendered = this._overviewRuler.render(false);
 
-		if (hasRendered && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
+		if (hasRendered && this._renderBorder && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
 			let ctx2 = this._overviewRuler.getDomNode().getContext('2d');
 			ctx2.beginPath();
 			ctx2.lineWidth = 1;
-			ctx2.strokeStyle = 'rgba(197,197,197,0.8)';
+			ctx2.strokeStyle = DecorationsOverviewRuler._BORDER_COLOR;
 			ctx2.moveTo(0, 0);
 			ctx2.lineTo(0, this._overviewRuler.getPixelHeight());
 			ctx2.stroke();

@@ -26,6 +26,10 @@ import { IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_INFO_ITEM_BACKGROUND, STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -40,9 +44,11 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	constructor(
 		id: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		super(id, { hasTitle: false });
+		super(id, { hasTitle: false }, themeService);
 
 		this.toDispose = [];
 	}
@@ -123,6 +129,20 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}));
 
 		return this.statusItemsContainer;
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		const container = this.getContainer();
+
+		container.style('color', this.getColor(STATUS_BAR_FOREGROUND));
+		container.style('background-color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND));
+
+		const useBorder = this.isHighContrastTheme;
+		container.style('border-top-width', useBorder ? '1px' : null);
+		container.style('border-top-style', useBorder ? 'solid' : null);
+		container.style('border-top-color', useBorder ? this.getColor(highContrastBorder) : null);
 	}
 
 	private doCreateStatusItem(alignment: StatusbarAlignment, priority: number = 0): HTMLElement {
@@ -298,3 +318,25 @@ class ManageExtensionAction extends Action {
 		return this.commandService.executeCommand('_extensions.manage', extensionId);
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
+	if (statusBarItemHoverBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled) { background-color: ${statusBarItemHoverBackground}; }`);
+	}
+
+	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
+	if (statusBarItemActiveBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]):not(.disabled) { background-color: ${statusBarItemActiveBackground}; }`);
+	}
+
+	const statusBarInfoItemBackground = theme.getColor(STATUS_BAR_INFO_ITEM_BACKGROUND);
+	if (statusBarInfoItemBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item .status-bar-info { background-color: ${statusBarInfoItemBackground}; }`);
+	}
+
+	const statusBarInfoItemHoverBackground = theme.getColor(STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND);
+	if (statusBarInfoItemHoverBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover:not([disabled]):not(.disabled) { background-color: ${statusBarInfoItemHoverBackground}; }`);
+	}
+});

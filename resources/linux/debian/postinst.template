@@ -63,6 +63,6 @@ NdCFTW7wY0Fb1fWJ+/KTsC4=
 
 	# Install repository source list if it does not already exist
 	if [ ! -f $CODE_SOURCE_PART ]; then
-		echo "deb [arch=amd64] https://packages.microsoft.com/repos/vscode stable main" > $CODE_SOURCE_PART
+		echo "deb [arch=amd64] http://packages.microsoft.com/repos/vscode stable main" > $CODE_SOURCE_PART
 	fi
 fi

@@ -7,14 +7,14 @@
 import { ColorId, FontStyle, MetadataConsts, LanguageId, StandardTokenType } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';
 
-export interface IThemeRule {
+export interface ITokenThemeRule {
 	token: string;
 	foreground?: string;
 	background?: string;
 	fontStyle?: string;
 }
 
-export class ParsedThemeRule {
+export class ParsedTokenThemeRule {
 	_parsedThemeRuleBrand: void;
 
 	readonly token: string;
@@ -45,11 +45,11 @@ export class ParsedThemeRule {
 /**
  * Parse a raw theme into rules.
  */
-export function parseTheme(source: IThemeRule[]): ParsedThemeRule[] {
+export function parseTokenTheme(source: ITokenThemeRule[]): ParsedTokenThemeRule[] {
 	if (!source || !Array.isArray(source)) {
 		return [];
 	}
-	let result: ParsedThemeRule[] = [], resultLen = 0;
+	let result: ParsedTokenThemeRule[] = [], resultLen = 0;
 	for (let i = 0, len = source.length; i < len; i++) {
 		let entry = source[i];
 
@@ -84,7 +84,7 @@ export function parseTheme(source: IThemeRule[]): ParsedThemeRule[] {
 			background = entry.background;
 		}
 
-		result[resultLen++] = new ParsedThemeRule(
+		result[resultLen++] = new ParsedTokenThemeRule(
 			entry.token || '',
 			i,
 			fontStyle,
@@ -99,7 +99,7 @@ export function parseTheme(source: IThemeRule[]): ParsedThemeRule[] {
 /**
  * Resolve rules (i.e. inheritance).
  */
-function resolveParsedThemeRules(parsedThemeRules: ParsedThemeRule[]): Theme {
+function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[]): TokenTheme {
 
 	// Sort rules lexicographically, and then by index if necessary
 	parsedThemeRules.sort((a, b) => {
@@ -136,7 +136,7 @@ function resolveParsedThemeRules(parsedThemeRules: ParsedThemeRule[]): Theme {
 		root.insert(rule.token, rule.fontStyle, colorMap.getId(rule.foreground), colorMap.getId(rule.background));
 	}
 
-	return new Theme(colorMap, root);
+	return new TokenTheme(colorMap, root);
 }
 
 export class ColorMap {
@@ -175,14 +175,14 @@ export class ColorMap {
 
 }
 
-export class Theme {
+export class TokenTheme {
 
-	public static createFromRawTheme(source: IThemeRule[]): Theme {
-		return this.createFromParsedTheme(parseTheme(source));
+	public static createFromRawTokenTheme(source: ITokenThemeRule[]): TokenTheme {
+		return this.createFromParsedTokenTheme(parseTokenTheme(source));
 	}
 
-	public static createFromParsedTheme(source: ParsedThemeRule[]): Theme {
-		return resolveParsedThemeRules(source);
+	public static createFromParsedTokenTheme(source: ParsedTokenThemeRule[]): TokenTheme {
+		return resolveParsedTokenThemeRules(source);
 	}
 
 	private readonly _colorMap: ColorMap;

@@ -92,7 +92,7 @@ var NoUnexternalizedStringsRuleWalker = (function (_super) {
         if (doubleQuoted && (!callInfo || callInfo.argIndex === -1 || !this.signatures[functionName])) {
             var s = node.getText();
             var replacement = new Lint.Replacement(node.getStart(), node.getWidth(), "nls.localize('KEY-" + s.substring(1, s.length - 1) + "', " + s + ")");
-            var fix = new Lint.Fix("Unexternalitzed string", [replacement]);
+            var fix = new Lint.Fix('Unexternalitzed string', [replacement]);
             this.addFailure(this.createFailure(node.getStart(), node.getWidth(), "Unexternalized string found: " + node.getText(), fix));
             return;
         }

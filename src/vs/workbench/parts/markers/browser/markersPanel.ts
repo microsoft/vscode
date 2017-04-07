@@ -35,6 +35,8 @@ import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecor
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { isEqual } from 'vs/platform/files/common/files';
 
 export class MarkersPanel extends Panel {
 
@@ -60,6 +62,7 @@ export class MarkersPanel extends Panel {
 	private messageBox: HTMLElement;
 
 	private markerFocusContextKey: IContextKey<boolean>;
+	private currentFileGotAddedToMarkersData: boolean = false;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -69,9 +72,10 @@ export class MarkersPanel extends Panel {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(Constants.MARKERS_PANEL_ID, telemetryService);
+		super(Constants.MARKERS_PANEL_ID, telemetryService, themeService);
 		this.toDispose = [];
 		this.delayedRefresh = new Delayer<void>(500);
 		this.autoExpanded = new Set.ArraySet<string>();
@@ -223,12 +227,27 @@ export class MarkersPanel extends Panel {
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
+		this.currentFileGotAddedToMarkersData = this.currentFileGotAddedToMarkersData || this.isCurrentFileGotAddedToMarkersData(changedResources);
 		this.updateResources(changedResources);
 		this.delayedRefresh.trigger(() => {
 			this.refreshPanel();
 			this.updateRangeHighlights();
-			this.autoReveal();
+			if (this.currentFileGotAddedToMarkersData) {
+				this.autoReveal();
+				this.currentFileGotAddedToMarkersData = false;
+			}
 		});
+	}
+
+	private isCurrentFileGotAddedToMarkersData(changedResources: URI[]) {
+		if (!this.currentActiveFile) {
+			return false;
+		}
+		const resourceForCurrentActiveFile = this.getResourceForCurrentActiveFile();
+		if (resourceForCurrentActiveFile) {
+			return false;
+		}
+		return changedResources.some(r => r.toString() === this.currentActiveFile.toString());
 	}
 
 	private onEditorsChanged(): void {
@@ -326,7 +345,7 @@ export class MarkersPanel extends Panel {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
-				if (resource.uri.toString() === selectedElement[0].marker.resource.toString()) {
+				if (isEqual(resource.uri, selectedElement[0].marker.resource)) {
 					return true;
 				}
 			}

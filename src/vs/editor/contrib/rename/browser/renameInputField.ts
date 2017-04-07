@@ -13,6 +13,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
+import { inputBackground, inputBorder, inputForeground } from "vs/platform/theme/common/colorRegistry";
 
 export default class RenameInputField implements IContentWidget, IDisposable {
 
@@ -26,7 +28,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow: boolean = true;
 
-	constructor(editor: ICodeEditor) {
+	constructor(editor: ICodeEditor, @IThemeService private themeService: IThemeService) {
 		this._editor = editor;
 		this._editor.addContentWidget(this);
 
@@ -35,6 +37,12 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 				this.updateFont();
 			}
 		}));
+
+		this._disposables.push(themeService.onThemeChange(theme => this.onThemeChange(theme)));
+	}
+
+	private onThemeChange(theme: ITheme): void {
+		this.updateStyles(theme);
 	}
 
 	public dispose(): void {
@@ -58,8 +66,26 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			this._domNode.appendChild(this._inputField);
 
 			this.updateFont();
+			this.updateStyles(this.themeService.getTheme());
 		}
 		return this._domNode;
+	}
+
+	private updateStyles(theme: ITheme): void {
+		if (!this._inputField) {
+			return;
+		}
+
+		const background = theme.getColor(inputBackground);
+		const foreground = theme.getColor(inputForeground);
+		const border = theme.getColor(inputBorder);
+
+		this._inputField.style.backgroundColor = background ? background.toString() : null;
+		this._inputField.style.color = foreground ? foreground.toString() : null;
+
+		this._inputField.style.borderWidth = border ? '1px' : null;
+		this._inputField.style.borderStyle = border ? 'solid' : null;
+		this._inputField.style.borderColor = border ? border.toString() : null;
 	}
 
 	private updateFont(): void {

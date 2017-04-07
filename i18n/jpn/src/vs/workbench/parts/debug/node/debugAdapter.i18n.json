@@ -14,5 +14,7 @@
 	"debugServer": "デバッグ拡張機能の開発のみ。ポートが指定の VS Code の場合、サーバー モードで実行中のデバッグ アダプターへの接続が試行されます。",
 	"debugType": "構成の種類。",
 	"debugWindowsConfiguration": "Windows 固有の起動構成の属性。",
-	"internalConsoleOptions": "内部デバッグ コンソールの動作を制御します。"
+	"deprecatedVariables": "'env.'、'config.'、'command.' は使用されていません。代わりに、'env:'、'config:'、'command:' を使用してください。",
+	"internalConsoleOptions": "内部デバッグ コンソールの動作を制御します。",
+	"node2NotSupported": "\"node2\" はサポートされていません。代わりに \"node\" を使用し、\"protocol\" 属性を \"inspector\" に設定してください。"
 }

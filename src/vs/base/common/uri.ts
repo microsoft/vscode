@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import platform = require('vs/base/common/platform');
+import * as platform from 'vs/base/common/platform';
 
 
 function _encode(ch: string): string {
@@ -152,7 +152,7 @@ export default class URI {
 			return this;
 		}
 
-		let {scheme, authority, path, query, fragment} = change;
+		let { scheme, authority, path, query, fragment } = change;
 		if (scheme === void 0) {
 			scheme = this.scheme;
 		} else if (scheme === null) {
@@ -217,8 +217,12 @@ export default class URI {
 		const ret = new URI();
 		ret._scheme = 'file';
 
-		// normalize to fwd-slashes
-		path = path.replace(/\\/g, URI._slash);
+		// normalize to fwd-slashes on windows,
+		// on other systems bwd-slaches are valid
+		// filename character, eg /f\oo/ba\r.txt
+		if (platform.isWindows) {
+			path = path.replace(/\\/g, URI._slash);
+		}
 
 		// check for authority as used in UNC shares
 		// or use the path as given
@@ -325,7 +329,7 @@ export default class URI {
 
 		const parts: string[] = [];
 
-		let {scheme, authority, path, query, fragment} = uri;
+		let { scheme, authority, path, query, fragment } = uri;
 		if (scheme) {
 			parts.push(scheme, ':');
 		}

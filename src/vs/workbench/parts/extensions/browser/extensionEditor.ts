@@ -11,6 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
+import { OS } from 'vs/base/common/platform';
 import Event, { Emitter, once, fromEventEmitter, chain } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
@@ -25,7 +26,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
@@ -36,8 +37,7 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, BuiltinStatusLabelAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import WebView from 'vs/workbench/parts/html/browser/webview';
-import { Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/base/common/keybinding';
+import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -45,15 +45,20 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IThemeService } from "vs/platform/theme/common/themeService";
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 
 function renderBody(body: string): string {
+	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 	return `<!DOCTYPE html>
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<link rel="stylesheet" type="text/css" href="${ require.toUrl('./media/markdown.css')}" >
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src http: https: data:; script-src 'none'; style-src 'nonce-${nonce}'; child-src 'none'; frame-src 'none';">
+				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}" nonce="${nonce}" >
 			</head>
-			<body>${ body}</body>
+			<body>${body}</body>
 		</html>`;
 }
 
@@ -152,13 +157,14 @@ export class ExtensionEditor extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IThemeService private themeService: IThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@IOpenerService private openerService: IOpenerService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IPartService private partService: IPartService
 	) {
-		super(ExtensionEditor.ID, telemetryService);
+		super(ExtensionEditor.ID, telemetryService, themeService);
 		this._highlight = null;
 		this.highlightDisposable = empty;
 		this.disposables = [];
@@ -237,7 +243,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.icon.src = extension.iconUrl;
 
 		this.name.textContent = extension.displayName;
-		this.identifier.textContent = `${extension.publisher}.${extension.name}`;
+		this.identifier.textContent = extension.id;
 
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
@@ -317,17 +323,17 @@ export class ExtensionEditor extends BaseEditor {
 			.then(marked.parse)
 			.then(renderBody)
 			.then<void>(body => {
-				const webview = new WebView(
-					this.content,
-					document.querySelector('.monaco-editor-background'),
-					{ nodeintegration: false }
-				);
-
-				webview.style(this.themeService.getColorTheme());
+				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
+				webview.style(this.themeService.getTheme());
 				webview.contents = [body];
 
-				webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
-				this.themeService.onDidColorThemeChange(theme => webview.style(theme), null, this.contentDisposables);
+				webview.onDidClickLink(link => {
+					// Whitelist supported schemes for links
+					if (link && ['http', 'https', 'mailto'].indexOf(link.scheme) >= 0) {
+						this.openerService.open(link);
+					}
+				}, null, this.contentDisposables);
+				this.themeService.onThemeChange(theme => webview.style(theme), null, this.contentDisposables);
 				this.contentDisposables.push(webview);
 			})
 			.then(null, () => {
@@ -381,31 +387,29 @@ export class ExtensionEditor extends BaseEditor {
 			append(this.content, $('p.nocontent')).textContent = localize('noDependencies', "No Dependencies");
 			return;
 		}
-		addClass(this.content, 'loading');
-		this.extensionDependencies.get().then(extensionDependencies => {
-			removeClass(this.content, 'loading');
 
-			const content = $('div', { class: 'subcontent' });
-			const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
-			append(this.content, scrollableContent.getDomNode());
-			this.contentDisposables.push(scrollableContent);
+		return this.loadContents(() => {
+			return this.extensionDependencies.get().then(extensionDependencies => {
+				const content = $('div', { class: 'subcontent' });
+				const scrollableContent = new DomScrollableElement(content, { canUseTranslate3d: false });
+				append(this.content, scrollableContent.getDomNode());
+				this.contentDisposables.push(scrollableContent);
 
-			const tree = this.renderDependencies(content, extensionDependencies);
-			const layout = () => {
+				const tree = this.renderDependencies(content, extensionDependencies);
+				const layout = () => {
+					scrollableContent.scanDomNode();
+					const scrollState = scrollableContent.getScrollState();
+					tree.layout(scrollState.height);
+				};
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
+				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
+				this.contentDisposables.push(tree);
 				scrollableContent.scanDomNode();
-				const scrollState = scrollableContent.getScrollState();
-				tree.layout(scrollState.height);
-			};
-			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, { layout });
-			this.contentDisposables.push(toDisposable(removeLayoutParticipant));
-
-			this.contentDisposables.push(tree);
-			scrollableContent.scanDomNode();
-		}, error => {
-			removeClass(this.content, 'loading');
-			append(this.content, $('p.nocontent')).textContent = error;
-			this.messageService.show(Severity.Error, error);
-			return;
+			}, error => {
+				append(this.content, $('p.nocontent')).textContent = error;
+				this.messageService.show(Severity.Error, error);
+			});
 		});
 	}
 
@@ -549,26 +553,32 @@ export class ExtensionEditor extends BaseEditor {
 		const rawKeybindings = contributes && contributes.keybindings || [];
 
 		rawKeybindings.forEach(rawKeybinding => {
-			const keyLabel = this.keybindingToLabel(rawKeybinding);
+			const keybinding = this.resolveKeybinding(rawKeybinding);
 
-			if (!keyLabel) {
+			if (!keybinding) {
 				return;
 			}
 
 			let command = byId[rawKeybinding.command];
 
 			if (!command) {
-				command = { id: rawKeybinding.command, title: '', keybindings: [keyLabel], menus: [] };
+				command = { id: rawKeybinding.command, title: '', keybindings: [keybinding], menus: [] };
 				byId[command.id] = command;
 				commands.push(command);
 			} else {
-				command.keybindings.push(keyLabel);
+				command.keybindings.push(keybinding);
 			}
 		});
 
 		if (!commands.length) {
 			return false;
 		}
+
+		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
+			const element = $('');
+			new KeybindingLabel(element, OS).set(keybinding, null);
+			return element;
+		};
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('commands', "Commands ({0})", commands.length)),
@@ -582,7 +592,7 @@ export class ExtensionEditor extends BaseEditor {
 				...commands.map(c => $('tr', null,
 					$('td', null, $('code', null, c.id)),
 					$('td', null, c.title),
-					$('td', null, ...join(c.keybindings.map(keybinding => $('code', null, keybinding)), ' ')),
+					$('td', null, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
 					$('td', null, ...c.menus.map(context => $('code', null, context)))
 				))
 			)
@@ -661,7 +671,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private keybindingToLabel(rawKeyBinding: IKeyBinding): string {
+	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding {
 		let key: string;
 
 		switch (process.platform) {
@@ -670,9 +680,8 @@ export class ExtensionEditor extends BaseEditor {
 			case 'darwin': key = rawKeyBinding.mac; break;
 		}
 
-		const keyBinding = new Keybinding(KeybindingLabels.fromUserSettingsLabel(key || rawKeyBinding.key));
-		const result = this.keybindingService.getLabelFor(keyBinding);
-		return result === 'unknown' ? null : result;
+		const keyBinding = KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS);
+		return this.keybindingService.resolveKeybinding(keyBinding)[0];
 	}
 
 	private loadContents(loadingTask: () => TPromise<any>): void {

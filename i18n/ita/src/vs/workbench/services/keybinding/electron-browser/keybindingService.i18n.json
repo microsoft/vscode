@@ -13,6 +13,7 @@
 	"nonempty": "è previsto un valore non vuoto.",
 	"optstring": "la proprietà `{0}` può essere omessa o deve essere di tipo `string`",
 	"requirestring": "la proprietà `{0}` è obbligatoria e deve essere di tipo `string`",
+	"unboundCommands": "Altri comandi disponibili: ",
 	"vscode.extension.contributes.keybindings": "Tasti di scelta rapida per contributes.",
 	"vscode.extension.contributes.keybindings.command": "Identificatore del comando da eseguire quando si attiva il tasto di scelta rapida.",
 	"vscode.extension.contributes.keybindings.key": "Tasto o sequenza di tasti (separare i tasti con un segno di addizione e le sequenze con uno spazio, ad esempio CTRL+O e CTRL+L L per una combinazione)",

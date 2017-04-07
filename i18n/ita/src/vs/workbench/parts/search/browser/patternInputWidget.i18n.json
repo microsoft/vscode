@@ -6,5 +6,6 @@
 {
 	"defaultLabel": "input",
 	"patternDescription": "Usa criteri GLOB",
-	"patternHelpInclude": "Criterio da usare per la ricerca, ad esempio **\\*\\*/*.js** per cercare tutti i file JavaScript oppure **cartellaPersonale/\\*\\*** per cercare la cartella specificata con tutti gli elementi figlio.\n\n**Informazioni di riferimento**:\n**\\*** consente di cercare 0 o più caratteri\n**?** consente di cercare 1 carattere\n**\\*\\*** consente di cercare zero o più directory\n**[a-z]** consente di cercare un intervallo di caratteri\n**{a,b}** consente di cercare uno qualsiasi dei criteri"
+	"patternHelpInclude": "Criterio da usare per la ricerca, ad esempio **\\*\\*/*.js** per cercare tutti i file JavaScript oppure **cartellaPersonale/\\*\\*** per cercare la cartella specificata con tutti gli elementi figlio.\n\n**Informazioni di riferimento**:\n**\\*** consente di cercare 0 o più caratteri\n**?** consente di cercare 1 carattere\n**\\*\\*** consente di cercare zero o più directory\n**[a-z]** consente di cercare un intervallo di caratteri\n**{a,b}** consente di cercare uno qualsiasi dei criteri",
+	"useIgnoreFilesDescription": "Usa file ignorati"
 }

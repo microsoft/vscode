@@ -13,7 +13,7 @@
 	"moveSelectionToPreviousFindMatch": "最後に選んだ項目を前の一致項目に移動する",
 	"nextSelectionMatchFindAction": "次の選択項目を検索",
 	"previousSelectionMatchFindAction": "前の選択項目を検索",
-	"selectAllOccurencesOfFindMatch": "一致項目すべてを選択します",
+	"selectAllOccurencesOfFindMatch": "一致するすべての出現箇所を選択します",
 	"startFindAction": "検索",
 	"startReplace": "置換"
 }

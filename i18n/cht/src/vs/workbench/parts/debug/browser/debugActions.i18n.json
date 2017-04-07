@@ -34,6 +34,7 @@
 	"restartDebug": "重新啟動",
 	"restartFrame": "重新啟動框架",
 	"reverseContinue": "反向",
+	"selectAndStartDebugging": "選取並開始偵錯",
 	"setValue": "設定值",
 	"startDebug": "開始偵錯",
 	"startWithoutDebugging": "開始但不偵錯",

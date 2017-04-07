@@ -5,13 +5,17 @@
 
 'use strict';
 
-import { Uri, EventEmitter, Event, SCMResource, SCMResourceDecorations, SCMResourceGroup, Disposable, window, workspace } from 'vscode';
+import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, window, workspace } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes, GitError } from './git';
 import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
 import * as path from 'path';
+import * as fs from 'fs';
 import * as nls from 'vscode-nls';
+
+const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
+const exists = (path: string) => new Promise(c => fs.exists(path, c));
 
 const localize = nls.loadMessageBundle();
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
@@ -47,19 +51,30 @@ export enum Status {
 	BOTH_MODIFIED
 }
 
-export class Resource implements SCMResource {
+export class Resource implements SourceControlResourceState {
 
-	get uri(): Uri {
-		if (this.rename && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED)) {
-			return this.rename;
+	@memoize
+	get resourceUri(): Uri {
+		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED)) {
+			return this.renameResourceUri;
 		}
 
-		return this._uri;
+		return this._resourceUri;
 	}
 
+	@memoize
+	get command(): Command {
+		return {
+			command: 'git.openResource',
+			title: localize('open', "Open"),
+			arguments: [this]
+		};
+	}
+
+	get resourceGroup(): ResourceGroup { return this._resourceGroup; }
 	get type(): Status { return this._type; }
-	get original(): Uri { return this._uri; }
-	get rename(): Uri | undefined { return this._rename; }
+	get original(): Uri { return this._resourceUri; }
+	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
 
 	private static Icons = {
 		light: {
@@ -118,21 +133,25 @@ export class Resource implements SCMResource {
 		}
 	}
 
-	get decorations(): SCMResourceDecorations {
+	get decorations(): SourceControlResourceDecorations {
 		const light = { iconPath: this.getIconPath('light') };
 		const dark = { iconPath: this.getIconPath('dark') };
 
 		return { strikeThrough: this.strikeThrough, light, dark };
 	}
 
-	constructor(private _uri: Uri, private _type: Status, private _rename?: Uri) {
-		// console.log(this);
-	}
+	constructor(
+		private _resourceGroup: ResourceGroup,
+		private _resourceUri: Uri,
+		private _type: Status,
+		private _renameResourceUri?: Uri
+	) { }
 }
 
-export class ResourceGroup implements SCMResourceGroup {
+export abstract class ResourceGroup {
 
 	get id(): string { return this._id; }
+	get contextKey(): string { return this._id; }
 	get label(): string { return this._label; }
 	get resources(): Resource[] { return this._resources; }
 
@@ -170,8 +189,8 @@ export class WorkingTreeGroup extends ResourceGroup {
 
 export enum Operation {
 	Status = 1 << 0,
-	Stage = 1 << 1,
-	Unstage = 1 << 2,
+	Add = 1 << 1,
+	RevertFiles = 1 << 2,
 	Commit = 1 << 3,
 	Clean = 1 << 4,
 	Branch = 1 << 5,
@@ -182,7 +201,41 @@ export enum Operation {
 	Push = 1 << 10,
 	Sync = 1 << 11,
 	Init = 1 << 12,
-	Show = 1 << 13
+	Show = 1 << 13,
+	Stage = 1 << 14,
+	GetCommitTemplate = 1 << 15
+}
+
+// function getOperationName(operation: Operation): string {
+// 	switch (operation) {
+// 		case Operation.Status: return 'Status';
+// 		case Operation.Add: return 'Add';
+// 		case Operation.RevertFiles: return 'RevertFiles';
+// 		case Operation.Commit: return 'Commit';
+// 		case Operation.Clean: return 'Clean';
+// 		case Operation.Branch: return 'Branch';
+// 		case Operation.Checkout: return 'Checkout';
+// 		case Operation.Reset: return 'Reset';
+// 		case Operation.Fetch: return 'Fetch';
+// 		case Operation.Pull: return 'Pull';
+// 		case Operation.Push: return 'Push';
+// 		case Operation.Sync: return 'Sync';
+// 		case Operation.Init: return 'Init';
+// 		case Operation.Show: return 'Show';
+// 		case Operation.Stage: return 'Stage';
+// 		case Operation.GetCommitTemplate: return 'GetCommitTemplate';
+// 		default: return 'unknown';
+// 	}
+// }
+
+function isReadOnly(operation: Operation): boolean {
+	switch (operation) {
+		case Operation.Show:
+		case Operation.GetCommitTemplate:
+			return true;
+		default:
+			return false;
+	}
 }
 
 export interface Operations {
@@ -227,8 +280,8 @@ export class Model implements Disposable {
 	private _onDidChangeState = new EventEmitter<State>();
 	readonly onDidChangeState: Event<State> = this._onDidChangeState.event;
 
-	private _onDidChangeResources = new EventEmitter<SCMResourceGroup[]>();
-	readonly onDidChangeResources: Event<SCMResourceGroup[]> = this._onDidChangeResources.event;
+	private _onDidChangeResources = new EventEmitter<void>();
+	readonly onDidChangeResources: Event<void> = this._onDidChangeResources.event;
 
 	@memoize
 	get onDidChange(): Event<void> {
@@ -254,22 +307,6 @@ export class Model implements Disposable {
 
 	private _workingTreeGroup = new WorkingTreeGroup([]);
 	get workingTreeGroup(): WorkingTreeGroup { return this._workingTreeGroup; }
-
-	get resources(): ResourceGroup[] {
-		const result: ResourceGroup[] = [];
-
-		if (this._mergeGroup.resources.length > 0) {
-			result.push(this._mergeGroup);
-		}
-
-		if (this._indexGroup.resources.length > 0) {
-			result.push(this._indexGroup);
-		}
-
-		result.push(this._workingTreeGroup);
-
-		return result;
-	}
 
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
@@ -303,7 +340,7 @@ export class Model implements Disposable {
 		this._mergeGroup = new MergeGroup();
 		this._indexGroup = new IndexGroup();
 		this._workingTreeGroup = new WorkingTreeGroup();
-		this._onDidChangeResources.fire(this.resources);
+		this._onDidChangeResources.fire();
 	}
 
 	private onWorkspaceChange: Event<Uri>;
@@ -311,8 +348,8 @@ export class Model implements Disposable {
 	private disposables: Disposable[] = [];
 
 	constructor(
-		private git: Git,
-		private rootPath: string,
+		private _git: Git,
+		private workspaceRootPath: string
 	) {
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
@@ -321,13 +358,34 @@ export class Model implements Disposable {
 		this.status();
 	}
 
+	async whenIdle(): Promise<void> {
+		while (!this.operations.isIdle()) {
+			await eventToPromise(this.onDidRunOperation);
+		}
+	}
+
+	/**
+	 * Returns promise which resolves when there is no `.git/index.lock` file,
+	 * or when it has attempted way too many times. Back off mechanism.
+	 */
+	async whenUnlocked(): Promise<void> {
+		let millis = 100;
+		let retries = 0;
+
+		while (retries < 10 && await exists(path.join(this.repository.root, '.git', 'index.lock'))) {
+			retries += 1;
+			millis *= 1.4;
+			await timeout(millis);
+		}
+	}
+
 	@throttle
 	async init(): Promise<void> {
 		if (this.state !== State.NotAGitRepository) {
 			return;
 		}
 
-		await this.repository.init();
+		await this._git.init(this.workspaceRootPath);
 		await this.status();
 	}
 
@@ -337,13 +395,19 @@ export class Model implements Disposable {
 	}
 
 	@throttle
-	async stage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Stage, () => this.repository.add(resources.map(r => r.uri.fsPath)));
+	async add(...resources: Resource[]): Promise<void> {
+		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.resourceUri.fsPath)));
 	}
 
 	@throttle
-	async unstage(...resources: Resource[]): Promise<void> {
-		await this.run(Operation.Unstage, () => this.repository.revertFiles('HEAD', resources.map(r => r.uri.fsPath)));
+	async stage(uri: Uri, contents: string): Promise<void> {
+		const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
+		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
+	}
+
+	@throttle
+	async revertFiles(...resources: Resource[]): Promise<void> {
+		await this.run(Operation.RevertFiles, () => this.repository.revertFiles('HEAD', resources.map(r => r.resourceUri.fsPath)));
 	}
 
 	@throttle
@@ -367,11 +431,11 @@ export class Model implements Disposable {
 				switch (r.type) {
 					case Status.UNTRACKED:
 					case Status.IGNORED:
-						toClean.push(r.uri.fsPath);
+						toClean.push(r.resourceUri.fsPath);
 						break;
 
 					default:
-						toCheckout.push(r.uri.fsPath);
+						toCheckout.push(r.resourceUri.fsPath);
 						break;
 				}
 			});
@@ -427,10 +491,21 @@ export class Model implements Disposable {
 
 	@throttle
 	async sync(): Promise<void> {
-		await this.run(Operation.Sync, () => this.repository.sync());
+		await this.run(Operation.Sync, async () => {
+			await this.repository.pull();
+
+			const shouldPush = this.HEAD ? this.HEAD.ahead > 0 : true;
+
+			if (shouldPush) {
+				await this.repository.push();
+			}
+		});
 	}
 
 	async show(ref: string, uri: Uri): Promise<string> {
+		// TODO@Joao: should we make this a general concept?
+		await this.whenIdle();
+
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
 			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`]);
@@ -446,6 +521,10 @@ export class Model implements Disposable {
 		});
 	}
 
+	async getCommitTemplate(): Promise<string> {
+		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
+	}
+
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		return window.withScmProgress(async () => {
 			this._operations = this._operations.start(operation);
@@ -453,12 +532,22 @@ export class Model implements Disposable {
 
 			try {
 				await this.assertIdleState();
+				await this.whenUnlocked();
 				const result = await runOperation();
-				await this.update();
+
+				if (!isReadOnly(operation)) {
+					await this.update();
+				}
+
 				return result;
 			} catch (err) {
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
 					this.repositoryDisposable.dispose();
+
+					const disposables: Disposable[] = [];
+					this.onWorkspaceChange(this.onFSChange, this, disposables);
+					this.repositoryDisposable = combinedDisposable(disposables);
+
 					this.state = State.NotAGitRepository;
 				}
 
@@ -483,8 +572,8 @@ export class Model implements Disposable {
 		this.repositoryDisposable.dispose();
 
 		const disposables: Disposable[] = [];
-		const repositoryRoot = await this.git.getRepositoryRoot(this.rootPath);
-		this.repository = this.git.open(repositoryRoot);
+		const repositoryRoot = await this._git.getRepositoryRoot(this.workspaceRootPath);
+		this.repository = this._git.open(repositoryRoot);
 
 		const dotGitPath = path.join(repositoryRoot, '.git');
 		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);
@@ -536,37 +625,37 @@ export class Model implements Disposable {
 			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
 
 			switch (raw.x + raw.y) {
-				case '??': return workingTree.push(new Resource(uri, Status.UNTRACKED));
-				case '!!': return workingTree.push(new Resource(uri, Status.IGNORED));
-				case 'DD': return merge.push(new Resource(uri, Status.BOTH_DELETED));
-				case 'AU': return merge.push(new Resource(uri, Status.ADDED_BY_US));
-				case 'UD': return merge.push(new Resource(uri, Status.DELETED_BY_THEM));
-				case 'UA': return merge.push(new Resource(uri, Status.ADDED_BY_THEM));
-				case 'DU': return merge.push(new Resource(uri, Status.DELETED_BY_US));
-				case 'AA': return merge.push(new Resource(uri, Status.BOTH_ADDED));
-				case 'UU': return merge.push(new Resource(uri, Status.BOTH_MODIFIED));
+				case '??': return workingTree.push(new Resource(this.workingTreeGroup, uri, Status.UNTRACKED));
+				case '!!': return workingTree.push(new Resource(this.workingTreeGroup, uri, Status.IGNORED));
+				case 'DD': return merge.push(new Resource(this.mergeGroup, uri, Status.BOTH_DELETED));
+				case 'AU': return merge.push(new Resource(this.mergeGroup, uri, Status.ADDED_BY_US));
+				case 'UD': return merge.push(new Resource(this.mergeGroup, uri, Status.DELETED_BY_THEM));
+				case 'UA': return merge.push(new Resource(this.mergeGroup, uri, Status.ADDED_BY_THEM));
+				case 'DU': return merge.push(new Resource(this.mergeGroup, uri, Status.DELETED_BY_US));
+				case 'AA': return merge.push(new Resource(this.mergeGroup, uri, Status.BOTH_ADDED));
+				case 'UU': return merge.push(new Resource(this.mergeGroup, uri, Status.BOTH_MODIFIED));
 			}
 
 			let isModifiedInIndex = false;
 
 			switch (raw.x) {
-				case 'M': index.push(new Resource(uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
-				case 'A': index.push(new Resource(uri, Status.INDEX_ADDED)); break;
-				case 'D': index.push(new Resource(uri, Status.INDEX_DELETED)); break;
-				case 'R': index.push(new Resource(uri, Status.INDEX_RENAMED, renameUri)); break;
-				case 'C': index.push(new Resource(uri, Status.INDEX_COPIED)); break;
+				case 'M': index.push(new Resource(this.indexGroup, uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
+				case 'A': index.push(new Resource(this.indexGroup, uri, Status.INDEX_ADDED)); break;
+				case 'D': index.push(new Resource(this.indexGroup, uri, Status.INDEX_DELETED)); break;
+				case 'R': index.push(new Resource(this.indexGroup, uri, Status.INDEX_RENAMED, renameUri)); break;
+				case 'C': index.push(new Resource(this.indexGroup, uri, Status.INDEX_COPIED)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(uri, Status.MODIFIED, renameUri)); break;
-				case 'D': workingTree.push(new Resource(uri, Status.DELETED, renameUri)); break;
+				case 'M': workingTree.push(new Resource(this.workingTreeGroup, uri, Status.MODIFIED, renameUri)); break;
+				case 'D': workingTree.push(new Resource(this.workingTreeGroup, uri, Status.DELETED, renameUri)); break;
 			}
 		});
 
 		this._mergeGroup = new MergeGroup(merge);
 		this._indexGroup = new IndexGroup(index);
 		this._workingTreeGroup = new WorkingTreeGroup(workingTree);
-		this._onDidChangeResources.fire(this.resources);
+		this._onDidChangeResources.fire();
 	}
 
 	private onFSChange(uri: Uri): void {
@@ -593,13 +682,7 @@ export class Model implements Disposable {
 	private async updateWhenIdleAndWait(): Promise<void> {
 		await this.whenIdle();
 		await this.status();
-		await new Promise(c => setTimeout(c, 5000));
-	}
-
-	private async whenIdle(): Promise<void> {
-		while (!this.operations.isIdle()) {
-			await eventToPromise(this.onDidRunOperation);
-		}
+		await timeout(5000);
 	}
 
 	dispose(): void {

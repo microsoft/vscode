@@ -8,15 +8,35 @@
 	background-repeat: no-repeat;
 	background-position: 0 -2px;
 }
-
 .vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.constant,
 .hc-black .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.constant {
 	background-image: url('Constant_16x_inverse.svg');
 }
 
+.monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.enum-member {
+	background-image: url('EnumItem_16x.svg');
+	background-repeat: no-repeat;
+	background-position: 0 -2px;
+}
+.vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.enum-member,
+.hc-black .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.enum-member {
+	background-image: url('EnumItem_inverse_16x.svg');
+}
+
+.monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.struct {
+	background-image: url('Structure_16x_vscode.svg');
+	background-repeat: no-repeat;
+	background-position: 0 -2px;
+}
+.vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.struct,
+.hc-black .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.struct {
+	background-image: url('Structure_16x_vscode_inverse.svg');
+}
+
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.method,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.function,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.constructor,
+.monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.field,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.variable,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.class,
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.interface,
@@ -41,6 +61,7 @@
 .vs .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.method,
 .vs .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.function,
 .vs .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.constructor		{ background-position: 0 -4px; }
+.vs .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.field,
 .vs .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.variable 		{ background-position: -22px -4px; }
 .vs .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.class 			{ background-position: -43px -3px; }
 .vs .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.interface 		{ background-position: -63px -4px; }
@@ -65,6 +86,8 @@
 .hc-black .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.method,
 .hc-black .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.function,
 .hc-black .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.constructor 	{ background-position: 0 -24px; }
+.vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.field,
+.hc-black .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.field,
 .vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.variable,
 .hc-black .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.variable 		{ background-position: -22px -24px; }
 .vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.class,

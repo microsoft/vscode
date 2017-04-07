@@ -19,6 +19,8 @@ addons:
       - g++-4.9-multilib
       - zip
       - libgtk2.0-0
+      - libx11-dev
+      - libxkbfile-dev
 
 before_install:
   - git submodule update --init --recursive
@@ -42,7 +44,7 @@ script:
   - gulp electron --silent
   - gulp compile --silent --max_old_space_size=4096
   - gulp optimize-vscode --silent --max_old_space_size=4096
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --reporter dot --coverage; else ./scripts/test.sh --reporter dot; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --coverage; else ./scripts/test.sh; fi
   - ./scripts/test-integration.sh
 
 after_success:

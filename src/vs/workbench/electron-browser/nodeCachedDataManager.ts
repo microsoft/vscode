@@ -7,7 +7,7 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { join } from 'vs/base/common/paths';
+import { join } from 'path';
 import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -57,7 +57,7 @@ export class NodeCachedDataManager {
 		// the editor starts. The strategy is to delete all files that are older than
 		// 3 months
 
-		const {nodeCachedDataDir} = this._environmentService;
+		const { nodeCachedDataDir } = this._environmentService;
 		if (!nodeCachedDataDir) {
 			return;
 		}

@@ -33,7 +33,6 @@ class OpenSCMViewletAction extends ToggleViewletAction {
 	}
 }
 
-// TODO@Joao
 export class SwitchProvider extends Action {
 
 	static readonly ID = 'scm.switch';
@@ -50,7 +49,6 @@ export class SwitchProvider extends Action {
 
 	run(): TPromise<any> {
 		const picks = this.scmService.providers.map(provider => ({
-			id: provider.id,
 			label: provider.label,
 			run: () => this.scmService.activeProvider = provider
 		}));
@@ -67,7 +65,7 @@ if (SCMPreview.enabled) {
 		'vs/workbench/parts/scm/electron-browser/scmViewlet',
 		'SCMViewlet',
 		VIEWLET_ID,
-		localize('scm', "SCM"),
+		localize('source control', "Source Control"),
 		'scm',
 		36
 	);

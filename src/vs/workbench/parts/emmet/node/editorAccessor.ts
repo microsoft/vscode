@@ -149,6 +149,7 @@ export class EditorAccessor implements emmet.Editor {
 
 	public getSyntaxInternal(overrideUsingProfiles: boolean): string {
 		let position = this._editor.getSelection().getStartPosition();
+		this._editor.getModel().forceTokenization(position.lineNumber);
 		let languageId = this._editor.getModel().getLanguageIdAtPosition(position.lineNumber, position.column);
 		let language = this._languageIdentifierResolver.getLanguageIdentifier(languageId).language;
 		let syntax = language.split('.').pop();

@@ -4,6 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 .monaco-tree .monaco-tree-row > .content.actions {
 	position: relative;
+	display: flex;
+}
+
+.monaco-tree .monaco-tree-row > .content.actions > .sub-content {
+	flex: 1;
 }
 
 .monaco-tree .monaco-tree-row > .content.actions .action-item {
@@ -17,20 +22,17 @@
 
 .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
 	display: none;
-	position: absolute;
-	right: 0;
-	top: 0;
 	padding: 0 0.8em 0 0.4em;
 }
 
-.monaco-tree .monaco-tree-row.focused > .content.actions > .primary-action-bar {
+.monaco-tree .monaco-tree-row.focused > .content.has-actions > .primary-action-bar {
 	width: 0; /* in order to support a11y with keyboard, we use width: 0 to hide the actions, which still allows to "Tab" into the actions */
 	display: block;
 }
 
-.monaco-tree .monaco-tree-row:hover:not(.highlighted) > .content.actions > .primary-action-bar,
-.monaco-tree.focused .monaco-tree-row.focused > .content.actions > .primary-action-bar,
-.monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar {
+.monaco-tree .monaco-tree-row:hover:not(.highlighted) > .content.has-actions > .primary-action-bar,
+.monaco-tree.focused .monaco-tree-row.focused > .content.has-actions > .primary-action-bar,
+.monaco-tree .monaco-tree-row > .content.has-actions.more > .primary-action-bar {
 	width: inherit;
 	display: block;
 }
@@ -41,32 +43,4 @@
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;
-}
-
-/* Default theme */
-.monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #DCEBFC; }
-.monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #4FA7FF; color: white; }
-.monaco-tree.focused .monaco-tree-row.focused.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #3399FF; color: white; }
-.monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar  		{ background-color: #CCCEDB; }
-.monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar  			{ background-color: #F0F0F0; }
-.monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar							{ background-color: #DDECFF; }
-.monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar		  						{ background-color: #F6F6F6; } /* Ugly */
-
-/* VS Dark theme */
-.vs-dark .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar 		{ background-color: #073655; }
-.vs-dark .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #0E639C; color: white; }
-.vs-dark .monaco-tree.focused .monaco-tree-row.focused.selected:not(.highlighted) > .content.actions > .primary-action-bar 	{ background-color: #094771; color: white; }
-.vs-dark .monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar  			{ background-color: #3F3F46; }
-.vs-dark .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar  				{ background-color: #2A2D2E; }
-.vs-dark .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar							{ background-color: #383B3D; }
-.vs-dark .monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar		  							{ background-color: #252526; } /* Ugly */
-
-/* High Contrast Theming */
-.hc-black .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar,
-.hc-black .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar,
-.hc-black .monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar {
-	background-color: #000;
 }

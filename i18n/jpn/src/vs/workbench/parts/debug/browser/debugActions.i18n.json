@@ -34,6 +34,7 @@
 	"restartDebug": "再起動",
 	"restartFrame": "フレームの再起動",
 	"reverseContinue": "反転",
+	"selectAndStartDebugging": "選択してデバッグを開始",
 	"setValue": "値の設定",
 	"startDebug": "デバッグの開始",
 	"startWithoutDebugging": "デバッグなしで開始",

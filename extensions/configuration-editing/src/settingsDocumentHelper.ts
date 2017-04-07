@@ -32,14 +32,20 @@ export class SettingsDocument {
 			return this.provideExcludeCompletionItems(location, range);
 		}
 
+		// files.defaultLanguage
+		if (location.path[0] === 'files.defaultLanguage') {
+			return this.provideLanguageCompletionItems(location, range);
+		}
+
 		return this.provideLanguageOverridesCompletionItems(location, position);
 	}
 
 	private provideWindowTitleCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const completions: vscode.CompletionItem[] = [];
 
-		completions.push(this.newSimpleCompletionItem('${activeEditorName}', range, localize('activeEditorName', "e.g. myFile.txt")));
-		completions.push(this.newSimpleCompletionItem('${activeFilePath}', range, localize('activeFilePath', "e.g. /Users/Development/myProject/myFile.txt")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorShort}', range, localize('activeEditorShort', "e.g. myFile.txt")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorMedium}', range, localize('activeEditorMedium', "e.g. myFolder/myFile.txt")));
+		completions.push(this.newSimpleCompletionItem('${activeEditorLong}', range, localize('activeEditorLong', "e.g. /Users/Development/myProject/myFolder/myFile.txt")));
 		completions.push(this.newSimpleCompletionItem('${rootName}', range, localize('rootName', "e.g. myProject")));
 		completions.push(this.newSimpleCompletionItem('${rootPath}', range, localize('rootPath', "e.g. /Users/Development/myProject")));
 		completions.push(this.newSimpleCompletionItem('${appName}', range, localize('appName', "e.g. VS Code")));
@@ -141,10 +147,10 @@ export class SettingsDocument {
 		return Promise.resolve(completions);
 	}
 
-	private provideLanguageCompletionItems(location: Location, range: vscode.Range, stringify: boolean = true): vscode.ProviderResult<vscode.CompletionItem[]> {
+	private provideLanguageCompletionItems(location: Location, range: vscode.Range, formatFunc: (string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
 		return vscode.languages.getLanguages().then(languages => {
 			return languages.map(l => {
-				return this.newSimpleCompletionItem(stringify ? JSON.stringify(l) : l, range);
+				return this.newSimpleCompletionItem(formatFunc(l), range);
 			});
 		});
 	}
@@ -160,7 +166,7 @@ export class SettingsDocument {
 			// Suggestion model word matching includes quotes,
 			// hence exclude the starting quote from the snippet and the range
 			// ending quote gets replaced
-			if (text.startsWith('"')) {
+			if (text && text.startsWith('"')) {
 				range = new vscode.Range(new vscode.Position(range.start.line, range.start.character + 1), range.end);
 				snippet = snippet.substring(1);
 			}
@@ -173,20 +179,10 @@ export class SettingsDocument {
 			})]);
 		}
 
-		if (location.path.length === 1 && location.previousNode && location.previousNode.value.startsWith('[')) {
-
-			// Suggestion model word matching includes starting quote and open sqaure bracket
-			// Hence exclude them from the proposal range
-			range = new vscode.Range(new vscode.Position(range.start.line, range.start.character + 2), range.end);
-
-			return vscode.languages.getLanguages().then(languages => {
-				return languages.map(l => {
-
-					// Suggestion model word matching includes closed sqaure bracket and ending quote
-					// Hence include them in the proposal to replace
-					return this.newSimpleCompletionItem(l, range, '', l + ']"');
-				});
-			});
+		if (location.path.length === 1 && location.previousNode && typeof location.previousNode.value === 'string' && location.previousNode.value.startsWith('[')) {
+			// Suggestion model word matching includes closed sqaure bracket and ending quote
+			// Hence include them in the proposal to replace
+			return this.provideLanguageCompletionItems(location, range, language => `"[${language}]"`);
 		}
 		return Promise.resolve([]);
 	}

@@ -87,10 +87,10 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 	function accessSetting(config: any, path: string[]): any {
 		let current = config;
 		for (let i = 0; i < path.length; i++) {
-			current = current[path[i]];
-			if (typeof current === 'undefined' || current === null) {
+			if (typeof current !== 'object' || current === null) {
 				return undefined;
 			}
+			current = current[path[i]];
 		}
 		return <T>current;
 	}

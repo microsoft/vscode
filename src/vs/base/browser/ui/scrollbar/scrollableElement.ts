@@ -17,7 +17,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Scrollable, ScrollState, ScrollEvent, INewScrollState, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import Event, { Emitter } from 'vs/base/common/event';
 
@@ -214,17 +214,6 @@ export class ScrollableElement extends Widget {
 	}
 
 	private _onMouseWheel(e: StandardMouseWheelEvent): void {
-		if (Platform.isMacintosh && e.browserEvent && this._options.saveLastScrollTimeOnClassName) {
-			// Mark dom node with timestamp of wheel event
-			let target = <HTMLElement>e.browserEvent.target;
-			if (target && target.nodeType === 1) {
-				let r = DomUtils.findParentWithClass(target, this._options.saveLastScrollTimeOnClassName);
-				if (r) {
-					r.setAttribute('last-scroll-time', String(new Date().getTime()));
-				}
-			}
-		}
-
 		let desiredScrollTop = -1;
 		let desiredScrollLeft = -1;
 
@@ -430,9 +419,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		vertical: (typeof opts.vertical !== 'undefined' ? opts.vertical : ScrollbarVisibility.Auto),
 		verticalScrollbarSize: (typeof opts.verticalScrollbarSize !== 'undefined' ? opts.verticalScrollbarSize : 10),
 		verticalHasArrows: (typeof opts.verticalHasArrows !== 'undefined' ? opts.verticalHasArrows : false),
-		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0),
-
-		saveLastScrollTimeOnClassName: (typeof opts.saveLastScrollTimeOnClassName !== 'undefined' ? opts.saveLastScrollTimeOnClassName : null)
+		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0)
 	};
 
 	result.horizontalSliderSize = (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : result.horizontalScrollbarSize);

@@ -19,6 +19,7 @@
 	"optionsUpperCase": "オプション",
 	"paths": "パス",
 	"performance": "'Developer: Startup Performance' コマンドを有効にして開始します。",
+	"prof-startup": "起動中に CPU プロファイラーを実行する",
 	"reuseWindow": "最後のアクティブ ウィンドウにファイルまたはフォルダーを強制的に開きます。",
 	"showVersions": "--list-extension の使用時に、インストール済みの拡張機能のバージョンを表示します。",
 	"uninstallExtension": "拡張機能をアンインストールします。",

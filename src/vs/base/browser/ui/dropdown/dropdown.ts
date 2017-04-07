@@ -15,7 +15,7 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
-import { Keybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable;
@@ -189,7 +189,7 @@ export interface IContextMenuDelegate {
 	getActions(): TPromise<IAction[]>;
 	getActionItem?(action: IAction): IActionItem;
 	getActionsContext?(): any;
-	getKeyBinding?(action: IAction): Keybinding;
+	getKeyBinding?(action: IAction): ResolvedKeybinding;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
 }

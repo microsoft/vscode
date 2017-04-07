@@ -15,22 +15,6 @@ import { withEditorModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 
-function testShiftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new ShiftCommand(sel, {
-		isUnshift: false,
-		tabSize: 4,
-		oneIndent: '\t'
-	}), expectedLines, expectedSelection);
-}
-
-function testUnshiftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new ShiftCommand(sel, {
-		isUnshift: true,
-		tabSize: 4,
-		oneIndent: '\t'
-	}), expectedLines, expectedSelection);
-}
-
 class DocBlockCommentMode extends MockMode {
 
 	private static _id = new LanguageIdentifier('commentMode', 3);
@@ -76,23 +60,27 @@ class DocBlockCommentMode extends MockMode {
 	}
 }
 
-function testShiftCommandInDocBlockCommentMode(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	let mode = new DocBlockCommentMode();
-	testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new ShiftCommand(sel, {
+function testShiftCommand(lines: string[], languageIdentifier: LanguageIdentifier, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: false,
 		tabSize: 4,
-		oneIndent: '\t'
+		oneIndent: '\t',
+		useTabStops: useTabStops,
 	}), expectedLines, expectedSelection);
-	mode.dispose();
 }
 
-function testUnshiftCommandInDocBlockCommentMode(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	let mode = new DocBlockCommentMode();
-	testCommand(lines, mode.getLanguageIdentifier(), selection, (sel) => new ShiftCommand(sel, {
+function testUnshiftCommand(lines: string[], languageIdentifier: LanguageIdentifier, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
+	testCommand(lines, languageIdentifier, selection, (sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,
-		oneIndent: '\t'
+		oneIndent: '\t',
+		useTabStops: useTabStops,
 	}), expectedLines, expectedSelection);
+}
+
+function withDockBlockCommentMode(callback: (mode: DocBlockCommentMode) => void): void {
+	let mode = new DocBlockCommentMode();
+	callback(mode);
 	mode.dispose();
 }
 
@@ -109,6 +97,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 1, 1, 1),
 			[
 				'\tMy First Line',
@@ -130,6 +120,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 3, 1, 1),
 			[
 				'\tMy First Line',
@@ -151,6 +143,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 1, 1, 3),
 			[
 				'\tMy First Line',
@@ -172,6 +166,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 1, 2, 1),
 			[
 				'\tMy First Line',
@@ -193,6 +189,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 1, 2, 1),
 			[
 				'\tMy First Line',
@@ -212,6 +210,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(2, 1, 3, 1),
 			[
 				'\tMy First Line',
@@ -233,6 +233,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 2, 2, 2),
 			[
 				'\tMy First Line',
@@ -254,6 +256,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(2, 2, 1, 2),
 			[
 				'\tMy First Line',
@@ -275,6 +279,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(4, 1, 5, 2),
 			[
 				'My First Line',
@@ -296,6 +302,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 1, 5, 2),
 			[
 				'\tMy First Line',
@@ -315,6 +323,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(4, 1, 5, 1),
 			[
 				'My First Line',
@@ -338,6 +348,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(2, 3, 2, 1),
 			[
 				'My First Line',
@@ -359,6 +371,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(2, 1, 2, 3),
 			[
 				'My First Line',
@@ -380,6 +394,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 1, 2, 1),
 			[
 				'My First Line',
@@ -401,6 +417,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 2, 2, 2),
 			[
 				'My First Line',
@@ -422,6 +440,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(2, 3, 2, 1),
 			[
 				'My First Line',
@@ -443,6 +463,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(4, 1, 5, 2),
 			[
 				'My First Line',
@@ -464,6 +486,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 1, 5, 4),
 			[
 				'My First Line',
@@ -483,6 +507,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 1, 5, 4),
 			[
 				'My First Line',
@@ -502,6 +528,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(1, 1, 5, 4),
 			[
 				'\tMy First Line',
@@ -523,6 +551,8 @@ suite('Editor Commands - ShiftCommand', () => {
 				'',
 				'123'
 			],
+			null,
+			true,
 			new Selection(2, 1, 2, 1),
 			[
 				'My First Line',
@@ -536,86 +566,276 @@ suite('Editor Commands - ShiftCommand', () => {
 	});
 
 	test('issue #348: indenting around doc block comments', () => {
-		testShiftCommandInDocBlockCommentMode(
-			[
-				'',
-				'/**',
-				' * a doc comment',
-				' */',
-				'function hello() {}'
-			],
-			new Selection(1, 1, 5, 20),
-			[
-				'',
-				'\t/**',
-				'\t * a doc comment',
-				'\t */',
-				'\tfunction hello() {}'
-			],
-			new Selection(1, 1, 5, 21)
-		);
+		withDockBlockCommentMode((mode) => {
 
-		testUnshiftCommandInDocBlockCommentMode(
-			[
-				'',
-				'/**',
-				' * a doc comment',
-				' */',
-				'function hello() {}'
-			],
-			new Selection(1, 1, 5, 20),
-			[
-				'',
-				'/**',
-				' * a doc comment',
-				' */',
-				'function hello() {}'
-			],
-			new Selection(1, 1, 5, 20)
-		);
+			testShiftCommand(
+				[
+					'',
+					'/**',
+					' * a doc comment',
+					' */',
+					'function hello() {}'
+				],
+				mode.getLanguageIdentifier(),
+				true,
+				new Selection(1, 1, 5, 20),
+				[
+					'',
+					'\t/**',
+					'\t * a doc comment',
+					'\t */',
+					'\tfunction hello() {}'
+				],
+				new Selection(1, 1, 5, 21)
+			);
 
-		testUnshiftCommandInDocBlockCommentMode(
-			[
-				'\t',
-				'\t/**',
-				'\t * a doc comment',
-				'\t */',
-				'\tfunction hello() {}'
-			],
-			new Selection(1, 1, 5, 21),
-			[
-				'',
-				'/**',
-				' * a doc comment',
-				' */',
-				'function hello() {}'
-			],
-			new Selection(1, 1, 5, 20)
-		);
+			testUnshiftCommand(
+				[
+					'',
+					'/**',
+					' * a doc comment',
+					' */',
+					'function hello() {}'
+				],
+				mode.getLanguageIdentifier(),
+				true,
+				new Selection(1, 1, 5, 20),
+				[
+					'',
+					'/**',
+					' * a doc comment',
+					' */',
+					'function hello() {}'
+				],
+				new Selection(1, 1, 5, 20)
+			);
+
+			testUnshiftCommand(
+				[
+					'\t',
+					'\t/**',
+					'\t * a doc comment',
+					'\t */',
+					'\tfunction hello() {}'
+				],
+				mode.getLanguageIdentifier(),
+				true,
+				new Selection(1, 1, 5, 21),
+				[
+					'',
+					'/**',
+					' * a doc comment',
+					' */',
+					'function hello() {}'
+				],
+				new Selection(1, 1, 5, 20)
+			);
+
+		});
 	});
 
 	test('issue #1609: Wrong indentation of block comments', () => {
-		testShiftCommandInDocBlockCommentMode(
+		withDockBlockCommentMode((mode) => {
+			testShiftCommand(
+				[
+					'',
+					'/**',
+					' * test',
+					' *',
+					' * @type {number}',
+					' */',
+					'var foo = 0;'
+				],
+				mode.getLanguageIdentifier(),
+				true,
+				new Selection(1, 1, 7, 13),
+				[
+					'',
+					'\t/**',
+					'\t * test',
+					'\t *',
+					'\t * @type {number}',
+					'\t */',
+					'\tvar foo = 0;'
+				],
+				new Selection(1, 1, 7, 14)
+			);
+		});
+	});
+
+	test('issue #1620: a) Line indent doesn\'t handle leading whitespace properly', () => {
+		testCommand(
 			[
+				'   Written | Numeric',
+				'       one | 1',
+				'       two | 2',
+				'     three | 3',
+				'      four | 4',
+				'      five | 5',
+				'       six | 6',
+				'     seven | 7',
+				'     eight | 8',
+				'      nine | 9',
+				'       ten | 10',
+				'    eleven | 11',
 				'',
-				'/**',
-				' * test',
-				' *',
-				' * @type {number}',
-				' */',
-				'var foo = 0;'
 			],
-			new Selection(1, 1, 7, 13),
+			null,
+			new Selection(1, 1, 13, 1),
+			(sel) => new ShiftCommand(sel, {
+				isUnshift: false,
+				tabSize: 4,
+				oneIndent: '    ',
+				useTabStops: false
+			}),
 			[
+				'       Written | Numeric',
+				'           one | 1',
+				'           two | 2',
+				'         three | 3',
+				'          four | 4',
+				'          five | 5',
+				'           six | 6',
+				'         seven | 7',
+				'         eight | 8',
+				'          nine | 9',
+				'           ten | 10',
+				'        eleven | 11',
 				'',
-				'\t/**',
-				'\t * test',
-				'\t *',
-				'\t * @type {number}',
-				'\t */',
-				'\tvar foo = 0;'
 			],
-			new Selection(1, 1, 7, 14)
+			new Selection(1, 5, 13, 1)
+		);
+	});
+
+	test('issue #1620: b) Line indent doesn\'t handle leading whitespace properly', () => {
+		testCommand(
+			[
+				'       Written | Numeric',
+				'           one | 1',
+				'           two | 2',
+				'         three | 3',
+				'          four | 4',
+				'          five | 5',
+				'           six | 6',
+				'         seven | 7',
+				'         eight | 8',
+				'          nine | 9',
+				'           ten | 10',
+				'        eleven | 11',
+				'',
+			],
+			null,
+			new Selection(1, 1, 13, 1),
+			(sel) => new ShiftCommand(sel, {
+				isUnshift: true,
+				tabSize: 4,
+				oneIndent: '    ',
+				useTabStops: false
+			}),
+			[
+				'   Written | Numeric',
+				'       one | 1',
+				'       two | 2',
+				'     three | 3',
+				'      four | 4',
+				'      five | 5',
+				'       six | 6',
+				'     seven | 7',
+				'     eight | 8',
+				'      nine | 9',
+				'       ten | 10',
+				'    eleven | 11',
+				'',
+			],
+			new Selection(1, 1, 13, 1)
+		);
+	});
+
+	test('issue #1620: c) Line indent doesn\'t handle leading whitespace properly', () => {
+		testCommand(
+			[
+				'       Written | Numeric',
+				'           one | 1',
+				'           two | 2',
+				'         three | 3',
+				'          four | 4',
+				'          five | 5',
+				'           six | 6',
+				'         seven | 7',
+				'         eight | 8',
+				'          nine | 9',
+				'           ten | 10',
+				'        eleven | 11',
+				'',
+			],
+			null,
+			new Selection(1, 1, 13, 1),
+			(sel) => new ShiftCommand(sel, {
+				isUnshift: true,
+				tabSize: 4,
+				oneIndent: '\t',
+				useTabStops: false
+			}),
+			[
+				'   Written | Numeric',
+				'       one | 1',
+				'       two | 2',
+				'     three | 3',
+				'      four | 4',
+				'      five | 5',
+				'       six | 6',
+				'     seven | 7',
+				'     eight | 8',
+				'      nine | 9',
+				'       ten | 10',
+				'    eleven | 11',
+				'',
+			],
+			new Selection(1, 1, 13, 1)
+		);
+	});
+
+	test('issue #1620: d) Line indent doesn\'t handle leading whitespace properly', () => {
+		testCommand(
+			[
+				'\t   Written | Numeric',
+				'\t       one | 1',
+				'\t       two | 2',
+				'\t     three | 3',
+				'\t      four | 4',
+				'\t      five | 5',
+				'\t       six | 6',
+				'\t     seven | 7',
+				'\t     eight | 8',
+				'\t      nine | 9',
+				'\t       ten | 10',
+				'\t    eleven | 11',
+				'',
+			],
+			null,
+			new Selection(1, 1, 13, 1),
+			(sel) => new ShiftCommand(sel, {
+				isUnshift: true,
+				tabSize: 4,
+				oneIndent: '    ',
+				useTabStops: false
+			}),
+			[
+				'   Written | Numeric',
+				'       one | 1',
+				'       two | 2',
+				'     three | 3',
+				'      four | 4',
+				'      five | 5',
+				'       six | 6',
+				'     seven | 7',
+				'     eight | 8',
+				'      nine | 9',
+				'       ten | 10',
+				'    eleven | 11',
+				'',
+			],
+			new Selection(1, 1, 13, 1)
 		);
 	});
 
@@ -715,29 +935,31 @@ suite('Editor Commands - ShiftCommand', () => {
 		// 3 => 2
 		testIndentation(4, '         ', 2, 3);
 
+		function _assertUnshiftCommand(tabSize: number, oneIndent: string, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
+			return withEditorModel(text, (model) => {
+				var op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
+					isUnshift: true,
+					tabSize: tabSize,
+					oneIndent: oneIndent,
+					useTabStops: true
+				});
+				var actual = getEditOperation(model, op);
+				assert.deepEqual(actual, expected);
+			});
+		}
+
+		function _assertShiftCommand(tabSize: number, oneIndent: string, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
+			return withEditorModel(text, (model) => {
+				var op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
+					isUnshift: false,
+					tabSize: tabSize,
+					oneIndent: oneIndent,
+					useTabStops: true
+				});
+				var actual = getEditOperation(model, op);
+				assert.deepEqual(actual, expected);
+			});
+		}
 	});
 
-	function _assertUnshiftCommand(tabSize: number, oneIndent: string, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
-		return withEditorModel(text, (model) => {
-			var op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
-				isUnshift: true,
-				tabSize: tabSize,
-				oneIndent: oneIndent
-			});
-			var actual = getEditOperation(model, op);
-			assert.deepEqual(actual, expected);
-		});
-	}
-
-	function _assertShiftCommand(tabSize: number, oneIndent: string, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
-		return withEditorModel(text, (model) => {
-			var op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
-				isUnshift: false,
-				tabSize: tabSize,
-				oneIndent: oneIndent
-			});
-			var actual = getEditOperation(model, op);
-			assert.deepEqual(actual, expected);
-		});
-	}
 });

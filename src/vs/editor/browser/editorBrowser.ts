@@ -12,6 +12,7 @@ import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instant
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 
 /**
  * @internal
@@ -45,23 +46,20 @@ export interface ICodeEditorHelper {
 	delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void;
 	getOffsetForColumn(lineNumber: number, column: number): number;
 	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
+
+	getCompletelyVisibleViewRange(): Range;
 }
 
 /**
  * @internal
  */
 export interface IView extends IDisposable {
-	domNode: HTMLElement;
+	domNode: FastDomNode<HTMLElement>;
 
 	getInternalEventBus(): IEventEmitter;
 
 	createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): IOverviewRuler;
 	getCodeEditorHelper(): ICodeEditorHelper;
-
-	/**
-	 * Returns the range of lines in the view port which are completely visible.
-	 */
-	getCompletelyVisibleLinesRangeInViewport(): Range;
 
 	change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): editorCommon.IEditorWhitespace[];
@@ -136,6 +134,8 @@ export interface IViewController {
 	emitMouseLeave(e: IEditorMouseEvent): void;
 	emitMouseUp(e: IEditorMouseEvent): void;
 	emitMouseDown(e: IEditorMouseEvent): void;
+	emitMouseDrag(e: IEditorMouseEvent): void;
+	emitMouseDrop(e: IEditorMouseEvent): void;
 }
 
 /**
@@ -415,6 +415,18 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * @event
 	 */
 	onMouseDown(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	/**
+	 * An event emitted on a "mousedrag".
+	 * @internal
+	 * @event
+	 */
+	onMouseDrag(listener: (e: IEditorMouseEvent) => void): IDisposable;
+	/**
+	 * An event emitted on a "mousedrop".
+	 * @internal
+	 * @event
+	 */
+	onMouseDrop(listener: (e: IEditorMouseEvent) => void): IDisposable;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event

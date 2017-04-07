@@ -67,6 +67,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 		let lines: ILinePreflightData[] = [];
 		for (let i = 0, lineCount = endLineNumber - startLineNumber + 1; i < lineCount; i++) {
 			let lineNumber = startLineNumber + i;
+			model.forceTokenization(lineNumber);
 			let languageId = model.getLanguageIdAtPosition(lineNumber, 1);
 
 			// Find the commentStr for this line, if none is found then bail out: we cannot do line comments
@@ -265,6 +266,7 @@ export class LineCommentCommand implements editorCommon.ICommand {
 	 * Given an unsuccessful analysis, delegate to the block comment command
 	 */
 	private _executeBlockComment(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder, s: Selection): void {
+		model.forceTokenization(s.startLineNumber);
 		let languageId = model.getLanguageIdAtPosition(s.startLineNumber, s.startColumn);
 		let config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {

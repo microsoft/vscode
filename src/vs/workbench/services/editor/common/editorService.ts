@@ -11,6 +11,8 @@ import { IEditorService, IEditor, IEditorInput, IEditorOptions, ITextEditorOptio
 
 export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
 
+export type IResourceInputType = IResourceInput | IResourceDiffInput | IResourceSideBySideInput;
+
 /**
  * The editor service allows to open editors and work on the active
  * editor input and models.
@@ -51,21 +53,21 @@ export interface IWorkbenchEditorService extends IEditorService {
 	/**
 	 * Specific overload to open an instance of IResourceInput, IResourceDiffInput or IResourceSideBySideInput.
 	 */
-	openEditor(input: IResourceInput | IResourceDiffInput | IResourceSideBySideInput, position?: Position): TPromise<IEditor>;
-	openEditor(input: IResourceInput | IResourceDiffInput | IResourceSideBySideInput, sideBySide?: boolean): TPromise<IEditor>;
+	openEditor(input: IResourceInputType, position?: Position): TPromise<IEditor>;
+	openEditor(input: IResourceInputType, sideBySide?: boolean): TPromise<IEditor>;
 
 	/**
 	 * Similar to #openEditor() but allows to open multiple editors for different positions at the same time. If there are
 	 * more than one editor per position, only the first one will be active and the others stacked behind inactive.
 	 */
-	openEditors(editors: { input: IResourceInput | IResourceDiffInput | IResourceSideBySideInput, position: Position }[]): TPromise<IEditor[]>;
+	openEditors(editors: { input: IResourceInputType, position: Position }[]): TPromise<IEditor[]>;
 	openEditors(editors: { input: IEditorInput, position: Position, options?: IEditorOptions | ITextEditorOptions }[]): TPromise<IEditor[]>;
 
 	/**
 	 * Given a list of editors to replace, will look across all groups where this editor is open (active or hidden)
 	 * and replace it with the new editor and the provied options.
 	 */
-	replaceEditors(editors: { toReplace: IResourceInput | IResourceDiffInput | IResourceSideBySideInput, replaceWith: IResourceInput | IResourceDiffInput | IResourceSideBySideInput }[], position?: Position): TPromise<IEditor[]>;
+	replaceEditors(editors: { toReplace: IResourceInputType, replaceWith: IResourceInputType }[], position?: Position): TPromise<IEditor[]>;
 	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], position?: Position): TPromise<IEditor[]>;
 
 	/**
@@ -88,5 +90,5 @@ export interface IWorkbenchEditorService extends IEditorService {
 	/**
 	 * Allows to resolve an untyped input to a workbench typed instanceof editor input
 	 */
-	createInput(input: IResourceInput | IResourceDiffInput | IResourceSideBySideInput): TPromise<IEditorInput>;
+	createInput(input: IResourceInputType): TPromise<IEditorInput>;
 }

@@ -32,7 +32,6 @@ export const OpenEditorsFocussedContext = new RawContextKey<boolean>(openEditors
 export const ExplorerFocussedContext = new RawContextKey<boolean>(explorerViewletFocusId, false);
 
 export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId));
-export const OpenedEditorsFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(openEditorsFocusId));
 export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId));
 
 /**

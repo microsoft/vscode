@@ -7,7 +7,6 @@
 import * as assert from 'assert';
 import { KeyCode as StandaloneKeyCode, Severity as StandaloneSeverity } from 'vs/editor/common/standalone/standaloneBase';
 import { KeyCode as RuntimeKeyCode } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/base/common/keybinding';
 import RuntimeSeverity from 'vs/base/common/severity';
 
 suite('StandaloneBase', () => {
@@ -136,45 +135,5 @@ suite('KeyCode', () => {
 		assertKeyCode(StandaloneKeyCode.NUMPAD_DECIMAL, RuntimeKeyCode.NUMPAD_DECIMAL);
 		assertKeyCode(StandaloneKeyCode.NUMPAD_DIVIDE, RuntimeKeyCode.NUMPAD_DIVIDE);
 		assertKeyCode(StandaloneKeyCode.MAX_VALUE, RuntimeKeyCode.MAX_VALUE);
-	});
-
-	test('getUserSettingsKeybindingRegex', () => {
-		let regex = new RegExp(KeybindingLabels.getUserSettingsKeybindingRegex());
-
-		function testIsGood(userSettingsLabel: string, message: string = userSettingsLabel): void {
-			let userSettings = '"' + userSettingsLabel.replace(/\\/g, '\\\\') + '"';
-			let isGood = regex.test(userSettings);
-			assert.ok(isGood, message);
-		}
-
-		// check that all key codes are covered by the regex
-		let ignore: boolean[] = [];
-		ignore[RuntimeKeyCode.Shift] = true;
-		ignore[RuntimeKeyCode.Ctrl] = true;
-		ignore[RuntimeKeyCode.Alt] = true;
-		ignore[RuntimeKeyCode.Meta] = true;
-		for (let keyCode = RuntimeKeyCode.Unknown + 1; keyCode < RuntimeKeyCode.MAX_VALUE; keyCode++) {
-			if (ignore[keyCode]) {
-				continue;
-			}
-			let userSettings = KeybindingLabels.toUserSettingsLabel(keyCode);
-			testIsGood(userSettings, keyCode + ' - ' + StandaloneKeyCode[keyCode] + ' - ' + userSettings);
-		}
-
-		// one modifier
-		testIsGood('ctrl+a');
-		testIsGood('shift+a');
-		testIsGood('alt+a');
-		testIsGood('cmd+a');
-		testIsGood('meta+a');
-		testIsGood('win+a');
-
-		// more modifiers
-		testIsGood('ctrl+shift+a');
-		testIsGood('shift+alt+a');
-		testIsGood('ctrl+shift+alt+a');
-
-		// chords
-		testIsGood('ctrl+a ctrl+a');
 	});
 });

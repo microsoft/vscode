@@ -6,7 +6,7 @@
 {
 	"json.format.enable.desc": "启用/禁用默认 JSON 格式化程序(需要重启)",
 	"json.schemas.desc": "将当前项目中的 JSON 文件与架构关联起来",
-	"json.schemas.fileMatch.desc": "将 JSON 文件解析到架构时，用于匹配的文件模式的数组。",
+	"json.schemas.fileMatch.desc": "将 JSON 文件解析到架构时，用于匹配的一组文件模式。",
 	"json.schemas.fileMatch.item.desc": "将 JSON 文件解析到架构时，用于匹配的可以包含 \"*\" 的文件模式。",
 	"json.schemas.schema.desc": "给定 URL 的架构定义。只需提供该架构以避免对架构 URL 的访问。",
 	"json.schemas.url.desc": "当前目录中指向架构的 URL 或相对路径"

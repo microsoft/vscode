@@ -9,5 +9,6 @@
 	"invalid.language": "Lenguaje desconocido en \"contributes.{0}.language\". Valor proporcionado: {1}",
 	"invalid.path.0": "Se esperaba una cadena en \"contributes.{0}.path\". Valor proporcionado: {1}",
 	"invalid.path.1": "Se esperaba que \"contributes.{0}.path\" ({1}) se incluyera en la carpeta de la extensión ({2}). Esto puede hacer que la extensión no sea portátil.",
-	"invalid.scopeName": "Se esperaba una cadena en \"contributes.{0}.scopeName\". Valor proporcionado: {1}"
+	"invalid.scopeName": "Se esperaba una cadena en \"contributes.{0}.scopeName\". Valor proporcionado: {1}",
+	"no-tm-grammar": "No hay ninguna gramática de TM registrada para este lenguaje."
 }

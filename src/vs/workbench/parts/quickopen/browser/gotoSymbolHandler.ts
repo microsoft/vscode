@@ -21,7 +21,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import { DocumentSymbolProviderRegistry, SymbolInformation, SymbolKind } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 export const GOTO_SYMBOL_PREFIX = '@';
@@ -451,10 +451,13 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 			// Show parent scope as description
 			const description: string = element.containerName;
+			const icon = symbolKindToCssClass(element.kind);
 
 			// Add
-			const icon = SymbolKind.from(element.kind);
-			results.push(new SymbolEntry(i, label, SymbolKind.from(element.kind), description, icon, element.location.range, null, this.editorService, this));
+			results.push(new SymbolEntry(i,
+				label, icon, description, icon,
+				element.location.range, null, this.editorService, this
+			));
 		}
 
 		return results;

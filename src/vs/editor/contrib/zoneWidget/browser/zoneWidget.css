@@ -7,7 +7,7 @@
 	z-index: 10;
 }
 
-.monaco-editor .zone-widget-arrow {
+.monaco-editor .zone-widget-arrow.below {
 	width: 0;
 	height: 0;
 	border-color: transparent;
@@ -15,16 +15,10 @@
 	position: absolute;
 }
 
-.monaco-editor .zone-widget-arrow.below {
-	border-bottom-color: yellowGreen;
-}
-
 .monaco-editor .zone-widget .zone-widget-container {
 	border-top-style: solid;
 	border-bottom-style: solid;
 	border-top-width: 0;
 	border-bottom-width: 0;
-	border-top-color: yellowGreen;
-	border-bottom-color: yellowGreen;
 	position: relative;
 }

@@ -7,6 +7,7 @@
 	"dup": "El comando `{0}` aparece varias veces en la sección 'commands'.",
 	"dupe.command": "El elemento de menú hace referencia al mismo comando que el comando predeterminado y el comando alternativo",
 	"menuId.invalid": "`{0}` no es un identificador de menú válido",
+	"menus.commandPalette": "La paleta de comandos",
 	"menus.editorContext": "El menú conextual del editor",
 	"menus.editorTabContext": "Menú contextual de pestañas del editor",
 	"menus.editorTitle": "El menú de título del editor",

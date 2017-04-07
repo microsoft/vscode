@@ -9,7 +9,6 @@ import strings = require('vs/base/common/strings');
 
 suite('Strings', () => {
 	test('equalsIgnoreCase', function () {
-
 		assert(strings.equalsIgnoreCase('', ''));
 		assert(!strings.equalsIgnoreCase('', '1'));
 		assert(!strings.equalsIgnoreCase('1', ''));
@@ -19,6 +18,32 @@ suite('Strings', () => {
 		assert(strings.equalsIgnoreCase('abc', 'ABC'));
 		assert(strings.equalsIgnoreCase('Höhenmeter', 'HÖhenmeter'));
 		assert(strings.equalsIgnoreCase('ÖL', 'Öl'));
+	});
+
+	test('beginsWithIgnoreCase', function () {
+		assert(strings.beginsWithIgnoreCase('', ''));
+		assert(!strings.beginsWithIgnoreCase('', '1'));
+		assert(strings.beginsWithIgnoreCase('1', ''));
+
+		assert(strings.beginsWithIgnoreCase('a', 'a'));
+		assert(strings.beginsWithIgnoreCase('abc', 'Abc'));
+		assert(strings.beginsWithIgnoreCase('abc', 'ABC'));
+		assert(strings.beginsWithIgnoreCase('Höhenmeter', 'HÖhenmeter'));
+		assert(strings.beginsWithIgnoreCase('ÖL', 'Öl'));
+
+		assert(strings.beginsWithIgnoreCase('alles klar', 'a'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'A'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'alles k'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'alles K'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'ALLES K'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'alles klar'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'ALLES KLAR'));
+
+		assert(!strings.beginsWithIgnoreCase('alles klar', ' ALLES K'));
+		assert(!strings.beginsWithIgnoreCase('alles klar', 'ALLES K '));
+		assert(!strings.beginsWithIgnoreCase('alles klar', 'öALLES K '));
+		assert(!strings.beginsWithIgnoreCase('alles klar', ' '));
+		assert(!strings.beginsWithIgnoreCase('alles klar', 'ö'));
 	});
 
 	test('compareIgnoreCase', function () {

@@ -14,6 +14,7 @@
 	"commitMessage": "コミット メッセージ",
 	"commitStaged": "ステージング済みをコミット",
 	"commitStaged2": "ステージング済みをコミット",
+	"commitStagedAmend": "コミットしてステージング (修正)",
 	"commitStagedSignedOff": "コミットしてステージング (サインオフ)",
 	"confirmPublishMessage": "'{0}' を '{1}' に発行してよろしいですか?",
 	"confirmPublishMessageButton": "発行(&&P)",

@@ -10,15 +10,3 @@
 	top: 0;
 	box-sizing: border-box;
 }
-
-.monaco-editor.vs .margin-view-overlays .current-line-margin {
-	border: 2px solid #eee;
-}
-
-.monaco-editor.vs-dark .margin-view-overlays .current-line-margin {
-	border: 2px solid #282828;
-}
-
-.monaco-editor.hc-black .margin-view-overlays .current-line-margin {
-	border: 2px solid #f38518;
-}

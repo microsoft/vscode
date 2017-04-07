@@ -344,7 +344,7 @@ class DecorationRenderHelper {
 		return cssTextArr.join('');
 	}
 
-	private static border_rules = ['border', 'borderColor', 'borderColor', 'borderSpacing', 'borderStyle', 'borderWidth'];
+	private static border_rules = ['border', 'borderRadius', 'borderColor', 'borderSpacing', 'borderStyle', 'borderWidth'];
 
 	public static collectBorderSettingsCSSText(opts: any, cssTextArr: string[]): boolean {
 		if (DecorationRenderHelper.collectCSSText(opts, DecorationRenderHelper.border_rules, cssTextArr)) {

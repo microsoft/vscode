@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as lifecycle from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/paths';
+import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -12,12 +13,9 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { DEBUG_SCHEME, IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { DEBUG_SCHEME, IDebugService } from 'vs/workbench/parts/debug/common/debug';
 
 export class DebugContentProvider implements IWorkbenchContribution, ITextModelContentProvider {
-
-	private modelsToDispose: IModel[];
 
 	constructor(
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
@@ -26,12 +24,6 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		@IModeService private modeService: IModeService
 	) {
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
-		this.modelsToDispose = [];
-		this.debugService.onDidChangeState(() => {
-			if (this.debugService.state === State.Inactive) {
-				this.modelsToDispose = lifecycle.dispose(this.modelsToDispose);
-			}
-		});
 	}
 
 	public getId(): string {
@@ -40,15 +32,17 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 	public provideTextContent(resource: uri): TPromise<IModel> {
 		const process = this.debugService.getViewModel().focusedProcess;
-		if (!process) {
-			return TPromise.as(null);
-		}
 
-		return process.session.source({ sourceReference: Source.getSourceReference(resource) }).then(response => {
+		if (!process) {
+			return TPromise.wrapError(localize('unable', "Unable to resolve the resource without a debug session"));
+		}
+		const source = process.sources.get(resource.toString());
+		const rawSource = source ? source.raw : { path: paths.normalize(resource.fsPath, true) };
+
+		return process.session.source({ sourceReference: source ? source.reference : undefined, source: rawSource }).then(response => {
 			const mime = response.body.mimeType || guessMimeTypes(resource.toString())[0];
 			const modePromise = this.modeService.getOrCreateMode(mime);
 			const model = this.modelService.createModel(response.body.content, modePromise, resource);
-			this.modelsToDispose.push(model);
 
 			return model;
 		}, (err: DebugProtocol.ErrorResponse) => {

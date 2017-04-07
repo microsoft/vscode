@@ -19,6 +19,11 @@
 			"language": "makefile",
 			"scopeName": "source.makefile",
 			"path": "./syntaxes/Makefile.json"
-		}]
+		}],
+		"configurationDefaults": {
+			"[makefile]": {
+				"editor.insertSpaces": false
+			}
+		}
 	}
 }

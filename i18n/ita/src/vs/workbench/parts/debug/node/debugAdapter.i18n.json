@@ -14,5 +14,7 @@
 	"debugServer": "Solo per lo sviluppo dell'estensione di debug: se si specifica una porta, Visual Studio Code prova a connettersi a un adattatore di debug in esecuzione in modalità server",
 	"debugType": "Tipo di configurazione.",
 	"debugWindowsConfiguration": "Attributi della configurazione di avvio specifici di Windows.",
-	"internalConsoleOptions": "Controlla il comportamento della console di debug interna."
+	"deprecatedVariables": "'env.', 'config.' e 'command.' sono deprecati. In alternativa, usare 'env:', 'config:' e 'command:'.",
+	"internalConsoleOptions": "Controlla il comportamento della console di debug interna.",
+	"node2NotSupported": "\"node2\" non è più supportato. In alternativa, usare \"node\" e impostare l'attributo \"protocol\" su \"inspector\"."
 }

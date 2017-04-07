@@ -4,20 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 .monaco-editor .detected-link,
 .monaco-editor .detected-link-active {
-	border-bottom: 1px solid;
-	border-color: currentColor;
-	text-decoration: none !important;
+	text-decoration: underline;
 }
 
 .monaco-editor .detected-link-active {
 	cursor: pointer;
-	color: blue !important;
-}
-
-.monaco-editor.vs-dark .detected-link-active {
-	color: #4E94CE !important;
-}
-
-.monaco-editor.hc-black .detected-link-active {
-	color: cyan !important;
 }

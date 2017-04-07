@@ -7,6 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export class WindowService implements IWindowService {
 
@@ -21,16 +22,16 @@ export class WindowService implements IWindowService {
 		return this.windowId;
 	}
 
-	openFileFolderPicker(forceNewWindow?: boolean): TPromise<void> {
-		return this.windowsService.openFileFolderPicker(this.windowId, forceNewWindow);
+	openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+		return this.windowsService.openFileFolderPicker(this.windowId, forceNewWindow, data);
 	}
 
-	openFilePicker(forceNewWindow?: boolean, path?: string): TPromise<void> {
-		return this.windowsService.openFilePicker(this.windowId, forceNewWindow, path);
+	openFilePicker(forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
+		return this.windowsService.openFilePicker(this.windowId, forceNewWindow, path, data);
 	}
 
-	openFolderPicker(forceNewWindow?: boolean): TPromise<void> {
-		return this.windowsService.openFolderPicker(this.windowId, forceNewWindow);
+	openFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
+		return this.windowsService.openFolderPicker(this.windowId, forceNewWindow, data);
 	}
 
 	reloadWindow(): TPromise<void> {
@@ -71,6 +72,10 @@ export class WindowService implements IWindowService {
 
 	focusWindow(): TPromise<void> {
 		return this.windowsService.focusWindow(this.windowId);
+	}
+
+	isFocused(): TPromise<boolean> {
+		return this.windowsService.isFocused(this.windowId);
 	}
 
 	isMaximized(): TPromise<boolean> {

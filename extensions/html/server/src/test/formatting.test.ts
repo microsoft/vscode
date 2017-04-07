@@ -71,6 +71,7 @@ suite('HTML Embedded Formatting', () => {
 		assertFormatWithFixture('19813.html', '19813.html');
 		assertFormatWithFixture('19813.html', '19813-4spaces.html', void 0, FormattingOptions.create(4, true));
 		assertFormatWithFixture('19813.html', '19813-tab.html', void 0, FormattingOptions.create(1, false));
+		assertFormatWithFixture('21634.html', '21634.html');
 	})
 
 	test('Script end tag', function (): any {

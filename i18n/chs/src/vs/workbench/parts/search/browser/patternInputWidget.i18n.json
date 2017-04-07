@@ -6,5 +6,6 @@
 {
 	"defaultLabel": "输入",
 	"patternDescription": "使用 Glob 模式",
-	"patternHelpInclude": "要匹配的模式。例如，**\\*\\*/*.js** 与所有 JavaScript 文件匹配，或 **myFolder/\\*\\*** 与包含所有子级的文件夹匹配。\n\n**Reference**:\n**\\*** 匹配 0 个或更多字符\n**?** 匹配 1 个字符\n**\\*\\*** 匹配零个或更多目录\n**[a-z]** 匹配一系列字符\n**{a,b}** 匹配任何一种模式)"
+	"patternHelpInclude": "要匹配的模式。例如，**\\*\\*/*.js** 与所有 JavaScript 文件匹配，或 **myFolder/\\*\\*** 与包含所有子级的文件夹匹配。\n\n**Reference**:\n**\\*** 匹配 0 个或更多字符\n**?** 匹配 1 个字符\n**\\*\\*** 匹配零个或更多目录\n**[a-z]** 匹配一系列字符\n**{a,b}** 匹配任何一种模式)",
+	"useIgnoreFilesDescription": "使用忽略文件"
 }

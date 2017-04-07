@@ -5,6 +5,8 @@
 
 'use strict';
 
+import { OperatingSystem } from 'vs/base/common/platform';
+
 /**
  * Virtual Key Codes, the value does not hold any inherent meaning.
  * Inspired somewhat from https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
@@ -303,6 +305,7 @@ let STRING = createMapping((TO_STRING_MAP) => {
 	TO_STRING_MAP[KeyCode.KEY_Y] = 'Y';
 	TO_STRING_MAP[KeyCode.KEY_Z] = 'Z';
 
+	TO_STRING_MAP[KeyCode.Meta] = 'Meta';
 	TO_STRING_MAP[KeyCode.ContextMenu] = 'ContextMenu';
 
 	TO_STRING_MAP[KeyCode.F1] = 'F1';
@@ -422,8 +425,7 @@ const enum BinaryKeybindingsMask {
 	Shift = (1 << 10) >>> 0,
 	Alt = (1 << 9) >>> 0,
 	WinCtrl = (1 << 8) >>> 0,
-	KeyCode = 0x000000ff,
-	ModifierMask = CtrlCmd | Shift | Alt | WinCtrl
+	KeyCode = 0x000000ff
 }
 
 export const enum KeyMod {
@@ -438,87 +440,172 @@ export function KeyChord(firstPart: number, secondPart: number): number {
 	return (firstPart | chordPart) >>> 0;
 }
 
-export class BinaryKeybindings {
-
-	public static extractFirstPart(keybinding: number): number {
-		return (keybinding & 0x0000ffff) >>> 0;
+export function createKeybinding(keybinding: number, OS: OperatingSystem): Keybinding {
+	if (keybinding === 0) {
+		return null;
 	}
-
-	public static extractChordPart(keybinding: number): number {
-		return (keybinding & 0xffff0000) >>> 16;
-	}
-
-	public static hasChord(keybinding: number): boolean {
-		return (this.extractChordPart(keybinding) !== 0);
-	}
-
-	public static hasCtrlCmd(keybinding: number): boolean {
-		return (keybinding & BinaryKeybindingsMask.CtrlCmd ? true : false);
-	}
-
-	public static hasShift(keybinding: number): boolean {
-		return (keybinding & BinaryKeybindingsMask.Shift ? true : false);
-	}
-
-	public static hasAlt(keybinding: number): boolean {
-		return (keybinding & BinaryKeybindingsMask.Alt ? true : false);
-	}
-
-	public static hasWinCtrl(keybinding: number): boolean {
-		return (keybinding & BinaryKeybindingsMask.WinCtrl ? true : false);
-	}
-
-	public static isModifierKey(keybinding: number): boolean {
-		if ((keybinding & BinaryKeybindingsMask.ModifierMask) === keybinding) {
-			return true;
-		}
-		let keyCode = this.extractKeyCode(keybinding);
-		return (
-			keyCode === KeyCode.Ctrl
-			|| keyCode === KeyCode.Meta
-			|| keyCode === KeyCode.Alt
-			|| keyCode === KeyCode.Shift
+	const firstPart = (keybinding & 0x0000ffff) >>> 0;
+	const chordPart = (keybinding & 0xffff0000) >>> 16;
+	if (chordPart !== 0) {
+		return new ChordKeybinding(
+			createSimpleKeybinding(firstPart, OS),
+			createSimpleKeybinding(chordPart, OS),
 		);
 	}
-
-	public static extractKeyCode(keybinding: number): KeyCode {
-		return (keybinding & BinaryKeybindingsMask.KeyCode);
-	}
+	return createSimpleKeybinding(firstPart, OS);
 }
 
-export class Keybinding {
+export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem): SimpleKeybinding {
 
-	public value: number;
+	const ctrlCmd = (keybinding & BinaryKeybindingsMask.CtrlCmd ? true : false);
+	const winCtrl = (keybinding & BinaryKeybindingsMask.WinCtrl ? true : false);
 
-	constructor(keybinding: number) {
-		this.value = keybinding;
+	const ctrlKey = (OS === OperatingSystem.Macintosh ? winCtrl : ctrlCmd);
+	const shiftKey = (keybinding & BinaryKeybindingsMask.Shift ? true : false);
+	const altKey = (keybinding & BinaryKeybindingsMask.Alt ? true : false);
+	const metaKey = (OS === OperatingSystem.Macintosh ? ctrlCmd : winCtrl);
+	const keyCode = (keybinding & BinaryKeybindingsMask.KeyCode);
+
+	return new SimpleKeybinding(ctrlKey, shiftKey, altKey, metaKey, keyCode);
+}
+
+export const enum KeybindingType {
+	Simple = 1,
+	Chord = 2
+}
+
+export class SimpleKeybinding {
+	public readonly type = KeybindingType.Simple;
+
+	public readonly ctrlKey: boolean;
+	public readonly shiftKey: boolean;
+	public readonly altKey: boolean;
+	public readonly metaKey: boolean;
+	public readonly keyCode: KeyCode;
+
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, keyCode: KeyCode) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.keyCode = keyCode;
 	}
 
 	public equals(other: Keybinding): boolean {
-		return this.value === other.value;
-	}
-
-	public hasCtrlCmd(): boolean {
-		return BinaryKeybindings.hasCtrlCmd(this.value);
-	}
-
-	public hasShift(): boolean {
-		return BinaryKeybindings.hasShift(this.value);
-	}
-
-	public hasAlt(): boolean {
-		return BinaryKeybindings.hasAlt(this.value);
-	}
-
-	public hasWinCtrl(): boolean {
-		return BinaryKeybindings.hasWinCtrl(this.value);
+		if (other.type !== KeybindingType.Simple) {
+			return false;
+		}
+		return (
+			this.ctrlKey === other.ctrlKey
+			&& this.shiftKey === other.shiftKey
+			&& this.altKey === other.altKey
+			&& this.metaKey === other.metaKey
+			&& this.keyCode === other.keyCode
+		);
 	}
 
 	public isModifierKey(): boolean {
-		return BinaryKeybindings.isModifierKey(this.value);
+		return (
+			this.keyCode === KeyCode.Unknown
+			|| this.keyCode === KeyCode.Ctrl
+			|| this.keyCode === KeyCode.Meta
+			|| this.keyCode === KeyCode.Alt
+			|| this.keyCode === KeyCode.Shift
+		);
 	}
 
-	public getKeyCode(): KeyCode {
-		return BinaryKeybindings.extractKeyCode(this.value);
+	/**
+	 * Does this keybinding refer to the key code of a modifier and it also has the modifier flag?
+	 */
+	public isDuplicateModifierCase(): boolean {
+		return (
+			(this.ctrlKey && this.keyCode === KeyCode.Ctrl)
+			|| (this.shiftKey && this.keyCode === KeyCode.Shift)
+			|| (this.altKey && this.keyCode === KeyCode.Alt)
+			|| (this.metaKey && this.keyCode === KeyCode.Meta)
+		);
 	}
+}
+
+export class ChordKeybinding {
+	public readonly type = KeybindingType.Chord;
+
+	public readonly firstPart: SimpleKeybinding;
+	public readonly chordPart: SimpleKeybinding;
+
+	constructor(firstPart: SimpleKeybinding, chordPart: SimpleKeybinding) {
+		this.firstPart = firstPart;
+		this.chordPart = chordPart;
+	}
+}
+
+export type Keybinding = SimpleKeybinding | ChordKeybinding;
+
+/**
+ * A resolved keybinding.
+ */
+export abstract class ResolvedKeybinding {
+	/**
+	 * This prints the binding in a format suitable for displaying in the UI.
+	 */
+	public abstract getLabel(): string;
+	/**
+	 * Returns the UI label of the binding without modifiers
+	 */
+	public abstract getLabelWithoutModifiers(): string;
+	/**
+	 * This prints the binding in a format suitable for ARIA.
+	 */
+	public abstract getAriaLabel(): string;
+	/**
+	 * Returns the ARIA label of the bindings without modifiers
+	 */
+	public abstract getAriaLabelWithoutModifiers(): string;
+	/**
+	 * This prints the binding in a format suitable for electron's accelerators.
+	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
+	 */
+	public abstract getElectronAccelerator(): string;
+	/**
+	 * This prints the binding in a format suitable for user settings.
+	 */
+	public abstract getUserSettingsLabel(): string;
+	/**
+	 * Is the user settings label reflecting the label?
+	 */
+	public abstract isWYSIWYG(): boolean;
+
+	/**
+	 * Is the binding a chord?
+	 */
+	public abstract isChord(): boolean;
+	/**
+	 * Does this binding use the ctrl modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasCtrlModifier(): boolean;
+	/**
+	 * Does this binding use the shift modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasShiftModifier(): boolean;
+	/**
+	 * Does this binding use the alt modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasAltModifier(): boolean;
+	/**
+	 * Does this binding use the meta modifier key.
+	 * If it is a chord, it always returns false.
+	 */
+	public abstract hasMetaModifier(): boolean;
+
+	/**
+	 * Returns the firstPart, chordPart that should be used for dispatching.
+	 */
+	public abstract getDispatchParts(): [string, string];
+	/**
+	 * Returns the firstPart, chordPart of the keybinding
+	 */
+	public abstract getParts(): [ResolvedKeybinding, ResolvedKeybinding];
 }

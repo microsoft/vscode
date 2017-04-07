@@ -8,17 +8,27 @@
 import 'vs/css!./checkbox';
 
 import DOM = require('vs/base/browser/dom');
+import * as objects from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Color } from "vs/base/common/color";
 
-export interface ICheckboxOpts {
+export interface ICheckboxOpts extends ICheckboxStyles {
 	actionClassName: string;
 	title: string;
 	isChecked: boolean;
 	onChange: (viaKeyboard: boolean) => void;
 	onKeyDown?: (e: IKeyboardEvent) => void;
 }
+
+export interface ICheckboxStyles {
+	inputActiveOptionBorderColor?: Color;
+}
+
+const defaultOpts = {
+	inputActiveOptionBorderColor: Color.fromHex('#007ACC')
+};
 
 export class Checkbox extends Widget {
 
@@ -29,7 +39,8 @@ export class Checkbox extends Widget {
 
 	constructor(opts: ICheckboxOpts) {
 		super();
-		this._opts = opts;
+		this._opts = objects.clone(opts);
+		objects.mixin(this._opts, defaultOpts, false);
 		this._checked = this._opts.isChecked;
 
 		this.domNode = document.createElement('div');
@@ -39,6 +50,8 @@ export class Checkbox extends Widget {
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		this.domNode.setAttribute('aria-label', this._opts.title);
+
+		this._applyStyles();
 
 		this.onclick(this.domNode, (ev) => {
 			this.checked = !this._checked;
@@ -72,6 +85,7 @@ export class Checkbox extends Widget {
 		this._checked = newIsChecked;
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		this.domNode.className = this._className();
+		this._applyStyles();
 	}
 
 	private _className(): string {
@@ -80,6 +94,19 @@ export class Checkbox extends Widget {
 
 	public width(): number {
 		return 2 /*marginleft*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
+	}
+
+	public style(styles: ICheckboxStyles) {
+		if (styles.inputActiveOptionBorderColor) {
+			this._opts.inputActiveOptionBorderColor = styles.inputActiveOptionBorderColor;
+		}
+		this._applyStyles();
+	}
+
+	protected _applyStyles() {
+		if (this.domNode) {
+			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorderColor ? this._opts.inputActiveOptionBorderColor.toString() : null;
+		}
 	}
 
 	public enable(): void {

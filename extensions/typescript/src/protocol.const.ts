@@ -6,45 +6,31 @@
 'use strict';
 
 export class Kind {
-	public static unknown: string = '';
-	public static keyword: string = 'keyword';
-	public static script: string = 'script';
-	public static module: string = 'module';
-	public static class: string = 'class';
-	public static interface: string = 'interface';
-	public static type: string = 'type';
-	public static enum: string = 'enum';
-	public static variable: string = 'var';
-	public static localVariable: string = 'local var';
-	public static function: string = 'function';
-	public static localFunction: string = 'local function';
-	public static memberFunction: string = 'method';
-	public static memberGetAccessor: string = 'getter';
-	public static memberSetAccessor: string = 'setter';
-	public static memberVariable: string = 'property';
-	public static constructorImplementation: string = 'constructor';
-	public static callSignature: string = 'call';
-	public static indexSignature: string = 'index';
-	public static constructSignature: string = 'construct';
-	public static parameter: string = 'parameter';
-	public static typeParameter: string = 'type parameter';
-	public static primitiveType: string = 'primitive type';
-	public static label: string = 'label';
-	public static alias: string = 'alias';
-	public static const: string = 'const';
-	public static let: string = 'let';
-	public static warning: string = 'warning';
-	public static directory: string = 'directory';
-	public static file: string = 'file';
-	public static externalModuleName = 'external module name';
-}
-
-export class KindModifier {
-	public static none: string = '';
-	public static staticMember: string = 'public static';
-	public static privateMember: string = 'private';
-	public static protectedMember: string = 'protected';
-	public static exported: string = 'export';
-	public static ambient: string = 'declare';
-	public static static: string = 'static';
+	public static readonly alias = 'alias';
+	public static readonly callSignature = 'call';
+	public static readonly class = 'class';
+	public static readonly const = 'const';
+	public static readonly constructorImplementation = 'constructor';
+	public static readonly constructSignature = 'construct';
+	public static readonly directory = 'directory';
+	public static readonly enum = 'enum';
+	public static readonly externalModuleName = 'external module name';
+	public static readonly file = 'file';
+	public static readonly function = 'function';
+	public static readonly indexSignature = 'index';
+	public static readonly interface = 'interface';
+	public static readonly keyword = 'keyword';
+	public static readonly let = 'let';
+	public static readonly localFunction = 'local function';
+	public static readonly localVariable = 'local var';
+	public static readonly memberFunction = 'method';
+	public static readonly memberGetAccessor = 'getter';
+	public static readonly memberSetAccessor = 'setter';
+	public static readonly memberVariable = 'property';
+	public static readonly module = 'module';
+	public static readonly primitiveType = 'primitive type';
+	public static readonly script = 'script';
+	public static readonly type = 'type';
+	public static readonly variable = 'var';
+	public static readonly warning = 'warning';
 }

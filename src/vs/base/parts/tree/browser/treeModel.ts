@@ -242,7 +242,7 @@ export class Item extends Events.EventEmitter {
 		this.userContent = null;
 		this.traits = {};
 		this.depth = 0;
-		this.expanded = false;
+		this.expanded = this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element);
 		this.childrenTogglePromise = null;
 
 		this.emit('item:create', { item: this });

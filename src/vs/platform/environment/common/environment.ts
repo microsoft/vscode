@@ -14,11 +14,15 @@ export interface ParsedArgs {
 	diff?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
-	'new-window-if-not-first'?: boolean;
+	/**
+	 * Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
+	 */
+	'unity-launch'?: boolean;
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
 	performance?: boolean;
+	'prof-startup'?: string;
 	verbose?: boolean;
 	logExtensionHostCommunication?: boolean;
 	'disable-extensions'?: boolean;
@@ -46,7 +50,6 @@ export interface IEnvironmentService {
 	appRoot: string;
 
 	userHome: string;
-	userProductHome: string;
 	userDataPath: string;
 
 	appNameLong: string;
@@ -72,6 +75,7 @@ export interface IEnvironmentService {
 	verbose: boolean;
 	wait: boolean;
 	performance: boolean;
+	profileStartup: { prefix: string, dir: string } | undefined;
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;

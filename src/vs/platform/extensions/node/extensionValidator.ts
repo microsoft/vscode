@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { valid } from 'semver';
-import * as paths from 'vs/base/common/paths';
+import { join } from 'path';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -313,7 +313,7 @@ function baseIsValidExtensionDescription(extensionFolderPath: string, extensionD
 			notices.push(nls.localize('extensionDescription.main1', "property `{0}` can be omitted or must be of type `string`", 'main'));
 			return false;
 		} else {
-			let normalizedAbsolutePath = paths.normalize(paths.join(extensionFolderPath, extensionDescription.main));
+			let normalizedAbsolutePath = join(extensionFolderPath, extensionDescription.main);
 
 			if (normalizedAbsolutePath.indexOf(extensionFolderPath)) {
 				notices.push(nls.localize('extensionDescription.main2', "Expected `main` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));

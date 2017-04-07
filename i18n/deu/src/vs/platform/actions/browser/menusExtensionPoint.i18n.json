@@ -7,6 +7,7 @@
 	"dup": "Der Befehl \"{0}\" ist mehrmals im Abschnitt \"commands\" vorhanden.",
 	"dupe.command": "Das Menüelement verweist auf den gleichen Befehl wie der Standard- und der Alternativbefehl.",
 	"menuId.invalid": "\"{0}\" ist kein gültiger Menübezeichner.",
+	"menus.commandPalette": "Die Befehlspalette ",
 	"menus.editorContext": "Das Editor-Kontextmenü.",
 	"menus.editorTabContext": "Das Kontextmenü für die Editor-Registerkarten",
 	"menus.editorTitle": "Das Editor-Titelmenü.",

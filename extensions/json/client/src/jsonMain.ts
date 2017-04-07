@@ -6,15 +6,20 @@
 
 import * as path from 'path';
 
-import { workspace, languages, ExtensionContext, extensions, Uri } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, Range } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { activateColorDecorations } from "./colorDecorators";
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
+}
+
+namespace ColorSymbolRequest {
+	export const type: RequestType<string, Range[], any, any> = new RequestType('json/colorSymbols');
 }
 
 export interface ISchemaAssociations {
@@ -35,6 +40,7 @@ export function activate(context: ExtensionContext) {
 
 	let packageInfo = getPackageInfo(context);
 	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	context.subscriptions.push(telemetryReporter);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
@@ -80,6 +86,15 @@ export function activate(context: ExtensionContext) {
 		});
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
+
+		let colorRequestor = (uri: string) => {
+			return client.sendRequest(ColorSymbolRequest.type, uri).then(ranges => ranges.map(client.protocol2CodeConverter.asRange));
+		};
+		let isDecoratorEnabled = (languageId: string) => {
+			return workspace.getConfiguration().get<boolean>(languageId + '.colorDecorators.enable');
+		};
+		disposable = activateColorDecorations(colorRequestor, { json: true }, isDecoratorEnabled);
+		context.subscriptions.push(disposable);
 	});
 
 	// Push the disposable to the context's subscriptions so that the
@@ -99,7 +114,7 @@ function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
 			let jsonValidation = packageJSON.contributes.jsonValidation;
 			if (Array.isArray(jsonValidation)) {
 				jsonValidation.forEach(jv => {
-					let {fileMatch, url} = jv;
+					let { fileMatch, url } = jv;
 					if (fileMatch && url) {
 						if (url[0] === '.' && url[1] === '/') {
 							url = Uri.file(path.join(extension.extensionPath, url)).toString();

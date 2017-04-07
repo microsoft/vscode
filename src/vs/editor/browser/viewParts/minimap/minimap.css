@@ -3,6 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-editor .minimap-slider {
+	opacity: 0;
+	transition: opacity 100ms linear;
+}
+.monaco-editor .minimap:hover .minimap-slider {
+	opacity: 1;
+}
+.monaco-editor .minimap-slider.active {
+	opacity: 1;
+}
+
 .monaco-editor.vs .minimap-slider {
 	background: rgba(100, 100, 100, .4);
 }
@@ -29,4 +40,19 @@
 }
 .monaco-editor.hc-black .minimap-slider.active {
 	background: rgba(111, 195, 223, 1);
+}
+
+.monaco-editor .minimap-shadow-hidden {
+	position: absolute;
+	width: 0;
+}
+.monaco-editor .minimap-shadow-visible {
+	position: absolute;
+	left: -6px;
+	width: 6px;
+	box-shadow: #DDD -6px 0 6px -6px inset;
+}
+
+.monaco-editor.vs-dark .minimap-shadow-visible {
+	box-shadow: #000 -6px 0 6px -6px inset;
 }

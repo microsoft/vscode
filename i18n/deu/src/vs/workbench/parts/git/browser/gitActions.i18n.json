@@ -14,6 +14,7 @@
 	"commitMessage": "Commit der Nachricht",
 	"commitStaged": "Commit bereitgestellt",
 	"commitStaged2": "Commit bereitgestellt",
+	"commitStagedAmend": "Gestaffelt committen (Ändern)",
 	"commitStagedSignedOff": "Gestaffelt committen (abgemeldet)",
 	"confirmPublishMessage": "Möchten Sie \"{0}\" unter \"{1}\" veröffentlichen?",
 	"confirmPublishMessageButton": "&&Veröffentlichen",

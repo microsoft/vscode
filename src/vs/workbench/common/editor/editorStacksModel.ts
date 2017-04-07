@@ -15,6 +15,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
+import { ResourceMap } from 'vs/base/common/map';
 
 export interface GroupEvent extends IGroupEvent {
 	editor: EditorInput;
@@ -52,7 +53,7 @@ export class EditorGroup implements IEditorGroup {
 
 	private editors: EditorInput[];
 	private mru: EditorInput[];
-	private mapResourceToEditorCount: { [resource: string]: number };
+	private mapResourceToEditorCount: ResourceMap<number>;
 
 	private preview: EditorInput; // editor in preview state
 	private active: EditorInput;  // editor in active state
@@ -82,7 +83,7 @@ export class EditorGroup implements IEditorGroup {
 		this.editors = [];
 		this.mru = [];
 		this.toDispose = [];
-		this.mapResourceToEditorCount = Object.create(null);
+		this.mapResourceToEditorCount = new ResourceMap<number>();
 		this.onConfigurationUpdated(configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
 
 		this._onEditorActivated = new Emitter<EditorInput>();
@@ -558,7 +559,7 @@ export class EditorGroup implements IEditorGroup {
 
 			// It is possible to have the same resource opened twice (once as normal input and once as diff input)
 			// So we need to do ref counting on the resource to provide the correct picture
-			let counter = this.mapResourceToEditorCount[resource.toString()] || 0;
+			let counter = this.mapResourceToEditorCount.get(resource) || 0;
 			let newCounter: number;
 			if (remove) {
 				if (counter > 1) {
@@ -568,7 +569,7 @@ export class EditorGroup implements IEditorGroup {
 				newCounter = counter + 1;
 			}
 
-			this.mapResourceToEditorCount[resource.toString()] = newCounter;
+			this.mapResourceToEditorCount.set(resource, newCounter);
 		}
 	}
 
@@ -593,7 +594,7 @@ export class EditorGroup implements IEditorGroup {
 			return this.indexOf(arg1) >= 0;
 		}
 
-		const counter = this.mapResourceToEditorCount[(<URI>arg1).toString()];
+		const counter = this.mapResourceToEditorCount.get(arg1);
 
 		return typeof counter === 'number' && counter > 0;
 	}
@@ -944,6 +945,25 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._groups.indexOf(group);
 	}
 
+	public findGroup(editor: EditorInput, activeOnly?: boolean): EditorGroup {
+		const groupsToCheck = (this.activeGroup ? [this.activeGroup] : []).concat(this.groups.filter(g => g !== this.activeGroup));
+
+		for (let i = 0; i < groupsToCheck.length; i++) {
+			const group = groupsToCheck[i];
+			const editorsToCheck = (group.activeEditor ? [group.activeEditor] : []).concat(group.getEditors().filter(e => e !== group.activeEditor));
+
+			for (let j = 0; j < editorsToCheck.length; j++) {
+				const editorToCheck = editorsToCheck[j];
+
+				if ((!activeOnly || group.isActive(editorToCheck)) && editor.matches(editorToCheck)) {
+					return group;
+				}
+			}
+		}
+
+		return void 0;
+	}
+
 	public positionOfGroup(group: IEditorGroup): Position;
 	public positionOfGroup(group: EditorGroup): Position;
 	public positionOfGroup(group: EditorGroup): Position {
@@ -956,7 +976,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._groups[position];
 	}
 
-	public next(jumpGroups: boolean): IEditorIdentifier {
+	public next(jumpGroups: boolean, cycleAtEnd = true): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -972,6 +992,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Return first if we are not jumping groups
 		if (!jumpGroups) {
+			if (!cycleAtEnd) {
+				return null;
+			}
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(0) };
 		}
 
@@ -982,12 +1005,17 @@ export class EditorStacksModel implements IEditorStacksModel {
 			return { group: nextGroup, editor: nextGroup.getEditor(0) };
 		}
 
+		// Return null if we are not cycling at the end
+		if (!cycleAtEnd) {
+			return null;
+		}
+
 		// Return first in first group
 		const firstGroup = this.groups[0];
 		return { group: firstGroup, editor: firstGroup.getEditor(0) };
 	}
 
-	public previous(jumpGroups: boolean): IEditorIdentifier {
+	public previous(jumpGroups: boolean, cycleAtStart = true): IEditorIdentifier {
 		this.ensureLoaded();
 
 		if (!this.activeGroup) {
@@ -1003,6 +1031,9 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 		// Return last if we are not jumping groups
 		if (!jumpGroups) {
+			if (!cycleAtStart) {
+				return null;
+			}
 			return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
 		}
 
@@ -1011,6 +1042,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		const previousGroup = this.groups[indexOfGroup - 1];
 		if (previousGroup) {
 			return { group: previousGroup, editor: previousGroup.getEditor(previousGroup.count - 1) };
+		}
+
+		// Return null if we are not cycling at the start
+		if (!cycleAtStart) {
+			return null;
 		}
 
 		// Return last in last group

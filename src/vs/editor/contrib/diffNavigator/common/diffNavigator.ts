@@ -45,7 +45,7 @@ export class DiffNavigator extends EventEmitter {
 	private nextIdx: number;
 	private ranges: IDiffRange[];
 	private ignoreSelectionChange: boolean;
-	private revealFirst: boolean;
+	public revealFirst: boolean;
 
 	constructor(editor: ICommonDiffEditor, options: Options = {}) {
 		super([

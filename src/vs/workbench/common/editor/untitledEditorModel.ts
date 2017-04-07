@@ -41,11 +41,13 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private preferredEncoding: string;
 
 	private hasAssociatedFilePath: boolean;
+	private initialValue: string;
 
 	constructor(
 		private modeId: string,
 		private resource: URI,
 		hasAssociatedFilePath: boolean,
+		initialValue: string,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private backupFileService: IBackupFileService,
@@ -55,6 +57,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		super(modelService, modeService);
 
 		this.hasAssociatedFilePath = hasAssociatedFilePath;
+		this.initialValue = initialValue;
 		this.dirty = false;
 		this.versionId = 0;
 
@@ -171,7 +174,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			// untitled associated to file path are dirty right away as well as untitled with content
 			this.setDirty(this.hasAssociatedFilePath || !!backupContent);
 
-			return this.doLoad(backupContent || '').then(model => {
+			return this.doLoad(backupContent || this.initialValue || '').then(model => {
 				const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
 				// Encoding

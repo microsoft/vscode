@@ -147,7 +147,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 		}
 
 		const versionNow = model.getVersionId();
-		const {tabSize, insertSpaces} = model.getOptions();
+		const { tabSize, insertSpaces } = model.getOptions();
 
 		return new TPromise<ISingleEditOperation[]>((resolve, reject) => {
 			setTimeout(reject, 750);
@@ -166,16 +166,16 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 	}
 
 	private _editsWithEditor(editor: ICommonCodeEditor, edits: ISingleEditOperation[]): void {
-		editor.executeCommand('files.formatOnSave', new EditOperationsCommand(edits, editor.getSelection()));
+		EditOperationsCommand.execute(editor, edits);
 	}
 
 	private _editWithModel(model: IModel, edits: ISingleEditOperation[]): void {
 
-		const [{range}] = edits;
+		const [{ range }] = edits;
 		const initialSelection = new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 
 		model.pushEditOperations([initialSelection], edits.map(FormatOnSaveParticipant._asIdentEdit), undoEdits => {
-			for (const {range} of undoEdits) {
+			for (const { range } of undoEdits) {
 				if (Range.areIntersectingOrTouching(range, initialSelection)) {
 					return [new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)];
 				}
@@ -184,7 +184,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 		});
 	}
 
-	private static _asIdentEdit({text, range}: ISingleEditOperation): IIdentifiedSingleEditOperation {
+	private static _asIdentEdit({ text, range }: ISingleEditOperation): IIdentifiedSingleEditOperation {
 		return {
 			text,
 			range: Range.lift(range),
@@ -246,7 +246,7 @@ export class SaveParticipant implements ISaveParticipant {
 
 		const promiseFactory = this._saveParticipants.map(p => () => {
 
-			const {name} = p;
+			const { name } = p;
 			const t1 = Date.now();
 
 			return TPromise.as(p.participate(model, env)).then(() => {

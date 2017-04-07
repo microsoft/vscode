@@ -61,8 +61,8 @@ export function main(argv: string[]): TPromise<void> {
 		const child = spawn(process.execPath, argv.slice(2), options);
 
 		if (args.verbose) {
-			child.stdout.on('data', (data) => console.log(data.toString('utf8').trim()));
-			child.stderr.on('data', (data) => console.log(data.toString('utf8').trim()));
+			child.stdout.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+			child.stderr.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 		}
 
 		if (args.wait || args.verbose) {

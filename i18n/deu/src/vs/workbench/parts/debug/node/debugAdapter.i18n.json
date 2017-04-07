@@ -14,5 +14,7 @@
 	"debugServer": "Nur für die Entwicklung von Debugerweiterungen: Wenn ein Port angegeben ist, versucht der VS-Code, eine Verbindung mit einem Debugadapter herzustellen, der im Servermodus ausgeführt wird.",
 	"debugType": "Der Typ der Konfiguration.",
 	"debugWindowsConfiguration": "Windows-spezifische Startkonfigurationsattribute.",
-	"internalConsoleOptions": "Steuert das Verhalten der internen Debugging-Konsole."
+	"deprecatedVariables": "\"env.\", \"config.\" und \"command.\" sind veraltet, verwenden Sie stattdessen \"env:\", \"config:\" und \"command:\".",
+	"internalConsoleOptions": "Steuert das Verhalten der internen Debugging-Konsole.",
+	"node2NotSupported": "\"node2\" wird nicht mehr unterstützt, verwenden Sie stattdessen \"node\", und legen Sie das Attribut \"protocol\" auf \"inspector\" fest."
 }

@@ -151,6 +151,10 @@
 	height: calc(100% - 36px);
 }
 
+.extension-editor > .body > .content.loading {
+	background: url('loading.svg') center center no-repeat;
+}
+
 .extension-editor > .body > .content > .monaco-scrollable-element {
 	height: 100%;
 }

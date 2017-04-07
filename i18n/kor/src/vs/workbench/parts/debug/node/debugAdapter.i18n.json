@@ -14,5 +14,7 @@
 	"debugServer": "디버그 확장 배포 전용입니다. 포트가 지정된 경우 VS Code에서는 서버 모드로 실행하는 디버그 어댑터에 연결을 시도합니다.",
 	"debugType": "구성의 형식입니다.",
 	"debugWindowsConfiguration": "Windows 특정 시작 구성 특성입니다.",
-	"internalConsoleOptions": "내부 디버그 콘솔의 동작을 제어합니다."
+	"deprecatedVariables": "'env.', 'config.' 및 'command.'는 사용되지 않습니다. 대신 'env:', 'config:' 및 'command:'를 사용하세요.",
+	"internalConsoleOptions": "내부 디버그 콘솔의 동작을 제어합니다.",
+	"node2NotSupported": "\"node2\"는 더 이상 지원되지 않습니다. 대신 \"node\"를 사용하고 \"protocol\" 특성을 \"inspector\"로 설정하세요."
 }

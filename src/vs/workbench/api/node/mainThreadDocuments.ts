@@ -4,24 +4,72 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { EmitterEvent } from 'vs/base/common/eventEmitter';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { RawText } from 'vs/editor/common/model/textModel';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import URI from 'vs/base/common/uri';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from './extHost.protocol';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ITextSource } from 'vs/editor/common/model/textSource';
+import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ITextEditorModel } from 'vs/workbench/common/editor';
+
+export class BoundModelReferenceCollection {
+
+	private _data = new Array<{ length: number, dispose(): void }>();
+	private _length = 0;
+
+	constructor(
+		private _maxAge: number = 1000 * 60 * 3,
+		private _maxLength: number = 1024 * 1024 * 80
+	) {
+		//
+	}
+
+	dispose(): void {
+		this._data = dispose(this._data);
+	}
+
+	add(ref: IReference<ITextEditorModel>): void {
+		let length = ref.object.textEditorModel.getValueLength();
+		let handle: number;
+		let entry: { length: number, dispose(): void };
+		const dispose = () => {
+			let idx = this._data.indexOf(entry);
+			if (idx >= 0) {
+				this._length -= length;
+				ref.dispose();
+				clearTimeout(handle);
+				this._data.splice(idx, 1);
+			}
+		};
+		handle = setTimeout(dispose, this._maxAge);
+		entry = { length, dispose };
+
+		this._data.push(entry);
+		this._length += length;
+		this._cleanup();
+	}
+
+	private _cleanup(): void {
+		while (this._length > this._maxLength) {
+			this._data[0].dispose();
+		}
+	}
+}
 
 export class MainThreadDocuments extends MainThreadDocumentsShape {
+
 	private _modelService: IModelService;
 	private _modeService: IModeService;
 	private _textModelResolverService: ITextModelResolverService;
@@ -29,13 +77,17 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	private _codeEditorService: ICodeEditorService;
 	private _fileService: IFileService;
 	private _untitledEditorService: IUntitledEditorService;
+	private _editorGroupService: IEditorGroupService;
+
 	private _toDispose: IDisposable[];
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private _proxy: ExtHostDocumentsShape;
 	private _modelIsSynced: { [modelId: string]: boolean; };
 	private _resourceContentProvider: { [handle: number]: IDisposable };
+	private _modelReferenceCollection = new BoundModelReferenceCollection();
 
 	constructor(
+		documentsAndEditors: MainThreadDocumentsAndEditors,
 		@IThreadService threadService: IThreadService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
@@ -43,7 +95,8 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IFileService fileService: IFileService,
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
-		@IUntitledEditorService untitledEditorService: IUntitledEditorService
+		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
 		super();
 		this._modelService = modelService;
@@ -53,12 +106,15 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		this._codeEditorService = codeEditorService;
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
+		this._editorGroupService = editorGroupService;
+
 		this._proxy = threadService.get(ExtHostContext.ExtHostDocuments);
 		this._modelIsSynced = {};
 
 		this._toDispose = [];
-		modelService.onModelAdded(this._onModelAdded, this, this._toDispose);
-		modelService.onModelRemoved(this._onModelRemoved, this, this._toDispose);
+		this._toDispose.push(this._modelReferenceCollection);
+		this._toDispose.push(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
+		this._toDispose.push(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
 		modelService.onModelModeChanged(this._onModelModeChanged, this, this._toDispose);
 
 		this._toDispose.push(textFileService.models.onModelSaved(e => {
@@ -103,17 +159,10 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
 		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener((events) => this._onModelEvents(modelUrl, events));
-		this._proxy.$acceptModelAdd({
-			url: model.uri,
-			versionId: model.getVersionId(),
-			value: model.toRawText(),
-			modeId: model.getLanguageIdentifier().language,
-			isDirty: this._textFileService.isDirty(modelUrl)
-		});
 	}
 
 	private _onModelModeChanged(event: { model: editorCommon.IModel; oldModeId: string; }): void {
-		let {model, oldModeId} = event;
+		let { model, oldModeId } = event;
 		let modelUrl = model.uri;
 		if (!this._modelIsSynced[modelUrl.toString()]) {
 			return;
@@ -121,15 +170,14 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		this._proxy.$acceptModelModeChanged(model.uri.toString(), oldModeId, model.getLanguageIdentifier().language);
 	}
 
-	private _onModelRemoved(model: editorCommon.IModel): void {
-		let modelUrl = model.uri;
-		if (!this._modelIsSynced[modelUrl.toString()]) {
+	private _onModelRemoved(modelUrl: string): void {
+
+		if (!this._modelIsSynced[modelUrl]) {
 			return;
 		}
-		delete this._modelIsSynced[modelUrl.toString()];
-		this._modelToDisposeMap[modelUrl.toString()].dispose();
-		delete this._modelToDisposeMap[modelUrl.toString()];
-		this._proxy.$acceptModelRemoved(modelUrl.toString());
+		delete this._modelIsSynced[modelUrl];
+		this._modelToDisposeMap[modelUrl].dispose();
+		delete this._modelToDisposeMap[modelUrl];
 	}
 
 	private _onModelEvents(modelUrl: URI, events: EmitterEvent[]): void {
@@ -180,17 +228,14 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		});
 	}
 
-	$tryCreateDocument(options?: { language: string }): TPromise<URI> {
-		return this._doCreateUntitled(void 0, options ? options.language : void 0);
+	$tryCreateDocument(options?: { language?: string, content?: string }): TPromise<URI> {
+		return this._doCreateUntitled(void 0, options ? options.language : void 0, options ? options.content : void 0);
 	}
 
 	private _handleAsResourceInput(uri: URI): TPromise<boolean> {
 		return this._textModelResolverService.createModelReference(uri).then(ref => {
+			this._modelReferenceCollection.add(ref);
 			const result = !!ref.object;
-
-			// TODO@Joao TODO@Joh when should this model reference be disposed?
-			// ref.dispose();
-
 			return result;
 		});
 	}
@@ -203,8 +248,8 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		}, err => this._doCreateUntitled(asFileUri).then(resource => !!resource));
 	}
 
-	private _doCreateUntitled(uri?: URI, modeId?: string): TPromise<URI> {
-		let input = this._untitledEditorService.createOrGet(uri, modeId);
+	private _doCreateUntitled(uri?: URI, modeId?: string, initialValue?: string): TPromise<URI> {
+		let input = this._untitledEditorService.createOrGet(uri, modeId, initialValue);
 		return input.resolve(true).then(model => {
 			if (!this._modelIsSynced[input.getResource().toString()]) {
 				throw new Error(`expected URI ${input.getResource().toString()} to have come to LIFE`);
@@ -240,16 +285,13 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		}
 	}
 
-	$onVirtualDocumentChange(uri: URI, value: editorCommon.IRawText): void {
+	$onVirtualDocumentChange(uri: URI, value: ITextSource): void {
 		const model = this._modelService.getModel(uri);
 		if (!model) {
 			return;
 		}
-		// fetch the raw text from the ext host but
-		// reuse the current options
-		const {options} = RawText.fromStringWithModelOptions('', model);
-		const raw = <editorCommon.IRawText>{
-			options,
+
+		const raw: ITextSource = {
 			lines: value.lines,
 			length: value.length,
 			BOM: value.BOM,
@@ -259,7 +301,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		};
 
 		if (!model.equals(raw)) {
-			model.setValueFromRawText(raw);
+			model.setValueFromTextSource(raw);
 		}
 	}
 }

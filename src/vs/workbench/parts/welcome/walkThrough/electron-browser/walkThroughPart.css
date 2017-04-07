@@ -35,7 +35,9 @@
 	border-bottom: 2px solid;
 }
 
-.monaco-workbench > .part.editor > .content .walkThroughContent h1, h2, h3 {
+.monaco-workbench > .part.editor > .content .walkThroughContent h1,
+.monaco-workbench > .part.editor > .content .walkThroughContent h2,
+.monaco-workbench > .part.editor > .content .walkThroughContent h3 {
 	font-weight: lighter;
 	margin-top: 20px;
 	margin-bottom: 10px;

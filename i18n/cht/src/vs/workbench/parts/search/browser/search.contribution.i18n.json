@@ -8,7 +8,6 @@
 	"exclude.boolean": "要符合檔案路徑的 Glob 模式。設為 True 或 False 可啟用或停用模式。",
 	"exclude.when": "在相符檔案同層級上額外的檢查。請使用 $(basename) 作為相符檔案名稱的變數。",
 	"findInFiles": "在檔案中尋找",
-	"findInFolder": "在資料夾中尋找",
 	"name": "搜尋",
 	"openAnythingHandlerDescription": "前往檔案",
 	"openSymbolDescriptionNormal": "前往工作區中的符號",
@@ -16,5 +15,6 @@
 	"searchConfigurationTitle": "搜尋",
 	"showSearchViewlet": "顯示搜尋",
 	"showTriggerActions": "前往工作區中的符號...",
+	"useRipgrep": "控制是否要在文字搜尋中使用 ripgrep",
 	"view": "檢視"
 }

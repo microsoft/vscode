@@ -23,12 +23,16 @@
 	transition: filter .25s, opacity .2s;
 }
 
-#workbench\.parts\.editor.blur-background {
-	filter: blur(3px);
-	opacity: .28;
+.monaco-workbench.blur-background #workbench\.parts\.panel,
+.monaco-workbench.blur-background #workbench\.parts\.sidebar,
+.monaco-workbench.blur-background #workbench\.parts\.editor {
+	filter: blur(2px);
+	opacity: .4;
 }
 
-.hc-black #workbench\.parts\.editor.blur-background {
+.hc-black .monaco-workbench.blur-background #workbench\.parts\.panel,
+.hc-black .monaco-workbench.blur-background #workbench\.parts\.sidebar,
+.hc-black .monaco-workbench.blur-background #workbench\.parts\.editor {
 	opacity: .2;
 }
 

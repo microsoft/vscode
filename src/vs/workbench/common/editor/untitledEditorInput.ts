@@ -29,6 +29,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	private resource: URI;
 	private _hasAssociatedFilePath: boolean;
+	private initialValue: string;
 	private modeId: string;
 	private cachedModel: UntitledEditorModel;
 	private modelResolve: TPromise<UntitledEditorModel>;
@@ -42,6 +43,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		resource: URI,
 		hasAssociatedFilePath: boolean,
 		modeId: string,
+		initialValue: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService
@@ -49,6 +51,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		super();
 
 		this.resource = resource;
+		this.initialValue = initialValue;
 		this._hasAssociatedFilePath = hasAssociatedFilePath;
 		this.modeId = modeId;
 		this.toUnbind = [];
@@ -166,7 +169,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	private createModel(): UntitledEditorModel {
-		const model = this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath);
+		const model = this.instantiationService.createInstance(UntitledEditorModel, this.modeId, this.resource, this.hasAssociatedFilePath, this.initialValue);
 
 		// re-emit some events from the model
 		this.toUnbind.push(model.onDidChangeContent(() => this._onDidModelChangeContent.fire()));

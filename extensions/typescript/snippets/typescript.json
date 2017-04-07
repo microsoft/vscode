@@ -1,13 +1,4 @@
 {
-	"jsdoc snippet": {
-		"prefix": "jsdoc comment",
-		"body": [
-			"/**",
-			" * $0",
-			" */"
-		],
-		"description": "jsdoc snippet"
-	},
 	"Constructor": {
 		"prefix": "ctor",
 		"body": [
@@ -24,9 +15,6 @@
 	"Class Definition": {
 		"prefix": "class",
 		"body": [
-			"/**",
-			" * ${1:name}",
-			" */",
 			"class ${1:name} {",
 			"\tconstructor(${2:parameters}) {",
 			"\t\t$0",
@@ -59,7 +47,7 @@
 	"Import external module.": {
 		"prefix": "import statement",
 		"body": [
-			"import { $0 } from '${1:module}';"
+			"import { $0 } from \"${1:module}\";"
 		],
 		"description": "Import external module."
 	},

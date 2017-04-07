@@ -8,6 +8,8 @@ import URI from 'vs/base/common/uri';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import arrays = require('vs/base/common/arrays');
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Event, { Emitter, once } from 'vs/base/common/event';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
@@ -68,7 +70,7 @@ export interface IUntitledEditorService {
 	 * It is valid to pass in a file resource. In that case the path will be used as identifier.
 	 * The use case is to be able to create a new file with a specific path with VSCode.
 	 */
-	createOrGet(resource?: URI, modeId?: string): UntitledEditorInput;
+	createOrGet(resource?: URI, modeId?: string, initialValue?: string): UntitledEditorInput;
 
 	/**
 	 * A check to find out if a untitled resource has a file path associated or not.
@@ -89,7 +91,8 @@ export class UntitledEditorService implements IUntitledEditorService {
 	private _onDidDisposeModel: Emitter<URI>;
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this._onDidChangeContent = new Emitter<URI>();
 		this._onDidChangeDirty = new Emitter<URI>();
@@ -154,7 +157,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 			.map((i) => i.getResource());
 	}
 
-	public createOrGet(resource?: URI, modeId?: string): UntitledEditorInput {
+	public createOrGet(resource?: URI, modeId?: string, initialValue?: string): UntitledEditorInput {
 		let hasAssociatedFilePath = false;
 		if (resource) {
 			hasAssociatedFilePath = (resource.scheme === 'file');
@@ -171,10 +174,10 @@ export class UntitledEditorService implements IUntitledEditorService {
 		}
 
 		// Create new otherwise
-		return this.doCreate(resource, hasAssociatedFilePath, modeId);
+		return this.doCreate(resource, hasAssociatedFilePath, modeId, initialValue);
 	}
 
-	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, modeId?: string): UntitledEditorInput {
+	private doCreate(resource?: URI, hasAssociatedFilePath?: boolean, modeId?: string, initialValue?: string): UntitledEditorInput {
 		if (!resource) {
 
 			// Create new taking a resource URI that is not already taken
@@ -185,7 +188,15 @@ export class UntitledEditorService implements IUntitledEditorService {
 			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
 		}
 
-		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId);
+		// Look up default language from settings if any
+		if (!modeId && !hasAssociatedFilePath) {
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+			if (configuration.files && configuration.files.defaultLanguage) {
+				modeId = configuration.files.defaultLanguage;
+			}
+		}
+
+		const input = this.instantiationService.createInstance(UntitledEditorInput, resource, hasAssociatedFilePath, modeId, initialValue);
 
 		const contentListener = input.onDidModelChangeContent(() => {
 			this._onDidChangeContent.fire(resource);

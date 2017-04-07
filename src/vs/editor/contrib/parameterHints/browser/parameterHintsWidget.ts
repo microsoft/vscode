@@ -358,7 +358,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 		for (let i = signature.parameters.length - 1; i >= 0; i--) {
 			const parameter = signature.parameters[i];
-			idx = signature.label.lastIndexOf(parameter.label, end);
+			idx = signature.label.lastIndexOf(parameter.label, end - 1);
 
 			let signatureLabelOffset = 0;
 			let signatureLabelEnd = 0;

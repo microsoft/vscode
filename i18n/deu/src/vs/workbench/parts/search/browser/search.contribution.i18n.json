@@ -8,7 +8,6 @@
 	"exclude.boolean": "Das Globmuster, mit dem Dateipfade verglichen werden sollen. Legen Sie diesen Wert auf \"true\" oder \"false\" fest, um das Muster zu aktivieren bzw. zu deaktivieren.",
 	"exclude.when": "Zusätzliche Überprüfung der gleichgeordneten Elemente einer übereinstimmenden Datei. Verwenden Sie \"$(basename)\" als Variable für den übereinstimmenden Dateinamen.",
 	"findInFiles": "In Dateien suchen",
-	"findInFolder": "In Ordner suchen",
 	"name": "Suchen",
 	"openAnythingHandlerDescription": "Zu Datei wechseln",
 	"openSymbolDescriptionNormal": "Zu Symbol im Arbeitsbereich wechseln",
@@ -16,5 +15,6 @@
 	"searchConfigurationTitle": "Suchen",
 	"showSearchViewlet": "Suche anzeigen",
 	"showTriggerActions": "Zu Symbol im Arbeitsbereich wechseln...",
+	"useRipgrep": "Steuert, ob \"ripgrep\" in der Textsuche verwendet wird",
 	"view": "Anzeigen"
 }

@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .peekview-widget .head {
-	background-color: #fff;
-	border-top: 1px solid;
 	-webkit-box-sizing:	border-box;
 	-o-box-sizing: border-box;
 	-moz-box-sizing: border-box;
@@ -20,13 +18,8 @@
 	cursor: pointer;
 }
 
-.monaco-editor .peekview-widget .head .peekview-title .filename {
-	color: #333333;
-}
-
 .monaco-editor .peekview-widget .head .peekview-title .dirname:not(:empty) {
 	font-size: 0.9em;
-	color: rgba(108, 108, 108, 0.7);
 	margin-left: 0.5em;
 }
 
@@ -49,43 +42,14 @@
 
 .monaco-editor .peekview-widget > .body {
 	border-top: 1px solid;
-	border-bottom: 1px solid;
 	position: relative;
 }
 
 /* Dark Theme */
-.monaco-editor.vs-dark .peekview-widget .head {
-	background-color: #1E1E1E;
-}
+/* High Contrast Theme */
 
 .monaco-editor.hc-black .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action,
 .monaco-editor.vs-dark .peekview-widget .head .peekview-actions .action-label.icon.close-peekview-action {
 	background: url('media/close-inverse.svg') center center no-repeat;
 }
 
-.monaco-editor.vs-dark .peekview-widget .head .peekview-title .filename {
-	color: white;
-}
-
-.monaco-editor.vs-dark .peekview-widget .head .peekview-title .dirname {
-	color: rgba(204, 204, 204, 0.7);
-}
-
-/* High Contrast Theming */
-.monaco-editor.hc-black .peekview-widget .head {
-	background-color: #0C141F;
-	border-color: #6FC3DF;
-}
-
-.monaco-editor.hc-black .peekview-widget .head .peekview-title .filename {
-	color: #fff;
-}
-
-.monaco-editor.hc-black .peekview-widget .head .peekview-title .dirname {
-	color: #fff;
-	opacity: 0.6;
-}
-
-.monaco-editor.hc-black .peekview-widget > .body {
-	border-color: #6FC3DF;
-}

@@ -14,5 +14,7 @@
 	"debugServer": "僅限偵錯延伸模組開發: 如果指定了連接埠，VS Code 會嘗試連線至以伺服器模式執行的偵錯配接器",
 	"debugType": "組態的類型。",
 	"debugWindowsConfiguration": "Windows 特定的啟動設定屬性。",
-	"internalConsoleOptions": "內部偵錯主控台的控制項行為。"
+	"deprecatedVariables": "'env.'、'config.' 及 'command.' 已標示為即將淘汰，請改用 'env:'、'config:' 及 'command:'。",
+	"internalConsoleOptions": "內部偵錯主控台的控制項行為。",
+	"node2NotSupported": "\"node2\" 已不再支援，請改用 \"node\"，並將 \"protocol\" 屬性設為 \"inspector\"。"
 }

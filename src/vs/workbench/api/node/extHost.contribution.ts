@@ -33,10 +33,11 @@ import { MainThreadTerminalService } from './mainThreadTerminalService';
 import { MainThreadWorkspace } from './mainThreadWorkspace';
 import { MainProcessExtensionService } from './mainThreadExtensionService';
 import { MainThreadFileSystemEventService } from './mainThreadFileSystemEventService';
+import { MainThreadTask } from './mainThreadTask';
 import { MainThreadSCM } from './mainThreadSCM';
 
 // --- other interested parties
-import { MainProcessTextMateSnippet } from 'vs/editor/node/textMate/TMSnippets';
+import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/editor/node/languageConfigurationExtensionPoint';
 import { SaveParticipant } from './mainThreadSaveParticipant';
@@ -63,13 +64,15 @@ export class ExtHostContribution implements IWorkbenchContribution {
 			return this.instantiationService.createInstance(ctor);
 		};
 
+		const documentsAndEditors = this.instantiationService.createInstance(MainThreadDocumentsAndEditors);
+
 		// Addressable instances
 		const col = new InstanceCollection();
 		col.define(MainContext.MainThreadCommands).set(create(MainThreadCommands));
 		col.define(MainContext.MainThreadConfiguration).set(create(MainThreadConfiguration));
 		col.define(MainContext.MainThreadDiagnostics).set(create(MainThreadDiagnostics));
-		col.define(MainContext.MainThreadDocuments).set(create(MainThreadDocuments));
-		col.define(MainContext.MainThreadEditors).set(create(MainThreadEditors));
+		col.define(MainContext.MainThreadDocuments).set(this.instantiationService.createInstance(MainThreadDocuments, documentsAndEditors));
+		col.define(MainContext.MainThreadEditors).set(this.instantiationService.createInstance(MainThreadEditors, documentsAndEditors));
 		col.define(MainContext.MainThreadErrors).set(create(MainThreadErrors));
 		col.define(MainContext.MainThreadExplorers).set(create(MainThreadTreeExplorers));
 		col.define(MainContext.MainThreadLanguageFeatures).set(create(MainThreadLanguageFeatures));
@@ -84,13 +87,13 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadTerminalService).set(create(MainThreadTerminalService));
 		col.define(MainContext.MainThreadWorkspace).set(create(MainThreadWorkspace));
 		col.define(MainContext.MainThreadSCM).set(create(MainThreadSCM));
+		col.define(MainContext.MainThreadTask).set(create(MainThreadTask));
 		if (this.extensionService instanceof MainProcessExtensionService) {
 			col.define(MainContext.MainProcessExtensionService).set(<MainProcessExtensionService>this.extensionService);
 		}
 		col.finish(true, this.threadService);
 
 		// Other interested parties
-		create(MainProcessTextMateSnippet);
 		create(JSONValidationExtensionPoint);
 		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
 		create(MainThreadFileSystemEventService);

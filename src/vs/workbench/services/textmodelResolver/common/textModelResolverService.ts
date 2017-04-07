@@ -73,8 +73,8 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 
 		return first(factories).then(model => {
 			if (!model) {
-				console.error(`Could not resolve any model with uri '${resource}'.`); // TODO PII
-				return TPromise.wrapError('Could not resolve any model with provided uri.');
+				console.error(`Unable to open '${resource}' resource is not available.`); // TODO PII
+				return TPromise.wrapError('resource is not available');
 			}
 
 			return model;
@@ -139,7 +139,14 @@ export class TextModelResolverService implements ITextModelResolverService {
 		}
 
 		const ref = this.resourceModelCollection.acquire(resource.toString());
-		return ref.object.then(model => ({ object: model, dispose: () => ref.dispose() }));
+
+		return ref.object.then(
+			model => ({ object: model, dispose: () => ref.dispose() }),
+			err => {
+				ref.dispose();
+				return TPromise.wrapError(err);
+			}
+		);
 	}
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {

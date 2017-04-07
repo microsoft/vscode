@@ -13,9 +13,8 @@ import types = require('vs/base/common/types');
 import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IAction, Action } from 'vs/base/common/actions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import strings = require('vs/base/common/strings');
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenEntryGroup, IHighlight, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
@@ -233,7 +232,6 @@ class ActionCommandEntry extends BaseCommandEntry {
 }
 
 export class CommandsHandler extends QuickOpenHandler {
-	private scorerCache: { [key: string]: number };
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -243,8 +241,6 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
-
-		this.scorerCache = Object.create(null);
 	}
 
 	protected includeWorkbenchCommands(): boolean {
@@ -289,13 +285,8 @@ export class CommandsHandler extends QuickOpenHandler {
 		// Remove duplicates
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
 
-		// Sort
-		if (searchValue) {
-			const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
-			entries = entries.sort((elementA, elementB) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache));
-		} else {
-			entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
-		}
+		// Sort by name
+		entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
@@ -306,9 +297,9 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let i = 0; i < actionDescriptors.length; i++) {
 			const actionDescriptor = actionDescriptors[i];
-			const [keybind] = this.keybindingService.lookupKeybindings(actionDescriptor.id);
-			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
-			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
+			const keybinding = this.keybindingService.lookupKeybinding(actionDescriptor.id);
+			const keyLabel = keybinding ? keybinding.getLabel() : '';
+			const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
 
 			if (actionDescriptor.label) {
 
@@ -338,9 +329,9 @@ export class CommandsHandler extends QuickOpenHandler {
 		for (let i = 0; i < actions.length; i++) {
 			const action = actions[i];
 
-			const [keybind] = this.keybindingService.lookupKeybindings(action.id);
-			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
-			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
+			const keybinding = this.keybindingService.lookupKeybinding(action.id);
+			const keyLabel = keybinding ? keybinding.getLabel() : '';
+			const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
 			const label = action.label;
 
 			if (label) {
@@ -362,17 +353,32 @@ export class CommandsHandler extends QuickOpenHandler {
 		const entries: ActionCommandEntry[] = [];
 
 		for (let action of actions) {
-			const label = action.item.category
-				? nls.localize('cat.title', "{0}: {1}", action.item.category, action.item.title)
-				: action.item.title;
-			const highlights = wordFilter(searchValue, label);
-			if (!highlights) {
-				continue;
+			const title = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
+			let category, label = title;
+			if (action.item.category) {
+				category = typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
+				label = nls.localize('cat.title', "{0}: {1}", category, title);
 			}
-			const [keybind] = this.keybindingService.lookupKeybindings(action.item.id);
-			const keyLabel = keybind ? this.keybindingService.getLabelFor(keybind) : '';
-			const keyAriaLabel = keybind ? this.keybindingService.getAriaLabelFor(keybind) : '';
-			entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, label, null, highlights, null, action));
+
+			if (label) {
+				const labelHighlights = wordFilter(searchValue, label);
+				const keybinding = this.keybindingService.lookupKeybinding(action.item.id);
+				const keyLabel = keybinding ? keybinding.getLabel() : '';
+				const keyAriaLabel = keybinding ? keybinding.getAriaLabel() : '';
+				// Add an 'alias' in original language when running in different locale
+				const aliasTitle = (language !== LANGUAGE_DEFAULT && typeof action.item.title !== 'string') ? action.item.title.original : null;
+				const aliasCategory = (language !== LANGUAGE_DEFAULT && category && typeof action.item.category !== 'string') ? action.item.category.original : null;
+				let alias;
+				if (aliasTitle && category) {
+					alias = aliasCategory ? `${aliasCategory}: ${aliasTitle}` : `${category}: ${aliasTitle}`;
+				} else if (aliasTitle) {
+					alias = aliasTitle;
+				}
+				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
+				if (labelHighlights || aliasHighlights) {
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
+				}
+			}
 		}
 
 		return entries;
@@ -391,12 +397,6 @@ export class CommandsHandler extends QuickOpenHandler {
 
 	public getEmptyLabel(searchString: string): string {
 		return nls.localize('noCommandsMatching', "No commands matching");
-	}
-
-	public onClose(canceled: boolean): void {
-
-		// Clear Cache
-		this.scorerCache = Object.create(null);
 	}
 }
 

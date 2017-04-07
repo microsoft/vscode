@@ -46,7 +46,7 @@ export class TableOfContentsProvider {
 
 	private buildToc(document: vscode.TextDocument): any {
 		const toc: TocEntry[] = [];
-		const tokens: IToken[] = this.engine.parse(this.document.getText());
+		const tokens: IToken[] = this.engine.parse(document.uri, document.getText());
 
 		for (const heading of tokens.filter(token => token.type === 'heading_open')) {
 			const lineNumber = heading.map[0];

@@ -22,24 +22,24 @@ interface IBuildModuleInfo {
 }
 
 interface IBuildModuleInfoMap {
-	[moduleId:string]: IBuildModuleInfo;
+	[moduleId: string]: IBuildModuleInfo;
 }
 
 interface ILoaderPlugin {
-	write(pluginName:string, moduleName:string, write:ILoaderPluginWriteFunc): void;
-	writeFile(pluginName:string, entryPoint:string, req:ILoaderPluginReqFunc, write:(filename:string, contents:string)=>void, config:any): void;
-	finishBuild(write:(filename:string, contents:string)=>void): void;
+	write(pluginName: string, moduleName: string, write: ILoaderPluginWriteFunc): void;
+	writeFile(pluginName: string, entryPoint: string, req: ILoaderPluginReqFunc, write: (filename: string, contents: string) => void, config: any): void;
+	finishBuild(write: (filename: string, contents: string) => void): void;
 }
 
 interface ILoaderPluginWriteFunc {
-	(something:string): void;
+	(something: string): void;
 	getEntryPoint(): string;
-	asModule(moduleId:string, code:string): void;
+	asModule(moduleId: string, code: string): void;
 }
 
 interface ILoaderPluginReqFunc {
-	(something:string): void;
-	toUrl(something:string): string;
+	(something: string): void;
+	toUrl(something: string): string;
 }
 
 export interface IEntryPoint {
@@ -52,15 +52,15 @@ export interface IEntryPoint {
 }
 
 interface IEntryPointMap {
-	[moduleId:string]: IEntryPoint;
+	[moduleId: string]: IEntryPoint;
 }
 
 export interface IGraph {
-	[node:string]: string[];
+	[node: string]: string[];
 }
 
 interface INodeSet {
-	[node:string]: boolean;
+	[node: string]: boolean;
 }
 
 export interface IFile {
@@ -75,7 +75,7 @@ export interface IConcatFile {
 
 export interface IBundleData {
 	graph: IGraph;
-	bundles: {[moduleId:string]:string[];};
+	bundles: { [moduleId: string]: string[]; };
 }
 
 export interface IBundleResult {
@@ -96,35 +96,35 @@ export interface ILoaderConfig {
 /**
  * Bundle `entryPoints` given config `config`.
  */
-export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback:(err:any, result:IBundleResult) => void): void {
-	let entryPointsMap:IEntryPointMap = {};
-	entryPoints.forEach((module:IEntryPoint) => {
+export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callback: (err: any, result: IBundleResult) => void): void {
+	let entryPointsMap: IEntryPointMap = {};
+	entryPoints.forEach((module: IEntryPoint) => {
 		entryPointsMap[module.name] = module;
 	});
 
-	let allMentionedModulesMap: {[modules:string]:boolean;} = {};
-	entryPoints.forEach((module:IEntryPoint) => {
+	let allMentionedModulesMap: { [modules: string]: boolean; } = {};
+	entryPoints.forEach((module: IEntryPoint) => {
 		allMentionedModulesMap[module.name] = true;
-		(module.include||[]).forEach(function(includedModule) {
+		(module.include || []).forEach(function (includedModule) {
 			allMentionedModulesMap[includedModule] = true;
 		});
-		(module.exclude||[]).forEach(function(excludedModule) {
+		(module.exclude || []).forEach(function (excludedModule) {
 			allMentionedModulesMap[excludedModule] = true;
 		});
 	});
 
 
 	var code = require('fs').readFileSync(path.join(__dirname, '../../src/vs/loader.js'));
-	var r: Function = <any> vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
+	var r: Function = <any>vm.runInThisContext('(function(require, module, exports) { ' + code + '\n});');
 	var loaderModule = { exports: {} };
 	r.call({}, require, loaderModule, loaderModule.exports);
 
-	var loader:any = loaderModule.exports;
+	var loader: any = loaderModule.exports;
 	config.isBuild = true;
 	loader.config(config);
 
 	loader(['require'], (localRequire) => {
-		let resolvePath = (path:string) => {
+		let resolvePath = (path: string) => {
 			let r = localRequire.toUrl(path);
 			if (!/\.js/.test(r)) {
 				return r + '.js';
@@ -154,14 +154,14 @@ export function bundle(entryPoints:IEntryPoint[], config:ILoaderConfig, callback
 	}, (err) => callback(err, null));
 }
 
-function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap): IPartialBundleResult {
+function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMap): IPartialBundleResult {
 	let modulesMap: IBuildModuleInfoMap = {};
-	modules.forEach((m:IBuildModuleInfo) => {
+	modules.forEach((m: IBuildModuleInfo) => {
 		modulesMap[m.id] = m;
 	});
 
-	let modulesGraph:IGraph = {};
-	modules.forEach((m:IBuildModuleInfo) => {
+	let modulesGraph: IGraph = {};
+	modules.forEach((m: IBuildModuleInfo) => {
 		modulesGraph[m.id] = m.dependencies;
 	});
 
@@ -169,25 +169,25 @@ function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap)
 
 	let result: IConcatFile[] = [];
 	let usedPlugins: IPluginMap = {};
-	let bundleData:IBundleData = {
+	let bundleData: IBundleData = {
 		graph: modulesGraph,
 		bundles: {}
 	};
 
-	Object.keys(entryPoints).forEach((moduleToBundle:string) => {
+	Object.keys(entryPoints).forEach((moduleToBundle: string) => {
 		let info = entryPoints[moduleToBundle];
 		let rootNodes = [moduleToBundle].concat(info.include || []);
 		let allDependencies = visit(rootNodes, modulesGraph);
-		let excludes:string[] = ['require', 'exports', 'module'].concat(info.exclude || []);
+		let excludes: string[] = ['require', 'exports', 'module'].concat(info.exclude || []);
 
-		excludes.forEach((excludeRoot:string) => {
+		excludes.forEach((excludeRoot: string) => {
 			let allExcludes = visit([excludeRoot], modulesGraph);
-			Object.keys(allExcludes).forEach((exclude:string) => {
+			Object.keys(allExcludes).forEach((exclude: string) => {
 				delete allDependencies[exclude];
 			});
 		});
 
-		let includedModules = sortedModules.filter((module:string) => {
+		let includedModules = sortedModules.filter((module: string) => {
 			return allDependencies[module];
 		});
 
@@ -209,10 +209,10 @@ function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap)
 		}
 	});
 
-	Object.keys(usedPlugins).forEach((pluginName:string) => {
+	Object.keys(usedPlugins).forEach((pluginName: string) => {
 		let plugin = usedPlugins[pluginName];
 		if (typeof plugin.finishBuild === 'function') {
-			let write = (filename:string, contents:string) => {
+			let write = (filename: string, contents: string) => {
 				result.push({
 					dest: filename,
 					sources: [{
@@ -231,16 +231,16 @@ function emitEntryPoints(modules:IBuildModuleInfo[], entryPoints:IEntryPointMap)
 	};
 }
 
-function extractStrings(destFiles:IConcatFile[]):IConcatFile[] {
-	let parseDefineCall = (moduleMatch:string, depsMatch:string) => {
+function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
+	let parseDefineCall = (moduleMatch: string, depsMatch: string) => {
 		let module = moduleMatch.replace(/^"|"$/g, '');
 		let deps = depsMatch.split(',');
 		deps = deps.map((dep) => {
 			dep = dep.trim();
 			dep = dep.replace(/^"|"$/g, '');
 			dep = dep.replace(/^'|'$/g, '');
-			let prefix:string = null;
-			let _path:string = null;
+			let prefix: string = null;
+			let _path: string = null;
 			let pieces = dep.split('!');
 			if (pieces.length > 1) {
 				prefix = pieces[0] + '!';
@@ -271,7 +271,7 @@ function extractStrings(destFiles:IConcatFile[]):IConcatFile[] {
 		}
 
 		// Do one pass to record the usage counts for each module id
-		let useCounts: {[moduleId:string]:number;} = {};
+		let useCounts: { [moduleId: string]: number; } = {};
 		destFile.sources.forEach((source) => {
 			let matches = source.contents.match(/define\(("[^"]+"),\s*\[(((, )?("|')[^"']+("|'))+)\]/);
 			if (!matches) {
@@ -290,7 +290,7 @@ function extractStrings(destFiles:IConcatFile[]):IConcatFile[] {
 			return useCounts[b] - useCounts[a];
 		});
 
-		let replacementMap: {[moduleId:string]:number;} = {};
+		let replacementMap: { [moduleId: string]: number; } = {};
 		sortedByUseModules.forEach((module, index) => {
 			replacementMap[module] = index;
 		});
@@ -325,7 +325,7 @@ function extractStrings(destFiles:IConcatFile[]):IConcatFile[] {
 	return destFiles;
 }
 
-function removeDuplicateTSBoilerplate(destFiles:IConcatFile[]):IConcatFile[] {
+function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 	// Taken from typescript compiler => emitFiles
 	let BOILERPLATE = [
 		{ start: /^var __extends/, end: /^};$/ },
@@ -377,7 +377,7 @@ function removeDuplicateTSBoilerplate(destFiles:IConcatFile[]):IConcatFile[] {
 }
 
 interface IPluginMap {
-	[moduleId:string]:ILoaderPlugin;
+	[moduleId: string]: ILoaderPlugin;
 }
 
 interface IEmitEntryPointResult {
@@ -386,10 +386,10 @@ interface IEmitEntryPointResult {
 }
 
 function emitEntryPoint(
-	modulesMap:IBuildModuleInfoMap,
-	deps:IGraph,
-	entryPoint:string,
-	includedModules:string[],
+	modulesMap: IBuildModuleInfoMap,
+	deps: IGraph,
+	entryPoint: string,
+	includedModules: string[],
 	prepend: string[],
 	append: string[],
 	dest: string
@@ -398,20 +398,20 @@ function emitEntryPoint(
 		dest = entryPoint + '.js';
 	}
 	let mainResult: IConcatFile = {
-			sources: [],
-			dest: dest
-		},
+		sources: [],
+		dest: dest
+	},
 		results: IConcatFile[] = [mainResult];
 
 	let usedPlugins: IPluginMap = {};
-	let getLoaderPlugin = (pluginName:string):ILoaderPlugin => {
+	let getLoaderPlugin = (pluginName: string): ILoaderPlugin => {
 		if (!usedPlugins[pluginName]) {
 			usedPlugins[pluginName] = modulesMap[pluginName].exports;
 		}
 		return usedPlugins[pluginName];
 	};
 
-	includedModules.forEach((c:string) => {
+	includedModules.forEach((c: string) => {
 		let bangIndex = c.indexOf('!');
 
 		if (bangIndex >= 0) {
@@ -436,15 +436,15 @@ function emitEntryPoint(
 		}
 	});
 
-	Object.keys(usedPlugins).forEach((pluginName:string) => {
+	Object.keys(usedPlugins).forEach((pluginName: string) => {
 		let plugin = usedPlugins[pluginName];
 		if (typeof plugin.writeFile === 'function') {
-			let req:ILoaderPluginReqFunc = <any>(() => {
+			let req: ILoaderPluginReqFunc = <any>(() => {
 				throw new Error('no-no!');
 			});
 			req.toUrl = something => something;
 
-			let write = (filename:string, contents:string) => {
+			let write = (filename: string, contents: string) => {
 				results.push({
 					dest: filename,
 					sources: [{
@@ -457,7 +457,7 @@ function emitEntryPoint(
 		}
 	});
 
-	let toIFile = (path):IFile => {
+	let toIFile = (path): IFile => {
 		let contents = readFileAndRemoveBOM(path);
 		return {
 			path: path,
@@ -465,8 +465,8 @@ function emitEntryPoint(
 		};
 	};
 
-	let toPrepend = (prepend||[]).map(toIFile);
-	let toAppend = (append||[]).map(toIFile);
+	let toPrepend = (prepend || []).map(toIFile);
+	let toAppend = (append || []).map(toIFile);
 
 	mainResult.sources = toPrepend.concat(mainResult.sources).concat(toAppend);
 
@@ -476,7 +476,7 @@ function emitEntryPoint(
 	};
 }
 
-function readFileAndRemoveBOM(path:string): string {
+function readFileAndRemoveBOM(path: string): string {
 	var BOM_CHAR_CODE = 65279;
 	var contents = fs.readFileSync(path, 'utf8');
 	// Remove BOM
@@ -486,7 +486,7 @@ function readFileAndRemoveBOM(path:string): string {
 	return contents;
 }
 
-function emitPlugin(entryPoint:string, plugin:ILoaderPlugin, pluginName:string, moduleName:string): IFile {
+function emitPlugin(entryPoint: string, plugin: ILoaderPlugin, pluginName: string, moduleName: string): IFile {
 	let result = '';
 	if (typeof plugin.write === 'function') {
 		let write: ILoaderPluginWriteFunc = <any>((what) => {
@@ -495,8 +495,8 @@ function emitPlugin(entryPoint:string, plugin:ILoaderPlugin, pluginName:string, 
 		write.getEntryPoint = () => {
 			return entryPoint;
 		};
-		write.asModule = (moduleId:string, code:string) => {
-			code = code.replace(/^define\(/, 'define("'+moduleId+'",');
+		write.asModule = (moduleId: string, code: string) => {
+			code = code.replace(/^define\(/, 'define("' + moduleId + '",');
 			result += code;
 		};
 		plugin.write(pluginName, moduleName, write);
@@ -507,7 +507,7 @@ function emitPlugin(entryPoint:string, plugin:ILoaderPlugin, pluginName:string, 
 	};
 }
 
-function emitNamedModule(moduleId:string, myDeps:string[], defineCallPosition:IPosition, path:string, contents:string): IFile {
+function emitNamedModule(moduleId: string, myDeps: string[], defineCallPosition: IPosition, path: string, contents: string): IFile {
 
 	// `defineCallPosition` is the position in code: |define()
 	let defineCallOffset = positionToOffset(contents, defineCallPosition.line, defineCallPosition.col);
@@ -523,7 +523,7 @@ function emitNamedModule(moduleId:string, myDeps:string[], defineCallPosition:IP
 	};
 }
 
-function emitShimmedModule(moduleId:string, myDeps:string[], factory:string, path:string, contents:string): IFile {
+function emitShimmedModule(moduleId: string, myDeps: string[], factory: string, path: string, contents: string): IFile {
 	let strDeps = (myDeps.length > 0 ? '"' + myDeps.join('", "') + '"' : '');
 	let strDefine = 'define("' + moduleId + '", [' + strDeps + '], ' + factory + ');';
 	return {
@@ -535,7 +535,7 @@ function emitShimmedModule(moduleId:string, myDeps:string[], factory:string, pat
 /**
  * Convert a position (line:col) to (offset) in string `str`
  */
-function positionToOffset(str:string, desiredLine:number, desiredCol:number): number {
+function positionToOffset(str: string, desiredLine: number, desiredCol: number): number {
 	if (desiredLine === 1) {
 		return desiredCol - 1;
 	}
@@ -558,8 +558,8 @@ function positionToOffset(str:string, desiredLine:number, desiredCol:number): nu
 /**
  * Return a set of reachable nodes in `graph` starting from `rootNodes`
  */
-function visit(rootNodes:string[], graph:IGraph):INodeSet {
-	let result:INodeSet = {},
+function visit(rootNodes: string[], graph: IGraph): INodeSet {
+	let result: INodeSet = {},
 		queue = rootNodes;
 
 	rootNodes.forEach((node) => {
@@ -583,13 +583,13 @@ function visit(rootNodes:string[], graph:IGraph):INodeSet {
 /**
  * Perform a topological sort on `graph`
  */
-function topologicalSort(graph:IGraph): string[] {
+function topologicalSort(graph: IGraph): string[] {
 
-	let allNodes:INodeSet = {},
-		outgoingEdgeCount:{[node:string]:number;} = {},
-		inverseEdges:IGraph = {};
+	let allNodes: INodeSet = {},
+		outgoingEdgeCount: { [node: string]: number; } = {},
+		inverseEdges: IGraph = {};
 
-	Object.keys(graph).forEach((fromNode:string) => {
+	Object.keys(graph).forEach((fromNode: string) => {
 		allNodes[fromNode] = true;
 		outgoingEdgeCount[fromNode] = graph[fromNode].length;
 
@@ -606,7 +606,7 @@ function topologicalSort(graph:IGraph): string[] {
 	let S: string[] = [],
 		L: string[] = [];
 
-	Object.keys(allNodes).forEach((node:string) => {
+	Object.keys(allNodes).forEach((node: string) => {
 		if (outgoingEdgeCount[node] === 0) {
 			delete outgoingEdgeCount[node];
 			S.push(node);
@@ -617,11 +617,11 @@ function topologicalSort(graph:IGraph): string[] {
 		// Ensure the exact same order all the time with the same inputs
 		S.sort();
 
-		let n:string = S.shift();
+		let n: string = S.shift();
 		L.push(n);
 
 		let myInverseEdges = inverseEdges[n] || [];
-		myInverseEdges.forEach((m:string) => {
+		myInverseEdges.forEach((m: string) => {
 			outgoingEdgeCount[m]--;
 			if (outgoingEdgeCount[m] === 0) {
 				delete outgoingEdgeCount[m];

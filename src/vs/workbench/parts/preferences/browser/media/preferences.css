@@ -147,14 +147,7 @@
 
 .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
 	font-size: 14px;
-	padding-left:30px;
-	background-image: url('search.svg');
-	background-repeat: no-repeat;
-	background-position: 8px 50%;
-}
-
-.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
-	background-image: url('search_inverse.svg');
+	padding-left:10px;
 }
 
 .vs-dark .preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {

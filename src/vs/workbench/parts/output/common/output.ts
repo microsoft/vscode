@@ -48,8 +48,8 @@ export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
  * The output event informs when new output got received.
  */
 export interface IOutputEvent {
-	output: string;
-	channelId?: string;
+	channelId: string;
+	isClear: boolean;
 }
 
 export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
@@ -93,6 +93,12 @@ export interface IOutputService {
 	onActiveOutputChannel: Event<string>;
 }
 
+export interface IOutputDelta {
+	readonly value: string;
+	readonly id: number;
+	readonly append?: boolean;
+}
+
 export interface IOutputChannel {
 
 	/**
@@ -106,11 +112,6 @@ export interface IOutputChannel {
 	label: string;
 
 	/**
-	 * Returns the received output content.
-	 */
-	output: string;
-
-	/**
 	 * Returns the value indicating whether the channel has scroll locked.
 	 */
 	scrollLock: boolean;
@@ -119,6 +120,12 @@ export interface IOutputChannel {
 	 * Appends output to the channel.
 	 */
 	append(output: string): void;
+
+	/**
+	 * Returns the received output content.
+	 * If a delta is passed, returns only the content that came after the passed delta.
+	 */
+	getOutput(previousDelta?: IOutputDelta): IOutputDelta;
 
 	/**
 	 * Opens the output for this channel.
@@ -154,30 +161,37 @@ export interface IOutputChannelRegistry {
 	getChannels(): IOutputChannelIdentifier[];
 
 	/**
+	 * Returns the channel with the passed id.
+	 */
+	getChannel(id: string): IOutputChannelIdentifier;
+
+	/**
 	 * Remove the output channel with the passed id.
 	 */
 	removeChannel(id: string): void;
 }
 
 class OutputChannelRegistry implements IOutputChannelRegistry {
-	private channels: IOutputChannelIdentifier[];
-
-	constructor() {
-		this.channels = [];
-	}
+	private channels = new Map<string, IOutputChannelIdentifier>();
 
 	public registerChannel(id: string, label: string): void {
-		if (this.channels.every(channel => channel.id !== id)) {
-			this.channels.push({ id, label });
+		if (!this.channels.has(id)) {
+			this.channels.set(id, { id, label });
 		}
 	}
 
 	public getChannels(): IOutputChannelIdentifier[] {
-		return this.channels;
+		const result: IOutputChannelIdentifier[] = [];
+		this.channels.forEach(value => result.push(value));
+		return result;
+	}
+
+	public getChannel(id: string): IOutputChannelIdentifier {
+		return this.channels.get(id);
 	}
 
 	public removeChannel(id: string): void {
-		this.channels = this.channels.filter(channel => channel.id !== id);
+		this.channels.delete(id);
 	}
 }
 

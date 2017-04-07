@@ -19,7 +19,7 @@ import {
 import { Model } from 'vs/editor/common/model/model';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { MockConfiguration } from 'vs/editor/test/common/mocks/mockConfiguration';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
@@ -40,28 +40,8 @@ function moveLeft(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorLeftSelect : H.CursorLeft);
 }
 
-function moveWordLeft(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorWordLeftSelect : H.CursorWordLeft);
-}
-function moveWordStartLeft(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorWordStartLeftSelect : H.CursorWordStartLeft);
-}
-function moveWordEndLeft(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorWordEndLeftSelect : H.CursorWordEndLeft);
-}
-
 function moveRight(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorRightSelect : H.CursorRight);
-}
-
-function moveWordRight(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorWordRightSelect : H.CursorWordRight);
-}
-function moveWordEndRight(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorWordEndRightSelect : H.CursorWordEndRight);
-}
-function moveWordStartRight(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorWordStartRightSelect : H.CursorWordStartRight);
 }
 
 function moveDown(cursor: Cursor, linesCount: number, inSelectionMode: boolean = false) {
@@ -96,26 +76,6 @@ function moveToEndOfBuffer(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorBottomSelect : H.CursorBottom);
 }
 
-function deleteWordLeft(cursor: Cursor) {
-	cursorCommand(cursor, H.DeleteWordLeft);
-}
-function deleteWordStartLeft(cursor: Cursor) {
-	cursorCommand(cursor, H.DeleteWordStartLeft);
-}
-function deleteWordEndLeft(cursor: Cursor) {
-	cursorCommand(cursor, H.DeleteWordEndLeft);
-}
-
-function deleteWordRight(cursor: Cursor) {
-	cursorCommand(cursor, H.DeleteWordRight);
-}
-function deleteWordStartRight(cursor: Cursor) {
-	cursorCommand(cursor, H.DeleteWordStartRight);
-}
-function deleteWordEndRight(cursor: Cursor) {
-	cursorCommand(cursor, H.DeleteWordEndRight);
-}
-
 function assertCursor(cursor: Cursor, what: Position | Selection | Selection[]): void {
 	let selections: Selection[];
 	if (what instanceof Position) {
@@ -139,7 +99,7 @@ suite('Editor Controller - Cursor', () => {
 	const LINE5 = '1';
 
 	let thisModel: Model;
-	let thisConfiguration: MockConfiguration;
+	let thisConfiguration: TestConfiguration;
 	let thisCursor: Cursor;
 
 	setup(() => {
@@ -151,7 +111,7 @@ suite('Editor Controller - Cursor', () => {
 			LINE5;
 
 		thisModel = Model.createFromString(text);
-		thisConfiguration = new MockConfiguration(null);
+		thisConfiguration = new TestConfiguration(null);
 		thisCursor = new Cursor(thisConfiguration, thisModel, viewModelHelper(thisModel), false);
 	});
 
@@ -248,44 +208,6 @@ suite('Editor Controller - Cursor', () => {
 		assertCursor(thisCursor, new Selection(2, 1, 1, 21));
 	});
 
-	// --------- move word left
-
-	test('move word left', () => {
-		moveTo(thisCursor, 5, 2);
-		let expectedStops = [
-			[5, 1],
-			[4, 1],
-			[3, 11],
-			[3, 5],
-			[3, 1],
-			[2, 12],
-			[2, 5],
-			[2, 2],
-			[2, 1],
-			[1, 15],
-			[1, 9],
-			[1, 6],
-			[1, 1],
-			[1, 1],
-		];
-
-		let actualStops: number[][] = [];
-		for (let i = 0; i < expectedStops.length; i++) {
-			moveWordLeft(thisCursor);
-			let pos = thisCursor.getPosition();
-			actualStops.push([pos.lineNumber, pos.column]);
-		}
-
-		assert.deepEqual(actualStops, expectedStops);
-	});
-
-	test('move word left selection', () => {
-		moveTo(thisCursor, 5, 2);
-		assertCursor(thisCursor, new Position(5, 2));
-		moveWordLeft(thisCursor, true);
-		assertCursor(thisCursor, new Selection(5, 2, 5, 1));
-	});
-
 	// --------- move right
 
 	test('move right on bottom right position', () => {
@@ -323,41 +245,6 @@ suite('Editor Controller - Cursor', () => {
 		assertCursor(thisCursor, new Selection(1, 21, 2, 1));
 	});
 
-	// --------- move word right
-
-	test('move word right', () => {
-		moveTo(thisCursor, 1, 1);
-		let expectedStops = [
-			[1, 8],
-			[1, 14],
-			[1, 19],
-			[1, 21],
-			[2, 4],
-			[2, 11],
-			[2, 16],
-			[3, 10],
-			[3, 17],
-			[4, 1],
-			[5, 2],
-			[5, 2],
-		];
-
-		let actualStops: number[][] = [];
-		for (let i = 0; i < expectedStops.length; i++) {
-			moveWordRight(thisCursor);
-			let pos = thisCursor.getPosition();
-			actualStops.push([pos.lineNumber, pos.column]);
-		}
-
-		assert.deepEqual(actualStops, expectedStops);
-	});
-
-	test('move word right selection', () => {
-		moveTo(thisCursor, 1, 1);
-		assertCursor(thisCursor, new Position(1, 1));
-		moveWordRight(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 1, 1, 8));
-	});
 	// --------- move down
 
 	test('move down', () => {
@@ -660,82 +547,6 @@ suite('Editor Controller - Cursor', () => {
 		assertCursor(thisCursor, new Selection(3, 3, 5, LINE5.length + 1));
 	});
 
-	// --------- delete word left/right
-
-	test('delete word left for non-empty selection', () => {
-		moveTo(thisCursor, 3, 7);
-		moveRight(thisCursor, true);
-		moveRight(thisCursor, true);
-		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    Thd Line🐶');
-		assertCursor(thisCursor, new Position(3, 7));
-	});
-
-	test('delete word left for caret at beginning of document', () => {
-		moveTo(thisCursor, 1, 1);
-		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(1), '    \tMy First Line\t ');
-		assertCursor(thisCursor, new Position(1, 1));
-	});
-
-	test('delete word left for caret at end of whitespace', () => {
-		moveTo(thisCursor, 3, 11);
-		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    Line🐶');
-		assertCursor(thisCursor, new Position(3, 5));
-	});
-
-	test('delete word left for caret just behind a word', () => {
-		moveTo(thisCursor, 2, 11);
-		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(2), '\tMy  Line');
-		assertCursor(thisCursor, new Position(2, 5));
-	});
-
-	test('delete word left for caret inside of a word', () => {
-		moveTo(thisCursor, 1, 12);
-		deleteWordLeft(thisCursor);
-		assert.equal(thisModel.getLineContent(1), '    \tMy st Line\t ');
-		assertCursor(thisCursor, new Position(1, 9));
-	});
-
-	test('delete word right for non-empty selection', () => {
-		moveTo(thisCursor, 3, 7);
-		moveRight(thisCursor, true);
-		moveRight(thisCursor, true);
-		deleteWordRight(thisCursor);
-		assert.equal(thisModel.getLineContent(3), '    Thd Line🐶');
-		assertCursor(thisCursor, new Position(3, 7));
-	});
-
-	test('delete word right for caret at end of document', () => {
-		moveTo(thisCursor, 5, 3);
-		deleteWordRight(thisCursor);
-		assert.equal(thisModel.getLineContent(5), '1');
-		assertCursor(thisCursor, new Position(5, 2));
-	});
-
-	test('delete word right for caret at beggining of whitespace', () => {
-		moveTo(thisCursor, 3, 1);
-		deleteWordRight(thisCursor);
-		assert.equal(thisModel.getLineContent(3), 'Third Line🐶');
-		assertCursor(thisCursor, new Position(3, 1));
-	});
-
-	test('delete word right for caret just before a word', () => {
-		moveTo(thisCursor, 2, 5);
-		deleteWordRight(thisCursor);
-		assert.equal(thisModel.getLineContent(2), '\tMy  Line');
-		assertCursor(thisCursor, new Position(2, 5));
-	});
-
-	test('delete word right for caret inside of a word', () => {
-		moveTo(thisCursor, 1, 11);
-		deleteWordRight(thisCursor);
-		assert.equal(thisModel.getLineContent(1), '    \tMy Fi Line\t ');
-		assertCursor(thisCursor, new Position(1, 11));
-	});
-
 	// --------- misc
 
 	test('select all', () => {
@@ -749,33 +560,33 @@ suite('Editor Controller - Cursor', () => {
 		// let LINE1 = '    \tMy First Line\t ';
 		moveTo(thisCursor, 1, 1);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 2);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 5);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 19);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 20);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 21);
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 1, LINE1.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 2, LINE2.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 3, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 3, LINE3.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 4, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
-		assertCursor(thisCursor, new Selection(1, 1, 4, LINE4.length + 1));
+		assertCursor(thisCursor, new Selection(1, 1, 5, 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
 		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
 		cursorCommand(thisCursor, H.ExpandLineSelection);
@@ -854,7 +665,7 @@ suite('Editor Controller - Cursor', () => {
 			'\t\t}',
 			'\t}'
 		].join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 7, false);
 		assertCursor(cursor, new Position(1, 7));
@@ -888,7 +699,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
@@ -923,7 +734,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
@@ -981,7 +792,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
@@ -1026,7 +837,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
@@ -1570,7 +1381,7 @@ suite('Editor Controller - Regression tests', () => {
 			'qwerty'
 		];
 		let model = Model.createFromString(text.join('\n'));
-		let cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 2, 1, false);
 		assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -1588,7 +1399,7 @@ suite('Editor Controller - Regression tests', () => {
 			''
 		];
 		model = Model.createFromString(text.join('\n'));
-		cursor = new Cursor(new MockConfiguration(null), model, viewModelHelper(model), true);
+		cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
 
 		moveTo(cursor, 2, 1, false);
 		assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -1792,338 +1603,6 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
-	test('issue #832: deleteWordLeft', () => {
-		usingCursor({
-			text: [
-				'   /* Just some text a+= 3 +5 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 37, false);
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5 */', '001');
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5 ', '002');
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +', '003');
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 ', '004');
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= ', '005');
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a', '006');
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text ', '007');
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some ', '008');
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just ', '009');
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   /* ', '010');
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '   ', '011');
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), '', '012');
-		});
-	});
-
-	test('deleteWordStartLeft', () => {
-		usingCursor({
-			text: [
-				'   /* Just some text a+= 3 +5 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 37, false);
-
-			deleteWordStartLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5 ', '001');
-			deleteWordStartLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +', '002');
-			deleteWordStartLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 ', '003');
-			deleteWordStartLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= ', '004');
-			deleteWordStartLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a', '005');
-			deleteWordStartLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text ', '006');
-			deleteWordStartLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some ', '007');
-			deleteWordStartLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just ', '008');
-			deleteWordStartLeft(cursor); assert.equal(model.getLineContent(1), '   /* ', '009');
-			deleteWordStartLeft(cursor); assert.equal(model.getLineContent(1), '   ', '010');
-			deleteWordStartLeft(cursor); assert.equal(model.getLineContent(1), '', '011');
-		});
-	});
-
-	test('deleteWordEndLeft', () => {
-		usingCursor({
-			text: [
-				'   /* Just some text a+= 3 +5 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 37, false);
-			deleteWordEndLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5 */', '001');
-			deleteWordEndLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5', '002');
-			deleteWordEndLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +', '003');
-			deleteWordEndLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3', '004');
-			deleteWordEndLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a+=', '005');
-			deleteWordEndLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text a', '006');
-			deleteWordEndLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some text', '007');
-			deleteWordEndLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just some', '008');
-			deleteWordEndLeft(cursor); assert.equal(model.getLineContent(1), '   /* Just', '009');
-			deleteWordEndLeft(cursor); assert.equal(model.getLineContent(1), '   /*', '010');
-			deleteWordEndLeft(cursor); assert.equal(model.getLineContent(1), '', '011');
-		});
-	});
-
-	test('issue #832: deleteWordRight', () => {
-		usingCursor({
-			text: [
-				'   /* Just some text a+= 3 +5-3 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 1, false);
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '/* Just some text a+= 3 +5-3 */  ', '001');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' Just some text a+= 3 +5-3 */  ', '002');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' some text a+= 3 +5-3 */  ', '003');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' text a+= 3 +5-3 */  ', '004');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' a+= 3 +5-3 */  ', '005');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '+= 3 +5-3 */  ', '006');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' 3 +5-3 */  ', '007');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' +5-3 */  ', '008');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '5-3 */  ', '009');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '-3 */  ', '010');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '3 */  ', '011');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), ' */  ', '012');
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), '  ', '013');
-		});
-	});
-
-	test('issue #3882: deleteWordRight', () => {
-		usingCursor({
-			text: [
-				'public void Add( int x,',
-				'                 int y )'
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 24, false);
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
-		});
-	});
-
-	test('issue #3882: deleteWordStartRight', () => {
-		usingCursor({
-			text: [
-				'public void Add( int x,',
-				'                 int y )'
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 24, false);
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
-		});
-	});
-
-	test('issue #3882: deleteWordEndRight', () => {
-		usingCursor({
-			text: [
-				'public void Add( int x,',
-				'                 int y )'
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 24, false);
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), 'public void Add( int x,int y )', '001');
-		});
-	});
-
-	test('deleteWordStartRight', () => {
-		usingCursor({
-			text: [
-				'   /* Just some text a+= 3 +5-3 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 1, false);
-
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), '/* Just some text a+= 3 +5-3 */  ', '001');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), 'Just some text a+= 3 +5-3 */  ', '002');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), 'some text a+= 3 +5-3 */  ', '003');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), 'text a+= 3 +5-3 */  ', '004');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), 'a+= 3 +5-3 */  ', '005');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), '+= 3 +5-3 */  ', '006');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), '3 +5-3 */  ', '007');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), '+5-3 */  ', '008');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), '5-3 */  ', '009');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), '-3 */  ', '010');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), '3 */  ', '011');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), '*/  ', '012');
-			deleteWordStartRight(cursor); assert.equal(model.getLineContent(1), '', '013');
-		});
-	});
-
-	test('deleteWordEndRight', () => {
-		usingCursor({
-			text: [
-				'   /* Just some text a+= 3 +5-3 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 1, false);
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), ' Just some text a+= 3 +5-3 */  ', '001');
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), ' some text a+= 3 +5-3 */  ', '002');
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), ' text a+= 3 +5-3 */  ', '003');
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), ' a+= 3 +5-3 */  ', '004');
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), '+= 3 +5-3 */  ', '005');
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), ' 3 +5-3 */  ', '006');
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), ' +5-3 */  ', '007');
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), '5-3 */  ', '008');
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), '-3 */  ', '009');
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), '3 */  ', '010');
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), ' */  ', '011');
-			deleteWordEndRight(cursor); assert.equal(model.getLineContent(1), '  ', '012');
-		});
-	});
-
-	test('issue #832: moveWordLeft', () => {
-		usingCursor({
-			text: [
-				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 50, false);
-
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 '.length + 1, '001');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + '.length + 1, '002');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 '.length + 1, '003');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-'.length + 1, '004');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5'.length + 1, '005');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +'.length + 1, '006');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 '.length + 1, '007');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= '.length + 1, '008');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a'.length + 1, '009');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text '.length + 1, '010');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   '.length + 1, '011');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   '.length + 1, '012');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just '.length + 1, '013');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   /* '.length + 1, '014');
-			moveWordLeft(cursor); assert.equal(cursor.getPosition().column, '   '.length + 1, '015');
-		});
-	});
-
-	test('moveWordStartLeft', () => {
-		usingCursor({
-			text: [
-				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 50, false);
-
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 '.length + 1, '001');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + '.length + 1, '002');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 '.length + 1, '003');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-'.length + 1, '004');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5'.length + 1, '005');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +'.length + 1, '006');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 '.length + 1, '007');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= '.length + 1, '008');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a'.length + 1, '009');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text '.length + 1, '010');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   '.length + 1, '011');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   '.length + 1, '012');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just '.length + 1, '013');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   /* '.length + 1, '014');
-			moveWordStartLeft(cursor); assert.equal(cursor.getPosition().column, '   '.length + 1, '015');
-		});
-	});
-
-	test('moveWordEndLeft', () => {
-		usingCursor({
-			text: [
-				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 50, false);
-
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 */'.length + 1, '001');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7'.length + 1, '002');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 +'.length + 1, '003');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3'.length + 1, '004');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-'.length + 1, '005');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5'.length + 1, '006');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +'.length + 1, '007');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3'.length + 1, '008');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+='.length + 1, '009');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a'.length + 1, '010');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text'.length + 1, '011');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more'.length + 1, '012');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just some'.length + 1, '013');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /* Just'.length + 1, '014');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, '   /*'.length + 1, '015');
-			moveWordEndLeft(cursor); assert.equal(cursor.getPosition().column, ''.length + 1, '016');
-		});
-	});
-
-	test('issue #832: moveWordRight', () => {
-		usingCursor({
-			text: [
-				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 1, false);
-
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /*'.length + 1, '001');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just'.length + 1, '003');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some'.length + 1, '004');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more'.length + 1, '005');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text'.length + 1, '006');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a'.length + 1, '007');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+='.length + 1, '008');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3'.length + 1, '009');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +'.length + 1, '010');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5'.length + 1, '011');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-'.length + 1, '012');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3'.length + 1, '013');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 +'.length + 1, '014');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7'.length + 1, '015');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 */'.length + 1, '016');
-			moveWordRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 */  '.length + 1, '016');
-
-		});
-	});
-
-	test('moveWordEndRight', () => {
-		usingCursor({
-			text: [
-				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 1, false);
-
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /*'.length + 1, '001');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just'.length + 1, '003');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some'.length + 1, '004');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more'.length + 1, '005');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text'.length + 1, '006');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a'.length + 1, '007');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+='.length + 1, '008');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3'.length + 1, '009');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +'.length + 1, '010');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5'.length + 1, '011');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-'.length + 1, '012');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3'.length + 1, '013');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 +'.length + 1, '014');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7'.length + 1, '015');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 */'.length + 1, '016');
-			moveWordEndRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 */  '.length + 1, '016');
-
-		});
-	});
-
-	test('moveWordStartRight', () => {
-		usingCursor({
-			text: [
-				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 1, false);
-
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   '.length + 1, '001');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* '.length + 1, '002');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just '.length + 1, '003');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   '.length + 1, '004');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   '.length + 1, '005');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text '.length + 1, '006');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a'.length + 1, '007');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= '.length + 1, '008');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 '.length + 1, '009');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +'.length + 1, '010');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5'.length + 1, '011');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-'.length + 1, '012');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 '.length + 1, '013');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + '.length + 1, '014');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 '.length + 1, '015');
-			moveWordStartRight(cursor); assert.equal(cursor.getPosition().column, '   /* Just some   more   text a+= 3 +5-3 + 7 */  '.length + 1, '016');
-		});
-	});
-
 	test('issue #832: word right', () => {
 
 		usingCursor({
@@ -2196,30 +1675,6 @@ suite('Editor Controller - Regression tests', () => {
 			assertWordRight(48, '   /* Just some   more   text a+= 3 +5-3 + 7 */'.length + 1);
 			assertWordRight(49, '   /* Just some   more   text a+= 3 +5-3 + 7 */ '.length + 1);
 			assertWordRight(50, '   /* Just some   more   text a+= 3 +5-3 + 7 */  '.length + 1);
-		});
-	});
-
-	test('issue #3882 (1): Ctrl+Delete removing entire line when used at the end of line', () => {
-		usingCursor({
-			text: [
-				'A line with text.',
-				'   And another one'
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 18, false);
-			deleteWordRight(cursor); assert.equal(model.getLineContent(1), 'A line with text.And another one', '001');
-		});
-	});
-
-	test('issue #3882 (2): Ctrl+Delete removing entire line when used at the end of line', () => {
-		usingCursor({
-			text: [
-				'A line with text.',
-				'   And another one'
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 1, false);
-			deleteWordLeft(cursor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
 		});
 	});
 
@@ -3218,7 +2673,7 @@ interface ICursorOpts {
 
 function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor) => void): void {
 	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
-	let config = new MockConfiguration(opts.editorOpts);
+	let config = new TestConfiguration(opts.editorOpts);
 	let cursor = new Cursor(config, model, viewModelHelper(model), false);
 
 	callback(model, cursor);
@@ -3462,6 +2917,190 @@ suite('ElectricCharacter', () => {
 			moveTo(cursor, 2, 5);
 			cursorCommand(cursor, H.Type, { text: '*' }, 'keyboard');
 			assert.deepEqual(model.getLineContent(2), '  /** */');
+		});
+		mode.dispose();
+	});
+});
+
+suite('autoClosingPairs', () => {
+
+	class AutoClosingMode extends MockMode {
+
+		private static _id = new LanguageIdentifier('autoClosingMode', 3);
+
+		constructor() {
+			super(AutoClosingMode._id);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+				autoClosingPairs: [
+					{ open: '{', close: '}' },
+					{ open: '[', close: ']' },
+					{ open: '(', close: ')' },
+					{ open: '\'', close: '\'', notIn: ['string', 'comment'] },
+					{ open: '\"', close: '\"', notIn: ['string'] },
+					{ open: '`', close: '`', notIn: ['string', 'comment'] },
+					{ open: '/**', close: ' */', notIn: ['string'] }
+				],
+			}));
+		}
+	}
+
+	const enum ColumnType {
+		Normal = 0,
+		Special1 = 1,
+		Special2 = 2
+	}
+
+	function extractSpecialColumns(maxColumn: number, annotatedLine: string): ColumnType[] {
+		let result: ColumnType[] = [];
+		for (let j = 1; j <= maxColumn; j++) {
+			result[j] = ColumnType.Normal;
+		}
+		let column = 1;
+		for (let j = 0; j < annotatedLine.length; j++) {
+			if (annotatedLine.charAt(j) === '|') {
+				result[column] = ColumnType.Special1;
+			} else if (annotatedLine.charAt(j) === '!') {
+				result[column] = ColumnType.Special2;
+			} else {
+				column++;
+			}
+		}
+		return result;
+	}
+
+	function assertType(model: Model, cursor: Cursor, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
+		let lineContent = model.getLineContent(lineNumber);
+		let expected = lineContent.substr(0, column - 1) + expectedInsert + lineContent.substr(column - 1);
+		moveTo(cursor, lineNumber, column);
+		cursorCommand(cursor, H.Type, { text: chr }, 'keyboard');
+		assert.deepEqual(model.getLineContent(lineNumber), expected, message);
+		cursorCommand(cursor, H.Undo);
+	}
+
+	test('open parens', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var| a| =| [|];|',
+				'var| b| =| `asd`;|',
+				'var| c| =| \'asd\';|',
+				'var| d| =| "asd";|',
+				'var| e| =| /*3*/|	3;|',
+				'var| f| =| /**| 3| */3;|',
+				'var| g| =| (3+5|);|',
+				'var| h| =| {| a:| \'value\'| |};|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('quote', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var| a| =| [|];|',
+				'var| b| =| |`asd|`;|',
+				'var| c| =| !\'asd!\';|',
+				'var| d| =| |"asd|";|',
+				'var| e| =| /*3*/|	3;|',
+				'var| f| =| /**| 3| */3;|',
+				'var| g| =| (3+5|);|',
+				'var| h| =| {| a:| !\'value!\'| |};|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
+					} else if (autoCloseColumns[column] === ColumnType.Special2) {
+						assertType(model, cursor, lineNumber, column, '\'', '', `over types @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('issue #15825: accents on mac US intl keyboard', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			// Typing ` + e on the mac US intl kb layout
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: 'è' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), 'è');
+		});
+		mode.dispose();
+	});
+
+	test('issue #20891: All cursors should do the same thing', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 9, 1, 9),
+				new Selection(1, 12, 1, 12),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+
+			assert.equal(model.getValue(), 'var a = `asd`');
 		});
 		mode.dispose();
 	});

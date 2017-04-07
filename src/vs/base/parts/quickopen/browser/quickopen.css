@@ -39,6 +39,10 @@
 	line-height: 1.8em;
 }
 
+.quick-open-widget .quick-open-tree .monaco-tree-row  > .content > .sub-content {
+	overflow: hidden;
+}
+
 .quick-open-widget.content-changing .quick-open-tree .monaco-scrollable-element .slider {
 	display: none; /* scrollbar slider causes some hectic updates when input changes quickly, so hide it while quick open changes */
 }
@@ -90,17 +94,18 @@
 }
 
 .quick-open-widget .quick-open-tree .results-group {
-	float: right;
 	margin-right: 18px;
+}
+
+.quick-open-widget .quick-open-tree .monaco-tree-row.focused > .content.has-actions > .results-group,
+.quick-open-widget .quick-open-tree .monaco-tree-row:hover:not(.highlighted) > .content.has-actions > .results-group,
+.quick-open-widget .quick-open-tree .focused .monaco-tree-row.focused > .content.has-actions > .results-group {
+	margin-right: 0px;
 }
 
 .vs .quick-open-widget .quick-open-tree .results-group,
 .vs-dark .quick-open-widget .quick-open-tree .results-group {
 	opacity: 0.6;
-}
-
-.quick-open-widget .quick-open-tree .content.has-actions .results-group {
-	margin-right: 34px; /* push more to the right if we have actions */
 }
 
 .quick-open-widget .quick-open-tree .results-group-separator {
@@ -114,42 +119,24 @@
 /* Theming */
 
 .quick-open-widget {
-	background-color: #F6F6F6;
 	box-shadow: 0 5px 8px #A8A8A8;
 }
 
 .vs-dark .quick-open-widget {
-	background-color: #252526;
 	box-shadow: 0 5px 8px #000;
 }
 
-.vs-dark .quick-open-widget input {
-	background-color: #3C3C3C;
-	color: inherit;
+.hc-black .quick-open-widget {
+	box-shadow: none;
 }
 
-.hc-black .quick-open-widget input {
-	background-color: #000;
-	color: inherit;
-}
-
-.monaco .quick-open-widget {
-	background-color: #F9F9F9;
-}
-
+.quick-open-widget .quick-open-tree .results-group,
 .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
 	color: #007ACC;
 }
 
+.vs-dark .quick-open-widget .quick-open-tree .results-group,
 .vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	color: #0097FB;
-}
-
-.quick-open-widget .quick-open-tree .results-group {
-	color: #007ACC;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .results-group {
 	color: #0097FB;
 }
 
@@ -182,22 +169,4 @@
 .quick-open-widget .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.focused {
 	background: #DCEBFC;
 	color: inherit;
-}
-
-/* High Contrast Theming */
-.hc-black .quick-open-widget {
-	border: 2px solid #6FC3DF;
-	background-color: #0C141F;
-	color: #fff;
-	box-shadow: none;
-}
-
-.hc-black .quick-open-widget .monaco-tree.focused .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree.focused .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.focused:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.selected:not(.highlighted) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row.drop-target > .content.actions > .primary-action-bar,
-.hc-black .quick-open-widget .monaco-tree .monaco-tree-row > .content.actions.more > .primary-action-bar {
-	background-color: #0C141F;
 }

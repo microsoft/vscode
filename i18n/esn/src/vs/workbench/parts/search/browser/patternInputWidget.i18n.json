@@ -6,5 +6,6 @@
 {
 	"defaultLabel": "entrada",
 	"patternDescription": "Usar patrones globales",
-	"patternHelpInclude": "El patrón de coincidencia, por ejemplo, **\\*\\*/*.js** para todos los archivos JavaScript o **miCarpeta/\\*\\*** para encontrar coincidencias de esa carpeta con todos los elementos secundarios.\n\n**Referencia**:\n**\\*** encuentra coincidencias con 0 o más caracteres\n**?** encuentra coincidencias con 1 carácter\n**\\*\\*** encuentra coincidencias con cero o más directorios\n**[a-z]** encuentra coincidencias con un rango de caracteres\n**{a,b}** encuentra coincidencias con cualquiera de los patrones"
+	"patternHelpInclude": "El patrón de coincidencia, por ejemplo, **\\*\\*/*.js** para todos los archivos JavaScript o **miCarpeta/\\*\\*** para encontrar coincidencias de esa carpeta con todos los elementos secundarios.\n\n**Referencia**:\n**\\*** encuentra coincidencias con 0 o más caracteres\n**?** encuentra coincidencias con 1 carácter\n**\\*\\*** encuentra coincidencias con cero o más directorios\n**[a-z]** encuentra coincidencias con un rango de caracteres\n**{a,b}** encuentra coincidencias con cualquiera de los patrones",
+	"useIgnoreFilesDescription": "Usar archivos ignore"
 }

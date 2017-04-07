@@ -152,12 +152,12 @@
 				}
 			},
 			"end": "(</)((?i:style))(>)(?:\\s*\\n)?",
-			"contentName": "source.css.embedded.html",
 			"patterns": [
 				{
 					"include": "#tag-stuff"
 				},
 				{
+					"contentName": "source.css.embedded.html",
 					"begin": "(>)",
 					"beginCaptures": {
 						"1": {
@@ -192,12 +192,12 @@
 					"name": "punctuation.definition.tag.html"
 				}
 			},
-			"contentName": "source.js.embedded.html",
 			"patterns": [
 				{
 					"include": "#tag-stuff"
 				},
 				{
+					"contentName": "source.js.embedded.html",
 					"begin": "(?<!</(?:script|SCRIPT))(>)",
 					"captures": {
 						"1": {

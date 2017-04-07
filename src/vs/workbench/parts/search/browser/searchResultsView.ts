@@ -30,6 +30,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 
 export class SearchDataSource implements IDataSource {
 
+	private static AUTOEXPAND_CHILD_LIMIT = 10;
+
 	public getId(tree: ITree, element: any): string {
 		if (element instanceof FileMatch) {
 			return element.id();
@@ -42,16 +44,18 @@ export class SearchDataSource implements IDataSource {
 		return 'root';
 	}
 
-	public getChildren(tree: ITree, element: any): TPromise<any[]> {
-		let value: any[] = [];
-
+	private _getChildren(element: any): any[] {
 		if (element instanceof FileMatch) {
-			value = element.matches();
+			return element.matches();
 		} else if (element instanceof SearchResult) {
-			value = element.matches();
+			return element.matches();
 		}
 
-		return TPromise.as(value);
+		return [];
+	}
+
+	public getChildren(tree: ITree, element: any): TPromise<any[]> {
+		return TPromise.as(this._getChildren(element));
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
@@ -68,6 +72,11 @@ export class SearchDataSource implements IDataSource {
 		}
 
 		return TPromise.as(value);
+	}
+
+	public shouldAutoexpand(tree: ITree, element: any): boolean {
+		const numChildren = this._getChildren(element).length;
+		return numChildren > 0 && numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT;
 	}
 }
 
@@ -229,9 +238,6 @@ export class SearchController extends DefaultController {
 		// Up (from results to inputs)
 		this.downKeyBindingDispatcher.set(KeyCode.UpArrow, this.onUp.bind(this));
 
-		// Open
-		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
-
 		// Open to side
 		this.upKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.WinCtrl | KeyCode.Enter : KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
 
@@ -296,15 +302,6 @@ export class SearchController extends DefaultController {
 			return true;
 		}
 
-		return false;
-	}
-
-	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
-		let element = tree.getFocus();
-		if (element instanceof Match) {
-			return this.onEnter(tree, event);
-		}
-		super.onSpace(tree, event);
 		return false;
 	}
 }

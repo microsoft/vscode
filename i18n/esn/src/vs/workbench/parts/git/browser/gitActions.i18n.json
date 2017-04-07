@@ -14,6 +14,7 @@
 	"commitMessage": "Mensaje de confirmación",
 	"commitStaged": "Confirmar elementos almacenados provisionalmente",
 	"commitStaged2": "Confirmar elementos almacenados provisionalmente",
+	"commitStagedAmend": "Confirmar almacenados provisionalmente (modificar)",
 	"commitStagedSignedOff": "Confirmar por etapas (Aprobado)",
 	"confirmPublishMessage": "¿Seguro que quiere publicar '{0}' en '{1}'?",
 	"confirmPublishMessageButton": "&&Publicar",

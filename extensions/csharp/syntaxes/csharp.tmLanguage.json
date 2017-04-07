@@ -567,6 +567,9 @@
 					"end": "(?=\\{)",
 					"patterns": [
 						{
+							"include": "#comment"
+						},
+						{
 							"include": "#type-parameter-list"
 						},
 						{
@@ -649,6 +652,9 @@
 					"begin": "(?=enum)",
 					"end": "(?=\\{)",
 					"patterns": [
+						{
+							"include": "#comment"
+						},
 						{
 							"match": "(enum)\\s+([_[:alpha:]][_[:alnum:]]*)",
 							"captures": {
@@ -746,6 +752,9 @@
 					"end": "(?=\\{)",
 					"patterns": [
 						{
+							"include": "#comment"
+						},
+						{
 							"include": "#type-parameter-list"
 						},
 						{
@@ -799,6 +808,9 @@
 					},
 					"end": "(?=\\{)",
 					"patterns": [
+						{
+							"include": "#comment"
+						},
 						{
 							"include": "#type-parameter-list"
 						},
@@ -1141,7 +1153,13 @@
 					"match": "\\b(set)\\b"
 				},
 				{
+					"include": "#comment"
+				},
+				{
 					"include": "#attribute-section"
+				},
+				{
+					"include": "#expression-body"
 				},
 				{
 					"include": "#block"
@@ -1174,7 +1192,13 @@
 					"match": "\\b(remove)\\b"
 				},
 				{
+					"include": "#comment"
+				},
+				{
 					"include": "#attribute-section"
+				},
+				{
+					"include": "#expression-body"
 				},
 				{
 					"include": "#block"
@@ -2809,7 +2833,7 @@
 			]
 		},
 		"element-access-expression": {
-			"begin": "(?x)\n(?:(\\?)\\s*)?                   # preceding null-conditional operator?\n(?:(\\.)\\s*)?                   # preceding dot?\n([_[:alpha:]][_[:alnum:]]*)\\s* # property name\n(?:(\\?)\\s*)?                   # null-conditional operator?\n(?=\\[)                         # open bracket of argument list",
+			"begin": "(?x)\n(?:(\\?)\\s*)?                        # preceding null-conditional operator?\n(?:(\\.)\\s*)?                        # preceding dot?\n(?:([_[:alpha:]][_[:alnum:]]*)\\s*)? # property name\n(?:(\\?)\\s*)?                        # null-conditional operator?\n(?=\\[)                              # open bracket of argument list",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.operator.null-conditional.cs"
@@ -2824,7 +2848,7 @@
 					"name": "keyword.operator.null-conditional.cs"
 				}
 			},
-			"end": "(?<=\\])",
+			"end": "(?<=\\])(?!\\s*\\[)",
 			"patterns": [
 				{
 					"include": "#bracketed-argument-list"
@@ -2949,7 +2973,7 @@
 					"name": "keyword.other.new.cs"
 				}
 			},
-			"end": "(?=;|\\))",
+			"end": "(?=\\)|;|})",
 			"patterns": [
 				{
 					"include": "#initializer-expression"
@@ -3111,7 +3135,7 @@
 			"end": "(?=(,|\\)|\\]))",
 			"patterns": [
 				{
-					"include": "#expression"
+					"include": "#argument"
 				}
 			]
 		},
@@ -3392,7 +3416,7 @@
 							"name": "keyword.operator.arrow.cs"
 						}
 					},
-					"end": "(?=\\)|;|})",
+					"end": "(?=\\)|;|}|,)",
 					"patterns": [
 						{
 							"include": "#block"
@@ -3403,7 +3427,7 @@
 					]
 				},
 				{
-					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n(\\(.*\\))\\s*\n(=>)",
+					"begin": "(?x)\n(?:\\b(async)\\b\\s*)?\n(\\(.*?\\))\\s*\n(=>)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.cs"
@@ -3419,7 +3443,7 @@
 							"name": "keyword.operator.arrow.cs"
 						}
 					},
-					"end": "(?=\\)|;|})",
+					"end": "(?=\\)|;|}|,)",
 					"patterns": [
 						{
 							"include": "#block"
@@ -3439,7 +3463,7 @@
 							"name": "keyword.other.delegate.cs"
 						}
 					},
-					"end": "(?=\\)|;|})",
+					"end": "(?=\\)|;|}|,)",
 					"patterns": [
 						{
 							"include": "#parenthesized-parameter-list"
@@ -3455,13 +3479,13 @@
 			]
 		},
 		"lambda-parameter-list": {
-			"begin": "(\\()",
+			"begin": "\\(",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.parenthesis.open.cs"
 				}
 			},
-			"end": "(\\))",
+			"end": "\\)",
 			"endCaptures": {
 				"0": {
 					"name": "punctuation.parenthesis.close.cs"
@@ -4163,5 +4187,5 @@
 			}
 		}
 	},
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/edf7cdf5073db593691a110efa8cdc10c34c3d1e"
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/4d0e50c51f336645c98689737db1be321d212d3d"
 }

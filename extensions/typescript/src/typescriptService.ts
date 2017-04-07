@@ -57,6 +57,10 @@ export class API {
 	public has220Features(): boolean {
 		return semver.gte(this._version, '2.2.0');
 	}
+
+	public has222Features(): boolean {
+		return semver.gte(this._version, '2.2.2');
+	}
 }
 
 export interface ITypescriptServiceClient {
@@ -70,6 +74,7 @@ export interface ITypescriptServiceClient {
 	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
 	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
 	onDidEndInstallTypings: Event<Proto.EndInstallTypesEventBody>;
+	onTypesInstallerInitializationFailed: Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
 	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
 

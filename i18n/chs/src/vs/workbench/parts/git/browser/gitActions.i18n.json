@@ -14,6 +14,7 @@
 	"commitMessage": "提交消息",
 	"commitStaged": "提交已暂存的",
 	"commitStaged2": "提交已暂存的",
+	"commitStagedAmend": "已暂存提交(修改)",
 	"commitStagedSignedOff": "提交暂存数据(已签收)",
 	"confirmPublishMessage": "是否确定要将“{0}”发布到“{1}”?",
 	"confirmPublishMessageButton": "发布(&&P)",

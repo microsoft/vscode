@@ -264,7 +264,7 @@ suite('ExtensionEnablementService Test', () => {
 	test('test remove an extension from disablement list when uninstalled', (done) => {
 		testObject.setEnablement('pub.a', false, true)
 			.then(() => testObject.setEnablement('pub.a', false))
-			.then(() => didUninstallEvent.fire({ id: 'pub.a' }))
+			.then(() => didUninstallEvent.fire({ id: 'pub.a-1.0.0' }))
 			.then(() => {
 				assert.deepEqual([], testObject.getWorkspaceDisabledExtensions());
 				assert.deepEqual([], testObject.getGloballyDisabledExtensions());

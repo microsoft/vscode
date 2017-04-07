@@ -32,7 +32,7 @@ gulp.task('mixin', function () {
 	}
 
 	const url = `https://github.com/${repo}/archive/${pkg.distro}.zip`;
-	const opts = { base: '' };
+	const opts = { base: url };
 	const username = process.env['VSCODE_MIXIN_USERNAME'];
 	const password = process.env['VSCODE_MIXIN_PASSWORD'];
 
@@ -42,7 +42,7 @@ gulp.task('mixin', function () {
 
 	console.log('Mixing in sources from \'' + url + '\':');
 
-	let all = remote(url, opts)
+	let all = remote('', opts)
 		.pipe(zip.src())
 		.pipe(filter(function (f) { return !f.isDirectory(); }))
 		.pipe(util.rebase(1));
@@ -50,13 +50,14 @@ gulp.task('mixin', function () {
 	if (quality) {
 		const build = all.pipe(filter('build/**'));
 		const productJsonFilter = filter('product.json', { restore: true });
+		const arch = process.env.VSCODE_ELECTRON_PLATFORM || process.arch;
 
 		const vsdaFilter = (function () {
 			const filter = [];
 			if (process.platform !== 'win32') { filter.push('!**/vsda_win32.node'); }
 			if (process.platform !== 'darwin') { filter.push('!**/vsda_darwin.node'); }
-			if (process.platform !== 'linux' || process.arch !== 'x64') { filter.push('!**/vsda_linux64.node'); }
-			if (process.platform !== 'linux' || process.arch === 'x64') { filter.push('!**/vsda_linux32.node'); }
+			if (process.platform !== 'linux' || arch !== 'x64') { filter.push('!**/vsda_linux64.node'); }
+			if (process.platform !== 'linux' || arch === 'x64') { filter.push('!**/vsda_linux32.node'); }
 
 			return filter;
 		})();

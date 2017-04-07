@@ -13,6 +13,7 @@
 	"nonempty": "требуется непустое значение.",
 	"optstring": "свойство \"{0}\" может быть опущено или должно иметь тип string",
 	"requirestring": "свойство \"{0}\" является обязательным и должно иметь тип string",
+	"unboundCommands": "Доступные команды: ",
 	"vscode.extension.contributes.keybindings": "Добавляет настраиваемые сочетания клавиш.",
 	"vscode.extension.contributes.keybindings.command": "Идентификатор команды, выполняемой при нажатии настраиваемого сочетания клавиш.",
 	"vscode.extension.contributes.keybindings.key": "Клавиша или последовательность клавиш (клавиши разделяются знаком плюс, а последовательности — пробелом, например CTRL+O или CTRL+L L для сочетания)",

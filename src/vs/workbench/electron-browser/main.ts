@@ -84,12 +84,14 @@ function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 			input.resource = uri.file(p.filePath);
 		}
 
+		input.options = {
+			pinned: true // opening on startup is always pinned and not preview
+		};
+
 		if (p.lineNumber) {
-			input.options = {
-				selection: {
-					startLineNumber: p.lineNumber,
-					startColumn: p.columnNumber
-				}
+			input.options.selection = {
+				startLineNumber: p.lineNumber,
+				startColumn: p.columnNumber
 			};
 		}
 
@@ -138,13 +140,13 @@ function openWorkbench(environment: IWindowConfiguration, workspace: IWorkspace,
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
 	return configurationService.initialize().then(() => {
-		timerService.beforeDOMContentLoaded = new Date();
+		timerService.beforeDOMContentLoaded = Date.now();
 
 		return domContentLoaded().then(() => {
-			timerService.afterDOMContentLoaded = new Date();
+			timerService.afterDOMContentLoaded = Date.now();
 
 			// Open Shell
-			timerService.beforeWorkbenchOpen = new Date();
+			timerService.beforeWorkbenchOpen = Date.now();
 			const shell = new WorkbenchShell(document.body, {
 				configurationService,
 				contextService,

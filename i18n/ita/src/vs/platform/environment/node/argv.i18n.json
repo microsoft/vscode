@@ -19,6 +19,7 @@
 	"optionsUpperCase": "Opzioni",
 	"paths": "percorsi",
 	"performance": "Eseguire l'avvio con il comando 'Developer: Startup Performance' abilitato.",
+	"prof-startup": "Esegui il profiler della CPU durante l'avvio",
 	"reuseWindow": "Forza l'apertura di un file o di una cartella nell'ultima finestra attiva.",
 	"showVersions": "Mostra le versioni delle estensioni installate, quando si usa --list-extension.",
 	"uninstallExtension": "Disinstalla un'estensione.",

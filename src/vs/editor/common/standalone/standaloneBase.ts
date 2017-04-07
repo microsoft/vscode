@@ -5,7 +5,7 @@
 'use strict';
 
 import { Emitter } from 'vs/base/common/event';
-import { Keybinding, KeyMod as ConstKeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { KeyMod as ConstKeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -224,7 +224,6 @@ export function createMonacoBaseAPI(): typeof monaco {
 		Emitter: Emitter,
 		KeyCode: KeyCode,
 		KeyMod: KeyMod,
-		Keybinding: <any>Keybinding,
 		Position: Position,
 		Range: Range,
 		Selection: Selection,

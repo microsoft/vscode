@@ -33,6 +33,40 @@ suite('Arrays', () => {
 		assert.equal(array[idx], 1);
 	});
 
+	test('delta', function () {
+		function compare(a: number, b: number): number {
+			return a - b;
+		}
+
+		let d = arrays.delta([1, 2, 4], [], compare);
+		assert.deepEqual(d.removed, [1, 2, 4]);
+		assert.deepEqual(d.added, []);
+
+		d = arrays.delta([], [1, 2, 4], compare);
+		assert.deepEqual(d.removed, []);
+		assert.deepEqual(d.added, [1, 2, 4]);
+
+		d = arrays.delta([1, 2, 4], [1, 2, 4], compare);
+		assert.deepEqual(d.removed, []);
+		assert.deepEqual(d.added, []);
+
+		d = arrays.delta([1, 2, 4], [2, 3, 4, 5], compare);
+		assert.deepEqual(d.removed, [1]);
+		assert.deepEqual(d.added, [3, 5]);
+
+		d = arrays.delta([2, 3, 4, 5], [1, 2, 4], compare);
+		assert.deepEqual(d.removed, [3, 5]);
+		assert.deepEqual(d.added, [1]);
+
+		d = arrays.delta([1, 3, 5, 7], [5, 9, 11], compare);
+		assert.deepEqual(d.removed, [1, 3, 7]);
+		assert.deepEqual(d.added, [9, 11]);
+
+		d = arrays.delta([1, 3, 7], [5, 9, 11], compare);
+		assert.deepEqual(d.removed, [1, 3, 7]);
+		assert.deepEqual(d.added, [5, 9, 11]);
+	});
+
 	test('binarySearch', function () {
 		function compare(a: number, b: number): number {
 			return a - b;

@@ -55,5 +55,8 @@
 	"scss.lint.unknownVendorSpecificProperties.desc": "Unknown vendor specific property.",
 	"scss.lint.vendorPrefix.desc": "When using a vendor-specific prefix also include the standard property",
 	"scss.lint.zeroUnits.desc": "No unit for zero needed",
-	"scss.validate.desc": "Enables or disables all validations"
+	"scss.validate.desc": "Enables or disables all validations",
+	"less.colorDecorators.enable.desc": "Enables or disables color decorators",
+	"scss.colorDecorators.enable.desc": "Enables or disables color decorators",
+	"css.colorDecorators.enable.desc": "Enables or disables color decorators"
 }

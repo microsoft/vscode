@@ -10,7 +10,7 @@ import { StringDecoder, NodeStringDecoder } from 'string_decoder';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import fs = require('fs');
 import paths = require('path');
-import { Readable } from "stream";
+import { Readable } from 'stream';
 
 import scorer = require('vs/base/common/scorer');
 import arrays = require('vs/base/common/arrays');
