@@ -1,4 +1,4 @@
-# Visual Studio Code - Open Source
+# Visual Studio Code - Open Source JOAO
 
 [![Build Status](https://travis-ci.org/Microsoft/vscode.svg?branch=master)](https://travis-ci.org/Microsoft/vscode)
 [![Build Status](https://ci.appveyor.com/api/projects/status/vuhlhg80tj3e2a0l/branch/master?svg=true)](https://ci.appveyor.com/project/VSCode/vscode)
@@ -9,7 +9,7 @@
 a code editor with what developers need for their core edit-build-debug cycle. Code
 provides comprehensive editing and debugging support, an extensibility model, and lightweight integration with existing tools.
 
-VS Code is updated monthly with new features and bug fixes. You can download it for Windows, Mac and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases everyday, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily. 
+VS Code is updated monthly with new features and bug fixes. You can download it for Windows, Mac and Linux on [VS Code's website](https://code.visualstudio.com/Download). To get the latest releases everyday, you can install the [Insiders version of VS Code](https://code.visualstudio.com/insiders). This builds from the master branch and is updated at least daily.
 
 <p align="center">
   <img alt="VS Code in action" src="https://cloud.githubusercontent.com/assets/11839736/16642200/6624dde0-43bd-11e6-8595-c81885ba0dc2.png">
