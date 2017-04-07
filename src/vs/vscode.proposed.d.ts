@@ -267,6 +267,30 @@ declare module 'vscode' {
 		env?: { [key: string]: string };
 	}
 
+	export namespace TaskGroup {
+		/**
+		 * The clean task group
+		 */
+		export const Clean: 'clean';
+		/**
+		 * The build task group
+		 */
+		export const Build: 'build';
+		/**
+		 * The rebuild all task group
+		 */
+		export const RebuildAll: 'rebuildAll';
+		/**
+		 * The test task group
+		 */
+		export const Test: 'test';
+	}
+
+	/**
+	 * The supported task groups.
+	 */
+	export type TaskGroup = 'clean' | 'build' | 'rebuildAll' | 'test';
+
 	/**
 	 * A task that starts an external process.
 	 */
@@ -329,6 +353,12 @@ declare module 'vscode' {
 		args: string[];
 
 		/**
+		 * The task group this tasks belongs to. Defaults to undefined meaning
+		 * that the task doesn't belong to any special group.
+		 */
+		group?: TaskGroup;
+
+		/**
 		 * The process options used when the process is executed.
 		 * Defaults to an empty object literal.
 		 */
@@ -374,7 +404,7 @@ declare module 'vscode' {
 		 * The current working directory of the executed shell.
 		 * If omitted VSCode's current workspace root is used.
 		 */
-		cwd?: string;
+		cwd: string;
 
 		/**
 		 * The additional environment of the executed shell. If omitted
@@ -382,6 +412,19 @@ declare module 'vscode' {
 		 * the parent process' environment.
 		 */
 		env?: { [key: string]: string };
+	} | {
+		/**
+		 * The current working directory of the executed shell.
+		 * If omitted VSCode's current workspace root is used.
+		 */
+		cwd?: string;
+
+		/**
+		 * The additional environment of the executed shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env: { [key: string]: string };
 	};
 
 	/**
@@ -430,6 +473,12 @@ declare module 'vscode' {
 		readonly commandLine: string;
 
 		/**
+		 * The task group this tasks belongs to. Defaults to undefined meaning
+		 * that the task doesn't belong to any special group.
+		 */
+		group?: TaskGroup;
+
+		/**
 		 * The shell options used when the shell is executed. Defaults to an
 		 * empty object literal.
 		 */
@@ -450,29 +499,6 @@ declare module 'vscode' {
 	export type Task = ProcessTask | ShellTask;
 
 	/**
-	 * Result return from a task provider.
-	 */
-	export interface TaskSet {
-		/**
-		 * The actual tasks returned.
-		 */
-		tasks: Task[];
-
-		/**
-		 * The build tasks provided. Tasks must be identified using
-		 * `Task.identifier`
-		 */
-		buildTasks?: string[];
-
-		/**
-		 * The test tasks provided. Tasks must be identified using
-		 * `Task.identifier`
-		 */
-		testTasks?: string[];
-	}
-
-
-	/**
 	 * A task provider allows to add tasks to the task service.
 	 * A task provider is registerd via #workspace.registerTaskProvider.
 	 */
@@ -482,7 +508,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return a #TaskSet
 		 */
-		provideTasks(token: CancellationToken): ProviderResult<TaskSet>;
+		provideTasks(token: CancellationToken): ProviderResult<Task[]>;
 	}
 
 	export namespace workspace {

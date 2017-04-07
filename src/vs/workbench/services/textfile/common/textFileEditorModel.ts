@@ -270,7 +270,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					mtime: Date.now(),
 					etag: void 0,
 					value: '', /* will be filled later from backup */
-					encoding: this.fileService.getEncoding(this.resource)
+					encoding: this.fileService.getEncoding(this.resource, this.preferredEncoding)
 				};
 
 				return this.loadWithContent(content, backup);

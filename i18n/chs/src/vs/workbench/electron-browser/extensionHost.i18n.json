@@ -6,6 +6,6 @@
 {
 	"extensionHostProcess.crash": "扩展主机意外终止。请重新加载窗口以恢复。",
 	"extensionHostProcess.error": "扩展主机中的错误: {0}",
-	"extensionHostProcess.startupFail": "扩展主机未在 10 秒内启动，这可能是一个问题。",
+	"extensionHostProcess.startupFail": "扩展主机未在 10 秒内启动，可能发生了一个问题。",
 	"extensionHostProcess.startupFailDebug": "扩展未在 10 秒内启动，可能在第一行已停止，需要调试器才能继续。"
 }

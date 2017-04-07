@@ -30,6 +30,7 @@
 			"type": "node",
 			"request": "attach",
 			"port": 6004,
+			"protocol": "legacy",
 			"sourceMaps": true,
 			"outFiles": ["${workspaceRoot}/server/out/**/*.js"]
 		}

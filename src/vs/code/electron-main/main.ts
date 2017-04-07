@@ -34,49 +34,6 @@ import { URLService } from 'vs/platform/url/electron-main/urlService';
 import * as fs from 'original-fs';
 import { VSCodeApplication } from "vs/code/electron-main/app";
 
-//
-// Main Startup Sequence
-//
-(function () {
-	let args: ParsedArgs;
-
-	try {
-		args = parseMainProcessArgv(process.argv);
-		args = validatePaths(args);
-	} catch (err) {
-		console.error(err.message);
-		app.exit(1);
-
-		return;
-	}
-
-	const instantiationService = createServices(args);
-
-	return instantiationService.invokeFunction(accessor => {
-
-		// Patch `process.env` with the instance's environment
-		const environmentService = accessor.get(IEnvironmentService);
-		const instanceEnv: typeof process.env = {
-			VSCODE_PID: String(process.pid),
-			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
-			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
-		};
-		assign(process.env, instanceEnv);
-
-		// Startup
-		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
-			.then(() => instantiationService.invokeFunction(setupIPC))
-			.then(mainIpcServer => {
-				const app = instantiationService.createInstance(VSCodeApplication, mainIpcServer, instanceEnv);
-				app.startup();
-			});
-	}).done(null, err => instantiationService.invokeFunction(quit, err));
-})();
-
-//
-// Helpers
-//
-
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
 
@@ -205,3 +162,41 @@ function quit(accessor: ServicesAccessor, errorOrMessage?: Error | string): void
 
 	lifecycleService.kill(exitCode);
 }
+
+function main() {
+	let args: ParsedArgs;
+
+	try {
+		args = parseMainProcessArgv(process.argv);
+		args = validatePaths(args);
+	} catch (err) {
+		console.error(err.message);
+		app.exit(1);
+
+		return;
+	}
+
+	const instantiationService = createServices(args);
+
+	return instantiationService.invokeFunction(accessor => {
+
+		// Patch `process.env` with the instance's environment
+		const environmentService = accessor.get(IEnvironmentService);
+		const instanceEnv: typeof process.env = {
+			VSCODE_PID: String(process.pid),
+			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
+			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
+		};
+		assign(process.env, instanceEnv);
+
+		// Startup
+		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
+			.then(() => instantiationService.invokeFunction(setupIPC))
+			.then(mainIpcServer => {
+				const app = instantiationService.createInstance(VSCodeApplication, mainIpcServer, instanceEnv);
+				app.startup();
+			});
+	}).done(null, err => instantiationService.invokeFunction(quit, err));
+}
+
+main();

@@ -116,6 +116,10 @@ export class DefinitionAction extends EditorAction {
 			: nls.localize('generic.noResults', "No definition found");
 	}
 
+	protected getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
+	}
+
 	private _onResult(editorService: IEditorService, editor: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
 		if (this._configuration.openInPeek) {
 			this._openInPeek(editorService, editor, model);
@@ -149,7 +153,7 @@ export class DefinitionAction extends EditorAction {
 		if (controller) {
 			controller.toggleWidget(target.getSelection(), TPromise.as(model), {
 				getMetaTitle: (model) => {
-					return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
+					return this.getMetaTitle(model);
 				},
 				onGoto: (reference) => {
 					controller.closeWidget();
@@ -246,6 +250,10 @@ export class ImplementationAction extends DefinitionAction {
 			? nls.localize('goToImplementation.noResultWord', "No implementation found for '{0}'", info.word)
 			: nls.localize('goToImplementation.generic.noResults', "No implementation found");
 	}
+
+	protected getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 && nls.localize('meta.implementations.title', " – {0} implementations", model.references.length);
+	}
 }
 
 @editorAction
@@ -303,6 +311,10 @@ export class TypeDefinitionAction extends DefinitionAction {
 		return info && info.word
 			? nls.localize('goToTypeDefinition.noResultWord', "No type definition found for '{0}'", info.word)
 			: nls.localize('goToTypeDefinition.generic.noResults', "No type definition found");
+	}
+
+	protected getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 && nls.localize('meta.typeDefinitions.title', " – {0} type definitions", model.references.length);
 	}
 }
 
