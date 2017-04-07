@@ -8,7 +8,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "ruby",
-			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".rake", ".ru" ],
+			"extensions": [ ".rb", ".rbx", ".rjs", ".gemspec", ".rake", ".ru", ".erb" ],
 			"filenames": [ "rakefile", "gemfile", "guardfile", "podfile" ],
 			"aliases": [ "Ruby", "rb" ],
 			"firstLine": "^#!/.*\\bruby\\b",

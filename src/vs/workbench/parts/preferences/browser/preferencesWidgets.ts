@@ -241,10 +241,10 @@ export class SearchWidget extends Widget {
 	private inputBox: InputBox;
 
 	private _onDidChange = this._register(new Emitter<string>());
-	public onDidChange: Event<string> = this._onDidChange.event;
+	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
 	private _onNavigate = this._register(new Emitter<boolean>());
-	public onNavigate: Event<boolean> = this._onNavigate.event;
+	public readonly onNavigate: Event<boolean> = this._onNavigate.event;
 
 	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -297,17 +297,25 @@ export class SearchWidget extends Widget {
 
 	public focus() {
 		this.inputBox.focus();
-		if (this.value) {
+		if (this.getValue()) {
 			this.inputBox.select();
 		}
+	}
+
+	public hasFocus(): boolean {
+		return this.inputBox.hasFocus();
 	}
 
 	public clear() {
 		this.inputBox.value = '';
 	}
 
-	public value(): string {
+	public getValue(): string {
 		return this.inputBox.value;
+	}
+
+	public setValue(value: string): string {
+		return this.inputBox.value = value;
 	}
 
 	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {

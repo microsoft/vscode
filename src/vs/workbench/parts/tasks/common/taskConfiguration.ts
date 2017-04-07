@@ -286,12 +286,6 @@ function mergeProperty<T, K extends keyof T>(target: T, source: T, key: K) {
 	}
 }
 
-function fillProperty<T, K extends keyof T>(target: T, source: T, key: K) {
-	if (target[key] === void 0 && source[key] !== void 0) {
-		target[key] = source[key];
-	}
-}
-
 interface ParseContext {
 	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
@@ -639,23 +633,13 @@ namespace ProblemMatcherConverter {
 
 namespace TaskDescription {
 
-	export interface TaskConfiguration {
-		tasks: Tasks.Task[];
-		buildTask?: string;
-		testTask?: string;
-	}
-
-	export function isEmpty(value: TaskConfiguration): boolean {
-		return !value || !value.tasks || Object.keys(value.tasks).length === 0;
-	}
-
-	export function from(this: void, tasks: TaskDescription[], globals: Globals, context: ParseContext): TaskConfiguration {
+	export function from(this: void, tasks: TaskDescription[], globals: Globals, context: ParseContext): Tasks.Task[] {
 		if (!tasks) {
 			return undefined;
 		}
 		let parsedTasks: Tasks.Task[] = [];
-		let defaultBuildTask: { id: string; exact: number; } = { id: null, exact: -1 };
-		let defaultTestTask: { id: string; exact: number; } = { id: null, exact: -1 };
+		let defaultBuildTask: { task: Tasks.Task; rank: number; } = { task: null, rank: -1 };
+		let defaultTestTask: { task: Tasks.Task; rank: number; } = { task: null, rank: -1 };
 		tasks.forEach((externalTask) => {
 			let taskName = externalTask.taskName;
 			if (!taskName) {
@@ -733,68 +717,57 @@ namespace TaskDescription {
 			}
 			if (addTask) {
 				parsedTasks.push(task);
-				if (!Types.isUndefined(externalTask.isBuildCommand) && externalTask.isBuildCommand && defaultBuildTask.exact < 2) {
-					defaultBuildTask.id = task._id;
-					defaultBuildTask.exact = 2;
-				} else if (taskName === 'build' && defaultBuildTask.exact < 2) {
-					defaultBuildTask.id = task._id;
-					defaultBuildTask.exact = 1;
+				if (!Types.isUndefined(externalTask.isBuildCommand) && externalTask.isBuildCommand && defaultBuildTask.rank < 2) {
+					defaultBuildTask.task = task;
+					defaultBuildTask.rank = 2;
+				} else if (taskName === 'build' && defaultBuildTask.rank < 2) {
+					defaultBuildTask.task = task;
+					defaultBuildTask.rank = 1;
 				}
-				if (!Types.isUndefined(externalTask.isTestCommand) && externalTask.isTestCommand && defaultTestTask.exact < 2) {
-					defaultTestTask.id = task._id;
-					defaultTestTask.exact = 2;
-				} else if (taskName === 'test' && defaultTestTask.exact < 2) {
-					defaultTestTask.id = task._id;
-					defaultTestTask.exact = 1;
+				if (!Types.isUndefined(externalTask.isTestCommand) && externalTask.isTestCommand && defaultTestTask.rank < 2) {
+					defaultTestTask.task = task;
+					defaultTestTask.rank = 2;
+				} else if (taskName === 'test' && defaultTestTask.rank < 2) {
+					defaultTestTask.task = task;
+					defaultTestTask.rank = 1;
 				}
 			}
 		});
-		let buildTask: string;
-		if (defaultBuildTask.exact > 0) {
-			buildTask = defaultBuildTask.id;
+		if (defaultBuildTask.task) {
+			defaultBuildTask.task.group = Tasks.TaskGroup.Build;
 		}
-		let testTask: string;
-		if (defaultTestTask.exact > 0) {
-			testTask = defaultTestTask.id;
+		if (defaultTestTask.task) {
+			defaultTestTask.task.group = Tasks.TaskGroup.Test;
 		}
-		let result = { tasks: parsedTasks, buildTask, testTask };
-		return isEmpty(result) ? undefined : result;
+		return parsedTasks.length === 0 ? undefined : parsedTasks;
 	}
 
-	export function merge(target: TaskConfiguration, source: TaskConfiguration): TaskConfiguration {
-		if (isEmpty(source)) {
+	export function merge(target: Tasks.Task[], source: Tasks.Task[]): Tasks.Task[] {
+		if (source === void 0 || source.length === 0) {
 			return target;
 		}
-		if (isEmpty(target)) {
+		if (target === void 0 || target.length === 0) {
 			return source;
 		}
 
-		if (source.tasks) {
+		if (source) {
 			// Tasks are keyed by ID but we need to merge by name
-			let targetNames: IStringDictionary<string> = Object.create(null);
-			Object.keys(target.tasks).forEach(key => {
-				let task = target.tasks[key];
-				targetNames[task.name] = task.id;
+			let map: IStringDictionary<Tasks.Task> = Object.create(null);
+			target.forEach((task) => {
+				map[task.name] = task;
 			});
 
-			let sourceNames: IStringDictionary<string> = Object.create(null);
-			Object.keys(source.tasks).forEach(key => {
-				let task = source.tasks[key];
-				sourceNames[task.name] = task.id;
+			source.forEach((task) => {
+				map[task.name] = task;
 			});
-
-			Object.keys(sourceNames).forEach(taskName => {
-				let targetId = targetNames[taskName];
-				let sourceId = sourceNames[taskName];
-				// Same name exists globally
-				if (targetId) {
-					delete target.tasks[targetId];
-				}
-				target.tasks[sourceId] = source.tasks[sourceId];
+			let newTarget: Tasks.Task[] = [];
+			target.forEach(task => {
+				newTarget.push(map[task.name]);
+				delete map[task.name];
 			});
+			Object.keys(map).forEach(key => newTarget.push(map[key]));
+			target = newTarget;
 		}
-		fillProperty(target, source, 'buildTask');
-		fillProperty(target, source, 'testTask');
 		return target;
 	}
 
@@ -976,7 +949,7 @@ export namespace ExecutionEngine {
 
 export interface ParseResult {
 	validationStatus: ValidationStatus;
-	taskSet: Tasks.TaskSet;
+	tasks: Tasks.Task[];
 	engine: Tasks.ExecutionEngine;
 }
 
@@ -1000,18 +973,18 @@ class ConfigurationParser {
 		let context: ParseContext = { problemReporter: this.problemReporter, namedProblemMatchers: undefined, isTermnial: engine === Tasks.ExecutionEngine.Terminal };
 		return {
 			validationStatus: this.problemReporter.status,
-			taskSet: this.createTaskRunnerConfiguration(fileConfig, context),
+			tasks: this.createTaskRunnerConfiguration(fileConfig, context),
 			engine
 		};
 	}
 
-	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): Tasks.TaskSet {
+	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): Tasks.Task[] {
 		let globals = Globals.from(fileConfig, context);
 		if (this.problemReporter.status.isFatal()) {
 			return undefined;
 		}
 		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
-		let globalTasks: TaskDescription.TaskConfiguration;
+		let globalTasks: Tasks.Task[];
 		if (fileConfig.windows && Platform.platform === Platform.Platform.Windows) {
 			globalTasks = TaskDescription.from(fileConfig.windows.tasks, globals, context);
 		} else if (fileConfig.osx && Platform.platform === Platform.Platform.Mac) {
@@ -1020,15 +993,13 @@ class ConfigurationParser {
 			globalTasks = TaskDescription.from(fileConfig.linux.tasks, globals, context);
 		}
 
-		let taskConfig: TaskDescription.TaskConfiguration;
+		let tasks: Tasks.Task[];
 		if (fileConfig.tasks) {
-			taskConfig = TaskDescription.from(fileConfig.tasks, globals, context);
+			tasks = TaskDescription.from(fileConfig.tasks, globals, context);
 		}
-		taskConfig = TaskDescription.merge(taskConfig, globalTasks);
+		tasks = TaskDescription.merge(tasks, globalTasks);
 
-		if (TaskDescription.isEmpty(taskConfig)) {
-			let tasks: Tasks.Task[] = [];
-			let buildTask: string;
+		if (!tasks || tasks.length === 0) {
 			if (globals.command && globals.command.name) {
 				let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);;
 				let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
@@ -1036,6 +1007,7 @@ class ConfigurationParser {
 					_id: UUID.generateUuid(),
 					name: globals.command.name,
 					identifier: UUID.generateUuid(),
+					group: Tasks.TaskGroup.Build,
 					command: undefined,
 					isBackground: isBackground,
 					showOutput: undefined,
@@ -1044,21 +1016,10 @@ class ConfigurationParser {
 				};
 				TaskDescription.mergeGlobals(task, globals);
 				TaskDescription.fillDefaults(task);
-				tasks.push(task);
-				buildTask = task._id;
+				tasks = [task];
 			}
-
-			taskConfig = {
-				tasks: tasks,
-				buildTask
-			};
 		}
-
-		return {
-			tasks: taskConfig.tasks,
-			buildTasks: taskConfig.buildTask ? [taskConfig.buildTask] : [],
-			testTasks: taskConfig.testTask ? [taskConfig.testTask] : []
-		};
+		return tasks || [];
 	}
 }
 

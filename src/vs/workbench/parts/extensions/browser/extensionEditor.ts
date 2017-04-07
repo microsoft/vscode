@@ -11,6 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
+import { OS } from 'vs/base/common/platform';
 import Event, { Emitter, once, fromEventEmitter, chain } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
@@ -25,6 +26,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionGalleryService, IExtensionManifest, IKeyBinding } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
 import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/browser/dependenciesViewer';
@@ -43,9 +45,9 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { OS } from 'vs/base/common/platform';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from "vs/platform/theme/common/themeService";
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 
 function renderBody(body: string): string {
 	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
@@ -551,26 +553,32 @@ export class ExtensionEditor extends BaseEditor {
 		const rawKeybindings = contributes && contributes.keybindings || [];
 
 		rawKeybindings.forEach(rawKeybinding => {
-			const keyLabel = this.keybindingToLabel(rawKeybinding);
+			const keybinding = this.resolveKeybinding(rawKeybinding);
 
-			if (!keyLabel) {
+			if (!keybinding) {
 				return;
 			}
 
 			let command = byId[rawKeybinding.command];
 
 			if (!command) {
-				command = { id: rawKeybinding.command, title: '', keybindings: [keyLabel], menus: [] };
+				command = { id: rawKeybinding.command, title: '', keybindings: [keybinding], menus: [] };
 				byId[command.id] = command;
 				commands.push(command);
 			} else {
-				command.keybindings.push(keyLabel);
+				command.keybindings.push(keybinding);
 			}
 		});
 
 		if (!commands.length) {
 			return false;
 		}
+
+		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
+			const element = $('');
+			new KeybindingLabel(element, OS).set(keybinding, null);
+			return element;
+		};
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', null, localize('commands', "Commands ({0})", commands.length)),
@@ -584,7 +592,7 @@ export class ExtensionEditor extends BaseEditor {
 				...commands.map(c => $('tr', null,
 					$('td', null, $('code', null, c.id)),
 					$('td', null, c.title),
-					$('td', null, ...join(c.keybindings.map(keybinding => $('code', null, keybinding)), ' ')),
+					$('td', null, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
 					$('td', null, ...c.menus.map(context => $('code', null, context)))
 				))
 			)
@@ -663,7 +671,7 @@ export class ExtensionEditor extends BaseEditor {
 		return true;
 	}
 
-	private keybindingToLabel(rawKeyBinding: IKeyBinding): string {
+	private resolveKeybinding(rawKeyBinding: IKeyBinding): ResolvedKeybinding {
 		let key: string;
 
 		switch (process.platform) {
@@ -673,12 +681,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		const keyBinding = KeybindingIO.readKeybinding(key || rawKeyBinding.key, OS);
-		const resolvedKeybindings = this.keybindingService.resolveKeybinding(keyBinding);
-		if (resolvedKeybindings.length === 0) {
-			return null;
-		}
-		const result = resolvedKeybindings[0].getLabel();
-		return result === 'unknown' ? null : result;
+		return this.keybindingService.resolveKeybinding(keyBinding)[0];
 	}
 
 	private loadContents(loadingTask: () => TPromise<any>): void {

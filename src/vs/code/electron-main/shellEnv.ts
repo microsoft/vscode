@@ -27,7 +27,7 @@ function getUnixShellEnvironment(): TPromise<typeof process.env> {
 		const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 		const child = cp.spawn(process.env.SHELL, ['-ilc', command], {
 			detached: true,
-			stdio: ['pipe', 'pipe', process.stderr],
+			stdio: ['ignore', 'pipe', process.stderr],
 			env
 		});
 

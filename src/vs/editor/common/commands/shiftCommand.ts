@@ -16,6 +16,7 @@ export interface IShiftCommandOpts {
 	isUnshift: boolean;
 	tabSize: number;
 	oneIndent: string;
+	useTabStops: boolean;
 }
 
 export class ShiftCommand implements ICommand {
@@ -52,20 +53,16 @@ export class ShiftCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
-		let startLine = this._selection.startLineNumber;
-		let endLine = this._selection.endLineNumber;
+		const startLine = this._selection.startLineNumber;
 
+		let endLine = this._selection.endLineNumber;
 		if (this._selection.endColumn === 1 && startLine !== endLine) {
 			endLine = endLine - 1;
 		}
 
-		let lineNumber: number,
-			tabSize = this._opts.tabSize,
-			oneIndent = this._opts.oneIndent,
-			shouldIndentEmptyLines = (startLine === endLine);
-
-		// indents[i] represents i * oneIndent
-		let indents: string[] = ['', oneIndent];
+		const tabSize = this._opts.tabSize;
+		const oneIndent = this._opts.oneIndent;
+		const shouldIndentEmptyLines = (startLine === endLine);
 
 		// if indenting or outdenting on a whitespace only line
 		if (this._selection.isEmpty()) {
@@ -74,79 +71,126 @@ export class ShiftCommand implements ICommand {
 			}
 		}
 
-		// keep track of previous line's "miss-alignment"
-		let previousLineExtraSpaces = 0, extraSpaces = 0;
-		for (lineNumber = startLine; lineNumber <= endLine; lineNumber++ , previousLineExtraSpaces = extraSpaces) {
-			extraSpaces = 0;
-			let lineText = model.getLineContent(lineNumber);
-			let indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);
+		if (this._opts.useTabStops) {
+			// indents[i] represents i * oneIndent
+			let indents: string[] = ['', oneIndent];
 
-			if (this._opts.isUnshift && (lineText.length === 0 || indentationEndIndex === 0)) {
-				// empty line or line with no leading whitespace => nothing to do
-				continue;
-			}
+			// keep track of previous line's "miss-alignment"
+			let previousLineExtraSpaces = 0, extraSpaces = 0;
+			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++ , previousLineExtraSpaces = extraSpaces) {
+				extraSpaces = 0;
+				let lineText = model.getLineContent(lineNumber);
+				let indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);
 
-			if (!shouldIndentEmptyLines && !this._opts.isUnshift && lineText.length === 0) {
-				// do not indent empty lines => nothing to do
-				continue;
-			}
+				if (this._opts.isUnshift && (lineText.length === 0 || indentationEndIndex === 0)) {
+					// empty line or line with no leading whitespace => nothing to do
+					continue;
+				}
 
-			if (indentationEndIndex === -1) {
-				// the entire line is whitespace
-				indentationEndIndex = lineText.length;
-			}
+				if (!shouldIndentEmptyLines && !this._opts.isUnshift && lineText.length === 0) {
+					// do not indent empty lines => nothing to do
+					continue;
+				}
 
-			if (lineNumber > 1) {
-				let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(lineText, indentationEndIndex + 1, tabSize);
-				if (contentStartVisibleColumn % tabSize !== 0) {
-					// The current line is "miss-aligned", so let's see if this is expected...
-					// This can only happen when it has trailing commas in the indent
-					let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
-					if (enterAction) {
-						extraSpaces = previousLineExtraSpaces;
-						if (enterAction.appendText) {
-							for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
-								if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
-									extraSpaces++;
-								} else {
-									break;
+				if (indentationEndIndex === -1) {
+					// the entire line is whitespace
+					indentationEndIndex = lineText.length;
+				}
+
+				if (lineNumber > 1) {
+					let contentStartVisibleColumn = CursorColumns.visibleColumnFromColumn(lineText, indentationEndIndex + 1, tabSize);
+					if (contentStartVisibleColumn % tabSize !== 0) {
+						// The current line is "miss-aligned", so let's see if this is expected...
+						// This can only happen when it has trailing commas in the indent
+						let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
+						if (enterAction) {
+							extraSpaces = previousLineExtraSpaces;
+							if (enterAction.appendText) {
+								for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
+									if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
+										extraSpaces++;
+									} else {
+										break;
+									}
 								}
 							}
-						}
-						if (enterAction.removeText) {
-							extraSpaces = Math.max(0, extraSpaces - enterAction.removeText);
-						}
-
-						// Act as if `prefixSpaces` is not part of the indentation
-						for (let j = 0; j < extraSpaces; j++) {
-							if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== CharCode.Space) {
-								break;
+							if (enterAction.removeText) {
+								extraSpaces = Math.max(0, extraSpaces - enterAction.removeText);
 							}
-							indentationEndIndex--;
+
+							// Act as if `prefixSpaces` is not part of the indentation
+							for (let j = 0; j < extraSpaces; j++) {
+								if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== CharCode.Space) {
+									break;
+								}
+								indentationEndIndex--;
+							}
 						}
 					}
 				}
+
+
+				if (this._opts.isUnshift && indentationEndIndex === 0) {
+					// line with no leading whitespace => nothing to do
+					continue;
+				}
+
+				let desiredIndentCount: number;
+				if (this._opts.isUnshift) {
+					desiredIndentCount = ShiftCommand.unshiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
+				} else {
+					desiredIndentCount = ShiftCommand.shiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
+				}
+
+				// Fill `indents`, as needed
+				for (let j = indents.length; j <= desiredIndentCount; j++) {
+					indents[j] = indents[j - 1] + oneIndent;
+				}
+
+				builder.addEditOperation(new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);
 			}
+		} else {
 
+			for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
+				const lineText = model.getLineContent(lineNumber);
+				let indentationEndIndex = strings.firstNonWhitespaceIndex(lineText);
 
-			if (this._opts.isUnshift && indentationEndIndex === 0) {
-				// line with no leading whitespace => nothing to do
-				continue;
+				if (this._opts.isUnshift && (lineText.length === 0 || indentationEndIndex === 0)) {
+					// empty line or line with no leading whitespace => nothing to do
+					continue;
+				}
+
+				if (!shouldIndentEmptyLines && !this._opts.isUnshift && lineText.length === 0) {
+					// do not indent empty lines => nothing to do
+					continue;
+				}
+
+				if (indentationEndIndex === -1) {
+					// the entire line is whitespace
+					indentationEndIndex = lineText.length;
+				}
+
+				if (this._opts.isUnshift && indentationEndIndex === 0) {
+					// line with no leading whitespace => nothing to do
+					continue;
+				}
+
+				if (this._opts.isUnshift) {
+
+					indentationEndIndex = Math.min(indentationEndIndex, tabSize);
+					for (let i = 0; i < indentationEndIndex; i++) {
+						const chr = lineText.charCodeAt(i);
+						if (chr === CharCode.Tab) {
+							indentationEndIndex = i + 1;
+							break;
+						}
+					}
+
+					builder.addEditOperation(new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), '');
+				} else {
+					builder.addEditOperation(new Range(lineNumber, 1, lineNumber, 1), oneIndent);
+				}
 			}
-
-			let desiredIndentCount: number;
-			if (this._opts.isUnshift) {
-				desiredIndentCount = ShiftCommand.unshiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
-			} else {
-				desiredIndentCount = ShiftCommand.shiftIndentCount(lineText, indentationEndIndex + 1, tabSize);
-			}
-
-			// Fill `indents`, as needed
-			for (let j = indents.length; j <= desiredIndentCount; j++) {
-				indents[j] = indents[j - 1] + oneIndent;
-			}
-
-			builder.addEditOperation(new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);
 		}
 
 		this._selectionId = builder.trackSelection(this._selection);

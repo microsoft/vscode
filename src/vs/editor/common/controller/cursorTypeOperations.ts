@@ -24,7 +24,8 @@ export class TypeOperations {
 			new ShiftCommand(cursor.selection, {
 				isUnshift: false,
 				tabSize: config.tabSize,
-				oneIndent: config.oneIndent
+				oneIndent: config.oneIndent,
+				useTabStops: config.useTabStops
 			}), {
 				shouldPushStackElementBefore: true,
 				shouldPushStackElementAfter: true
@@ -37,7 +38,8 @@ export class TypeOperations {
 			new ShiftCommand(cursor.selection, {
 				isUnshift: true,
 				tabSize: config.tabSize,
-				oneIndent: config.oneIndent
+				oneIndent: config.oneIndent,
+				useTabStops: config.useTabStops
 			}), {
 				shouldPushStackElementBefore: true,
 				shouldPushStackElementAfter: true

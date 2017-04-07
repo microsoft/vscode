@@ -188,7 +188,7 @@ export class PreferencesEditor extends BaseEditor {
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
 			this.preferencesRenderers.editablePreferencesRenderer = editablePreferencesRenderer;
-			this.filterPreferences(this.searchWidget.value());
+			this.filterPreferences(this.searchWidget.getValue());
 		});
 	}
 

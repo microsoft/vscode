@@ -270,7 +270,8 @@ export const GitErrorCodes = {
 	GitNotFound: 'GitNotFound',
 	CantCreatePipe: 'CantCreatePipe',
 	CantAccessRemote: 'CantAccessRemote',
-	RepositoryNotFound: 'RepositoryNotFound'
+	RepositoryNotFound: 'RepositoryNotFound',
+	RepositoryIsLocked: 'RepositoryIsLocked'
 };
 
 export class Git {
@@ -333,7 +334,9 @@ export class Git {
 		if (result.exitCode) {
 			let gitErrorCode: string | undefined = void 0;
 
-			if (/Authentication failed/.test(result.stderr)) {
+			if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(result.stderr)) {
+				gitErrorCode = GitErrorCodes.RepositoryIsLocked;
+			} else if (/Authentication failed/.test(result.stderr)) {
 				gitErrorCode = GitErrorCodes.AuthenticationFailed;
 			} else if (/Not a git repository/.test(result.stderr)) {
 				gitErrorCode = GitErrorCodes.NotAGitRepository;

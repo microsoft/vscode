@@ -7,6 +7,7 @@
 	"caret": "Cursorfarbe des Editors",
 	"editorLineNumbers": "Editor-Zeilennummern",
 	"guide": "Editor-Hilfsfarben",
+	"invisibles": "Farbe der Leerstellen im Editor",
 	"lineHighlight": "Farbe der Editor-Zeilenhervorhebungen",
 	"lineHighlightBorderBox": "Editorzeilenhervorhebung: Farbe der Rahmenbox",
 	"rangeHighlight": "Hintergrundfarbe des hervorgehobenen Bereichs, wie etwa durch die Features Quick Open und Suchen."

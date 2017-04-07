@@ -91,6 +91,7 @@ export interface IKeybindingsEditor extends IEditor {
 	removeKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	resetKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 	copyKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
+	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
@@ -103,3 +104,4 @@ export const KEYBINDINGS_EDITOR_COMMAND_DEFINE = 'keybindings.editor.defineKeybi
 export const KEYBINDINGS_EDITOR_COMMAND_REMOVE = 'keybindings.editor.removeKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_RESET = 'keybindings.editor.resetKeybinding';
 export const KEYBINDINGS_EDITOR_COMMAND_COPY = 'keybindings.editor.copyKeybindingEntry';
+export const KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS = 'keybindings.editor.showConflicts';

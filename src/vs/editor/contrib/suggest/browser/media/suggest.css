@@ -136,8 +136,8 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.method,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.function,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.constructor { background-image: url('Method_16x.svg'); }
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.field,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.variable { background-image: url('Field_16x.svg'); }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.field { background-image: url('Field_16x.svg'); }
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.variable { background-image: url('LocalVariable_16x_vscode.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.class { background-image: url('Class_16x.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.interface { background-image: url('Interface_16x.svg'); }
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon.struct { background-image: url('Structure_16x_vscode.svg'); }
@@ -275,9 +275,10 @@
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.constructor { background-image: url('Method_inverse_16x.svg'); }
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.field,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.field,
+.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.field { background-image: url('Field_inverse_16x.svg'); }
+
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.variable,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.variable { background-image: url('Field_inverse_16x.svg'); }
+.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.variable { background-image: url('LocalVariable_16x_vscode_inverse.svg'); }
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon.class,
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon.class { background-image: url('Class_inverse_16x.svg'); }

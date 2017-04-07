@@ -7,8 +7,6 @@
 import 'vs/css!./welcomePage';
 import URI from 'vs/base/common/uri';
 import * as path from 'path';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -34,6 +32,7 @@ import { IExtensionEnablementService, IExtensionManagementService, IExtensionGal
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { tildify } from "vs/base/common/labels";
 
 used();
 
@@ -146,7 +145,7 @@ class WelcomePage {
 				.then(null, error => this.messageService.show(Severity.Error, error));
 		});
 
-		recentlyOpened.then(({folders}) => {
+		recentlyOpened.then(({ folders }) => {
 			if (this.contextService.hasWorkspace()) {
 				const current = this.contextService.getWorkspace().resource.fsPath;
 				folders = folders.filter(folder => folder !== current);
@@ -184,10 +183,7 @@ class WelcomePage {
 
 				const span = document.createElement('span');
 				span.classList.add('path');
-				if ((platform.isMacintosh || platform.isLinux) && strings.startsWith(parentFolder, this.environmentService.userHome)) {
-					parentFolder = `~${parentFolder.substr(this.environmentService.userHome.length)}`;
-				}
-				span.innerText = parentFolder;
+				span.innerText = tildify(parentFolder, this.environmentService.userHome);
 				span.title = folder;
 				li.appendChild(span);
 
