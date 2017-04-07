@@ -1,0 +1,8 @@
+{
+  "name": "code-oss-dev-build",
+  "version": "1.0.0",
+  "devDependencies": {
+	"@types/xml2js": "^0.0.33",
+	"xml2js": "^0.4.17"
+  }
+}

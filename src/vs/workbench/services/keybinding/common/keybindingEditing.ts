@@ -13,6 +13,7 @@ import * as json from 'vs/base/common/json';
 import { Edit } from 'vs/base/common/jsonFormatter';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -50,6 +51,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IFileService private fileService: IFileService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
@@ -213,7 +215,8 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	private resolveModelReference(): TPromise<IReference<ITextEditorModel>> {
 		return this.fileService.existsFile(this.resource)
 			.then(exists => {
-				const result = exists ? TPromise.as(null) : this.fileService.updateContent(this.resource, '[]', { encoding: 'utf8' });
+				const EOL = this.configurationService.getConfiguration({ section: 'files', overrideIdentifier: 'json' })['eol'];
+				const result = exists ? TPromise.as(null) : this.fileService.updateContent(this.resource, this.getEmptyContent(EOL), { encoding: 'utf8' });
 				return result.then(() => this.textModelResolverService.createModelReference(this.resource));
 			});
 	}
@@ -243,7 +246,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 						this.applyEditsToBuffer({ content, length: content.length, offset: model.getValue().length }, model);
 					}
 				} else {
-					const content = '// ' + localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + EOL + '[]';
+					const content = this.getEmptyContent(EOL);
 					this.applyEditsToBuffer({ content, length: content.length, offset: 0 }, model);
 				}
 				return reference;
@@ -254,5 +257,9 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 		const parseErrors: json.ParseError[] = [];
 		const result = json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
 		return { result, parseErrors };
+	}
+
+	private getEmptyContent(EOL: string): string {
+		return '// ' + localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + EOL + '[]';
 	}
 }

@@ -706,13 +706,19 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 		return workspace.openTextDocument(this.tsServerLogFile)
 			.then(doc => {
+				if (!doc) {
+					return false;
+				}
 				return window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined)
 					.then(editor => !!editor);
-			}, () => {
-				window.showWarningMessage(localize(
-					'openTsServerLog.openFileFailedFailed',
-					'Could not open TS Server log file'));
-				return null;
+			}, () => false)
+			.then(didOpen => {
+				if (!didOpen) {
+					window.showWarningMessage(localize(
+						'openTsServerLog.openFileFailedFailed',
+						'Could not open TS Server log file'));
+				}
+				return didOpen;
 			});
 	}
 

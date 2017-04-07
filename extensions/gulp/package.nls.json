@@ -1,0 +1,3 @@
+{
+	"config.gulp.autoDetect": "Controls whether auto detection of gulp tasks in on or off. Default is on."
+}

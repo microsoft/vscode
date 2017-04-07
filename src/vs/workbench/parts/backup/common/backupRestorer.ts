@@ -16,7 +16,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -84,7 +84,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		const stacks = this.groupService.getStacksModel();
 		const hasOpenedEditors = stacks.groups.length > 0;
 
-		return TPromise.join(inputs.map(resource => this.createInput(resource))).then(inputs => {
+		return TPromise.join(inputs.map(resource => this.resolveInput(resource))).then(inputs => {
 			const openEditorsArgs = inputs.map((input, index) => {
 				return { input, options: { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors }, position: Position.ONE };
 			});
@@ -94,14 +94,16 @@ export class BackupRestorer implements IWorkbenchContribution {
 		});
 	}
 
-	private createInput(resource: URI): TPromise<IEditorInput> {
+	private resolveInput(resource: URI): TPromise<IResourceInput> {
 		if (resource.scheme === 'untitled' && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
 			// TODO@Ben debt: instead of guessing if an untitled file has an associated file path or not
 			// this information should be provided by the backup service and stored as meta data within
-			return TPromise.as(this.untitledEditorService.createOrGet(URI.file(resource.fsPath)));
+			return TPromise.as({
+				resource: this.untitledEditorService.createOrGet(URI.file(resource.fsPath)).getResource()
+			});
 		}
 
-		return this.editorService.createInput({ resource });
+		return TPromise.as({ resource });
 	}
 
 	public getId(): string {

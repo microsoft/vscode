@@ -488,6 +488,9 @@ class KeybindingItemMatches {
 		if (matchesPrefix(this.modifierLabels.user.altKey, word)) {
 			return true;
 		}
+		if (matchesPrefix(localize('option', "option"), word)) {
+			return true;
+		}
 		return false;
 	}
 

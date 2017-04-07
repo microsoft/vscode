@@ -26,5 +26,23 @@
     "onCommand:workbench.action.tasks.runTask",
     "onCommand:workbench.action.tasks.build",
     "onCommand:workbench.action.tasks.test"
-  ]
+  ],
+  "contributes": {
+    "configuration": {
+      "id": "gulp",
+      "type": "object",
+      "title": "Gulp",
+      "properties": {
+        "gulp.autoDetect": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on"
+          ],
+          "default": "on",
+          "description": "%config.gulp.autoDetect%"
+        }
+      }
+    }
+  }
 }
