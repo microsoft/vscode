@@ -914,6 +914,7 @@ export interface IWorkbenchEditorConfiguration {
 			closeOnFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
+			swipeToNavigateTabs: boolean
 		}
 	};
 }
