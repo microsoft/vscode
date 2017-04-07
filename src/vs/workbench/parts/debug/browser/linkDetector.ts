@@ -10,6 +10,7 @@ import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as nls from 'vs/nls';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import fs = require('fs');
 
 export class LinkDetector {
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
@@ -51,29 +52,35 @@ export class LinkDetector {
 						linkContainer = document.createElement('span');
 					}
 
-					let textBeforeLink = text.substring(lastMatchIndex, match.index);
-					if (textBeforeLink) {
-						let span = document.createElement('span');
-						span.textContent = textBeforeLink;
-						linkContainer.appendChild(span);
+					const valid = this.fileExists(resource.fsPath);
+					if (valid) {
+						let textBeforeLink = text.substring(lastMatchIndex, match.index);
+						if (textBeforeLink) {
+							let span = document.createElement('span');
+							span.textContent = textBeforeLink;
+							linkContainer.appendChild(span);
+						}
+
+						const link = document.createElement('a');
+						link.textContent = text.substr(match.index, match[0].length);
+						link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
+						linkContainer.appendChild(link);
+						const line = Number(match[3]);
+						const column = match[4] ? Number(match[4]) : undefined;
+						link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, line, column);
+					} else {
+						let plainText = document.createElement('span');
+						plainText.textContent = text.substring(lastMatchIndex, match.index + match[0].length);
+						linkContainer.appendChild(plainText);
 					}
 
-					const link = document.createElement('a');
-					link.textContent = text.substr(match.index, match[0].length);
-					link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
-					linkContainer.appendChild(link);
-
-					const line = Number(match[3]);
-					const column = match[4] ? Number(match[4]) : null;
-					link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, line, column);
-
 					lastMatchIndex = pattern.lastIndex;
-					const previousMatch = match;
+					const currentMatch = match;
 					match = pattern.exec(text);
 
-					// Append remaining text if no more links detected
+					// Append last string part if no more link matches
 					if (!match) {
-						let textAfterLink = text.substr(previousMatch.index + previousMatch[0].length);
+						let textAfterLink = text.substr(currentMatch.index + currentMatch[0].length);
 						if (textAfterLink) {
 							let span = document.createElement('span');
 							span.textContent = textAfterLink;
@@ -106,4 +113,17 @@ export class LinkDetector {
 		}, event.ctrlKey || event.metaKey).done(null, errors.onUnexpectedError);
 	}
 
+	private fileExists(path: string): boolean {
+		let stat;
+		try {
+			stat = fs.statSync(path);
+		} catch (e) {
+			return false;
+		}
+
+		if (stat.isFile()) {
+			return true;
+		}
+		return false;
+	}
 }
