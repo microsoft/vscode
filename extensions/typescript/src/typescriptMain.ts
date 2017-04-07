@@ -443,6 +443,15 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		return this.client;
 	}
 
+	public restartTsServer(): void {
+		this.client.restartTsServer();
+		if (this.languages) {
+			for (const provider of this.languages) {
+				provider.reInitialize();
+			}
+		}
+	}
+
 	public reloadProjects(): void {
 		this.client.execute('reloadProjects', null, false);
 		this.triggerAllDiagnostics();
