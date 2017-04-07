@@ -371,14 +371,14 @@ export class ExplorerView extends CollapsibleViewletView {
 		// Open when selecting via keyboard
 		this.toDispose.push(this.explorerViewer.addListener2('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
-				const element = this.tree.getFocus();
+				const element = this.tree.getSelection();
 
-				if (element instanceof FileStat) {
-					if (element.isDirectory) {
-						this.explorerViewer.toggleExpansion(element);
+				if (Array.isArray(element) && element[0] instanceof FileStat) {
+					if (element[0].isDirectory) {
+						this.explorerViewer.toggleExpansion(element[0]);
 					}
 
-					controller.openEditor(element, { pinned: false, sideBySide: false, preserveFocus: false });
+					controller.openEditor(element[0], { pinned: false, sideBySide: false, preserveFocus: false });
 				}
 			}
 		}));
