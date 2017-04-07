@@ -471,6 +471,11 @@ interface WorkspaceTaskResult {
 	hasErrors: boolean;
 }
 
+interface WorkspaceConfigurationResult {
+	config: TaskConfig.ExternalTaskRunnerConfiguration;
+	hasErrors: boolean;
+}
+
 class TaskService extends EventEmitter implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
@@ -848,7 +853,9 @@ class TaskService extends EventEmitter implements ITaskService {
 			let result: TaskSet[] = [];
 			let counter: number = 0;
 			let done = (value: TaskSet) => {
-				result.push(value);
+				if (value) {
+					result.push(value);
+				}
 				if (--counter === 0) {
 					resolve(result);
 				}
@@ -892,7 +899,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private computeWorkspaceTasks(): TPromise<WorkspaceTaskResult> {
-		let configPromise: TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; hasErrors: boolean }>;
+		let configPromise: TPromise<WorkspaceConfigurationResult>;
 		{
 			let { config, hasParseErrors } = this.getConfiguration();
 			if (hasParseErrors) {
@@ -901,11 +908,11 @@ class TaskService extends EventEmitter implements ITaskService {
 			if (config) {
 				let engine = TaskConfig.ExecutionEngine.from(config);
 				if (engine === ExecutionEngine.Process && this.hasDetectorSupport(config)) {
-					configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value) => {
+					configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceConfigurationResult => {
 						let hasErrors = this.printStderr(value.stderr);
 						let detectedConfig = value.config;
 						if (!detectedConfig) {
-							return config;
+							return { config, hasErrors };
 						}
 						let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
 						let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
@@ -934,9 +941,9 @@ class TaskService extends EventEmitter implements ITaskService {
 			}
 		}
 		return configPromise.then((resolved) => {
-			return ProblemMatcherRegistry.onReady().then(() => {
+			return ProblemMatcherRegistry.onReady().then((): WorkspaceTaskResult => {
 				if (!resolved || !resolved.config) {
-					return { taskSet: undefined, hasErrors: resolved !== void 0 ? resolved.hasErrors : false };
+					return { set: undefined, hasErrors: resolved !== void 0 ? resolved.hasErrors : false };
 				}
 				let problemReporter = new ProblemReporter(this.outputChannel);
 				let parseResult = TaskConfig.parse(resolved.config, problemReporter);
@@ -947,7 +954,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 				if (problemReporter.status.isFatal()) {
 					problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
-					return { taskSet: undefined, hasErrors };
+					return { set: undefined, hasErrors };
 				}
 				return { set: { tasks: parseResult.tasks }, hasErrors };
 			});
@@ -965,7 +972,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private getConfiguration(): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
 		let result = this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
 		if (!result) {
-			return undefined;
+			return { config: undefined, hasParseErrors: false };
 		}
 		let parseErrors: string[] = (result as any).$parseErrors;
 		if (parseErrors) {
