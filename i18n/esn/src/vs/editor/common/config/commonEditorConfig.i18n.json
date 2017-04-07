@@ -70,5 +70,6 @@
 	"wordWrap.off": "Las líneas no se ajustarán nunca.",
 	"wordWrap.on": "Las líneas se ajustarán en el ancho de la ventanilla.",
 	"wordWrap.wordWrapColumn": "Las líneas se ajustarán en \"editor.wordWrapColumn\".",
+	"wordWrapColumn": "Controla la columna de ajuste del editor cuando \"editor.wordWrap\" es \"wordWrapColumn\" o \"bounded\".",
 	"wrappingIndent": "Controla el sangrado de las líneas ajustadas. Puede ser uno los valores 'none', 'same' o 'indent'."
 }

@@ -8,5 +8,5 @@
 	"prof.message": "成功创建的配置文件。",
 	"prof.restart": "重启",
 	"prof.restartAndFileIssue": "创建问题并重启",
-	"runningAsRoot": "不建议将 Code 作为“根”运行。"
+	"runningAsRoot": "不建议以 “root” 用户身份运行 Code。"
 }
