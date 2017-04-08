@@ -10,14 +10,13 @@ import network = require('vs/base/common/network');
 import { Registry } from 'vs/platform/platform';
 import { basename, dirname } from 'vs/base/common/paths';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, IFileEditorInput, TextEditorOptions, IEditorRegistry, Extensions, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, TextEditorOptions, IEditorRegistry, Extensions, SideBySideEditorInput, IFileInputFactory } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, IResourceDiffInput, IResourceSideBySideInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { AsyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import nls = require('vs/nls');
@@ -41,7 +40,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public _serviceBrand: any;
 
 	private editorPart: IEditorPart | IWorkbenchEditorService;
-	private fileInputDescriptor: AsyncDescriptor0<IFileEditorInput>;
+	private fileInputFactory: IFileInputFactory;
 
 	constructor(
 		editorPart: IEditorPart | IWorkbenchEditorService,
@@ -50,7 +49,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		@IInstantiationService private instantiationService?: IInstantiationService
 	) {
 		this.editorPart = editorPart;
-		this.fileInputDescriptor = Registry.as<IEditorRegistry>(Extensions.Editors).getDefaultFileInput();
+		this.fileInputFactory = Registry.as<IEditorRegistry>(Extensions.Editors).getFileInputFactory();
 	}
 
 	public getActiveEditor(): IEditor {
@@ -240,8 +239,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		// Base Text Editor Support for file resources
-		else if (this.fileInputDescriptor && resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
-			return this.createFileInput(resourceInput.resource, resourceInput.encoding);
+		else if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
+			return TPromise.as(this.fileInputFactory.createOrGet(resourceInput.resource, this.instantiationService, resourceInput.encoding));
 		}
 
 		// Treat an URI as ResourceEditorInput
@@ -255,15 +254,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		return TPromise.as<EditorInput>(null);
-	}
-
-	private createFileInput(resource: URI, encoding?: string): TPromise<IFileEditorInput> {
-		return this.instantiationService.createInstance(this.fileInputDescriptor).then(typedFileInput => {
-			typedFileInput.setResource(resource);
-			typedFileInput.setPreferredEncoding(encoding);
-
-			return typedFileInput;
-		});
 	}
 }
 

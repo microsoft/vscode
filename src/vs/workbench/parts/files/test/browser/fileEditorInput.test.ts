@@ -182,4 +182,29 @@ suite('Files - FileEditorInput', () => {
 			done();
 		});
 	});
+
+	test('cache', function () {
+		const resource1 = toResource.call(this, '/foo/bar/cache1.js');
+		const input1 = FileEditorInput.createOrGet(resource1, instantiationService);
+		assert.ok(input1);
+		assert.equal(resource1, input1.getResource());
+
+		const resource2 = toResource.call(this, '/foo/bar/cache2.js');
+		const input2 = FileEditorInput.createOrGet(resource2, instantiationService);
+		assert.ok(input2);
+		assert.equal(resource2, input2.getResource());
+
+		assert.notEqual(input1, input2);
+
+		const input1Again = FileEditorInput.createOrGet(resource1, instantiationService);
+		assert.equal(input1Again, input1);
+
+		input1Again.dispose();
+
+		assert.ok(input1.isDisposed());
+
+		const input1AgainAndAgain = FileEditorInput.createOrGet(resource1, instantiationService);
+		assert.notEqual(input1AgainAndAgain, input1);
+		assert.ok(!input1AgainAndAgain.isDisposed());
+	});
 });
