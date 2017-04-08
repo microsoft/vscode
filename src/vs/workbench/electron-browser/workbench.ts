@@ -23,7 +23,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IOptions } from 'vs/workbench/common/options';
-import { Position as EditorPosition, IResourceInput, IResourceDiffInput } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
@@ -382,14 +382,14 @@ export class Workbench implements IPartService {
 
 			// Otherwise: Open/Create files
 			else {
-				const filesToCreateInputs: IResourceInput[] = filesToCreate.map(resourceInput => {
-					return <IResourceInput>{
-						resource: this.untitledEditorService.createOrGet(resourceInput.resource).getResource(),
+				const filesToCreateInputs: IUntitledResourceInput[] = filesToCreate.map(resourceInput => {
+					return <IUntitledResourceInput>{
+						filePath: resourceInput.resource.fsPath,
 						options: { pinned: true }
 					};
 				});
 
-				return TPromise.as(filesToOpen.concat(filesToCreateInputs));
+				return TPromise.as([].concat(filesToOpen).concat(filesToCreateInputs));
 			}
 		}
 
@@ -400,7 +400,7 @@ export class Workbench implements IPartService {
 					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
 				}
 
-				return TPromise.as([<IResourceInput>{ resource: this.untitledEditorService.createOrGet().getResource() }]);
+				return TPromise.as([<IUntitledResourceInput>{}]);
 			});
 		}
 

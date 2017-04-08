@@ -15,7 +15,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, IResourceDiffInput, IResourceSideBySideInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, ITextEditorOptions, Position, Direction, IEditor, IResourceInput, IResourceDiffInput, IResourceSideBySideInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -224,13 +224,15 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		// Untitled file support
-		const resourceInput = <IResourceInput>input;
-		if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
-			return this.untitledEditorService.createOrGet(resourceInput.resource);
+		const untitledInput = <IUntitledResourceInput>input;
+		if (!untitledInput.resource || typeof untitledInput.filePath === 'string' || (untitledInput.resource instanceof URI && untitledInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
+			return this.untitledEditorService.createOrGet(untitledInput.filePath ? URI.file(untitledInput.filePath) : untitledInput.resource, untitledInput.language, untitledInput.contents);
 		}
 
+		const resourceInput = <IResourceInput>input;
+
 		// Files support
-		else if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
+		if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
 			return this.fileInputFactory.createOrGet(resourceInput.resource, this.instantiationService, resourceInput.encoding);
 		}
 

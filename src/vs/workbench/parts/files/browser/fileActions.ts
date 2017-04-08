@@ -37,7 +37,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IQuickOpenService, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IEditorInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -514,16 +514,13 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const input = this.untitledEditorService.createOrGet();
-
-		return this.editorService.openEditor(input, { pinned: true }); // untitled are always pinned
+		return this.editorService.openEditor({ options: { pinned: true } } as IUntitledResourceInput); // untitled are always pinned
 	}
 }
 
