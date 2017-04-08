@@ -50,7 +50,7 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
 export interface IFileInputFactory {
-	createOrGet(resource: URI, instantiationService: IInstantiationService, encoding?: string): IFileEditorInput;
+	createFileInput(resource: URI, encoding: string, instantiationService: IInstantiationService): IFileEditorInput;
 }
 
 export interface IEditorRegistry {

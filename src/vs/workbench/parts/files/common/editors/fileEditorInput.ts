@@ -21,35 +21,11 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ResourceMap } from "vs/base/common/map";
-import { once } from "vs/base/common/event";
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
 export class FileEditorInput extends EditorInput implements IFileEditorInput {
-
-	private static CACHE: ResourceMap<FileEditorInput> = new ResourceMap<FileEditorInput>();
-
-	public static createOrGet(resource: URI, instantiationService: IInstantiationService, preferredEncoding?: string): FileEditorInput {
-		if (FileEditorInput.CACHE.has(resource)) {
-			const input = FileEditorInput.CACHE.get(resource);
-			if (preferredEncoding) {
-				input.setPreferredEncoding(preferredEncoding);
-			}
-
-			return input;
-		}
-
-		const input = instantiationService.createInstance(FileEditorInput, resource, preferredEncoding);
-		FileEditorInput.CACHE.set(resource, input);
-		once(input.onDispose)(() => {
-			FileEditorInput.CACHE.delete(resource);
-		});
-
-		return input;
-	}
-
 	private resource: URI;
 	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;

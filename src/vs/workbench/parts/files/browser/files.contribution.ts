@@ -98,8 +98,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 // Register default file input factory
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerFileInputFactory({
-	createOrGet: (resource, instantiationService, encoding): IFileEditorInput => {
-		return FileEditorInput.createOrGet(resource, instantiationService, encoding);
+	createFileInput: (resource, encoding, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, encoding);
 	}
 });
 
@@ -145,10 +145,14 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		return JSON.stringify(fileInput);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
+		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
+			const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
+			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
+			const encoding = fileInput.encoding;
 
-		return FileEditorInput.createOrGet(!!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource), instantiationService, fileInput.encoding);
+			return accessor.get(IWorkbenchEditorService).createInput({ resource, encoding }) as FileEditorInput;
+		});
 	}
 }
 

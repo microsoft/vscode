@@ -10,7 +10,7 @@ import network = require('vs/base/common/network');
 import { Registry } from 'vs/platform/platform';
 import { basename, dirname } from 'vs/base/common/paths';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, TextEditorOptions, IEditorRegistry, Extensions, SideBySideEditorInput, IFileInputFactory } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, TextEditorOptions, IEditorRegistry, Extensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -21,6 +21,8 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import nls = require('vs/nls');
 import { getPathLabel, IWorkspaceProvider } from 'vs/base/common/labels';
+import { ResourceMap } from "vs/base/common/map";
+import { once } from "vs/base/common/event";
 
 export interface IEditorPart {
 	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -35,9 +37,13 @@ export interface IEditorPart {
 	getActiveEditorInput(): IEditorInput;
 }
 
+type ICachedEditorInput = ResourceEditorInput | IFileEditorInput;
+
 export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public _serviceBrand: any;
+
+	private static CACHE: ResourceMap<ICachedEditorInput> = new ResourceMap<ICachedEditorInput>();
 
 	private editorPart: IEditorPart | IWorkbenchEditorService;
 	private fileInputFactory: IFileInputFactory;
@@ -233,20 +239,48 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Files support
 		if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
-			return this.fileInputFactory.createOrGet(resourceInput.resource, this.instantiationService, resourceInput.encoding);
+			return this.createOrGet(resourceInput.resource, this.instantiationService, resourceInput.label, resourceInput.description, resourceInput.encoding);
 		}
 
 		// Any other resource
 		else if (resourceInput.resource instanceof URI) {
-			return this.instantiationService.createInstance(
-				ResourceEditorInput,
+			return this.createOrGet(
+				resourceInput.resource,
+				this.instantiationService,
 				resourceInput.label || basename(resourceInput.resource.fsPath),
-				typeof resourceInput.description === 'string' ? resourceInput.description : dirname(resourceInput.resource.fsPath),
-				resourceInput.resource
+				typeof resourceInput.description === 'string' ? resourceInput.description : dirname(resourceInput.resource.fsPath)
 			);
 		}
 
 		return null;
+	}
+
+	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string, description: string, encoding?: string): ICachedEditorInput {
+		if (WorkbenchEditorService.CACHE.has(resource)) {
+			const input = WorkbenchEditorService.CACHE.get(resource);
+			if (input instanceof ResourceEditorInput) {
+				input.setName(label);
+				input.setDescription(description);
+			} else {
+				input.setPreferredEncoding(encoding);
+			}
+
+			return input;
+		}
+
+		let input: ICachedEditorInput;
+		if (resource.scheme === network.Schemas.file) {
+			input = this.fileInputFactory.createFileInput(resource, encoding, instantiationService);
+		} else {
+			input = instantiationService.createInstance(ResourceEditorInput, label, description, resource);
+		}
+
+		WorkbenchEditorService.CACHE.set(resource, input);
+		once(input.onDispose)(() => {
+			WorkbenchEditorService.CACHE.delete(resource);
+		});
+
+		return input;
 	}
 }
 
