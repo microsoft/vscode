@@ -223,20 +223,18 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
 		}
 
-		// Base Text Editor Support for inmemory resources
-		const resourceInput = <IResourceInput>input;
-
 		// Untitled file support
+		const resourceInput = <IResourceInput>input;
 		if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === UntitledEditorInput.SCHEMA)) {
 			return this.untitledEditorService.createOrGet(resourceInput.resource);
 		}
 
-		// Base Text Editor Support for file resources
+		// Files support
 		else if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
 			return this.fileInputFactory.createOrGet(resourceInput.resource, this.instantiationService, resourceInput.encoding);
 		}
 
-		// Treat an URI as ResourceEditorInput
+		// Any other resource
 		else if (resourceInput.resource instanceof URI) {
 			return this.instantiationService.createInstance(
 				ResourceEditorInput,
