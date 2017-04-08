@@ -14,9 +14,9 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import errors = require('vs/base/common/errors');
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
+import { ITextFileService } from "vs/workbench/services/textfile/common/textfiles";
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -28,7 +28,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		@IPartService private partService: IPartService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IBackupFileService private backupFileService: IBackupFileService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IEditorGroupService private groupService: IEditorGroupService
 	) {
 		this.restoreBackups();
@@ -68,7 +68,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		backups.forEach(backup => {
 			if (stacks.isOpen(backup)) {
 				if (backup.scheme === 'file') {
-					restorePromises.push(this.textModelResolverService.createModelReference(backup).then(null, () => unresolved.push(backup)));
+					restorePromises.push(this.textFileService.models.loadOrCreate(backup).then(null, () => unresolved.push(backup)));
 				} else if (backup.scheme === 'untitled') {
 					restorePromises.push(this.untitledEditorService.get(backup).resolve().then(null, () => unresolved.push(backup)));
 				}

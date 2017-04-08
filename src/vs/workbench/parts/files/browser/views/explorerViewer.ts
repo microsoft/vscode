@@ -49,7 +49,6 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -605,7 +604,6 @@ export class FileDragAndDrop implements IDragAndDrop {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		this.toDispose = [];
@@ -761,7 +759,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 				// Success: load all files that are dirty again to restore their dirty contents
 				// Error: discard any backups created during the process
-				const onSuccess = () => TPromise.join(dirtyMoved.map(t => this.textModelResolverService.createModelReference(t)));
+				const onSuccess = () => TPromise.join(dirtyMoved.map(t => this.textFileService.models.loadOrCreate(t)));
 				const onError = (error?: Error, showError?: boolean) => {
 					if (showError) {
 						this.messageService.show(Severity.Error, error);
