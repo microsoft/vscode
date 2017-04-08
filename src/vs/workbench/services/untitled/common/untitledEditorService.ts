@@ -11,6 +11,7 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Event, { Emitter, once } from 'vs/base/common/event';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const IUntitledEditorService = createDecorator<IUntitledEditorService>('untitledEditorService');
 
@@ -82,8 +83,8 @@ export class UntitledEditorService implements IUntitledEditorService {
 
 	public _serviceBrand: any;
 
-	private static CACHE: { [resource: string]: UntitledEditorInput } = Object.create(null);
-	private static KNOWN_ASSOCIATED_FILE_PATHS: { [resource: string]: boolean } = Object.create(null);
+	private static CACHE: ResourceMap<UntitledEditorInput> = new ResourceMap<UntitledEditorInput>();
+	private static KNOWN_ASSOCIATED_FILE_PATHS: ResourceMap<boolean> = new ResourceMap<boolean>();
 
 	private _onDidChangeContent: Emitter<URI>;
 	private _onDidChangeDirty: Emitter<URI>;
@@ -117,15 +118,15 @@ export class UntitledEditorService implements IUntitledEditorService {
 	}
 
 	public get(resource: URI): UntitledEditorInput {
-		return UntitledEditorService.CACHE[resource.toString()];
+		return UntitledEditorService.CACHE.get(resource);
 	}
 
 	public getAll(resources?: URI[]): UntitledEditorInput[] {
 		if (resources) {
-			return arrays.coalesce(resources.map((r) => this.get(r)));
+			return arrays.coalesce(resources.map(r => this.get(r)));
 		}
 
-		return Object.keys(UntitledEditorService.CACHE).map((key) => UntitledEditorService.CACHE[key]);
+		return UntitledEditorService.CACHE.values();
 	}
 
 	public revertAll(resources?: URI[], force?: boolean): URI[] {
@@ -151,10 +152,9 @@ export class UntitledEditorService implements IUntitledEditorService {
 	}
 
 	public getDirty(): URI[] {
-		return Object.keys(UntitledEditorService.CACHE)
-			.map((key) => UntitledEditorService.CACHE[key])
-			.filter((i) => i.isDirty())
-			.map((i) => i.getResource());
+		return UntitledEditorService.CACHE.values()
+			.filter(i => i.isDirty())
+			.map(i => i.getResource());
 	}
 
 	public createOrGet(resource?: URI, modeId?: string, initialValue?: string): UntitledEditorInput {
@@ -164,13 +164,13 @@ export class UntitledEditorService implements IUntitledEditorService {
 			resource = this.resourceToUntitled(resource); // ensure we have the right scheme
 
 			if (hasAssociatedFilePath) {
-				UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[resource.toString()] = true; // remember for future lookups
+				UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS.set(resource, true); // remember for future lookups
 			}
 		}
 
 		// Return existing instance if asked for it
-		if (resource && UntitledEditorService.CACHE[resource.toString()]) {
-			return UntitledEditorService.CACHE[resource.toString()];
+		if (resource && UntitledEditorService.CACHE.has(resource)) {
+			return UntitledEditorService.CACHE.get(resource);
 		}
 
 		// Create new otherwise
@@ -181,11 +181,11 @@ export class UntitledEditorService implements IUntitledEditorService {
 		if (!resource) {
 
 			// Create new taking a resource URI that is not already taken
-			let counter = Object.keys(UntitledEditorService.CACHE).length + 1;
+			let counter = UntitledEditorService.CACHE.size + 1;
 			do {
 				resource = URI.from({ scheme: UntitledEditorInput.SCHEMA, path: `Untitled-${counter}` });
 				counter++;
-			} while (Object.keys(UntitledEditorService.CACHE).indexOf(resource.toString()) >= 0);
+			} while (UntitledEditorService.CACHE.has(resource));
 		}
 
 		// Look up default language from settings if any
@@ -217,8 +217,8 @@ export class UntitledEditorService implements IUntitledEditorService {
 		// Remove from cache on dispose
 		const onceDispose = once(input.onDispose);
 		onceDispose(() => {
-			delete UntitledEditorService.CACHE[input.getResource().toString()];
-			delete UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[input.getResource().toString()];
+			UntitledEditorService.CACHE.delete(input.getResource());
+			UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS.delete(input.getResource());
 			contentListener.dispose();
 			dirtyListener.dispose();
 			encodingListener.dispose();
@@ -226,7 +226,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 		});
 
 		// Add to cache
-		UntitledEditorService.CACHE[resource.toString()] = input;
+		UntitledEditorService.CACHE.set(resource, input);
 
 		return input;
 	}
@@ -240,7 +240,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 	}
 
 	public hasAssociatedFilePath(resource: URI): boolean {
-		return !!UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS[resource.toString()];
+		return UntitledEditorService.KNOWN_ASSOCIATED_FILE_PATHS.has(resource);
 	}
 
 	public dispose(): void {
