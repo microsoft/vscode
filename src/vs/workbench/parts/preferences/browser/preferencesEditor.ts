@@ -38,7 +38,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -461,7 +460,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModelService private modelService: IModelService,
 		@IModeService modeService: IModeService,

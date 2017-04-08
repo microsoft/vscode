@@ -29,7 +29,6 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { IWindowsService, IWindowService, IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPath, IOpenFileRequest, IWindowConfiguration } from 'vs/workbench/electron-browser/common';
@@ -91,8 +90,7 @@ export class ElectronWindow extends Themable {
 		@IViewletService private viewletService: IViewletService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(themeService);
 

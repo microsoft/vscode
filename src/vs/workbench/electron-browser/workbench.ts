@@ -39,7 +39,6 @@ import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbe
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { WorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -200,7 +199,6 @@ export class Workbench implements IPartService {
 		options: IOptions,
 		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
