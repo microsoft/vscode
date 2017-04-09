@@ -9,13 +9,15 @@ import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestTextFileService, TestEditorGroupService, createFileInput } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { Verbosity } from 'vs/platform/editor/common/editor';
+import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
+import { IModelService } from "vs/editor/common/services/modelService";
 
 function toResource(path) {
 	return URI.file(join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
@@ -24,7 +26,9 @@ function toResource(path) {
 class ServiceAccessor {
 	constructor(
 		@IWorkbenchEditorService public editorService: IWorkbenchEditorService,
-		@ITextFileService public textFileService: TestTextFileService
+		@ITextFileService public textFileService: TestTextFileService,
+		@IModelService public modelService: IModelService,
+		@IEditorGroupService public editorGroupService: TestEditorGroupService
 	) {
 	}
 }
@@ -178,6 +182,31 @@ suite('Files - FileEditorInput', () => {
 			assert.ok(resolved);
 
 			resolved.dispose();
+
+			done();
+		});
+	});
+
+	test('disposes model when not open anymore', function (done) {
+		const resource = toResource.call(this, '/path/index.txt');
+
+		const input = createFileInput(instantiationService, resource);
+
+		input.resolve().then((model: TextFileEditorModel) => {
+			const stacks = accessor.editorGroupService.getStacksModel();
+			const group = stacks.openGroup('group', true);
+			group.openEditor(input);
+
+			accessor.editorGroupService.fireChange();
+
+			assert.ok(!model.isDisposed());
+
+			group.closeEditor(input);
+			accessor.editorGroupService.fireChange();
+			assert.ok(model.isDisposed());
+
+			model.dispose();
+			assert.ok(!accessor.modelService.getModel(model.getResource()));
 
 			done();
 		});
