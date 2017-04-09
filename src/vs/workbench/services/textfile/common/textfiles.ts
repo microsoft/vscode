@@ -168,6 +168,8 @@ export interface ITextFileEditorModelManager {
 	getAll(resource?: URI): ITextFileEditorModel[];
 
 	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextEditorModel>;
+
+	disposeModel(model: ITextFileEditorModel): void;
 }
 
 export interface IModelSaveOptions {

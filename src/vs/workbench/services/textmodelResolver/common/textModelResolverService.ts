@@ -17,6 +17,7 @@ import network = require('vs/base/common/network');
 import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { TextFileEditorModel } from "vs/workbench/services/textfile/common/textFileEditorModel";
 
 class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
 
@@ -40,7 +41,13 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 	}
 
 	public destroyReferencedObject(modelPromise: TPromise<ITextEditorModel>): void {
-		modelPromise.done(model => model.dispose());
+		modelPromise.done(model => {
+			if (model instanceof TextFileEditorModel) {
+				this.textFileService.models.disposeModel(model);
+			} else {
+				model.dispose();
+			}
+		});
 	}
 
 	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {

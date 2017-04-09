@@ -322,6 +322,26 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 		this.mapResourceToModelContentChangeListener.clear();
 	}
 
+	public disposeModel(model: TextFileEditorModel): void {
+		if (!model) {
+			return; // we need data!
+		}
+
+		if (model.isDisposed()) {
+			return; // already disposed
+		}
+
+		if (this.mapResourceToPendingModelLoaders.has(model.getResource())) {
+			return; // not yet loaded
+		}
+
+		if (model.isDirty()) {
+			return; // not saved
+		}
+
+		model.dispose();
+	}
+
 	public dispose(): void {
 		this.toUnbind = dispose(this.toUnbind);
 	}
