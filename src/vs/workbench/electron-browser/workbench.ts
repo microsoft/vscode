@@ -654,11 +654,16 @@ export class Workbench implements IPartService {
 		}
 
 		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+		if (windowConfig && windowConfig.window) {
+			const useNativeTabs = windowConfig.window.nativeTabs;
+			if (useNativeTabs) {
+				return null; // native tabs on sierra do not work with custom title style
+			}
 
-		const style = windowConfig && windowConfig.window && windowConfig.window.titleBarStyle;
-
-		if (style === 'custom') {
-			return style;
+			const style = windowConfig.window.titleBarStyle;
+			if (style === 'custom') {
+				return style;
+			}
 		}
 
 		return null;
