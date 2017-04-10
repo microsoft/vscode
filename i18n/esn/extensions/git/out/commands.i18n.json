@@ -10,6 +10,7 @@
 	"commit message": "Mensaje de confirmación",
 	"confirm discard": "¿Está seguro de que quiere descartar los cambios de {0}?",
 	"confirm discard all": "¿Está seguro de que quiere descartar TODOS los cambios?",
+	"confirm discard multiple": "¿Está seguro de que quiere descartar los cambios de {0} archivos?",
 	"confirm revert": "¿Está seguro de que desea revertir los cambios seleccionados en {0}?",
 	"disabled": "GIT está deshabilitado o no se admite en esta área de trabajo",
 	"discard": "Descartar cambios",

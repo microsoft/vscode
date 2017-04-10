@@ -15,9 +15,8 @@
 	"inactiveTabActiveGroupForeground": "活动组中非活动选项卡的前景色。在编辑器区域，选项卡是编辑器的容器。可在一个编辑器组中打开多个选项卡。可以有多个编辑器组。",
 	"inactiveTabBackground": "非活动选项卡的背景色。在编辑器区域，选项卡是编辑器的容器。可在一个编辑器组中打开多个选项卡。可以有多个编辑器组。",
 	"inactiveTabInactiveGroupForeground": "非活动组中非活动选项卡的前景色。在编辑器区域，选项卡是编辑器的容器。可在一个编辑器组中打开多个选项卡。可以有多个编辑器组。",
-	"noTabsContainerBackground": "未启用任何选项卡时，编辑器标题容器的背景色。",
 	"panelBackground": "面板的背景色。面板显示在编辑器区域下方，可包含输出和集成终端等视图。",
-	"panelBorderTopColor": "分隔到编辑器的顶部面板边框色。面板显示在编辑器区域下方，可包含输出和集成终端等视图。",
+	"panelTopBorder": "分隔到编辑器的顶部面板边框色。面板显示在编辑器区域下方，可包含输出和集成终端等视图。",
 	"sideBarBackground": "侧边栏背景色。侧边栏是资源管理器和搜索等视图的容器。",
 	"sideBarTitleForeground": "侧边栏标题前景色。侧边栏是资源管理器和搜索等视图的容器。",
 	"statusBarBackground": "标准状态栏背景色。状态栏显示在窗口底部",
@@ -32,6 +31,5 @@
 	"titleBarActiveBackground": "窗口处于活动状态时的标题栏背景色。请注意，该颜色当前仅在 macOS 上受支持。",
 	"titleBarActiveForeground": "窗口处于活动状态时的标题栏前景色。请注意，该颜色当前仅在 macOS 上受支持。",
 	"titleBarInactiveBackground": "窗口处于非活动状态时的标题栏背景色。请注意，该颜色当前仅在 macOS 上受支持。",
-	"titleBarInactiveForeground": "窗口处于非活动状态时的标题栏前景色。请注意，该颜色当前仅在 macOS 上受支持。",
-	"windowForeground": "整体窗口前景色。该颜色仅适用于未被组件替代的情况。"
+	"titleBarInactiveForeground": "窗口处于非活动状态时的标题栏前景色。请注意，该颜色当前仅在 macOS 上受支持。"
 }

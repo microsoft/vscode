@@ -15,9 +15,8 @@
 	"inactiveTabActiveGroupForeground": "Vordergrundfarbe der inaktiven Registerkarte in einer aktiven Gruppe. Registerkarten sind die Container für Editors im Editorbereich. In einer Editorgruppe können mehrere Registerkarten geöffnet werden. Mehrere Editorgruppen können vorhanden sein.",
 	"inactiveTabBackground": "Hintergrundfarbe der inaktiven Registerkarte. Registerkarten sind die Container für Editors im Editorbereich. In einer Editorgruppe können mehrere Registerkarten geöffnet werden. Mehrere Editorgruppen können vorhanden sein.",
 	"inactiveTabInactiveGroupForeground": "Vordergrundfarbe der inaktiven Registerkarte in einer inaktiven Gruppe. Registerkarten sind die Container für Editors im Editorbereich. In einer Editorgruppe können mehrere Registerkarten geöffnet werden. Mehrere Editorgruppen können vorhanden sein.",
-	"noTabsContainerBackground": "Hintergrundfarbe des Editor-Titelcontainers, wenn keine Registerkarten aktiviert sind.",
 	"panelBackground": "Hintergrundfarbe des Panels. Panels werden unter dem Editorbereich angezeigt und enthalten Ansichten wie die Ausgabe und das integrierte Terminal.",
-	"panelBorderTopColor": "Farbe des oberen Panelrahmens, der das Panel vom Editor abtrennt. Panels werden unter dem Editorbereich angezeigt und enthalten Ansichten wie die Ausgabe und das integrierten Terminal.",
+	"panelTopBorder": "Farbe des oberen Panelrahmens, der das Panel vom Editor abtrennt. Panels werden unter dem Editorbereich angezeigt und enthalten Ansichten wie die Ausgabe und das integrierten Terminal.",
 	"sideBarBackground": "Hintergrundfarbe der Seitenleiste. Die Seitenleiste ist der Container für Ansichten wie den Explorer und die Suche.",
 	"sideBarTitleForeground": "Vordergrundfarbe der Seitenleiste. Die Seitenleiste ist der Container für Ansichten wie den Explorer und die Suche.",
 	"statusBarBackground": "Standardhintergrundfarbe der Statusleiste. Die Statusleiste wird unten im Fenster angezeigt.",
@@ -32,6 +31,5 @@
 	"titleBarActiveBackground": "Hintergrund der Titelleiste, wenn das Fenster aktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
 	"titleBarActiveForeground": "Vordergrund der Titelleiste, wenn das Fenster aktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
 	"titleBarInactiveBackground": "Hintergrund der Titelleiste, wenn das Fenster inaktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
-	"titleBarInactiveForeground": "Vordergrund der Titelleiste, wenn das Fenster inaktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt.",
-	"windowForeground": "Vordergrundfarbe des allgemeinen Fensters. Die Farbe wird nur verwendet, wenn sie nicht durch eine Komponente außer Kraft gesetzt wird."
+	"titleBarInactiveForeground": "Vordergrund der Titelleiste, wenn das Fenster inaktiv ist. Diese Farbe wird derzeit nur von MacOS unterstützt."
 }
