@@ -431,45 +431,47 @@ suite('Keybindings Editor Model test', () => {
 		});
 	});
 
-	// TODO@sandeep failing on Windows and Linux
-	// test('filter by modifiers and key', () => {
-	// 	const command = 'a' + uuid.generateUuid();
-	// 	const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true, metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-	// 	prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('filter by modifiers and key', () => {
+		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true, metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
-	// 	return testObject.resolve().then(() => {
-	// 		const actual = testObject.fetch('alt cmd esc').filter(element => element.keybindingItem.command === command);
-	// 		assert.equal(1, actual.length);
-	// 		assert.deepEqual(actual[0].keybindingMatches.firstPart, { altKey: true, metaKey: true, keyCode: true });
-	// 		assert.deepEqual(actual[0].keybindingMatches.chordPart, {});
-	// 	});
-	// });
+		return testObject.resolve().then(() => {
+			const actual = testObject.fetch('alt cmd esc').filter(element => element.keybindingItem.command === command);
+			assert.equal(1, actual.length);
+			assert.deepEqual(actual[0].keybindingMatches.firstPart, { altKey: true, metaKey: true, keyCode: true });
+			assert.deepEqual(actual[0].keybindingMatches.chordPart, {});
+		});
+	});
 
-	// test('filter by modifiers in random order and key', () => {
-	// 	const command = 'a' + uuid.generateUuid();
-	// 	const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-	// 	prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('filter by modifiers in random order and key', () => {
+		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
-	// 	return testObject.resolve().then(() => {
-	// 		const actual = testObject.fetch('cmd shift esc').filter(element => element.keybindingItem.command === command);
-	// 		assert.equal(1, actual.length);
-	// 		assert.deepEqual(actual[0].keybindingMatches.firstPart, { metaKey: true, shiftKey: true, keyCode: true });
-	// 		assert.deepEqual(actual[0].keybindingMatches.chordPart, {});
-	// 	});
-	// });
+		return testObject.resolve().then(() => {
+			const actual = testObject.fetch('cmd shift esc').filter(element => element.keybindingItem.command === command);
+			assert.equal(1, actual.length);
+			assert.deepEqual(actual[0].keybindingMatches.firstPart, { metaKey: true, shiftKey: true, keyCode: true });
+			assert.deepEqual(actual[0].keybindingMatches.chordPart, {});
+		});
+	});
 
-	// test('filter by first part', () => {
-	// 	const command = 'a' + uuid.generateUuid();
-	// 	const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.Delete }, when: 'whenContext1 && whenContext2', isDefault: false });
-	// 	prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('filter by first part', () => {
+		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.Delete }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
-	// 	return testObject.resolve().then(() => {
-	// 		const actual = testObject.fetch('cmd shift esc').filter(element => element.keybindingItem.command === command);
-	// 		assert.equal(1, actual.length);
-	// 		assert.deepEqual(actual[0].keybindingMatches.firstPart, { metaKey: true, shiftKey: true, keyCode: true });
-	// 		assert.deepEqual(actual[0].keybindingMatches.chordPart, {});
-	// 	});
-	// });
+		return testObject.resolve().then(() => {
+			const actual = testObject.fetch('cmd shift esc').filter(element => element.keybindingItem.command === command);
+			assert.equal(1, actual.length);
+			assert.deepEqual(actual[0].keybindingMatches.firstPart, { metaKey: true, shiftKey: true, keyCode: true });
+			assert.deepEqual(actual[0].keybindingMatches.chordPart, {});
+		});
+	});
 
 	test('filter matches in chord part', () => {
 		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
@@ -537,19 +539,18 @@ suite('Keybindings Editor Model test', () => {
 		});
 	});
 
-	// TODO@sandeep failing on Windows and Linux
-	// test('filter matches with + separator', () => {
-	// 	const command = 'a' + uuid.generateUuid();
-	// 	const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
-	// 	prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
+	test('filter matches with + separator', () => {
+		const command = 'a' + uuid.generateUuid();
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
-	// 	return testObject.resolve().then(() => {
-	// 		const actual = testObject.fetch('"ctrl+c"').filter(element => element.keybindingItem.command === command);
-	// 		assert.equal(1, actual.length);
-	// 		assert.deepEqual(actual[0].keybindingMatches.firstPart, { ctrlKey: true, keyCode: true });
-	// 		assert.deepEqual(actual[0].keybindingMatches.chordPart, {});
-	// 	});
-	// });
+		return testObject.resolve().then(() => {
+			const actual = testObject.fetch('"control+c"').filter(element => element.keybindingItem.command === command);
+			assert.equal(1, actual.length);
+			assert.deepEqual(actual[0].keybindingMatches.firstPart, { ctrlKey: true, keyCode: true });
+			assert.deepEqual(actual[0].keybindingMatches.chordPart, {});
+		});
+	});
 
 	test('filter matches with + separator in first and chord parts', () => {
 		const command = 'a' + uuid.generateUuid();
