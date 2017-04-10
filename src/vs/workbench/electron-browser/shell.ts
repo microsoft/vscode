@@ -244,8 +244,7 @@ export class WorkbenchShell {
 		// Profiler: startup cpu profile
 		const { profileStartup } = this.environmentService;
 		if (profileStartup) {
-
-			stopProfiling(profileStartup.dir, profileStartup.prefix).then(() => {
+			this.extensionService.onReady().then(() => stopProfiling(profileStartup.dir, profileStartup.prefix)).then(() => {
 
 				readdir(profileStartup.dir).then(files => {
 					return files.filter(value => value.indexOf(profileStartup.prefix) === 0);

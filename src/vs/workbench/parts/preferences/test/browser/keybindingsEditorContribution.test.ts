@@ -6,12 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { DefineKeybindingController } from 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
+import { KeybindingEditorDecorationsRenderer } from 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
 
 suite('KeybindingsEditorContribution', () => {
 
 	function assertUserSettingsFuzzyEquals(a: string, b: string, expected: boolean): void {
-		const actual = DefineKeybindingController._userSettingsFuzzyEquals(a, b);
+		const actual = KeybindingEditorDecorationsRenderer._userSettingsFuzzyEquals(a, b);
 		const message = expected ? `${a} == ${b}` : `${a} != ${b}`;
 		assert.equal(actual, expected, 'fuzzy: ' + message);
 	}

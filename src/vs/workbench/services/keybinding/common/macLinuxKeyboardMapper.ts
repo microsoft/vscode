@@ -568,6 +568,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		}
 
 		let mappings: IScanCodeMapping[] = [], mappingsLen = 0;
+		let producesLetter: boolean[] = [];
 		for (let strScanCode in rawMappings) {
 			if (rawMappings.hasOwnProperty(strScanCode)) {
 				const scanCode = ScanCodeUtils.toEnum(strScanCode);
@@ -595,18 +596,18 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				mappings[mappingsLen++] = mapping;
 				this._codeInfo[scanCode] = mapping;
 
-				if (scanCode === ScanCode.IntlHash) {
-					console.log('here i am');
-				}
-
 				this._scanCodeToDispatch[scanCode] = `[${ScanCodeUtils.toString(scanCode)}]`;
 
 				if (value >= CharCode.a && value <= CharCode.z) {
-					this._scanCodeToLabel[scanCode] = String.fromCharCode(CharCode.A + (value - CharCode.a));
+					const upperCaseValue = CharCode.A + (value - CharCode.a);
+					producesLetter[upperCaseValue] = true;
+					this._scanCodeToLabel[scanCode] = String.fromCharCode(upperCaseValue);
+				} else if (value >= CharCode.A && value <= CharCode.Z) {
+					producesLetter[value] = true;
+					this._scanCodeToLabel[scanCode] = String.fromCharCode(value);
 				} else if (value) {
 					this._scanCodeToLabel[scanCode] = String.fromCharCode(value);
 				} else {
-					console.log(`_scanCodeToLabel[${ScanCodeUtils.toString(scanCode)}] => null.`);
 					this._scanCodeToLabel[scanCode] = null;
 				}
 			}
@@ -659,7 +660,41 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		this._registerAllCombos1(false, false, false, ScanCode.Digit9, KeyCode.KEY_9);
 		this._registerAllCombos1(false, false, false, ScanCode.Digit0, KeyCode.KEY_0);
 
+		// Ensure letters are mapped
+		this._registerLetterIfMissing(producesLetter, CharCode.A, ScanCode.KeyA, KeyCode.KEY_A);
+		this._registerLetterIfMissing(producesLetter, CharCode.B, ScanCode.KeyB, KeyCode.KEY_B);
+		this._registerLetterIfMissing(producesLetter, CharCode.C, ScanCode.KeyC, KeyCode.KEY_C);
+		this._registerLetterIfMissing(producesLetter, CharCode.D, ScanCode.KeyD, KeyCode.KEY_D);
+		this._registerLetterIfMissing(producesLetter, CharCode.E, ScanCode.KeyE, KeyCode.KEY_E);
+		this._registerLetterIfMissing(producesLetter, CharCode.F, ScanCode.KeyF, KeyCode.KEY_F);
+		this._registerLetterIfMissing(producesLetter, CharCode.G, ScanCode.KeyG, KeyCode.KEY_G);
+		this._registerLetterIfMissing(producesLetter, CharCode.H, ScanCode.KeyH, KeyCode.KEY_H);
+		this._registerLetterIfMissing(producesLetter, CharCode.I, ScanCode.KeyI, KeyCode.KEY_I);
+		this._registerLetterIfMissing(producesLetter, CharCode.J, ScanCode.KeyJ, KeyCode.KEY_J);
+		this._registerLetterIfMissing(producesLetter, CharCode.K, ScanCode.KeyK, KeyCode.KEY_K);
+		this._registerLetterIfMissing(producesLetter, CharCode.L, ScanCode.KeyL, KeyCode.KEY_L);
+		this._registerLetterIfMissing(producesLetter, CharCode.M, ScanCode.KeyM, KeyCode.KEY_M);
+		this._registerLetterIfMissing(producesLetter, CharCode.N, ScanCode.KeyN, KeyCode.KEY_N);
+		this._registerLetterIfMissing(producesLetter, CharCode.O, ScanCode.KeyO, KeyCode.KEY_O);
+		this._registerLetterIfMissing(producesLetter, CharCode.P, ScanCode.KeyP, KeyCode.KEY_P);
+		this._registerLetterIfMissing(producesLetter, CharCode.Q, ScanCode.KeyQ, KeyCode.KEY_Q);
+		this._registerLetterIfMissing(producesLetter, CharCode.R, ScanCode.KeyR, KeyCode.KEY_R);
+		this._registerLetterIfMissing(producesLetter, CharCode.S, ScanCode.KeyS, KeyCode.KEY_S);
+		this._registerLetterIfMissing(producesLetter, CharCode.T, ScanCode.KeyT, KeyCode.KEY_T);
+		this._registerLetterIfMissing(producesLetter, CharCode.U, ScanCode.KeyU, KeyCode.KEY_U);
+		this._registerLetterIfMissing(producesLetter, CharCode.V, ScanCode.KeyV, KeyCode.KEY_V);
+		this._registerLetterIfMissing(producesLetter, CharCode.W, ScanCode.KeyW, KeyCode.KEY_W);
+		this._registerLetterIfMissing(producesLetter, CharCode.X, ScanCode.KeyX, KeyCode.KEY_X);
+		this._registerLetterIfMissing(producesLetter, CharCode.Y, ScanCode.KeyY, KeyCode.KEY_Y);
+		this._registerLetterIfMissing(producesLetter, CharCode.Z, ScanCode.KeyZ, KeyCode.KEY_Z);
+
 		this._scanCodeKeyCodeMapper.registrationComplete();
+	}
+
+	private _registerLetterIfMissing(producesLetter: boolean[], charCode: CharCode, scanCode: ScanCode, keyCode: KeyCode): void {
+		if (!producesLetter[charCode]) {
+			this._registerAllCombos1(false, false, false, scanCode, keyCode);
+		}
 	}
 
 	public dumpDebugInfo(): string {

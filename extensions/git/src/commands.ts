@@ -8,6 +8,7 @@
 import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState } from 'vscode';
 import { Ref, RefType, Git } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
+import { toGitUri, fromGitUri } from './uri';
 import * as staging from './staging';
 import * as path from 'path';
 import * as os from 'os';
@@ -138,10 +139,10 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-				return resource.original.with({ scheme: 'git', query: 'HEAD' });
+				return toGitUri(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
-				return resource.resourceUri.with({ scheme: 'git', query: '~' });
+				return toGitUri(resource.resourceUri, '~');
 		}
 	}
 
@@ -150,14 +151,12 @@ export class CommandCenter {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
 			case Status.INDEX_COPIED:
-				return resource.resourceUri.with({ scheme: 'git' });
-
 			case Status.INDEX_RENAMED:
-				return resource.resourceUri.with({ scheme: 'git' });
+				return toGitUri(resource.resourceUri, '');
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return resource.resourceUri.with({ scheme: 'git', query: 'HEAD' });
+				return toGitUri(resource.resourceUri, 'HEAD');
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
@@ -325,7 +324,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
+		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
@@ -359,7 +358,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
+		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
@@ -431,7 +430,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const originalUri = modifiedUri.with({ scheme: 'git', query: 'HEAD' });
+		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
@@ -821,7 +820,8 @@ export class CommandCenter {
 		}
 
 		if (uri.scheme === 'git') {
-			uri = uri.with({ scheme: 'file' });
+			const { path } = fromGitUri(uri);
+			uri = Uri.file(path);
 		}
 
 		if (uri.scheme === 'file') {

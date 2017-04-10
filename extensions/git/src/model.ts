@@ -365,12 +365,6 @@ export class Model implements Disposable {
 		this.status();
 	}
 
-	async whenIdle(): Promise<void> {
-		while (!this.operations.isIdle()) {
-			await eventToPromise(this.onDidRunOperation);
-		}
-	}
-
 	@throttle
 	async init(): Promise<void> {
 		if (this.state !== State.NotAGitRepository) {
@@ -683,6 +677,12 @@ export class Model implements Disposable {
 		await this.whenIdle();
 		await this.status();
 		await timeout(5000);
+	}
+
+	private async whenIdle(): Promise<void> {
+		while (!this.operations.isIdle()) {
+			await eventToPromise(this.onDidRunOperation);
+		}
 	}
 
 	dispose(): void {
