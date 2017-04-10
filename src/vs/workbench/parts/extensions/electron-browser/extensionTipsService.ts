@@ -163,7 +163,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 							return;
 						}
 
-						const message = localize('reallyRecommended', "It is recommended to install the '{0}' extension.", name);
+						const message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", name);
 						const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
 						const options = [
 							recommendationsAction.label,
