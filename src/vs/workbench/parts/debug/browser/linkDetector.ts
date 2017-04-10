@@ -20,9 +20,6 @@ export class LinkDetector {
 		// group 3: line number
 		// group 4: column number
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		///((\/|[a-zA-Z]:\\)[^\(\)<>\'\"\[\]]+):(\d+):(\d+)/g original
-		///(?:at |^|[\(<\'\"\[])(?:file:\/\/)?((?:(\/|[a-zA-Z]:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?):(\d+)(?::(\d+))?(?:$|[\)>\'\"\]])/g second original
-
 		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?):(\d+)(?::(\d+))?/g
 	];
 
