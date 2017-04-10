@@ -1601,6 +1601,50 @@ suite('keyboardMapper', () => {
 
 });
 
+suite('keyboardMapper - LINUX ru', () => {
+
+	let mapper: MacLinuxKeyboardMapper;
+
+	suiteSetup((done) => {
+		createKeyboardMapper(false, 'linux_ru', OperatingSystem.Linux).then((_mapper) => {
+			mapper = _mapper;
+			done();
+		}, done);
+	});
+
+	test('mapping', (done) => {
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_ru.txt', done);
+	});
+
+	function _assertResolveKeybinding(k: number, expected: IResolvedKeybinding[]): void {
+		assertResolveKeybinding(mapper, createKeybinding(k, OperatingSystem.Linux), expected);
+	}
+
+	function _simpleHTMLLabel(pieces: string[]): IHTMLContentElement {
+		return simpleHTMLLabel(pieces, OperatingSystem.Linux);
+	}
+
+	test('resolveKeybinding Ctrl+S', () => {
+		_assertResolveKeybinding(
+			KeyMod.CtrlCmd | KeyCode.KEY_S,
+			[{
+				label: 'Ctrl+ы',
+				ariaLabel: 'Control+ы',
+				HTMLLabel: [_simpleHTMLLabel(['Ctrl', 'ы'])],
+				electronAccelerator: 'Ctrl+S',
+				userSettingsLabel: 'ctrl+s',
+				isWYSIWYG: false,
+				isChord: false,
+				hasCtrlModifier: true,
+				hasShiftModifier: false,
+				hasAltModifier: false,
+				hasMetaModifier: false,
+				dispatchParts: ['ctrl+[KeyS]', null],
+			}]
+		);
+	});
+});
+
 function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, kb: number, _expected: string | string[]): void {
 	let expected: string[];
 	if (typeof _expected === 'string') {
