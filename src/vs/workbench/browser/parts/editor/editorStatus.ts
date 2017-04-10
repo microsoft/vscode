@@ -516,14 +516,19 @@ export class EditorStatus implements IStatusbarItem {
 
 		// Handle binary editors
 		else if (activeEditor instanceof BaseBinaryResourceEditor || activeEditor instanceof BinaryResourceDiffEditor) {
-			let binaryEditors: BaseBinaryResourceEditor[] = [];
+			const binaryEditors: BaseBinaryResourceEditor[] = [];
 			if (activeEditor instanceof BinaryResourceDiffEditor) {
-				binaryEditors = [
-					activeEditor.getDetailsEditor() as BaseBinaryResourceEditor,
-					activeEditor.getMasterEditor() as BaseBinaryResourceEditor
-				];
+				const details = activeEditor.getDetailsEditor();
+				if (details instanceof BaseBinaryResourceEditor) {
+					binaryEditors.push(details);
+				}
+
+				const master = activeEditor.getMasterEditor();
+				if (master instanceof BaseBinaryResourceEditor) {
+					binaryEditors.push(master);
+				}
 			} else {
-				binaryEditors = [activeEditor];
+				binaryEditors.push(activeEditor);
 			}
 
 			binaryEditors.forEach(editor => {
