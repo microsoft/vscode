@@ -248,12 +248,15 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Treat an URI as ResourceEditorInput
 		else if (resourceInput.resource instanceof URI) {
-			return TPromise.as(this.instantiationService.createInstance(
-				ResourceEditorInput,
-				resourceInput.label || basename(resourceInput.resource.fsPath),
-				typeof resourceInput.description === 'string' ? resourceInput.description : dirname(resourceInput.resource.fsPath),
-				resourceInput.resource
-			));
+			const label = resourceInput.label || basename(resourceInput.resource.fsPath);
+			let description: string;
+			if (typeof resourceInput.description === 'string') {
+				description = resourceInput.description;
+			} else if (resourceInput.resource.scheme === network.Schemas.file) {
+				description = dirname(resourceInput.resource.fsPath);
+			}
+
+			return TPromise.as(this.instantiationService.createInstance(ResourceEditorInput, label, description, resourceInput.resource));
 		}
 
 		return TPromise.as<EditorInput>(null);
