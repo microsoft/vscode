@@ -315,23 +315,22 @@ suite('Event utils', () => {
 			});
 		});
 
-		// TODO@Ben fails on Windows with Electron 1.6.x
-		// test('should emit when done - setTimeout', () => {
-		// 	let count = 0;
+		test('should emit when done - setTimeout (#2)', () => {
+			let count = 0;
 
-		// 	const event = fromPromise(TPromise.timeout(10));
-		// 	event(() => count++);
+			const event = fromPromise(TPromise.timeout(30));
+			event(() => count++);
 
-		// 	assert.equal(count, 0);
+			assert.equal(count, 0);
 
-		// 	return TPromise.timeout(0).then(() => {
-		// 		assert.equal(count, 0);
+			return TPromise.timeout(0).then(() => {
+				assert.equal(count, 0);
 
-		// 		return TPromise.timeout(10).then(() => {
-		// 			assert.equal(count, 1);
-		// 		});
-		// 	});
-		// });
+				return TPromise.timeout(35).then(() => {
+					assert.equal(count, 1);
+				});
+			});
+		});
 	});
 
 	suite('stopwatch', () => {
