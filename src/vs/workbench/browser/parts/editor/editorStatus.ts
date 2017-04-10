@@ -1078,14 +1078,15 @@ export class ChangeEncodingAction extends Action {
 				return undefined;
 			}
 
-			const guessEncoding = () => {
-				const resource = toResource(activeEditor.input);
-				return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true })
-					.then(content => content.encoding, err => null);
-			};
-
 			return TPromise.timeout(50 /* quick open is sensitive to being opened so soon after another */)
-				.then(guessEncoding)
+				.then(() => {
+					const resource = toResource(activeEditor.input, { filter: 'file', supportSideBySide: true });
+					if (!resource) {
+						return TPromise.as(null);
+					}
+
+					return this.fileService.resolveContent(resource, { autoGuessEncoding: true, acceptTextOnly: true }).then(content => content.encoding, err => null);
+				})
 				.then(guessedEncoding => {
 					const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
 
