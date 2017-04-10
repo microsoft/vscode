@@ -128,11 +128,17 @@ suite('editor tests', () => {
 			});
 
 			return Promise.all([
-				commands.executeCommand('workbench.action.closeAllEditors'),
+				delay(800).then(() => commands.executeCommand('workbench.action.closeAllEditors')), // TODO@Ben TODO@Joh this delay is a hack
 				p
 			]).then(() => undefined);
 		});
 	});
+
+	function delay(time) {
+		return new Promise(function (fulfill) {
+			setTimeout(fulfill, time);
+		});
+	}
 
 	test('issue #20867: vscode.window.visibleTextEditors returns closed document 2/2', () => {
 
@@ -165,8 +171,11 @@ suite('editor tests', () => {
 
 			// hide doesn't what it means because it triggers a close event and because it
 			// detached the editor. For this test that's what we want.
-			editors[0].hide();
-			return p;
+			delay(800).then(() => { // TODO@Ben TODO@Joh this delay is a hack
+				editors[0].hide();
+
+				return p;
+			});
 		});
 	});
 
