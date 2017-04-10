@@ -20,6 +20,7 @@ declare interface WebviewElement extends HTMLElement {
 	src: string;
 	autoSize: 'on';
 	preload: string;
+	contextIsolation: boolean;
 
 	send(channel: string, ...args: any[]);
 	openDevTools(): any;
@@ -59,6 +60,7 @@ export default class Webview {
 		this._webview.style.outline = '0';
 		this._webview.style.opacity = '0';
 		this._webview.autoSize = 'on';
+		this._webview.contextIsolation = true;
 
 		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
 		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
