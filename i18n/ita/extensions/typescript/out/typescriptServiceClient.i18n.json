@@ -10,6 +10,7 @@
 	"learnMore": "Altre informazioni",
 	"noBundledServerFound": "Il file tsserver di VSCode è stato eliminato da un'altra applicazione, ad esempio uno strumento di rilevamento virus che non funziona correttamente. Reinstallare VSCode.",
 	"noServerFound": "Il percorso {0} non punta a un'installazione valida di tsserver. Verrà eseguito il fallback alla versione in bundle di TypeScript.",
+	"openTsServerLog.openFileFailedFailed": "Non è stato possibile aprire il file di log del server TypeScript",
 	"reloadBlurb": "Ricaricare la finestra per applicare le modifiche",
 	"reloadTitle": "Ricarica",
 	"selectTsVersion": "Selezionare la versione di TypeScript usata per le funzionalità del linguaggio JavaScript e TypeScript",
