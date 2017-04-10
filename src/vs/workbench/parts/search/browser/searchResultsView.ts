@@ -15,7 +15,6 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
-import { LeftRightWidget, IRenderer } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
 import { ITree, IElementCallback, IDataSource, ISorter, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
@@ -103,7 +102,7 @@ class SearchActionProvider extends ContributableActionProvider {
 
 	public hasActions(tree: ITree, element: any): boolean {
 		let input = <SearchResult>tree.getInput();
-		return element instanceof FileMatch || (input.searchModel.isReplaceActive() || element instanceof Match) || super.hasActions(tree, element);
+		return element instanceof FileMatch || (element instanceof Match && input.searchModel.isReplaceActive()) || super.hasActions(tree, element);
 	}
 
 	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
@@ -146,29 +145,19 @@ export class SearchRenderer extends ActionsRenderer {
 		if (element instanceof FileMatch) {
 			let fileMatch = <FileMatch>element;
 			let container = $('.filematch');
-			let leftRenderer: IRenderer;
-			let rightRenderer: IRenderer;
-			let widget: LeftRightWidget;
 
-			leftRenderer = (left: HTMLElement): any => {
-				const label = this.instantiationService.createInstance(FileLabel, left, void 0);
-				label.setFile(fileMatch.resource());
+			const label = this.instantiationService.createInstance(FileLabel, container.getHTMLElement(), void 0);
+			label.setFile(fileMatch.resource());
 
-				return () => label.dispose();
-			};
+			let len = fileMatch.count();
 
-			rightRenderer = (right: HTMLElement) => {
-				let len = fileMatch.count();
-
-				new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
-				return null;
-			};
-
-			widget = new LeftRightWidget(container, leftRenderer, rightRenderer);
+			let badge = $('.badge');
+			new CountBadge(badge.getHTMLElement(), len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
+			badge.appendTo(container);
 
 			container.appendTo(domElement);
 
-			return widget.dispose.bind(widget);
+			return label.dispose.bind(label);
 		}
 
 		// Match
