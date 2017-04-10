@@ -23,7 +23,7 @@ import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEdi
 import { TextFileEditor } from 'vs/workbench/parts/files/browser/editors/textFileEditor';
 import { BinaryFileEditor } from 'vs/workbench/parts/files/browser/editors/binaryFileEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -96,12 +96,12 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-// Register default file input handler
-// Note: because of service injection, the descriptor needs to have the exact count
-// of arguments as the FileEditorInput constructor. Otherwise when creating an
-// instance through the instantiation service he will inject the services wrong!
-const descriptor = new AsyncDescriptor<IFileEditorInput>('vs/workbench/parts/files/common/editors/fileEditorInput', 'FileEditorInput', /* DO NOT REMOVE */ void 0, /* DO NOT REMOVE */ void 0);
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerDefaultFileInput(descriptor);
+// Register default file input factory
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerFileInputFactory({
+	createFileInput: (resource, encoding, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, encoding);
+	}
+});
 
 interface ISerializedFileInput {
 	resource: string;
@@ -145,10 +145,14 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		return JSON.stringify(fileInput);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
+		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
+			const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
+			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
+			const encoding = fileInput.encoding;
 
-		return instantiationService.createInstance(FileEditorInput, !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource), fileInput.encoding);
+			return accessor.get(IWorkbenchEditorService).createInput({ resource, encoding }) as FileEditorInput;
+		});
 	}
 }
 

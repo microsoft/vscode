@@ -17,29 +17,40 @@ import network = require('vs/base/common/network');
 import { ITextModelResolverService, ITextModelContentProvider, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { TextFileEditorModel } from "vs/workbench/services/textfile/common/textFileEditorModel";
 
 class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorModel>> {
 
 	private providers: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 	}
 
-	createReferencedObject(key: string): TPromise<ITextEditorModel> {
+	public createReferencedObject(key: string): TPromise<ITextEditorModel> {
 		const resource = URI.parse(key);
 
-		return this.resolveTextModelContent(key)
-			.then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
+		if (resource.scheme === network.Schemas.file) {
+			return this.textFileService.models.loadOrCreate(resource);
+		}
+
+		return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
 	}
 
-	destroyReferencedObject(modelPromise: TPromise<ITextEditorModel>): void {
-		modelPromise.done(model => model.dispose());
+	public destroyReferencedObject(modelPromise: TPromise<ITextEditorModel>): void {
+		modelPromise.done(model => {
+			if (model instanceof TextFileEditorModel) {
+				this.textFileService.models.disposeModel(model);
+			} else {
+				model.dispose();
+			}
+		});
 	}
 
-	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
+	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
 		const registry = this.providers;
 		const providers = registry[scheme] || (registry[scheme] = []);
 
@@ -98,7 +109,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 		this.resourceModelCollection = instantiationService.createInstance(ResourceModelCollection);
 	}
 
-	createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
+	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
 		const uri = resource.toString();
 		let promise = this.promiseCache[uri];
 
@@ -112,12 +123,6 @@ export class TextModelResolverService implements ITextModelResolverService {
 	}
 
 	private _createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
-		// File Schema: use text file service
-		// TODO ImmortalReference is a hack
-		if (resource.scheme === network.Schemas.file) {
-			return this.textFileService.models.loadOrCreate(resource)
-				.then(model => new ImmortalReference(model));
-		}
 
 		// Untitled Schema: go through cached input
 		// TODO ImmortalReference is a hack
@@ -144,12 +149,13 @@ export class TextModelResolverService implements ITextModelResolverService {
 			model => ({ object: model, dispose: () => ref.dispose() }),
 			err => {
 				ref.dispose();
+
 				return TPromise.wrapError(err);
 			}
 		);
 	}
 
-	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
+	public registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
 		return this.resourceModelCollection.registerTextModelContentProvider(scheme, provider);
 	}
 }

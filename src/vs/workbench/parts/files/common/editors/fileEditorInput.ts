@@ -17,10 +17,11 @@ import { BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID, FILE_EDITOR_INPUT_ID } from
 import { ITextFileService, AutoSaveMode, ModelState, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ITextModelResolverService } from "vs/editor/common/services/resolverService";
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -29,6 +30,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private resource: URI;
 	private preferredEncoding: string;
 	private forceOpenAsBinary: boolean;
+
+	private textModelReference: TPromise<IReference<TextFileEditorModel>>;
 
 	private name: string;
 	private description: string;
@@ -48,16 +51,15 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
 	) {
 		super();
 
 		this.toUnbind = [];
 
-		if (resource) {
-			this.setResource(resource);
-			this.preferredEncoding = preferredEncoding;
-		}
+		this.resource = resource;
+		this.preferredEncoding = preferredEncoding;
 
 		this.registerListeners();
 	}
@@ -82,17 +84,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		if (isEqual(e.resource.fsPath, this.resource.fsPath)) {
 			this._onDidChangeLabel.fire();
 		}
-	}
-
-	public setResource(resource: URI): void {
-		this.resource = resource;
-
-		// Reset resource dependent properties
-		this.name = null;
-		this.description = null;
-		this.shortTitle = null;
-		this.mediumTitle = null;
-		this.longTitle = null;
 	}
 
 	public getResource(): URI {
@@ -216,7 +207,18 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		}
 
 		// Resolve as text
-		return this.textFileService.models.loadOrCreate(this.resource, this.preferredEncoding, refresh).then(null, error => {
+		return this.textFileService.models.loadOrCreate(this.resource, { encoding: this.preferredEncoding, reload: refresh }).then(model => {
+
+			// TODO@Ben this is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
+			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
+			// loadOrCreate ensures we are not creating model references for these kind of resources.
+			// In addition we have a bit of payload to take into account (encoding, reload) that the text resolver does not handle yet.
+			if (!this.textModelReference) {
+				this.textModelReference = this.textModelResolverService.createModelReference(this.resource);
+			}
+
+			return this.textModelReference.then(ref => ref.object);
+		}, error => {
 
 			// In case of an error that indicates that the file is binary or too large, just return with the binary editor model
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
@@ -244,6 +246,12 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	public dispose(): void {
+
+		// Model reference
+		if (this.textModelReference) {
+			this.textModelReference.done(ref => ref.dispose());
+			this.textModelReference = null;
+		}
 
 		// Listeners
 		this.toUnbind = dispose(this.toUnbind);

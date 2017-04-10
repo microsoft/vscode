@@ -8,7 +8,6 @@ import { Registry } from 'vs/platform/platform';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 import { Action, IAction } from 'vs/base/common/actions';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -37,6 +36,7 @@ import {
 	NAVIGATE_IN_GROUP_TWO_PREFIX, ShowEditorsInGroupThreeAction, NAVIGATE_IN_GROUP_THREE_PREFIX, FocusLastEditorInStackAction, OpenNextRecentlyUsedEditorInGroupAction, MoveEditorToPreviousGroupAction, MoveEditorToNextGroupAction, MoveEditorLeftInGroupAction, ClearRecentFilesAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IWorkbenchEditorService } from "vs/workbench/services/editor/common/editorService";
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -101,7 +101,6 @@ interface ISerializedUntitledEditorInput {
 class UntitledEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@ITextFileService private textFileService: ITextFileService
 	) {
 	}
@@ -127,10 +126,15 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 		return JSON.stringify(serialized);
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): UntitledEditorInput {
+		return instantiationService.invokeFunction<UntitledEditorInput>(accessor => {
+			const deserialized: ISerializedUntitledEditorInput = JSON.parse(serializedEditorInput);
+			const resource = !!deserialized.resourceJSON ? URI.revive(deserialized.resourceJSON) : URI.parse(deserialized.resource);
+			const filePath = resource.scheme === 'file' ? resource.fsPath : void 0;
+			const language = deserialized.modeId;
 
-		return this.untitledEditorService.createOrGet(!!deserialized.resourceJSON ? URI.revive(deserialized.resourceJSON) : URI.parse(deserialized.resource), deserialized.modeId);
+			return accessor.get(IWorkbenchEditorService).createInput({ resource, filePath, language }) as UntitledEditorInput;
+		});
 	}
 }
 

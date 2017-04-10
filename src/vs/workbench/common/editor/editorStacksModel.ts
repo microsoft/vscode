@@ -587,14 +587,12 @@ export class EditorGroup implements IEditorGroup {
 		return -1;
 	}
 
-	public contains(candidate: EditorInput): boolean;
-	public contains(resource: URI): boolean;
-	public contains(arg1: any): boolean {
-		if (arg1 instanceof EditorInput) {
-			return this.indexOf(arg1) >= 0;
+	public contains(editorOrResource: EditorInput | URI): boolean {
+		if (editorOrResource instanceof EditorInput) {
+			return this.indexOf(editorOrResource) >= 0;
 		}
 
-		const counter = this.mapResourceToEditorCount.get(arg1);
+		const counter = this.mapResourceToEditorCount.get(editorOrResource);
 
 		return typeof counter === 'number' && counter > 0;
 	}
@@ -1174,32 +1172,28 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	private handleOnEditorClosed(event: GroupEvent): void {
 		const editor = event.editor;
+		const editorsToClose = [editor];
 
-		// Close the editor when it is no longer open in any group
-		if (!this.isOpen(editor)) {
-			editor.close();
-
-			// Also take care of side by side editor inputs that wrap around 2 editors
-			if (editor instanceof SideBySideEditorInput) {
-				[editor.master, editor.details].forEach(editor => {
-					if (!this.isOpen(editor)) {
-						editor.close();
-					}
-				});
-			}
+		// Include both sides of side by side editors when being closed and not opened multiple times
+		if (editor instanceof SideBySideEditorInput && !this.isOpen(editor)) {
+			editorsToClose.push(editor.master, editor.details);
 		}
+
+		// Close the editor when it is no longer open in any group including diff editors
+		editorsToClose.forEach(editorToClose => {
+			const resource = toResource(editorToClose); // prefer resource to not close right-hand side editors of a diff editor
+			if (!this.isOpen(resource || editorToClose)) {
+				editorToClose.close();
+			}
+		});
 	}
 
-	public isOpen(resource: URI): boolean;
-	public isOpen(editor: EditorInput): boolean;
-	public isOpen(arg1: any): boolean {
-		return this._groups.some(group => group.contains(arg1));
+	public isOpen(editorOrResource: URI | EditorInput): boolean {
+		return this._groups.some(group => group.contains(editorOrResource));
 	}
 
-	public count(resource: URI): number;
-	public count(editor: EditorInput): number;
-	public count(arg1: any): number {
-		return this._groups.filter(group => group.contains(arg1)).length;
+	public count(editor: EditorInput): number {
+		return this._groups.filter(group => group.contains(editor)).length;
 	}
 
 	private onShutdown(): void {

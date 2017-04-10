@@ -10,7 +10,7 @@ import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/e
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IUntitledResourceInput } from "vs/platform/editor/common/editor";
 
 @editorAction
 class InspectKeyMap extends EditorAction {
@@ -27,11 +27,9 @@ class InspectKeyMap extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		const keybindingService = accessor.get(IKeybindingService);
 		const editorService = accessor.get(IWorkbenchEditorService);
-		const untitledEditorService = accessor.get(IUntitledEditorService);
 
 		if (keybindingService instanceof WorkbenchKeybindingService) {
-			const input = untitledEditorService.createOrGet(undefined, null, keybindingService.dumpDebugInfo());
-			editorService.openEditor(input, { pinned: true });
+			editorService.openEditor({ contents: keybindingService.dumpDebugInfo(), options: { pinned: true } } as IUntitledResourceInput);
 		}
 	}
 }

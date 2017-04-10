@@ -37,14 +37,13 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IQuickOpenService, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IEditorInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { withFocussedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
@@ -277,7 +276,6 @@ class RenameFileAction extends BaseRenameAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, fileService, messageService, textFileService);
@@ -323,7 +321,7 @@ class RenameFileAction extends BaseRenameAction {
 
 			// 4.) resolve those that were dirty to load their previous dirty contents from disk
 			.then(() => {
-				return TPromise.join(dirtyRenamed.map(t => this.textModelResolverService.createModelReference(t)));
+				return TPromise.join(dirtyRenamed.map(t => this.textFileService.models.loadOrCreate(t)));
 			});
 	}
 }
@@ -517,16 +515,13 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const input = this.untitledEditorService.createOrGet();
-
-		return this.editorService.openEditor(input, { pinned: true }); // untitled are always pinned
+		return this.editorService.openEditor({ options: { pinned: true } } as IUntitledResourceInput); // untitled are always pinned
 	}
 }
 

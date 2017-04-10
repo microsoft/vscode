@@ -8,92 +8,16 @@
 import * as assert from 'assert';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
-import { IEditorControl, Position, Direction, IEditor } from 'vs/platform/editor/common/editor';
-import URI from 'vs/base/common/uri';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
-import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
-import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { workbenchInstantiationService, TestThemeService } from 'vs/workbench/test/workbenchTestServices';
+import { IEditorControl } from 'vs/platform/editor/common/editor';
 import { Viewlet, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { WorkbenchProgressService, ScopedService } from 'vs/workbench/services/progress/browser/progressService';
-import { DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Emitter } from 'vs/base/common/event';
 
 let activeViewlet: Viewlet = <any>{};
-let activeEditor: BaseEditor = <any>{
-	getSelection: function () {
-		return 'test.selection';
-	}
-};
-
-let openedEditorInput;
-let openedEditorOptions;
-let openedEditorPosition;
-
-function toResource(path) {
-	return URI.file(paths.join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
-}
-
-class TestEditorPart implements IEditorPart {
-	private activeInput;
-
-	public getId(): string {
-		return null;
-	}
-
-	public openEditors(args: any[]): Promise {
-		return TPromise.as([]);
-	}
-
-	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: any }[]): TPromise<IEditor[]> {
-		return TPromise.as([]);
-	}
-
-	public closeEditors(position: Position, except?: EditorInput, direction?: Direction): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public closeAllEditors(except?: Position): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public closeEditor(position: Position, input: EditorInput): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
-	public openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
-	public openEditor(input?: EditorInput, options?: EditorOptions, arg?: any): TPromise<BaseEditor> {
-		openedEditorInput = input;
-		openedEditorOptions = options;
-		openedEditorPosition = arg;
-
-		return TPromise.as(activeEditor);
-	}
-
-	public getActiveEditor(): BaseEditor {
-		return activeEditor;
-	}
-
-	public setActiveEditorInput(input: EditorInput) {
-		this.activeInput = input;
-	}
-
-	public getActiveEditorInput(): EditorInput {
-		return this.activeInput;
-	}
-
-	public getVisibleEditors(): IEditor[] {
-		return [activeEditor];
-	}
-}
 
 class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
@@ -284,112 +208,7 @@ class TestProgressBar {
 	}
 }
 
-suite('Workbench UI Services', () => {
-
-	test('WorkbenchEditorService', function () {
-		let instantiationService = workbenchInstantiationService();
-
-		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/something.js'), void 0);
-
-		let testEditorPart = new TestEditorPart();
-		testEditorPart.setActiveEditorInput(activeInput);
-		let service: WorkbenchEditorService = <any>instantiationService.createInstance(<any>WorkbenchEditorService, testEditorPart);
-
-		assert.strictEqual(service.getActiveEditor(), activeEditor);
-		assert.strictEqual(service.getActiveEditorInput(), activeInput);
-
-		// Open EditorInput
-		service.openEditor(activeInput, null).then((editor) => {
-			assert.strictEqual(openedEditorInput, activeInput);
-			assert.strictEqual(openedEditorOptions, null);
-			assert.strictEqual(editor, activeEditor);
-			assert.strictEqual(service.getVisibleEditors().length, 1);
-			assert(service.getVisibleEditors()[0] === editor);
-		});
-
-		service.openEditor(activeInput, null, Position.ONE).then((editor) => {
-			assert.strictEqual(openedEditorInput, activeInput);
-			assert.strictEqual(openedEditorOptions, null);
-			assert.strictEqual(editor, activeEditor);
-			assert.strictEqual(service.getVisibleEditors().length, 1);
-			assert(service.getVisibleEditors()[0] === editor);
-		});
-
-		// Open Untyped Input
-		service.openEditor({ resource: toResource.call(this, '/index.html'), options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
-			assert.strictEqual(editor, activeEditor);
-
-			assert(openedEditorInput instanceof FileEditorInput);
-			let contentInput = <FileEditorInput>openedEditorInput;
-			assert.strictEqual(contentInput.getResource().fsPath, toResource.call(this, '/index.html').fsPath);
-
-			assert(openedEditorOptions instanceof TextEditorOptions);
-			let textEditorOptions = <TextEditorOptions>openedEditorOptions;
-			assert(textEditorOptions.hasOptionsDefined());
-		});
-
-		// Resolve Editor Model (Typed EditorInput)
-		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
-		input.resolve(true).then((model: StringEditorModel) => {
-			assert(model instanceof StringEditorModel);
-
-			assert(model.isResolved());
-
-			input.resolve().then((otherModel) => {
-				assert(model === otherModel);
-
-				input.dispose();
-			});
-		});
-	});
-
-	test('DelegatingWorkbenchEditorService', function (done) {
-		let instantiationService = workbenchInstantiationService();
-		let activeInput: EditorInput = instantiationService.createInstance(FileEditorInput, toResource.call(this, '/something.js'), void 0);
-
-		let testEditorPart = new TestEditorPart();
-		testEditorPart.setActiveEditorInput(activeInput);
-
-		instantiationService.createInstance(<any>WorkbenchEditorService, testEditorPart);
-		class MyEditor extends BaseEditor {
-
-			constructor(id: string) {
-				super(id, null, new TestThemeService());
-			}
-
-			getId(): string {
-				return 'myEditor';
-			}
-
-			public layout(): void {
-
-			}
-
-			public createEditor(): any {
-
-			}
-		}
-		let ed = instantiationService.createInstance(MyEditor, 'my.editor');
-
-		let inp = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
-		let delegate = instantiationService.createInstance(DelegatingWorkbenchEditorService);
-		delegate.setEditorOpenHandler((input, options?) => {
-			assert.strictEqual(input, inp);
-
-			return TPromise.as(ed);
-		});
-
-		delegate.setEditorCloseHandler((position, input) => {
-			assert.strictEqual(input, inp);
-
-			done();
-
-			return TPromise.as(void 0);
-		});
-
-		delegate.openEditor(inp);
-		delegate.closeEditor(0, inp);
-	});
+suite('Progress Service', () => {
 
 	test('ScopedService', () => {
 		let viewletService = new TestViewletService();

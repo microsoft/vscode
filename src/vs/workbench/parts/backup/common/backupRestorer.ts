@@ -14,9 +14,9 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import errors = require('vs/base/common/errors');
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { ITextFileService } from "vs/workbench/services/textfile/common/textfiles";
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -28,7 +28,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		@IPartService private partService: IPartService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IBackupFileService private backupFileService: IBackupFileService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextFileService private textFileService: ITextFileService,
 		@IEditorGroupService private groupService: IEditorGroupService
 	) {
 		this.restoreBackups();
@@ -68,7 +68,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		backups.forEach(backup => {
 			if (stacks.isOpen(backup)) {
 				if (backup.scheme === 'file') {
-					restorePromises.push(this.textModelResolverService.createModelReference(backup).then(null, () => unresolved.push(backup)));
+					restorePromises.push(this.textFileService.models.loadOrCreate(backup).then(null, () => unresolved.push(backup)));
 				} else if (backup.scheme === 'untitled') {
 					restorePromises.push(this.untitledEditorService.get(backup).resolve().then(null, () => unresolved.push(backup)));
 				}
@@ -80,30 +80,27 @@ export class BackupRestorer implements IWorkbenchContribution {
 		return TPromise.join(restorePromises).then(() => unresolved, () => unresolved);
 	}
 
-	private doOpenEditors(inputs: URI[]): TPromise<void> {
+	private doOpenEditors(resources: URI[]): TPromise<void> {
 		const stacks = this.groupService.getStacksModel();
 		const hasOpenedEditors = stacks.groups.length > 0;
 
-		return TPromise.join(inputs.map(resource => this.resolveInput(resource))).then(inputs => {
-			const openEditorsArgs = inputs.map((input, index) => {
-				return { input, options: { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors }, position: Position.ONE };
-			});
-
-			// Open all remaining backups as editors and resolve them to load their backups
-			return this.editorService.openEditors(openEditorsArgs).then(() => void 0);
+		const inputs = resources.map(resource => this.resolveInput(resource));
+		const openEditorsArgs = inputs.map((input, index) => {
+			return { input, options: { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors }, position: Position.ONE };
 		});
+
+		// Open all remaining backups as editors and resolve them to load their backups
+		return this.editorService.openEditors(openEditorsArgs).then(() => void 0);
 	}
 
-	private resolveInput(resource: URI): TPromise<IResourceInput> {
+	private resolveInput(resource: URI): IResourceInput | IUntitledResourceInput {
 		if (resource.scheme === 'untitled' && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
 			// TODO@Ben debt: instead of guessing if an untitled file has an associated file path or not
 			// this information should be provided by the backup service and stored as meta data within
-			return TPromise.as({
-				resource: this.untitledEditorService.createOrGet(URI.file(resource.fsPath)).getResource()
-			});
+			return { filePath: resource.fsPath };
 		}
 
-		return TPromise.as({ resource });
+		return { resource };
 	}
 
 	public getId(): string {

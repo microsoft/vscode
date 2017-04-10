@@ -69,6 +69,29 @@ export interface IResourceInput extends IBaseResourceInput {
 	encoding?: string;
 }
 
+export interface IUntitledResourceInput extends IBaseResourceInput {
+
+	/**
+	 * Optional resource. If the resource is not provided a new untitled file is created.
+	 */
+	resource?: URI;
+
+	/**
+	 * Optional file path. Using the file resource will associate the file to the untitled resource.
+	 */
+	filePath?: string;
+
+	/**
+	 * Optional language of the untitled resource.
+	 */
+	language?: string;
+
+	/**
+	 * Optional contents of the untitled resource.
+	 */
+	contents?: string;
+}
+
 export interface IResourceDiffInput extends IBaseResourceInput {
 
 	/**

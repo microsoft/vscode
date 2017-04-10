@@ -14,7 +14,7 @@ import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEd
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
@@ -49,6 +49,10 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
  */
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
+export interface IFileInputFactory {
+	createFileInput(resource: URI, encoding: string, instantiationService: IInstantiationService): IFileEditorInput;
+}
+
 export interface IEditorRegistry {
 
 	/**
@@ -79,20 +83,14 @@ export interface IEditorRegistry {
 	getEditors(): IEditorDescriptor[];
 
 	/**
-	 * Registers the default input to be used for files in the workbench.
-	 *
-	 * @param editorInputDescriptor a descriptor that resolves to an instance of EditorInput that
-	 * should be used to handle file inputs.
+	 * Registers the file input factory to use for file inputs.
 	 */
-	registerDefaultFileInput(editorInputDescriptor: AsyncDescriptor<IFileEditorInput>): void;
+	registerFileInputFactory(factory: IFileInputFactory): void;
 
 	/**
-	 * Returns a descriptor of the default input to be used for files in the workbench.
-	 *
-	 * @return a descriptor that resolves to an instance of EditorInput that should be used to handle
-	 * file inputs.
+	 * Returns the file input factory to use for file inputs.
 	 */
-	getDefaultFileInput(): AsyncDescriptor<IFileEditorInput>;
+	getFileInputFactory(): IFileInputFactory;
 
 	/**
 	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
@@ -328,11 +326,6 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 	 * Gets the absolute file resource URI this input is about.
 	 */
 	getResource(): URI;
-
-	/**
-	 * Sets the absolute file resource URI this input is about.
-	 */
-	setResource(resource: URI): void;
 
 	/**
 	 * Sets the preferred encodingt to use for this input.
@@ -851,7 +844,6 @@ export interface IEditorStacksModel {
 	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
 	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
 
-	isOpen(editor: IEditorInput): boolean;
 	isOpen(resource: URI): boolean;
 
 	toString(): string;
@@ -869,8 +861,7 @@ export interface IEditorGroup {
 	getEditor(resource: URI): IEditorInput;
 	indexOf(editor: IEditorInput): number;
 
-	contains(editor: IEditorInput): boolean;
-	contains(resource: URI): boolean;
+	contains(editorOrResource: IEditorInput | URI): boolean;
 
 	getEditors(mru?: boolean): IEditorInput[];
 	isActive(editor: IEditorInput): boolean;

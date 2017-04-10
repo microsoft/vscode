@@ -568,8 +568,8 @@ export class TestEditorService implements IWorkbenchEditorService {
 		return TPromise.as(null);
 	}
 
-	public createInput(input: IResourceInput): TPromise<IEditorInput> {
-		return TPromise.as(null);
+	public createInput(input: IResourceInput): IEditorInput {
+		return null;
 	}
 }
 

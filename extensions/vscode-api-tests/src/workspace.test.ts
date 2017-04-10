@@ -60,7 +60,7 @@ suite('workspace-namespace', () => {
 
 	test('openTextDocument', () => {
 		let len = workspace.textDocuments.length;
-		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './simple.txt')).then(doc => {
 			assert.ok(doc);
 			assert.equal(workspace.textDocuments.length, len + 1);
 		});

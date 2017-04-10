@@ -23,7 +23,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IOptions } from 'vs/workbench/common/options';
-import { Position as EditorPosition, IResourceInput, IResourceDiffInput } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
@@ -39,7 +39,6 @@ import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbe
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { WorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -200,7 +199,6 @@ export class Workbench implements IPartService {
 		options: IOptions,
 		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -382,14 +380,14 @@ export class Workbench implements IPartService {
 
 			// Otherwise: Open/Create files
 			else {
-				const filesToCreateInputs: IResourceInput[] = filesToCreate.map(resourceInput => {
-					return <IResourceInput>{
-						resource: this.untitledEditorService.createOrGet(resourceInput.resource).getResource(),
+				const filesToCreateInputs: IUntitledResourceInput[] = filesToCreate.map(resourceInput => {
+					return <IUntitledResourceInput>{
+						filePath: resourceInput.resource.fsPath,
 						options: { pinned: true }
 					};
 				});
 
-				return TPromise.as(filesToOpen.concat(filesToCreateInputs));
+				return TPromise.as([].concat(filesToOpen).concat(filesToCreateInputs));
 			}
 		}
 
@@ -400,7 +398,7 @@ export class Workbench implements IPartService {
 					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
 				}
 
-				return TPromise.as([<IResourceInput>{ resource: this.untitledEditorService.createOrGet().getResource() }]);
+				return TPromise.as([<IUntitledResourceInput>{}]);
 			});
 		}
 
