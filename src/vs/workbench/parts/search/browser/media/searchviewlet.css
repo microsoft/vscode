@@ -188,10 +188,15 @@
 }
 
 .search-viewlet .linematch {
-	overflow: hidden;
-	text-overflow: ellipsis;
 	position: relative;
 	line-height: 22px;
+	display: flex;
+}
+
+.search-viewlet .linematch > .match {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .search-viewlet .linematch.changedOrRemoved {
@@ -222,6 +227,35 @@
 
 .search-viewlet .query-clear {
 	background: url("action-query-clear.svg") center center no-repeat;
+}
+
+.search-viewlet .monaco-tree .monaco-tree-row .monaco-action-bar {
+	line-height: 1em;
+	display: none;
+	padding: 0 0.8em 0 0.4em;
+}
+
+.search-viewlet .monaco-tree .monaco-tree-row .monaco-action-bar .action-item {
+	margin: 0;
+}
+
+.search-viewlet .monaco-tree .monaco-tree-row.focused .monaco-action-bar {
+	width: 0; /* in order to support a11y with keyboard, we use width: 0 to hide the actions, which still allows to "Tab" into the actions */
+	display: block;
+}
+
+.search-viewlet .monaco-tree .monaco-tree-row:hover:not(.highlighted) .monaco-action-bar,
+.search-viewlet .monaco-tree .monaco-tree-row.focused .monaco-action-bar {
+	width: inherit;
+	display: block;
+}
+
+.search-viewlet .monaco-tree .monaco-tree-row .monaco-action-bar .action-label {
+	margin-right: 0.2em;
+	margin-top: 4px;
+	background-repeat: no-repeat;
+	width: 16px;
+	height: 16px;
 }
 
 .search-viewlet .action-remove {
