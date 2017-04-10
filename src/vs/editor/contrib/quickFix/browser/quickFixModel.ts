@@ -5,7 +5,7 @@
 'use strict';
 
 import * as arrays from 'vs/base/common/arrays';
-import Event, { Emitter } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -21,10 +21,15 @@ export class QuickFixOracle {
 	private _disposables: IDisposable[] = [];
 	private _currentRange: IRange;
 
-	constructor(private _editor: ICommonCodeEditor, private _markerService: IMarkerService, private _signalChange: (e: QuickFixComputeEvent) => any) {
+	constructor(
+		private _editor: ICommonCodeEditor,
+		private _markerService: IMarkerService,
+		private _signalChange: (e: QuickFixComputeEvent) => any,
+		cursorChangeDebounce: number = 250
+	) {
 		this._disposables.push(
 			this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)),
-			this._editor.onDidChangeCursorPosition(e => this._onCursorChange())
+			debounceEvent(this._editor.onDidChangeCursorPosition, last => last, cursorChangeDebounce)(e => this._onCursorChange())
 		);
 	}
 

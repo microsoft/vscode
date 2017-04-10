@@ -112,18 +112,22 @@ suite('QuickFix', () => {
 		let fixes: TPromise<any>[] = [];
 		let oracle = new QuickFixOracle(editor, markerService, e => {
 			fixes.push(e.fixes);
-		});
+		}, 10);
 
 		editor.setPosition({ lineNumber: 1, column: 3 }); // marker
 		editor.setPosition({ lineNumber: 1, column: 6 }); // (same) marker
-		editor.setPosition({ lineNumber: 1, column: 8 }); // whitespace
-		editor.setPosition({ lineNumber: 2, column: 2 }); // word
-		editor.setPosition({ lineNumber: 2, column: 6 }); // (same) word
 
-		return TPromise.join(fixes).then(_ => {
-			reg.dispose();
-			oracle.dispose();
-			assert.equal(counter, 2);
+		return TPromise.timeout(20).then(() => {
+
+			editor.setPosition({ lineNumber: 1, column: 8 }); // whitespace
+			editor.setPosition({ lineNumber: 2, column: 2 }); // word
+			editor.setPosition({ lineNumber: 2, column: 6 }); // (same) word
+
+			return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
+				reg.dispose();
+				oracle.dispose();
+				assert.equal(counter, 2);
+			});
 		});
 	});
 
@@ -148,11 +152,11 @@ suite('QuickFix', () => {
 		let fixes: TPromise<any>[] = [];
 		let oracle = new QuickFixOracle(editor, markerService, e => {
 			fixes.push(e.fixes);
-		});
+		}, 10);
 
 		editor.setSelection({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 13 });
 
-		return TPromise.join(fixes).then(_ => {
+		return TPromise.join<any>([TPromise.timeout(20)].concat(fixes)).then(_ => {
 
 			// assert selection
 			assert.deepEqual(range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 13 });
@@ -160,7 +164,7 @@ suite('QuickFix', () => {
 			range = undefined;
 			editor.setSelection({ startLineNumber: 1, startColumn: 2, endLineNumber: 1, endColumn: 2 });
 
-			return TPromise.join(fixes).then(_ => {
+			return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
 				reg.dispose();
 				oracle.dispose();
 
