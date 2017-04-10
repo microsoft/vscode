@@ -181,7 +181,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 
 		// Model does not exist
 		else {
-			model = this.instantiationService.createInstance(TextFileEditorModel, resource, options && options.encoding);
+			model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : void 0);
 			modelPromise = model.load();
 
 			// Install state change listener
