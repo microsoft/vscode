@@ -1644,6 +1644,63 @@ suite('keyboardMapper', () => {
 		assertNumpadKeyboardEvent(KeyCode.Delete, 'NumpadDecimal', 'Delete', 'Delete', 'delete', '[Delete]');
 	});
 
+	test('issue #24107: Delete, Insert, Home, End, PgUp, PgDn, and arrow keys no longer work editor in 1.11', () => {
+		let mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
+
+		function assertKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string, userSettingsLabel: string, dispatch: string): void {
+			assertResolveKeyboardEvent(
+				mapper,
+				{
+					ctrlKey: false,
+					shiftKey: false,
+					altKey: false,
+					metaKey: false,
+					keyCode: keyCode,
+					code: code
+				},
+				{
+					label: label,
+					ariaLabel: label,
+					labelWithoutModifiers: label,
+					ariaLabelWithoutModifiers: label,
+					electronAccelerator: electronAccelerator,
+					userSettingsLabel: userSettingsLabel,
+					isWYSIWYG: true,
+					isChord: false,
+					hasCtrlModifier: false,
+					hasShiftModifier: false,
+					hasAltModifier: false,
+					hasMetaModifier: false,
+					dispatchParts: [dispatch, null],
+				}
+			);
+		}
+
+		// https://github.com/Microsoft/vscode/issues/24107#issuecomment-292318497
+		assertKeyboardEvent(KeyCode.UpArrow, 'Lang3', 'UpArrow', 'Up', 'up', '[ArrowUp]');
+		assertKeyboardEvent(KeyCode.DownArrow, 'NumpadEnter', 'DownArrow', 'Down', 'down', '[ArrowDown]');
+		assertKeyboardEvent(KeyCode.LeftArrow, 'Convert', 'LeftArrow', 'Left', 'left', '[ArrowLeft]');
+		assertKeyboardEvent(KeyCode.RightArrow, 'NonConvert', 'RightArrow', 'Right', 'right', '[ArrowRight]');
+		assertKeyboardEvent(KeyCode.Delete, 'PrintScreen', 'Delete', 'Delete', 'delete', '[Delete]');
+		assertKeyboardEvent(KeyCode.Insert, 'NumpadDivide', 'Insert', 'Insert', 'insert', '[Insert]');
+		assertKeyboardEvent(KeyCode.End, 'Unknown', 'End', 'End', 'end', '[End]');
+		assertKeyboardEvent(KeyCode.Home, 'IntlRo', 'Home', 'Home', 'home', '[Home]');
+		assertKeyboardEvent(KeyCode.PageDown, 'ControlRight', 'PageDown', 'PageDown', 'pagedown', '[PageDown]');
+		assertKeyboardEvent(KeyCode.PageUp, 'Lang4', 'PageUp', 'PageUp', 'pageup', '[PageUp]');
+
+		// https://github.com/Microsoft/vscode/issues/24107#issuecomment-292323924
+		assertKeyboardEvent(KeyCode.PageDown, 'ControlRight', 'PageDown', 'PageDown', 'pagedown', '[PageDown]');
+		assertKeyboardEvent(KeyCode.PageUp, 'Lang4', 'PageUp', 'PageUp', 'pageup', '[PageUp]');
+		assertKeyboardEvent(KeyCode.End, '', 'End', 'End', 'end', '[End]');
+		assertKeyboardEvent(KeyCode.Home, 'IntlRo', 'Home', 'Home', 'home', '[Home]');
+		assertKeyboardEvent(KeyCode.Delete, 'PrintScreen', 'Delete', 'Delete', 'delete', '[Delete]');
+		assertKeyboardEvent(KeyCode.Insert, 'NumpadDivide', 'Insert', 'Insert', 'insert', '[Insert]');
+		assertKeyboardEvent(KeyCode.RightArrow, 'NonConvert', 'RightArrow', 'Right', 'right', '[ArrowRight]');
+		assertKeyboardEvent(KeyCode.LeftArrow, 'Convert', 'LeftArrow', 'Left', 'left', '[ArrowLeft]');
+		assertKeyboardEvent(KeyCode.DownArrow, 'NumpadEnter', 'DownArrow', 'Down', 'down', '[ArrowDown]');
+		assertKeyboardEvent(KeyCode.UpArrow, 'Lang3', 'UpArrow', 'Up', 'up', '[ArrowUp]');
+	});
+
 });
 
 suite('keyboardMapper - LINUX ru', () => {

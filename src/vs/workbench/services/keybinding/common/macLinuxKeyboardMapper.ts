@@ -1056,24 +1056,48 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			code = ScanCode.Enter;
 		}
 
+		const keyCode = keyboardEvent.keyCode;
+
 		if (
-			(code === ScanCode.Numpad1)
-			|| (code === ScanCode.Numpad2)
-			|| (code === ScanCode.Numpad3)
-			|| (code === ScanCode.Numpad4)
-			|| (code === ScanCode.Numpad5)
-			|| (code === ScanCode.Numpad6)
-			|| (code === ScanCode.Numpad7)
-			|| (code === ScanCode.Numpad8)
-			|| (code === ScanCode.Numpad9)
-			|| (code === ScanCode.Numpad0)
-			|| (code === ScanCode.NumpadDecimal)
+			(keyCode === KeyCode.LeftArrow)
+			|| (keyCode === KeyCode.UpArrow)
+			|| (keyCode === KeyCode.RightArrow)
+			|| (keyCode === KeyCode.DownArrow)
+			|| (keyCode === KeyCode.Delete)
+			|| (keyCode === KeyCode.Insert)
+			|| (keyCode === KeyCode.Home)
+			|| (keyCode === KeyCode.End)
+			|| (keyCode === KeyCode.PageDown)
+			|| (keyCode === KeyCode.PageUp)
 		) {
-			// "Dispatch" on keyCode for all numpad keys in order for NumLock to work correctly
-			if (keyboardEvent.keyCode >= 0) {
-				const immutableScanCode = IMMUTABLE_KEY_CODE_TO_CODE[keyboardEvent.keyCode];
-				if (immutableScanCode !== -1) {
-					code = immutableScanCode;
+			// "Dispatch" on keyCode for these key codes to workaround issues with remote desktoping software
+			// where the scan codes appear to be incorrect (see https://github.com/Microsoft/vscode/issues/24107)
+			const immutableScanCode = IMMUTABLE_KEY_CODE_TO_CODE[keyCode];
+			if (immutableScanCode !== -1) {
+				code = immutableScanCode;
+			}
+
+		} else {
+
+			if (
+				(code === ScanCode.Numpad1)
+				|| (code === ScanCode.Numpad2)
+				|| (code === ScanCode.Numpad3)
+				|| (code === ScanCode.Numpad4)
+				|| (code === ScanCode.Numpad5)
+				|| (code === ScanCode.Numpad6)
+				|| (code === ScanCode.Numpad7)
+				|| (code === ScanCode.Numpad8)
+				|| (code === ScanCode.Numpad9)
+				|| (code === ScanCode.Numpad0)
+				|| (code === ScanCode.NumpadDecimal)
+			) {
+				// "Dispatch" on keyCode for all numpad keys in order for NumLock to work correctly
+				if (keyCode >= 0) {
+					const immutableScanCode = IMMUTABLE_KEY_CODE_TO_CODE[keyCode];
+					if (immutableScanCode !== -1) {
+						code = immutableScanCode;
+					}
 				}
 			}
 		}
