@@ -78,7 +78,7 @@ export class LineContext {
 	}
 }
 
-const enum State {
+export const enum State {
 	Idle = 0,
 	Manual = 1,
 	Auto = 2
@@ -91,7 +91,7 @@ export class SuggestModel implements IDisposable {
 	private triggerCharacterListener: IDisposable;
 	private triggerAutoSuggestPromise: TPromise<void>;
 	private triggerRefilter = new TimeoutTimer();
-	private state: State;
+	private _state: State;
 
 	private requestPromise: TPromise<void>;
 	private context: LineContext;
@@ -109,7 +109,7 @@ export class SuggestModel implements IDisposable {
 	get onDidSuggest(): Event<ISuggestEvent> { return this._onDidSuggest.event; }
 
 	constructor(private editor: ICommonCodeEditor) {
-		this.state = State.Idle;
+		this._state = State.Idle;
 		this.triggerAutoSuggestPromise = null;
 		this.requestPromise = null;
 		this.completionModel = null;
@@ -205,6 +205,10 @@ export class SuggestModel implements IDisposable {
 
 	// --- trigger/retrigger/cancel suggest
 
+	get state(): State {
+		return this._state;
+	}
+
 	cancel(retrigger: boolean = false): void {
 
 		if (this.triggerAutoSuggestPromise) {
@@ -217,7 +221,7 @@ export class SuggestModel implements IDisposable {
 			this.requestPromise = null;
 		}
 
-		this.state = State.Idle;
+		this._state = State.Idle;
 		this.completionModel = null;
 		this.context = null;
 
@@ -225,11 +229,11 @@ export class SuggestModel implements IDisposable {
 	}
 
 	private updateActiveSuggestSession(): void {
-		if (this.state !== State.Idle) {
+		if (this._state !== State.Idle) {
 			if (!SuggestRegistry.has(this.editor.getModel())) {
 				this.cancel();
 			} else {
-				this.trigger(this.state === State.Auto, true);
+				this.trigger(this._state === State.Auto, true);
 			}
 		}
 	}
@@ -256,7 +260,7 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (this.state === State.Idle) {
+		if (this._state === State.Idle) {
 
 			// trigger 24x7 IntelliSense when idle, enabled, when cursor
 			// moved RIGHT, and when at a good position
@@ -306,7 +310,7 @@ export class SuggestModel implements IDisposable {
 			// refine active suggestion
 			this.triggerRefilter.cancelAndSet(() => {
 				const position = this.editor.getPosition();
-				const ctx = new LineContext(model, position, this.state === State.Auto);
+				const ctx = new LineContext(model, position, this._state === State.Auto);
 				this.onNewContext(ctx);
 			}, 25);
 		}
@@ -328,7 +332,7 @@ export class SuggestModel implements IDisposable {
 
 		// Cancel previous requests, change state & update UI
 		this.cancel(retrigger);
-		this.state = auto ? State.Auto : State.Manual;
+		this._state = auto ? State.Auto : State.Manual;
 		this._onDidTrigger.fire({ auto });
 
 		// Capture context when request was sent
@@ -340,7 +344,7 @@ export class SuggestModel implements IDisposable {
 		).then(items => {
 
 			this.requestPromise = null;
-			if (this.state === State.Idle) {
+			if (this._state === State.Idle) {
 				return;
 			}
 			const model = this.editor.getModel();
@@ -394,7 +398,7 @@ export class SuggestModel implements IDisposable {
 		if (ctx.column > this.context.column && this.completionModel.incomplete) {
 			// typed -> moved cursor RIGHT & incomple model -> retrigger
 			const { complete, incomplete } = this.completionModel.resolveIncompleteInfo();
-			this.trigger(this.state === State.Auto, true, incomplete, complete);
+			this.trigger(this._state === State.Auto, true, incomplete, complete);
 
 		} else {
 			// typed -> moved cursor RIGHT -> update UI
