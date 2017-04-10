@@ -132,9 +132,11 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	public layout(dimension: Dimension): void {
 		const {width, height} = dimension;
-		// we take the padding we set on create into account
 		this._container.style.width = `${width}px`;
 		this._container.style.height = `${height}px`;
+		if (this._webview) {
+			this._webview.layout();
+		}
 	}
 
 	public focus(): void {
