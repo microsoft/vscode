@@ -6,7 +6,7 @@
 'use strict';
 
 import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode';
-import { debounce, throttle } from './decorators';
+import { debounce } from './decorators';
 import { fromGitUri } from './uri';
 import { Model } from './model';
 
@@ -44,10 +44,7 @@ export class GitContentProvider {
 		this.fireChangeEvents();
 	}
 
-	@throttle
-	private async fireChangeEvents(): Promise<void> {
-		await this.model.whenIdle();
-
+	private fireChangeEvents(): void {
 		Object.keys(this.cache)
 			.forEach(key => this.onDidChangeEmitter.fire(this.cache[key].uri));
 	}
