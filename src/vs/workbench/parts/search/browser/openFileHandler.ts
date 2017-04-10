@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -119,7 +120,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ISearchService private searchService: ISearchService
+		@ISearchService private searchService: ISearchService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -166,7 +168,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				const fileMatch = complete.results[i];
 
 				const label = paths.basename(fileMatch.resource.fsPath);
-				const description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService);
+				const description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService, this.environmentService);
 
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}

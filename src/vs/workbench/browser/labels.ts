@@ -18,6 +18,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 export interface IEditorLabel {
 	name: string;
@@ -43,7 +44,8 @@ export class ResourceLabel extends IconLabel {
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService
+		@IModelService private modelService: IModelService,
+		@IEnvironmentService protected environmentService: IEnvironmentService
 	) {
 		super(container, options);
 
@@ -113,7 +115,7 @@ export class ResourceLabel extends IconLabel {
 		if (this.options && typeof this.options.title === 'string') {
 			title = this.options.title;
 		} else if (resource) {
-			title = getPathLabel(resource.fsPath);
+			title = getPathLabel(resource.fsPath, void 0, this.environmentService);
 		}
 
 		if (!this.computedIconClasses) {
@@ -164,7 +166,7 @@ export class FileLabel extends ResourceLabel {
 		this.setLabel({
 			resource,
 			name: !options.hideLabel ? paths.basename(resource.fsPath) : void 0,
-			description: !options.hidePath ? getPathLabel(paths.dirname(resource.fsPath), this.contextService) : void 0
+			description: !options.hidePath ? getPathLabel(paths.dirname(resource.fsPath), this.contextService, this.environmentService) : void 0
 		}, options);
 	}
 }

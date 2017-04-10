@@ -166,10 +166,19 @@
 	user-select: text;
 }
 
+.search-viewlet > .results > .monaco-tree .sub-content {
+	overflow: hidden;
+}
+
 .search-viewlet .filematch {
+	display: flex;
 	position: relative;
 	line-height: 22px;
 	padding: 0;
+}
+
+.search-viewlet .filematch .monaco-icon-label {
+	flex: 1;
 }
 
 .search-viewlet .filematch .directory {

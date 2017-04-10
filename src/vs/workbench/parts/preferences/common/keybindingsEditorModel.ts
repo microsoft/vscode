@@ -292,14 +292,15 @@ class KeybindingItemMatches {
 	}
 
 	private matchesKeybinding(keybinding: ResolvedKeybinding, searchValue: string, words: string[]): KeybindingMatches {
+		const [firstPart, chordPart] = keybinding.getParts();
+
 		if (strings.compareIgnoreCase(searchValue, keybinding.getAriaLabel()) === 0 || strings.compareIgnoreCase(searchValue, keybinding.getLabel()) === 0) {
 			return {
-				firstPart: { metaKey: true, altKey: true, shiftKey: true, ctrlKey: true, keyCode: true },
-				chordPart: { metaKey: true, altKey: true, shiftKey: true, ctrlKey: true, keyCode: true }
+				firstPart: this.createCompleteMatch(firstPart),
+				chordPart: this.createCompleteMatch(chordPart)
 			};
 		}
 
-		const [firstPart, chordPart] = keybinding.getParts();
 		let firstPartMatch: KeybindingMatch = {};
 		let chordPartMatch: KeybindingMatch = {};
 
@@ -522,6 +523,26 @@ class KeybindingItemMatches {
 			return false;
 		}
 		return true;
+	}
+
+	private createCompleteMatch(part: ResolvedKeybinding): KeybindingMatch {
+		let match: KeybindingMatch = {};
+		if (part) {
+			match.keyCode = true;
+			if (part.hasMetaModifier()) {
+				match.metaKey = true;
+			}
+			if (part.hasAltModifier()) {
+				match.altKey = true;
+			}
+			if (part.hasCtrlModifier()) {
+				match.ctrlKey = true;
+			}
+			if (part.hasShiftModifier()) {
+				match.shiftKey = true;
+			}
+		}
+		return match;
 	}
 
 	private isModifier(word: string): boolean {

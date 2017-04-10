@@ -15,9 +15,8 @@
 	"inactiveTabActiveGroupForeground": "Couleur de premier plan de l'onglet inactif dans un groupe actif. Les onglets sont les conteneurs des éditeurs dans la zone d'éditeurs. Vous pouvez ouvrir plusieurs onglets dans un groupe d'éditeurs. Il peut exister plusieurs groupes d'éditeurs.",
 	"inactiveTabBackground": "Couleur d'arrière-plan de l'onglet inactif. Les onglets sont les conteneurs des éditeurs dans la zone d'éditeurs. Vous pouvez ouvrir plusieurs onglets dans un groupe d'éditeurs. Il peut exister plusieurs groupes d'éditeurs.",
 	"inactiveTabInactiveGroupForeground": "Couleur de premier plan de l'onglet inactif dans un groupe inactif. Les onglets sont les conteneurs des éditeurs dans la zone d'éditeurs. Vous pouvez ouvrir plusieurs onglets dans un groupe d'éditeurs. Il peut exister plusieurs groupes d'éditeurs.",
-	"noTabsContainerBackground": "Couleur d'arrière-plan du conteneur de titre de l'éditeur quand aucun onglet n'est activé.",
 	"panelBackground": "Couleur d'arrière-plan du panneau. Les panneaux s'affichent sous la zone d'éditeurs et contiennent des affichages tels que la sortie et le terminal intégré.",
-	"panelBorderTopColor": "Couleur de bordure de panneau dans la partie supérieure de séparation de l'éditeur. Les panneaux s'affichent sous la zone d'éditeurs et contiennent des affichages tels que la sortie et le terminal intégré.",
+	"panelTopBorder": "Couleur de bordure de panneau dans la partie supérieure de séparation de l'éditeur. Les panneaux s'affichent sous la zone d'éditeurs et contiennent des affichages tels que la sortie et le terminal intégré.",
 	"sideBarBackground": "Couleur d'arrière-plan de la barre latérale. La barre latérale est le conteneur des affichages tels que ceux de l'exploration et la recherche.",
 	"sideBarTitleForeground": "Couleur de premier plan du titre de la barre latérale. La barre latérale est le conteneur des affichages tels que ceux de l'exploration et la recherche.",
 	"statusBarBackground": "Couleur d'arrière-plan de la barre d'état standard. La barre d'état est affichée en bas de la fenêtre",
@@ -32,6 +31,5 @@
 	"titleBarActiveBackground": "Arrière-plan de la barre de titre quand la fenêtre est active. Notez que cette couleur est uniquement prise en charge sur macOS.",
 	"titleBarActiveForeground": "Premier plan de la barre de titre quand la fenêtre est active. Notez que cette couleur est uniquement prise en charge sur macOS.",
 	"titleBarInactiveBackground": "Arrière-plan de la barre de titre quand la fenêtre est inactive. Notez que cette couleur est uniquement prise en charge sur macOS.",
-	"titleBarInactiveForeground": "Premier plan de la barre de titre quand la fenêtre est inactive. Notez que cette couleur est uniquement prise en charge sur macOS.",
-	"windowForeground": "Couleur de premier plan de l'ensemble de la fenêtre. Cette couleur est utilisée uniquement si elle n'est pas remplacée par un composant."
+	"titleBarInactiveForeground": "Premier plan de la barre de titre quand la fenêtre est inactive. Notez que cette couleur est uniquement prise en charge sur macOS."
 }

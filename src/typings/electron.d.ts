@@ -1796,6 +1796,11 @@ declare namespace Electron {
 		 * Settings of web page’s features.
 		 */
 		webPreferences?: WebPreferences;
+		/**
+		 * Tab group name, allows opening the window as a native tab on macOS 10.12+.
+		 * Windows with the same tabbing identifier will be grouped together.
+		 */
+		tabbingIdentifier?: string;
 	}
 
 	type BrowserWindowType = BrowserWindowTypeLinux | BrowserWindowTypeMac | BrowserWindowTypeWindows;

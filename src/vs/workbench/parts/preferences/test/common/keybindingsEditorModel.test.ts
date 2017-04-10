@@ -432,6 +432,7 @@ suite('Keybindings Editor Model test', () => {
 	});
 
 	test('filter by modifiers and key', () => {
+		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true, metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
@@ -445,6 +446,7 @@ suite('Keybindings Editor Model test', () => {
 	});
 
 	test('filter by modifiers in random order and key', () => {
+		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
@@ -458,6 +460,7 @@ suite('Keybindings Editor Model test', () => {
 	});
 
 	test('filter by first part', () => {
+		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.Delete }, when: 'whenContext1 && whenContext2', isDefault: false });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
@@ -542,7 +545,7 @@ suite('Keybindings Editor Model test', () => {
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, chordPart: { keyCode: KeyCode.KEY_C, modifiers: { ctrlKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
 
 		return testObject.resolve().then(() => {
-			const actual = testObject.fetch('"ctrl+c"').filter(element => element.keybindingItem.command === command);
+			const actual = testObject.fetch('"control+c"').filter(element => element.keybindingItem.command === command);
 			assert.equal(1, actual.length);
 			assert.deepEqual(actual[0].keybindingMatches.firstPart, { ctrlKey: true, keyCode: true });
 			assert.deepEqual(actual[0].keybindingMatches.chordPart, {});

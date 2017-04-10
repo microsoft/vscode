@@ -23,6 +23,7 @@ import nls = require('vs/nls');
 import { getPathLabel, IWorkspaceProvider } from 'vs/base/common/labels';
 import { ResourceMap } from "vs/base/common/map";
 import { once } from "vs/base/common/event";
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 export interface IEditorPart {
 	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -52,7 +53,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		editorPart: IEditorPart | IWorkbenchEditorService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService?: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.editorPart = editorPart;
 		this.fileInputFactory = Registry.as<IEditorRegistry>(Extensions.Editors).getFileInputFactory();
@@ -224,7 +226,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
 			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource });
 			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource });
-			const label = resourceDiffInput.label || toDiffLabel(resourceDiffInput.leftResource, resourceDiffInput.rightResource, this.workspaceContextService);
+			const label = resourceDiffInput.label || this.toDiffLabel(resourceDiffInput.leftResource, resourceDiffInput.rightResource, this.workspaceContextService, this.environmentService);
 
 			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
 		}
@@ -244,12 +246,15 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		// Any other resource
 		else if (resourceInput.resource instanceof URI) {
-			return this.createOrGet(
-				resourceInput.resource,
-				this.instantiationService,
-				resourceInput.label || basename(resourceInput.resource.fsPath),
-				typeof resourceInput.description === 'string' ? resourceInput.description : dirname(resourceInput.resource.fsPath)
-			);
+			const label = resourceInput.label || basename(resourceInput.resource.fsPath);
+			let description: string;
+			if (typeof resourceInput.description === 'string') {
+				description = resourceInput.description;
+			} else if (resourceInput.resource.scheme === network.Schemas.file) {
+				description = dirname(resourceInput.resource.fsPath);
+			}
+
+			return this.createOrGet(resourceInput.resource, this.instantiationService, label, description);
 		}
 
 		return null;
@@ -282,13 +287,13 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		return input;
 	}
-}
 
-function toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider): string {
-	const leftName = getPathLabel(res1.fsPath, context);
-	const rightName = getPathLabel(res2.fsPath, context);
+	private toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider, environment: IEnvironmentService): string {
+		const leftName = getPathLabel(res1.fsPath, context, environment);
+		const rightName = getPathLabel(res2.fsPath, context, environment);
 
-	return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
+		return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
+	}
 }
 
 export interface IEditorOpenHandler {
@@ -314,13 +319,15 @@ export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super(
 			editorService,
 			untitledEditorService,
 			workspaceContextService,
-			instantiationService
+			instantiationService,
+			environmentService
 		);
 	}
 

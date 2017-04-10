@@ -6,5 +6,6 @@
 {
 	"hoverBackground": "エディター ホバーの背景色。",
 	"hoverBorder": "エディター ホバーの境界線の色。",
+	"hoverHighlight": "ホバーが表示されているワードの下を強調表示します。",
 	"showHover": "ホバーの表示"
 }

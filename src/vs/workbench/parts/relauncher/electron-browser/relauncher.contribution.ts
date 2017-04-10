@@ -26,6 +26,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private toDispose: IDisposable[] = [];
 
 	private titleBarStyle: 'native' | 'custom';
+	private nativeTabs: boolean;
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
 
@@ -52,6 +53,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		// Titlebar style
 		if (config.window && config.window.titleBarStyle !== this.titleBarStyle && (config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom')) {
 			this.titleBarStyle = config.window.titleBarStyle;
+			changed = true;
+		}
+
+		// Native tabs
+		if (config.window && typeof config.window.nativeTabs === 'boolean' && config.window.nativeTabs !== this.nativeTabs) {
+			this.nativeTabs = config.window.nativeTabs;
 			changed = true;
 		}
 

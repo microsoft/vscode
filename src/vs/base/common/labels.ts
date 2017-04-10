@@ -25,6 +25,10 @@ export interface IWorkspaceProvider {
 	};
 }
 
+export interface IUserHomeProvider {
+	userHome: string;
+}
+
 export class PathLabelProvider implements ILabelProvider {
 	private root: string;
 
@@ -37,7 +41,7 @@ export class PathLabelProvider implements ILabelProvider {
 	}
 }
 
-export function getPathLabel(resource: URI | string, basePathProvider?: URI | string | IWorkspaceProvider): string {
+export function getPathLabel(resource: URI | string, basePathProvider?: URI | string | IWorkspaceProvider, userHomeProvider?: IUserHomeProvider): string {
 	const absolutePath = getPath(resource);
 	if (!absolutePath) {
 		return null;
@@ -57,7 +61,12 @@ export function getPathLabel(resource: URI | string, basePathProvider?: URI | st
 		return normalize(absolutePath.charAt(0).toUpperCase() + absolutePath.slice(1), true); // convert c:\something => C:\something
 	}
 
-	return normalize(absolutePath, true);
+	let res = normalize(absolutePath, true);
+	if (!platform.isWindows && userHomeProvider) {
+		res = tildify(res, userHomeProvider.userHome);
+	}
+
+	return res;
 }
 
 function getPath(arg1: URI | string | IWorkspaceProvider): string {

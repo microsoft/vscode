@@ -15,9 +15,8 @@
 	"inactiveTabActiveGroupForeground": "Colore di primo piano delle schede inattive in un gruppo attivo. Le schede sono i contenitori degli editor nell'area degli editor. È possibile aprire più schede in un gruppo di editor e possono esistere più gruppi di editor.",
 	"inactiveTabBackground": "Colore di sfondo delle schede inattive. Le schede sono i contenitori degli editor nell'area degli editor. È possibile aprire più schede in un gruppo di editor e possono esistere più gruppi di editor.",
 	"inactiveTabInactiveGroupForeground": "Colore di primo piano delle schede inattiva in un gruppo inattivo. Le schede sono i contenitori degli editor nell'area degli editor. È possibile aprire più schede in un gruppo di editor e possono esistere più gruppi di editor.",
-	"noTabsContainerBackground": "Colore di sfondo del contenitore di titoli editor quando non ci sono schede abilitate.",
 	"panelBackground": "Colore di sfondo dei pannelli. I pannelli sono visualizzati sotto l'area degli editor e contengono visualizzazioni quali quella di output e del terminale integrato.",
-	"panelBorderTopColor": "Colore del bordo dei pannelli nella parte superiore di separazione dall'editor. I pannelli sono visualizzati sotto l'area degli editor e contengono visualizzazioni quali quella di output e del terminale integrato.",
+	"panelTopBorder": "Colore del bordo dei pannelli nella parte superiore di separazione dall'editor. I pannelli sono visualizzati sotto l'area degli editor e contengono visualizzazioni quali quella di output e del terminale integrato.",
 	"sideBarBackground": "Colore di sfondo della barra laterale. La barra laterale è il contenitore di visualizzazioni quali Esplora risorse e Cerca.",
 	"sideBarTitleForeground": "Colore primo piano del titolo della barra laterale. La barra laterale è il contenitore di visualizzazioni quali Esplora risorse e Cerca.",
 	"statusBarBackground": "Colore di sfondo della barra di stato standard. La barra di stato è visualizzata nella parte inferiore della finestra",
@@ -32,6 +31,5 @@
 	"titleBarActiveBackground": "Sfondo della barra del titolo quando la finestra è attiva. Si noti che questo colore è attualmente supportato solo in macOS.",
 	"titleBarActiveForeground": "Primo piano della barra del titolo quando la finestra è attiva. Si noti che questo colore è attualmente supportato solo in macOS.",
 	"titleBarInactiveBackground": "Sfondo della barra del titolo quando la finestra è inattiva. Si noti che questo colore è attualmente supportato solo in macOS.",
-	"titleBarInactiveForeground": "Primo piano della barra del titolo quando la finestra è inattiva. Si noti che questo colore è attualmente supportato solo in macOS.",
-	"windowForeground": "Colore primo piano generale delle finestre. Questo colore viene usato solo se non è sostituito da quello di un componente."
+	"titleBarInactiveForeground": "Primo piano della barra del titolo quando la finestra è inattiva. Si noti che questo colore è attualmente supportato solo in macOS."
 }

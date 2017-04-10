@@ -41,6 +41,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { isLinux } from 'vs/base/common/platform';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -90,7 +91,8 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
@@ -111,7 +113,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	public renderHeader(container: HTMLElement): void {
 		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.contextService.getWorkspace().name).title(labels.getPathLabel(this.contextService.getWorkspace().resource.fsPath)).appendTo(titleDiv);
+		$('span').text(this.contextService.getWorkspace().name).title(labels.getPathLabel(this.contextService.getWorkspace().resource.fsPath, void 0, this.environmentService)).appendTo(titleDiv);
 
 		super.renderHeader(container);
 	}

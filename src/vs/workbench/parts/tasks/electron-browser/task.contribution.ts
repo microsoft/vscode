@@ -500,15 +500,13 @@ class TaskService extends EventEmitter implements ITaskService {
 	private quickOpenService: IQuickOpenService;
 
 	private _configHasErrors: boolean;
+	private _providers: Map<number, ITaskProvider>;
 	private _workspaceTasksPromise: TPromise<TaskSet>;
 
 	private _taskSystem: ITaskSystem;
+	private _taskSystemListeners: IDisposable[];
 
-	private taskSystemListeners: IDisposable[];
-	private clearTaskSystemPromise: boolean;
-	private outputChannel: IOutputChannel;
-
-	private providers: Map<number, ITaskProvider>;
+	private _outputChannel: IOutputChannel;
 
 	constructor( @IModeService modeService: IModeService, @IConfigurationService configurationService: IConfigurationService,
 		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
@@ -541,15 +539,17 @@ class TaskService extends EventEmitter implements ITaskService {
 
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
-		this.taskSystemListeners = [];
-		this.clearTaskSystemPromise = false;
-		this.outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
-		this.providers = new Map<number, ITaskProvider>();
+		this._taskSystemListeners = [];
+		this._outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
+		this._providers = new Map<number, ITaskProvider>();
 		this.configurationService.onDidUpdateConfiguration(() => {
-			if (!this._taskSystem) {
+			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
 			this.updateWorkspaceTasks();
+			if (!this._taskSystem) {
+				return;
+			}
 			let currentExecutionEngine = this._taskSystem instanceof TerminalTaskSystem
 				? ExecutionEngine.Terminal
 				: this._taskSystem instanceof ProcessTaskSystem
@@ -606,22 +606,22 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private showOutput(): void {
-		this.outputChannel.show(true);
+		this._outputChannel.show(true);
 	}
 
 	private disposeTaskSystemListeners(): void {
-		this.taskSystemListeners = dispose(this.taskSystemListeners);
+		this._taskSystemListeners = dispose(this._taskSystemListeners);
 	}
 
 	public registerTaskProvider(handle: number, provider: ITaskProvider): void {
 		if (!provider) {
 			return;
 		}
-		this.providers.set(handle, provider);
+		this._providers.set(handle, provider);
 	}
 
 	public unregisterTaskProvider(handle: number): boolean {
-		return this.providers.delete(handle);
+		return this._providers.delete(handle);
 	}
 
 	public tasks(): TPromise<Task[]> {
@@ -843,8 +843,8 @@ class TaskService extends EventEmitter implements ITaskService {
 			system.hasErrors(this._configHasErrors);
 			this._taskSystem = system;
 		}
-		this.taskSystemListeners.push(this._taskSystem.addListener2(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
-		this.taskSystemListeners.push(this._taskSystem.addListener2(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
+		this._taskSystemListeners.push(this._taskSystem.addListener2(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
+		this._taskSystemListeners.push(this._taskSystem.addListener2(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
 		return this._taskSystem;
 	}
 
@@ -866,7 +866,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 			};
 			if (this.getExecutionEngine() === ExecutionEngine.Terminal) {
-				this.providers.forEach((provider) => {
+				this._providers.forEach((provider) => {
 					counter++;
 					provider.provideTasks().done(done, error);
 				});
@@ -945,7 +945,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				if (!resolved || !resolved.config) {
 					return { set: undefined, hasErrors: resolved !== void 0 ? resolved.hasErrors : false };
 				}
-				let problemReporter = new ProblemReporter(this.outputChannel);
+				let problemReporter = new ProblemReporter(this._outputChannel);
 				let parseResult = TaskConfig.parse(resolved.config, problemReporter);
 				let hasErrors = false;
 				if (!parseResult.validationStatus.isOK()) {
@@ -984,7 +984,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 			}
 			if (isAffected) {
-				this.outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
+				this._outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
 				this.showOutput();
 				return { config: undefined, hasParseErrors: true };
 			}
@@ -997,9 +997,9 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (stderr && stderr.length > 0) {
 			stderr.forEach((line) => {
 				result = true;
-				this.outputChannel.append(line + '\n');
+				this._outputChannel.append(line + '\n');
 			});
-			this.outputChannel.show(true);
+			this._outputChannel.show(true);
 		}
 		return result;
 	}
@@ -1092,7 +1092,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this.outputChannel.show(true);
+			this._outputChannel.show(true);
 		}
 	}
 

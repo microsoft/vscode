@@ -63,7 +63,7 @@
 	"tabSize.errorMessage": "Se esperaba \"number\". Tenga en cuenta que el ajuste \"editor.detectIndentation\" ha reemplazado al valor \"auto\".",
 	"trimAutoWhitespace": "Quitar espacio en blanco final autoinsertado",
 	"useTabStops": "La inserción y eliminación del espacio en blanco sigue a las tabulaciones.",
-	"wordBasedSuggestions": "Habilita sugerencias basadas en palabras.",
+	"wordBasedSuggestions": "Controla si las sugerencias para autocompletar se calculan en función de las palabras del documento.",
 	"wordSeparators": "Caracteres que se usarán como separadores de palabras al realizar operaciones o navegaciones relacionadas con palabras.",
 	"wordWrap": "Controla cómo se deben ajustar las líneas. Pueden ser:\n - \"off\" (deshabilitar ajuste),\n - \"on\" (ajuste de ventanilla),\n - \"wordWrapColumn\" (ajustar en \"editor.wordWrapColumn\") o\n - 'bounded' (ajustar en la parte mínima de la ventanilla y \"editor.wordWrapColumn\").",
 	"wordWrap.bounded": "Las líneas se ajustarán al valor que sea inferior: el tamaño de la ventanilla o el valor de \"editor.wordWrapColumn\".",
