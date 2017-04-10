@@ -101,7 +101,11 @@ export class GitSCMProvider {
 
 		// As a mitigation for extensions like ESLint showing warnings and errors
 		// for git URIs, let's change the file extension of these uris to .git.
-		return new Uri().with({ scheme: 'git-original', query: uri.path, path: uri.path + '.git' });
+		return new Uri().with({
+			scheme: 'git-original',
+			query: uri.fsPath,
+			path: uri.path + '.git'
+		});
 	}
 
 	private onDidModelChange(): void {

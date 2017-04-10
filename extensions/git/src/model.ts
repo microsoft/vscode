@@ -483,9 +483,9 @@ export class Model implements Disposable {
 		});
 	}
 
-	async show(ref: string, uri: Uri): Promise<string> {
+	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
-			const relativePath = path.relative(this.repository.root, uri.fsPath).replace(/\\/g, '/');
+			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
 			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`]);
 
 			if (result.exitCode !== 0) {
