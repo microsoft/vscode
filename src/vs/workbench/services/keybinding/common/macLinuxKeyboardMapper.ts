@@ -7,7 +7,7 @@
 
 import { OperatingSystem } from 'vs/base/common/platform';
 import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType, USER_SETTINGS } from 'vs/base/common/keyCodes';
-import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
+import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, ElectronAcceleratorLabelProvider, NO_MODIFIERS } from 'vs/platform/keybinding/common/keybindingLabels';
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
@@ -1055,6 +1055,29 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		if (code === ScanCode.NumpadEnter) {
 			code = ScanCode.Enter;
 		}
+
+		if (
+			(code === ScanCode.Numpad1)
+			|| (code === ScanCode.Numpad2)
+			|| (code === ScanCode.Numpad3)
+			|| (code === ScanCode.Numpad4)
+			|| (code === ScanCode.Numpad5)
+			|| (code === ScanCode.Numpad6)
+			|| (code === ScanCode.Numpad7)
+			|| (code === ScanCode.Numpad8)
+			|| (code === ScanCode.Numpad9)
+			|| (code === ScanCode.Numpad0)
+			|| (code === ScanCode.NumpadDecimal)
+		) {
+			// "Dispatch" on keyCode for all numpad keys in order for NumLock to work correctly
+			if (keyboardEvent.keyCode >= 0) {
+				const immutableScanCode = IMMUTABLE_KEY_CODE_TO_CODE[keyboardEvent.keyCode];
+				if (immutableScanCode !== -1) {
+					code = immutableScanCode;
+				}
+			}
+		}
+
 		const keypress = new ScanCodeBinding(keyboardEvent.ctrlKey, keyboardEvent.shiftKey, keyboardEvent.altKey, keyboardEvent.metaKey, code);
 		return new NativeResolvedKeybinding(this, this._OS, keypress, null);
 	}

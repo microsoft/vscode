@@ -1599,6 +1599,51 @@ suite('keyboardMapper', () => {
 		);
 	});
 
+	test('issue #24064: NumLock/NumPad keys stopped working in 1.11 on Linux', () => {
+		let mapper = new MacLinuxKeyboardMapper(false, {}, OperatingSystem.Linux);
+
+		function assertNumpadKeyboardEvent(keyCode: KeyCode, code: string, label: string, electronAccelerator: string, userSettingsLabel: string, dispatch: string): void {
+			assertResolveKeyboardEvent(
+				mapper,
+				{
+					ctrlKey: false,
+					shiftKey: false,
+					altKey: false,
+					metaKey: false,
+					keyCode: keyCode,
+					code: code
+				},
+				{
+					label: label,
+					ariaLabel: label,
+					labelWithoutModifiers: label,
+					ariaLabelWithoutModifiers: label,
+					electronAccelerator: electronAccelerator,
+					userSettingsLabel: userSettingsLabel,
+					isWYSIWYG: true,
+					isChord: false,
+					hasCtrlModifier: false,
+					hasShiftModifier: false,
+					hasAltModifier: false,
+					hasMetaModifier: false,
+					dispatchParts: [dispatch, null],
+				}
+			);
+		}
+
+		assertNumpadKeyboardEvent(KeyCode.End, 'Numpad1', 'End', 'End', 'end', '[End]');
+		assertNumpadKeyboardEvent(KeyCode.DownArrow, 'Numpad2', 'DownArrow', 'Down', 'down', '[ArrowDown]');
+		assertNumpadKeyboardEvent(KeyCode.PageDown, 'Numpad3', 'PageDown', 'PageDown', 'pagedown', '[PageDown]');
+		assertNumpadKeyboardEvent(KeyCode.LeftArrow, 'Numpad4', 'LeftArrow', 'Left', 'left', '[ArrowLeft]');
+		assertNumpadKeyboardEvent(KeyCode.Unknown, 'Numpad5', 'NumPad5', null, 'numpad5', '[Numpad5]');
+		assertNumpadKeyboardEvent(KeyCode.RightArrow, 'Numpad6', 'RightArrow', 'Right', 'right', '[ArrowRight]');
+		assertNumpadKeyboardEvent(KeyCode.Home, 'Numpad7', 'Home', 'Home', 'home', '[Home]');
+		assertNumpadKeyboardEvent(KeyCode.UpArrow, 'Numpad8', 'UpArrow', 'Up', 'up', '[ArrowUp]');
+		assertNumpadKeyboardEvent(KeyCode.PageUp, 'Numpad9', 'PageUp', 'PageUp', 'pageup', '[PageUp]');
+		assertNumpadKeyboardEvent(KeyCode.Insert, 'Numpad0', 'Insert', 'Insert', 'insert', '[Insert]');
+		assertNumpadKeyboardEvent(KeyCode.Delete, 'NumpadDecimal', 'Delete', 'Delete', 'delete', '[Delete]');
+	});
+
 });
 
 suite('keyboardMapper - LINUX ru', () => {
