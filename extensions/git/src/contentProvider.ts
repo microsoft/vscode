@@ -60,7 +60,11 @@ export class GitContentProvider {
 		this.cache[cacheKey] = cacheValue;
 
 		if (uri.scheme === 'git-original') {
-			uri = new Uri().with({ scheme: 'git', path: uri.query });
+			try {
+				return await this.model.show('', uri.query);
+			} catch (err) {
+				return '';
+			}
 		}
 
 		let ref = uri.query;
@@ -73,8 +77,7 @@ export class GitContentProvider {
 		}
 
 		try {
-			const result = await this.model.show(ref, uri);
-			return result;
+			return await this.model.show(ref, uri.fsPath);
 		} catch (err) {
 			return '';
 		}
