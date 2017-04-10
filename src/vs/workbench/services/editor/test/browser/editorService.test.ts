@@ -135,6 +135,15 @@ suite('WorkbenchEditorService', () => {
 			assert(textEditorOptions.hasOptionsDefined());
 		});
 
+		// Open Untyped Input (file, encoding)
+		service.openEditor({ resource: toFileResource.call(this, '/index.html'), encoding: 'utf16le', options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
+			assert.strictEqual(editor, activeEditor);
+
+			assert(openedEditorInput instanceof FileEditorInput);
+			let contentInput = <FileEditorInput>openedEditorInput;
+			assert.equal(contentInput.getPreferredEncoding(), 'utf16le');
+		});
+
 		// Open Untyped Input (untitled)
 		service.openEditor({ options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
 			assert.strictEqual(editor, activeEditor);
@@ -144,6 +153,28 @@ suite('WorkbenchEditorService', () => {
 			assert(openedEditorOptions instanceof TextEditorOptions);
 			let textEditorOptions = <TextEditorOptions>openedEditorOptions;
 			assert(textEditorOptions.hasOptionsDefined());
+		});
+
+		// Open Untyped Input (untitled with contents)
+		service.openEditor({ contents: 'Hello Untitled', options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
+			assert.strictEqual(editor, activeEditor);
+
+			assert(openedEditorInput instanceof UntitledEditorInput);
+
+			const untitledInput = openedEditorInput as UntitledEditorInput;
+			untitledInput.resolve().then(model => {
+				assert.equal(model.getValue(), 'Hello Untitled');
+			});
+		});
+
+		// Open Untyped Input (untitled with file path)
+		service.openEditor({ filePath: '/some/path.txt', options: { selection: { startLineNumber: 1, startColumn: 1 } } }).then((editor) => {
+			assert.strictEqual(editor, activeEditor);
+
+			assert(openedEditorInput instanceof UntitledEditorInput);
+
+			const untitledInput = openedEditorInput as UntitledEditorInput;
+			assert.ok(untitledInput.hasAssociatedFilePath);
 		});
 
 		// Resolve Editor Model (Typed EditorInput)

@@ -1730,6 +1730,72 @@ suite('Editor Stacks Model', () => {
 		assert.equal(input1.isDisposed(), false);
 	});
 
+	test('Stack - Multiple Editors - Editor Disposed on Close (same input, files)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input(void 0, void 0, URI.file('/hello/world.txt'));
+
+		group1.openEditor(input1, { pinned: true, active: true });
+		group2.openEditor(input1, { pinned: true, active: true });
+
+		group2.closeEditor(input1);
+		assert.equal(input1.isDisposed(), false);
+
+		group1.closeEditor(input1);
+		assert.equal(input1.isDisposed(), true);
+	});
+
+	test('Stack - Multiple Editors - Editor Disposed on Close (same input, files, diff)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input(void 0, void 0, URI.file('/hello/world.txt'));
+		const input2 = input(void 0, void 0, URI.file('/hello/world_other.txt'));
+
+		const diffInput = new DiffEditorInput('name', 'description', input2, input1);
+
+		group1.openEditor(input1, { pinned: true, active: true });
+		group2.openEditor(diffInput, { pinned: true, active: true });
+
+		group1.closeEditor(input1);
+		assert.equal(input1.isDisposed(), false);
+		assert.equal(input2.isDisposed(), false);
+		assert.equal(diffInput.isDisposed(), false);
+
+		group2.closeEditor(diffInput);
+		assert.equal(input1.isDisposed(), true);
+		assert.equal(input2.isDisposed(), true);
+		assert.equal(diffInput.isDisposed(), true);
+	});
+
+	test('Stack - Multiple Editors - Editor Disposed on Close (same input, files, diff, close diff)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input(void 0, void 0, URI.file('/hello/world.txt'));
+		const input2 = input(void 0, void 0, URI.file('/hello/world_other.txt'));
+
+		const diffInput = new DiffEditorInput('name', 'description', input2, input1);
+
+		group1.openEditor(input1, { pinned: true, active: true });
+		group2.openEditor(diffInput, { pinned: true, active: true });
+
+		group2.closeEditor(diffInput);
+		assert.equal(input1.isDisposed(), false);
+		assert.equal(input2.isDisposed(), true);
+		assert.equal(diffInput.isDisposed(), true);
+
+		group1.closeEditor(input1);
+		assert.equal(input1.isDisposed(), true);
+	});
+
 	test('Stack - Multiple Editors - Editor Emits Dirty and Label Changed', function () {
 		const model = create();
 

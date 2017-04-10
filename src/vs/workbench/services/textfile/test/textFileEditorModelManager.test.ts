@@ -324,4 +324,25 @@ suite('Files - TextFileEditorModelManager', () => {
 			done();
 		}, error => onError(error, done));
 	});
+
+	test('dispose prevents dirty model from getting disposed', function (done) {
+		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
+
+		const resource = toResource('/path/index_something.txt');
+
+		manager.loadOrCreate(resource, { encoding: 'utf8' }).done((model: TextFileEditorModel) => {
+			model.textEditorModel.setValue('make dirty');
+
+			manager.disposeModel(model);
+			assert.ok(!model.isDisposed());
+
+			model.revert(true);
+
+			manager.disposeModel(model);
+			assert.ok(model.isDisposed());
+
+			manager.dispose();
+			done();
+		}, error => onError(error, done));
+	});
 });

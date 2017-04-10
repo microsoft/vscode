@@ -21,6 +21,7 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
+import { once } from "vs/base/common/event";
 
 class ServiceAccessor {
 	constructor(
@@ -74,6 +75,14 @@ suite('Workbench - TextModelResolverService', () => {
 			assert.ok(model);
 			assert.equal(model.getValue(), 'Hello Test');
 
+			let disposed = false;
+			once(model.onDispose)(() => {
+				disposed = true;
+			});
+
+			input.dispose();
+			assert.equal(disposed, true);
+
 			dispose.dispose();
 			done();
 		});
@@ -90,7 +99,14 @@ suite('Workbench - TextModelResolverService', () => {
 
 				assert.ok(editorModel);
 				assert.equal(editorModel.getValue(), 'Hello Html');
+
+				let disposed = false;
+				once(model.onDispose)(() => {
+					disposed = true;
+				});
+
 				ref.dispose();
+				assert.equal(disposed, true);
 			});
 		});
 	});
