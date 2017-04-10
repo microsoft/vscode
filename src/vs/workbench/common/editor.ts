@@ -844,7 +844,6 @@ export interface IEditorStacksModel {
 	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
 	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
 
-	isOpen(editor: IEditorInput): boolean;
 	isOpen(resource: URI): boolean;
 
 	toString(): string;
@@ -862,8 +861,7 @@ export interface IEditorGroup {
 	getEditor(resource: URI): IEditorInput;
 	indexOf(editor: IEditorInput): number;
 
-	contains(editor: IEditorInput): boolean;
-	contains(resource: URI): boolean;
+	contains(editorOrResource: IEditorInput | URI): boolean;
 
 	getEditors(mru?: boolean): IEditorInput[];
 	isActive(editor: IEditorInput): boolean;
