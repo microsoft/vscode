@@ -851,8 +851,7 @@ export class WindowsManager implements IWindowsMainService {
 			vscodeWindow = new VSCodeWindow({
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
-				isExtensionTestHost: !!configuration.extensionTestsPath,
-				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
+				isExtensionTestHost: !!configuration.extensionTestsPath
 			},
 				this.logService,
 				this.environmentService,
