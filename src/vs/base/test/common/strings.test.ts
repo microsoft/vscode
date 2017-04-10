@@ -262,4 +262,31 @@ suite('Strings', () => {
 		assertIsBasicASCII('ü', false);
 		assertIsBasicASCII('a📚📚b', false);
 	});
+
+	test('createRegExp', () => {
+		// Empty
+		assert.throws(() => strings.createRegExp('', false));
+
+		// Escapes appropriately
+		assert.equal(strings.createRegExp('abc', false).source, 'abc');
+		assert.equal(strings.createRegExp('([^ ,.]*)', false).source, '\\(\\[\\^ ,\\.\\]\\*\\)');
+		assert.equal(strings.createRegExp('([^ ,.]*)', true).source, '([^ ,.]*)');
+
+		// Whole word
+		assert.equal(strings.createRegExp('abc', false, { wholeWord: true }).source, '\\babc\\b');
+		assert.equal(strings.createRegExp('abc', true, { wholeWord: true }).source, '\\babc\\b');
+		assert.equal(strings.createRegExp(' abc', true, { wholeWord: true }).source, ' abc\\b');
+		assert.equal(strings.createRegExp('abc ', true, { wholeWord: true }).source, '\\babc ');
+		assert.equal(strings.createRegExp(' abc ', true, { wholeWord: true }).source, ' abc ');
+
+		const regExpWithoutFlags = strings.createRegExp('abc', true);
+		assert(!regExpWithoutFlags.global);
+		assert(regExpWithoutFlags.ignoreCase);
+		assert(!regExpWithoutFlags.multiline);
+
+		const regExpWithFlags = strings.createRegExp('abc', true, { global: true, matchCase: true, multiline: true });
+		assert(regExpWithFlags.global);
+		assert(!regExpWithFlags.ignoreCase);
+		assert(regExpWithFlags.multiline);
+	});
 });
