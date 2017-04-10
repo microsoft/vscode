@@ -143,7 +143,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	public getDescription(): string {
 		if (!this.description) {
-			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService);
+			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService);
 		}
 
 		return this.description;
@@ -156,10 +156,10 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 				title = this.shortTitle ? this.shortTitle : (this.shortTitle = this.getName());
 				break;
 			case Verbosity.MEDIUM:
-				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService));
+				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService, this.environmentService));
 				break;
 			case Verbosity.LONG:
-				title = this.longTitle ? this.longTitle : (this.longTitle = labels.tildify(labels.getPathLabel(this.resource), this.environmentService.userHome));
+				title = this.longTitle ? this.longTitle : (this.longTitle = labels.getPathLabel(this.resource, void 0, this.environmentService));
 				break;
 		}
 

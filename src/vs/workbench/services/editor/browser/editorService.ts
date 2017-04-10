@@ -22,6 +22,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import nls = require('vs/nls');
 import { getPathLabel, IWorkspaceProvider } from 'vs/base/common/labels';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 export interface IEditorPart {
 	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
@@ -47,7 +48,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		editorPart: IEditorPart | IWorkbenchEditorService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService?: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		this.editorPart = editorPart;
 		this.fileInputDescriptor = Registry.as<IEditorRegistry>(Extensions.Editors).getDefaultFileInput();
@@ -224,7 +226,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
 			return this.createInput({ resource: resourceDiffInput.leftResource }).then(leftInput => {
 				return this.createInput({ resource: resourceDiffInput.rightResource }).then(rightInput => {
-					const label = resourceDiffInput.label || toDiffLabel(resourceDiffInput.leftResource, resourceDiffInput.rightResource, this.workspaceContextService);
+					const label = resourceDiffInput.label || this.toDiffLabel(resourceDiffInput.leftResource, resourceDiffInput.rightResource, this.workspaceContextService, this.environmentService);
 
 					return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
 				});
@@ -265,13 +267,13 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return typedFileInput;
 		});
 	}
-}
 
-function toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider): string {
-	const leftName = getPathLabel(res1.fsPath, context);
-	const rightName = getPathLabel(res2.fsPath, context);
+	private toDiffLabel(res1: URI, res2: URI, context: IWorkspaceProvider, environment: IEnvironmentService): string {
+		const leftName = getPathLabel(res1.fsPath, context, environment);
+		const rightName = getPathLabel(res2.fsPath, context, environment);
 
-	return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
+		return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
+	}
 }
 
 export interface IEditorOpenHandler {
@@ -297,13 +299,15 @@ export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super(
 			editorService,
 			untitledEditorService,
 			workspaceContextService,
-			instantiationService
+			instantiationService,
+			environmentService
 		);
 	}
 

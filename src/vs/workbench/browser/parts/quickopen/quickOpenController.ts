@@ -51,6 +51,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SIDE_BAR_BACKGROUND } from "vs/workbench/common/theme";
 import { attachQuickOpenStyler } from "vs/platform/theme/common/styler";
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 const HELP_PREFIX = '?';
 
@@ -1112,7 +1113,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@IModelService private modelService: IModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super(editorService);
 
@@ -1127,7 +1129,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
 			this.label = paths.basename(resourceInput.resource.fsPath);
-			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService);
+			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService, environmentService);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
 			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {

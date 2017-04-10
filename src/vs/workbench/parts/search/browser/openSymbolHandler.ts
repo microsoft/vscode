@@ -24,6 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceSymbolProvider, getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
@@ -34,7 +35,8 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		private _provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService private _environmentService: IEnvironmentService
 	) {
 		super(editorService);
 	}
@@ -50,7 +52,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 	public getDescription(): string {
 		let result = this._bearing.containerName;
 		if (!result && this._bearing.location.uri) {
-			result = labels.getPathLabel(this._bearing.location.uri, this._contextService);
+			result = labels.getPathLabel(this._bearing.location.uri, this._contextService, this._environmentService);
 		}
 		return result;
 	}

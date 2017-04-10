@@ -18,6 +18,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -46,7 +47,8 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		initialValue: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -92,7 +94,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	public getDescription(): string {
-		return this.hasAssociatedFilePath ? labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService) : null;
+		return this.hasAssociatedFilePath ? labels.getPathLabel(paths.dirname(this.resource.fsPath), this.contextService, this.environmentService) : null;
 	}
 
 	public isDirty(): boolean {

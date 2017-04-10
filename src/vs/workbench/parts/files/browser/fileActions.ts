@@ -48,6 +48,7 @@ import { ITextModelResolverService } from 'vs/editor/common/services/resolverSer
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { withFocussedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 export interface IEditableData {
 	action: IAction;
@@ -1168,7 +1169,8 @@ export class GlobalCompareResourcesAction extends Action {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IHistoryService private historyService: IHistoryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
 	}
@@ -1202,7 +1204,7 @@ export class GlobalCompareResourcesAction extends Action {
 				}
 
 				label = paths.basename(resource.fsPath);
-				description = resource.scheme === 'file' ? labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService) : void 0;
+				description = resource.scheme === 'file' ? labels.getPathLabel(paths.dirname(resource.fsPath), this.contextService, this.environmentService) : void 0;
 
 				return <IHistoryPickEntry>{ input, resource, label, description };
 			}).filter(p => !!p);
