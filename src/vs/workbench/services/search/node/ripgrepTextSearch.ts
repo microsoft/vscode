@@ -86,7 +86,6 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		});
 
 		this.rgProc.stderr.on('data', data => {
-			// TODO@rob remove console.logs
 			console.log('stderr:');
 			console.log(data.toString());
 		});
@@ -96,8 +95,6 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 			this.ripgrepParser.flush();
 			this.handleResultP.then(() => {
 				this.rgProc = null;
-				// console.log(`closed with ${code}`);
-
 				if (!this.isDone) {
 					this.isDone = true;
 					done(null, {
@@ -183,7 +180,6 @@ export class RipgrepParser extends EventEmitter {
 
 		const realTextParts: string[] = [];
 
-		// todo@Rob Consider just rewriting with a regex. I think perf will be fine.
 		for (let i = 0; i < text.length - (RipgrepParser.MATCH_END_MARKER.length - 1);) {
 			if (text.substr(i, RipgrepParser.MATCH_START_MARKER.length) === RipgrepParser.MATCH_START_MARKER) {
 				// Match start
