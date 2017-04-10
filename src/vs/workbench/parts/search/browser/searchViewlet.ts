@@ -521,7 +521,7 @@ export class SearchViewlet extends Viewlet {
 				}
 
 				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				let focusEditor = (keyboard && (!event.payload || !event.payload.preserveFocus)) || doubleClick || event.payload.focusEditor;
+				let focusEditor = (keyboard && (!event.payload || !event.payload.preserveFocus)) || doubleClick || (event.payload && event.payload.focusEditor);
 
 				if (element instanceof Match) {
 					let selectedMatch: Match = element;
@@ -531,7 +531,7 @@ export class SearchViewlet extends Viewlet {
 					this.currentSelectedFileMatch = selectedMatch.parent();
 					this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
 
-					if (!event.payload.preventEditorOpen) {
+					if (!(event.payload && event.payload.preventEditorOpen)) {
 						this.onFocus(selectedMatch, !focusEditor, sideBySide, doubleClick);
 					}
 				}
