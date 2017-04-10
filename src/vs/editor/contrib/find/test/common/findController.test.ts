@@ -5,11 +5,13 @@
 'use strict';
 
 import * as assert from 'assert';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Emitter } from 'vs/base/common/event';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import { IRange, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { IRange, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import {
 	CommonFindController, FindStartFocusAction, IFindStartOptions,
 	NextMatchFindAction, StartFindAction, SelectHighlightsAction,
@@ -17,11 +19,21 @@ import {
 } from 'vs/editor/contrib/find/common/findController';
 import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Delayer } from 'vs/base/common/async';
 
 class TestFindController extends CommonFindController {
 
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
+	public delayedUpdateHistoryPromise: TPromise<void>;
+
+	private _delayedUpdateHistoryEvent: Emitter<void> = new Emitter<void>();
+
+	constructor(editor: ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
+		super(editor, contextKeyService);
+		this._updateHistoryDelayer = new Delayer<void>(50);
+	}
 
 	protected _start(opts: IFindStartOptions): void {
 		super._start(opts);
@@ -32,11 +44,25 @@ class TestFindController extends CommonFindController {
 	}
 
 	protected _delayedUpdateHistory() {
+		if (!this.delayedUpdateHistoryPromise) {
+			this.delayedUpdateHistoryPromise = new TPromise<void>((c, e) => {
+				const disposable = this._delayedUpdateHistoryEvent.event(() => {
+					disposable.dispose();
+					this.delayedUpdateHistoryPromise = null;
+					c(null);
+				});
+			});
+		}
 		if (this.delayUpdateHistory) {
 			super._delayedUpdateHistory();
 		} else {
 			this._updateHistory();
 		}
+	}
+
+	protected _updateHistory() {
+		super._updateHistory();
+		this._delayedUpdateHistoryEvent.fire();
 	}
 }
 
@@ -237,10 +263,10 @@ suite('FindController', () => {
 			findController.getState().change({ searchString: '2' }, false);
 			findController.getState().change({ searchString: '3' }, false);
 
-			setTimeout(function () {
+			findController.delayedUpdateHistoryPromise.then(() => {
 				assert.deepEqual(['3'], toArray(findController.getHistory()));
 				done();
-			}, 500);
+			});
 		});
 	});
 

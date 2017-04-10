@@ -1488,13 +1488,11 @@ export class Cursor extends EventEmitter {
 
 	private _indent(ctx: IMultipleCursorOperationContext): boolean {
 		this._applyEditForAll(ctx, (cursor) => TypeOperations.indent(this.context.config, this.context.model, cursor.modelState));
-		ctx.shouldRevealHorizontal = false;
 		return true;
 	}
 
 	private _outdent(ctx: IMultipleCursorOperationContext): boolean {
 		this._applyEditForAll(ctx, (cursor) => TypeOperations.outdent(this.context.config, this.context.model, cursor.modelState));
-		ctx.shouldRevealHorizontal = false;
 		return true;
 	}
 

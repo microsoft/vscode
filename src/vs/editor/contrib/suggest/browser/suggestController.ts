@@ -22,7 +22,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { Context as SuggestContext } from './suggest';
-import { SuggestModel } from './suggestModel';
+import { SuggestModel, State } from './suggestModel';
 import { ICompletionItem } from './completionModel';
 import { SuggestWidget } from './suggestWidget';
 
@@ -125,7 +125,10 @@ export class SuggestController implements IEditorContribution {
 			const startColumn = item.position.column - item.suggestion.overwriteBefore;
 			const endColumn = position.column;
 			let value = true;
-			if (endColumn - startColumn === item.suggestion.insertText.length) {
+			if (
+				this.model.state === State.Auto
+				&& endColumn - startColumn === item.suggestion.insertText.length
+			) {
 				const oldText = this.editor.getModel().getValueInRange({
 					startLineNumber: position.lineNumber,
 					startColumn,

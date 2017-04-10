@@ -46,7 +46,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	private _findWidgetVisible: IContextKey<boolean>;
 	protected _state: FindReplaceState;
 	private _currentHistoryNavigator: HistoryNavigator<string>;
-	private _updateHistoryDelayer: Delayer<void>;
+	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel;
 
 	public static get(editor: editorCommon.ICommonCodeEditor): CommonFindController {
