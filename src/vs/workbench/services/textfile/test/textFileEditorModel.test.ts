@@ -228,35 +228,34 @@ suite('Files - TextFileEditorModel', () => {
 		}, error => onError(error, done));
 	});
 
-	// TODO@Ben
-	// test('Auto Save triggered when model changes', function (done) {
-	// 	let eventCounter = 0;
-	// 	const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');
+	test('Auto Save triggered when model changes', function (done) {
+		let eventCounter = 0;
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');
 
-	// 	(<any>model).autoSaveAfterMillies = 10;
-	// 	(<any>model).autoSaveAfterMilliesEnabled = true;
+		(<any>model).autoSaveAfterMillies = 10;
+		(<any>model).autoSaveAfterMilliesEnabled = true;
 
-	// 	model.onDidStateChange(e => {
-	// 		if (e === StateChange.DIRTY || e === StateChange.SAVED) {
-	// 			eventCounter++;
-	// 		}
-	// 	});
+		model.onDidStateChange(e => {
+			if (e === StateChange.DIRTY || e === StateChange.SAVED) {
+				eventCounter++;
+			}
+		});
 
-	// 	model.load().done(() => {
-	// 		model.textEditorModel.setValue('foo');
+		model.load().done(() => {
+			model.textEditorModel.setValue('foo');
 
-	// 		return TPromise.timeout(100).then(() => {
-	// 			assert.ok(!model.isDirty());
-	// 			assert.equal(eventCounter, 2);
+			return TPromise.timeout(200).then(() => {
+				assert.ok(!model.isDirty());
+				assert.equal(eventCounter, 2);
 
-	// 			model.dispose();
+				model.dispose();
 
-	// 			assert.ok(!accessor.modelService.getModel(model.getResource()));
+				assert.ok(!accessor.modelService.getModel(model.getResource()));
 
-	// 			done();
-	// 		});
-	// 	}, error => onError(error, done));
-	// });
+				done();
+			});
+		}, error => onError(error, done));
+	});
 
 	test('save() and isDirty() - proper with check for mtimes', function (done) {
 		const input1 = createFileInput(instantiationService, toResource.call(this, '/path/index_async2.txt'));
