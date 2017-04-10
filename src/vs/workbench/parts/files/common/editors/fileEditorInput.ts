@@ -159,7 +159,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 				title = this.mediumTitle ? this.mediumTitle : (this.mediumTitle = labels.getPathLabel(this.resource, this.contextService));
 				break;
 			case Verbosity.LONG:
-				title = this.longTitle ? this.longTitle : (this.longTitle = labels.tildify(labels.getPathLabel(this.resource), this.environmentService.userHome));
+				title = this.longTitle ? this.longTitle : (this.longTitle = labels.getPathLabel(this.resource), this.environmentService.userHome);
 				break;
 		}
 
