@@ -220,9 +220,14 @@ export const ScanCodeUtils = {
 };
 
 /**
- * -1 if a HwCode => KeyCode mapping depends on kb layout.
+ * -1 if a ScanCode => KeyCode mapping depends on kb layout.
  */
 export const IMMUTABLE_CODE_TO_KEY_CODE: KeyCode[] = [];
+
+/**
+ * -1 if a KeyCode => ScanCode mapping depends on kb layout.
+ */
+export const IMMUTABLE_KEY_CODE_TO_CODE: ScanCode[] = [];
 
 export class ScanCodeBinding {
 	public readonly ctrlKey: boolean;
@@ -468,9 +473,27 @@ export class ScanCodeBinding {
 		IMMUTABLE_CODE_TO_KEY_CODE[i] = -1;
 	}
 
+	for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
+		IMMUTABLE_KEY_CODE_TO_CODE[i] = -1;
+	}
+
 	function define(code: ScanCode, keyCode: KeyCode): void {
 		IMMUTABLE_CODE_TO_KEY_CODE[code] = keyCode;
+
+		if (
+			(keyCode !== KeyCode.Unknown)
+			&& (keyCode !== KeyCode.Enter)
+			&& (keyCode !== KeyCode.Ctrl)
+			&& (keyCode !== KeyCode.Shift)
+			&& (keyCode !== KeyCode.Alt)
+			&& (keyCode !== KeyCode.Meta)
+		) {
+			IMMUTABLE_KEY_CODE_TO_CODE[keyCode] = code;
+		}
 	}
+
+	// Manually added due to the exclusion above (due to duplication with NumpadEnter)
+	IMMUTABLE_KEY_CODE_TO_CODE[KeyCode.Enter] = ScanCode.Enter;
 
 	define(ScanCode.None, KeyCode.Unknown);
 	define(ScanCode.Hyper, KeyCode.Unknown);
