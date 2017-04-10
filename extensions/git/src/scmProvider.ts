@@ -10,6 +10,7 @@ import { Model, State } from './model';
 import { StatusBarCommands } from './statusbar';
 import { CommandCenter } from './commands';
 import { mapEvent } from './util';
+import { toGitUri } from './uri';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
@@ -99,13 +100,7 @@ export class GitSCMProvider {
 			return;
 		}
 
-		// As a mitigation for extensions like ESLint showing warnings and errors
-		// for git URIs, let's change the file extension of these uris to .git.
-		return new Uri().with({
-			scheme: 'git-original',
-			query: uri.fsPath,
-			path: uri.path + '.git'
-		});
+		return toGitUri(uri, '');
 	}
 
 	private onDidModelChange(): void {

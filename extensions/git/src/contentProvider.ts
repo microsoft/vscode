@@ -7,6 +7,7 @@
 
 import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode';
 import { debounce, throttle } from './decorators';
+import { fromGitUri } from './uri';
 import { Model } from './model';
 
 interface CacheRow {
@@ -32,8 +33,7 @@ export class GitContentProvider {
 	constructor(private model: Model) {
 		this.disposables.push(
 			model.onDidChangeRepository(this.eventuallyFireChangeEvents, this),
-			workspace.registerTextDocumentContentProvider('git', this),
-			workspace.registerTextDocumentContentProvider('git-original', this)
+			workspace.registerTextDocumentContentProvider('git', this)
 		);
 
 		setInterval(() => this.cleanup(), FIVE_MINUTES);
@@ -59,25 +59,17 @@ export class GitContentProvider {
 
 		this.cache[cacheKey] = cacheValue;
 
-		if (uri.scheme === 'git-original') {
-			try {
-				return await this.model.show('', uri.query);
-			} catch (err) {
-				return '';
-			}
-		}
-
-		let ref = uri.query;
+		let { path, ref } = fromGitUri(uri);
 
 		if (ref === '~') {
-			const fileUri = uri.with({ scheme: 'file', query: '' });
+			const fileUri = Uri.file(path);
 			const uriString = fileUri.toString();
 			const [indexStatus] = this.model.indexGroup.resources.filter(r => r.original.toString() === uriString);
 			ref = indexStatus ? '' : 'HEAD';
 		}
 
 		try {
-			return await this.model.show(ref, uri.fsPath);
+			return await this.model.show(ref, path);
 		} catch (err) {
 			return '';
 		}
