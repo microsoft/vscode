@@ -181,7 +181,7 @@ export class CommandsConverter {
 			title: command.title
 		};
 
-		if (!isFalsyOrEmpty(command.arguments)) {
+		if (command.command && !isFalsyOrEmpty(command.arguments)) {
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 

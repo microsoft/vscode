@@ -62,7 +62,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 				title: locations.length === 1
 					? localize('oneImplementationLabel', '1 implementation')
 					: localize('manyImplementationLabel', '{0} implementations', locations.length),
-				command: 'editor.action.showReferences',
+				command: locations.length ? 'editor.action.showReferences' : '',
 				arguments: [codeLens.document, codeLens.range.start, locations]
 			};
 			return codeLens;
