@@ -99,7 +99,9 @@ export class ReleaseNotesEditor extends BaseEditor {
 	}
 
 	layout(): void {
-		// noop
+		if (this.webview) {
+			this.webview.layout();
+		}
 	}
 
 	focus(): void {

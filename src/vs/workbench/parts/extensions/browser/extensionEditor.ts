@@ -324,6 +324,9 @@ export class ExtensionEditor extends BaseEditor {
 			.then(renderBody)
 			.then<void>(body => {
 				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webview);
+				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
 				webview.style(this.themeService.getTheme());
 				webview.contents = [body];
 

@@ -52,14 +52,16 @@ export default class Webview {
 	private _onDidClickLink = new Emitter<URI>();
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
-	constructor(parent: HTMLElement, private _styleElement: Element) {
+	constructor(
+		private parent: HTMLElement,
+		private _styleElement: Element
+	) {
 		this._webview = <any>document.createElement('webview');
 
 		this._webview.style.width = '100%';
 		this._webview.style.height = '100%';
 		this._webview.style.outline = '0';
 		this._webview.style.opacity = '0';
-		this._webview.autoSize = 'on';
 		this._webview.contextIsolation = true;
 
 		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
@@ -99,6 +101,7 @@ export default class Webview {
 					this._webview.style.opacity = '';
 					let [stats] = event.args;
 					this._onDidLoadContent.fire({ stats });
+					this.layout();
 					return;
 				}
 			})
@@ -234,5 +237,24 @@ export default class Webview {
 		}
 
 		this._send('styles', value, activeTheme);
+	}
+
+	public layout(): void {
+		const contents = (this._webview as any).getWebContents();
+		if (!contents) {
+			return;
+		}
+
+		const width = this.parent.clientWidth;
+		const height = this.parent.clientHeight;
+
+		contents.getZoomFactor(factor => {
+			contents.setSize({
+				normal: {
+					width: Math.floor(width * factor),
+					height: Math.floor(height * factor)
+				}
+			});
+		});
 	}
 }
