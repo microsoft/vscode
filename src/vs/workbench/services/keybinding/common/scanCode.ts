@@ -630,9 +630,9 @@ export class ScanCodeBinding {
 	define(ScanCode.AudioVolumeUp, KeyCode.Unknown);
 	define(ScanCode.AudioVolumeDown, KeyCode.Unknown);
 	define(ScanCode.NumpadComma, KeyCode.NUMPAD_SEPARATOR);
-	define(ScanCode.IntlRo, KeyCode.Unknown);
+	// define(ScanCode.IntlRo, KeyCode.Unknown);
 	define(ScanCode.KanaMode, KeyCode.Unknown);
-	define(ScanCode.IntlYen, KeyCode.Unknown);
+	// define(ScanCode.IntlYen, KeyCode.Unknown);
 	define(ScanCode.Convert, KeyCode.Unknown);
 	define(ScanCode.NonConvert, KeyCode.Unknown);
 	define(ScanCode.Lang1, KeyCode.Unknown);

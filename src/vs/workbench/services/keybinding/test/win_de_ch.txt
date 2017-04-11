@@ -272,3 +272,13 @@
 |         Ctrl+Alt+IntlBackslash |   \   |          Ctrl+Alt+OEM_102 |                Ctrl+Alt+< |    NO   |
 |   Ctrl+Shift+Alt+IntlBackslash |  ---  |    Ctrl+Shift+Alt+OEM_102 |          Ctrl+Shift+Alt+< |    NO   |
 ------------------------------------------------------------------------------------------------------------
+|                         IntlRo |  ---  |                      null |                      null |    NO   |
+|                   Shift+IntlRo |  ---  |                      null |                      null |    NO   |
+|                Ctrl+Alt+IntlRo |  ---  |                      null |                      null |    NO   |
+|          Ctrl+Shift+Alt+IntlRo |  ---  |                      null |                      null |    NO   |
+------------------------------------------------------------------------------------------------------------
+|                        IntlYen |  ---  |                      null |                      null |    NO   |
+|                  Shift+IntlYen |  ---  |                      null |                      null |    NO   |
+|               Ctrl+Alt+IntlYen |  ---  |                      null |                      null |    NO   |
+|         Ctrl+Shift+Alt+IntlYen |  ---  |                      null |                      null |    NO   |
+------------------------------------------------------------------------------------------------------------
