@@ -191,8 +191,6 @@ export class TestTextFileService extends TextFileService {
 		this.cleanupBackupsBeforeShutdownCalled = true;
 		return TPromise.as(void 0);
 	}
-
-	public showHotExitMessage(): void { }
 }
 
 export function workbenchInstantiationService(): IInstantiationService {
