@@ -64,8 +64,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const header = append(headerContainer, $('.header'));
 		const name = append(header, $('span.name'));
 		const version = append(header, $('span.version'));
-		const installCount = append(header, $('span.install-count'));
-		const ratings = append(header, $('span.ratings'));
+		const extensionstats = append(headerContainer, $('.extension-stats'));
+		const installCount = append(extensionstats, $('span.install-count'));
+		const ratings = append(extensionstats, $('span.ratings'));
 		const description = append(details, $('.description.ellipsis'));
 		const footer = append(details, $('.footer'));
 		const author = append(footer, $('.author.ellipsis'));
