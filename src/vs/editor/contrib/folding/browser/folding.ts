@@ -616,7 +616,7 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 						name: 'Fold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
 							* 'levels': Number of levels to fold
-							* 'up': If 'true' folds given number of levels up otherwise folds down
+							* 'up': If 'true', folds given number of levels up otherwise folds down
 						`,
 						constraint: foldingArgumentsConstraint
 					}
