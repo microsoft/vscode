@@ -273,37 +273,27 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		if (!value || /@installed/i.test(value)) {
 			// Show installed extensions
 			value = value ? value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
-			const local = await this.extensionsWorkbenchService.queryLocal();
 
-			const result = local.sort((e1, e2) => {
-				switch (options.sortBy) {
-					case SortBy.InstallCount:
-						switch (options.sortOrder) {
-							case SortOrder.Ascending:
-								return e1.installCount - e2.installCount;
-							case SortOrder.Descending:
-							default:
-								return e2.installCount - e1.installCount;
-						}
-					case SortBy.AverageRating:
-						switch (options.sortOrder) {
-							case SortOrder.Ascending:
-								return e1.rating - e2.rating;
-							case SortOrder.Descending:
-							default:
-								return e2.rating - e1.rating;
-						}
-					case SortBy.Title:
-					default:
-						switch (options.sortOrder) {
-							case SortOrder.Descending:
-								return e2.displayName.localeCompare(e1.displayName);
-							case SortOrder.Ascending:
-							default:
-								return e1.displayName.localeCompare(e2.displayName);
-						}
-				}
-			}).filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
+			let result = await this.extensionsWorkbenchService.queryLocal();
+
+			switch (options.sortBy) {
+				case SortBy.InstallCount:
+					result = result.sort((e1, e2) => e2.installCount - e1.installCount);
+					break;
+				case SortBy.AverageRating:
+					result = result.sort((e1, e2) => e2.rating - e1.rating);
+					break;
+				default:
+					result = result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
+					break;
+			}
+
+			if (options.sortOrder === SortOrder.Descending) {
+				result = result.reverse();
+			}
+
+			result = result
+				.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
 
 			return new PagedModel(result);
 		}
