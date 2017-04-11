@@ -25,11 +25,11 @@ export class QuickFixOracle {
 		private _editor: ICommonCodeEditor,
 		private _markerService: IMarkerService,
 		private _signalChange: (e: QuickFixComputeEvent) => any,
-		cursorChangeDebounce: number = 250
+		delay: number = 250
 	) {
 		this._disposables.push(
-			this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)),
-			debounceEvent(this._editor.onDidChangeCursorPosition, last => last, cursorChangeDebounce)(e => this._onCursorChange())
+			debounceEvent(this._markerService.onMarkerChanged, (last, cur) => last ? last.concat(cur) : cur, delay / 2)(e => this._onMarkerChanges(e)),
+			debounceEvent(this._editor.onDidChangeCursorPosition, last => last, delay)(e => this._onCursorChange())
 		);
 	}
 
