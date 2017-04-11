@@ -556,6 +556,15 @@ suite('TreeModel - TreeNavigator', () => {
 			done();
 		});
 	});
+
+	test('last()', () => {
+		return model.setInput(SAMPLE.AB).then(() => {
+			return model.expandAll([{ id: 'a' }, { id: 'c' }]).then(() => {
+				const nav = model.getNavigator();
+				assert.equal(nav.last().id, 'cb');
+			});
+		});
+	});
 });
 
 suite('TreeModel - Expansion', () => {
