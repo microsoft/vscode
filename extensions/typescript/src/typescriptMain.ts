@@ -224,19 +224,15 @@ class LanguageProvider {
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new SignatureHelpProvider(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new RenameProvider(client)));
 
-		if (client.apiVersion.has206Features()) {
-			this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
-			this.referenceCodeLensProvider.updateConfiguration();
-			this.disposables.push(languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider));
+		this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
+		this.referenceCodeLensProvider.updateConfiguration();
+		this.disposables.push(languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider));
 
-			this.implementationCodeLensProvider = new ImplementationCodeLensProvider(client);
-			this.implementationCodeLensProvider.updateConfiguration();
-			this.disposables.push(languages.registerCodeLensProvider(selector, this.implementationCodeLensProvider));
-		}
+		this.implementationCodeLensProvider = new ImplementationCodeLensProvider(client);
+		this.implementationCodeLensProvider.updateConfiguration();
+		this.disposables.push(languages.registerCodeLensProvider(selector, this.implementationCodeLensProvider));
 
-		if (client.apiVersion.has213Features()) {
-			this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
-		}
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
 
 		if (client.apiVersion.has220Features()) {
 			this.disposables.push(languages.registerImplementationProvider(selector, new ImplementationProvider(client)));
