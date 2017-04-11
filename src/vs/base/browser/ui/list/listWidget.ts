@@ -716,6 +716,16 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
+	focusLast(): void {
+		if (this.length === 0) { return; }
+		this.setFocus([this.length - 1]);
+	}
+
+	focusFirst(): void {
+		if (this.length === 0) { return; }
+		this.setFocus([0]);
+	}
+
 	getFocus(): number[] {
 		return this.focus.get();
 	}

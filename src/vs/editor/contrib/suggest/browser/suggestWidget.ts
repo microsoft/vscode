@@ -266,6 +266,14 @@ class SuggestionDetails {
 		this.body.scrollTop -= much;
 	}
 
+	scrollTop(): void {
+		this.body.scrollTop = 0;
+	}
+
+	scrollBottom(): void {
+		this.body.scrollTop = this.body.scrollHeight;
+	}
+
 	pageDown(): void {
 		this.scrollDown(80);
 	}
@@ -661,6 +669,21 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 
+	selectLast(): boolean {
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				this.details.scrollBottom();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusLast();
+				return true;
+		}
+	}
+
 	selectPreviousPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
@@ -689,6 +712,21 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			default:
 				this.list.focusPrevious(1, true);
 				return false;
+		}
+	}
+
+	selectFirst(): boolean {
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				this.details.scrollTop();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusFirst();
+				return true;
 		}
 	}
 
