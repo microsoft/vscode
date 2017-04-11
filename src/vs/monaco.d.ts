@@ -1699,6 +1699,11 @@ declare module monaco.editor {
          */
         darkColor: string;
         /**
+         * CSS color to render in the overview ruler.
+         * e.g.: rgba(100, 100, 100, 0.5)
+         */
+        hcColor?: string;
+        /**
          * The position in the overview ruler.
          */
         position: OverviewRulerLane;

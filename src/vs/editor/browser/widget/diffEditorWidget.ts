@@ -1550,6 +1550,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 					editorCommon.OverviewRulerLane.Full,
 					0,
 					'rgba(255, 0, 0, 0.4)',
+					'rgba(255, 0, 0, 0.4)',
 					'rgba(255, 0, 0, 0.4)'
 				));
 
@@ -1616,6 +1617,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 					lineChange.modifiedEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,
 					0,
+					'rgba(155, 185, 85, 0.4)',
 					'rgba(155, 185, 85, 0.4)',
 					'rgba(155, 185, 85, 0.4)'
 				));
@@ -1738,6 +1740,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 					editorCommon.OverviewRulerLane.Full,
 					0,
 					'rgba(255, 0, 0, 0.4)',
+					'rgba(255, 0, 0, 0.4)',
 					'rgba(255, 0, 0, 0.4)'
 				));
 			}
@@ -1775,6 +1778,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 					lineChange.modifiedEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,
 					0,
+					'rgba(155, 185, 85, 0.4)',
 					'rgba(155, 185, 85, 0.4)',
 					'rgba(155, 185, 85, 0.4)'
 				));

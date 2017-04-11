@@ -24,10 +24,10 @@ suite('Editor View - OverviewZoneManager', () => {
 		manager.setPixelRatio(1);
 
 		manager.setZones([
-			new OverviewRulerZone(1, 1, OverviewRulerLane.Full, 10, '1', '1'),
-			new OverviewRulerZone(10, 10, OverviewRulerLane.Full, 0, '2', '2'),
-			new OverviewRulerZone(30, 31, OverviewRulerLane.Full, 0, '3', '3'),
-			new OverviewRulerZone(50, 50, OverviewRulerLane.Full, 0, '4', '4'),
+			new OverviewRulerZone(1, 1, OverviewRulerLane.Full, 10, '1', '1', '1'),
+			new OverviewRulerZone(10, 10, OverviewRulerLane.Full, 0, '2', '2', '2'),
+			new OverviewRulerZone(30, 31, OverviewRulerLane.Full, 0, '3', '3', '3'),
+			new OverviewRulerZone(50, 50, OverviewRulerLane.Full, 0, '4', '4', '4'),
 		]);
 
 		// one line = 12, but cap is at 6
@@ -54,10 +54,10 @@ suite('Editor View - OverviewZoneManager', () => {
 		manager.setPixelRatio(1);
 
 		manager.setZones([
-			new OverviewRulerZone(1, 1, OverviewRulerLane.Full, 10, '1', '1'),
-			new OverviewRulerZone(10, 10, OverviewRulerLane.Full, 0, '2', '2'),
-			new OverviewRulerZone(30, 31, OverviewRulerLane.Full, 0, '3', '3'),
-			new OverviewRulerZone(50, 50, OverviewRulerLane.Full, 0, '4', '4'),
+			new OverviewRulerZone(1, 1, OverviewRulerLane.Full, 10, '1', '1', '1'),
+			new OverviewRulerZone(10, 10, OverviewRulerLane.Full, 0, '2', '2', '2'),
+			new OverviewRulerZone(30, 31, OverviewRulerLane.Full, 0, '3', '3', '3'),
+			new OverviewRulerZone(50, 50, OverviewRulerLane.Full, 0, '4', '4', '4'),
 		]);
 
 		// one line = 6, cap is at 6
@@ -83,10 +83,10 @@ suite('Editor View - OverviewZoneManager', () => {
 		manager.setPixelRatio(2);
 
 		manager.setZones([
-			new OverviewRulerZone(1, 1, OverviewRulerLane.Full, 10, '1', '1'),
-			new OverviewRulerZone(10, 10, OverviewRulerLane.Full, 0, '2', '2'),
-			new OverviewRulerZone(30, 31, OverviewRulerLane.Full, 0, '3', '3'),
-			new OverviewRulerZone(50, 50, OverviewRulerLane.Full, 0, '4', '4'),
+			new OverviewRulerZone(1, 1, OverviewRulerLane.Full, 10, '1', '1', '1'),
+			new OverviewRulerZone(10, 10, OverviewRulerLane.Full, 0, '2', '2', '2'),
+			new OverviewRulerZone(30, 31, OverviewRulerLane.Full, 0, '3', '3', '3'),
+			new OverviewRulerZone(50, 50, OverviewRulerLane.Full, 0, '4', '4', '4'),
 		]);
 
 		// one line = 6, cap is at 12

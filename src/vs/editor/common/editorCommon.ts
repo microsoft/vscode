@@ -1281,6 +1281,11 @@ export interface IModelDecorationOverviewRulerOptions {
 	 */
 	darkColor: string;
 	/**
+	 * CSS color to render in the overview ruler.
+	 * e.g.: rgba(100, 100, 100, 0.5)
+	 */
+	hcColor?: string;
+	/**
 	 * The position in the overview ruler.
 	 */
 	position: OverviewRulerLane;
@@ -4595,6 +4600,15 @@ export class ColorZone {
 }
 
 /**
+ * @internal
+ */
+export const enum ThemeType {
+	Light = 1,
+	Dark = 2,
+	HighContrast = 3
+}
+
+/**
  * A zone in the overview ruler
  * @internal
  */
@@ -4608,6 +4622,7 @@ export class OverviewRulerZone {
 
 	private _color: string;
 	private _darkColor: string;
+	private _hcColor: string;
 
 	private _colorZones: ColorZone[];
 
@@ -4615,7 +4630,7 @@ export class OverviewRulerZone {
 		startLineNumber: number, endLineNumber: number,
 		position: OverviewRulerLane,
 		forceHeight: number,
-		color: string, darkColor: string
+		color: string, darkColor: string, hcColor: string
 	) {
 		this.startLineNumber = startLineNumber;
 		this.endLineNumber = endLineNumber;
@@ -4623,12 +4638,16 @@ export class OverviewRulerZone {
 		this.forceHeight = forceHeight;
 		this._color = color;
 		this._darkColor = darkColor;
+		this._hcColor = hcColor;
 		this._colorZones = null;
 	}
 
-	public getColor(useDarkColor: boolean): string {
-		if (useDarkColor) {
-			return this._darkColor;
+	public getColor(themeType: ThemeType): string {
+		switch (themeType) {
+			case ThemeType.HighContrast:
+				return this._hcColor;
+			case ThemeType.Dark:
+				return this._darkColor;
 		}
 		return this._color;
 	}
@@ -4641,6 +4660,7 @@ export class OverviewRulerZone {
 			&& this.forceHeight === other.forceHeight
 			&& this._color === other._color
 			&& this._darkColor === other._darkColor
+			&& this._hcColor === other._hcColor
 		);
 	}
 
@@ -4651,7 +4671,10 @@ export class OverviewRulerZone {
 					if (this.position === other.position) {
 						if (this._darkColor === other._darkColor) {
 							if (this._color === other._color) {
-								return 0;
+								if (this._hcColor === other._hcColor) {
+									return 0;
+								}
+								return this._hcColor < other._hcColor ? -1 : 1;
 							}
 							return this._color < other._color ? -1 : 1;
 						}

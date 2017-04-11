@@ -112,6 +112,7 @@ class ModelMarkerHandler {
 		let className: string;
 		let color: string;
 		let darkColor: string;
+		let hcColor: string;
 
 		switch (marker.severity) {
 			case Severity.Ignore:
@@ -122,12 +123,14 @@ class ModelMarkerHandler {
 				className = editorCommon.ClassName.EditorWarningDecoration;
 				color = 'rgba(18,136,18,0.7)';
 				darkColor = 'rgba(18,136,18,0.7)';
+				hcColor = 'rgba(50,255,50,1)';
 				break;
 			case Severity.Error:
 			default:
 				className = editorCommon.ClassName.EditorErrorDecoration;
 				color = 'rgba(255,18,18,0.7)';
 				darkColor = 'rgba(255,18,18,0.7)';
+				hcColor = 'rgba(255,50,50,1)';
 				break;
 		}
 
@@ -155,6 +158,7 @@ class ModelMarkerHandler {
 			overviewRuler: {
 				color,
 				darkColor,
+				hcColor,
 				position: editorCommon.OverviewRulerLane.Right
 			}
 		};
