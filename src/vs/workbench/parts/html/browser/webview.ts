@@ -73,6 +73,7 @@ export default class Webview {
 		this._ready = new TPromise<this>(resolve => {
 			const subscription = addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'webview-ready') {
+					this.layout();
 
 					// console.info('[PID Webview] ' + event.args[0]);
 					addClass(this._webview, 'ready'); // can be found by debug command
