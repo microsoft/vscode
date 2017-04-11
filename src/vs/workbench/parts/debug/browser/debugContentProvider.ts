@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
@@ -40,11 +39,9 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		let rawSource: DebugProtocol.Source;
 		if (source) {
 			rawSource = source.raw;
-		} else if (resource.scheme === 'debug') {
+		} else {
 			// Remove debug: scheme
 			rawSource = { path: resource.with({ scheme: '' }).toString(true) };
-		} else {
-			rawSource = { path: paths.normalize(resource.fsPath, true) };
 		}
 
 		return process.session.source({ sourceReference: source ? source.reference : undefined, source: rawSource }).then(response => {
