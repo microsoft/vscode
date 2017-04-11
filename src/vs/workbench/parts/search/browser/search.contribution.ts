@@ -59,7 +59,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.UpArrow,
 	handler: (accessor, args: any) => {
 		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
-		searchViewlet.moveFocusFromResults();
+		searchViewlet.focusPreviousInputBox();
 	}
 });
 
@@ -125,6 +125,56 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
 		const tree: ITree = searchViewlet.getControl();
 		accessor.get(IInstantiationService).createInstance(searchActions.ReplaceAllAction, tree, tree.getFocus(), searchViewlet).run();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.CloseReplaceWidgetActionId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceInputBoxFocussedKey),
+	primary: KeyCode.Escape,
+	handler: (accessor, args: any) => {
+		accessor.get(IInstantiationService).createInstance(searchActions.CloseReplaceAction, Constants.CloseReplaceWidgetActionId, '').run();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: searchActions.ShowNextSearchTermAction.ID,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey),
+	primary: ShowNextFindTermKeybinding.primary,
+	handler: (accessor, args: any) => {
+		accessor.get(IInstantiationService).createInstance(searchActions.ShowNextSearchTermAction, searchActions.ShowNextSearchTermAction.ID, '').run();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: searchActions.ShowPreviousSearchTermAction.ID,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey),
+	primary: ShowPreviousFindTermKeybinding.primary,
+	handler: (accessor, args: any) => {
+		accessor.get(IInstantiationService).createInstance(searchActions.ShowPreviousSearchTermAction, searchActions.ShowPreviousSearchTermAction.ID, '').run();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: searchActions.FocusNextInputAction.ID,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.InputBoxFocussedKey),
+	primary: KeyCode.DownArrow,
+	handler: (accessor, args: any) => {
+		accessor.get(IInstantiationService).createInstance(searchActions.FocusNextInputAction, searchActions.FocusNextInputAction.ID, '').run();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: searchActions.FocusPreviousInputAction.ID,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.InputBoxFocussedKey, Constants.SearchInputBoxFocussedKey.toNegated()),
+	primary: KeyCode.UpArrow,
+	handler: (accessor, args: any) => {
+		accessor.get(IInstantiationService).createInstance(searchActions.FocusPreviousInputAction, searchActions.FocusPreviousInputAction.ID, '').run();
 	}
 });
 
@@ -205,16 +255,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FocusNex
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FocusPreviousSearchResultAction, searchActions.FocusPreviousSearchResultAction.ID, searchActions.FocusPreviousSearchResultAction.LABEL, { primary: KeyMod.Shift | KeyCode.F4 }), '');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ReplaceInFilesAction, searchActions.ReplaceInFilesAction.ID, searchActions.ReplaceInFilesAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_H }), 'Replace in Files');
-registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.CloseReplaceAction, Constants.CloseReplaceWidgetActionId, '', { primary: KeyCode.Escape }, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceInputBoxFocussedKey)), '');
-
-registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ShowNextSearchTermAction, searchActions.ShowNextSearchTermAction.ID, searchActions.ShowNextSearchTermAction.LABEL, ShowNextFindTermKeybinding,
-	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), 'Show Next Search Term');
-registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ShowPreviousSearchTermAction, searchActions.ShowPreviousSearchTermAction.ID, searchActions.ShowPreviousSearchTermAction.LABEL, ShowPreviousFindTermKeybinding,
-	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), 'Show Previous Search Term');
-registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FocusNextInputAction, searchActions.FocusNextInputAction.ID, searchActions.FocusNextInputAction.LABEL, { primary: KeyCode.DownArrow },
-	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.InputBoxFocussedKey)), 'Focus Next Input Box');
-registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FocusPreviousInputAction, searchActions.FocusPreviousInputAction.ID, searchActions.FocusPreviousInputAction.LABEL, { primary: KeyCode.UpArrow },
-	ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.InputBoxFocussedKey, Constants.SearchInputBoxFocussedKey.toNegated())), 'Focus Previous Input Box');
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ToggleCaseSensitiveAction, Constants.ToggleCaseSensitiveActionId, '', ToggleCaseSensitiveKeybinding, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), '');
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ToggleWholeWordAction, Constants.ToggleWholeWordActionId, '', ToggleWholeWordKeybinding, ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocussedKey)), '');

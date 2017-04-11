@@ -766,9 +766,14 @@ export class SearchViewlet extends Viewlet {
 			this.inputPatternIncludes.select();
 			return;
 		}
+
+		if (this.tree.isDOMFocused()) {
+			this.moveFocusFromResults();
+			return;
+		}
 	}
 
-	public moveFocusFromResults(): void {
+	private moveFocusFromResults(): void {
 		if (this.showsFileTypes()) {
 			this.toggleQueryDetails(true, true, false, true);
 		} else {
