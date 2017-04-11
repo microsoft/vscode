@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { OverviewRulerLane, OverviewRulerZone, ColorZone } from 'vs/editor/common/editorCommon';
+import { OverviewRulerLane, OverviewRulerZone, ColorZone, ThemeType } from 'vs/editor/common/editorCommon';
 import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
 
 suite('Editor View - OverviewZoneManager', () => {
@@ -16,7 +16,7 @@ suite('Editor View - OverviewZoneManager', () => {
 		let manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
 		manager.setMinimumHeight(6);
 		manager.setMaximumHeight(6);
-		manager.setUseDarkColor(false);
+		manager.setThemeType(ThemeType.Light);
 		manager.setDOMWidth(30);
 		manager.setDOMHeight(600);
 		manager.setOuterHeight(LINE_COUNT * LINE_HEIGHT);
@@ -46,7 +46,7 @@ suite('Editor View - OverviewZoneManager', () => {
 		let manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
 		manager.setMinimumHeight(6);
 		manager.setMaximumHeight(6);
-		manager.setUseDarkColor(false);
+		manager.setThemeType(ThemeType.Light);
 		manager.setDOMWidth(30);
 		manager.setDOMHeight(300);
 		manager.setOuterHeight(LINE_COUNT * LINE_HEIGHT);
@@ -75,7 +75,7 @@ suite('Editor View - OverviewZoneManager', () => {
 		let manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
 		manager.setMinimumHeight(6);
 		manager.setMaximumHeight(6);
-		manager.setUseDarkColor(false);
+		manager.setThemeType(ThemeType.Light);
 		manager.setDOMWidth(30);
 		manager.setDOMHeight(300);
 		manager.setOuterHeight(LINE_COUNT * LINE_HEIGHT);
