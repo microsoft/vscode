@@ -360,6 +360,9 @@ export class Color {
 
 	public toString(): string {
 		const rgba = this.rgba;
+		if (rgba.a === 255) {
+			return this.toRGBHex();
+		}
 		return `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${+(rgba.a / 255).toFixed(2)})`;
 	}
 
