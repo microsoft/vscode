@@ -439,6 +439,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (this.container) {
 			if (this.currentColorTheme) {
 				$(this.container).removeClass(this.currentColorTheme.id);
+			} else {
+				$(this.container).removeClass(VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
 			}
 			$(this.container).addClass(newTheme.id);
 		}
