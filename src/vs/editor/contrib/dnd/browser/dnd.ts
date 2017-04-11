@@ -6,9 +6,10 @@
 'use strict';
 
 import 'vs/css!./dnd';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -26,6 +27,9 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	private _toUnhook: IDisposable[];
 	private _dragSelection: Selection;
 	private _dndDecorationIds: string[];
+	private _mouseDown: boolean;
+	static TRIGGER_MODIFIER = isWindows ? 'ctrlKey' : 'altKey';
+	static TRIGGER_KEY_VALUE = isWindows ? KeyCode.Ctrl : KeyCode.Alt;
 
 	static get(editor: editorCommon.ICommonCodeEditor): DragAndDropController {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
@@ -34,22 +38,39 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._toUnhook = [];
+		this._toUnhook.push(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
+		this._toUnhook.push(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
 		this._toUnhook.push(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
 		this._toUnhook.push(this._editor.onMouseDrop((e: IEditorMouseEvent) => this._onEditorMouseDrop(e)));
+		this._toUnhook.push(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
+		this._toUnhook.push(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this._dndDecorationIds = [];
+		this._mouseDown = false;
 		this._dragSelection = null;
 	}
 
-	private isDragAndCopy(mouseEvent: IMouseEvent) {
-		if (isWindows && mouseEvent.ctrlKey) {
-			return true;
+	private onEditorKeyDown(e: IKeyboardEvent): void {
+		if (this._mouseDown && e[DragAndDropController.TRIGGER_MODIFIER]) {
+			this._editor.updateOptions({
+				mouseStyle: 'copy'
+			});
 		}
+	}
 
-		if (!isWindows && mouseEvent.altKey) {
-			return true;
+	private onEditorKeyUp(e: IKeyboardEvent): void {
+		if (this._mouseDown && e.keyCode === DragAndDropController.TRIGGER_KEY_VALUE) {
+			this._editor.updateOptions({
+				mouseStyle: 'default'
+			});
 		}
+	}
 
-		return false;
+	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
+		this._mouseDown = true;
+	}
+
+	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
+		this._mouseDown = false;
 	}
 
 	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
@@ -64,7 +85,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 			}
 		}
 
-		if (this.isDragAndCopy(mouseEvent.event)) {
+		if (mouseEvent.event[DragAndDropController.TRIGGER_MODIFIER]) {
 			this._editor.updateOptions({
 				mouseStyle: 'copy'
 			});
@@ -95,7 +116,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 				});
 				this._editor.setSelections(newSelections);
 			} else if (!this._dragSelection.containsPosition(newCursorPosition)) {
-				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, this.isDragAndCopy(mouseEvent.event)));
+				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, mouseEvent.event[DragAndDropController.TRIGGER_MODIFIER]));
 			}
 		}
 
@@ -105,6 +126,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 		this._removeDecoration();
 		this._dragSelection = null;
+		this._mouseDown = false;
 	}
 
 	public showAt(position: Position): void {
@@ -143,6 +165,8 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 	public dispose(): void {
 		this._removeDecoration();
+		this._dragSelection = null;
+		this._mouseDown = false;
 		this._toUnhook = dispose(this._toUnhook);
 	}
 }
