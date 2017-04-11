@@ -1110,7 +1110,7 @@ export class SearchViewlet extends Viewlet {
 				this.loading = false;
 				isDone = true;
 				progressRunner.done();
-				this.messageService.show(2 /* ERROR */, e);
+				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 			}
 		};
 

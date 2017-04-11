@@ -85,9 +85,12 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 			this.ripgrepParser.handleData(data);
 		});
 
+		let gotData = false;
+		this.rgProc.stdout.once('data', () => gotData = true);
+
+		let stderr = '';
 		this.rgProc.stderr.on('data', data => {
-			console.log('stderr:');
-			console.log(data.toString());
+			stderr += data.toString();
 		});
 
 		this.rgProc.on('close', code => {
@@ -97,13 +100,24 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 				this.rgProc = null;
 				if (!this.isDone) {
 					this.isDone = true;
-					done(null, {
-						limitHit: false,
-						stats: null
-					});
+					if (stderr && this.shouldReturnErrorMsg(stderr) && !gotData) {
+						done(new Error(stderr), {
+							limitHit: false,
+							stats: null
+						});
+					} else {
+						done(null, {
+							limitHit: false,
+							stats: null
+						});
+					}
 				}
 			});
 		});
+	}
+
+	private shouldReturnErrorMsg(msg: string): boolean {
+		return strings.startsWith(msg, 'Error parsing regex');
 	}
 }
 
