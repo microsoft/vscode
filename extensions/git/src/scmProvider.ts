@@ -100,7 +100,7 @@ export class GitSCMProvider {
 			return;
 		}
 
-		return toGitUri(uri, '');
+		return toGitUri(uri, '', true);
 	}
 
 	private onDidModelChange(): void {
