@@ -5,8 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import * as platform from 'vs/base/common/platform';
-import * as errors from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -16,12 +14,9 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer } from 'vs/base/parts/tree/browser/tree';
-import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -244,84 +239,6 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			return nls.localize('searchResultAria', "{0}, Search result", match.text());
 		}
 		return undefined;
-	}
-}
-
-export class SearchController extends DefaultController {
-
-	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
-
-		// TODO@Rob these should be commands
-
-		// Up (from results to inputs)
-		this.downKeyBindingDispatcher.set(KeyCode.UpArrow, this.onUp.bind(this));
-
-		// Open to side
-		this.upKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.WinCtrl | KeyCode.Enter : KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
-
-		// Delete
-		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.Backspace : KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-
-		// Cancel search
-		this.downKeyBindingDispatcher.set(KeyCode.Escape, (tree: ITree, event: any) => { this.onEscape(tree, event); });
-
-		// Replace / Replace All
-		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
-		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
-	}
-
-	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {
-		if (this.viewlet.cancelSearch()) {
-			return true;
-		}
-
-		return super.onEscape(tree, event);
-	}
-
-	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		let input = <SearchResult>tree.getInput();
-		let result = false;
-		let element = tree.getFocus();
-		if (element instanceof FileMatch ||
-			(element instanceof Match && input.searchModel.isReplaceActive())) {
-			new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
-			result = true;
-		}
-
-		return result;
-	}
-
-	private onReplace(tree: ITree, event: IKeyboardEvent): boolean {
-		let input = <SearchResult>tree.getInput();
-		let result = false;
-		let element = tree.getFocus();
-		if (element instanceof Match && input.searchModel.isReplaceActive()) {
-			this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
-			result = true;
-		}
-
-		return result;
-	}
-
-	private onReplaceAll(tree: ITree, event: IKeyboardEvent): boolean {
-		let result = false;
-		let element = tree.getFocus();
-		if (element instanceof FileMatch && element.count() > 0) {
-			this.instantiationService.createInstance(ReplaceAllAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
-			result = true;
-		}
-
-		return result;
-	}
-
-	protected onUp(tree: ITree, event: IKeyboardEvent): boolean {
-		if (tree.getNavigator().first() === tree.getFocus()) {
-			this.viewlet.moveFocusFromResults();
-			return true;
-		}
-
-		return false;
 	}
 }
 

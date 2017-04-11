@@ -49,7 +49,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
-import { SearchRenderer, SearchDataSource, SearchSorter, SearchController, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseAllAction, ClearSearchResultsAction, ConfigureGlobalExclusionsAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
@@ -76,6 +76,11 @@ export class SearchViewlet extends Viewlet {
 
 	private viewletVisible: IContextKey<boolean>;
 	private inputBoxFocussed: IContextKey<boolean>;
+	private firstMatchFocussed: IContextKey<boolean>;
+	private fileMatchOrMatchFocussed: IContextKey<boolean>;
+	private fileMatchFocussed: IContextKey<boolean>;
+	private matchFocussed: IContextKey<boolean>;
+
 	private actionRegistry: { [key: string]: Action; };
 	private tree: ITree;
 	private viewletSettings: any;
@@ -122,6 +127,10 @@ export class SearchViewlet extends Viewlet {
 		this.toDispose = [];
 		this.viewletVisible = Constants.SearchViewletVisibleKey.bindTo(contextKeyService);
 		this.inputBoxFocussed = Constants.InputBoxFocussedKey.bindTo(this.contextKeyService);
+		this.firstMatchFocussed = Constants.FirstMatchFocusKey.bindTo(contextKeyService);
+		this.fileMatchOrMatchFocussed = Constants.FileMatchOrMatchFocusKey.bindTo(contextKeyService);
+		this.fileMatchFocussed = Constants.FileFocusKey.bindTo(contextKeyService);
+		this.matchFocussed = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 		this.callOnModelChange = [];
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
@@ -460,7 +469,6 @@ export class SearchViewlet extends Viewlet {
 				renderer: renderer,
 				sorter: new SearchSorter(),
 				filter: new SearchFilter(),
-				controller: new SearchController(this, this.instantiationService),
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider)
 			}, {
 					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
@@ -489,6 +497,14 @@ export class SearchViewlet extends Viewlet {
 			};
 
 			this.toUnbind.push(this.tree.addListener2('focus', (event: any) => {
+
+				const focus = this.tree.getFocus();
+
+				this.firstMatchFocussed.set(this.tree.getNavigator().first() === this.tree.getFocus());
+				this.fileMatchOrMatchFocussed.set(true);
+				this.fileMatchFocussed.set(focus instanceof FileMatch);
+				this.matchFocussed.set(focus instanceof Match);
+
 				let keyboard = event.payload && event.payload.origin === 'keyboard';
 				if (keyboard) {
 					let originalEvent: KeyboardEvent | MouseEvent = event.payload && event.payload.originalEvent;
@@ -536,6 +552,15 @@ export class SearchViewlet extends Viewlet {
 					}
 				}
 			}));
+
+			this.toUnbind.push(this.tree.onDOMBlur(e => {
+				this.firstMatchFocussed.reset();
+				this.fileMatchOrMatchFocussed.reset();
+				this.fileMatchFocussed.reset();
+				this.matchFocussed.reset();
+			}));
+
+
 		});
 	}
 

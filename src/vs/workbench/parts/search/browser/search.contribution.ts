@@ -24,6 +24,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import * as searchActions from 'vs/workbench/parts/search/browser/searchActions';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
@@ -33,6 +34,7 @@ import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKe
 import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
+import { ListFocusContext } from 'vs/platform/list/browser/listService';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -47,6 +49,82 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		let viewletService = accessor.get(IViewletService);
 		viewletService.openViewlet(Constants.VIEWLET_ID, true)
 			.then((viewlet: SearchViewlet) => viewlet.toggleQueryDetails());
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.FocusSearchFromResults,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.FirstMatchFocusKey),
+	primary: KeyCode.UpArrow,
+	handler: (accessor, args: any) => {
+		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
+		searchViewlet.moveFocusFromResults();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.OpenMatchToSide,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.FileMatchOrMatchFocusKey),
+	primary: KeyMod.CtrlCmd | KeyCode.Enter,
+	mac: {
+		primary: KeyMod.WinCtrl | KeyCode.Enter
+	},
+	handler: (accessor, args: any) => {
+		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
+		const tree: ITree = searchViewlet.getControl();
+		searchViewlet.open(tree.getFocus(), false, true, true);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.CancelActionId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, ListFocusContext),
+	primary: KeyCode.Escape,
+	handler: (accessor, args: any) => {
+		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
+		searchViewlet.cancelSearch();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.RemoveActionId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.FileMatchOrMatchFocusKey),
+	primary: KeyCode.Delete,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+	},
+	handler: (accessor, args: any) => {
+		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
+		const tree: ITree = searchViewlet.getControl();
+		accessor.get(IInstantiationService).createInstance(searchActions.RemoveAction, tree, tree.getFocus(), searchViewlet).run();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.ReplaceActionId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceActiveKey, Constants.MatchFocusKey),
+	primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1,
+	handler: (accessor, args: any) => {
+		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
+		const tree: ITree = searchViewlet.getControl();
+		accessor.get(IInstantiationService).createInstance(searchActions.ReplaceAction, tree, tree.getFocus(), searchViewlet).run();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.ReplaceAllInFileActionId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.ReplaceActiveKey, Constants.FileFocusKey),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
+	handler: (accessor, args: any) => {
+		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
+		const tree: ITree = searchViewlet.getControl();
+		accessor.get(IInstantiationService).createInstance(searchActions.ReplaceAllAction, tree, tree.getFocus(), searchViewlet).run();
 	}
 });
 
