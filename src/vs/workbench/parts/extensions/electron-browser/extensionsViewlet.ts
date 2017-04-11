@@ -202,6 +202,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				new Separator(),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs', undefined),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Sort By: Rating"), this.onSearchChange, 'rating', undefined),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.name', localize('sort by name', "Sort By: Name"), this.onSearchChange, 'name', undefined),
 				new Separator(),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..asc', localize('ascending', "Sort Order: ↑"), this.onSearchChange, undefined, 'asc'),
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc'),
@@ -253,14 +254,56 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private async query(value: string): TPromise<IPagedModel<IExtension>> {
+		const query = Query.parse(value);
+
+		let options: IQueryOptions = {};
+
+		switch (query.sortBy) {
+			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
+			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
+			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
+		}
+
+		switch (query.sortOrder) {
+			case 'asc': options = assign(options, { sortOrder: SortOrder.Ascending }); break;
+			case 'desc': options = assign(options, { sortOrder: SortOrder.Descending }); break;
+			default: options = assign(options, { sortOrder: SortOrder.Default }); break;
+		}
+
 		if (!value || /@installed/i.test(value)) {
 			// Show installed extensions
-			value = value ? value.replace(/@installed/g, '').trim().toLowerCase() : '';
-
+			value = value ? value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
 			const local = await this.extensionsWorkbenchService.queryLocal();
-			const result = local
-				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
+
+			const result = local.sort((e1, e2) => {
+				switch (options.sortBy) {
+					case SortBy.InstallCount:
+						switch (options.sortOrder) {
+							case SortOrder.Ascending:
+								return e1.installCount - e2.installCount;
+							case SortOrder.Descending:
+							default:
+								return e2.installCount - e1.installCount;
+						}
+					case SortBy.AverageRating:
+						switch (options.sortOrder) {
+							case SortOrder.Ascending:
+								return e1.rating - e2.rating;
+							case SortOrder.Descending:
+							default:
+								return e2.rating - e1.rating;
+						}
+					case SortBy.Title:
+					default:
+						switch (options.sortOrder) {
+							case SortOrder.Descending:
+								return e2.displayName.localeCompare(e1.displayName);
+							case SortOrder.Ascending:
+							default:
+								return e1.displayName.localeCompare(e2.displayName);
+						}
+				}
+			}).filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
 
 			return new PagedModel(result);
 		}
@@ -287,19 +330,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
 
 			return new PagedModel(result);
-		}
-
-		const query = Query.parse(value);
-		let options: IQueryOptions = {};
-
-		switch (query.sortBy) {
-			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
-			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
-		}
-
-		switch (query.sortOrder) {
-			case 'asc': options = assign(options, { sortOrder: SortOrder.Ascending }); break;
-			case 'desc': options = assign(options, { sortOrder: SortOrder.Descending }); break;
 		}
 
 		if (/@recommended:workspace/i.test(query.value)) {
