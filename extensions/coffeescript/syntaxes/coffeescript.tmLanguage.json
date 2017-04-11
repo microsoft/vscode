@@ -109,7 +109,7 @@
 					"name": "punctuation.definition.string.end.coffee"
 				}
 			},
-			"name": "string.quoted.script.coffee",
+			"name": "quoted.script.coffee",
 			"patterns": [
 				{
 					"include": "source.js"
