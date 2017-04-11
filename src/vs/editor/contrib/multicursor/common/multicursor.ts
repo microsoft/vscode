@@ -58,8 +58,8 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAtEndOfEachLineSelected',
-			label: nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Create Multiple Cursors from Selected Lines"),
-			alias: 'Create Multiple Cursors from Selected Lines',
+			label: nls.localize('mutlicursor.insertAtEndOfEachLineSelected', "Add Cursors to Line Ends"),
+			alias: 'Add Cursors to Line Ends',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.TextFocus,
