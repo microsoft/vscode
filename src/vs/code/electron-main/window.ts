@@ -80,6 +80,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	fullscreen?: boolean;
 	highContrast?: boolean;
 	baseTheme?: string;
+	backgroundColor?: string;
 	accessibilitySupport?: boolean;
 
 	isInitialStartup?: boolean;
@@ -129,6 +130,7 @@ interface IConfiguration {
 export class VSCodeWindow {
 
 	public static themeStorageKey = 'theme';
+	public static themeBackgroundStorageKey = 'themeBackground';
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
@@ -170,11 +172,6 @@ export class VSCodeWindow {
 		// Load window state
 		this.restoreWindowState(config.state);
 
-		// For VS theme we can show directly because background is white
-		const baseTheme = this.getBaseTheme();
-		const usesLightTheme = 'vs' === baseTheme;
-		const usesHighContrastTheme = 'hc-black' === baseTheme || (platform.isWindows && systemPreferences.isInvertedColorScheme());
-
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
 
@@ -183,7 +180,8 @@ export class VSCodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: usesHighContrastTheme ? '#000000' : usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
+			backgroundColor: '#00000000',
+			transparent: true,
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
@@ -540,6 +538,7 @@ export class VSCodeWindow {
 
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
+		windowConfiguration.backgroundColor = this.getBackgroundColor();
 
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;
@@ -561,8 +560,26 @@ export class VSCodeWindow {
 	}
 
 	private getBaseTheme(): string {
+		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+			return 'hc-black';
+		}
 		const theme = this.storageService.getItem<string>(VSCodeWindow.themeStorageKey, 'vs-dark');
 		return theme.split(' ')[0];
+	}
+
+	private getBackgroundColor(): string {
+		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+			return '#000000';
+		}
+
+		let background = this.storageService.getItem<string>(VSCodeWindow.themeBackgroundStorageKey, null);
+		console.log('itm ' + background);
+		if (!background) {
+			let baseTheme = this.getBaseTheme();
+			return baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : (platform.isMacintosh ? '#171717' : '#1E1E1E')); // https://github.com/electron/electron/issues/5150
+		}
+
+		return background;
 	}
 
 	public serializeWindowState(): IWindowState {

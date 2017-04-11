@@ -339,10 +339,12 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private onBroadcast(event: string, payload: any): void {
-
 		// Theme changes
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
-			this.storageService.setItem(VSCodeWindow.themeStorageKey, payload);
+
+			let data = JSON.parse(payload);
+			this.storageService.setItem(VSCodeWindow.themeStorageKey, data.baseTheme);
+			this.storageService.setItem(VSCodeWindow.themeBackgroundStorageKey, data.background);
 		}
 	}
 	public reload(win: VSCodeWindow, cli?: ParsedArgs): void {
