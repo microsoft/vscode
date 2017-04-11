@@ -80,8 +80,8 @@
 			"editor/title": [
 				{
 					"when": "editorLangId == markdown",
-					"command": "markdown.showPreview",
-					"alt": "markdown.showPreviewToSide",
+					"command": "markdown.showPreviewToSide",
+					"alt": "markdown.showPreview",
 					"group": "navigation"
 				},
 				{
