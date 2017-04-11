@@ -181,6 +181,7 @@
 }
 
 .monaco-editor .suggest-widget .details > .header > .title {
+	flex: 2;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
