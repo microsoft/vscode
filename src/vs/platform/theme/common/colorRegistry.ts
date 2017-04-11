@@ -161,7 +161,7 @@ export const editorForeground = registerColor('editorForeground', { light: '#333
  */
 export const editorSelection = registerColor('editorSelection', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelection', "Color of the editor selection."));
 export const editorInactiveSelection = registerColor('editorInactiveSelection', { light: transparent(editorSelection, 0.5), dark: transparent(editorSelection, 0.5), hc: null }, nls.localize('editorInactiveSelection', "Color of the selection in an inactive editor."));
-export const editorSelectionHighlight = registerColor('editorSelectionHighlight', { light: lessProminent(editorSelection, editorBackground, 0.3), dark: lessProminent(editorSelection, editorBackground, 0.3), hc: null }, nls.localize('editorSelectionHighlight', 'Color for regions with the same content as the selection.'));
+export const editorSelectionHighlight = registerColor('editorSelectionHighlight', { light: lessProminent(editorSelection, editorBackground, 0.3, 0.6), dark: lessProminent(editorSelection, editorBackground, 0.3, 0.6), hc: null }, nls.localize('editorSelectionHighlight', 'Color for regions with the same content as the selection.'));
 
 /**
  * Editor find match colors.
@@ -203,18 +203,18 @@ export function transparent(colorValue: ColorValue, factor: number): ColorFuncti
 	};
 }
 
-export function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue, factor: number): ColorFunction {
+function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue, factor: number, transparency: number): ColorFunction {
 	return (theme) => {
 		let from = resolveColorValue(colorValue, theme);
 		if (from) {
 			let backgroundColor = resolveColorValue(backgroundColorValue, theme);
 			if (backgroundColor) {
 				if (from.isDarkerThan(backgroundColor)) {
-					return Color.getLighterColor(from, backgroundColor, factor);
+					return Color.getLighterColor(from, backgroundColor, factor).transparent(transparency);
 				}
-				return Color.getDarkerColor(from, backgroundColor, factor);
+				return Color.getDarkerColor(from, backgroundColor, factor).transparent(transparency);
 			}
-			return from.transparent(factor);
+			return from.transparent(factor * transparency);
 		}
 		return null;
 	};
