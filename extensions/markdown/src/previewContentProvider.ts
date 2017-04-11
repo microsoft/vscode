@@ -65,8 +65,9 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		}
 
 		// Use href if it is already an URL
-		if (['file', 'http', 'https'].indexOf(vscode.Uri.parse(href).scheme) >= 0) {
-			return href;
+		const hrefUri = vscode.Uri.parse(href);
+		if (['file', 'http', 'https'].indexOf(hrefUri.scheme) >= 0) {
+			return hrefUri.toString();
 		}
 
 		// Use href as file URI if it is absolute
