@@ -27,6 +27,7 @@ import { append, $, addStandardDisposableListener, EventType, addClass, removeCl
 import { PagedModel, IPagedModel, mergePagers, IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
+import { IListEvent } from '../../../../base/browser/ui/list/list';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
@@ -117,6 +118,17 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 		this.disposables.push(this.listService.register(this.list.widget));
 
+		this.list.onFocusChange(e => this.onListFocusOrSelect(e));
+		this.list.onSelectionChange(e => this.onListFocusOrSelect(e));
+
+		const onListKeyDown = chain(domEvent(this.extensionsBox, 'keydown'))
+			.filter(() => this.list.length > 0)
+			.map(e => new StandardKeyboardEvent(e));
+
+		onListKeyDown.filter(e => e.keyCode === KeyCode.Tab && e.shiftKey === false).on(this.onListTab, this, this.disposables);
+		// onListKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onListEscape, this, this.disposables);
+
+
 		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
 			.filter(() => this.list.length > 0)
 			.map(e => new StandardKeyboardEvent(e));
@@ -127,6 +139,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
+
+
 
 		const onSearchInput = domEvent(this.searchBox, 'input') as EventOf<SearchInputEvent>;
 		onSearchInput(e => this.triggerSearch(e.target.value, e.immediate), null, this.disposables);
@@ -403,6 +417,61 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 	private openExtension(extension: IExtension): void {
 		this.extensionsWorkbenchService.open(extension).done(null, err => this.onError(err));
+	}
+
+	// cleidigh - tab selects current row and moves to first tabindex enabled action
+	// open action fired as well, makes sense for extensions maybe not SCM (should be configurable)
+	private onListTab(): void {
+		this.list.widget.setSelection(this.list.widget.getFocus());
+	}
+
+	/* cleidigh - attempt to capture action cancel to refocus list - failure
+		private onActionCancel(e: IAction): void {
+			console.log(document.activeElement);
+
+			this.extensionsBox.focus();
+			this.list.widget.setSelection(this.list.widget.getFocus());
+			console.log(document.activeElement);
+		}
+
+		private onListEscape(): void {
+			console.log(document.activeElement);
+
+			this.extensionsBox.focus();
+			this.list.widget.setSelection(this.list.widget.getFocus());
+			console.log(document.activeElement);
+		}
+	*/
+	private onListFocusOrSelect(e: IListEvent<IExtension>): void {
+
+		const focusedIndexID = this.list.widget.getHTMLElement().getAttribute('aria-activedescendant');
+		const listDOM = this.extensionsBox;
+
+
+		if (!!focusedIndexID) {
+			let al = listDOM.getElementsByClassName('action-label');
+
+			for (let index = 0; index < al.length; index++) {
+				let element = al[index];
+				if (!!element.getAttribute('tabindex')) {
+					element.setAttribute('tabindex', '-1');
+				}
+			}
+
+			let focusedRowActions = document.getElementById(focusedIndexID).getElementsByClassName('action-label');
+
+			for (let index = 0; index < focusedRowActions.length; index++) {
+				let element = focusedRowActions[index];
+				if (!element.classList.contains('disabled')) {
+					// console.log(element);
+					element.setAttribute('tabindex', '0');
+				}
+			}
+
+		}
+
+
+
 	}
 
 	private onEnter(): void {
