@@ -122,6 +122,11 @@
 	text-align: right;
 }
 
+.extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .ratings,
+.extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .install-count {
+	display: none;
+}
+
 .extensions-viewlet > .extensions .extension > .details > .header-container .extension-status {
 	width: 8px;
 	height: 8px;
