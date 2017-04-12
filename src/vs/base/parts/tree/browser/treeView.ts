@@ -362,6 +362,9 @@ export class TreeView extends HeightMap {
 	static BINDING = 'monaco-tree-row';
 	static LOADING_DECORATION_DELAY = 800;
 
+	private static counter: number = 0;
+	private instance: number;
+
 	private static currentExternalDragAndDropData: _.IDragAndDropData = null;
 
 	private context: IViewContext;
@@ -371,6 +374,7 @@ export class TreeView extends HeightMap {
 	private viewListeners: Lifecycle.IDisposable[];
 	private domNode: HTMLElement;
 	private wrapper: HTMLElement;
+	private styleElement: HTMLStyleElement;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
 	private wrapperGesture: Touch.Gesture;
@@ -413,6 +417,9 @@ export class TreeView extends HeightMap {
 	constructor(context: _.ITreeContext, container: HTMLElement) {
 		super();
 
+		TreeView.counter++;
+		this.instance = TreeView.counter;
+
 		this.context = {
 			dataSource: context.dataSource,
 			renderer: context.renderer,
@@ -434,8 +441,10 @@ export class TreeView extends HeightMap {
 		this.items = {};
 
 		this.domNode = document.createElement('div');
-		this.domNode.className = 'monaco-tree no-focused-item';
+		this.domNode.className = `monaco-tree no-focused-item monaco-tree-instance-${this.instance}`;
 		this.domNode.tabIndex = 0;
+
+		this.styleElement = DOM.createStyleSheet(this.domNode);
 
 		// ARIA
 		this.domNode.setAttribute('role', 'tree');
@@ -540,6 +549,37 @@ export class TreeView extends HeightMap {
 		this.layout();
 
 		this.setupMSGesture();
+
+		this.applyStyles(context.options);
+	}
+
+	public applyStyles(styles: _.ITreeStyles): void {
+
+		// Indicate selection/focus via background color
+		if (!styles.listFocusOutline) {
+			this.styleElement.innerHTML = `
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted)						{ background-color: ${styles.listFocusBackground}; }
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 						{ background-color: ${styles.listActiveSelectionBackground}; color: ${styles.listActiveSelectionForeground}; }
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) 				{ background-color: ${styles.listFocusAndSelectionBackground}; color: ${styles.listFocusAndSelectionForeground}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)								{ background-color: ${styles.listInactiveSelectionBackground}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)	{ background-color: ${styles.listHoverBackground}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target												{ background-color: ${styles.listDropBackground} !important; }
+			`;
+		}
+
+		// Indicate selection/focus via outline
+		else {
+			this.styleElement.innerHTML = `
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row 														{ background: none !important; border: 1px solid transparent; }
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 						{ border: 1px dotted ${styles.listFocusOutline}; }
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 						{ border: 1px solid ${styles.listFocusOutline}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)  							{ border: 1px solid ${styles.listFocusOutline}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  	{ border: 1px dashed ${styles.listFocusOutline}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target												{ background: none !important; border: 1px dashed ${styles.listFocusOutline}; }
+			`;
+		}
 	}
 
 	protected createViewItem(item: Model.Item): IViewItem {
