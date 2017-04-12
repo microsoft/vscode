@@ -31,6 +31,8 @@ import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEdi
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
+import { attachListStyler } from "vs/platform/theme/common/styler";
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 const $ = dom.$;
 
@@ -64,7 +66,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@IListService private listService: IListService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"), keybindingService, contextMenuService);
 
@@ -122,6 +125,9 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 				showTwistie: false,
 				keyboardSupport: false
 			});
+
+		// Theme styler
+		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 
 		// Register to list service
 		this.toDispose.push(this.listService.register(this.tree, [this.explorerFocussedContext, this.openEditorsFocussedContext]));

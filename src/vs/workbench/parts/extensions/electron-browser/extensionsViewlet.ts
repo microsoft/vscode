@@ -51,6 +51,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { attachListStyler } from "vs/platform/theme/common/styler";
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -115,6 +116,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			keyboardSupport: false
 		});
 
+		this.disposables.push(attachListStyler(this.list.widget, this.themeService));
 		this.disposables.push(this.listService.register(this.list.widget));
 
 		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))

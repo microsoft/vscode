@@ -42,6 +42,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { attachListStyler } from "vs/platform/theme/common/styler";
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -356,6 +357,9 @@ export class ExplorerView extends CollapsibleViewletView {
 				showTwistie: false,
 				keyboardSupport: false
 			});
+
+		// Theme styler
+		this.toDispose.push(attachListStyler(this.explorerViewer, this.themeService));
 
 		// Register to list service
 		this.toDispose.push(this.listService.register(this.explorerViewer, [this.explorerFocussedContext, this.filesExplorerFocussedContext]));

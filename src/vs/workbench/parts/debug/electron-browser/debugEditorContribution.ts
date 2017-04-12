@@ -35,6 +35,7 @@ import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWid
 import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -73,10 +74,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IListService listService: IListService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IThemeService themeService: IThemeService
 	) {
 		this.breakpointHintDecoration = [];
-		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, listService, this.instantiationService);
+		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, listService, this.instantiationService, themeService);
 		this.toDispose = [];
 		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
