@@ -322,7 +322,7 @@ suite('KeybindingResolver', () => {
 			)
 		];
 
-		let resolver = new KeybindingResolver(items, [], false);
+		let resolver = new KeybindingResolver(items, []);
 
 		let testKey = (commandId: string, expectedKeys: number[]) => {
 			// Test lookup

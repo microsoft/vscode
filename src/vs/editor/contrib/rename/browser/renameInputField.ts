@@ -14,7 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
-import { inputBackground, inputBorder, inputForeground } from "vs/platform/theme/common/colorRegistry";
+import { inputBackground, inputBorder, inputForeground, editorWidgetShadow, focus } from "vs/platform/theme/common/colorRegistry";
 
 export default class RenameInputField implements IContentWidget, IDisposable {
 
@@ -78,14 +78,17 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 
 		const background = theme.getColor(inputBackground);
 		const foreground = theme.getColor(inputForeground);
-		const border = theme.getColor(inputBorder);
+		const widgetShadow = theme.getColor(editorWidgetShadow);
+		const border = theme.getColor(inputBorder) || theme.getColor(focus);
 
 		this._inputField.style.backgroundColor = background ? background.toString() : null;
 		this._inputField.style.color = foreground ? foreground.toString() : null;
 
-		this._inputField.style.borderWidth = border ? '1px' : null;
-		this._inputField.style.borderStyle = border ? 'solid' : null;
-		this._inputField.style.borderColor = border ? border.toString() : null;
+		this._inputField.style.borderWidth = border ? '1px' : '0px';
+		this._inputField.style.borderStyle = border ? 'solid' : 'none';
+		this._inputField.style.borderColor = border ? border.toString() : 'none';
+
+		this._domNode.style.boxShadow = widgetShadow ? ` 0 2px 8px ${widgetShadow}` : null;
 	}
 
 	private updateFont(): void {

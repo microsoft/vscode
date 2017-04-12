@@ -26,6 +26,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Color } from "vs/base/common/color";
+import { mixin } from "vs/base/common/objects";
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -77,6 +78,11 @@ export enum HideReason {
 	CANCELED
 }
 
+const defaultStyles = {
+	background: Color.fromHex('#1E1E1E'),
+	foreground: Color.fromHex('#CCCCCC')
+};
+
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
 
 export class QuickOpenWidget implements IModelProvider {
@@ -111,7 +117,8 @@ export class QuickOpenWidget implements IModelProvider {
 		this.container = container;
 		this.callbacks = callbacks;
 		this.options = options;
-		this.styles = options;
+		this.styles = options || Object.create(null);
+		mixin(this.styles, defaultStyles, false);
 		this.usageLogger = usageLogger;
 		this.model = null;
 	}

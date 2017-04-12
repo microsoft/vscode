@@ -16,7 +16,7 @@ export interface IFindInputCheckboxOpts {
 	isChecked: boolean;
 	onChange: (viaKeyboard: boolean) => void;
 	onKeyDown?: (e: IKeyboardEvent) => void;
-	inputActiveOptionBorderColor?: Color;
+	inputActiveOptionBorder?: Color;
 }
 
 const NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");
@@ -31,7 +31,7 @@ export class CaseSensitiveCheckbox extends Checkbox {
 			isChecked: opts.isChecked,
 			onChange: opts.onChange,
 			onKeyDown: opts.onKeyDown,
-			inputActiveOptionBorderColor: opts.inputActiveOptionBorderColor
+			inputActiveOptionBorder: opts.inputActiveOptionBorder
 		});
 	}
 }
@@ -44,7 +44,7 @@ export class WholeWordsCheckbox extends Checkbox {
 			isChecked: opts.isChecked,
 			onChange: opts.onChange,
 			onKeyDown: opts.onKeyDown,
-			inputActiveOptionBorderColor: opts.inputActiveOptionBorderColor
+			inputActiveOptionBorder: opts.inputActiveOptionBorder
 		});
 	}
 }
@@ -57,7 +57,7 @@ export class RegexCheckbox extends Checkbox {
 			isChecked: opts.isChecked,
 			onChange: opts.onChange,
 			onKeyDown: opts.onKeyDown,
-			inputActiveOptionBorderColor: opts.inputActiveOptionBorderColor
+			inputActiveOptionBorder: opts.inputActiveOptionBorder
 		});
 	}
 }

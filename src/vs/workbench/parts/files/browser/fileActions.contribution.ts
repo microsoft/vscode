@@ -25,7 +25,6 @@ import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/c
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { explorerItemToFileResource, ExplorerFocusCondition, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
-import { isEqual } from 'vs/platform/files/common/files';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -88,7 +87,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		}
 
 		const workspace = this.contextService.getWorkspace();
-		const isRoot = workspace && isEqual(stat.resource.fsPath, workspace.resource.fsPath);
+		const isRoot = workspace && stat.resource.toString() === workspace.resource.toString();
 
 		// Copy File/Folder
 		if (!isRoot) {

@@ -280,7 +280,7 @@
 		"editorMarkerNavigationError": "#FF0000",
 		"editorMarkerNavigationWarning": "#00FF00",
 
-		"editorFindWidgetBackground": "#262641",
+		"editorWidgetBackground": "#262641",
 
 		// Workbench Colors
 		"tabsContainerBackground": "#1c1c2a",

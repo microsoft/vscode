@@ -65,7 +65,7 @@
 	"miInsertCursorAbove": "&&Agregar cursor arriba",
 	"miInsertCursorAtEndOfEachLineSelected": "Agregar c&&ursores a extremos de línea",
 	"miInsertCursorBelow": "A&&gregar cursor abajo",
-	"miInstallMoreDebuggers": "Instalar &&más depuradores...",
+	"miInstallAdditionalDebuggers": "&&Instalar los depuradores adicionales...",
 	"miInstallingUpdate": "Instalando actualización...",
 	"miIntroductoryVideos": "&&Vídeos de introducción",
 	"miKeyboardShortcuts": "&&Referencia de métodos abreviados de teclado",

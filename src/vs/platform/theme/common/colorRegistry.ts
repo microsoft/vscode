@@ -179,7 +179,9 @@ export const editorLinkForeground = registerColor('editorLinkForeground', { dark
 /**
  * Find widget
  */
-export const editorFindWidgetBackground = registerColor('editorFindWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorFindWidgetBackground', 'Find widget background.'));
+export const editorWidgetBackground = registerColor('editorWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
+export const editorWidgetShadow = registerColor('editorWidgetShadow', { dark: '#000000', light: '#A8A8A8', hc: null }, nls.localize('editorWidgetShadow', 'Shadow color of editor widgets such as find/replace.'));
+
 
 // ----- color functions
 

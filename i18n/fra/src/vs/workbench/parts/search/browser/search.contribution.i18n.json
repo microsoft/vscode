@@ -15,6 +15,7 @@
 	"searchConfigurationTitle": "Rechercher",
 	"showSearchViewlet": "Afficher la zone de recherche",
 	"showTriggerActions": "Atteindre le symbole dans l'espace de travail...",
+	"useIgnoreFilesByDefault": "Indique s'il faut utiliser les fichiers .gitignore et .ignore par défaut en cas de recherche dans un nouvel espace de travail.",
 	"useRipgrep": "Contrôle si ripgrep doit être utilisé dans la recherche de texte",
 	"view": "Affichage"
 }

@@ -11,12 +11,19 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { Color } from "vs/base/common/color";
+import { clone } from "vs/base/common/objects";
 
 export interface ISelectBoxStyles {
 	selectBackground?: Color;
 	selectForeground?: Color;
 	selectBorder?: Color;
 }
+
+const defaultStyles = {
+	selectBackground: Color.fromHex('#3C3C3C'),
+	selectForeground: Color.fromHex('#F0F0F0'),
+	selectBorder: Color.fromHex('#3C3C3C')
+};
 
 export class SelectBox extends Widget {
 
@@ -30,7 +37,7 @@ export class SelectBox extends Widget {
 	private selectForeground: Color;
 	private selectBorder: Color;
 
-	constructor(options: string[], selected: number, styles?: ISelectBoxStyles) {
+	constructor(options: string[], selected: number, styles: ISelectBoxStyles = clone(defaultStyles)) {
 		super();
 
 		this.selectElement = document.createElement('select');
@@ -40,11 +47,9 @@ export class SelectBox extends Widget {
 		this.toDispose = [];
 		this._onDidSelect = new Emitter<string>();
 
-		if (styles) {
-			this.selectBackground = styles.selectBackground;
-			this.selectForeground = styles.selectForeground;
-			this.selectBorder = styles.selectBorder;
-		}
+		this.selectBackground = styles.selectBackground;
+		this.selectForeground = styles.selectForeground;
+		this.selectBorder = styles.selectBorder;
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;

@@ -15,6 +15,7 @@
 	"searchConfigurationTitle": "Suchen",
 	"showSearchViewlet": "Suche anzeigen",
 	"showTriggerActions": "Zu Symbol im Arbeitsbereich wechseln...",
+	"useIgnoreFilesByDefault": "Steuert, ob bei der Suche in einem neuen Arbeitsbereich standardmäßig GITIGNORE- und IGNORE-Dateien verwendet werden sollen.",
 	"useRipgrep": "Steuert, ob \"ripgrep\" in der Textsuche verwendet wird",
 	"view": "Anzeigen"
 }

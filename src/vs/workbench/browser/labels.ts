@@ -73,7 +73,7 @@ export class ResourceLabel extends IconLabel {
 		const oldResource = this.label ? this.label.resource : void 0;
 
 		if (newResource && oldResource) {
-			return newResource.fsPath !== oldResource.fsPath;
+			return newResource.toString() !== oldResource.toString();
 		}
 
 		if (!newResource && !oldResource) {
