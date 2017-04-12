@@ -94,7 +94,7 @@
 .monaco-shell input[type="checkbox"]:focus {
 	outline-width: 1px;
 	outline-style: solid;
-	outline-offset: -1px;
+	outline-offset: -2px;
 	opacity: 1 !important;
 }
 
