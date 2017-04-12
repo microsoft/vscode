@@ -36,6 +36,7 @@ import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegis
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 
 export class MarkersPanel extends Panel {
 
@@ -144,6 +145,32 @@ export class MarkersPanel extends Panel {
 		return this.actions;
 	}
 
+	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
+		if (element instanceof Marker) {
+			const marker: Marker = element;
+			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
+			this.editorService.openEditor({
+				resource: marker.resource,
+				options: {
+					selection: marker.range,
+					preserveFocus,
+					pinned,
+					revealIfVisible: true
+				},
+			}, sideByside).done(editor => {
+				if (editor && preserveFocus) {
+					this.rangeHighlightDecorations.highlightRange(marker, <ICommonCodeEditor>editor.getControl());
+				} else {
+					this.rangeHighlightDecorations.removeHighlightRange();
+				}
+			}, errors.onUnexpectedError);
+			return true;
+		} else {
+			this.rangeHighlightDecorations.removeHighlightRange();
+		}
+		return false;
+	}
+
 	private refreshPanel(): TPromise<any> {
 		this.collapseAllAction.enabled = this.markersModel.hasFilteredResources();
 		dom.toggleClass(this.treeContainer, 'hidden', !this.markersModel.hasFilteredResources());
@@ -174,7 +201,7 @@ export class MarkersPanel extends Panel {
 		dom.addClass(this.treeContainer, 'show-file-icons');
 		var actionProvider = this.instantiationService.createInstance(ContributableActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
-		let controller = this.instantiationService.createInstance(Controller, this.rangeHighlightDecorations, actionProvider);
+		let controller = this.instantiationService.createInstance(Controller);
 		this.tree = new TreeImpl.Tree(this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer,
@@ -192,11 +219,7 @@ export class MarkersPanel extends Panel {
 			this.markerFocusContextKey.set(e.focus instanceof Marker);
 		}));
 
-		this._register(this.tree.addListener2('selection', event => {
-			if (event && event.payload && event.payload.origin === 'keyboard') {
-				controller.openFileAtElement(this.tree.getFocus(), false, false, true);
-			}
-		}));
+		this._register(this.tree.addListener2('selection', event => this.onSelection(event)));
 
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
 		focusTracker.addBlurListener(() => {
@@ -204,6 +227,31 @@ export class MarkersPanel extends Panel {
 		});
 
 		this.toDispose.push(this.listService.register(this.tree));
+	}
+
+	private onSelection(event: any): void {
+		let element: any;
+		let keyboard = event.payload && event.payload.origin === 'keyboard';
+		if (keyboard) {
+			element = this.tree.getFocus();
+		} else {
+			element = event.selection[0];
+		}
+		let originalEvent: KeyboardEvent | MouseEvent = event.payload && event.payload.originalEvent;
+
+		let doubleClick = (event.payload && event.payload.origin === 'mouse' && originalEvent && originalEvent.detail === 2);
+		if (doubleClick && originalEvent) {
+			originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
+		}
+
+		let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
+		let focusEditor = (keyboard && (!event.payload || !event.payload.preserveFocus)) || doubleClick || (event.payload && event.payload.focusEditor);
+
+		if (element instanceof Marker) {
+			if (!(event.payload && event.payload.preventEditorOpen)) {
+				this.openFileAtElement(element, !focusEditor, sideBySide, doubleClick);
+			}
+		}
 	}
 
 	private createActions(): void {
