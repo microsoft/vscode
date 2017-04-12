@@ -8,6 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app } from 'electron';
@@ -44,7 +45,7 @@ export class WindowsService implements IWindowsService, IDisposable {
 	) {
 		chain(urlService.onOpenURL)
 			.filter(uri => uri.authority === 'file' && !!uri.path)
-			.map(uri => uri.path)
+			.map(uri => this.parseURIForOpen(uri))
 			.on(this.openFileForURI, this, this.disposables);
 	}
 
@@ -307,6 +308,30 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 		this.windowsMainService.open({ context: OpenContext.API, cli, pathsToOpen });
 		return TPromise.as(null);
+	}
+
+	private parseURIForOpen(uri: URI): string {
+		/**
+		 * opening vscode://file/drive/path/to/project passes a POSIX-style path on Windows.
+		 * i.e vscode://file/c/path/to/project gives a path of /c/path/to/project
+		 * let's strip the root slash and ensure the drive letter is something Windows
+		 * can understand.
+		 */
+		if (uri.authority === 'file' && process.platform === 'win32') {
+			let path = uri.path.substr(1); // strip the root slash
+			let drive = path.slice(0, path.indexOf('/')); // find the drive letter
+			if (drive.length === 1) { // add a colon if the uri.path contains a valid drive letter.
+				path = path.slice(0, path.indexOf('/')) + ':' + path.slice(path.indexOf('/'));
+				return path;
+			}
+			if (drive.length === 2 && drive.indexOf(':')) { // path has a colon already
+				return path;
+			}
+			return uri.path;
+		}
+
+		// *NIX platforms can process this path natively.
+		return uri.path;
 	}
 
 	dispose(): void {
