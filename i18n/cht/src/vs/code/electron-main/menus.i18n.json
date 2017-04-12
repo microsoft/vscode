@@ -65,7 +65,7 @@
 	"miInsertCursorAbove": "在上方新增游標(&&A)",
 	"miInsertCursorAtEndOfEachLineSelected": "在行尾新增游標(&&U)",
 	"miInsertCursorBelow": "在下方新增游標(&&D)",
-	"miInstallMoreDebuggers": "安裝更多偵錯工具(&&I)...",
+	"miInstallAdditionalDebuggers": "安裝其他偵錯工具(&&I)...",
 	"miInstallingUpdate": "正在安裝更新...",
 	"miIntroductoryVideos": "簡介影片(&&V)",
 	"miKeyboardShortcuts": "鍵盤快速鍵參考(&&K)",

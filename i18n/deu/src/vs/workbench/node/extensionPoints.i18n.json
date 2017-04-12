@@ -6,5 +6,6 @@
 {
 	"fileReadFail": "Die Datei \"{0}\" kann nicht gelesen werden: {1}",
 	"jsonParseFail": "Fehler beim Analysieren von {0}: {1}.",
+	"jsonsParseFail": "Fehler beim Analysieren von {0} oder {1}: {2}.",
 	"missingNLSKey": "Die Nachricht für den Schlüssel {0} wurde nicht gefunden."
 }

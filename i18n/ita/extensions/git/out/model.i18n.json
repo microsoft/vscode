@@ -7,5 +7,6 @@
 	"cantshow": "Non è stato possibile mostrare l'oggetto",
 	"changes": "Modifiche",
 	"merge changes": "Esegui merge delle modifiche",
+	"open": "Apri",
 	"staged changes": "Modifiche preparate per il commit"
 }

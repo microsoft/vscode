@@ -25,5 +25,6 @@
 	"vscode.extension.contributes.themes.id": "Die ID des Symboldesigns wie in den Benutzereinstellungen verwendet.",
 	"vscode.extension.contributes.themes.label": "Die Bezeichnung des Farbdesigns wie in der Benutzeroberfläche angezeigt.",
 	"vscode.extension.contributes.themes.path": "Der Pfad der TMTHEME-Datei. Der Pfad ist relativ zum Erweiterungsordner und lautet normalerweise \"./themes/themeFile.tmTheme\".",
-	"vscode.extension.contributes.themes.uiTheme": "Das Basisdesign, das die Farben um den Editor definiert: \"vs\" ist das helle Farbdesign, \"vs-dark\" das dunkle Farbdesign. \"hc-black\" ist das dunkle Design mit hohem Kontrast."
+	"vscode.extension.contributes.themes.uiTheme": "Das Basisdesign, das die Farben um den Editor definiert: \"vs\" ist das helle Farbdesign, \"vs-dark\" das dunkle Farbdesign. \"hc-black\" ist das dunkle Design mit hohem Kontrast.",
+	"workbenchColors": "Überschreibt Farben aus dem derzeit ausgewählte Farbdesign. Diese Einstellung ist experimentell, da sich die Namen der Farben in der nächsten Version ändern."
 }

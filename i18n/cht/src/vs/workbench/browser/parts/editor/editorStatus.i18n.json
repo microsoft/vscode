@@ -17,6 +17,7 @@
 	"endOfLineLineFeed": "LF",
 	"fileInfo": "檔案資訊",
 	"gotoLine": "移至行",
+	"guessedEncoding": "已從內容猜測",
 	"indentConvert": "轉換檔案",
 	"indentView": "變更檢視",
 	"indentation": "縮排",

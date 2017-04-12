@@ -15,6 +15,7 @@
 	"searchConfigurationTitle": "Поиск",
 	"showSearchViewlet": "Показать средство поиска",
 	"showTriggerActions": "Перейти к символу в рабочей области...",
+	"useIgnoreFilesByDefault": "Определяет, следует ли использовать GITIGNORE- и IGNORE-файлы по умолчанию при поиске в новой рабочей области.",
 	"useRipgrep": "Определяет, использовать ли ripgrep в текстовом поиске",
 	"view": "Просмотреть"
 }
