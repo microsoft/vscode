@@ -93,13 +93,6 @@ suite('QuickFix', () => {
 	});
 
 	test('Oracle -> ask once per marker/word', () => {
-		let counter = 0;
-		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-			provideCodeActions() {
-				counter += 1;
-				return [];
-			}
-		});
 
 		markerService.changeOne('fake', uri, [{
 			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
@@ -108,6 +101,14 @@ suite('QuickFix', () => {
 			code: '',
 			source: ''
 		}]);
+
+		let counter = 0;
+		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
+			provideCodeActions() {
+				counter += 1;
+				return [];
+			}
+		});
 
 		let fixes: TPromise<any>[] = [];
 		let oracle = new QuickFixOracle(editor, markerService, e => {
