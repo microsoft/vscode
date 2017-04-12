@@ -82,8 +82,9 @@
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header {
 	display: flex;
 	align-items: baseline;
+	flex-wrap: wrap;
 	overflow: hidden;
-	flex: 80%;
+	flex: 1;
 	min-width: 0;
 }
 
@@ -99,26 +100,20 @@
 	font-size: 80%;
 	padding-left: 6px;
 	flex: 1;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: hidden;
+	min-width: fit-content;
 }
 
-.extensions-viewlet	> .extensions .extension > .details > .header-container > .extension-stats {
-	justify-content: flex-end;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .header-container > .extension-stats > .install-count:not(:empty) {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count:not(:empty) {
 	font-size: 80%;
 	margin: 0 6px;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header-container > .extension-stats > .install-count > .octicon {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .install-count > .octicon {
 	font-size: 100%;
 	margin-right: 2px;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header-container > .extension-stats > .ratings {
+.extensions-viewlet > .extensions .extension > .details > .header-container > .header > .ratings {
 	text-align: right;
 }
 
