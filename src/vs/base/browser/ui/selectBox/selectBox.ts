@@ -11,6 +11,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { Color } from "vs/base/common/color";
+import { clone } from "vs/base/common/objects";
 
 export interface ISelectBoxStyles {
 	selectBackground?: Color;
@@ -36,7 +37,7 @@ export class SelectBox extends Widget {
 	private selectForeground: Color;
 	private selectBorder: Color;
 
-	constructor(options: string[], selected: number, styles?: ISelectBoxStyles) {
+	constructor(options: string[], selected: number, styles: ISelectBoxStyles = clone(defaultStyles)) {
 		super();
 
 		this.selectElement = document.createElement('select');
@@ -46,9 +47,9 @@ export class SelectBox extends Widget {
 		this.toDispose = [];
 		this._onDidSelect = new Emitter<string>();
 
-		this.selectBackground = styles.selectBackground || defaultStyles.selectBackground;
-		this.selectForeground = styles.selectForeground || defaultStyles.selectForeground;
-		this.selectBorder = styles.selectBorder || defaultStyles.selectBorder;
+		this.selectBackground = styles.selectBackground;
+		this.selectForeground = styles.selectForeground;
+		this.selectBorder = styles.selectBorder;
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;
