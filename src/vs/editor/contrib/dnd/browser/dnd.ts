@@ -123,7 +123,11 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 					}
 				});
 				this._editor.setSelections(newSelections);
-			} else if (!this._dragSelection.containsPosition(newCursorPosition)) {
+			} else if (!this._dragSelection.containsPosition(newCursorPosition) || (
+				mouseEvent.event[DragAndDropController.TRIGGER_MODIFIER] && (
+					this._dragSelection.getEndPosition().equals(newCursorPosition) || this._dragSelection.getStartPosition().equals(newCursorPosition)
+				) // we allow users to paste content beside the selection
+			)) {
 				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, mouseEvent.event[DragAndDropController.TRIGGER_MODIFIER]));
 			}
 		}
