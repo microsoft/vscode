@@ -516,6 +516,23 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.monaco-shell { color: ${windowForeground}; }`);
 	}
 
+	// TODO@Ben the workbench background color is not really surfacing anywhere but on Windows
+	// not setting it will cause many part of the worbench to not use subpixel-antialiasing causing
+	// these parts to look fuzzy on higher resolution displays.
+	let workbenchBackground: string;
+	switch (theme.type) {
+		case 'dark':
+			workbenchBackground = '#252526';
+			break;
+		case 'light':
+			workbenchBackground = '#F3F3F3';
+			break;
+		default:
+			workbenchBackground = '#000000';
+	}
+
+	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
+
 	const focusOutline = theme.getColor(focus);
 	if (focusOutline) {
 		collector.addRule(`
