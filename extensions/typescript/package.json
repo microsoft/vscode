@@ -383,6 +383,14 @@
         "fileMatch": "tsconfig.json",
         "url": "./schemas/tsconfig.schema.json"
       },
+       {
+        "fileMatch": "tsconfig.*.json",
+        "url": "http://json.schemastore.org/tsconfig"
+      },
+      {
+        "fileMatch": "tsconfig.*.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
       {
         "fileMatch": "typings.json",
         "url": "http://json.schemastore.org/typings"
