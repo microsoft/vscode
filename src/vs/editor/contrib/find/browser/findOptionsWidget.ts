@@ -14,6 +14,8 @@ import { FIND_IDS } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { CaseSensitiveCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
+import { inputActiveOptionBorder } from "vs/platform/theme/common/colorRegistry";
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
@@ -31,6 +33,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		editor: ICodeEditor,
 		state: FindReplaceState,
 		keybindingService: IKeybindingService,
+		themeService: IThemeService
 	) {
 		super();
 
@@ -45,6 +48,8 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.setAttribute('aria-hidden', 'true');
 
+		let inputActiveOptionBorderColor = themeService.getTheme().getColor(inputActiveOptionBorder);
+
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
 			isChecked: this._state.matchCase,
@@ -52,7 +57,8 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 				this._state.change({
 					matchCase: this.caseSensitive.checked
 				}, false);
-			}
+			},
+			inputActiveOptionBorder: inputActiveOptionBorderColor
 		}));
 		this._domNode.appendChild(this.caseSensitive.domNode);
 
@@ -63,7 +69,8 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 				this._state.change({
 					wholeWord: this.wholeWords.checked
 				}, false);
-			}
+			},
+			inputActiveOptionBorder: inputActiveOptionBorderColor
 		}));
 		this._domNode.appendChild(this.wholeWords.domNode);
 
@@ -86,6 +93,9 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
 		this._register(dom.addDisposableNonBubblingMouseOutListener(this._domNode, (e) => this._onMouseOut()));
 		this._register(dom.addDisposableListener(this._domNode, 'mouseover', (e) => this._onMouseOver()));
+
+		this._applyTheme(themeService.getTheme());
+		this._register(themeService.onThemeChange(this._applyTheme.bind(this)));
 	}
 
 	private _keybindingLabelFor(actionId: string): string {
@@ -152,5 +162,11 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		}
 		this._isVisible = false;
 		this._domNode.style.display = 'none';
+	}
+
+	private _applyTheme(theme: ITheme) {
+		let inputStyles = { inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder) };
+		this.caseSensitive.style(inputStyles);
+		this.wholeWords.style(inputStyles);
 	}
 }
