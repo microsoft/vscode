@@ -1110,7 +1110,6 @@ export class Workbench implements IPartService {
 			this.setPanelHidden(true, true).done(undefined, errors.onUnexpectedError);
 			this.setSideBarHidden(true, true).done(undefined, errors.onUnexpectedError);
 
-			this.setActivityBarHidden(false, false);
 			if (config.hideActivityBar) {
 				this.setActivityBarHidden(true, true);
 			}

@@ -301,7 +301,7 @@ configurationRegistry.registerConfiguration({
 		'zenMode.hideActivityBar': {
 			'type': 'boolean',
 			'default': true,
-			'description': nls.localize('zenMode.hideActivityBar', "Controls if turning on Zen Mode also hides the activitybar bar at the left of the workbench.")
+			'description': nls.localize('zenMode.hideActivityBar', "Controls if turning on Zen Mode also hides the activity bar bar at the left of the workbench.")
 		},
 		'zenMode.restore': {
 			'type': 'boolean',
