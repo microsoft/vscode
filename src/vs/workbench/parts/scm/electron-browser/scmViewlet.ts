@@ -42,7 +42,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachListStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
 
 // TODO@Joao
@@ -302,6 +302,7 @@ export class SCMViewlet extends Viewlet {
 			keyboardSupport: false
 		});
 
+		this.disposables.push(attachListStyler(this.list, this.themeService));
 		this.disposables.push(this.listService.register(this.list));
 
 		chain(this.list.onOpen)

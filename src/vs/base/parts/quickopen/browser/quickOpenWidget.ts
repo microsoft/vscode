@@ -14,7 +14,7 @@ import errors = require('vs/base/common/errors');
 import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent, IActionProvider } from 'vs/base/parts/tree/browser/tree';
+import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent, IActionProvider, ITreeStyles } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, MessageType, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import Severity from 'vs/base/common/severity';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -46,7 +46,7 @@ export interface IQuickOpenOptions extends IQuickOpenStyles {
 	keyboardSupport?: boolean;
 }
 
-export interface IQuickOpenStyles extends IInputBoxStyles {
+export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
 	background?: Color;
 	foreground?: Color;
 	borderColor?: Color;
@@ -342,6 +342,10 @@ export class QuickOpenWidget implements IModelProvider {
 				inputForeground: this.styles.inputForeground,
 				inputBorder: this.styles.inputBorder
 			});
+		}
+
+		if (this.tree) {
+			this.tree.style(this.styles);
 		}
 	}
 

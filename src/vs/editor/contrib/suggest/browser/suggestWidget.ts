@@ -27,6 +27,8 @@ import { Context as SuggestContext } from './suggest';
 import { ICompletionItem, CompletionModel } from './completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { attachListStyler } from "vs/platform/theme/common/styler";
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 const sticky = false; // for development purposes
 
@@ -350,7 +352,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
 	) {
 		this.isAuto = false;
 		this.focusedItem = null;
@@ -373,6 +376,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		});
 
 		this.toDispose = [
+			attachListStyler(this.list, themeService),
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),

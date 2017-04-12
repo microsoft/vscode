@@ -21,6 +21,8 @@ import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/treeExplorerActions';
+import { attachListStyler } from "vs/platform/theme/common/styler";
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 export class TreeExplorerView extends CollapsibleViewletView {
 	constructor(
@@ -34,7 +36,8 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITreeExplorerService private treeExplorerService: ITreeExplorerService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(actionRunner, false, nls.localize('treeExplorerViewlet.tree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
@@ -61,6 +64,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 				keyboardSupport: false
 			});
 
+		this.toDispose.push(attachListStyler(tree, this.themeService));
 		this.toDispose.push(this.listService.register(tree));
 
 		return tree;

@@ -61,6 +61,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
+import { attachListStyler } from "vs/platform/theme/common/styler";
 
 export class SearchViewlet extends Viewlet {
 
@@ -475,6 +476,8 @@ export class SearchViewlet extends Viewlet {
 					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
 					keyboardSupport: false
 				});
+
+			this.toDispose.push(attachListStyler(this.tree, this.themeService));
 
 			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);

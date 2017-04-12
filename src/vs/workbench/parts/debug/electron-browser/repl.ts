@@ -40,6 +40,7 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { attachListStyler } from "vs/platform/theme/common/styler";
 
 const $ = dom.$;
 
@@ -150,6 +151,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			controller
 		}, replTreeOptions);
 
+		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree));
 
 		if (!Repl.HISTORY) {

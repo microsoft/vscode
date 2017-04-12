@@ -40,6 +40,7 @@ import { FileReferences, OneReference, ReferencesModel } from './referencesModel
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachListStyler } from "vs/platform/theme/common/styler";
 
 class DecorationsManager implements IDisposable {
 
@@ -614,6 +615,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				ariaLabel: nls.localize('treeAriaLabel', "References")
 			};
 			this._tree = new Tree(div.getHTMLElement(), config, options);
+			this._callOnDispose.push(attachListStyler(this._tree, this._themeService));
 
 			this._treeContainer = div.hide();
 		});
