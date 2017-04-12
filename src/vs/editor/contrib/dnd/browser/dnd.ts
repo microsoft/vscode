@@ -50,6 +50,10 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	}
 
 	private onEditorKeyDown(e: IKeyboardEvent): void {
+		if (!this._editor.getConfiguration().dragAndDrop) {
+			return;
+		}
+
 		if (this._mouseDown && e[DragAndDropController.TRIGGER_MODIFIER]) {
 			this._editor.updateOptions({
 				mouseStyle: 'copy'
@@ -58,6 +62,10 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	}
 
 	private onEditorKeyUp(e: IKeyboardEvent): void {
+		if (!this._editor.getConfiguration().dragAndDrop) {
+			return;
+		}
+
 		if (this._mouseDown && e.keyCode === DragAndDropController.TRIGGER_KEY_VALUE) {
 			this._editor.updateOptions({
 				mouseStyle: 'default'
