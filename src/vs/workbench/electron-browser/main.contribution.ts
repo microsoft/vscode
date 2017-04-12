@@ -311,6 +311,11 @@ configurationRegistry.registerConfiguration({
 			'default': true,
 			'description': nls.localize('zenMode.hideStatusBar', "Controls if turning on Zen Mode also hides the status bar at the bottom of the workbench.")
 		},
+		'zenMode.hideActivityBar': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.hideActivityBar', "Controls if turning on Zen Mode also hides the activity bar bar at the left of the workbench.")
+		},
 		'zenMode.restore': {
 			'type': 'boolean',
 			'default': false,
