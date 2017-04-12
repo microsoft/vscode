@@ -18,6 +18,7 @@ import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contex
 import Event, { Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
+import { mixin } from "vs/base/common/objects";
 
 const $ = dom.$;
 
@@ -62,6 +63,11 @@ export interface IRange {
 	end: number;
 }
 
+const defaultOpts = {
+	inputBackground: Color.fromHex('#3C3C3C'),
+	inputForeground: Color.fromHex('#CCCCCC')
+};
+
 export class InputBox extends Widget {
 	private contextViewProvider: IContextViewProvider;
 	private element: HTMLElement;
@@ -92,6 +98,7 @@ export class InputBox extends Widget {
 
 		this.contextViewProvider = contextViewProvider;
 		this.options = options || Object.create(null);
+		mixin(this.options, defaultOpts, false);
 		this.message = null;
 		this.cachedHeight = null;
 		this.placeholder = this.options.placeholder || '';

@@ -18,6 +18,12 @@ export interface ISelectBoxStyles {
 	selectBorder?: Color;
 }
 
+const defaultStyles = {
+	selectBackground: Color.fromHex('#3C3C3C'),
+	selectForeground: Color.fromHex('#F0F0F0'),
+	selectBorder: Color.fromHex('#3C3C3C')
+};
+
 export class SelectBox extends Widget {
 
 	private selectElement: HTMLSelectElement;
@@ -40,11 +46,9 @@ export class SelectBox extends Widget {
 		this.toDispose = [];
 		this._onDidSelect = new Emitter<string>();
 
-		if (styles) {
-			this.selectBackground = styles.selectBackground;
-			this.selectForeground = styles.selectForeground;
-			this.selectBorder = styles.selectBorder;
-		}
+		this.selectBackground = styles.selectBackground || defaultStyles.selectBackground;
+		this.selectForeground = styles.selectForeground || defaultStyles.selectForeground;
+		this.selectBorder = styles.selectBorder || defaultStyles.selectBorder;
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'change', (e) => {
 			this.selectElement.title = e.target.value;
