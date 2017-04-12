@@ -669,11 +669,11 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 	return null;
 }
 
-export function createStyleSheet(): HTMLStyleElement {
+export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
 	let style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
-	document.getElementsByTagName('head')[0].appendChild(style);
+	container.appendChild(style);
 	return style;
 }
 

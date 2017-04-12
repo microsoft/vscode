@@ -18,6 +18,8 @@ import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, createEmp
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
+import { Color } from "vs/base/common/color";
+import { mixin } from "vs/base/common/objects";
 
 export interface IIdentityProvider<T> {
 	(element: T): string;
@@ -394,12 +396,35 @@ class MouseController<T> implements IDisposable {
 	}
 }
 
-export interface IListOptions<T> extends IListViewOptions, IMouseControllerOptions {
+export interface IListOptions<T> extends IListViewOptions, IMouseControllerOptions, IListStyles {
 	identityProvider?: IIdentityProvider<T>;
 	ariaLabel?: string;
 	mouseSupport?: boolean;
 	keyboardSupport?: boolean;
 }
+
+export interface IListStyles {
+	listFocusBackground?: Color;
+	listActiveSelectionBackground?: Color;
+	listActiveSelectionForeground?: Color;
+	listFocusAndSelectionBackground?: Color;
+	listFocusAndSelectionForeground?: Color;
+	listInactiveSelectionBackground?: Color;
+	listHoverBackground?: Color;
+	listDropBackground?: Color;
+	listFocusOutline?: Color;
+}
+
+const defaultStyles: IListStyles = {
+	listFocusBackground: Color.fromHex('#073655'),
+	listActiveSelectionBackground: Color.fromHex('#0E639C'),
+	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
+	listFocusAndSelectionBackground: Color.fromHex('#094771'),
+	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
+	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
+	listHoverBackground: Color.fromHex('#2A2D2E'),
+	listDropBackground: Color.fromHex('#383B3D')
+};
 
 const DefaultOptions: IListOptions<any> = {
 	keyboardSupport: true,
@@ -522,6 +547,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private view: ListView<T>;
 	private spliceable: ISpliceable<T>;
 	private disposables: IDisposable[];
+	private styleElement: HTMLStyleElement;
 
 	@memoize get onFocusChange(): Event<IListEvent<T>> {
 		return mapEvent(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
@@ -559,12 +585,16 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
 		this.eventBufferer = new EventBufferer();
+		mixin(options, defaultStyles, false);
 
 		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [this.focus.renderer, this.selection.renderer, r]));
 
 		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
+		DOM.addClass(this.view.domNode, this.idPrefix);
 		this.view.domNode.tabIndex = 0;
+
+		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
 		this.spliceable = new CombinedSpliceable([
 			new TraitSpliceable(this.focus, this.view, options.identityProvider),
@@ -595,6 +625,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
 		}
+
+		this.style(options);
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
@@ -772,6 +804,29 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	open(indexes: number[]): void {
 		this._onOpen.fire(indexes);
+	}
+
+	style(styles: IListStyles): void {
+
+		// Indicate selection/focus via background color
+		if (!styles.listFocusOutline) {
+			this.styleElement.innerHTML = `
+				.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }
+				.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; color: ${styles.listActiveSelectionForeground}; }
+				.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; color: ${styles.listFocusAndSelectionForeground}; }
+				.monaco-list.${this.idPrefix} .monaco-list-row.selected { background-color: ${styles.listInactiveSelectionBackground}; }
+				.monaco-list.${this.idPrefix} .monaco-list-row:hover { background-color: ${styles.listHoverBackground}; }
+			`;
+		}
+
+		// Indicate selection/focus via outline
+		else {
+			this.styleElement.innerHTML = `
+				.monaco-list.${this.idPrefix} .monaco-list-row.selected { outline: 1px dotted ${styles.listFocusOutline}; color: white; }
+				.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; background: transparent }
+				.monaco-list.${this.idPrefix} .monaco-list-row:hover { outline: 1px dashed ${styles.listFocusOutline}; outline-offset: -1px; background: transparent; }
+			`;
+		}
 	}
 
 	private toListEvent({ indexes }: ITraitChangeEvent) {
