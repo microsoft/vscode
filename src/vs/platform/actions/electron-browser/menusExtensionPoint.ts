@@ -45,7 +45,7 @@ namespace schema {
 
 	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
 		if (!Array.isArray(menu)) {
-			collector.error(localize('requirearry', "menu items must be an arry"));
+			collector.error(localize('requirearray', "menu items must be an array"));
 			return false;
 		}
 
