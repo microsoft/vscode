@@ -60,6 +60,7 @@ import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
+import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
 
 export class SearchViewlet extends Viewlet {
 
@@ -479,78 +480,27 @@ export class SearchViewlet extends Viewlet {
 			this.toUnbind.push(renderer);
 
 			this.toUnbind.push(this.listService.register(this.tree));
-
-			let focusToSelectionDelayHandle: number;
-			let lastFocusToSelection: number;
-
-			const focusToSelection = (originalEvent: KeyboardEvent | MouseEvent) => {
-				lastFocusToSelection = Date.now();
-
-				const focus = this.tree.getFocus();
-				let payload: any;
-				if (focus instanceof Match) {
-					payload = { origin: 'keyboard', originalEvent, preserveFocus: true };
-				}
-
-				this.tree.setSelection([focus], payload);
-				focusToSelectionDelayHandle = void 0;
-			};
-
-			this.toUnbind.push(this.tree.addListener2('focus', (event: any) => {
-
-				const focus = this.tree.getFocus();
-
-				this.firstMatchFocussed.set(this.tree.getNavigator().first() === this.tree.getFocus());
-				this.fileMatchOrMatchFocussed.set(true);
-				this.fileMatchFocussed.set(focus instanceof FileMatch);
-				this.matchFocussed.set(focus instanceof Match);
-
-				let keyboard = event.payload && event.payload.origin === 'keyboard';
-				if (keyboard) {
-					let originalEvent: KeyboardEvent | MouseEvent = event.payload && event.payload.originalEvent;
-
-					// debounce setting selection so that we are not too quickly opening
-					// when the user is pressing and holding the key to move focus
-					if (focusToSelectionDelayHandle || (Date.now() - lastFocusToSelection <= 75)) {
-						window.clearTimeout(focusToSelectionDelayHandle);
-						focusToSelectionDelayHandle = window.setTimeout(() => focusToSelection(originalEvent), 300);
-					} else {
-						focusToSelection(originalEvent);
-					}
-				}
-			}));
-
-			this.toUnbind.push(this.tree.addListener2('selection', (event: any) => {
-				let element: any;
-				let keyboard = event.payload && event.payload.origin === 'keyboard';
-				if (keyboard) {
-					element = this.tree.getFocus();
-				} else {
-					element = event.selection[0];
-				}
-
-				let originalEvent: KeyboardEvent | MouseEvent = event.payload && event.payload.originalEvent;
-
-				let doubleClick = (event.payload && event.payload.origin === 'mouse' && originalEvent && originalEvent.detail === 2);
-				if (doubleClick && originalEvent) {
-					originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
-				}
-
-				let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-				let focusEditor = (keyboard && (!event.payload || !event.payload.preserveFocus)) || doubleClick || (event.payload && event.payload.focusEditor);
-
-				if (element instanceof Match) {
-					let selectedMatch: Match = element;
+			const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree));
+			this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
+				if (options.element instanceof Match) {
+					let selectedMatch: Match = options.element;
 					if (this.currentSelectedFileMatch) {
 						this.currentSelectedFileMatch.setSelectedMatch(null);
 					}
 					this.currentSelectedFileMatch = selectedMatch.parent();
 					this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
-
-					if (!(event.payload && event.payload.preventEditorOpen)) {
-						this.onFocus(selectedMatch, !focusEditor, sideBySide, doubleClick);
+					if (!(options.payload && options.payload.preventEditorOpen)) {
+						this.onFocus(selectedMatch, options.editorOptions.preserveFocus, options.editorOptions.pinned, options.sideBySide);
 					}
 				}
+			}));
+
+			this.toUnbind.push(this.tree.addListener2('focus', (event: any) => {
+				const focus = this.tree.getFocus();
+				this.firstMatchFocussed.set(this.tree.getNavigator().first() === this.tree.getFocus());
+				this.fileMatchOrMatchFocussed.set(true);
+				this.fileMatchFocussed.set(focus instanceof FileMatch);
+				this.matchFocussed.set(focus instanceof Match);
 			}));
 
 			this.toUnbind.push(this.tree.onDOMBlur(e => {

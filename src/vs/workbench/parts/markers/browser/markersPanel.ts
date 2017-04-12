@@ -37,6 +37,8 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
+import { debounceEvent } from 'vs/base/common/event';
 
 export class MarkersPanel extends Panel {
 
@@ -219,7 +221,10 @@ export class MarkersPanel extends Panel {
 			this.markerFocusContextKey.set(e.focus instanceof Marker);
 		}));
 
-		this._register(this.tree.addListener2('selection', event => this.onSelection(event)));
+		const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree));
+		this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
+			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.editorOptions.pinned, options.sideBySide);
+		}));
 
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
 		focusTracker.addBlurListener(() => {
@@ -227,31 +232,6 @@ export class MarkersPanel extends Panel {
 		});
 
 		this.toDispose.push(this.listService.register(this.tree));
-	}
-
-	private onSelection(event: any): void {
-		let element: any;
-		let keyboard = event.payload && event.payload.origin === 'keyboard';
-		if (keyboard) {
-			element = this.tree.getFocus();
-		} else {
-			element = event.selection[0];
-		}
-		let originalEvent: KeyboardEvent | MouseEvent = event.payload && event.payload.originalEvent;
-
-		let doubleClick = (event.payload && event.payload.origin === 'mouse' && originalEvent && originalEvent.detail === 2);
-		if (doubleClick && originalEvent) {
-			originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
-		}
-
-		let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-		let focusEditor = (keyboard && (!event.payload || !event.payload.preserveFocus)) || doubleClick || (event.payload && event.payload.focusEditor);
-
-		if (element instanceof Marker) {
-			if (!(event.payload && event.payload.preventEditorOpen)) {
-				this.openFileAtElement(element, !focusEditor, sideBySide, doubleClick);
-			}
-		}
 	}
 
 	private createActions(): void {
