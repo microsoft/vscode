@@ -30,7 +30,7 @@ import { Scope } from 'vs/workbench/common/memento';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/common/editor';
-import { FileChangeType, FileChangesEvent, IFileService, isEqual } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
@@ -914,7 +914,7 @@ export class SearchViewlet extends Viewlet {
 			return;
 		}
 
-		if (isEqual(workspace.resource.fsPath, resource.fsPath)) {
+		if (workspace.resource.toString() === resource.toString()) {
 			this.inputPatternIncludes.setValue('');
 			this.searchWidget.focus();
 			return;

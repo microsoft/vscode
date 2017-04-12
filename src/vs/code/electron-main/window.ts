@@ -572,7 +572,6 @@ export class VSCodeWindow {
 		}
 
 		let background = this.storageService.getItem<string>(VSCodeWindow.themeBackgroundStorageKey, null);
-		console.log('itm ' + background);
 		if (!background) {
 			let baseTheme = this.getBaseTheme();
 			return baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : (platform.isMacintosh ? '#171717' : '#1E1E1E')); // https://github.com/electron/electron/issues/5150

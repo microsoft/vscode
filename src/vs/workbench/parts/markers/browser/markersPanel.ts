@@ -36,7 +36,6 @@ import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegis
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { isEqual } from 'vs/platform/files/common/files';
 
 export class MarkersPanel extends Panel {
 
@@ -345,7 +344,7 @@ export class MarkersPanel extends Panel {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
-				if (isEqual(resource.uri, selectedElement[0].marker.resource)) {
+				if (resource.uri.toString() === selectedElement[0].marker.resource.toString()) {
 					return true;
 				}
 			}

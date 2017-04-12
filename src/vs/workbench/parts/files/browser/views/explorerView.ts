@@ -17,7 +17,7 @@ import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocussedContext, ExplorerFocussedContext } from 'vs/workbench/parts/files/common/files';
-import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileChange, IFileService, isEqualOrParent } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
@@ -440,12 +440,12 @@ export class ExplorerView extends CollapsibleViewletView {
 			// Only update focus if renamed/moved element is selected
 			let restoreFocus = false;
 			const focus: FileStat = this.explorerViewer.getFocus();
-			if (focus && focus.resource && isEqual(focus.resource.fsPath, oldResource.fsPath)) {
+			if (focus && focus.resource && focus.resource.toString() === oldResource.toString()) {
 				restoreFocus = true;
 			}
 
 			// Handle Rename
-			if (oldParentResource && newParentResource && isEqual(oldParentResource.fsPath, newParentResource.fsPath)) {
+			if (oldParentResource && newParentResource && oldParentResource.toString() === newParentResource.toString()) {
 				modelElement = this.root.find(oldResource);
 				if (modelElement) {
 
@@ -729,7 +729,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	 */
 	private getResolvedDirectories(stat: FileStat, resolvedDirectories: URI[]): void {
 		if (stat.isDirectoryResolved) {
-			if (!isEqual(stat.resource.fsPath, this.contextService.getWorkspace().resource.fsPath)) {
+			if (stat.resource.toString() !== this.contextService.getWorkspace().resource.toString()) {
 
 				// Drop those path which are parents of the current one
 				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
@@ -758,7 +758,7 @@ export class ExplorerView extends CollapsibleViewletView {
 	public select(resource: URI, reveal: boolean = this.autoReveal): TPromise<void> {
 
 		// Require valid path
-		if (!resource || isEqual(resource.fsPath, this.contextService.getWorkspace().resource.fsPath)) {
+		if (!resource || resource.toString() === this.contextService.getWorkspace().resource.toString()) {
 			return TPromise.as(null);
 		}
 
@@ -798,7 +798,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		const currentSelection: FileStat[] = this.explorerViewer.getSelection();
 
 		for (let i = 0; i < currentSelection.length; i++) {
-			if (isEqual(currentSelection[i].resource.fsPath, resource.fsPath)) {
+			if (currentSelection[i].resource.toString() === resource.toString()) {
 				return currentSelection[i];
 			}
 		}
@@ -842,7 +842,7 @@ export class ExplorerView extends CollapsibleViewletView {
 		// Keep list of expanded folders to restore on next load
 		if (this.root) {
 			const expanded = this.explorerViewer.getExpandedElements()
-				.filter((e: FileStat) => !isEqual(e.resource.fsPath, this.contextService.getWorkspace().resource.fsPath))
+				.filter((e: FileStat) => e.resource.toString() !== this.contextService.getWorkspace().resource.toString())
 				.map((e: FileStat) => e.resource.toString());
 
 			this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES] = expanded;

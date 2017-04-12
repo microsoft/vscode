@@ -963,7 +963,7 @@ export class PasteFileAction extends BaseFileAction {
 
 		// Find target
 		let target: FileStat;
-		if (isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath)) {
+		if (this.element.resource.toString() === fileToCopy.resource.toString()) {
 			target = this.element.parent;
 		} else {
 			target = this.element.isDirectory ? this.element : this.element.parent;
@@ -1270,7 +1270,7 @@ export class CompareResourcesAction extends Action {
 		}
 
 		// Check if target is identical to source
-		if (isEqual(this.resource.fsPath, globalResourceToCompare.fsPath)) {
+		if (this.resource.toString() === globalResourceToCompare.toString()) {
 			return false;
 		}
 
@@ -1365,7 +1365,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				const editor = getCodeEditor(activeEditor);
 				if (editor) {
 					const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
-					if (activeResource && isEqual(activeResource.fsPath, source.fsPath)) {
+					if (activeResource && activeResource.toString() === source.toString()) {
 						viewStateOfSource = editor.saveViewState();
 					}
 				}

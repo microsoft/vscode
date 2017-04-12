@@ -601,7 +601,7 @@ export class FileService implements IFileService {
 
 				// check if the resource is a child of the resource with override and use
 				// the provided encoding in that case
-				if (isParent(resource.fsPath, override.resource.fsPath)) {
+				if (isParent(resource.fsPath, override.resource.fsPath, !isLinux /* ignorecase */)) {
 					return override.encoding;
 				}
 			}
