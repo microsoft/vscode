@@ -303,7 +303,7 @@
 		"activityBarBackground": "#DDD6C1",
 		"activityBarDragAndDropBackground": "#EEE8D5",
 		"activityBadgeBackground": "#B58900",
-		"editorFindWidgetBackground": "#EEE8D5",
+		"editorWidgetBackground": "#EEE8D5",
 		"inputBoxBackground": "#DDD6C1",
 		"inputBoxForeground": "#586E75",
 		"inputBoxActiveOptionBorder": "#2AA19899",

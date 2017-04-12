@@ -5,7 +5,6 @@
 
 'use strict';
 
-import 'vs/css!./findOptionsWidget';
 import * as dom from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -14,8 +13,8 @@ import { FIND_IDS } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { CaseSensitiveCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
-import { inputActiveOptionBorder } from "vs/platform/theme/common/colorRegistry";
+import { IThemeService, ITheme, registerThemingParticipant } from "vs/platform/theme/common/themeService";
+import { inputActiveOptionBorder, editorWidgetBackground, highContrastBorder, editorWidgetShadow } from "vs/platform/theme/common/colorRegistry";
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
@@ -170,3 +169,21 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this.wholeWords.style(inputStyles);
 	}
 }
+
+
+registerThemingParticipant((theme, collector) => {
+	let widgetBackground = theme.getColor(editorWidgetBackground);
+	if (widgetBackground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .findOptionsWidget { background-color: ${widgetBackground}; }`);
+	}
+
+	let widgetShadow = theme.getColor(editorWidgetShadow);
+	if (widgetShadow) {
+		collector.addRule(`.monaco-editor.${theme.selector} .findOptionsWidget { box-shadow: 0 2px 8px ${widgetShadow}; }`);
+	}
+
+	let hcBorder = theme.getColor(highContrastBorder);
+	if (hcBorder) {
+		collector.addRule(`.monaco-editor.${theme.selector} .findOptionsWidget { border: 2px solid ${hcBorder}; }`);
+	}
+});

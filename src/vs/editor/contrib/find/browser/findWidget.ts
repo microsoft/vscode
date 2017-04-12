@@ -26,7 +26,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, highContrastOutline, highContrastBorder, inputBackground as findInputBackground, editorFindWidgetBackground, inputActiveOptionBorder } from "vs/platform/theme/common/colorRegistry";
+import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, highContrastOutline, highContrastBorder, inputBackground as findInputBackground, editorWidgetBackground, inputActiveOptionBorder, editorWidgetShadow } from "vs/platform/theme/common/colorRegistry";
 
 export interface IFindController {
 	replace(): void;
@@ -803,8 +803,13 @@ registerThemingParticipant((theme, collector) => {
 	addBackgroundColorRule('.find-widget .monaco-findInput', inputBackground);
 	addBackgroundColorRule('.find-widget .replace-input', inputBackground);
 
-	let widgetBackground = theme.getColor(editorFindWidgetBackground);
+	let widgetBackground = theme.getColor(editorWidgetBackground);
 	addBackgroundColorRule('.find-widget', widgetBackground);
+
+	let widgetShadow = theme.getColor(editorWidgetShadow);
+	if (widgetShadow) {
+		collector.addRule(`.monaco-editor.${theme.selector} .find-widget { box-shadow: 0 2px 8px ${widgetShadow}; }`);
+	}
 
 	let hcOutline = theme.getColor(highContrastOutline);
 	if (hcOutline) {
@@ -814,7 +819,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	let hcBorder = theme.getColor(highContrastBorder);
 	if (hcBorder) {
-		collector.addRule(`.monaco-editor.${theme.selector} .find-widget { border: 2px solid ${hcBorder}; box-shadow: none; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .find-widget { border: 2px solid ${hcBorder}; }`);
 	}
 });
 
