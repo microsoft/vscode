@@ -16,7 +16,7 @@
 	"PatternTypeSchema.name": "Nombre de un patrón aportado o predefinido",
 	"ProblemMatcherExtPoint": "Aporta buscadores de coincidencias de problemas",
 	"ProblemMatcherParser.invalidRegexp": "Error: La cadena {0} no es una expresión regular válida.\n",
-	"ProblemMatcherParser.noDefinedPatter": "Error: El patrón con el identificador {0} no existe.",
+	"ProblemMatcherParser.noDefinedPatter": "Error: el patrón con el identificador {0} no existe.",
 	"ProblemMatcherParser.noFileLocation": "Error: La descripción no define una ubicación de archivo:\n{0}\n",
 	"ProblemMatcherParser.noIdentifier": "Error: La propiedad pattern hace referencia a un identificador vacío.",
 	"ProblemMatcherParser.noOwner": "Error: La descripción no define un propietario:\n{0}\n",

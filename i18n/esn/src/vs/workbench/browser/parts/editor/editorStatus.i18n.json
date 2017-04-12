@@ -17,6 +17,7 @@
 	"endOfLineLineFeed": "LF",
 	"fileInfo": "Información del archivo",
 	"gotoLine": "Ir a la línea",
+	"guessedEncoding": "Adivinado por el contenido",
 	"indentConvert": "convertir archivo",
 	"indentView": "cambiar vista",
 	"indentation": "Sangría",

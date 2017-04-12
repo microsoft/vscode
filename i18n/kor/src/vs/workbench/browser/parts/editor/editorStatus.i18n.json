@@ -17,6 +17,7 @@
 	"endOfLineLineFeed": "LF",
 	"fileInfo": "파일 정보",
 	"gotoLine": "줄 이동",
+	"guessedEncoding": "콘텐츠에서 추측함",
 	"indentConvert": "파일 변환",
 	"indentView": "보기 변경",
 	"indentation": "들여쓰기",

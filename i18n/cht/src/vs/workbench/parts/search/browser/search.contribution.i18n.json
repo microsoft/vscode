@@ -15,6 +15,7 @@
 	"searchConfigurationTitle": "搜尋",
 	"showSearchViewlet": "顯示搜尋",
 	"showTriggerActions": "前往工作區中的符號...",
+	"useIgnoreFilesByDefault": "控制在搜尋新的工作區時，是否要根據預設使用 .gitignore 及 .ignore 檔案。",
 	"useRipgrep": "控制是否要在文字搜尋中使用 ripgrep",
 	"view": "檢視"
 }

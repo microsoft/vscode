@@ -65,7 +65,7 @@
 	"miInsertCursorAbove": "Добавить курсор &&выше",
 	"miInsertCursorAtEndOfEachLineSelected": "Добавить курсоры в &&окончания строк",
 	"miInsertCursorBelow": "Добавить курсор &&ниже",
-	"miInstallMoreDebuggers": "&&Установка дополнительных отладчиков...",
+	"miInstallAdditionalDebuggers": "У&&становить дополнительные отладчики...",
 	"miInstallingUpdate": "Идет установка обновления...",
 	"miIntroductoryVideos": "Вступительные в&&идео",
 	"miKeyboardShortcuts": "С&&правочник по сочетаниям клавиш",

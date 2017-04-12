@@ -17,6 +17,7 @@
 	"endOfLineLineFeed": "LF",
 	"fileInfo": "Сведения о файле",
 	"gotoLine": "Перейти к строке",
+	"guessedEncoding": "Предположение на основе содержимого",
 	"indentConvert": "преобразовать файл",
 	"indentView": "изменить представление",
 	"indentation": "Отступ",
