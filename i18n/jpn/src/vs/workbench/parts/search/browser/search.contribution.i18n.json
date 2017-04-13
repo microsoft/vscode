@@ -15,6 +15,7 @@
 	"searchConfigurationTitle": "検索",
 	"showSearchViewlet": "検索の表示",
 	"showTriggerActions": "ワークスペース内のシンボルへ移動...",
+	"useIgnoreFilesByDefault": "新しいワークスペースで検索するときに、既定で .gitignore ファイルを使用するか .ignore ファイルを使用するかを制御します。",
 	"useRipgrep": "テキスト検索で ripgrep を使用するかどうかを制御します",
 	"view": "表示"
 }

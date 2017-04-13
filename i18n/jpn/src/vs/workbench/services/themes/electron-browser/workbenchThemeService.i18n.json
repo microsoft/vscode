@@ -25,5 +25,6 @@
 	"vscode.extension.contributes.themes.id": "ユーザー設定で使用されるアイコン テーマの ID。",
 	"vscode.extension.contributes.themes.label": "UI で表示される配色テーマのラベル。",
 	"vscode.extension.contributes.themes.path": "tmTheme ファイルのパス。拡張機能フォルダーに対する相対パスで、通常 './themes/themeFile.tmTheme' です。",
-	"vscode.extension.contributes.themes.uiTheme": "エディターの周囲の色を定義する基本テーマ: 'vs' は明るい色のテーマで、'vs-dark' は濃い色のテーマです。'hc-black' は濃い色のハイ コントラストのテーマです。"
+	"vscode.extension.contributes.themes.uiTheme": "エディターの周囲の色を定義する基本テーマ: 'vs' は明るい色のテーマで、'vs-dark' は濃い色のテーマです。'hc-black' は濃い色のハイ コントラストのテーマです。",
+	"workbenchColors": "現在選択されている色のテーマから一部の色が上書きされます。次のリリースで色の名前が変更されるため、この設定は試験的なものです。"
 }

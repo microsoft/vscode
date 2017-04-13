@@ -10,6 +10,7 @@
 	"activityBadgeBackground": "Color de fondo de distintivo de notificación de actividad. La barra de actividad se muestra en el extremo izquierdo o derecho y permite cambiar entre vistas de la barra lateral.",
 	"activityBadgeForeground": "Color de primer plano de distintivo de notificación de actividad. La barra de actividad se muestra en el extremo izquierdo o derecho y permite cambiar entre vistas de la barra lateral.",
 	"activityBarBackground": "Color de fondo de la barra de actividad, que se muestra en el lado izquierdo o derecho y que permite cambiar entre diferentes vistas de la barra lateral.",
+	"activityBarDragAndDropBackground": "Color de arrastrar y colocar comentarios de la barra de actividad. La barra de actividad se muestra en el extremo izquierdo o derecho y permite cambiar entre vistas de la barra lateral.",
 	"editorDragAndDropBackground": "Color de fondo cuando se arrastran editores.",
 	"editorGroupBackground": "Color de fondo de un grupo de editores. Los grupos de editores son los contenedores de los editores.",
 	"editorGroupBorder": "Color para separar varios grupos de editores entre sí. Los grupos de editores son los contenedores de los editores.",
