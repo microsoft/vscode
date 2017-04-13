@@ -16,6 +16,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
@@ -188,10 +189,16 @@ export class SuggestController implements IEditorContribution {
 				this.commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
 			}
 
+			this._alertCompletionItem(item);
 			this.telemetryService.publicLog('suggestSnippetInsert', { ...this.editor.getTelemetryData(), suggestionType: suggestion.type });
 		}
 
 		this.model.cancel();
+	}
+
+	private _alertCompletionItem({ suggestion }: ICompletionItem): void {
+		let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' did insert the following text: {1}", suggestion.label, suggestion.insertText);
+		alert(msg);
 	}
 
 	triggerSuggest(): void {
