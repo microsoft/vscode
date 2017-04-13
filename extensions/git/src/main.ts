@@ -65,12 +65,25 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 		model
 	);
 
-	if (/^[01]/.test(info.version)) {
-		const update = localize('updateGit', "Update Git");
-		const choice = await window.showWarningMessage(localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version), update);
+	const IgnoreOldGitStorageKey = 'settings.extension.git.ignoreOld';
 
-		if (choice === update) {
-			commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+	// Check user setting to show older version message
+	if (!context.globalState.get(IgnoreOldGitStorageKey)) {
+		if (/^[01]/.test(info.version)) {
+			const update = localize('updateGit', "Update Git");
+			const neverShowAgain = localize('neverShowAgain', "Don't show again");
+
+			const choice = await window.showWarningMessage(
+				localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version),
+				update,
+				neverShowAgain
+			);
+
+			if (choice === update) {
+				commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+			} else if (choice === neverShowAgain) {
+				context.globalState.update(IgnoreOldGitStorageKey, true);
+			}
 		}
 	}
 }
