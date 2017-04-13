@@ -1,7 +1,7 @@
 Package: @@NAME@@
 Version: @@VERSION@@
 Section: devel
-Depends: libnotify4, libnss3, gnupg, apt
+Depends: libnotify4, libnss3, gnupg, apt, libxkbfile1
 Priority: optional
 Architecture: @@ARCHITECTURE@@
 Maintainer: Microsoft Corporation <vscode-linux@microsoft.com>

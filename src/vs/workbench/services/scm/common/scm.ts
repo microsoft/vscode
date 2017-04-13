@@ -10,12 +10,14 @@ import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Command } from 'vs/editor/common/modes';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): TPromise<URI>;
 }
 
 export const ISCMService = createDecorator<ISCMService>('scm');
+export const DefaultSCMProviderIdStorageKey = 'settings.workspace.scm.defaultProviderId';
 
 export interface ISCMResourceDecorations {
 	icon?: URI;
@@ -24,28 +26,30 @@ export interface ISCMResourceDecorations {
 }
 
 export interface ISCMResource {
-	readonly resourceGroupId: string;
-	readonly uri: URI;
+	readonly resourceGroup: ISCMResourceGroup;
+	readonly sourceUri: URI;
+	readonly command?: Command;
 	readonly decorations: ISCMResourceDecorations;
 }
 
 export interface ISCMResourceGroup {
-	readonly id: string;
+	readonly provider: ISCMProvider;
 	readonly label: string;
+	readonly id: string;
 	readonly resources: ISCMResource[];
 }
 
 export interface ISCMProvider extends IDisposable {
-	readonly id: string;
 	readonly label: string;
+	readonly id: string;
 	readonly resources: ISCMResourceGroup[];
-	readonly onDidChange: Event<ISCMResourceGroup[]>;
+	readonly onDidChange: Event<void>;
 	readonly count?: number;
-	readonly state?: string;
+	readonly commitTemplate?: string;
+	readonly onDidChangeCommitTemplate?: Event<string>;
+	readonly acceptInputCommand?: Command;
+	readonly statusBarCommands?: Command[];
 
-	open(uri: ISCMResource): TPromise<void>;
-	acceptChanges(): TPromise<void>;
-	drag(from: ISCMResource, to: ISCMResourceGroup): TPromise<void>;
 	getOriginalResource(uri: URI): TPromise<URI>;
 }
 

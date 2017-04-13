@@ -6,7 +6,7 @@
 {
 	"editor.transformToLowercase": "小文字に変換",
 	"editor.transformToUppercase": "大文字に変換",
-	"editor.transpose": "カーソルの周囲の文字列を入れ替える",
+	"editor.transpose": "カーソルの周囲の文字を入れ替える",
 	"lines.copyDown": "行を下へコピー",
 	"lines.copyUp": "行を上へコピー",
 	"lines.delete": "行の削除",

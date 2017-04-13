@@ -22,9 +22,4 @@
 
 .monaco-workbench .editor-statusbar-item > .editor-status-tabfocusmode {
 	padding: 0 5px 0 5px;
-	background-color: #388a34;
-}
-
-.monaco-workbench > .part.statusbar .editor-statusbar-item > .editor-status-tabfocusmode:hover:not([disabled]):not(.disabled) {
-	background-color: #369432;
 }

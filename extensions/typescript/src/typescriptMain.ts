@@ -39,7 +39,7 @@ import CompletionItemProvider from './features/completionItemProvider';
 import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
-import JsDocCompletionHelper from './features/jsDocCompletionProvider';
+import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
 import ImplementationCodeLensProvider from './features/implementationsCodeLensProvider';
 
 import * as BuildStatus from './utils/buildStatus';
@@ -70,7 +70,6 @@ export function activate(context: ExtensionContext): void {
 	const MODE_ID_TSX = 'typescriptreact';
 	const MODE_ID_JS = 'javascript';
 	const MODE_ID_JSX = 'javascriptreact';
-	const selector = [MODE_ID_TS, MODE_ID_TSX, MODE_ID_JS, MODE_ID_JSX];
 
 	const clientHost = new TypeScriptServiceClientHost([
 		{
@@ -104,8 +103,9 @@ export function activate(context: ExtensionContext): void {
 		client.onVersionStatusClicked();
 	}));
 
-	context.subscriptions.push(
-		languages.registerCompletionItemProvider(selector, new JsDocCompletionHelper(client), '*'));
+	context.subscriptions.push(commands.registerCommand('typescript.openTsServerLog', () => {
+		client.openTsServerLogFile();
+	}));
 
 	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
@@ -115,6 +115,9 @@ export function activate(context: ExtensionContext): void {
 	};
 	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true)));
 	context.subscriptions.push(commands.registerCommand('javascript.goToProjectConfig', goToProjectConfig.bind(null, false)));
+
+	const jsDocCompletionCommand = new TryCompleteJsDocCommand(client);
+	context.subscriptions.push(commands.registerCommand(TryCompleteJsDocCommand.COMMAND_NAME, jsDocCompletionCommand.tryCompleteJsDoc, jsDocCompletionCommand));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 	client.onReady().then(() => {
@@ -141,6 +144,8 @@ class LanguageProvider {
 	private formattingProviderRegistration: Disposable | null;
 	private typingsStatus: TypingsStatus;
 	private referenceCodeLensProvider: ReferenceCodeLensProvider;
+	private implementationCodeLensProvider: ImplementationCodeLensProvider;
+	private JsDocCompletionProvider: JsDocCompletionProvider;
 
 	private _validate: boolean = true;
 
@@ -207,6 +212,10 @@ class LanguageProvider {
 			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(selector, this.formattingProvider);
 		}
 
+		this.JsDocCompletionProvider = new JsDocCompletionProvider(client);
+		this.JsDocCompletionProvider.updateConfiguration();
+		this.disposables.push(languages.registerCompletionItemProvider(selector, this.JsDocCompletionProvider, '*'));
+
 		this.disposables.push(languages.registerHoverProvider(selector, new HoverProvider(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new DefinitionProvider(client)));
 		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new DocumentHighlightProvider(client)));
@@ -215,19 +224,15 @@ class LanguageProvider {
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new SignatureHelpProvider(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new RenameProvider(client)));
 
-		if (client.apiVersion.has206Features()) {
-			this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
-			this.referenceCodeLensProvider.updateConfiguration();
-			this.disposables.push(languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider));
+		this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
+		this.referenceCodeLensProvider.updateConfiguration();
+		this.disposables.push(languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider));
 
-			const implementationCodeLens = new ImplementationCodeLensProvider(client);
-			implementationCodeLens.updateConfiguration();
-			this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLens));
-		}
+		this.implementationCodeLensProvider = new ImplementationCodeLensProvider(client);
+		this.implementationCodeLensProvider.updateConfiguration();
+		this.disposables.push(languages.registerCodeLensProvider(selector, this.implementationCodeLensProvider));
 
-		if (client.apiVersion.has213Features()) {
-			this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
-		}
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
 
 		if (client.apiVersion.has220Features()) {
 			this.disposables.push(languages.registerImplementationProvider(selector, new ImplementationProvider(client)));
@@ -303,6 +308,9 @@ class LanguageProvider {
 		if (this.referenceCodeLensProvider) {
 			this.referenceCodeLensProvider.updateConfiguration();
 		}
+		if (this.implementationCodeLensProvider) {
+			this.implementationCodeLensProvider.updateConfiguration();
+		}
 		if (this.formattingProvider) {
 			this.formattingProvider.updateConfiguration(config);
 			if (!this.formattingProvider.isEnabled() && this.formattingProviderRegistration) {
@@ -312,6 +320,9 @@ class LanguageProvider {
 			} else if (this.formattingProvider.isEnabled() && !this.formattingProviderRegistration) {
 				this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
 			}
+		}
+		if (this.JsDocCompletionProvider) {
+			this.JsDocCompletionProvider.updateConfiguration();
 		}
 	}
 
@@ -426,6 +437,15 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 	public get serviceClient(): TypeScriptServiceClient {
 		return this.client;
+	}
+
+	public restartTsServer(): void {
+		this.client.restartTsServer();
+		if (this.languages) {
+			for (const provider of this.languages) {
+				provider.reInitialize();
+			}
+		}
 	}
 
 	public reloadProjects(): void {

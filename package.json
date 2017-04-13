@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.11.0",
-  "electronVersion": "1.4.6",
-  "distro": "64f6f295b56a3512bf34dfb643f770160fd33ee8",
+  "version": "1.12.0",
+  "electronVersion": "1.6.6",
+  "distro": "1463a424ecd3b6292f2468e5206e46ddacc71037",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -19,7 +19,7 @@
     "precommit": "node build/gulpfile.hygiene.js"
   },
   "dependencies": {
-    "applicationinsights": "0.17.0",
+    "applicationinsights": "0.17.1",
     "chokidar": "bpasero/chokidar#vscode",
     "emmet": "ramya-rao-a/emmet#vscode",
     "fast-plist": "0.1.2",
@@ -29,13 +29,15 @@
     "http-proxy-agent": "0.2.7",
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.15",
+    "jschardet": "^1.4.2",
     "minimist": "1.2.0",
-    "native-keymap": "0.4.0",
+    "native-keymap": "1.2.2",
     "node-pty": "0.6.2",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
-    "vscode-debugprotocol": "1.17.0",
-    "vscode-textmate": "^3.1.1",
+    "vscode-debugprotocol": "1.18.0",
+    "vscode-ripgrep": "0.0.11",
+    "vscode-textmate": "^3.1.4",
     "winreg": "1.2.0",
     "xterm": "Tyriar/xterm.js#vscode-release/1.11",
     "yauzl": "2.3.1"

@@ -25,7 +25,7 @@ export class RGBA {
 	 */
 	public readonly a: number;
 
-	constructor(r: number, g: number, b: number, a: number) {
+	constructor(r: number, g: number, b: number, a: number = 255) {
 		this.r = RGBA._clampInt_0_255(r);
 		this.g = RGBA._clampInt_0_255(g);
 		this.b = RGBA._clampInt_0_255(b);
@@ -111,16 +111,29 @@ export class HSLA {
 function hex2rgba(hex: string): RGBA {
 	if (!hex) {
 		// Invalid color
-		return new RGBA(255, 0, 0, 255);
+		return null;
 	}
-	if (hex.length === 7 && hex.charCodeAt(0) === CharCode.Hash) {
+	const length = hex.length;
+
+	if (length === 0) {
+		// Invalid color
+		return null;
+	}
+
+	if (hex.charCodeAt(0) !== CharCode.Hash) {
+		// Does not begin with a #
+		return null;
+	}
+
+	if (length === 7) {
 		// #RRGGBB format
 		const r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
 		const g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
 		const b = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
 		return new RGBA(r, g, b, 255);
 	}
-	if (hex.length === 9 && hex.charCodeAt(0) === CharCode.Hash) {
+
+	if (length === 9) {
 		// #RRGGBBAA format
 		const r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
 		const g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
@@ -128,12 +141,50 @@ function hex2rgba(hex: string): RGBA {
 		const a = 16 * _parseHexDigit(hex.charCodeAt(7)) + _parseHexDigit(hex.charCodeAt(8));
 		return new RGBA(r, g, b, a);
 	}
+
+	if (length === 4) {
+		// #RGB format
+		const r = _parseHexDigit(hex.charCodeAt(1));
+		const g = _parseHexDigit(hex.charCodeAt(2));
+		const b = _parseHexDigit(hex.charCodeAt(3));
+		return new RGBA(16 * r + r, 16 * g + g, 16 * b + b);
+	}
+
+	if (length === 5) {
+		// #RGBA format
+		const r = _parseHexDigit(hex.charCodeAt(1));
+		const g = _parseHexDigit(hex.charCodeAt(2));
+		const b = _parseHexDigit(hex.charCodeAt(3));
+		const a = _parseHexDigit(hex.charCodeAt(4));
+		return new RGBA(16 * r + r, 16 * g + g, 16 * b + b, 16 * a + a);
+	}
+
 	// Invalid color
-	return new RGBA(255, 0, 0, 255);
+	return null;
 }
 
 export function isValidHexColor(hex: string): boolean {
-	return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(hex);
+	if (/^#[0-9a-f]{6}$/i.test(hex)) {
+		// #rrggbb
+		return true;
+	}
+
+	if (/^#[0-9a-f]{8}$/i.test(hex)) {
+		// #rrggbbaa
+		return true;
+	}
+
+	if (/^#[0-9a-f]{3}$/i.test(hex)) {
+		// #rgb
+		return true;
+	}
+
+	if (/^#[0-9a-f]{4}$/i.test(hex)) {
+		// #rgba
+		return true;
+	}
+
+	return false;
 }
 
 function _parseHexDigit(charCode: CharCode): number {
@@ -250,8 +301,12 @@ export class Color {
 	/**
 	 * Creates a color from a hex string (#RRGGBB or #RRGGBBAA).
 	 */
-	public static fromHex(hex: string): Color {
-		return new Color(hex);
+	public static fromHex(hex: string, parseErrorColor = Color.red): Color {
+		let rgba = hex2rgba(hex);
+		if (rgba) {
+			return new Color(rgba);
+		}
+		return parseErrorColor;
 	}
 
 	public static fromHSLA(hsla: HSLA): Color {
@@ -260,12 +315,8 @@ export class Color {
 
 	private readonly rgba: RGBA;
 
-	private constructor(arg: string | RGBA) {
-		if (arg instanceof RGBA) {
-			this.rgba = arg;
-		} else {
-			this.rgba = hex2rgba(arg);
-		}
+	private constructor(arg: RGBA) {
+		this.rgba = arg;
 	}
 
 	public equals(other: Color): boolean {
@@ -360,6 +411,9 @@ export class Color {
 
 	public toString(): string {
 		const rgba = this.rgba;
+		if (rgba.a === 255) {
+			return this.toRGBHex();
+		}
 		return `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${+(rgba.a / 255).toFixed(2)})`;
 	}
 
@@ -420,4 +474,13 @@ export class Color {
 		factor = factor * (lum1 - lum2) / lum1;
 		return of.darken(factor);
 	}
+
+	public static readonly white = new Color(new RGBA(255, 255, 255, 255));
+	public static readonly black = new Color(new RGBA(0, 0, 0, 255));
+	public static readonly red = new Color(new RGBA(255, 0, 0, 255));
+	public static readonly blue = new Color(new RGBA(0, 0, 255, 255));
+	public static readonly green = new Color(new RGBA(0, 255, 0, 255));
+	public static readonly cyan = new Color(new RGBA(0, 255, 255, 255));
+	public static readonly lightgrey = new Color(new RGBA(211, 211, 211, 255));
+	public static readonly transparent = new Color(new RGBA(0, 0, 0, 0));
 }

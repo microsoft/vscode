@@ -12,7 +12,7 @@ import uri from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IModel, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IModel, ICommonCodeEditor, EditorType } from 'vs/editor/common/editorCommon';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/platform';
@@ -399,11 +399,13 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 		const editor = this.editorService.getActiveEditor();
 		if (editor) {
 			const codeEditor = <ICommonCodeEditor>editor.getControl();
-			const model = codeEditor ? codeEditor.getModel() : undefined;
-			const language = model ? model.getLanguageIdentifier().language : undefined;
-			const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
-			if (adapters.length === 1) {
-				return TPromise.as(adapters[0]);
+			if (codeEditor && codeEditor.getEditorType() === EditorType.ICodeEditor) {
+				const model = codeEditor.getModel();
+				const language = model ? model.getLanguageIdentifier().language : undefined;
+				const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
+				if (adapters.length === 1) {
+					return TPromise.as(adapters[0]);
+				}
 			}
 		}
 
@@ -413,7 +415,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					return picked;
 				}
 				if (picked) {
-					this.commandService.executeCommand('debug.installMoreDebuggers');
+					this.commandService.executeCommand('debug.installAdditionalDebuggers');
 				}
 				return undefined;
 			});

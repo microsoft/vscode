@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
-Object.defineProperty(exports, "__esModule", { value: true });
 var path = require("path");
 var gulp = require("gulp");
 var sourcemaps = require("gulp-sourcemaps");
@@ -203,8 +202,13 @@ function uglifyWithCopyrights() {
     var input = es.through();
     var output = input
         .pipe(flatmap(function (stream, f) {
-        return stream
-            .pipe(uglify({ preserveComments: preserveComments(f) }));
+        return stream.pipe(uglify({
+            preserveComments: preserveComments(f),
+            output: {
+                // linux tfs build agent is crashing, does this help?§
+                max_line_len: 3200000
+            }
+        }));
     }));
     return es.duplex(input, output);
 }

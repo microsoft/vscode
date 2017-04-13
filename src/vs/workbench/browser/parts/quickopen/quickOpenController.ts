@@ -32,7 +32,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorInput, toResource, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { WorkbenchComponent } from 'vs/workbench/common/component';
+import { Component } from 'vs/workbench/common/component';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { KeyMod } from 'vs/base/common/keyCodes';
@@ -48,6 +48,10 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { SIDE_BAR_BACKGROUND } from "vs/workbench/common/theme";
+import { attachQuickOpenStyler } from "vs/platform/theme/common/styler";
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 const HELP_PREFIX = '?';
 
@@ -72,7 +76,7 @@ interface IInternalPickOptions {
 	onDidType?: (value: string) => any;
 }
 
-export class QuickOpenController extends WorkbenchComponent implements IQuickOpenService {
+export class QuickOpenController extends Component implements IQuickOpenService {
 
 	private static MAX_SHORT_RESPONSE_TIME = 500;
 
@@ -108,9 +112,10 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(QuickOpenController.ID);
+		super(QuickOpenController.ID, themeService);
 
 		this.mapResolvedHandlersToPrefix = {};
 		this.handlerOnOpenCalled = {};
@@ -286,6 +291,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				},
 				this.telemetryService
 			);
+			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND }));
 
 			const pickOpenContainer = this.pickOpenWidget.create();
 			this.toUnbind.push(this.listService.register(this.pickOpenWidget.getTree()));
@@ -318,15 +324,14 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 			this.pickOpenWidget.layout(this.layoutDimensions);
 		}
 
-		// Detect cancellation while pick promise is loading
-		let cancelTriggered = false;
-		this.pickOpenWidget.setCallbacks({
-			onOk: () => { /* ignore, handle later */ },
-			onCancel: () => { cancelTriggered = true; },
-			onType: (value: string) => { /* ignore, handle later */ },
-		});
-
 		return new TPromise<IPickOpenEntry | string>((complete, error, progress) => {
+
+			// Detect cancellation while pick promise is loading
+			this.pickOpenWidget.setCallbacks({
+				onCancel: () => { complete(void 0); },
+				onOk: () => { /* ignore, handle later */ },
+				onType: (value: string) => { /* ignore, handle later */ },
+			});
 
 			// hide widget when being cancelled
 			token.onCancellationRequested(e => {
@@ -339,7 +344,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			// Resolve picks
 			picksPromise.then(picks => {
-				if (this.currentPickerToken !== currentPickerToken || cancelTriggered) {
+				if (this.currentPickerToken !== currentPickerToken) {
 					return complete(void 0); // Return as canceled if another request came after or user canceled
 				}
 
@@ -548,6 +553,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 				},
 				this.telemetryService
 			);
+			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND }));
 
 			const quickOpenContainer = this.quickOpenWidget.create();
 			this.toUnbind.push(this.listService.register(this.quickOpenWidget.getTree()));
@@ -827,7 +833,7 @@ export class QuickOpenController extends WorkbenchComponent implements IQuickOpe
 
 			const entry = this.instantiationService.createInstance(EditorHistoryEntry, input);
 
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue);
+			const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(entry, searchValue);
 			entry.setHighlights(labelHighlights, descriptionHighlights);
 
 			results.push(entry);
@@ -1107,7 +1113,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@IModelService private modelService: IModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super(editorService);
 
@@ -1122,7 +1129,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
 			this.label = paths.basename(resourceInput.resource.fsPath);
-			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService);
+			this.description = labels.getPathLabel(paths.dirname(this.resource.fsPath), contextService, environmentService);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
 			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {

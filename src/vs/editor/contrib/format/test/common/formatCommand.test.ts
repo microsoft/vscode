@@ -292,4 +292,22 @@ suite('FormatCommand', () => {
 		);
 	});
 
+	test('issue #23765', () => {
+		testFormatCommand(
+			[
+				'	let a;'
+			],
+			new Selection(1, 1, 1, 1),
+			[
+				editOp(1, 1, 1, 2, [
+					''
+				])
+			],
+			[
+				'let a;'
+			],
+			new Selection(1, 1, 1, 1)
+		);
+	});
+
 });

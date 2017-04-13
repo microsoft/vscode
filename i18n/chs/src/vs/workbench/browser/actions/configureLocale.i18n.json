@@ -9,5 +9,5 @@
 	"displayLanguage": "定义 VSCode 的显示语言。",
 	"doc": "请参阅 {0}，了解支持的语言列表。",
 	"fail.createSettings": "无法创建“{0}”({1})。",
-	"restart": "要更改值需要重启 VSCode。"
+	"restart": "若要更改值，VSCode 需要重启。"
 }

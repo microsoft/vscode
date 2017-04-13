@@ -11,11 +11,12 @@ import types = require('vs/base/common/types');
 import { Builder } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/platform';
 import { Panel } from 'vs/workbench/browser/panel';
-import { EditorInput, IFileEditorInput, EditorOptions, IEditorDescriptor, IEditorInputFactory, IEditorRegistry, Extensions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorDescriptor, IEditorInputFactory, IEditorRegistry, Extensions, IFileInputFactory } from 'vs/workbench/common/editor';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -34,8 +35,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	private _options: EditorOptions;
 	private _position: Position;
 
-	constructor(id: string, telemetryService: ITelemetryService) {
-		super(id, telemetryService);
+	constructor(id: string, telemetryService: ITelemetryService, themeService: IThemeService) {
+		super(id, telemetryService, themeService);
 	}
 
 	public get input(): EditorInput {
@@ -159,7 +160,7 @@ const INPUT_DESCRIPTORS_PROPERTY = '__$inputDescriptors';
 class EditorRegistry implements IEditorRegistry {
 	private editors: EditorDescriptor[];
 	private instantiationService: IInstantiationService;
-	private defaultFileInputDescriptor: AsyncDescriptor<IFileEditorInput>;
+	private fileInputFactory: IFileInputFactory;
 	private editorInputFactoryConstructors: { [editorInputId: string]: IConstructorSignature0<IEditorInputFactory> } = Object.create(null);
 	private editorInputFactoryInstances: { [editorInputId: string]: IEditorInputFactory } = Object.create(null);
 
@@ -282,12 +283,12 @@ class EditorRegistry implements IEditorRegistry {
 		return inputClasses;
 	}
 
-	public registerDefaultFileInput(editorInputDescriptor: AsyncDescriptor<IFileEditorInput>): void {
-		this.defaultFileInputDescriptor = editorInputDescriptor;
+	public registerFileInputFactory(factory: IFileInputFactory): void {
+		this.fileInputFactory = factory;
 	}
 
-	public getDefaultFileInput(): AsyncDescriptor<IFileEditorInput> {
-		return this.defaultFileInputDescriptor;
+	public getFileInputFactory(): IFileInputFactory {
+		return this.fileInputFactory;
 	}
 
 	public registerEditorInputFactory(editorInputId: string, ctor: IConstructorSignature0<IEditorInputFactory>): void {

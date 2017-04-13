@@ -9,7 +9,6 @@ import nls = require('vs/nls');
 import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
 import * as path from 'path';
-import { isUUID } from 'vs/base/common/uuid';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { LinkedMap as Map } from 'vs/base/common/map';
@@ -444,13 +443,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.as(null);
 		}
 
-		// Workaround untill market place fixes the query by names with case insensitve ids.
-		let ids = this.installed
-			.filter(e => e.type === LocalExtensionType.User && !!e.local && !!e.local.metadata && !!e.local.metadata.id && isUUID(e.local.metadata.id))
-			.map(e => e.local.metadata.id);
-		ids = ids.length ? ids : void 0;
-
-		return this.queryGallery({ names, ids, pageSize: names.length }) as TPromise<any>;
+		return this.queryGallery({ names, pageSize: names.length }) as TPromise<any>;
 	}
 
 	private eventuallyAutoUpdateExtensions(): void {

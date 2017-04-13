@@ -15,8 +15,13 @@ import DOM = require('vs/base/browser/dom');
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { BoundedLinkedMap } from 'vs/base/common/map';
 
+
+interface MapExtToMediaMimes {
+	[index: string]: string;
+}
+
 // Known media mimes that we can handle
-const mapExtToMediaMimes = {
+const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.bmp': 'image/bmp',
 	'.gif': 'image/gif',
 	'.jpg': 'image/jpg',
@@ -106,8 +111,13 @@ export class ResourceViewer {
 
 	private static MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
 
-	public static show(descriptor: IResourceDescriptor, container: Builder, scrollbar: DomScrollableElement, metadataClb?: (meta: string) => void): void {
-
+	public static show(
+		descriptor: IResourceDescriptor,
+		container: Builder,
+		scrollbar: DomScrollableElement,
+		openExternal: (URI) => void,
+		metadataClb?: (meta: string) => void
+	): void {
 		// Ensure CSS class
 		$(container).setClass('monaco-resource-viewer');
 
@@ -123,29 +133,47 @@ export class ResourceViewer {
 		}
 
 		// Show Image inline
-		if (mime.indexOf('image/') >= 0 && descriptor.size <= ResourceViewer.MAX_IMAGE_SIZE) {
-			$(container)
-				.empty()
-				.addClass('image')
-				.img({ src: imageSrc(descriptor) })
-				.on(DOM.EventType.LOAD, (e, img) => {
-					const imgElement = <HTMLImageElement>img.getHTMLElement();
-					if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
-						$(container).addClass('oversized');
+		if (mime.indexOf('image/') >= 0) {
+			if (descriptor.size <= ResourceViewer.MAX_IMAGE_SIZE) {
+				$(container)
+					.empty()
+					.addClass('image')
+					.img({ src: imageSrc(descriptor) })
+					.on(DOM.EventType.LOAD, (e, img) => {
+						const imgElement = <HTMLImageElement>img.getHTMLElement();
+						if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
+							$(container).addClass('oversized');
 
-						img.on(DOM.EventType.CLICK, (e, img) => {
-							$(container).toggleClass('full-size');
+							img.on(DOM.EventType.CLICK, (e, img) => {
+								$(container).toggleClass('full-size');
 
-							scrollbar.scanDomNode();
-						});
-					}
+								scrollbar.scanDomNode();
+							});
+						}
 
-					if (metadataClb) {
-						metadataClb(nls.localize('imgMeta', "{0}x{1} {2}", imgElement.naturalWidth, imgElement.naturalHeight, ResourceViewer.formatSize(descriptor.size)));
-					}
+						if (metadataClb) {
+							metadataClb(nls.localize('imgMeta', "{0}x{1} {2}", imgElement.naturalWidth, imgElement.naturalHeight, ResourceViewer.formatSize(descriptor.size)));
+						}
 
-					scrollbar.scanDomNode();
-				});
+						scrollbar.scanDomNode();
+					});
+			} else {
+				$(container)
+					.empty()
+					.p({
+						text: nls.localize('largeImageError', "The image is too large to display in the editor. ")
+					})
+					.append($('a', {
+						role: 'button',
+						class: 'open-external',
+						text: nls.localize('resourceOpenExternalButton', "Open image")
+					}).on(DOM.EventType.CLICK, (e) => {
+						openExternal(descriptor.resource);
+					}))
+					.append($('span', {
+						text: nls.localize('resourceOpenExternalText', ' using external program?')
+					}));
+			}
 		}
 
 		// Handle generic Binary Files

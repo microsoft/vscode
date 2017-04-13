@@ -35,7 +35,6 @@ export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	isExtensionTestHost?: boolean;
-	titleBarStyle?: 'native' | 'custom';
 }
 
 export enum WindowMode {
@@ -81,6 +80,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	fullscreen?: boolean;
 	highContrast?: boolean;
 	baseTheme?: string;
+	backgroundColor?: string;
 	accessibilitySupport?: boolean;
 
 	isInitialStartup?: boolean;
@@ -130,6 +130,7 @@ interface IConfiguration {
 export class VSCodeWindow {
 
 	public static themeStorageKey = 'theme';
+	public static themeBackgroundStorageKey = 'themeBackground';
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
@@ -171,11 +172,6 @@ export class VSCodeWindow {
 		// Load window state
 		this.restoreWindowState(config.state);
 
-		// For VS theme we can show directly because background is white
-		const baseTheme = this.getBaseTheme();
-		const usesLightTheme = 'vs' === baseTheme;
-		const usesHighContrastTheme = 'hc-black' === baseTheme || (platform.isWindows && systemPreferences.isInvertedColorScheme());
-
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
 
@@ -184,13 +180,14 @@ export class VSCodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: usesHighContrastTheme ? '#000000' : usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
+			backgroundColor: this.getBackgroundColor(),
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
 			title: product.nameLong,
 			webPreferences: {
-				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
+				'backgroundThrottling': false, // by default if Code is in the background, intervals and timeouts get throttled,
+				disableBlinkFeatures: 'Auxclick' // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
 			}
 		};
 
@@ -198,12 +195,24 @@ export class VSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+
+		let useNativeTabs = false;
+		if (windowConfig && windowConfig.nativeTabs) {
+			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
+			useNativeTabs = true;
+		}
+
 		let useCustomTitleStyle = false;
-		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom')) {
+		if (platform.isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom')) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isDev) {
 				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
+		}
+
+		if (useNativeTabs) {
+			useCustomTitleStyle = false; // native tabs on sierra do not work with custom title style
 		}
 
 		if (useCustomTitleStyle) {
@@ -217,6 +226,15 @@ export class VSCodeWindow {
 
 		if (useCustomTitleStyle) {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
+		}
+
+		// Set relaunch command
+		if (platform.isWindows && product.win32AppUserModelId && typeof this._win.setAppDetails === 'function') {
+			this._win.setAppDetails({
+				appId: product.win32AppUserModelId,
+				relaunchCommand: `"${process.execPath}" -n`,
+				relaunchDisplayName: product.nameLong
+			});
 		}
 
 		if (isFullscreenOrMaximized) {
@@ -458,7 +476,8 @@ export class VSCodeWindow {
 		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
-		if (!this.environmentService.isBuilt) {
+		// Only do this when running out of sources and not when running tests
+		if (!this.environmentService.isBuilt && !this.environmentService.extensionTestsPath) {
 			this.showTimeoutHandle = setTimeout(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
@@ -518,6 +537,7 @@ export class VSCodeWindow {
 
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
+		windowConfiguration.backgroundColor = this.getBackgroundColor();
 
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;
@@ -539,8 +559,25 @@ export class VSCodeWindow {
 	}
 
 	private getBaseTheme(): string {
+		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+			return 'hc-black';
+		}
 		const theme = this.storageService.getItem<string>(VSCodeWindow.themeStorageKey, 'vs-dark');
 		return theme.split(' ')[0];
+	}
+
+	private getBackgroundColor(): string {
+		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+			return '#000000';
+		}
+
+		let background = this.storageService.getItem<string>(VSCodeWindow.themeBackgroundStorageKey, null);
+		if (!background) {
+			let baseTheme = this.getBaseTheme();
+			return baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : (platform.isMacintosh ? '#171717' : '#1E1E1E')); // https://github.com/electron/electron/issues/5150
+		}
+
+		return background;
 	}
 
 	public serializeWindowState(): IWindowState {

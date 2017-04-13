@@ -17,16 +17,24 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { Color } from 'vs/base/common/color';
+import { mixin } from "vs/base/common/objects";
 
 const $ = dom.$;
 
-export interface IInputOptions {
+export interface IInputOptions extends IInputBoxStyles {
 	placeholder?: string;
 	ariaLabel?: string;
 	type?: string;
 	validationOptions?: IInputValidationOptions;
 	flexibleHeight?: boolean;
 	actions?: IAction[];
+}
+
+export interface IInputBoxStyles {
+	inputBackground?: Color;
+	inputForeground?: Color;
+	inputBorder?: Color;
 }
 
 export interface IInputValidator {
@@ -55,6 +63,11 @@ export interface IRange {
 	end: number;
 }
 
+const defaultOpts = {
+	inputBackground: Color.fromHex('#3C3C3C'),
+	inputForeground: Color.fromHex('#CCCCCC')
+};
+
 export class InputBox extends Widget {
 	private contextViewProvider: IContextViewProvider;
 	private element: HTMLElement;
@@ -70,6 +83,10 @@ export class InputBox extends Widget {
 	private state = 'idle';
 	private cachedHeight: number;
 
+	private inputBackground: Color;
+	private inputForeground: Color;
+	private inputBorder: Color;
+
 	private _onDidChange = this._register(new Emitter<string>());
 	public onDidChange: Event<string> = this._onDidChange.event;
 
@@ -81,10 +98,14 @@ export class InputBox extends Widget {
 
 		this.contextViewProvider = contextViewProvider;
 		this.options = options || Object.create(null);
+		mixin(this.options, defaultOpts, false);
 		this.message = null;
 		this.cachedHeight = null;
 		this.placeholder = this.options.placeholder || '';
 		this.ariaLabel = this.options.ariaLabel || '';
+		this.inputBackground = this.options.inputBackground;
+		this.inputForeground = this.options.inputForeground;
+		this.inputBorder = this.options.inputBorder;
 
 		if (this.options.validationOptions) {
 			this.validation = this.options.validationOptions.validation;
@@ -139,6 +160,8 @@ export class InputBox extends Widget {
 			this.actionbar = this._register(new ActionBar(this.element));
 			this.actionbar.push(this.options.actions, { icon: true, label: false });
 		}
+
+		this._applyStyles();
 	}
 
 	private onBlur(): void {
@@ -370,6 +393,31 @@ export class InputBox extends Widget {
 		let suffix = lastCharCode === 10 ? ' ' : '';
 		this.mirror.textContent = value + suffix;
 		this.layout();
+	}
+
+	public style(styles: IInputBoxStyles) {
+		this.inputBackground = styles.inputBackground;
+		this.inputForeground = styles.inputForeground;
+		this.inputBorder = styles.inputBorder;
+
+		this._applyStyles();
+	}
+
+	protected _applyStyles() {
+		if (this.element) {
+			const background = this.inputBackground ? this.inputBackground.toString() : null;
+			const foreground = this.inputForeground ? this.inputForeground.toString() : null;
+			const border = this.inputBorder ? this.inputBorder.toString() : null;
+
+			this.element.style.backgroundColor = background;
+			this.element.style.color = foreground;
+			this.input.style.backgroundColor = background;
+			this.input.style.color = foreground;
+
+			this.element.style.borderWidth = border ? '1px' : null;
+			this.element.style.borderStyle = border ? 'solid' : null;
+			this.element.style.borderColor = border;
+		}
 	}
 
 	public layout(): void {

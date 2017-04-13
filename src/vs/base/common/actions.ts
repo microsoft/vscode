@@ -226,10 +226,14 @@ export class ActionRunner extends EventEmitter implements IActionRunner {
 
 		this.emit(Events.EventType.BEFORE_RUN, { action: action });
 
-		return TPromise.as(action.run(context)).then((result: any) => {
+		return this.runAction(action, context).then((result: any) => {
 			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, result: result });
 		}, (error: any) => {
 			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, error: error });
 		});
+	}
+
+	protected runAction(action: IAction, context?: any): TPromise<any> {
+		return TPromise.as(context ? action.run(context) : action.run());
 	}
 }

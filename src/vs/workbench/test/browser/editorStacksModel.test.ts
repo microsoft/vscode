@@ -145,8 +145,6 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 		return other && this.id === other.id && other instanceof TestFileEditorInput;
 	}
 
-	public setResource(r: URI): void {
-	}
 
 	public setEncoding(encoding: string) {
 	}
@@ -160,6 +158,9 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
 	public getResource(): URI {
 		return this.resource;
+	}
+
+	public setForceOpenAsBinary(): void {
 	}
 }
 
@@ -1461,14 +1462,20 @@ suite('Editor Stacks Model', () => {
 		model.setActive(group1);
 		group1.setActive(input1);
 
-		let previous = model.previous(true /* jump groups */);
+		let previous = model.previous(true, false /* jump groups, do NOT cycle at start*/);
+		assert.equal(previous, null);
+
+		previous = model.previous(true /* jump groups */);
 		assert.equal(previous.group, group2);
 		assert.equal(previous.editor, input6);
 
 		model.setActive(<EditorGroup>previous.group);
 		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
 
-		let next = model.next(true /* jump groups */);
+		let next = model.next(true, false /* jump groups, do NOT cycle at end */);
+		assert.equal(next, null);
+
+		next = model.next(true /* jump groups */);
 		assert.equal(next.group, group1);
 		assert.equal(next.editor, input1);
 
@@ -1512,14 +1519,20 @@ suite('Editor Stacks Model', () => {
 		model.setActive(group1);
 		group1.setActive(input1);
 
-		let previous = model.previous(false /* do NOT jump groups */);
+		let previous = model.previous(false, false /* do NOT jump groups, do NOT cycle at start*/);
+		assert.equal(previous, null);
+
+		previous = model.previous(false /* do NOT jump groups */);
 		assert.equal(previous.group, group1);
 		assert.equal(previous.editor, input3);
 
 		model.setActive(<EditorGroup>previous.group);
 		(<EditorGroup>previous.group).setActive(<EditorInput>previous.editor);
 
-		let next = model.next(false /* do NOT jump groups */);
+		let next = model.next(false, false /* do NOT jump groups, do NOT cycle at end */);
+		assert.equal(next, null);
+
+		next = model.next(false /* do NOT jump groups */);
 		assert.equal(next.group, group1);
 		assert.equal(next.editor, input1);
 
@@ -1547,13 +1560,18 @@ suite('Editor Stacks Model', () => {
 		assert.ok(!model.isOpen(URI.file('/hello/world.txt')));
 
 		const input1Resource = URI.file('/hello/world.txt');
+		const input1ResourceUpper = URI.file('/hello/WORLD.txt');
 		const input1 = input(void 0, false, input1Resource);
 		group1.openEditor(input1);
 
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(group1.contains(input1Resource));
-		assert.equal(model.count(input1Resource), 1);
+		assert.equal(model.count(input1), 1);
 		assert.equal(group1.getEditor(input1Resource), input1);
+
+		assert.ok(!group1.getEditor(input1ResourceUpper));
+		assert.ok(!model.isOpen(input1ResourceUpper));
+		assert.ok(!group1.contains(input1ResourceUpper));
 
 		group2.openEditor(input1);
 		group1.closeEditor(input1);
@@ -1561,9 +1579,10 @@ suite('Editor Stacks Model', () => {
 		assert.ok(model.isOpen(input1Resource));
 		assert.ok(!group1.contains(input1Resource));
 		assert.ok(!group1.getEditor(input1Resource));
+		assert.ok(!group1.getEditor(input1ResourceUpper));
 		assert.ok(group2.contains(input1Resource));
 		assert.equal(group2.getEditor(input1Resource), input1);
-		assert.equal(model.count(input1Resource), 1);
+		assert.equal(model.count(input1), 1);
 
 		const input1ResourceClone = URI.file('/hello/world.txt');
 		const input1Clone = input(void 0, false, input1ResourceClone);
@@ -1709,6 +1728,72 @@ suite('Editor Stacks Model', () => {
 		assert.equal(diffInput.isDisposed(), true);
 		assert.equal(input2.isDisposed(), true);
 		assert.equal(input1.isDisposed(), false);
+	});
+
+	test('Stack - Multiple Editors - Editor Disposed on Close (same input, files)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input(void 0, void 0, URI.file('/hello/world.txt'));
+
+		group1.openEditor(input1, { pinned: true, active: true });
+		group2.openEditor(input1, { pinned: true, active: true });
+
+		group2.closeEditor(input1);
+		assert.equal(input1.isDisposed(), false);
+
+		group1.closeEditor(input1);
+		assert.equal(input1.isDisposed(), true);
+	});
+
+	test('Stack - Multiple Editors - Editor Disposed on Close (same input, files, diff)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input(void 0, void 0, URI.file('/hello/world.txt'));
+		const input2 = input(void 0, void 0, URI.file('/hello/world_other.txt'));
+
+		const diffInput = new DiffEditorInput('name', 'description', input2, input1);
+
+		group1.openEditor(input1, { pinned: true, active: true });
+		group2.openEditor(diffInput, { pinned: true, active: true });
+
+		group1.closeEditor(input1);
+		assert.equal(input1.isDisposed(), false);
+		assert.equal(input2.isDisposed(), false);
+		assert.equal(diffInput.isDisposed(), false);
+
+		group2.closeEditor(diffInput);
+		assert.equal(input1.isDisposed(), true);
+		assert.equal(input2.isDisposed(), true);
+		assert.equal(diffInput.isDisposed(), true);
+	});
+
+	test('Stack - Multiple Editors - Editor Disposed on Close (same input, files, diff, close diff)', function () {
+		const model = create();
+
+		const group1 = model.openGroup('group1');
+		const group2 = model.openGroup('group2');
+
+		const input1 = input(void 0, void 0, URI.file('/hello/world.txt'));
+		const input2 = input(void 0, void 0, URI.file('/hello/world_other.txt'));
+
+		const diffInput = new DiffEditorInput('name', 'description', input2, input1);
+
+		group1.openEditor(input1, { pinned: true, active: true });
+		group2.openEditor(diffInput, { pinned: true, active: true });
+
+		group2.closeEditor(diffInput);
+		assert.equal(input1.isDisposed(), false);
+		assert.equal(input2.isDisposed(), true);
+		assert.equal(diffInput.isDisposed(), true);
+
+		group1.closeEditor(input1);
+		assert.equal(input1.isDisposed(), true);
 	});
 
 	test('Stack - Multiple Editors - Editor Emits Dirty and Label Changed', function () {

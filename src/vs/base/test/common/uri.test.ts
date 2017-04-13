@@ -7,6 +7,8 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { normalize } from 'vs/base/common/paths';
+import { isWindows } from 'vs/base/common/platform';
+
 
 suite('URI', () => {
 	test('file#toString', () => {
@@ -14,18 +16,36 @@ suite('URI', () => {
 		assert.equal(URI.file('C:/win/path').toString(), 'file:///c%3A/win/path');
 		assert.equal(URI.file('c:/win/path/').toString(), 'file:///c%3A/win/path/');
 		assert.equal(URI.file('/c:/win/path').toString(), 'file:///c%3A/win/path');
-		assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c%3A/win/path');
-		assert.equal(URI.file('c:\\win/path').toString(), 'file:///c%3A/win/path');
 	});
 
-	test('file#path', () => {
-		assert.equal(URI.file('c:/win/path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
-		assert.equal(URI.file('c:/win/path/').fsPath.replace(/\\/g, '/'), 'c:/win/path/');
-		assert.equal(URI.file('C:/win/path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
-		assert.equal(URI.file('/c:/win/path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
-		assert.equal(URI.file('./c/win/path').fsPath.replace(/\\/g, '/'), '/./c/win/path');
-		assert.equal(URI.file('c:\\win\\path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
-		assert.equal(URI.file('c:\\win/path').fsPath.replace(/\\/g, '/'), 'c:/win/path');
+	test('URI.file (win-special)', () => {
+		if (isWindows) {
+			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c%3A/win/path');
+			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c%3A/win/path');
+		} else {
+			assert.equal(URI.file('c:\\win\\path').toString(), 'file:///c%3A%5Cwin%5Cpath');
+			assert.equal(URI.file('c:\\win/path').toString(), 'file:///c%3A%5Cwin/path');
+
+		}
+	});
+
+	test('file#fsPath (win-special)', () => {
+		if (isWindows) {
+			assert.equal(URI.file('c:\\win\\path').fsPath, 'c:\\win\\path');
+			assert.equal(URI.file('c:\\win/path').fsPath, 'c:\\win\\path');
+
+			assert.equal(URI.file('c:/win/path').fsPath, 'c:\\win\\path');
+			assert.equal(URI.file('c:/win/path/').fsPath, 'c:\\win\\path\\');
+			assert.equal(URI.file('C:/win/path').fsPath, 'c:\\win\\path');
+			assert.equal(URI.file('/c:/win/path').fsPath, 'c:\\win\\path');
+			assert.equal(URI.file('./c/win/path').fsPath, '\\.\\c\\win\\path');
+		} else {
+			assert.equal(URI.file('c:/win/path').fsPath, 'c:/win/path');
+			assert.equal(URI.file('c:/win/path/').fsPath, 'c:/win/path/');
+			assert.equal(URI.file('C:/win/path').fsPath, 'c:/win/path');
+			assert.equal(URI.file('/c:/win/path').fsPath, 'c:/win/path');
+			assert.equal(URI.file('./c/win/path').fsPath, '/./c/win/path');
+		}
 	});
 
 	test('URI#fsPath - no `fsPath` when no `path`', () => {
@@ -244,67 +264,59 @@ suite('URI', () => {
 		assert.throws(() => URI.parse('file:////shares/files/p.cs'));
 	});
 
-	test('URI#file', () => {
+	test('URI#file, win-speciale', () => {
+		if (isWindows) {
+			var value = URI.file('c:\\test\\drive');
+			assert.equal(value.path, '/c:/test/drive');
+			assert.equal(value.toString(), 'file:///c%3A/test/drive');
 
-		var value = URI.file('\\\\shäres\\path\\c#\\plugin.json');
-		assert.equal(value.scheme, 'file');
-		assert.equal(value.authority, 'shäres');
-		assert.equal(value.path, '/path/c#/plugin.json');
-		assert.equal(value.fragment, '');
-		assert.equal(value.query, '');
-		assert.equal(value.toString(), 'file://sh%C3%A4res/path/c%23/plugin.json');
+			value = URI.file('\\\\shäres\\path\\c#\\plugin.json');
+			assert.equal(value.scheme, 'file');
+			assert.equal(value.authority, 'shäres');
+			assert.equal(value.path, '/path/c#/plugin.json');
+			assert.equal(value.fragment, '');
+			assert.equal(value.query, '');
+			assert.equal(value.toString(), 'file://sh%C3%A4res/path/c%23/plugin.json');
 
-		// identity toString -> parse -> toString
-		value = URI.parse(value.toString());
-		assert.equal(value.scheme, 'file');
-		assert.equal(value.authority, 'shäres');
-		assert.equal(value.path, '/path/c#/plugin.json');
-		assert.equal(value.fragment, '');
-		assert.equal(value.query, '');
-		assert.equal(value.toString(), 'file://sh%C3%A4res/path/c%23/plugin.json');
+			value = URI.file('\\\\localhost\\c$\\GitDevelopment\\express');
+			assert.equal(value.scheme, 'file');
+			assert.equal(value.path, '/c$/GitDevelopment/express');
+			assert.equal(value.fsPath, '\\\\localhost\\c$\\GitDevelopment\\express');
+			assert.equal(value.query, '');
+			assert.equal(value.fragment, '');
+			assert.equal(value.toString(), 'file://localhost/c%24/GitDevelopment/express');
 
-		value = URI.file('\\\\localhost\\c$\\GitDevelopment\\express');
-		assert.equal(value.scheme, 'file');
-		assert.equal(value.path, '/c$/GitDevelopment/express');
-		assert.equal(value.fsPath, normalize('//localhost/c$/GitDevelopment/express', true));
-		assert.equal(value.query, '');
-		assert.equal(value.fragment, '');
-		assert.equal(value.toString(), 'file://localhost/c%24/GitDevelopment/express');
+			value = URI.file('c:\\test with %\\path');
+			assert.equal(value.path, '/c:/test with %/path');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/path');
 
-		value = URI.file('c:\\test with %\\path');
-		assert.equal(value.path, '/c:/test with %/path');
-		assert.equal(value.toString(), 'file:///c%3A/test%20with%20%25/path');
+			value = URI.file('c:\\test with %25\\path');
+			assert.equal(value.path, '/c:/test with %25/path');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/path');
 
-		value = URI.file('c:\\test with %25\\path');
-		assert.equal(value.path, '/c:/test with %25/path');
-		assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/path');
+			value = URI.file('c:\\test with %25\\c#code');
+			assert.equal(value.path, '/c:/test with %25/c#code');
+			assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/c%23code');
 
-		value = URI.file('c:\\test with %25\\c#code');
-		assert.equal(value.path, '/c:/test with %25/c#code');
-		assert.equal(value.toString(), 'file:///c%3A/test%20with%20%2525/c%23code');
+			value = URI.file('\\\\shares');
+			assert.equal(value.scheme, 'file');
+			assert.equal(value.authority, 'shares');
+			assert.equal(value.path, '/'); // slash is always there
 
-		value = URI.file('\\\\shares');
-		assert.equal(value.scheme, 'file');
-		assert.equal(value.authority, 'shares');
-		assert.equal(value.path, '/'); // slash is always there
+			value = URI.file('\\\\shares\\');
+			assert.equal(value.scheme, 'file');
+			assert.equal(value.authority, 'shares');
+			assert.equal(value.path, '/');
+		}
+	});
 
-		value = URI.file('\\\\shares\\');
-		assert.equal(value.scheme, 'file');
-		assert.equal(value.authority, 'shares');
-		assert.equal(value.path, '/');
+	test('URI#file, no path-is-uri check', () => {
 
 		// we don't complain here
-		value = URI.file('file://path/to/file');
+		let value = URI.file('file://path/to/file');
 		assert.equal(value.scheme, 'file');
 		assert.equal(value.authority, '');
 		assert.equal(value.path, '/file://path/to/file');
-	});
-
-	test('URI#file, auto-slash windows drive letter', () => {
-
-		var value = URI.file('c:\\test\\drive');
-		assert.equal(value.path, '/c:/test/drive');
-		assert.equal(value.toString(), 'file:///c%3A/test/drive');
 	});
 
 	test('URI#file, always slash', () => {

@@ -8,17 +8,21 @@ import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Event from 'vs/base/common/event';
 
+export interface ILocalizedString {
+	value: string;
+	original: string;
+}
+
 export interface ICommandAction {
 	id: string;
-	title: string;
-	alias?: string;
-	category?: string;
+	title: string | ILocalizedString;
+	category?: string | ILocalizedString;
 	iconClass?: string;
 }
 
@@ -56,9 +60,14 @@ export class MenuId {
 	}
 }
 
+export interface IMenuActionOptions {
+	arg?: any;
+	shouldForwardArgs?: boolean;
+}
+
 export interface IMenu extends IDisposable {
 	onDidChange: Event<IMenu>;
-	getActions(arg?: any): [string, MenuItemAction[]][];
+	getActions(options?: IMenuActionOptions): [string, MenuItemAction[]][];
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -154,7 +163,7 @@ export class ExecuteCommandAction extends Action {
 
 export class MenuItemAction extends ExecuteCommandAction {
 
-	private _arg: any;
+	private _options: IMenuActionOptions;
 
 	readonly item: ICommandAction;
 	readonly alt: MenuItemAction;
@@ -162,20 +171,30 @@ export class MenuItemAction extends ExecuteCommandAction {
 	constructor(
 		item: ICommandAction,
 		alt: ICommandAction,
-		arg: any,
+		options: IMenuActionOptions,
 		@ICommandService commandService: ICommandService
 	) {
-		super(item.id, item.title, commandService);
+		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
 		this._cssClass = item.iconClass;
 		this._enabled = true;
-		this._arg = arg;
+		this._options = options || {};
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, arg, commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, commandService) : undefined;
 	}
 
-	run(): TPromise<any> {
-		return super.run(this._arg);
+	run(...args: any[]): TPromise<any> {
+		let runArgs = [];
+
+		if (this._options.arg) {
+			runArgs = [...runArgs, this._options.arg];
+		}
+
+		if (this._options.shouldForwardArgs) {
+			runArgs = [...runArgs, ...args];
+		}
+
+		return super.run(...runArgs);
 	}
 }
 

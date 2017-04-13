@@ -83,7 +83,7 @@ export function extract(zipPath: string, targetPath: string, options: IExtractOp
 	let promise = nfcall<ZipFile>(openZip, zipPath);
 
 	if (options.overwrite) {
-		promise = promise.then(zipfile => { rimraf(targetPath); return zipfile; });
+		promise = promise.then(zipfile => rimraf(targetPath).then(() => zipfile));
 	}
 
 	return promise.then(zipfile => extractZip(zipfile, targetPath, { sourcePathRegex }));

@@ -145,7 +145,7 @@ export class ViewCursor {
 			}
 			let width: number;
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
-				width = this._isSecondary ? 1 : 2;
+				width = 2;
 			} else {
 				width = 1;
 			}

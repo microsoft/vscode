@@ -190,7 +190,7 @@ class InternalEditorOptionsHelper {
 			pixelRatio: pixelRatio
 		});
 
-		let bareWrappingInfo: { isViewportWrapping: boolean; wrappingColumn: number; } = null;
+		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } = null;
 		{
 			let wordWrap = opts.wordWrap;
 			let wordWrapColumn = toInteger(opts.wordWrapColumn, 1);
@@ -206,26 +206,31 @@ class InternalEditorOptionsHelper {
 			if (wordWrapMinified && isDominatedByLongLines) {
 				// Force viewport width wrapping if model is dominated by long lines
 				bareWrappingInfo = {
+					isWordWrapMinified: true,
 					isViewportWrapping: true,
 					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
 				};
 			} else if (wordWrap === 'on') {
 				bareWrappingInfo = {
+					isWordWrapMinified: false,
 					isViewportWrapping: true,
 					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
 				};
 			} else if (wordWrap === 'bounded') {
 				bareWrappingInfo = {
+					isWordWrapMinified: false,
 					isViewportWrapping: true,
 					wrappingColumn: Math.min(Math.max(1, layoutInfo.viewportColumn), wordWrapColumn)
 				};
 			} else if (wordWrap === 'wordWrapColumn') {
 				bareWrappingInfo = {
+					isWordWrapMinified: false,
 					isViewportWrapping: false,
 					wrappingColumn: wordWrapColumn
 				};
 			} else {
 				bareWrappingInfo = {
+					isWordWrapMinified: false,
 					isViewportWrapping: false,
 					wrappingColumn: -1
 				};
@@ -233,6 +238,9 @@ class InternalEditorOptionsHelper {
 		}
 
 		let wrappingInfo = new editorCommon.EditorWrappingInfo({
+			inDiffEditor: Boolean(opts.inDiffEditor),
+			isDominatedByLongLines: isDominatedByLongLines,
+			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
 			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
 			wrappingColumn: bareWrappingInfo.wrappingColumn,
 			wrappingIndent: wrappingIndentFromString(opts.wrappingIndent),
@@ -290,6 +298,7 @@ class InternalEditorOptionsHelper {
 			stopRenderingLineAfter: stopRenderingLineAfter,
 			renderWhitespace: renderWhitespace,
 			renderControlCharacters: toBoolean(opts.renderControlCharacters),
+			fontLigatures: toBoolean(opts.fontLigatures),
 			renderIndentGuides: toBoolean(opts.renderIndentGuides),
 			renderLineHighlight: renderLineHighlight,
 			scrollbar: scrollbar,
@@ -301,7 +310,7 @@ class InternalEditorOptionsHelper {
 			selectionClipboard: toBoolean(opts.selectionClipboard),
 			hover: toBoolean(opts.hover),
 			contextmenu: toBoolean(opts.contextmenu),
-			quickSuggestions: toBoolean(opts.quickSuggestions),
+			quickSuggestions: typeof opts.quickSuggestions === 'object' ? { other: true, ...opts.quickSuggestions } : toBoolean(opts.quickSuggestions),
 			quickSuggestionsDelay: toInteger(opts.quickSuggestionsDelay),
 			parameterHints: toBoolean(opts.parameterHints),
 			iconsInSuggestions: toBoolean(opts.iconsInSuggestions),
@@ -699,17 +708,40 @@ const editorConfiguration: IConfigurationNode = {
 			'enumDescriptions': [
 				nls.localize('wordWrap.off', "Lines will never wrap."),
 				nls.localize('wordWrap.on', "Lines will wrap at the viewport width."),
-				nls.localize('wordWrap.wordWrapColumn', "Lines will wrap at `editor.wordWrapColumn`."),
-				nls.localize('wordWrap.bounded', "Lines will wrap at the minimum of viewport and `editor.wordWrapColumn`."),
+				nls.localize({
+					key: 'wordWrap.wordWrapColumn',
+					comment: [
+						'- `editor.wordWrapColumn` refers to a different setting and should not be localized.'
+					]
+				}, "Lines will wrap at `editor.wordWrapColumn`."),
+				nls.localize({
+					key: 'wordWrap.bounded',
+					comment: [
+						'- viewport means the edge of the visible window size.',
+						'- `editor.wordWrapColumn` refers to a different setting and should not be localized.'
+					]
+				}, "Lines will wrap at the minimum of viewport and `editor.wordWrapColumn`."),
 			],
 			'default': DefaultConfig.editor.wordWrap,
-			'description': nls.localize('wordWrap', "Controls how lines should wrap. Can be:\n - 'off' (disable wrapping),\n - 'on' (viewport wrapping),\n - 'wordWrapColumn' (wrap at `editor.wordWrapColumn`) or\n - 'bounded' (wrap at minimum of viewport and `editor.wordWrapColumn`).")
+			'description': nls.localize({
+				key: 'wordWrap',
+				comment: [
+					'- \'off\', \'on\', \'wordWrapColumn\' and \'bounded\' refer to values the setting can take and should not be localized.',
+					'- `editor.wordWrapColumn` refers to a different setting and should not be localized.'
+				]
+			}, "Controls how lines should wrap. Can be:\n - 'off' (disable wrapping),\n - 'on' (viewport wrapping),\n - 'wordWrapColumn' (wrap at `editor.wordWrapColumn`) or\n - 'bounded' (wrap at minimum of viewport and `editor.wordWrapColumn`).")
 		},
 		'editor.wordWrapColumn': {
 			'type': 'integer',
 			'default': DefaultConfig.editor.wordWrapColumn,
 			'minimum': 1,
-			'description': nls.localize('wordWrapColumn', "Controls the wrapping column of the editor when `editor.wordWrap` is 'wordWrapColumn' or 'bounded'.")
+			'description': nls.localize({
+				key: 'wordWrapColumn',
+				comment: [
+					'- `editor.wordWrap` refers to a different setting and should not be localized.',
+					'- \'wordWrapColumn\' and \'bounded\' refer to values the different setting can take and should not be localized.'
+				]
+			}, "Controls the wrapping column of the editor when `editor.wordWrap` is 'wordWrapColumn' or 'bounded'.")
 		},
 		'editor.wrappingIndent': {
 			'type': 'string',
@@ -723,9 +755,33 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events")
 		},
 		'editor.quickSuggestions': {
-			'type': 'boolean',
+			'anyOf': [
+				{
+					type: 'boolean',
+				},
+				{
+					type: 'object',
+					properties: {
+						strings: {
+							type: 'boolean',
+							default: false,
+							description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
+						},
+						comments: {
+							type: 'boolean',
+							default: false,
+							description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
+						},
+						other: {
+							type: 'boolean',
+							default: true,
+							description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
+						},
+					}
+				}
+			],
 			'default': DefaultConfig.editor.quickSuggestions,
-			'description': nls.localize('quickSuggestions', "Controls if quick suggestions should show up or not while typing")
+			'description': nls.localize('quickSuggestions', "Controls if suggestions should automatically show up while typing")
 		},
 		'editor.quickSuggestionsDelay': {
 			'type': 'integer',
@@ -780,28 +836,9 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
 		'editor.wordBasedSuggestions': {
-			'anyOf': [
-				'boolean',
-				{
-					type: 'object',
-					properties: {
-						strings: {
-							type: 'boolean',
-							description: nls.localize('wordBasedSuggestions.strings', "Enable word based suggestions inside strings.")
-						},
-						comments: {
-							type: 'boolean',
-							description: nls.localize('wordBasedSuggestions.comments', "Enable word based suggestions inside comments.")
-						},
-						default: {
-							type: 'boolean',
-							description: nls.localize('wordBasedSuggestions.default', "Enable word based suggestions outside of strings and comments.")
-						},
-					}
-				}
-			],
+			'type': 'boolean',
 			'default': DefaultConfig.editor.wordBasedSuggestions,
-			'description': nls.localize('wordBasedSuggestions', "Enable word based suggestions.")
+			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
 		'editor.suggestFontSize': {
 			'type': 'integer',

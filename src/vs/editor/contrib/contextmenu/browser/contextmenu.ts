@@ -126,7 +126,7 @@ export class ContextMenuController implements IEditorContribution {
 		const result: IAction[] = [];
 
 		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
-		const groups = contextMenu.getActions(this._editor.getModel().uri);
+		const groups = contextMenu.getActions({ arg: this._editor.getModel().uri });
 		contextMenu.dispose();
 
 		for (let group of groups) {

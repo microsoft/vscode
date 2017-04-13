@@ -46,7 +46,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	private _findWidgetVisible: IContextKey<boolean>;
 	protected _state: FindReplaceState;
 	private _currentHistoryNavigator: HistoryNavigator<string>;
-	private _updateHistoryDelayer: Delayer<void>;
+	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel;
 
 	public static get(editor: editorCommon.ICommonCodeEditor): CommonFindController {
@@ -525,7 +525,7 @@ function multiCursorFind(editor: editorCommon.ICommonCodeEditor, input: IMultiCu
 			searchText = word.word;
 			currentMatch = new Selection(s.startLineNumber, word.startColumn, s.startLineNumber, word.endColumn);
 		} else {
-			searchText = editor.getModel().getValueInRange(s);
+			searchText = editor.getModel().getValueInRange(s).replace(/\r\n/g, '\n');
 		}
 		if (input.changeFindSearchString) {
 			controller.setSearchString(searchText);
@@ -876,13 +876,16 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	}
 
 	private _update(): void {
-		let model = this.editor.getModel();
+		const model = this.editor.getModel();
 		if (!model) {
 			return;
 		}
 
+		const config = this.editor.getConfiguration();
+
 		this.lastWordUnderCursor = null;
-		if (!this.editor.getConfiguration().contribInfo.selectionHighlight) {
+		if (!config.contribInfo.selectionHighlight) {
+			this.removeDecorations();
 			return;
 		}
 
@@ -901,6 +904,11 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			// This is an empty selection
 			if (hasFindOccurences) {
 				// Do not interfere with semantic word highlighting in the no selection case
+				this.removeDecorations();
+				return;
+			}
+
+			if (!config.contribInfo.occurrencesHighlight) {
 				this.removeDecorations();
 				return;
 			}

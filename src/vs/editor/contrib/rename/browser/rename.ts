@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -16,13 +16,65 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IRange, ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IRange, ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { BulkEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { rename } from '../common/rename';
 import RenameInputField from './renameInputField';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { IThemeService } from "vs/platform/theme/common/themeService";
+import { sequence, asWinJsPromise } from 'vs/base/common/async';
+import { WorkspaceEdit, RenameProviderRegistry } from 'vs/editor/common/modes';
+import { Position } from 'vs/editor/common/core/position';
+
+export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
+
+	const supports = RenameProviderRegistry.ordered(model);
+	const rejects: string[] = [];
+	let hasResult = false;
+
+	const factory = supports.map(support => {
+		return () => {
+			if (!hasResult) {
+				return asWinJsPromise((token) => {
+					return support.provideRenameEdits(model, position, newName, token);
+				}).then(result => {
+					if (!result) {
+						// ignore
+					} else if (!result.rejectReason) {
+						hasResult = true;
+						return result;
+					} else {
+						rejects.push(result.rejectReason);
+					}
+					return undefined;
+				}, err => {
+					onUnexpectedExternalError(err);
+					return TPromise.wrapError<WorkspaceEdit>('provider failed');
+				});
+			}
+			return undefined;
+		};
+	});
+
+	return sequence(factory).then((values): WorkspaceEdit => {
+		let result = values[0];
+		if (rejects.length > 0) {
+			return {
+				edits: undefined,
+				rejectReason: rejects.join('\n')
+			};
+		} else if (!result) {
+			return {
+				edits: undefined,
+				rejectReason: nls.localize('no result', "No result.")
+			};
+		} else {
+			return result;
+		}
+	});
+}
+
 
 // ---  register actions and commands
 
@@ -46,9 +98,10 @@ class RenameController implements IEditorContribution {
 		@ITextModelResolverService private _textModelResolverService: ITextModelResolverService,
 		@IProgressService private _progressService: IProgressService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
 		@optional(IFileService) private _fileService: IFileService
 	) {
-		this._renameInputField = new RenameInputField(editor);
+		this._renameInputField = new RenameInputField(editor, themeService);
 		this._renameInputVisible = CONTEXT_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 	}
 
@@ -202,3 +255,13 @@ CommonEditorRegistry.registerEditorCommand(new RenameCommand({
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
+
+// ---- api bridge command
+
+CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentRenameProvider', function (model, position, args) {
+	let { newName } = args;
+	if (typeof newName !== 'string') {
+		throw illegalArgument('newName');
+	}
+	return rename(model, position, newName);
+});

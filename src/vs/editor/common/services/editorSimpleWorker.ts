@@ -15,7 +15,7 @@ import { stringDiff } from 'vs/base/common/diff/diff';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
-import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion } from 'vs/editor/common/modes';
+import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit } from 'vs/editor/common/modes';
 import { computeLinks } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
@@ -239,7 +239,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		if (!Position.isIPosition(position)) {
 			throw new Error('bad position');
 		}
-		let {lineNumber, column} = position;
+		let { lineNumber, column } = position;
 		let hasChanged = false;
 
 		if (lineNumber < 1) {
@@ -328,15 +328,25 @@ export abstract class BaseEditorSimpleWorker {
 
 	private static _diffLimit = 10000;
 
-	public computeMoreMinimalEdits(modelUrl: string, edits: editorCommon.ISingleEditOperation[], ranges: editorCommon.IRange[]): TPromise<editorCommon.ISingleEditOperation[]> {
+	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[], ranges: editorCommon.IRange[]): TPromise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return TPromise.as(edits);
 		}
 
-		const result: editorCommon.ISingleEditOperation[] = [];
+		const result: TextEdit[] = [];
+		let lastEol: editorCommon.EndOfLineSequence;
 
-		for (let {range, text} of edits) {
+		for (let { range, text, eol } of edits) {
+
+			if (typeof eol === 'number') {
+				lastEol = eol;
+			}
+
+			if (!range) {
+				// eol-change only
+				continue;
+			}
 
 			const original = model.getValueInRange(range);
 			text = text.replace(/\r\n|\n|\r/g, model.eol);
@@ -359,7 +369,7 @@ export abstract class BaseEditorSimpleWorker {
 			for (const change of changes) {
 				const start = model.positionAt(editOffset + change.originalStart);
 				const end = model.positionAt(editOffset + change.originalStart + change.originalLength);
-				const newEdit: editorCommon.ISingleEditOperation = {
+				const newEdit: TextEdit = {
 					text: text.substr(change.modifiedStart, change.modifiedLength),
 					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
 				};
@@ -368,6 +378,10 @@ export abstract class BaseEditorSimpleWorker {
 					result.push(newEdit);
 				}
 			}
+		}
+
+		if (typeof lastEol === 'number') {
+			result.push({ eol: lastEol, text: undefined, range: undefined });
 		}
 
 		return TPromise.as(result);

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit, FormattingOptions, window } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit, FormattingOptions, window, ProviderResult } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -43,10 +43,14 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		commands.registerCommand(this.commandId, this.onCodeAction, this);
 	}
 
-	public provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): Thenable<Command[]> {
+	public provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<Command[]> {
+		if (!this.client.apiVersion.has213Features()) {
+			return [];
+		}
+
 		const file = this.client.normalizePath(document.uri);
 		if (!file) {
-			return Promise.resolve<Command[]>([]);
+			return [];
 		}
 		let formattingOptions: FormattingOptions | undefined = undefined;
 		for (const editor of window.visibleTextEditors) {

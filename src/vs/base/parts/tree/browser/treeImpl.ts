@@ -14,6 +14,8 @@ import _ = require('vs/base/parts/tree/browser/tree');
 import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
 import Event, { Emitter } from 'vs/base/common/event';
 import Lifecycle = require('vs/base/common/lifecycle');
+import { Color } from "vs/base/common/color";
+import { mixin } from "vs/base/common/objects";
 
 export class TreeContext implements _.ITreeContext {
 
@@ -48,6 +50,17 @@ export class TreeContext implements _.ITreeContext {
 	}
 }
 
+const defaultStyles: _.ITreeStyles = {
+	listFocusBackground: Color.fromHex('#073655'),
+	listActiveSelectionBackground: Color.fromHex('#0E639C'),
+	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
+	listFocusAndSelectionBackground: Color.fromHex('#094771'),
+	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
+	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
+	listHoverBackground: Color.fromHex('#2A2D2E'),
+	listDropBackground: Color.fromHex('#383B3D')
+};
+
 export class Tree extends Events.EventEmitter implements _.ITree {
 
 	private container: HTMLElement;
@@ -76,6 +89,7 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.container = container;
 		this.configuration = configuration;
 		this.options = options;
+		mixin(this.options, defaultStyles, false);
 
 		this.options.twistiePixels = typeof this.options.twistiePixels === 'number' ? this.options.twistiePixels : 32;
 		this.options.showTwistie = this.options.showTwistie === false ? false : true;
@@ -94,6 +108,10 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.addEmitter2(this.view);
 
 		this.toDispose.push(this.model.addListener2('highlight', () => this._onHighlightChange.fire()));
+	}
+
+	public style(styles: _.ITreeStyles): void {
+		this.view.applyStyles(styles);
 	}
 
 	get onDOMFocus(): Event<void> {

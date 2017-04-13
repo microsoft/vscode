@@ -14,11 +14,12 @@
 	"welcomePage.editingEvolved": "Fortschrittliche Bearbeitung",
 	"welcomePage.gitHubRepository": "GitHub-Repository",
 	"welcomePage.help": "Hilfe",
+	"welcomePage.installKeymap": "Installieren Sie die Tastenkombinationen von {0} {1}, {2} und {3}.",
 	"welcomePage.installKeymapDescription": "Tastenkombinationen installieren",
 	"welcomePage.interactivePlayground": "Interaktiver Playground",
 	"welcomePage.interactivePlaygroundDescription": "Testen Sie die wichtigsten Editorfunktionen in einer kurzen exemplarischen Vorgehensweise.",
-	"welcomePage.interfaceOverview": "Überblick über die Schnittstelle",
-	"welcomePage.interfaceOverviewDescription": "Erhalten Sie eine visuelle Überlagerung, die die wichtigsten Komponenten der Benutzeroberfläche hervorhebt.",
+	"welcomePage.interfaceOverview": "Überblick über die Benutzeroberfläche",
+	"welcomePage.interfaceOverviewDescription": "Nutzen Sie die Möglichkeit der optischen Hervorhebung, um sich mit den wichtigsten Elementen der Benutzeroberfläche vertraut zu machen.",
 	"welcomePage.introductoryVideos": "Einführungsvideos",
 	"welcomePage.keybindingsReference": "Referenz für Tastenkombinationen",
 	"welcomePage.keybindingsReferenceDescription": "Eine druckbare PDF mit den wichtigsten Tastenkombinationen",
@@ -32,11 +33,11 @@
 	"welcomePage.showCommands": "Alle Befehle suchen und ausführen",
 	"welcomePage.showCommandsDescription": "Über die Einstellungen ({0}) können Sie Befehle schnell suchen und darauf zugreifen.",
 	"welcomePage.showOnStartup": "Willkommensseite beim Start anzeigen",
-	"welcomePage.stackOverflow": "Stapelüberlauf",
+	"welcomePage.stackOverflow": "Stack Overflow",
 	"welcomePage.start": "Starten",
 	"welcomePage.sublime": "Sublime",
 	"welcomePage.sublimeCurrent": "Sublime (aktuell)",
 	"welcomePage.vim": "Vim",
 	"welcomePage.vimCurrent": "Vim (aktuell)",
-	"welcomePage.vscode": "Visual Studio-Code"
+	"welcomePage.vscode": "Visual Studio Code"
 }

@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
 import { IConfiguration as IEditorConfiguration, DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
-import { Platform } from 'vs/base/common/platform';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import { IStorageService, StorageScope } from "vs/platform/storage/common/storage";
+import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
+import { Severity } from "vs/editor/common/standalone/standaloneBase";
+import { TPromise } from 'vs/base/common/winjs.base';
 
 interface IFullTerminalConfiguration {
 	terminal: {
@@ -16,63 +22,6 @@ interface IFullTerminalConfiguration {
 
 const DEFAULT_LINE_HEIGHT = 1.2;
 
-const DEFAULT_ANSI_COLORS = {
-	'hc-black': [
-		'#000000', // black
-		'#cd0000', // red
-		'#00cd00', // green
-		'#cdcd00', // yellow
-		'#0000ee', // blue
-		'#cd00cd', // magenta
-		'#00cdcd', // cyan
-		'#e5e5e5', // white
-		'#7f7f7f', // bright black
-		'#ff0000', // bright red
-		'#00ff00', // bright green
-		'#ffff00', // bright yellow
-		'#5c5cff', // bright blue
-		'#ff00ff', // bright magenta
-		'#00ffff', // bright cyan
-		'#ffffff'  // bright white
-	],
-	'vs': [
-		'#000000', // black
-		'#cd3131', // red
-		'#00BC00', // green
-		'#949800', // yellow
-		'#0451a5', // blue
-		'#bc05bc', // magenta
-		'#0598bc', // cyan
-		'#555555', // white
-		'#666666', // bright black
-		'#cd3131', // bright red
-		'#14CE14', // bright green
-		'#b5ba00', // bright yellow
-		'#0451a5', // bright blue
-		'#bc05bc', // bright magenta
-		'#0598bc', // bright cyan
-		'#a5a5a5'  // bright white
-	],
-	'vs-dark': [
-		'#000000', // black
-		'#cd3131', // red
-		'#0DBC79', // green
-		'#e5e510', // yellow
-		'#2472c8', // blue
-		'#bc3fbc', // magenta
-		'#11a8cd', // cyan
-		'#e5e5e5', // white
-		'#666666', // bright black
-		'#f14c4c', // bright red
-		'#23d18b', // bright green
-		'#f5f543', // bright yellow
-		'#3b8eea', // bright blue
-		'#d670d6', // bright magenta
-		'#29b8db', // bright cyan
-		'#e5e5e5'  // bright white
-	]
-};
-
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
@@ -81,18 +30,18 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public panelContainer: HTMLElement;
 
 	private _charMeasureElement: HTMLElement;
+	private _lastFontMeasurement: ITerminalFont;
 
 	public constructor(
-		private _platform: Platform,
-		@IConfigurationService private _configurationService: IConfigurationService) {
+		private _platform: platform.Platform,
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@IWorkspaceConfigurationService private _workspaceConfigurationService: IWorkspaceConfigurationService,
+		@IChoiceService private _choiceService: IChoiceService,
+		@IStorageService private _storageService: IStorageService) {
 	}
 
 	public get config(): ITerminalConfiguration {
 		return this._configurationService.getConfiguration<IFullTerminalConfiguration>().terminal.integrated;
-	}
-
-	public getTheme(baseThemeId: string): string[] {
-		return DEFAULT_ANSI_COLORS[baseThemeId];
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
@@ -109,15 +58,20 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		this._charMeasureElement.innerText = 'X';
 		const rect = this._charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
-		const charWidth = rect.width;
-		const charHeight = rect.height;
-		return {
+
+		// Bounding client rect was invalid, use last font measurement if available.
+		if (this._lastFontMeasurement && !rect.width && !rect.height) {
+			return this._lastFontMeasurement;
+		}
+
+		this._lastFontMeasurement = {
 			fontFamily,
 			fontSize: fontSize + 'px',
 			lineHeight,
-			charWidth,
-			charHeight
+			charWidth: rect.width,
+			charHeight: rect.height
 		};
+		return this._lastFontMeasurement;
 	}
 
 	/**
@@ -142,24 +96,58 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
-	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): IShellLaunchConfig {
-		const config = this.config;
+	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void {
+		// Check whether there is a workspace setting
+		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
+		const shellConfigValue = this._workspaceConfigurationService.lookup<string>(`terminal.integrated.shell.${platformKey}`);
+		const shellArgsConfigValue = this._workspaceConfigurationService.lookup<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 
-		shell.executable = '';
-		shell.args = [];
-		if (config && config.shell && config.shellArgs) {
-			if (this._platform === Platform.Windows) {
-				shell.executable = config.shell.windows;
-				shell.args = config.shellArgs.windows;
-			} else if (this._platform === Platform.Mac) {
-				shell.executable = config.shell.osx;
-				shell.args = config.shellArgs.osx;
-			} else if (this._platform === Platform.Linux) {
-				shell.executable = config.shell.linux;
-				shell.args = config.shellArgs.linux;
-			}
+		// Check if workspace setting exists and whether it's whitelisted
+		let isWorkspaceShellAllowed = false;
+		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined) {
+			isWorkspaceShellAllowed = this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, undefined);
 		}
-		return shell;
+
+		// Check if the value is neither blacklisted (false) or whitelisted (true) and ask for
+		// permission
+		if (isWorkspaceShellAllowed === undefined) {
+			let shellString: string;
+			if (shellConfigValue.workspace) {
+				shellString = `"${shellConfigValue.workspace}"`;
+			}
+			let argsString: string;
+			if (shellArgsConfigValue.workspace) {
+				argsString = `[${shellArgsConfigValue.workspace.map(v => '"' + v + '"').join(', ')}]`;
+			}
+			// Should not be localized as it's json-like syntax referencing settings keys
+			let changeString: string;
+			if (shellConfigValue.workspace !== undefined) {
+				if (shellArgsConfigValue.workspace !== undefined) {
+					changeString = `shell: ${shellString}, shellArgs: ${argsString}`;
+				} else {
+					changeString = `shell: ${shellString}`;
+				}
+			} else { // if (shellArgsConfigValue.workspace !== undefined)
+				changeString = `shellArgs: ${argsString}`;
+			}
+			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "This workspace wants to customize the terminal shell, do you want to allow it? ({0})", changeString);
+			const options = [nls.localize('allow', "Allow"), nls.localize('cancel', "Cancel"), nls.localize('disallow', "Disallow")];
+			this._choiceService.choose(Severity.Warning, message, options).then(choice => {
+				switch (choice) {
+					case 0:
+						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
+					case 1:
+						return TPromise.as(null);
+					case 2:
+						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
+					default:
+						return TPromise.as(null);
+				}
+			});
+		}
+
+		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;
+		shell.args = (isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default;
 	}
 
 	private _toInteger(source: any, minimum?: number): number {

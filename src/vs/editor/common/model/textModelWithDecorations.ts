@@ -912,11 +912,13 @@ function _normalizeOptions(options: editorCommon.IModelDecorationOptions): Model
 class ModelDecorationOverviewRulerOptions implements editorCommon.IModelDecorationOverviewRulerOptions {
 	color: string;
 	darkColor: string;
+	hcColor: string;
 	position: editorCommon.OverviewRulerLane;
 
 	constructor(options: editorCommon.IModelDecorationOverviewRulerOptions, legacyShowInOverviewRuler: string) {
 		this.color = strings.empty;
 		this.darkColor = strings.empty;
+		this.hcColor = strings.empty;
 		this.position = editorCommon.OverviewRulerLane.Center;
 
 		if (legacyShowInOverviewRuler) {
@@ -927,6 +929,10 @@ class ModelDecorationOverviewRulerOptions implements editorCommon.IModelDecorati
 		}
 		if (options && options.darkColor) {
 			this.darkColor = options.darkColor;
+			this.hcColor = options.darkColor;
+		}
+		if (options && options.hcColor) {
+			this.hcColor = options.hcColor;
 		}
 		if (options && options.hasOwnProperty('position')) {
 			this.position = options.position;

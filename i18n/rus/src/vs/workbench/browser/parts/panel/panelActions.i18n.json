@@ -6,6 +6,8 @@
 {
 	"closePanel": "Закрыть панель",
 	"focusPanel": "Фокус на панель",
+	"maximizePanel": "Развернуть панель",
+	"minimizePanel": "Восстановить размер панели",
 	"panelActionTooltip": "{0} ({1})",
 	"toggleMaximizedPanel": "Переключить развернутую панель",
 	"togglePanel": "Переключить панель",

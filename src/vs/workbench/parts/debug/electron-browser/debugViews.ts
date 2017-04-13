@@ -29,6 +29,8 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { attachListStyler } from "vs/platform/theme/common/styler";
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 function renderViewTree(container: HTMLElement): HTMLElement {
 	const treeContainer = document.createElement('div');
@@ -56,7 +58,8 @@ export class VariablesView extends CollapsibleViewletView {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, keybindingService, contextMenuService);
 
@@ -102,6 +105,7 @@ export class VariablesView extends CollapsibleViewletView {
 				keyboardSupport: false
 			});
 
+		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree, [this.variablesFocusedContext]));
 
 		const viewModel = this.debugService.getViewModel();
@@ -120,8 +124,7 @@ export class VariablesView extends CollapsibleViewletView {
 				this.onFocusStackFrameScheduler.schedule();
 			}
 		}));
-		this.toDispose.push(this.debugService.onDidChangeState(() => {
-			const state = this.debugService.state;
+		this.toDispose.push(this.debugService.onDidChangeState(state => {
 			collapseAction.enabled = state === State.Running || state === State.Stopped;
 		}));
 
@@ -163,7 +166,8 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(actionRunner, !!settings[WatchExpressionsView.MEMENTO], nls.localize('expressionsSection', "Expressions Section"), messageService, keybindingService, contextMenuService);
 
@@ -206,6 +210,7 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 				keyboardSupport: false
 			});
 
+		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree, [this.watchExpressionsFocusedContext]));
 
 		this.tree.setInput(this.debugService.getModel());
@@ -260,7 +265,8 @@ export class CallStackView extends CollapsibleViewletView {
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(actionRunner, !!settings[CallStackView.MEMENTO], nls.localize('callstackSection', "Call Stack Section"), messageService, keybindingService, contextMenuService);
 
@@ -277,7 +283,7 @@ export class CallStackView extends CollapsibleViewletView {
 			// Only show the global pause message if we do not display threads.
 			// Otherwsie there will be a pause message per thread and there is no need for a global one.
 			if (newTreeInput instanceof Thread && newTreeInput.stoppedDetails) {
-				this.pauseMessageLabel.text(nls.localize('debugStopped', "Paused on {0}", newTreeInput.stoppedDetails.reason));
+				this.pauseMessageLabel.text(newTreeInput.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", newTreeInput.stoppedDetails.reason));
 				if (newTreeInput.stoppedDetails.text) {
 					this.pauseMessageLabel.title(newTreeInput.stoppedDetails.text);
 				}
@@ -319,6 +325,7 @@ export class CallStackView extends CollapsibleViewletView {
 				keyboardSupport: false
 			});
 
+		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree));
 
 		this.toDispose.push(this.tree.addListener2('selection', event => {
@@ -391,7 +398,8 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService private listService: IListService
+		@IListService private listService: IListService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(actionRunner, BreakpointsView.getExpandedBodySize(
 			debugService.getModel().getBreakpoints().length + debugService.getModel().getFunctionBreakpoints().length + debugService.getModel().getExceptionBreakpoints().length),
@@ -449,6 +457,7 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 				keyboardSupport: false
 			});
 
+		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree, [this.breakpointsFocusedContext]));
 
 		this.toDispose.push(this.tree.addListener2('selection', event => {

@@ -8,10 +8,29 @@
 	background-repeat: no-repeat;
 	background-position: 0 -2px;
 }
-
 .vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.constant,
 .hc-black .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.constant {
 	background-image: url('Constant_16x_inverse.svg');
+}
+
+.monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.enum-member {
+	background-image: url('EnumItem_16x.svg');
+	background-repeat: no-repeat;
+	background-position: 0 -2px;
+}
+.vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.enum-member,
+.hc-black .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.enum-member {
+	background-image: url('EnumItem_inverse_16x.svg');
+}
+
+.monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.struct {
+	background-image: url('Structure_16x_vscode.svg');
+	background-repeat: no-repeat;
+	background-position: 0 -2px;
+}
+.vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.struct,
+.hc-black .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.struct {
+	background-image: url('Structure_16x_vscode_inverse.svg');
 }
 
 .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.method,

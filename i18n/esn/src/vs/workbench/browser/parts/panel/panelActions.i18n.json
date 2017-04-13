@@ -6,6 +6,8 @@
 {
 	"closePanel": "Cerrar panel",
 	"focusPanel": "Centrarse en el panel",
+	"maximizePanel": "Maximizar el tamaño del panel",
+	"minimizePanel": "Restaurar el tamaño del panel",
 	"panelActionTooltip": "{0} ({1})",
 	"toggleMaximizedPanel": "Alternar el panel maximizado",
 	"togglePanel": "Alternar panel",

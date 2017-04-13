@@ -5,7 +5,7 @@
 'use strict';
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone } from 'vs/editor/common/editorCommon';
+import { OverviewRulerPosition, OverviewRulerLane, OverviewRulerZone, ColorZone, ThemeType } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
@@ -38,7 +38,7 @@ export class OverviewRulerImpl {
 		this._zoneManager = new OverviewZoneManager(getVerticalOffsetForLine);
 		this._zoneManager.setMinimumHeight(minimumHeight);
 		this._zoneManager.setMaximumHeight(maximumHeight);
-		this._zoneManager.setUseDarkColor(false);
+		this._zoneManager.setThemeType(ThemeType.Light);
 		this._zoneManager.setDOMWidth(0);
 		this._zoneManager.setDOMHeight(0);
 		this._zoneManager.setOuterHeight(scrollHeight);
@@ -92,8 +92,8 @@ export class OverviewRulerImpl {
 		}
 	}
 
-	public setUseDarkColor(useDarkColor: boolean, render: boolean): void {
-		this._zoneManager.setUseDarkColor(useDarkColor);
+	public setThemeType(themeType: ThemeType, render: boolean): void {
+		this._zoneManager.setThemeType(themeType);
 
 		if (render) {
 			this.render(true);

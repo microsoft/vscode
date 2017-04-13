@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { ok } from 'vs/base/common/assert';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
 import URI from 'vs/base/common/uri';
-import { Range, Position } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
 import { getWordAtText, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
 import { MainThreadDocumentsShape } from './extHost.protocol';
 import { ITextSource } from 'vs/editor/common/model/textSource';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp): void {
@@ -26,23 +28,26 @@ export class ExtHostDocumentData extends MirrorModel2 {
 	private _proxy: MainThreadDocumentsShape;
 	private _languageId: string;
 	private _isDirty: boolean;
-	private _textLines: vscode.TextLine[];
 	private _document: vscode.TextDocument;
+	private _textLines: vscode.TextLine[] = [];
+	private _isDisposed: boolean = false;
 
 	constructor(proxy: MainThreadDocumentsShape, uri: URI, lines: string[], eol: string,
-		languageId: string, versionId: number, isDirty: boolean) {
-
+		languageId: string, versionId: number, isDirty: boolean
+	) {
 		super(uri, lines, eol, versionId);
 		this._proxy = proxy;
 		this._languageId = languageId;
 		this._isDirty = isDirty;
-		this._textLines = [];
 	}
 
 	dispose(): void {
-		this._textLines.length = 0;
+		// we don't really dispose documents but let
+		// extensions still read from them. some
+		// operations, live saving, will now error tho
+		ok(!this._isDisposed);
+		this._isDisposed = true;
 		this._isDirty = false;
-		super.dispose();
 	}
 
 	equalLines({ lines }: ITextSource): boolean {
@@ -67,31 +72,42 @@ export class ExtHostDocumentData extends MirrorModel2 {
 				get isUntitled() { return data._uri.scheme !== 'file'; },
 				get languageId() { return data._languageId; },
 				get version() { return data._versionId; },
+				get isClosed() { return data._isDisposed; },
 				get isDirty() { return data._isDirty; },
-				save() { return data._proxy.$trySaveDocument(data._uri); },
+				save() { return data._save(); },
 				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
+				get eol() { return data._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
 				get lineCount() { return data._lines.length; },
-				lineAt(lineOrPos) { return data.lineAt(lineOrPos); },
-				offsetAt(pos) { return data.offsetAt(pos); },
-				positionAt(offset) { return data.positionAt(offset); },
-				validateRange(ran) { return data.validateRange(ran); },
-				validatePosition(pos) { return data.validatePosition(pos); },
-				getWordRangeAtPosition(pos, regexp?) { return data.getWordRangeAtPosition(pos, regexp); }
+				lineAt(lineOrPos) { return data._lineAt(lineOrPos); },
+				offsetAt(pos) { return data._offsetAt(pos); },
+				positionAt(offset) { return data._positionAt(offset); },
+				validateRange(ran) { return data._validateRange(ran); },
+				validatePosition(pos) { return data._validatePosition(pos); },
+				getWordRangeAtPosition(pos, regexp?) { return data._getWordRangeAtPosition(pos, regexp); }
 			};
 		}
-		return this._document;
+		return Object.freeze(this._document);
 	}
 
 	_acceptLanguageId(newLanguageId: string): void {
+		ok(!this._isDisposed);
 		this._languageId = newLanguageId;
 	}
 
 	_acceptIsDirty(isDirty: boolean): void {
+		ok(!this._isDisposed);
 		this._isDirty = isDirty;
 	}
 
+	private _save(): TPromise<boolean> {
+		if (this._isDisposed) {
+			return TPromise.wrapError<boolean>('Document has been closed');
+		}
+		return this._proxy.$trySaveDocument(this._uri);
+	}
+
 	private _getTextInRange(_range: vscode.Range): string {
-		let range = this.validateRange(_range);
+		let range = this._validateRange(_range);
 
 		if (range.isEmpty) {
 			return '';
@@ -115,7 +131,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		return resultLines.join(lineEnding);
 	}
 
-	lineAt(lineOrPosition: number | vscode.Position): vscode.TextLine {
+	private _lineAt(lineOrPosition: number | vscode.Position): vscode.TextLine {
 
 		let line: number;
 		if (lineOrPosition instanceof Position) {
@@ -153,13 +169,13 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		return result;
 	}
 
-	offsetAt(position: vscode.Position): number {
-		position = this.validatePosition(position);
+	private _offsetAt(position: vscode.Position): number {
+		position = this._validatePosition(position);
 		this._ensureLineStarts();
 		return this._lineStarts.getAccumulatedValue(position.line - 1) + position.character;
 	}
 
-	positionAt(offset: number): vscode.Position {
+	private _positionAt(offset: number): vscode.Position {
 		offset = Math.floor(offset);
 		offset = Math.max(0, offset);
 
@@ -174,13 +190,13 @@ export class ExtHostDocumentData extends MirrorModel2 {
 
 	// ---- range math
 
-	validateRange(range: vscode.Range): vscode.Range {
+	private _validateRange(range: vscode.Range): vscode.Range {
 		if (!(range instanceof Range)) {
 			throw new Error('Invalid argument');
 		}
 
-		let start = this.validatePosition(range.start);
-		let end = this.validatePosition(range.end);
+		let start = this._validatePosition(range.start);
+		let end = this._validatePosition(range.end);
 
 		if (start === range.start && end === range.end) {
 			return range;
@@ -188,7 +204,7 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		return new Range(start.line, start.character, end.line, end.character);
 	}
 
-	validatePosition(position: vscode.Position): vscode.Position {
+	private _validatePosition(position: vscode.Position): vscode.Position {
 		if (!(position instanceof Position)) {
 			throw new Error('Invalid argument');
 		}
@@ -224,8 +240,8 @@ export class ExtHostDocumentData extends MirrorModel2 {
 		return new Position(line, character);
 	}
 
-	getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range {
-		let position = this.validatePosition(_position);
+	private _getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range {
+		let position = this._validatePosition(_position);
 		if (!regexp || regExpLeadsToEndlessLoop(regexp)) {
 			regexp = getWordDefinitionFor(this._languageId);
 		}

@@ -8,7 +8,7 @@
 	"ok": "OK",
 	"welcome.title": "Bienvenue",
 	"welcomePage": "Bienvenue",
-	"welcomePage.installingKeymap": "Installation des {0} raccourcis clavier...",
+	"welcomePage.installingKeymap": "Installation des raccourcis clavier de {0}...",
 	"welcomePage.keymapAlreadyInstalled": "Les raccourcis clavier {0} sont déjà installés.",
 	"welcomePage.keymapNotFound": "Les raccourcis clavier {0} ayant l'ID {1} sont introuvables.",
 	"welcomePage.willReloadAfterInstallingKeymap": "La fenêtre se recharge après l'installation des raccourcis clavier {0}."

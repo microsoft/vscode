@@ -1,0 +1,48 @@
+{
+  "name": "gulp",
+  "publisher": "vscode",
+  "description": "Extension to add Gulp capabilities to VSCode.",
+  "displayName": "Gulp support for VSCode",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "*"
+  },
+  "enableProposedApi": true,
+  "categories": [
+    "Other"
+  ],
+  "scripts": {
+    "compile": "gulp compile-extension:gulp",
+    "watch": "gulp watch-extension:gulp"
+  },
+  "dependencies": {
+    "vscode-nls": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.4"
+  },
+  "main": "./out/main",
+  "activationEvents": [
+    "onCommand:workbench.action.tasks.runTask",
+    "onCommand:workbench.action.tasks.build",
+    "onCommand:workbench.action.tasks.test"
+  ],
+  "contributes": {
+    "configuration": {
+      "id": "gulp",
+      "type": "object",
+      "title": "Gulp",
+      "properties": {
+        "gulp.autoDetect": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on"
+          ],
+          "default": "on",
+          "description": "%config.gulp.autoDetect%"
+        }
+      }
+    }
+  }
+}

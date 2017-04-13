@@ -33,7 +33,7 @@
 	"welcomePage.showCommands": "모든 명령 찾기 및 실행",
 	"welcomePage.showCommandsDescription": "제어판에서 명령을 빠르게 검색 및 액세스({0})",
 	"welcomePage.showOnStartup": "시작 시 시작 페이지 표시",
-	"welcomePage.stackOverflow": "스택 오버플로",
+	"welcomePage.stackOverflow": "Stack Overflow",
 	"welcomePage.start": "시작",
 	"welcomePage.sublime": "Sublime",
 	"welcomePage.sublimeCurrent": "Sublime(현재)",

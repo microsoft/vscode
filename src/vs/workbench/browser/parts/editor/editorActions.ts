@@ -22,6 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 export class SplitEditorAction extends Action {
 
@@ -101,6 +102,71 @@ export class SplitEditorAction extends Action {
 		if (typeof targetPosition === 'number') {
 			return this.editorService.openEditor(editorToSplit.input, options, targetPosition);
 		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class JoinTwoGroupsAction extends Action {
+
+	public static ID = 'workbench.action.joinTwoGroups';
+	public static LABEL = nls.localize('joinTwoGroups', "Join Editors of Two Groups");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: IEditorContext): TPromise<any> {
+
+		const editorStacksModel = this.editorGroupService.getStacksModel();
+
+		// Return if has no other group to join to
+		if (editorStacksModel.groups.length < 2) {
+			return TPromise.as(true);
+		}
+
+		let fromPosition: number;
+		let toPosition: number;
+
+		// Joining group is from context, or the active group
+		if (context) {
+			fromPosition = editorStacksModel.positionOfGroup(context.group);
+		} else {
+			fromPosition = editorStacksModel.positionOfGroup(editorStacksModel.activeGroup);
+		}
+
+		// Target group is next group if joining from position one, otherwise it is the previous group
+		if (fromPosition === Position.ONE) {
+			toPosition = fromPosition + 1;
+		} else {
+			toPosition = fromPosition - 1;
+		}
+
+		const fromGroup = editorStacksModel.groupAt(fromPosition);
+		const toGroup = editorStacksModel.groupAt(toPosition);
+
+		const activeEditor = fromGroup.activeEditor;
+		const fromGroupEditors = fromGroup.getEditors();
+
+		// Insert the editors to the start if moving to the next group, otherwise insert to the end
+		// If an editor exists in both groups, its index is respected as in the joining group
+		const movingToNextGroup = fromPosition < toPosition;
+		let index = movingToNextGroup ? 0 : toGroup.count;
+
+		// Inactive and preserve focus options are used to prevent unnecessary switchings of active editor or group
+		fromGroupEditors.forEach(e => {
+			const inactive = e !== activeEditor;
+			this.editorGroupService.moveEditor(e, fromPosition, toPosition, { index, inactive, preserveFocus: inactive });
+			index = movingToNextGroup ? index + 1 : toGroup.count;
+		});
+
+		// Focus may be lost when the joining group is closed, regain focus on the target group
+		this.editorGroupService.focusGroup(toGroup);
 
 		return TPromise.as(true);
 	}
@@ -1044,6 +1110,26 @@ export class ReopenClosedEditorAction extends Action {
 
 	public run(): TPromise<any> {
 		this.historyService.reopenLastClosedEditor();
+
+		return TPromise.as(false);
+	}
+}
+
+export class ClearRecentFilesAction extends Action {
+
+	public static ID = 'workbench.action.clearRecentFiles';
+	public static LABEL = nls.localize('clearRecentFiles', "Clear Recent Files");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.windowsService.clearRecentPathsList();
 
 		return TPromise.as(false);
 	}

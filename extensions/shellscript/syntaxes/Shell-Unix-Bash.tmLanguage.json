@@ -58,6 +58,9 @@
 		},
 		{
 			"include": "#support"
+		},
+		{
+			"include": "#lines"
 		}
 	],
 	"repository": {
@@ -221,7 +224,7 @@
 		"function-definition": {
 			"patterns": [
 				{
-					"begin": "(?<=^|;|&|\\s)(function)\\s+([^\\s<>;'\"\\\\|$&()]+)(?:\\s*(\\(\\)))?",
+					"begin": "(?<=^|;|&)\\s*(function)\\s+([^\\s<>;'\"\\\\|$&()]+)(?:\\s*(\\(\\)))?",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.type.function.shell"
@@ -233,7 +236,7 @@
 							"name": "punctuation.definition.arguments.shell"
 						}
 					},
-					"end": ";|&|$",
+					"end": ";|&|\\n",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.definition.function.shell"
@@ -247,7 +250,7 @@
 					]
 				},
 				{
-					"begin": "(?<=^|;|&|\\s)([^\\s<>;'\"\\\\|$&()]+)\\s*(\\(\\))",
+					"begin": "(?<=^|;|&)\\s*([^\\s<>;'\"\\\\|$&()]+)\\s*(\\(\\))",
 					"beginCaptures": {
 						"1": {
 							"name": "entity.name.function.shell"
@@ -256,7 +259,7 @@
 							"name": "punctuation.definition.arguments.shell"
 						}
 					},
-					"end": ";|&|$",
+					"end": ";|&|\\n",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.definition.function.shell"
@@ -801,6 +804,14 @@
 				}
 			]
 		},
+		"lines": {
+			"patterns": [
+				{
+					"match": "\\\\\\n",
+					"name": "constant.character.escape.newline.shell"
+				}
+			]
+		},
 		"list": {
 			"patterns": [
 				{
@@ -1227,5 +1238,5 @@
 	},
 	"scopeName": "source.shell",
 	"uuid": "DDEEA3ED-6B1C-11D9-8B10-000D93589AF6",
-	"version": "https://github.com/textmate/shellscript.tmbundle/commit/2677fdc83ed9d6a517d5d204e003f49141fc72e4"
+	"version": "https://github.com/textmate/shellscript.tmbundle/commit/ba95d7b742caef130911d878f42f66bdd80181e4"
 }

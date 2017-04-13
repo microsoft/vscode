@@ -7,32 +7,124 @@
 
 const { ipcRenderer } = require('electron');
 const assert = require('assert');
-const glob = require('glob');
 const path = require('path');
-const loader = require('../../src/vs/loader');
-const cwd = path.join(__dirname, '../../out');
+const glob = require('glob');
+const minimatch = require('minimatch');
+const istanbul = require('istanbul');
+const i_remap = require('remap-istanbul/lib/remap');
 
-loader.require.config({
-	baseUrl: cwd,
-	catchError: true,
-	nodeRequire: require,
-	nodeMain: __filename
-});
+
+let _tests_glob = '**/test/**/*.test.js';
+let loader;
+let _out;
+
+function initLoader(opts) {
+	let outdir = opts.build ? 'out-build' : 'out';
+	_out = path.join(__dirname, `../../${outdir}`);
+
+	// setup loader
+	loader = require(`${_out}/vs/loader`);
+	const loaderConfig = {
+		nodeRequire: require,
+		nodeMain: __filename,
+		catchError: true,
+		baseUrl: path.join(__dirname, '../../src'),
+		paths: {
+			'vs': `../${outdir}/vs`,
+			'lib': `../${outdir}/lib`,
+			'bootstrap': `../${outdir}/bootstrap`
+		}
+	};
+
+	// nodeInstrumenter when coverage is requested
+	if (opts.coverage) {
+		const instrumenter = new istanbul.Instrumenter();
+
+		loaderConfig.nodeInstrumenter = function (contents, source) {
+			return minimatch(source, _tests_glob)
+				? contents // don't instrument tests itself
+				: instrumenter.instrumentSync(contents, source);
+		};
+	}
+
+	loader.require.config(loaderConfig);
+}
+
+function createCoverageReport(opts) {
+	return new Promise(resolve => {
+
+		if (!opts.coverage) {
+			return resolve(undefined);
+		}
+
+		const exclude = /\b((winjs\.base)|(marked)|(raw\.marked)|(nls)|(css))\.js$/;
+		const remappedCoverage = i_remap(global.__coverage__, { exclude: exclude }).getFinalCoverage();
+
+		// The remapped coverage comes out with broken paths
+		function toUpperDriveLetter(str) {
+			if (/^[a-z]:/.test(str)) {
+				return str.charAt(0).toUpperCase() + str.substr(1);
+			}
+			return str;
+		};
+		function toLowerDriveLetter(str) {
+			if (/^[A-Z]:/.test(str)) {
+				return str.charAt(0).toLowerCase() + str.substr(1);
+			}
+			return str;
+		};
+
+		const REPO_PATH = toUpperDriveLetter(path.join(__dirname, '../..'));
+		const fixPath = function (brokenPath) {
+			const startIndex = brokenPath.indexOf(REPO_PATH);
+			if (startIndex === -1) {
+				return toLowerDriveLetter(brokenPath);
+			}
+			return toLowerDriveLetter(brokenPath.substr(startIndex));
+		};
+
+		const finalCoverage = Object.create(null);
+		for (const entryKey in remappedCoverage) {
+			const entry = remappedCoverage[entryKey];
+			entry.path = fixPath(entry.path);
+			finalCoverage[fixPath(entryKey)] = entry;
+		}
+
+		const collector = new istanbul.Collector();
+		collector.add(finalCoverage);
+
+		let coveragePath = path.join(path.dirname(__dirname), '../.build/coverage');
+		let reportTypes = [];
+		if (opts.run || opts.runGlob) {
+			// single file running
+			coveragePath += '-single';
+			reportTypes = ['lcovonly'];
+		} else {
+			reportTypes = ['json', 'lcov', 'html'];
+		}
+
+		const reporter = new istanbul.Reporter(null, coveragePath);
+		reporter.addAll(reportTypes);
+		reporter.write(collector, true, resolve);
+	});
+}
 
 function loadTestModules(opts) {
 
 	if (opts.run) {
 		const files = Array.isArray(opts.run) ? opts.run : [opts.run];
 		const modules = files.map(file => {
-			return path.relative(cwd, file).replace(/\.js$/, '');
+			return path.relative(_out, file).replace(/\.js$/, '');
 		});
 		return new Promise((resolve, reject) => {
 			loader.require(modules, resolve, reject);
 		});
 	}
 
+	const pattern = opts.runGlob || _tests_glob;
+
 	return new Promise((resolve, reject) => {
-		glob('**/test/**/*.test.js', { cwd }, (err, files) => {
+		glob(pattern, { cwd: _out }, (err, files) => {
 			if (err) {
 				reject(err);
 				return;
@@ -96,7 +188,9 @@ function runTests(opts) {
 		}
 
 		const runner = mocha.run(() => {
-			ipcRenderer.send('done');
+			createCoverageReport(opts).then(() => {
+				ipcRenderer.send('done');
+			});
 		});
 
 		runner.on('fail', function (test) {
@@ -104,6 +198,8 @@ function runTests(opts) {
 				title: test.fullTitle(),
 				stack: test.err.stack
 			});
+			console.error(test.fullTitle());
+			console.error(test.err.stack);
 		});
 
 		runner.on('pass', function () {
@@ -113,5 +209,6 @@ function runTests(opts) {
 }
 
 ipcRenderer.on('run', (e, opts) => {
+	initLoader(opts);
 	runTests(opts).catch(err => console.error(err));
 });

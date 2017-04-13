@@ -38,6 +38,10 @@ import * as corePosition from 'vs/editor/common/core/position';
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+
+
 export class DefinitionActionConfig {
 
 	constructor(
@@ -69,7 +73,6 @@ export class DefinitionAction extends EditorAction {
 
 			// * remove falsy references
 			// * remove reference at the current pos
-			// * collapse ranges to start pos
 			let result: Location[] = [];
 			for (let i = 0; i < references.length; i++) {
 				let reference = references[i];
@@ -83,7 +86,7 @@ export class DefinitionAction extends EditorAction {
 
 					result.push({
 						uri,
-						range: Range.collapseToStart(range)
+						range
 					});
 				}
 			}
@@ -113,6 +116,10 @@ export class DefinitionAction extends EditorAction {
 			: nls.localize('generic.noResults', "No definition found");
 	}
 
+	protected getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
+	}
+
 	private _onResult(editorService: IEditorService, editor: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
 		if (this._configuration.openInPeek) {
 			this._openInPeek(editorService, editor, model);
@@ -133,7 +140,7 @@ export class DefinitionAction extends EditorAction {
 		return editorService.openEditor({
 			resource: uri,
 			options: {
-				selection: range,
+				selection: Range.collapseToStart(range),
 				revealIfVisible: !sideBySide
 			}
 		}, sideBySide).then(editor => {
@@ -146,7 +153,7 @@ export class DefinitionAction extends EditorAction {
 		if (controller) {
 			controller.toggleWidget(target.getSelection(), TPromise.as(model), {
 				getMetaTitle: (model) => {
-					return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
+					return this.getMetaTitle(model);
 				},
 				onGoto: (reference) => {
 					controller.closeWidget();
@@ -243,6 +250,10 @@ export class ImplementationAction extends DefinitionAction {
 			? nls.localize('goToImplementation.noResultWord', "No implementation found for '{0}'", info.word)
 			: nls.localize('goToImplementation.generic.noResults', "No implementation found");
 	}
+
+	protected getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 && nls.localize('meta.implementations.title', " – {0} implementations", model.references.length);
+	}
 }
 
 @editorAction
@@ -300,6 +311,10 @@ export class TypeDefinitionAction extends DefinitionAction {
 		return info && info.word
 			? nls.localize('goToTypeDefinition.noResultWord', "No type definition found for '{0}'", info.word)
 			: nls.localize('goToTypeDefinition.generic.noResults', "No type definition found");
+	}
+
+	protected getMetaTitle(model: ReferencesModel): string {
+		return model.references.length > 1 && nls.localize('meta.typeDefinitions.title', " – {0} type definitions", model.references.length);
 	}
 }
 
@@ -382,6 +397,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
 		this.toUnhook.push(this.editor.onMouseUp((e: IEditorMouseEvent) => this.onEditorMouseUp(e)));
 		this.toUnhook.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
+		this.toUnhook.push(this.editor.onMouseDrag(() => this.resetHandler()));
 		this.toUnhook.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this.toUnhook.push(this.editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 
@@ -625,3 +641,10 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook = dispose(this.toUnhook);
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
+	if (activeLinkForeground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .goto-definition-link { color: ${activeLinkForeground} !important; }`);
+	}
+});

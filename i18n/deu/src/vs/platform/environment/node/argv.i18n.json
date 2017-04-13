@@ -19,6 +19,7 @@
 	"optionsUpperCase": "Optionen",
 	"paths": "Pfade",
 	"performance": "Startet mit aktiviertem Befehl \"Developer: Startup Performance\".",
+	"prof-startup": "CPU-Profiler beim Start ausführen",
 	"reuseWindow": "Erzwingt das Öffnen einer Datei oder eines Ordners im letzten aktiven Fenster.",
 	"showVersions": "Zeigt Versionen der installierten Erweiterungen an, wenn \"--list-extension\" verwendet wird.",
 	"uninstallExtension": "Deinstalliert eine Extension.",

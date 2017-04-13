@@ -9,7 +9,6 @@ import strings = require('vs/base/common/strings');
 
 suite('Strings', () => {
 	test('equalsIgnoreCase', function () {
-
 		assert(strings.equalsIgnoreCase('', ''));
 		assert(!strings.equalsIgnoreCase('', '1'));
 		assert(!strings.equalsIgnoreCase('1', ''));
@@ -21,12 +20,45 @@ suite('Strings', () => {
 		assert(strings.equalsIgnoreCase('ÖL', 'Öl'));
 	});
 
+	test('beginsWithIgnoreCase', function () {
+		assert(strings.beginsWithIgnoreCase('', ''));
+		assert(!strings.beginsWithIgnoreCase('', '1'));
+		assert(strings.beginsWithIgnoreCase('1', ''));
+
+		assert(strings.beginsWithIgnoreCase('a', 'a'));
+		assert(strings.beginsWithIgnoreCase('abc', 'Abc'));
+		assert(strings.beginsWithIgnoreCase('abc', 'ABC'));
+		assert(strings.beginsWithIgnoreCase('Höhenmeter', 'HÖhenmeter'));
+		assert(strings.beginsWithIgnoreCase('ÖL', 'Öl'));
+
+		assert(strings.beginsWithIgnoreCase('alles klar', 'a'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'A'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'alles k'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'alles K'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'ALLES K'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'alles klar'));
+		assert(strings.beginsWithIgnoreCase('alles klar', 'ALLES KLAR'));
+
+		assert(!strings.beginsWithIgnoreCase('alles klar', ' ALLES K'));
+		assert(!strings.beginsWithIgnoreCase('alles klar', 'ALLES K '));
+		assert(!strings.beginsWithIgnoreCase('alles klar', 'öALLES K '));
+		assert(!strings.beginsWithIgnoreCase('alles klar', ' '));
+		assert(!strings.beginsWithIgnoreCase('alles klar', 'ö'));
+	});
+
 	test('compareIgnoreCase', function () {
 
-		function assertCompareIgnoreCase(a: string, b: string): void {
+		function assertCompareIgnoreCase(a: string, b: string, recurse = true): void {
 			let actual = strings.compareIgnoreCase(a, b);
+			actual = actual > 0 ? 1 : actual < 0 ? -1 : actual;
+
 			let expected = strings.compare(a.toLowerCase(), b.toLowerCase());
+			expected = expected > 0 ? 1 : expected < 0 ? -1 : expected;
 			assert.equal(actual, expected, `${a} <> ${b}`);
+
+			if (recurse) {
+				assertCompareIgnoreCase(b, a, false);
+			}
 		}
 
 		assertCompareIgnoreCase('', '');
@@ -38,6 +70,16 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('Code', 'code');
 		assertCompareIgnoreCase('Code', 'cöde');
 
+		assertCompareIgnoreCase('B', 'a');
+		assertCompareIgnoreCase('a', 'B');
+		assertCompareIgnoreCase('b', 'a');
+		assertCompareIgnoreCase('a', 'b');
+
+		assertCompareIgnoreCase('aa', 'ab');
+		assertCompareIgnoreCase('aa', 'aB');
+		assertCompareIgnoreCase('aa', 'aA');
+		assertCompareIgnoreCase('a', 'aa');
+		assertCompareIgnoreCase('ab', 'aA');
 	});
 
 	test('format', function () {
@@ -236,5 +278,32 @@ suite('Strings', () => {
 		assertIsBasicASCII(String.fromCharCode(127), false);
 		assertIsBasicASCII('ü', false);
 		assertIsBasicASCII('a📚📚b', false);
+	});
+
+	test('createRegExp', () => {
+		// Empty
+		assert.throws(() => strings.createRegExp('', false));
+
+		// Escapes appropriately
+		assert.equal(strings.createRegExp('abc', false).source, 'abc');
+		assert.equal(strings.createRegExp('([^ ,.]*)', false).source, '\\(\\[\\^ ,\\.\\]\\*\\)');
+		assert.equal(strings.createRegExp('([^ ,.]*)', true).source, '([^ ,.]*)');
+
+		// Whole word
+		assert.equal(strings.createRegExp('abc', false, { wholeWord: true }).source, '\\babc\\b');
+		assert.equal(strings.createRegExp('abc', true, { wholeWord: true }).source, '\\babc\\b');
+		assert.equal(strings.createRegExp(' abc', true, { wholeWord: true }).source, ' abc\\b');
+		assert.equal(strings.createRegExp('abc ', true, { wholeWord: true }).source, '\\babc ');
+		assert.equal(strings.createRegExp(' abc ', true, { wholeWord: true }).source, ' abc ');
+
+		const regExpWithoutFlags = strings.createRegExp('abc', true);
+		assert(!regExpWithoutFlags.global);
+		assert(regExpWithoutFlags.ignoreCase);
+		assert(!regExpWithoutFlags.multiline);
+
+		const regExpWithFlags = strings.createRegExp('abc', true, { global: true, matchCase: true, multiline: true });
+		assert(regExpWithFlags.global);
+		assert(!regExpWithFlags.ignoreCase);
+		assert(regExpWithFlags.multiline);
 	});
 });

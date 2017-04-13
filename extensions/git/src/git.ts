@@ -250,6 +250,7 @@ export class GitError {
 export interface IGitOptions {
 	gitPath: string;
 	version: string;
+	env?: any;
 }
 
 export const GitErrorCodes = {
@@ -269,13 +270,15 @@ export const GitErrorCodes = {
 	GitNotFound: 'GitNotFound',
 	CantCreatePipe: 'CantCreatePipe',
 	CantAccessRemote: 'CantAccessRemote',
-	RepositoryNotFound: 'RepositoryNotFound'
+	RepositoryNotFound: 'RepositoryNotFound',
+	RepositoryIsLocked: 'RepositoryIsLocked'
 };
 
 export class Git {
 
 	private gitPath: string;
 	private version: string;
+	private env: any;
 
 	private _onOutput = new EventEmitter<string>();
 	get onOutput(): Event<string> { return this._onOutput.event; }
@@ -283,10 +286,11 @@ export class Git {
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
 		this.version = options.version;
+		this.env = options.env || {};
 	}
 
-	open(repository: string, env: any = {}): Repository {
-		return new Repository(this, repository, env);
+	open(repository: string): Repository {
+		return new Repository(this, repository);
 	}
 
 	async init(repository: string): Promise<void> {
@@ -330,7 +334,9 @@ export class Git {
 		if (result.exitCode) {
 			let gitErrorCode: string | undefined = void 0;
 
-			if (/Authentication failed/.test(result.stderr)) {
+			if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(result.stderr)) {
+				gitErrorCode = GitErrorCodes.RepositoryIsLocked;
+			} else if (/Authentication failed/.test(result.stderr)) {
 				gitErrorCode = GitErrorCodes.AuthenticationFailed;
 			} else if (/Not a git repository/.test(result.stderr)) {
 				gitErrorCode = GitErrorCodes.NotAGitRepository;
@@ -374,8 +380,9 @@ export class Git {
 			options.stdio = ['ignore', null, null]; // Unless provided, ignore stdin and leave default streams for stdout and stderr
 		}
 
-		options.env = assign({}, process.env, options.env || {}, {
+		options.env = assign({}, process.env, this.env, options.env || {}, {
 			VSCODE_GIT_COMMAND: args[0],
+			LC_ALL: 'en_US',
 			LANG: 'en_US.UTF-8'
 		});
 
@@ -400,8 +407,7 @@ export class Repository {
 
 	constructor(
 		private _git: Git,
-		private repositoryRoot: string,
-		private env: any = {}
+		private repositoryRoot: string
 	) { }
 
 	get git(): Git {
@@ -414,23 +420,14 @@ export class Repository {
 
 	// TODO@Joao: rename to exec
 	async run(args: string[], options: any = {}): Promise<IExecutionResult> {
-		options.env = assign({}, options.env || {});
-		options.env = assign(options.env, this.env);
-
 		return await this.git.exec(this.repositoryRoot, args, options);
 	}
 
 	stream(args: string[], options: any = {}): cp.ChildProcess {
-		options.env = assign({}, options.env || {});
-		options.env = assign(options.env, this.env);
-
 		return this.git.stream(this.repositoryRoot, args, options);
 	}
 
 	spawn(args: string[], options: any = {}): cp.ChildProcess {
-		options.env = assign({}, options.env || {});
-		options.env = assign(options.env, this.env);
-
 		return this.git.spawn(args, options);
 	}
 
@@ -718,11 +715,6 @@ export class Repository {
 
 			throw err;
 		}
-	}
-
-	async sync(): Promise<void> {
-		await this.pull();
-		await this.push();
 	}
 
 	async getStatus(): Promise<IFileStatus[]> {

@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { join } from 'path';
-import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, ViewColumn } from 'vscode';
+import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, ViewColumn, Uri } from 'vscode';
 import { createRandomFile, deleteFile, cleanUp } from './utils';
 
 suite('editor tests', () => {
@@ -112,8 +112,7 @@ suite('editor tests', () => {
 
 	test('issue #20867: vscode.window.visibleTextEditors returns closed document 1/2', () => {
 
-		return withRandomFileEditor('Hello world!', editor => {
-
+		return commands.executeCommand('vscode.open', Uri.file(join(workspace.rootPath || '', './10linefile.ts'))).then(() => {
 			const p = new Promise((resolve, reject) => {
 				const sub = workspace.onDidCloseTextDocument(doc => {
 					try {
@@ -131,6 +130,7 @@ suite('editor tests', () => {
 				commands.executeCommand('workbench.action.closeAllEditors'),
 				p
 			]).then(() => undefined);
+
 		});
 	});
 
@@ -140,22 +140,17 @@ suite('editor tests', () => {
 		const file30Path = join(workspace.rootPath || '', './30linefile.ts');
 
 		return Promise.all([
-			workspace.openTextDocument(file10Path),
-			workspace.openTextDocument(file30Path)
-		]).then(docs => {
-			return Promise.all([
-				window.showTextDocument(docs[0], ViewColumn.One),
-				window.showTextDocument(docs[1], ViewColumn.Two),
-			]);
-		}).then(editors => {
+			commands.executeCommand('vscode.open', Uri.file(file10Path), ViewColumn.One),
+			commands.executeCommand('vscode.open', Uri.file(file30Path), ViewColumn.Two)
+		]).then(() => {
 
 			const p = new Promise((resolve, reject) => {
 				const sub = workspace.onDidCloseTextDocument(doc => {
 					try {
 						sub.dispose();
-						assert.ok(window.activeTextEditor === editors[1]);
-						assert.ok(window.visibleTextEditors[0] === editors[1]);
 						assert.equal(window.visibleTextEditors.length, 1);
+						assert.ok(window.activeTextEditor);
+						assert.equal(window.activeTextEditor!.document.uri.fsPath, file30Path);
 						resolve();
 					} catch (e) {
 						reject(e);
@@ -165,7 +160,8 @@ suite('editor tests', () => {
 
 			// hide doesn't what it means because it triggers a close event and because it
 			// detached the editor. For this test that's what we want.
-			editors[0].hide();
+			assert.equal(window.visibleTextEditors.length, 2);
+			window.visibleTextEditors[0].hide();
 			return p;
 		});
 	});

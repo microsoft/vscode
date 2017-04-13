@@ -7,8 +7,8 @@
 
 import * as path from 'path';
 import * as crypto from 'crypto';
-import pfs = require('vs/base/node/pfs');
 import * as platform from 'vs/base/common/platform';
+import pfs = require('vs/base/node/pfs');
 import Uri from 'vs/base/common/uri';
 import { Queue } from 'vs/base/common/async';
 import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
@@ -139,26 +139,29 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public hasBackup(resource: Uri): TPromise<boolean> {
+	public loadBackupResource(resource: Uri): TPromise<Uri> {
 		return this.ready.then(model => {
 			const backupResource = this.getBackupResource(resource);
 			if (!backupResource) {
-				return TPromise.as(false);
+				return void 0;
 			}
 
-			return model.has(backupResource);
-		});
-	}
+			// Return directly if we have a known backup with that resource
+			if (model.has(backupResource)) {
+				return backupResource;
+			}
 
-	public loadBackupResource(resource: Uri): TPromise<Uri> {
-		return this.ready.then(() => {
-			return this.hasBackup(resource).then(hasBackup => {
-				if (hasBackup) {
-					return this.getBackupResource(resource);
+			// Otherwise: on Windows and Mac pre v1.11 we used to store backups in lowercase format
+			// Therefor we also want to check if we have backups of this old format hanging around
+			// TODO@Ben migration
+			if (platform.isWindows || platform.isMacintosh) {
+				const legacyBackupResource = this.getBackupResource(resource, true /* legacyMacWindowsFormat */);
+				if (model.has(legacyBackupResource)) {
+					return legacyBackupResource;
 				}
+			}
 
-				return void 0;
-			});
+			return void 0;
 		});
 	}
 
@@ -195,6 +198,21 @@ export class BackupFileService implements IBackupFileService {
 
 			return this.getResourceIOQueue(backupResource).queue(() => {
 				return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
+			}).then(() => {
+
+				// On Windows and Mac pre v1.11 we used to store backups in lowercase format
+				// Therefor we also want to check if we have backups of this old format laying around
+				// TODO@Ben migration
+				if (platform.isWindows || platform.isMacintosh) {
+					const legacyBackupResource = this.getBackupResource(resource, true /* legacyMacWindowsFormat */);
+					if (model.has(legacyBackupResource)) {
+						return this.getResourceIOQueue(legacyBackupResource).queue(() => {
+							return pfs.del(legacyBackupResource.fsPath).then(() => model.remove(legacyBackupResource));
+						});
+					}
+				}
+
+				return TPromise.as(void 0);
 			});
 		});
 	}
@@ -244,17 +262,16 @@ export class BackupFileService implements IBackupFileService {
 		return textSource.lines.slice(1).join(textSource.EOL); // The first line of a backup text file is the file name
 	}
 
-	protected getBackupResource(resource: Uri): Uri {
+	protected getBackupResource(resource: Uri, legacyMacWindowsFormat?: boolean): Uri {
 		if (!this.backupEnabled) {
 			return null;
 		}
 
-		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, this.hashPath(resource)));
+		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, this.hashPath(resource, legacyMacWindowsFormat)));
 	}
 
-	private hashPath(resource: Uri): string {
-		// Windows and Mac paths are case insensitive, we want backups to be too
-		const caseAwarePath = platform.isWindows || platform.isMacintosh ? resource.fsPath.toLowerCase() : resource.fsPath;
+	private hashPath(resource: Uri, legacyMacWindowsFormat?: boolean): string {
+		const caseAwarePath = legacyMacWindowsFormat ? resource.fsPath.toLowerCase() : resource.fsPath;
 
 		return crypto.createHash('md5').update(caseAwarePath).digest('hex');
 	}

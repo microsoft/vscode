@@ -1319,6 +1319,18 @@ declare namespace Electron {
 		 */
 		setThumbnailToolTip(toolTip: string): boolean;
 		/**
+		 * Sets the application id, app icon, relaunch command and relaunch display name
+		 * for the given window. appIconIndex should be set to 0 if the app icon
+		 * file only has a single icon.
+		 */
+		setAppDetails(options: {
+			appId?: string;
+			appIconPath?: string;
+			appIconIndex?: number;
+			relaunchCommand?: string;
+			relaunchDisplayName?: string;
+		}): void;
+		/**
 		 * Same as webContents.showDefinitionForSelection().
 		 * Note: This API is available only on macOS.
 		 */
@@ -1784,6 +1796,11 @@ declare namespace Electron {
 		 * Settings of web page’s features.
 		 */
 		webPreferences?: WebPreferences;
+		/**
+		 * Tab group name, allows opening the window as a native tab on macOS 10.12+.
+		 * Windows with the same tabbing identifier will be grouped together.
+		 */
+		tabbingIdentifier?: string;
 	}
 
 	type BrowserWindowType = BrowserWindowTypeLinux | BrowserWindowTypeMac | BrowserWindowTypeWindows;

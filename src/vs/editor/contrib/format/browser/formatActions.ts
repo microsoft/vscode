@@ -28,6 +28,11 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 
 function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void {
 
+	edits = edits.filter(edit => edit.range);
+	if (!edits.length) {
+		return;
+	}
+
 	let { range } = edits[0];
 	for (let i = 1; i < edits.length; i++) {
 		range = Range.plusRange(range, edits[i].range);
@@ -157,7 +162,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 				return;
 			}
 
-			this.editor.executeCommand(this.getId(), new EditOperationsCommand(edits, this.editor.getSelection()));
+			EditOperationsCommand.execute(this.editor, edits);
 			alertFormattingEdits(edits);
 
 		}, (err) => {
@@ -241,8 +246,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			if (!state.validate(this.editor) || isFalsyOrEmpty(edits)) {
 				return;
 			}
-			const command = new EditOperationsCommand(edits, this.editor.getSelection());
-			this.editor.executeCommand(this.getId(), command);
+			EditOperationsCommand.execute(this.editor, edits);
 			alertFormattingEdits(edits);
 		});
 	}
@@ -276,8 +280,8 @@ export abstract class AbstractFormatAction extends EditorAction {
 			if (!state.validate(editor) || isFalsyOrEmpty(edits)) {
 				return;
 			}
-			const command = new EditOperationsCommand(edits, editor.getSelection());
-			editor.executeCommand(this.id, command);
+
+			EditOperationsCommand.execute(editor, edits);
 			alertFormattingEdits(edits);
 			editor.focus();
 		});

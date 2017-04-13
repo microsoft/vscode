@@ -11,13 +11,12 @@ import 'vs/base/common/errors';
 
 // Editor
 import 'vs/editor/contrib/accessibility/browser/accessibility';
-import 'vs/editor/contrib/defineKeybinding/browser/defineKeybinding';
 import 'vs/editor/contrib/inspectTMScopes/electron-browser/inspectTMScopes';
 import 'vs/editor/contrib/selectionClipboard/electron-browser/selectionClipboard';
 import 'vs/editor/browser/editor.all';
 
 // Menus/Actions
-import 'vs/platform/actions/browser/menusExtensionPoint';
+import 'vs/platform/actions/electron-browser/menusExtensionPoint';
 
 // Workbench
 import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
@@ -27,6 +26,7 @@ import 'vs/workbench/browser/actions/toggleSidebarPosition';
 import 'vs/workbench/browser/actions/toggleEditorLayout';
 import 'vs/workbench/browser/actions/toggleZenMode';
 import 'vs/workbench/parts/preferences/browser/preferences.contribution';
+import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
 import 'vs/workbench/browser/actions/configureLocale';
 
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
@@ -81,6 +81,8 @@ import 'vs/workbench/parts/terminal/electron-browser/terminalPanel'; // can be p
 import 'vs/workbench/electron-browser/workbench';
 
 import 'vs/workbench/parts/trust/electron-browser/unsupportedWorkspaceSettings.contribution';
+
+import 'vs/workbench/parts/relauncher/electron-browser/relauncher.contribution';
 
 import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
 

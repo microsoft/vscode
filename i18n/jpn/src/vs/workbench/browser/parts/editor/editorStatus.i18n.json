@@ -17,6 +17,7 @@
 	"endOfLineLineFeed": "LF",
 	"fileInfo": "ファイル情報",
 	"gotoLine": "行へ移動",
+	"guessedEncoding": "コンテンツから推測",
 	"indentConvert": "ファイルの変換",
 	"indentView": "ビューの変更",
 	"indentation": "インデント",

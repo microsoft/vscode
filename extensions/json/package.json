@@ -106,8 +106,18 @@
             "verbose"
           ],
           "default": "off",
-          "description": "Traces the communication between VS Code and the JSON language server."
+          "description": "%json.tracing.desc%"
+        },
+        "json.colorDecorators.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "%json.colorDecorators.enable.desc%"
         }
+      }
+    },
+    "configurationDefaults": {
+      "[json]": {
+        "editor.quickSuggestions": { "strings": true }
       }
     }
   },

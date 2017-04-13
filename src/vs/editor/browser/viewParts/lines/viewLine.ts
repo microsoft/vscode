@@ -72,6 +72,7 @@ export class ViewLineOptions {
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
+	public readonly fontLigatures: boolean;
 
 	constructor(config: IConfiguration) {
 		this.renderWhitespace = config.editor.viewInfo.renderWhitespace;
@@ -83,6 +84,7 @@ export class ViewLineOptions {
 		);
 		this.lineHeight = config.editor.lineHeight;
 		this.stopRenderingLineAfter = config.editor.viewInfo.stopRenderingLineAfter;
+		this.fontLigatures = config.editor.viewInfo.fontLigatures;
 	}
 
 	public equals(other: ViewLineOptions): boolean {
@@ -93,6 +95,7 @@ export class ViewLineOptions {
 			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.lineHeight === other.lineHeight
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
+			&& this.fontLigatures === other.fontLigatures
 		);
 	}
 }
@@ -161,7 +164,8 @@ export class ViewLine implements IVisibleLine {
 			options.spaceWidth,
 			options.stopRenderingLineAfter,
 			options.renderWhitespace,
-			options.renderControlCharacters
+			options.renderControlCharacters,
+			options.fontLigatures
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {

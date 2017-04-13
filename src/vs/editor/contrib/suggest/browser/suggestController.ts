@@ -16,14 +16,15 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor, IEditorContribution, EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/common/suggest';
-import { SuggestModel } from '../common/suggestModel';
-import { ICompletionItem } from '../common/completionModel';
+import { Context as SuggestContext } from './suggest';
+import { SuggestModel, State } from './suggestModel';
+import { ICompletionItem } from './completionModel';
 import { SuggestWidget } from './suggestWidget';
 
 class AcceptOnCharacterOracle {
@@ -117,6 +118,31 @@ export class SuggestController implements IEditorContribution {
 				}
 			})
 		);
+
+		let makesTextEdit = SuggestContext.MakesTextEdit.bindTo(contextKeyService);
+		this.toDispose.push(this.widget.onDidFocus(item => {
+
+			const position = this.editor.getPosition();
+			const startColumn = item.position.column - item.suggestion.overwriteBefore;
+			const endColumn = position.column;
+			let value = true;
+			if (
+				this.model.state === State.Auto
+				&& endColumn - startColumn === item.suggestion.insertText.length
+			) {
+				const oldText = this.editor.getModel().getValueInRange({
+					startLineNumber: position.lineNumber,
+					startColumn,
+					endLineNumber: position.lineNumber,
+					endColumn
+				});
+				value = oldText !== item.suggestion.insertText;
+			}
+			makesTextEdit.set(value);
+		}));
+		this.toDispose.push({
+			dispose() { makesTextEdit.reset(); }
+		});
 	}
 
 	getId(): string {
@@ -137,7 +163,7 @@ export class SuggestController implements IEditorContribution {
 
 	private onDidSelectItem(item: ICompletionItem): void {
 		if (item) {
-			const {suggestion, position} = item;
+			const { suggestion, position } = item;
 			const columnDelta = this.editor.getPosition().column - position.column;
 
 			if (Array.isArray(suggestion.additionalTextEdits)) {
@@ -163,10 +189,16 @@ export class SuggestController implements IEditorContribution {
 				this.commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);
 			}
 
+			this._alertCompletionItem(item);
 			this.telemetryService.publicLog('suggestSnippetInsert', { ...this.editor.getTelemetryData(), suggestionType: suggestion.type });
 		}
 
 		this.model.cancel();
+	}
+
+	private _alertCompletionItem({ suggestion }: ICompletionItem): void {
+		let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' did insert the following text: {1}", suggestion.label, suggestion.insertText);
+		alert(msg);
 	}
 
 	triggerSuggest(): void {
@@ -201,6 +233,12 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
+	selectLastSuggestion(): void {
+		if (this.widget) {
+			this.widget.selectLast();
+		}
+	}
+
 	selectPrevSuggestion(): void {
 		if (this.widget) {
 			this.widget.selectPrevious();
@@ -210,6 +248,12 @@ export class SuggestController implements IEditorContribution {
 	selectPrevPageSuggestion(): void {
 		if (this.widget) {
 			this.widget.selectPreviousPage();
+		}
+	}
+
+	selectFirstSuggestion(): void {
+		if (this.widget) {
+			this.widget.selectFirst();
 		}
 	}
 
@@ -266,7 +310,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestionOnEnter',
-	precondition: SuggestContext.Visible,
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MakesTextEdit),
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
@@ -313,6 +357,17 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 }));
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+	id: 'selectLastSuggestion',
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	handler: c => c.selectLastSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.TextFocus,
+		primary: KeyCode.End
+	}
+}));
+
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectPrevSuggestion(),
@@ -334,6 +389,17 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.TextFocus,
 		primary: KeyCode.PageUp,
 		secondary: [KeyMod.Alt | KeyCode.PageUp]
+	}
+}));
+
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+	id: 'selectFirstSuggestion',
+	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
+	handler: c => c.selectFirstSuggestion(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.TextFocus,
+		primary: KeyCode.Home
 	}
 }));
 

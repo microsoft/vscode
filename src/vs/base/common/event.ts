@@ -491,3 +491,7 @@ export function buffer<T>(event: Event<T>, nextTick = false, buffer: T[] = []): 
 
 	return emitter.event;
 }
+
+export function createEmptyEvent<T>(): Event<T> {
+	return (listener, thisArgs = null, disposables?) => ({ dispose: () => null });
+}

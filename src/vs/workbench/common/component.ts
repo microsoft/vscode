@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { Scope, Memento } from 'vs/workbench/common/memento';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Themable } from 'vs/workbench/common/theme';
 
 /**
  * Base class of any core/ui component in the workbench. Examples include services, extensions, parts, viewlets and quick open.
@@ -27,28 +29,20 @@ export interface IWorkbenchComponent extends IDisposable {
 	* because dispose() is being called for this purpose and shutdown() has a chance to be vetoed by the user.
 	*/
 	shutdown(): void;
-
-	/**
-	* Called when the UI component is being removed from the container. Free up resources from here.
-	*/
-	dispose(): void;
 }
 
-export class WorkbenchComponent extends Disposable implements IWorkbenchComponent {
-	private _toUnbind: IDisposable[];
+export class Component extends Themable implements IWorkbenchComponent {
 	private id: string;
 	private componentMemento: Memento;
 
-	constructor(id: string) {
-		super();
+	constructor(
+		id: string,
+		themeService: IThemeService
+	) {
+		super(themeService);
 
-		this._toUnbind = [];
 		this.id = id;
 		this.componentMemento = new Memento(this.id);
-	}
-
-	protected get toUnbind() {
-		return this._toUnbind;
 	}
 
 	public getId(): string {
@@ -83,11 +77,5 @@ export class WorkbenchComponent extends Disposable implements IWorkbenchComponen
 
 		// Save Memento
 		this.saveMemento();
-	}
-
-	public dispose(): void {
-		this._toUnbind = dispose(this._toUnbind);
-
-		super.dispose();
 	}
 }

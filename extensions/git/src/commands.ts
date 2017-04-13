@@ -5,9 +5,10 @@
 
 'use strict';
 
-import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, computeDiff, Range, WorkspaceEdit, Position } from 'vscode';
-import { Ref, RefType } from './git';
-import { Model, Resource, Status, CommitOptions } from './model';
+import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState } from 'vscode';
+import { Ref, RefType, Git } from './git';
+import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
+import { toGitUri, fromGitUri } from './uri';
 import * as staging from './staging';
 import * as path from 'path';
 import * as os from 'os';
@@ -59,15 +60,23 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 }
 
-const Commands: { commandId: string; method: Function; }[] = [];
+interface Command {
+	commandId: string;
+	key: string;
+	method: Function;
+	skipModelCheck: boolean;
+	requiresDiffInformation: boolean;
+}
 
-function command(commandId: string): Function {
+const Commands: Command[] = [];
+
+function command(commandId: string, skipModelCheck = false, requiresDiffInformation = false): Function {
 	return (target: any, key: string, descriptor: any) => {
 		if (!(typeof descriptor.value === 'function')) {
 			throw new Error('not supported');
 		}
 
-		Commands.push({ commandId, method: descriptor.value });
+		Commands.push({ commandId, key, method: descriptor.value, skipModelCheck, requiresDiffInformation });
 	};
 }
 
@@ -77,6 +86,7 @@ export class CommandCenter {
 	private disposables: Disposable[];
 
 	constructor(
+		private git: Git,
 		model: Model | undefined,
 		private outputChannel: OutputChannel,
 		private telemetryReporter: TelemetryReporter
@@ -86,7 +96,15 @@ export class CommandCenter {
 		}
 
 		this.disposables = Commands
-			.map(({ commandId, method }) => commands.registerCommand(commandId, this.createCommand(commandId, method)));
+			.map(({ commandId, key, method, skipModelCheck, requiresDiffInformation }) => {
+				const command = this.createCommand(commandId, key, method, skipModelCheck);
+
+				if (requiresDiffInformation) {
+					return commands.registerDiffInformationCommand(commandId, command);
+				} else {
+					return commands.registerCommand(commandId, command);
+				}
+			});
 	}
 
 	@command('git.refresh')
@@ -94,7 +112,12 @@ export class CommandCenter {
 		await this.model.status();
 	}
 
-	async open(resource: Resource): Promise<void> {
+	@command('git.openResource')
+	async openResource(resource: Resource): Promise<void> {
+		await this._openResource(resource);
+	}
+
+	private async _openResource(resource: Resource): Promise<void> {
 		const left = this.getLeftResource(resource);
 		const right = this.getRightResource(resource);
 		const title = this.getTitle(resource);
@@ -116,10 +139,10 @@ export class CommandCenter {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-				return resource.original.with({ scheme: 'git', query: 'HEAD' });
+				return toGitUri(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
-				return resource.uri.with({ scheme: 'git', query: '~' });
+				return toGitUri(resource.resourceUri, '~');
 		}
 	}
 
@@ -128,34 +151,32 @@ export class CommandCenter {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
 			case Status.INDEX_COPIED:
-				return resource.uri.with({ scheme: 'git' });
-
 			case Status.INDEX_RENAMED:
-				return resource.uri.with({ scheme: 'git' });
+				return toGitUri(resource.resourceUri, '');
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
-				return resource.uri.with({ scheme: 'git', query: 'HEAD' });
+				return toGitUri(resource.resourceUri, 'HEAD');
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
 			case Status.IGNORED:
-				const uriString = resource.uri.toString();
-				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString);
+				const uriString = resource.resourceUri.toString();
+				const [indexStatus] = this.model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString);
 
-				if (indexStatus && indexStatus.rename) {
-					return indexStatus.rename;
+				if (indexStatus && indexStatus.renameResourceUri) {
+					return indexStatus.renameResourceUri;
 				}
 
-				return resource.uri;
+				return resource.resourceUri;
 
 			case Status.BOTH_MODIFIED:
-				return resource.uri;
+				return resource.resourceUri;
 		}
 	}
 
 	private getTitle(resource: Resource): string {
-		const basename = path.basename(resource.uri.fsPath);
+		const basename = path.basename(resource.resourceUri.fsPath);
 
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
@@ -169,26 +190,16 @@ export class CommandCenter {
 		return '';
 	}
 
-	/**
-	 * Attempts to clone a git repository. Throws descriptive errors
-	 * for usual error cases. Returns whether the user chose to open
-	 * the resulting folder or otherwise.
-	 *
-	 * This only exists for the walkthrough contribution to have good
-	 * telemetry.
-	 *
-	 * TODO@Christof: when all the telemetry questions are answered,
-	 * please clean this up into a single clone method.
-	 */
-	@command('_git.clone')
-	async _clone(): Promise<boolean> {
+	@command('git.clone', true)
+	async clone(): Promise<void> {
 		const url = await window.showInputBox({
 			prompt: localize('repourl', "Repository URL"),
 			ignoreFocusOut: true
 		});
 
 		if (!url) {
-			throw new Error('no_URL');
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_URL' });
+			return;
 		}
 
 		const parentPath = await window.showInputBox({
@@ -198,40 +209,31 @@ export class CommandCenter {
 		});
 
 		if (!parentPath) {
-			throw new Error('no_directory');
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'no_directory' });
+			return;
 		}
 
-		const clonePromise = this.model.git.clone(url, parentPath);
+		const clonePromise = this.git.clone(url, parentPath);
 		window.setStatusBarMessage(localize('cloning', "Cloning git repository..."), clonePromise);
-		let repositoryPath: string;
 
 		try {
-			repositoryPath = await clonePromise;
+			const repositoryPath = await clonePromise;
+
+			const open = localize('openrepo', "Open Repository");
+			const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
+
+			const openFolder = result === open;
+			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
+			if (openFolder) {
+				commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
+			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
-				throw new Error('directory_not_empty');
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'directory_not_empty' });
+			} else {
+				this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'error' });
 			}
-
 			throw err;
-		}
-
-		const open = localize('openrepo', "Open Repository");
-		const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
-		const openFolder = result === open;
-
-		if (openFolder) {
-			commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
-		}
-
-		return openFolder;
-	}
-
-	@command('git.clone')
-	async clone(): Promise<void> {
-		try {
-			await this._clone();
-		} catch (err) {
-			// noop
 		}
 	}
 
@@ -241,40 +243,65 @@ export class CommandCenter {
 	}
 
 	@command('git.openFile')
-	async openFile(uri?: Uri): Promise<void> {
-		if (uri && uri.scheme === 'file') {
-			return await commands.executeCommand<void>('vscode.open', uri);
-		}
-
-		const resource = this.resolveSCMResource(uri);
-
+	async openFile(resource?: Resource): Promise<void> {
 		if (!resource) {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', resource.uri);
+		return await commands.executeCommand<void>('vscode.open', resource.resourceUri);
 	}
 
 	@command('git.openChange')
-	async openChange(uri?: Uri): Promise<void> {
-		const resource = this.resolveSCMResource(uri);
+	async openChange(resource?: Resource): Promise<void> {
+		if (!resource) {
+			return;
+		}
+
+		return await this._openResource(resource);
+	}
+
+	@command('git.openFileFromUri')
+	async openFileFromUri(uri?: Uri): Promise<void> {
+		const resource = this.getSCMResource(uri);
 
 		if (!resource) {
 			return;
 		}
 
-		return await this.open(resource);
+		return await commands.executeCommand<void>('vscode.open', resource.resourceUri);
+	}
+
+	@command('git.openChangeFromUri')
+	async openChangeFromUri(uri?: Uri): Promise<void> {
+		const resource = this.getSCMResource(uri);
+
+		if (!resource) {
+			return;
+		}
+
+		return await this._openResource(resource);
 	}
 
 	@command('git.stage')
-	async stage(uri?: Uri): Promise<void> {
-		const resource = this.resolveSCMResource(uri);
+	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		if (resourceStates.length === 0) {
+			const resource = this.getSCMResource();
 
-		if (!resource) {
+			if (!resource) {
+				return;
+			}
+
+			resourceStates = [resource];
+		}
+
+		const resources = resourceStates
+			.filter(s => s instanceof Resource && (s.resourceGroup instanceof WorkingTreeGroup || s.resourceGroup instanceof MergeGroup)) as Resource[];
+
+		if (!resources.length) {
 			return;
 		}
 
-		return await this.model.add(resource);
+		return await this.model.add(...resources);
 	}
 
 	@command('git.stageAll')
@@ -282,8 +309,8 @@ export class CommandCenter {
 		return await this.model.add();
 	}
 
-	@command('git.stageSelectedRanges')
-	async stageSelectedRanges(): Promise<void> {
+	@command('git.stageSelectedRanges', false, true)
+	async stageSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -297,9 +324,8 @@ export class CommandCenter {
 			return;
 		}
 
-		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
+		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const diffs = await computeDiff(originalDocument, modifiedDocument);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
 			const modifiedRange = diff.modifiedEndLineNumber === 0
@@ -317,8 +343,8 @@ export class CommandCenter {
 		await this.model.stage(modifiedUri, result);
 	}
 
-	@command('git.revertSelectedRanges')
-	async revertSelectedRanges(): Promise<void> {
+	@command('git.revertSelectedRanges', false, true)
+	async revertSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -332,9 +358,8 @@ export class CommandCenter {
 			return;
 		}
 
-		const originalUri = modifiedUri.with({ scheme: 'git', query: '~' });
+		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const diffs = await computeDiff(originalDocument, modifiedDocument);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
 			const modifiedRange = diff.modifiedEndLineNumber === 0
@@ -364,14 +389,25 @@ export class CommandCenter {
 	}
 
 	@command('git.unstage')
-	async unstage(uri?: Uri): Promise<void> {
-		const resource = this.resolveSCMResource(uri);
+	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		if (resourceStates.length === 0) {
+			const resource = this.getSCMResource();
 
-		if (!resource) {
+			if (!resource) {
+				return;
+			}
+
+			resourceStates = [resource];
+		}
+
+		const resources = resourceStates
+			.filter(s => s instanceof Resource && s.resourceGroup instanceof IndexGroup) as Resource[];
+
+		if (!resources.length) {
 			return;
 		}
 
-		return await this.model.revertFiles(resource);
+		return await this.model.revertFiles(...resources);
 	}
 
 	@command('git.unstageAll')
@@ -379,8 +415,8 @@ export class CommandCenter {
 		return await this.model.revertFiles();
 	}
 
-	@command('git.unstageSelectedRanges')
-	async unstageSelectedRanges(): Promise<void> {
+	@command('git.unstageSelectedRanges', false, true)
+	async unstageSelectedRanges(diffs: LineChange[]): Promise<void> {
 		const textEditor = window.activeTextEditor;
 
 		if (!textEditor) {
@@ -394,9 +430,8 @@ export class CommandCenter {
 			return;
 		}
 
-		const originalUri = modifiedUri.with({ scheme: 'git', query: 'HEAD' });
+		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const diffs = await computeDiff(originalDocument, modifiedDocument);
 		const selections = textEditor.selections;
 		const selectedDiffs = diffs.filter(diff => {
 			const modifiedRange = diff.modifiedEndLineNumber === 0
@@ -422,15 +457,28 @@ export class CommandCenter {
 	}
 
 	@command('git.clean')
-	async clean(uri?: Uri): Promise<void> {
-		const resource = this.resolveSCMResource(uri);
+	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		if (resourceStates.length === 0) {
+			const resource = this.getSCMResource();
 
-		if (!resource) {
+			if (!resource) {
+				return;
+			}
+
+			resourceStates = [resource];
+		}
+
+		const resources = resourceStates
+			.filter(s => s instanceof Resource && s.resourceGroup instanceof WorkingTreeGroup) as Resource[];
+
+		if (!resources.length) {
 			return;
 		}
 
-		const basename = path.basename(resource.uri.fsPath);
-		const message = localize('confirm discard', "Are you sure you want to discard changes in {0}?", basename);
+		const message = resources.length === 1
+			? localize('confirm discard', "Are you sure you want to discard changes in {0}?", path.basename(resources[0].resourceUri.fsPath))
+			: localize('confirm discard multiple', "Are you sure you want to discard changes in {0} files?", resources.length);
+
 		const yes = localize('discard', "Discard Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
@@ -438,7 +486,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this.model.clean(resource);
+		await this.model.clean(...resources);
 	}
 
 	@command('git.cleanAll')
@@ -710,9 +758,9 @@ export class CommandCenter {
 		this.outputChannel.show();
 	}
 
-	private createCommand(id: string, method: Function): (...args: any[]) => any {
-		return (...args) => {
-			if (!this.model) {
+	private createCommand(id: string, key: string, method: Function, skipModelCheck: boolean): (...args: any[]) => any {
+		const result = (...args) => {
+			if (!skipModelCheck && !this.model) {
 				window.showInformationMessage(localize('disabled', "Git is either disabled or not supported in this workspace"));
 				return;
 			}
@@ -729,12 +777,17 @@ export class CommandCenter {
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
 						break;
 					default:
-						const lines = (err.stderr || err.message || String(err))
-							.replace(/^error: /, '')
+						const hint = (err.stderr || err.message || String(err))
+							.replace(/^error: /mi, '')
+							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter(line => !!line);
+							.filter(line => !!line)
+						[0];
 
-						message = lines[0] || 'Git error';
+						message = hint
+							? localize('git error details', "Git: {0}", hint)
+							: localize('git error', "Git error");
+
 						break;
 				}
 
@@ -752,29 +805,30 @@ export class CommandCenter {
 				}
 			});
 		};
+
+		// patch this object, so people can call methods directly
+		this[key] = result;
+
+		return result;
 	}
 
-	private resolveSCMResource(uri?: Uri): Resource | undefined {
-		uri = uri || window.activeTextEditor && window.activeTextEditor.document.uri;
+	private getSCMResource(uri?: Uri): Resource | undefined {
+		uri = uri ? uri : window.activeTextEditor && window.activeTextEditor.document.uri;
 
 		if (!uri) {
-			return;
-		}
-
-		if (uri.scheme === 'scm' && uri.authority === 'git') {
-			const resource = scm.getResourceFromURI(uri);
-			return resource instanceof Resource ? resource : undefined;
+			return undefined;
 		}
 
 		if (uri.scheme === 'git') {
-			uri = uri.with({ scheme: 'file' });
+			const { path } = fromGitUri(uri);
+			uri = Uri.file(path);
 		}
 
 		if (uri.scheme === 'file') {
 			const uriString = uri.toString();
 
-			return this.model.workingTreeGroup.resources.filter(r => r.uri.toString() === uriString)[0]
-				|| this.model.indexGroup.resources.filter(r => r.uri.toString() === uriString)[0];
+			return this.model.workingTreeGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0]
+				|| this.model.indexGroup.resources.filter(r => r.resourceUri.toString() === uriString)[0];
 		}
 	}
 

@@ -15,7 +15,7 @@ import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import { IWorkspaceSymbolProvider, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
+import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
 
 export class ExtHostApiCommands {
@@ -171,18 +171,7 @@ export class ExtHostApiCommands {
 				description: `
 					Render the html of the resource in an editor view.
 
-					Links contained in the document will be handled by VS Code whereby it supports \`file\`-resources and
-					[virtual](https://github.com/Microsoft/vscode/blob/master/src/vs/vscode.d.ts#L3295)-resources
-					as well as triggering commands using the \`command\`-scheme. Use the query part of a command-uri to pass along JSON-encoded
-					arguments - note that URL-encoding must be applied. The snippet below defines a command-link that calls the _previewHtml_
-					command and passes along an uri:
-					\`\`\`
-					let href = encodeURI('command:vscode.previewHtml?' + JSON.stringify(someUri));
-					let html = '<a href="' + href + '">Show Resource...</a>.';
-					\`\`\`
-
-					The body element of the displayed html is dynamically annotated with one of the following css classes in order to
-					communicate the kind of color theme vscode is currently using: \`vscode-light\`, \`vscode-dark\`, or \`vscode-high-contrast\'.
+					See [working with the html preview](https://code.visualstudio.com/docs/extensionAPI/vscode-api-commands#working-with-the-html-preview) for more information about the html preview's intergration with the editor and for best practices for extension authors.
 				`,
 				args: [
 					{ name: 'uri', description: 'Uri of the resource to preview.', constraint: value => value instanceof URI || typeof value === 'string' },
@@ -201,7 +190,7 @@ export class ExtHostApiCommands {
 				description: 'Open a folder in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder unless the newWindow parameter is set to true.',
 				args: [
 					{ name: 'uri', description: '(optional) Uri of the folder to open. If not provided, a native dialog will ask the user for the folder', constraint: value => value === void 0 || value instanceof URI },
-					{ name: 'newWindow', description: '(optional) Wether to open the folder in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
+					{ name: 'newWindow', description: '(optional) Whether to open the folder in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
 				]
 			});
 
@@ -250,7 +239,7 @@ export class ExtHostApiCommands {
 	 * @return A promise that resolves to an array of symbol information.
 	 */
 	private _executeWorkspaceSymbolProvider(query: string): Thenable<types.SymbolInformation[]> {
-		return this._commands.executeCommand<[IWorkspaceSymbolProvider, IWorkspaceSymbol[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
+		return this._commands.executeCommand<[IWorkspaceSymbolProvider, modes.SymbolInformation[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
 			const result: types.SymbolInformation[] = [];
 			if (Array.isArray(value)) {
 				for (let tuple of value) {
@@ -382,7 +371,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<IOutline>('_executeDocumentSymbolProvider', args).then(value => {
 			if (value && Array.isArray(value.entries)) {
-				return value.entries.map(typeConverters.SymbolInformation.fromOutlineEntry);
+				return value.entries.map(typeConverters.toSymbolInformation);
 			}
 			return undefined;
 		});

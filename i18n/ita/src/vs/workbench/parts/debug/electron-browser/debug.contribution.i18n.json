@@ -10,6 +10,7 @@
 	"debugCommands": "Configurazione di debug",
 	"debugConfigurationTitle": "Debug",
 	"debugPanel": "Console di debug",
+	"hideActionBar": "Controlla se nascondere la barra delle azioni mobile di debug",
 	"inlineValues": "Mostra i valori delle variabili inline nell'editor durante il debug",
 	"openExplorerOnEnd": "Apre automaticamente la visualizzazione di esplorazione al termine di una sessione di debug",
 	"toggleDebugPanel": "Console di debug",

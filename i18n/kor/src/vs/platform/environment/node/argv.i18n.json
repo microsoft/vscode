@@ -19,6 +19,7 @@
 	"optionsUpperCase": "옵션",
 	"paths": "경로",
 	"performance": "'Developer: Startup Performance' 명령을 사용하여 시작합니다.",
+	"prof-startup": "시작하는 동안 CPU 프로파일러 실행",
 	"reuseWindow": "마지막 활성 창에서 파일 또는 폴더를 강제로 엽니다.",
 	"showVersions": "--list-extension을 사용할 경우 설치된 확장의 버전을 표시합니다.",
 	"uninstallExtension": "확장을 제거합니다.",

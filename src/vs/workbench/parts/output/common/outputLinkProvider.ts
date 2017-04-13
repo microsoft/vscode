@@ -37,7 +37,7 @@ export class OutputLinkProvider {
 
 			this._workspaceResource = workspace.resource;
 
-			LinkProviderRegistry.register(OUTPUT_MODE_ID, {
+			LinkProviderRegistry.register({ language: OUTPUT_MODE_ID, scheme: '*' }, {
 				provideLinks: (model, token): Thenable<ILink[]> => {
 					return wireCancellationToken(token, this._provideLinks(model.uri));
 				}

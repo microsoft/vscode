@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
 import { LinkedMap as Map } from 'vs/base/common/map';
+import { distinct } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
@@ -20,6 +21,126 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
+
+class SettingMatches {
+
+	private readonly descriptionMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
+	private readonly keyMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
+	private readonly valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
+
+	public readonly matches: IRange[];
+
+	constructor(searchString: string, setting: ISetting) {
+		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
+	}
+
+	private _findMatchesInSetting(searchString: string, setting: ISetting): IRange[] {
+		const result = this._doFindMatchesInSetting(searchString, setting);
+		if (setting.overrides && setting.overrides.length) {
+			for (const subSetting of setting.overrides) {
+				const subSettingMatches = new SettingMatches(searchString, subSetting);
+				let words = searchString.split(' ');
+				const descriptionRanges: IRange[] = this.getRangesForWords(words, this.descriptionMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
+				const keyRanges: IRange[] = this.getRangesForWords(words, this.keyMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
+				const subSettingKeyRanges: IRange[] = this.getRangesForWords(words, subSettingMatches.keyMatchingWords, [this.descriptionMatchingWords, this.keyMatchingWords, subSettingMatches.valueMatchingWords]);
+				const subSettinValueRanges: IRange[] = this.getRangesForWords(words, subSettingMatches.valueMatchingWords, [this.descriptionMatchingWords, this.keyMatchingWords, subSettingMatches.keyMatchingWords]);
+				result.push(...descriptionRanges, ...keyRanges, ...subSettingKeyRanges, ...subSettinValueRanges);
+				result.push(...subSettingMatches.matches);
+			}
+		}
+		return result;
+	}
+
+	private _doFindMatchesInSetting(searchString: string, setting: ISetting): IRange[] {
+		const registry: { [qualifiedKey: string]: IJSONSchema } = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		const schema: IJSONSchema = registry[setting.key];
+
+		let words = searchString.split(' ');
+		const settingKeyAsWords: string = setting.key.split('.').join(' ');
+
+		for (const word of words) {
+			for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
+				const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
+				if (descriptionMatches) {
+					this.descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+				}
+			}
+
+			const keyMatches = or(matchesWords, matchesCamelCase)(word, settingKeyAsWords);
+			if (keyMatches) {
+				this.keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
+			}
+
+			const valueMatches = typeof setting.value === 'string' ? matchesContiguousSubString(word, setting.value) : null;
+			if (valueMatches) {
+				this.valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
+			} else if (schema.enum && schema.enum.some(enumValue => typeof enumValue === 'string' && !!matchesContiguousSubString(word, enumValue))) {
+				this.valueMatchingWords.set(word, []);
+			}
+		}
+
+		const descriptionRanges: IRange[] = [];
+		for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
+			const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex] || '') || [];
+			descriptionRanges.push(...matches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
+		}
+		if (descriptionRanges.length === 0) {
+			descriptionRanges.push(...this.getRangesForWords(words, this.descriptionMatchingWords, [this.keyMatchingWords, this.valueMatchingWords]));
+		}
+
+		const keyMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.key);
+		const keyRanges: IRange[] = keyMatches ? keyMatches.map(match => this.toKeyRange(setting, match)) : this.getRangesForWords(words, this.keyMatchingWords, [this.descriptionMatchingWords, this.valueMatchingWords]);
+
+		let valueRanges: IRange[] = [];
+		if (setting.value && typeof setting.value === 'string') {
+			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
+			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, this.valueMatchingWords, [this.keyMatchingWords, this.descriptionMatchingWords]);
+		}
+
+		return [...descriptionRanges, ...keyRanges, ...valueRanges];
+	}
+
+	private getRangesForWords(words: string[], from: Map<string, IRange[]>, others: Map<string, IRange[]>[]): IRange[] {
+		const result: IRange[] = [];
+		for (const word of words) {
+			const ranges = from.get(word);
+			if (ranges) {
+				result.push(...ranges);
+			} else if (others.every(o => !o.has(word))) {
+				return [];
+			}
+		}
+		return result;
+	}
+
+	private toKeyRange(setting: ISetting, match: IMatch): IRange {
+		return {
+			startLineNumber: setting.keyRange.startLineNumber,
+			startColumn: setting.keyRange.startColumn + match.start,
+			endLineNumber: setting.keyRange.startLineNumber,
+			endColumn: setting.keyRange.startColumn + match.end
+		};
+	}
+
+	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
+		return {
+			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber + lineIndex,
+			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
+			endLineNumber: setting.descriptionRanges[lineIndex].startLineNumber + lineIndex,
+			endColumn: setting.descriptionRanges[lineIndex].startColumn + match.end
+		};
+	}
+
+	private toValueRange(setting: ISetting, match: IMatch): IRange {
+		return {
+			startLineNumber: setting.valueRange.startLineNumber,
+			startColumn: setting.valueRange.startColumn + match.start + 1,
+			endLineNumber: setting.valueRange.startLineNumber,
+			endColumn: setting.valueRange.startColumn + match.end + 1
+		};
+	}
+}
+
 
 export abstract class AbstractSettingsModel extends EditorModel {
 
@@ -54,7 +175,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			for (const section of group.sections) {
 				const settings: ISetting[] = [];
 				for (const setting of section.settings) {
-					const settingMatches = this._findMatchesInSetting(filter, setting);
+					const settingMatches = new SettingMatches(filter, setting).matches;
 					if (groupMatched || settingMatches.length > 0) {
 						settings.push(setting);
 					}
@@ -100,98 +221,6 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			}
 		}
 		return null;
-	}
-
-	private _findMatchesInSetting(searchString: string, setting: ISetting): IRange[] {
-		const registry: { [qualifiedKey: string]: IJSONSchema } = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		const schema: IJSONSchema = registry[setting.key];
-
-		let words = searchString.split(' ');
-		let descriptionMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
-		let keyMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
-		let valueMatchingWords: Map<string, IRange[]> = new Map<string, IRange[]>();
-		const settingKeyAsWords: string = setting.key.split('.').join(' ');
-
-		for (const word of words) {
-			for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-				const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
-				if (descriptionMatches) {
-					descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
-				}
-			}
-
-			const keyMatches = or(matchesWords, matchesCamelCase)(word, settingKeyAsWords);
-			if (keyMatches) {
-				keyMatchingWords.set(word, keyMatches.map(match => this.toKeyRange(setting, match)));
-			}
-
-			const valueMatches = typeof setting.value === 'string' ? matchesContiguousSubString(word, setting.value) : null;
-			if (valueMatches) {
-				valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
-			} else if (schema.enum && schema.enum.some(enumValue => typeof enumValue === 'string' && !!matchesContiguousSubString(word, enumValue))) {
-				valueMatchingWords.set(word, []);
-			}
-		}
-
-		const descriptionRanges: IRange[] = [];
-		for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-			const matches = or(matchesContiguousSubString)(searchString, setting.description[lineIndex] || '') || [];
-			descriptionRanges.push(...matches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
-		}
-		if (descriptionRanges.length === 0) {
-			descriptionRanges.push(...this.getRangesForWords(words, descriptionMatchingWords, [keyMatchingWords, valueMatchingWords]));
-		}
-
-		const keyMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.key);
-		const keyRanges: IRange[] = keyMatches ? keyMatches.map(match => this.toKeyRange(setting, match)) : this.getRangesForWords(words, keyMatchingWords, [descriptionMatchingWords, valueMatchingWords]);
-
-		let valueRanges: IRange[] = [];
-		if (setting.value && typeof setting.value === 'string') {
-			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
-			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, valueMatchingWords, [keyMatchingWords, descriptionMatchingWords]);
-		}
-
-		return [...descriptionRanges, ...keyRanges, ...valueRanges];
-	}
-
-	private getRangesForWords(words: string[], from: Map<string, IRange[]>, others: Map<string, IRange[]>[]): IRange[] {
-		const result: IRange[] = [];
-		for (const word of words) {
-			const ranges = from.get(word);
-			if (ranges) {
-				result.push(...ranges);
-			} else if (others.every(o => !o.has(word))) {
-				return [];
-			}
-		}
-		return result;
-	}
-
-	private toKeyRange(setting: ISetting, match: IMatch): IRange {
-		return {
-			startLineNumber: setting.keyRange.startLineNumber,
-			startColumn: setting.keyRange.startColumn + match.start,
-			endLineNumber: setting.keyRange.startLineNumber,
-			endColumn: setting.keyRange.startColumn + match.end
-		};
-	}
-
-	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
-		return {
-			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber + lineIndex,
-			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
-			endLineNumber: setting.descriptionRanges[lineIndex].startLineNumber + lineIndex,
-			endColumn: setting.descriptionRanges[lineIndex].startColumn + match.end
-		};
-	}
-
-	private toValueRange(setting: ISetting, match: IMatch): IRange {
-		return {
-			startLineNumber: setting.valueRange.startLineNumber,
-			startColumn: setting.valueRange.startColumn + match.start + 1,
-			endLineNumber: setting.valueRange.startLineNumber,
-			endColumn: setting.valueRange.startColumn + match.end + 1
-		};
 	}
 
 	public abstract settingsGroups: ISettingsGroup[];
@@ -404,15 +433,12 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 
 export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
-	private indent: string;
-
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
 	private _contentByLines: string[];
 
 	constructor(private _uri: URI, private _mostCommonlyUsedSettingsKeys: string[]) {
 		super();
-		this.indent = '  ';
 	}
 
 	public get uri(): URI {
@@ -523,18 +549,27 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null };
 				result.push(settingsGroup);
 			}
-			const configurationSettings: ISetting[] = Object.keys(config.properties).map((key) => {
-				const prop = config.properties[key];
-				const value = prop.default;
-				const description = (prop.description || '').split('\n');
-				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] };
-			});
+			const configurationSettings: ISetting[] = this.parseSettings(config.properties);
 			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
 		}
 		if (config.allOf) {
 			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup));
 		}
 		return result;
+	}
+
+	private parseSettings(settingsObject: any): ISetting[] {
+		return Object.keys(settingsObject).map((key) => {
+			const prop = settingsObject[key];
+			const value = prop.default;
+			const description = (prop.description || '').split('\n');
+			const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
+			return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides };
+		});
+	}
+
+	private parseOverrideSettings(overrideSettings: any): ISetting[] {
+		return Object.keys(overrideSettings).map((key) => ({ key, value: overrideSettings[key], description: [], range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] }));
 	}
 
 	private compareConfigurationNodes(c1: IConfigurationNode, c2: IConfigurationNode): number {
@@ -577,52 +612,73 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private pushGroup(group: ISettingsGroup): ISetting {
+		const indent = '  ';
 		let lastSetting: ISetting = null;
 		this._contentByLines.push('');
 		let groupStart = this._contentByLines.length + 1;
 		for (const section of group.sections) {
 			if (section.title) {
 				let sectionTitleStart = this._contentByLines.length + 1;
-				this.addDescription([section.title], this.indent, this._contentByLines);
+				this.addDescription([section.title], indent, this._contentByLines);
 				section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 			}
 
 			for (const setting of section.settings) {
-				const settingStart = this._contentByLines.length + 1;
-				setting.descriptionRanges = [];
-				const descriptionPreValue = this.indent + '// ';
-				for (const line of setting.description) {
-					this._contentByLines.push(descriptionPreValue + line);
-					setting.descriptionRanges.push({ startLineNumber: this._contentByLines.length, startColumn: this._contentByLines[this._contentByLines.length - 1].indexOf(line) + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length });
-				}
-
-				let preValueConent = this.indent;
-				const keyString = JSON.stringify(setting.key);
-				preValueConent += keyString;
-				setting.keyRange = { startLineNumber: this._contentByLines.length + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this._contentByLines.length + 1, endColumn: setting.key.length };
-
-				preValueConent += ': ';
-				const valueStart = this._contentByLines.length + 1;
-				let valueString = JSON.stringify(setting.value, null, this.indent);
-				if (valueString && (typeof setting.value === 'object')) {
-					const mulitLineValue = valueString.split('\n');
-					this._contentByLines.push(preValueConent + mulitLineValue[0]);
-					for (let i = 1; i < mulitLineValue.length; i++) {
-						this._contentByLines.push(this.indent + mulitLineValue[i]);
-					}
-				} else {
-					this._contentByLines.push(preValueConent + valueString);
-				}
-
-				setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length + 1 };
-				this._contentByLines[this._contentByLines.length - 1] += ',';
+				this.pushSetting(setting, indent);
 				lastSetting = setting;
-				this._contentByLines.push('');
-				setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 			}
 		}
 		group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 		return lastSetting;
+	}
+
+	private pushSetting(setting: ISetting, indent: string): void {
+		const settingStart = this._contentByLines.length + 1;
+		setting.descriptionRanges = [];
+		const descriptionPreValue = indent + '// ';
+		for (const line of setting.description) {
+			this._contentByLines.push(descriptionPreValue + line);
+			setting.descriptionRanges.push({ startLineNumber: this._contentByLines.length, startColumn: this._contentByLines[this._contentByLines.length - 1].indexOf(line) + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length });
+		}
+
+		let preValueConent = indent;
+		const keyString = JSON.stringify(setting.key);
+		preValueConent += keyString;
+		setting.keyRange = { startLineNumber: this._contentByLines.length + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this._contentByLines.length + 1, endColumn: setting.key.length };
+
+		preValueConent += ': ';
+		const valueStart = this._contentByLines.length + 1;
+		this.pushValue(setting, preValueConent, indent);
+
+		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length + 1 };
+		this._contentByLines[this._contentByLines.length - 1] += ',';
+		this._contentByLines.push('');
+		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+	}
+
+	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {
+		let valueString = JSON.stringify(setting.value, null, indent);
+		if (valueString && (typeof setting.value === 'object')) {
+			if (setting.overrides.length) {
+				this._contentByLines.push(preValueConent + ' {');
+				for (const subSetting of setting.overrides) {
+					this.pushSetting(subSetting, indent + indent);
+					this._contentByLines.pop();
+				}
+				const lastSetting = setting.overrides[setting.overrides.length - 1];
+				const content = this._contentByLines[lastSetting.range.endLineNumber - 2];
+				this._contentByLines[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
+				this._contentByLines.push(indent + '}');
+			} else {
+				const mulitLineValue = valueString.split('\n');
+				this._contentByLines.push(preValueConent + mulitLineValue[0]);
+				for (let i = 1; i < mulitLineValue.length; i++) {
+					this._contentByLines.push(indent + mulitLineValue[i]);
+				}
+			}
+		} else {
+			this._contentByLines.push(preValueConent + valueString);
+		}
 	}
 
 	private addDescription(description: string[], indent: string, result: string[]) {
@@ -634,6 +690,11 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	public dispose(): void {
 		// Not disposable
 	}
+}
+
+export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {
+	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
+	return defaultsHeader + '\n' + keybindingService.getDefaultKeybindingsContent();
 }
 
 export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
@@ -649,8 +710,7 @@ export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<an
 
 	public get content(): string {
 		if (!this._content) {
-			const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
-			this._content = defaultsHeader + '\n' + this.keybindingService.getDefaultKeybindings();
+			this._content = defaultKeybindingsContents(this.keybindingService);
 		}
 		return this._content;
 	}

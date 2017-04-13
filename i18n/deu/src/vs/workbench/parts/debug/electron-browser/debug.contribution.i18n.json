@@ -10,6 +10,7 @@
 	"debugCommands": "Debugkonfiguration",
 	"debugConfigurationTitle": "Debuggen",
 	"debugPanel": "Debugging-Konsole",
+	"hideActionBar": "Steuert, ob die unverankerte Debugaktionsleiste ausgeblendet werden soll",
 	"inlineValues": "Variablenwerte beim Debuggen in Editor eingebunden anzeigen",
 	"openExplorerOnEnd": "Hiermit wird am Ende einer Debugsitzung automatisch eine Explorer-Ansicht geöffnet.",
 	"toggleDebugPanel": "Debugging-Konsole",

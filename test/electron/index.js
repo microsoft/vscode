@@ -8,14 +8,22 @@ const { tmpdir } = require('os');
 const { join } = require('path');
 
 const optimist = require('optimist')
-	.describe('grep', 'only run tests matching <pattern>').string('grep').alias('grep', 'g').string('g')
+	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
 	.describe('run', 'only run tests from <file>').string('run')
-	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug');
+	.describe('runGrep', 'only run tests matching <file_pattern>').boolean('runGrep')
+	.describe('build', 'run with build output (out-build)').boolean('build')
+	.describe('coverage', 'generate coverage report').boolean('coverage')
+	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug')
+	.describe('help', 'show the help').alias('help', 'h');
 
 const argv = optimist.argv;
-const { debug, grep, run } = argv;
 
-if (!debug) {
+if (argv.help) {
+	optimist.showHelp();
+	process.exit(0);
+}
+
+if (!argv.debug) {
 	app.setPath('userData', join(tmpdir(), `vscode-tests-${Date.now()}`));
 }
 
@@ -24,15 +32,19 @@ app.on('ready', () => {
 	const win = new BrowserWindow({
 		height: 600,
 		width: 800,
-		webPreferences: { webSecurity: false }
+		show: false,
+		webPreferences: {
+			backgroundThrottling: false,
+			webSecurity: false
+		}
 	});
 
 	win.webContents.on('did-finish-load', () => {
-		win.show();
-		if (debug) {
+		if (argv.debug) {
+			win.show();
 			win.webContents.openDevTools('right');
 		}
-		win.webContents.send('run', { grep, run });
+		win.webContents.send('run', argv);
 	});
 
 	win.loadURL(`file://${__dirname}/renderer.html`);
@@ -57,7 +69,7 @@ app.on('ready', () => {
 			console.error('\n');
 		}
 
-		if (!debug) {
+		if (!argv.debug) {
 			app.exit(_failures.length > 0 ? 1 : 0);
 		}
 	});

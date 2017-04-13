@@ -121,3 +121,15 @@
 .hc-black .monaco-scrollable-element > .scrollbar > .slider.active {
 	background: rgba(111, 195, 223, 1);
 }
+
+.vs-dark .monaco-scrollable-element .shadow.top {
+	box-shadow: #000 0 6px 6px -6px inset;
+}
+
+.vs-dark .monaco-scrollable-element .shadow.left {
+	box-shadow: #000 6px 0 6px -6px inset;
+}
+
+.vs-dark .monaco-scrollable-element .shadow.top.left {
+	box-shadow: #000 6px 6px 6px -6px inset;
+}

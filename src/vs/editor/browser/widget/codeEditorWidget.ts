@@ -5,6 +5,7 @@
 'use strict';
 
 import 'vs/css!./media/editor';
+import 'vs/editor/common/view/editorColorRegistry'; // initialze editor theming partcicpants
 import 'vs/css!./media/tokens';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -169,11 +170,16 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		return this.viewModel.getCenteredRangeInViewport();
 	}
 
-	public getCompletelyVisibleLinesRangeInViewport(): Range {
+	protected _getCompletelyVisibleViewRange(): Range {
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.getCompletelyVisibleLinesRangeInViewport();
+		return this._view.getCodeEditorHelper().getCompletelyVisibleViewRange();
+	}
+
+	public getCompletelyVisibleLinesRangeInViewport(): Range {
+		const viewRange = this._getCompletelyVisibleViewRange();
+		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public getScrollWidth(): number {

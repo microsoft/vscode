@@ -9,10 +9,6 @@
 	border-bottom-width: 1px;
 }
 
-.monaco-editor .reference-zone-widget.zone-widget-arrow.below {
-	background: transparent;
-}
-
 .monaco-editor .zone-widget .zone-widget-container.reference-zone-widget.results-loaded {
 	-webkit-transition: height 100ms ease-in;
 	transition: height 100ms ease-in;
@@ -37,28 +33,9 @@
 	padding: 3em 0;
 }
 
-.monaco-editor .reference-zone-widget,
-.monaco-editor .reference-zone-widget .preview .monaco-editor,
-.monaco-editor .reference-zone-widget .preview .glyph-margin,
-.monaco-editor .reference-zone-widget .preview .monaco-editor-background,
-.monaco-editor .reference-zone-widget .preview .monaco-editor .margin .view-line {
-	background-color: #F2F8FC;
-}
-
-.monaco-editor .reference-zone-widget .preview .reference-decoration {
-	background-color: rgba(245, 216, 2, 0.87);
-}
-
 .monaco-editor .reference-zone-widget .ref-tree {
-	background-color: #F3F3F3;
-	color: #646465;
 	line-height: 22px;
 	font-size: 13px;
-}
-
-.monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) {
-	background-color: rgba(51, 153, 255, .2);
-	color: #6C6C6C !important;
 }
 
 .monaco-editor .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.has-children > .content:before	{
@@ -82,25 +59,12 @@
 .monaco-editor .reference-zone-widget .ref-tree .reference-file {
 	position: relative;
 	line-height: 22px;
-	color: #1E1E1E;
 }
 
 .monaco-editor .reference-zone-widget .ref-tree .reference-file .directory {
 	opacity: 0.7;
 	margin-left: 0.5em;
 	font-size: 0.9em;
-}
-
-.monaco-editor .reference-zone-widget .ref-tree .reference .lineNumber {
-	color: #A8A8A8;
-}
-
-.monaco-editor .reference-zone-widget .ref-tree .selected .reference .lineNumber {
-	color: white;
-}
-
-.monaco-editor .reference-zone-widget .ref-tree .referenceMatch {
-	background-color: rgba(234, 92, 0, 0.3);
 }
 
 .monaco-editor .reference-zone-widget .monaco-count-badge {
@@ -112,27 +76,6 @@
 .monaco-editor.vs-dark .reference-zone-widget .ref-tree .block,
 .monaco-editor.vs-dark .reference-zone-widget .overlay {
 	background-color: #1e1e1e;
-}
-
-.monaco-editor.vs-dark .reference-zone-widget,
-.monaco-editor.vs-dark .reference-zone-widget .preview .monaco-editor,
-.monaco-editor.vs-dark .reference-zone-widget .preview .glyph-margin,
-.monaco-editor.vs-dark .reference-zone-widget .preview .monaco-editor-background,
-.monaco-editor.vs-dark .reference-zone-widget .preview .monaco-editor .margin .view-line {
-	background-color: #001F33;
-}
-
-.monaco-editor.vs-dark .reference-zone-widget .ref-tree {
-	background-color: #252526;
-	color: #BBB;
-}
-
-.monaco-editor.vs-dark .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) {
-	color: #FFF !important;
-}
-
-.monaco-editor.vs-dark .reference-zone-widget .preview .reference-decoration {
-	background-color: rgba(255, 143, 0, 0.6);
 }
 
 .monaco-editor.vs-dark .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected.has-children > .content:before	{
@@ -148,45 +91,13 @@
 	border-left-color: transparent;
 }
 
-.monaco-editor.vs-dark .reference-zone-widget .ref-tree .reference-file {
-	color: #FFF;
-}
-
 /* High Contrast Theming */
-.monaco-editor.hc-black .reference-zone-widget,
-.monaco-editor.hc-black .reference-zone-widget .preview .monaco-editor,
-.monaco-editor.hc-black .reference-zone-widget .preview .monaco-editor-background,
-.monaco-editor.hc-black .reference-zone-widget .preview .monaco-editor .margin .view-line {
-	background-color: #0C141F;
-}
-
-.monaco-editor.hc-black .reference-zone-widget .preview .reference-decoration {
-	background: none;
-	border: 2px solid #f38518;
-	box-sizing: border-box;
-}
-
-.monaco-editor.hc-black .reference-zone-widget .ref-tree {
-	background-color: #000;
-	color: #fff;
-}
 
 .monaco-editor.hc-black .reference-zone-widget .ref-tree .reference-file {
-	color: #fff;
 	line-height: 20px;
 	font-weight: bold;
 }
 
 .monaco-editor.hc-black .reference-zone-widget .ref-tree .reference-file .directory {
 	font-weight: normal;
-}
-
-.monaco-editor.hc-black .reference-zone-widget .ref-tree .monaco-tree.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) {
-	background: none;
-	color: #FFF !important;
-}
-
-.monaco-editor.hc-black .reference-zone-widget .ref-tree .referenceMatch {
-	background: none;
-	border: 1px dotted #f38518;
 }

@@ -7,7 +7,6 @@
 	font-size: 12px;
 	position: absolute;
 	z-index: 300;
-	color: #eee;
 	list-style-type: none;
 	line-height: 35px;
 	margin: 0;
@@ -16,12 +15,10 @@
 	left: 15%;
 }
 
-.vs .global-message-list {
-	box-shadow: 0 5px 8px #A8A8A8;
-}
-
-.vs-dark .global-message-list  {
-	box-shadow: 0 5px 8px #000;
+.hc-black .global-message-list {
+	outline: 2px solid;
+	outline-offset: -2px;
+	box-shadow: none;
 }
 
 .global-message-list.transition {
@@ -76,6 +73,84 @@
 	user-select: none;
 }
 
+.global-message-list li.message-list-entry .message-left-side.message-overflow-ellipsis {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	display: block;
+}
+
+.global-message-list li.message-list-entry .actions-container {
+	float: right;
+}
+
+.global-message-list li.message-list-entry .actions-container .message-action {
+	display: inline-block;
+}
+
+.global-message-list li.message-list-entry .actions-container .message-action .action-button {
+	padding-left: 10px;
+	padding-right: 10px;
+	display: inline-block;
+	color: inherit;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.hc-black .global-message-list li.message-list-entry .message-left-side.severity {
+	border: 1px solid;
+}
+
+.hc-black .global-message-list li.message-list-entry .actions-container .message-action .action-button {
+	border: 1px solid;
+}
+
+.hc-black .global-message-list li.message-list-entry .actions-container .message-action .action-button:focus {
+	outline-offset: -4px; /* Helps high-contrast outline avoid clipping. */
+}
+
+/* TODO@theme */
+
+.vs .global-message-list,
+.vs-dark .global-message-list,
+.hc-black .global-message-list {
+	color: #eee;
+}
+
+.vs .global-message-list {
+	background-color: #2C2C2C;
+}
+
+.vs-dark .global-message-list {
+	background-color: #333;
+}
+
+.vs .global-message-list {
+	box-shadow: 0 5px 8px #A8A8A8;
+}
+
+.vs-dark .global-message-list  {
+	box-shadow: 0 5px 8px #000;
+}
+
+.hc-black .global-message-list {
+	background-color: #000;
+	outline-color: #6FC3DF;
+}
+
+.hc-black .global-message-list li.message-list-entry .message-left-side.severity {
+	border-color: #6FC3DF;
+}
+
+.hc-black .global-message-list li.message-list-entry .actions-container .message-action .action-button {
+	border-color: #6FC3DF;
+}
+
+.vs .global-message-list li.message-list-entry .actions-container .message-action .action-button:focus,
+.vs-dark .global-message-list li.message-list-entry .actions-container .message-action .action-button:focus {
+	outline-color: rgba(255, 255, 255, .5); /* buttons have a blue color, so focus indication needs to be different */
+}
+
 .vs .global-message-list li.message-list-entry .message-left-side.severity.app-error {
 	background-color: #BE1100;
 }
@@ -100,27 +175,12 @@
 	background-color: #007ACC;
 }
 
-.global-message-list li.message-list-entry .message-left-side.message-overflow-ellipsis {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	display: block;
-}
-
-.global-message-list li.message-list-entry .actions-container {
-	float: right;
-}
-
-.global-message-list li.message-list-entry .actions-container .message-action {
-	display: inline-block;
-}
-
 .vs .global-message-list li.message-list-entry .actions-container .message-action {
 	background-color: #1382CE;
 }
 
 .vs .global-message-list li.message-list-entry .actions-container .message-action:hover {
-	background-color: rgb(0, 107, 179);
+	background-color: #006bb3;
 }
 
 .vs-dark .global-message-list li.message-list-entry .actions-container .message-action {
@@ -129,40 +189,4 @@
 
 .vs-dark .global-message-list li.message-list-entry .actions-container .message-action:hover {
 	background-color: #007ACC;
-}
-
-.global-message-list li.message-list-entry .actions-container .message-action .action-button {
-	padding-left: 10px;
-	padding-right: 10px;
-	display: inline-block;
-	color: inherit;
-	text-decoration: none;
-	cursor: pointer;
-}
-
-.vs .global-message-list {
-	background-color: #2C2C2C;
-}
-
-.vs-dark .global-message-list {
-	background-color: #333;
-}
-
-/* High Contrast Theming */
-.hc-black .global-message-list {
-	background-color: #000;
-	outline: 2px solid #6FC3DF;
-	outline-offset: -2px;
-}
-
-.hc-black .global-message-list  {
-	box-shadow: none;
-}
-
-.hc-black .global-message-list li.message-list-entry .message-left-side.severity {
-	border: 1px solid #6FC3DF;
-}
-
-.hc-black .global-message-list li.message-list-entry .actions-container .message-action .action-button {
-	border: 1px solid #6FC3DF;
 }

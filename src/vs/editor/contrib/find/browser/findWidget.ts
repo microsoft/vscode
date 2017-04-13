@@ -24,6 +24,9 @@ import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contri
 import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
+import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
+import { Color } from 'vs/base/common/color';
+import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, highContrastOutline, highContrastBorder, inputBackground as findInputBackground, editorWidgetBackground, inputActiveOptionBorder, editorWidgetShadow } from "vs/platform/theme/common/colorRegistry";
 
 export interface IFindController {
 	replace(): void;
@@ -86,7 +89,8 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		state: FindReplaceState,
 		contextViewProvider: IContextViewProvider,
 		keybindingService: IKeybindingService,
-		contextKeyService: IContextKeyService
+		contextKeyService: IContextKeyService,
+		themeService: IThemeService
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -164,6 +168,9 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		});
 
 		this._codeEditor.addOverlayWidget(this);
+
+		this._applyTheme(themeService.getTheme());
+		this._register(themeService.onThemeChange(this._applyTheme.bind(this)));
 	}
 
 	// ----- IOverlayWidget API
@@ -340,6 +347,11 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		}
 	}
 
+	private _applyTheme(theme: ITheme) {
+		let inputStyles = { inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder) };
+		this._findInput.style(inputStyles);
+	}
+
 	// ----- Public
 
 	public focusFindInput(): void {
@@ -360,60 +372,65 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.toKeybinding().value) {
-			case KeyCode.Enter:
-				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Enter)) {
+			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.Shift | KeyCode.Enter:
-				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
+			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
+			e.preventDefault();
+			return;
+		}
 
-			case KeyCode.Tab:
-				if (this._isReplaceVisible) {
-					this._replaceInputBox.focus();
-				} else {
-					this._findInput.focusOnCaseSensitive();
-				}
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Tab)) {
+			if (this._isReplaceVisible) {
+				this._replaceInputBox.focus();
+			} else {
+				this._findInput.focusOnCaseSensitive();
+			}
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.DownArrow:
-				this._codeEditor.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
+			this._codeEditor.focus();
+			e.preventDefault();
+			return;
 		}
 	}
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.toKeybinding().value) {
-			case KeyCode.Enter:
-				this._controller.replace();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Enter)) {
+			this._controller.replace();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.Enter:
-				this._controller.replaceAll();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
+			this._controller.replaceAll();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyCode.Tab:
-				this._findInput.focusOnCaseSensitive();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Tab)) {
+			this._findInput.focusOnCaseSensitive();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.Shift | KeyCode.Tab:
-				this._findInput.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
+			this._findInput.focus();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.DownArrow:
-				this._codeEditor.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
+			this._codeEditor.focus();
+			e.preventDefault();
+			return;
 		}
 	}
 
@@ -768,3 +785,41 @@ class SimpleButton extends Widget {
 		dom.toggleClass(this._domNode, className, shouldHaveIt);
 	}
 }
+
+// theming
+
+registerThemingParticipant((theme, collector) => {
+	function addBackgroundColorRule(selector: string, color: Color): void {
+		if (color) {
+			collector.addRule(`.monaco-editor.${theme.selector} ${selector} { background-color: ${color}; }`);
+		}
+	}
+
+	addBackgroundColorRule('.findMatch', theme.getColor(editorFindMatchHighlight));
+	addBackgroundColorRule('.currentFindMatch', theme.getColor(editorFindMatch));
+	addBackgroundColorRule('.findScope', theme.getColor(editorFindRangeHighlight));
+
+	let inputBackground = theme.getColor(findInputBackground);
+	addBackgroundColorRule('.find-widget .monaco-findInput', inputBackground);
+	addBackgroundColorRule('.find-widget .replace-input', inputBackground);
+
+	let widgetBackground = theme.getColor(editorWidgetBackground);
+	addBackgroundColorRule('.find-widget', widgetBackground);
+
+	let widgetShadow = theme.getColor(editorWidgetShadow);
+	if (widgetShadow) {
+		collector.addRule(`.monaco-editor.${theme.selector} .find-widget { box-shadow: 0 2px 8px ${widgetShadow}; }`);
+	}
+
+	let hcOutline = theme.getColor(highContrastOutline);
+	if (hcOutline) {
+		collector.addRule(`.monaco-editor.${theme.selector} .findScope { border: 1px dashed ${hcOutline.transparent(0.4)}; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .currentFindMatch { border: 2px solid ${hcOutline}; padding: 1px; -moz-box-sizing: border-box; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .findMatch { border: 1px dotted ${hcOutline}; -moz-box-sizing: border-box; box-sizing: border-box; }`);
+	}
+	let hcBorder = theme.getColor(highContrastBorder);
+	if (hcBorder) {
+		collector.addRule(`.monaco-editor.${theme.selector} .find-widget { border: 2px solid ${hcBorder}; }`);
+	}
+});
+

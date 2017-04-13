@@ -7,10 +7,10 @@
 import { localize } from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import { IModel, IPosition } from 'vs/editor/common/editorCommon';
-import { ISuggestion, LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
+import { ISuggestion, LanguageId } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/common/suggest';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
@@ -19,17 +19,17 @@ export interface ISnippetsService {
 
 	_serviceBrand: any;
 
-	registerSnippets(languageIdentifier: LanguageIdentifier, snippets: ISnippet[], owner?: string): void;
+	registerSnippets(languageId: LanguageId, snippets: ISnippet[], owner: string): void;
 
 	visitSnippets(languageId: LanguageId, accept: (snippet: ISnippet) => void): void;
 }
 
 export interface ISnippet {
 	name: string;
-	owner: string;
 	prefix: string;
 	description: string;
 	codeSnippet: string;
+	extensionName?: string;
 }
 
 interface ISnippetSuggestion extends ISuggestion {
@@ -40,7 +40,9 @@ class SnippetsService implements ISnippetsService {
 
 	_serviceBrand: any;
 
-	private _snippets: { [owner: string]: ISnippet[] }[] = [];
+	private static _defaultDetail = localize('detail.userSnippet', "User Snippet");
+
+	private _snippets = new Map<LanguageId, Map<string, ISnippet[]>>();
 
 	constructor(
 		@IModeService private _modeService: IModeService
@@ -53,23 +55,22 @@ class SnippetsService implements ISnippetsService {
 		});
 	}
 
-	public registerSnippets(languageIdentifier: LanguageIdentifier, snippets: ISnippet[], owner = ''): void {
-		let snippetsByMode = this._snippets[languageIdentifier.id];
-		if (!snippetsByMode) {
-			this._snippets[languageIdentifier.id] = snippetsByMode = {};
+	public registerSnippets(languageId: LanguageId, snippets: ISnippet[], fileName: string): void {
+		if (!this._snippets.has(languageId)) {
+			this._snippets.set(languageId, new Map<string, ISnippet[]>());
 		}
-		snippetsByMode[owner] = snippets;
+		this._snippets.get(languageId).set(fileName, snippets);
 	}
 
 	public visitSnippets(languageId: LanguageId, accept: (snippet: ISnippet) => boolean): void {
-		let snippetsByMode = this._snippets[languageId];
-		if (snippetsByMode) {
-			for (let s in snippetsByMode) {
-				let result = snippetsByMode[s].every(accept);
+		const modeSnippets = this._snippets.get(languageId);
+		if (modeSnippets) {
+			modeSnippets.forEach(snippets => {
+				let result = snippets.every(accept);
 				if (!result) {
 					return;
 				}
-			}
+			});
 		}
 	}
 
@@ -88,7 +89,7 @@ class SnippetsService implements ISnippetsService {
 
 	private _getSnippetCompletions(model: IModel, position: IPosition): ISuggestion[] {
 		const languageId = this._getLanguageIdAtPosition(model, position);
-		if (!this._snippets[languageId]) {
+		if (!this._snippets.has(languageId)) {
 			return undefined;
 		}
 
@@ -120,9 +121,10 @@ class SnippetsService implements ISnippetsService {
 				type: 'snippet',
 				label: s.prefix,
 				get disambiguateLabel() { return localize('snippetSuggest.longLabel', "{0}, {1}", s.prefix, s.name); },
-				detail: s.owner,
+				detail: s.extensionName || SnippetsService._defaultDetail,
 				documentation: s.description,
 				insertText: s.codeSnippet,
+				sortText: `${s.prefix}-${s.extensionName || ''}`,
 				noAutoAccept: true,
 				snippetType: 'textmate',
 				overwriteBefore

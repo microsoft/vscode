@@ -86,7 +86,7 @@ class ConfigClass implements IConfiguration {
 			hover: true,
 			contextmenu: true,
 			mouseWheelScrollSensitivity: 1,
-			quickSuggestions: true,
+			quickSuggestions: { other: true, comments: false, strings: false },
 			quickSuggestionsDelay: 10,
 			parameterHints: true,
 			iconsInSuggestions: true,

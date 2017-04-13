@@ -193,10 +193,10 @@ class EditorInputCache {
 					resource = URI.file(paths.join(model.getRepositoryRoot(), indexStatus.getRename()));
 				}
 
-				return this.editorService.createInput({ resource });
+				return TPromise.as(this.editorService.createInput({ resource }));
 
 			case Status.BOTH_MODIFIED:
-				return this.editorService.createInput({ resource });
+				return TPromise.as(this.editorService.createInput({ resource }));
 
 			default:
 				return TPromise.as(null);

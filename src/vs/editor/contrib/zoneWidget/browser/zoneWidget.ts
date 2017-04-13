@@ -14,6 +14,7 @@ import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs
 import { EditorLayoutInfo, IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { Color, RGBA } from "vs/base/common/color";
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -22,12 +23,23 @@ export interface IOptions {
 	className?: string;
 	isAccessible?: boolean;
 	isResizeable?: boolean;
+	frameColor?: Color;
+	arrowColor?: Color;
 }
+
+export interface IStyles {
+	frameColor?: Color;
+	arrowColor?: Color;
+}
+
+const defaultColor = Color.fromRGBA(new RGBA(0, 122, 204));
 
 const defaultOptions: IOptions = {
 	showArrow: true,
 	showFrame: true,
-	className: ''
+	className: '',
+	frameColor: defaultColor,
+	arrowColor: defaultColor
 };
 
 const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
@@ -106,7 +118,8 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 	constructor(editor: ICodeEditor, options: IOptions = {}) {
 		super();
 		this.editor = editor;
-		this.options = objects.mixin(objects.clone(defaultOptions), options);
+		this.options = objects.clone(options);
+		objects.mixin(this.options, defaultOptions, false);
 		this.domNode = document.createElement('div');
 		if (!this.options.isAccessible) {
 			this.domNode.setAttribute('aria-hidden', 'true');
@@ -151,9 +164,31 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 			this.arrow = document.createElement('div');
 			this.arrow.className = 'zone-widget-arrow below';
 		}
-
 		this._fillContainer(this.container);
 		this._initSash();
+		this._applyStyles();
+	}
+
+	public style(styles: IStyles) {
+		if (styles.frameColor) {
+			this.options.frameColor = styles.frameColor;
+		}
+		if (styles.arrowColor) {
+			this.options.arrowColor = styles.arrowColor;
+		}
+		this._applyStyles();
+	}
+
+	protected _applyStyles() {
+		if (this.container) {
+			let frameColor = this.options.frameColor.toString();
+			this.container.style.borderTopColor = frameColor;
+			this.container.style.borderBottomColor = frameColor;
+		}
+		if (this.arrow) {
+			let arrowColor = this.options.arrowColor.toString();
+			this.arrow.style.borderBottomColor = arrowColor;
+		}
 	}
 
 	private _getWidth(info: EditorLayoutInfo = this.editor.getLayoutInfo()): number {
@@ -238,9 +273,17 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this.editor.revealPosition(position);
 
 		// Render the widget as zone (rendering) and widget (lifecycle)
-		let viewZoneDomNode = document.createElement('div'),
-			lineHeight = this.editor.getConfiguration().lineHeight,
-			arrowHeight = 0, frameThickness = 0;
+		const viewZoneDomNode = document.createElement('div');
+		const lineHeight = this.editor.getConfiguration().lineHeight;
+
+		// adjust heightInLines to viewport
+		const maxHeightInLines = (this.editor.getLayoutInfo().height / lineHeight) * .8;
+		if (heightInLines >= maxHeightInLines) {
+			heightInLines = maxHeightInLines;
+		}
+
+		let arrowHeight = 0;
+		let frameThickness = 0;
 
 		// Render the arrow one 1/3 of an editor line height
 		if (this.options.showArrow) {

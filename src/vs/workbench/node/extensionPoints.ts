@@ -12,7 +12,7 @@ import { IExtensionDescription, IMessage } from 'vs/platform/extensions/common/e
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { groupBy, values } from 'vs/base/common/collections';
-import paths = require('vs/base/common/paths');
+import { join, normalize, extname } from 'path';
 import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
 import { isValidExtensionDescription } from 'vs/platform/extensions/node/extensionValidator';
@@ -77,7 +77,7 @@ abstract class ExtensionManifestHandler {
 		this._collector = collector;
 		this._absoluteFolderPath = absoluteFolderPath;
 		this._isBuiltin = isBuiltin;
-		this._absoluteManifestPath = paths.join(absoluteFolderPath, MANIFEST_FILE);
+		this._absoluteManifestPath = join(absoluteFolderPath, MANIFEST_FILE);
 	}
 }
 
@@ -105,47 +105,70 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 
 	public replaceNLS(extensionDescription: IExtensionDescription): TPromise<IExtensionDescription> {
-		let extension = paths.extname(this._absoluteManifestPath);
+		let extension = extname(this._absoluteManifestPath);
 		let basename = this._absoluteManifestPath.substr(0, this._absoluteManifestPath.length - extension.length);
 
 		return pfs.fileExists(basename + '.nls' + extension).then(exists => {
 			if (!exists) {
 				return extensionDescription;
 			}
-			return ExtensionManifestNLSReplacer.findMessageBundle(basename).then(messageBundle => {
-				if (!messageBundle) {
+			return ExtensionManifestNLSReplacer.findMessageBundles(basename).then((messageBundle) => {
+				if (!messageBundle.localized) {
 					return extensionDescription;
 				}
-				return pfs.readFile(messageBundle).then(messageBundleContent => {
+				return pfs.readFile(messageBundle.localized).then(messageBundleContent => {
 					let errors: json.ParseError[] = [];
 					let messages: { [key: string]: string; } = json.parse(messageBundleContent.toString(), errors);
-					if (errors.length > 0) {
-						errors.forEach((error) => {
-							this._collector.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", messageBundle, json.getParseErrorMessage(error.error)));
-						});
+
+					return ExtensionManifestNLSReplacer.resolveOriginalMessageBundle(messageBundle.original, errors).then(originalMessages => {
+						if (errors.length > 0) {
+							errors.forEach((error) => {
+								this._collector.error(this._absoluteFolderPath, nls.localize('jsonsParseFail', "Failed to parse {0} or {1}: {2}.", messageBundle.localized, messageBundle.original, json.getParseErrorMessage(error.error)));
+							});
+							return extensionDescription;
+						}
+
+						ExtensionManifestNLSReplacer._replaceNLStrings(extensionDescription, messages, originalMessages, this._collector, this._absoluteFolderPath);
 						return extensionDescription;
-					}
-					ExtensionManifestNLSReplacer._replaceNLStrings(extensionDescription, messages, this._collector, this._absoluteFolderPath);
-					return extensionDescription;
+					});
 				}, (err) => {
-					this._collector.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", messageBundle, err.message));
+					this._collector.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", messageBundle.localized, err.message));
 					return null;
 				});
 			});
 		});
 	}
 
-	private static findMessageBundle(basename: string): TPromise<string> {
-		return new TPromise<string>((c, e, p) => {
+	/**
+	 * Parses original message bundle, returns null if the original message bundle is null.
+	 */
+	private static resolveOriginalMessageBundle(originalMessageBundle: string, errors: json.ParseError[]) {
+		return new TPromise<{ [key: string]: string; }>((c, e, p) => {
+			if (originalMessageBundle) {
+				pfs.readFile(originalMessageBundle).then(originalBundleContent => {
+					c(json.parse(originalBundleContent.toString(), errors));
+				});
+			} else {
+				c(null);
+			}
+		});
+	}
+
+	/**
+	 * Finds localized message bundle and the original (unlocalized) one.
+	 * If the localized file is not present, returns null for the original and marks original as localized.
+	 */
+	private static findMessageBundles(basename: string): TPromise<{ localized: string, original: string }> {
+		return new TPromise<{ localized: string, original: string }>((c, e, p) => {
 			function loop(basename: string, locale: string): void {
 				let toCheck = `${basename}.nls.${locale}.json`;
 				pfs.fileExists(toCheck).then(exists => {
 					if (exists) {
-						c(toCheck);
+						c({ localized: toCheck, original: `${basename}.nls.json` });
 					}
 					let index = locale.lastIndexOf('-');
 					if (index === -1) {
-						c(`${basename}.nls.json`);
+						c({ localized: `${basename}.nls.json`, original: null });
 					} else {
 						locale = locale.substring(0, index);
 						loop(basename, locale);
@@ -154,18 +177,18 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 			}
 
 			if (devMode || nlsConfig.pseudo || !nlsConfig.locale) {
-				return c(basename + '.nls.json');
+				return c({ localized: basename + '.nls.json', original: null });
 			}
 			loop(basename, nlsConfig.locale);
 		});
 	}
 
 	/**
-	 * This routine make the following assumptions:
-	 * The root element is a object literal
+	 * This routine makes the following assumptions:
+	 * The root element is an object literal
 	 */
-	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, collector: MessagesCollector, messageScope: string): void {
-		function processEntry(obj: any, key: string | number) {
+	private static _replaceNLStrings<T>(literal: T, messages: { [key: string]: string; }, originalMessages: { [key: string]: string }, collector: MessagesCollector, messageScope: string): void {
+		function processEntry(obj: any, key: string | number, command?: boolean) {
 			let value = obj[key];
 			if (Types.isString(value)) {
 				let str = <string>value;
@@ -178,7 +201,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 							// FF3B and FF3D is the Unicode zenkaku representation for [ and ]
 							message = '\uFF3B' + message.replace(/[aouei]/g, '$&$&') + '\uFF3D';
 						}
-						obj[key] = message;
+						obj[key] = command && (key === 'title' || key === 'category') && originalMessages ? { value: message, original: originalMessages[messageKey] } : message;
 					} else {
 						collector.warn(messageScope, nls.localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey));
 					}
@@ -186,12 +209,12 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 			} else if (Types.isObject(value)) {
 				for (let k in value) {
 					if (value.hasOwnProperty(k)) {
-						processEntry(value, k);
+						k === 'commands' ? processEntry(value, k, true) : processEntry(value, k, command);
 					}
 				}
 			} else if (Types.isArray(value)) {
 				for (let i = 0; i < value.length; i++) {
-					processEntry(value, i);
+					processEntry(value, i, command);
 				}
 			}
 		}
@@ -241,7 +264,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 
 		// main := absolutePath(`main`)
 		if (extensionDescription.main) {
-			extensionDescription.main = paths.normalize(paths.join(this._absoluteFolderPath, extensionDescription.main));
+			extensionDescription.main = join(this._absoluteFolderPath, extensionDescription.main);
 		}
 
 		extensionDescription.extensionFolderPath = this._absoluteFolderPath;
@@ -261,7 +284,7 @@ export class ExtensionScanner {
 		absoluteFolderPath: string,
 		isBuiltin: boolean
 	): TPromise<IExtensionDescription> {
-		absoluteFolderPath = paths.normalize(absoluteFolderPath);
+		absoluteFolderPath = normalize(absoluteFolderPath);
 
 		let parser = new ExtensionManifestParser(version, collector, absoluteFolderPath, isBuiltin);
 		return parser.parse().then((extensionDescription) => {
@@ -293,7 +316,7 @@ export class ExtensionScanner {
 		let obsolete = TPromise.as({});
 
 		if (!isBuiltin) {
-			obsolete = pfs.readFile(paths.join(absoluteFolderPath, '.obsolete'), 'utf8')
+			obsolete = pfs.readFile(join(absoluteFolderPath, '.obsolete'), 'utf8')
 				.then(raw => JSON.parse(raw))
 				.then(null, err => ({}));
 		}
@@ -314,7 +337,7 @@ export class ExtensionScanner {
 							return;
 						}
 
-						const {id, version} = getIdAndVersionFromLocalExtensionId(folder);
+						const { id, version } = getIdAndVersionFromLocalExtensionId(folder);
 
 						if (!id || !version) {
 							nonGallery.push(folder);
@@ -330,7 +353,7 @@ export class ExtensionScanner {
 
 					return [...nonGallery, ...latest];
 				})
-				.then(folders => TPromise.join(folders.map(f => this.scanExtension(version, collector, paths.join(absoluteFolderPath, f), isBuiltin))))
+				.then(folders => TPromise.join(folders.map(f => this.scanExtension(version, collector, join(absoluteFolderPath, f), isBuiltin))))
 				.then(extensionDescriptions => extensionDescriptions.filter(item => item !== null))
 				.then(null, err => {
 					collector.error(absoluteFolderPath, err);
@@ -349,7 +372,7 @@ export class ExtensionScanner {
 		absoluteFolderPath: string,
 		isBuiltin: boolean
 	): TPromise<IExtensionDescription[]> {
-		return pfs.fileExists(paths.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
+		return pfs.fileExists(join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
 				return this.scanExtension(version, collector, absoluteFolderPath, isBuiltin).then((extensionDescription) => {
 					if (extensionDescription === null) {

@@ -8,9 +8,9 @@ import { Registry } from 'vs/platform/platform';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
-import { Extensions as ThemeingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themingRegistry';
+import { Extensions as ThemeingExtensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 
-let themingRegistry = <IThemingRegistry>Registry.as(ThemeingExtensions.ThemingContribution);
+let themingRegistry = <IColorRegistry>Registry.as(ThemeingExtensions.ColorContribution);
 let textMateScopes = [
 	'comment',
 	'comment.block',
@@ -114,61 +114,66 @@ let textMateScopes = [
 	'variable.parameter'
 ];
 
-const schemaId = 'vscode://schemas/color-theme';
-const schema: IJSONSchema = {
-	type: 'object',
-	properties: {
-		colors: themingRegistry.getColorSchema(),
-		tokenColors: {
-			type: 'array',
-			description: nls.localize('schema.colors', 'Colors for syntax highlighting'),
-			items: {
+export const colorsSchema = themingRegistry.getColorSchema();
+export const tokenColorsSchema = {
+	type: 'array',
+	description: nls.localize('schema.colors', 'Colors for syntax highlighting'),
+	items: {
+		type: 'object',
+		properties: {
+			name: {
+				type: 'string',
+				description: nls.localize('schema.properties.name', 'Description of the rule')
+			},
+			scope: {
+				anyOf: [
+					{
+						enum: textMateScopes
+					},
+					{
+						type: 'string'
+					},
+					{
+						type: 'array',
+						items: {
+							enum: textMateScopes
+						}
+					},
+					{
+						type: 'array',
+						items: {
+							type: 'string'
+						}
+					}
+				]
+			},
+			settings: {
 				type: 'object',
 				properties: {
-					name: {
+					foreground: {
 						type: 'string',
-						description: nls.localize('schema.properties.name', 'Description of the rule')
+						format: 'color'
 					},
-					scope: {
-						anyOf: [
-							{
-								enum: textMateScopes
-							},
-							{
-								type: 'string'
-							},
-							{
-								type: 'array',
-								items: {
-									enum: textMateScopes
-								}
-							},
-							{
-								type: 'array',
-								items: {
-									type: 'string'
-								}
-							}
-						]
+					background: {
+						type: 'string',
+						format: 'color'
 					},
-					settings: {
-						type: 'object',
-						properties: {
-							foreground: {
-								type: 'string'
-							},
-							background: {
-								type: 'string'
-							},
-							fontStyle: {
-								type: 'string',
-								description: nls.localize('schema.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\'')
-							}
-						}
+					fontStyle: {
+						type: 'string',
+						description: nls.localize('schema.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\'')
 					}
 				}
 			}
 		}
+	}
+};
+
+const schemaId = 'vscode://schemas/color-theme';
+const schema: IJSONSchema = {
+	type: 'object',
+	properties: {
+		colors: colorsSchema,
+		tokenColors: tokenColorsSchema
 	}
 };
 

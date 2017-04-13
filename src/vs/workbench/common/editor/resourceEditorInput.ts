@@ -20,9 +20,8 @@ export class ResourceEditorInput extends EditorInput {
 
 	static ID: string = 'workbench.editors.resourceEditorInput';
 
-	protected promise: TPromise<IReference<ResourceEditorModel>>;
-	protected resource: URI;
-
+	private modelReference: TPromise<IReference<ResourceEditorModel>>;
+	private resource: URI;
 	private name: string;
 	private description: string;
 
@@ -39,54 +38,54 @@ export class ResourceEditorInput extends EditorInput {
 		this.resource = resource;
 	}
 
-	getResource(): URI {
+	public getResource(): URI {
 		return this.resource;
 	}
 
-	getTypeId(): string {
+	public getTypeId(): string {
 		return ResourceEditorInput.ID;
 	}
 
-	getName(): string {
+	public getName(): string {
 		return this.name;
 	}
 
-	setName(name: string): void {
+	public setName(name: string): void {
 		if (this.name !== name) {
 			this.name = name;
 			this._onDidChangeLabel.fire();
 		}
 	}
 
-	getDescription(): string {
+	public getDescription(): string {
 		return this.description;
 	}
 
-	setDescription(description: string): void {
+	public setDescription(description: string): void {
 		if (this.description !== description) {
 			this.description = description;
 			this._onDidChangeLabel.fire();
 		}
 	}
 
-	getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): { [key: string]: any; } {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.resource);
 
 		return descriptor;
 	}
 
-	resolve(refresh?: boolean): TPromise<ITextEditorModel> {
-		if (!this.promise) {
-			this.promise = this.textModelResolverService.createModelReference(this.resource);
+	public resolve(refresh?: boolean): TPromise<ITextEditorModel> {
+		if (!this.modelReference) {
+			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
 		}
 
-		return this.promise.then(ref => {
+		return this.modelReference.then(ref => {
 			const model = ref.object;
 
 			if (!(model instanceof ResourceEditorModel)) {
 				ref.dispose();
-				this.promise = null;
+				this.modelReference = null;
 				return TPromise.wrapError(`Unexpected model for ResourceInput: ${this.resource}`); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
 			}
 
@@ -94,7 +93,7 @@ export class ResourceEditorInput extends EditorInput {
 		});
 	}
 
-	matches(otherInput: any): boolean {
+	public matches(otherInput: any): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;
 		}
@@ -109,10 +108,10 @@ export class ResourceEditorInput extends EditorInput {
 		return false;
 	}
 
-	dispose(): void {
-		if (this.promise) {
-			this.promise.done(ref => ref.dispose());
-			this.promise = null;
+	public dispose(): void {
+		if (this.modelReference) {
+			this.modelReference.done(ref => ref.dispose());
+			this.modelReference = null;
 		}
 
 		super.dispose();

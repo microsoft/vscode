@@ -15,6 +15,7 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ISashEvent, IVerticalSashLayoutProvider, Sash } from 'vs/base/browser/ui/sash/sash';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -204,16 +205,19 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _editorWorkerService: IEditorWorkerService;
 	protected _contextKeyService: IContextKeyService;
+	private _codeEditorService: ICodeEditorService;
 
 	constructor(
 		domElement: HTMLElement,
 		options: editorCommon.IDiffEditorOptions,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super();
 		this._editorWorkerService = editorWorkerService;
+		this._codeEditorService = codeEditorService;
 		this._contextKeyService = contextKeyService.createScoped(domElement);
 		this._contextKeyService.createKey('isInDiffEditor', true);
 
@@ -314,6 +318,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		} else {
 			this._setStrategy(new DiffEdtorWidgetInline(this._createDataSource(), this._enableSplitViewResizing));
 		}
+
+		this._codeEditorService.addDiffEditor(this);
 	}
 
 	public get ignoreTrimWhitespace(): boolean {
@@ -392,6 +398,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	}
 
 	public dispose(): void {
+		this._codeEditorService.removeDiffEditor(this);
+
 		this._toDispose = dispose(this._toDispose);
 
 		window.clearInterval(this._measureDomElementToken);
@@ -769,13 +777,6 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			if (type === editorCommon.EventType.ViewZonesChanged) {
 				this._onViewZonesChanged();
 			}
-			if (type === editorCommon.EventType.ConfigurationChanged) {
-				let isViewportWrapping = this.originalEditor.getConfiguration().wrappingInfo.isViewportWrapping;
-				if (isViewportWrapping) {
-					// oh no, you didn't!
-					this.originalEditor.updateOptions({ wordWrap: 'off' });
-				}
-			}
 		}
 		this._recomputeIfNecessary(events);
 	}
@@ -797,11 +798,6 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			}
 			if (type === editorCommon.EventType.ConfigurationChanged) {
 				let e = <editorCommon.IConfigurationChangedEvent>data;
-				let isViewportWrapping = this.modifiedEditor.getConfiguration().wrappingInfo.isViewportWrapping;
-				if (isViewportWrapping) {
-					// oh no, you didn't!
-					this.modifiedEditor.updateOptions({ wordWrap: 'off' });
-				}
 				if (e.fontInfo && this.modifiedEditor.getModel()) {
 					this._onViewZonesChanged();
 				}
@@ -878,6 +874,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _adjustOptionsForSubEditor(options: editorCommon.IDiffEditorOptions): editorCommon.IDiffEditorOptions {
 		let clonedOptions: editorCommon.IDiffEditorOptions = objects.clone(options || {});
+		clonedOptions.inDiffEditor = true;
 		clonedOptions.wordWrap = 'off';
 		clonedOptions.wordWrapMinified = false;
 		clonedOptions.automaticLayout = false;
@@ -1553,6 +1550,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 					editorCommon.OverviewRulerLane.Full,
 					0,
 					'rgba(255, 0, 0, 0.4)',
+					'rgba(255, 0, 0, 0.4)',
 					'rgba(255, 0, 0, 0.4)'
 				));
 
@@ -1619,6 +1617,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 					lineChange.modifiedEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,
 					0,
+					'rgba(155, 185, 85, 0.4)',
 					'rgba(155, 185, 85, 0.4)',
 					'rgba(155, 185, 85, 0.4)'
 				));
@@ -1741,6 +1740,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 					editorCommon.OverviewRulerLane.Full,
 					0,
 					'rgba(255, 0, 0, 0.4)',
+					'rgba(255, 0, 0, 0.4)',
 					'rgba(255, 0, 0, 0.4)'
 				));
 			}
@@ -1778,6 +1778,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 					lineChange.modifiedEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,
 					0,
+					'rgba(155, 185, 85, 0.4)',
 					'rgba(155, 185, 85, 0.4)',
 					'rgba(155, 185, 85, 0.4)'
 				));
@@ -1922,7 +1923,8 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			config.fontInfo.spaceWidth,
 			config.viewInfo.stopRenderingLineAfter,
 			config.viewInfo.renderWhitespace,
-			config.viewInfo.renderControlCharacters
+			config.viewInfo.renderControlCharacters,
+			config.viewInfo.fontLigatures
 		));
 
 		let myResult: string[] = [];

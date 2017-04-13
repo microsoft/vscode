@@ -33,7 +33,7 @@
 	"welcomePage.showCommands": "尋找並執行所有命令",
 	"welcomePage.showCommandsDescription": "從控制台快速存取及搜尋命令 ({0})",
 	"welcomePage.showOnStartup": "啟動時顯示歡迎頁面",
-	"welcomePage.stackOverflow": "堆疊溢位",
+	"welcomePage.stackOverflow": "Stack Overflow",
 	"welcomePage.start": "開始",
 	"welcomePage.sublime": "壯麗",
 	"welcomePage.sublimeCurrent": "壯麗 (目前)",

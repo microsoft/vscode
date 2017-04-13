@@ -16,10 +16,9 @@ import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { DefaultController, DefaultDragAndDrop, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -34,6 +33,8 @@ import { ContinueAction, StepOverAction, PauseAction, ReapplyBreakpointsAction, 
 import { CopyValueAction, CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { once } from 'vs/base/common/functional';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 const booleanRegex = /^true|false$/i;
@@ -116,13 +117,14 @@ interface IRenameBoxOptions {
 	validationOptions?: IInputValidationOptions;
 }
 
-function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: ITree, element: any, container: HTMLElement, options: IRenameBoxOptions): void {
+function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, themeService: IThemeService, tree: ITree, element: any, container: HTMLElement, options: IRenameBoxOptions): void {
 	let inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 	let inputBox = new InputBox(inputBoxContainer, contextViewService, {
 		validationOptions: options.validationOptions,
 		placeholder: options.placeholder,
 		ariaLabel: options.ariaLabel
 	});
+	const styler = attachInputBoxStyler(inputBox, themeService);
 
 	tree.setHighlight();
 	inputBox.value = options.initialValue ? options.initialValue : '';
@@ -130,7 +132,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	inputBox.select();
 
 	let disposed = false;
-	const toDispose: [lifecycle.IDisposable] = [inputBox];
+	const toDispose: [lifecycle.IDisposable] = [inputBox, styler];
 
 	const wrapUp = once((renamed: boolean) => {
 		if (!disposed) {
@@ -217,7 +219,7 @@ export class BaseDebugController extends DefaultController {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
-					fillInActions(this.contributedContextMenu, this.getContext(element), actions);
+					fillInActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions);
 					return actions;
 				}),
 				onHide: (wasCancelled?: boolean) => {
@@ -510,8 +512,11 @@ export class CallStackRenderer implements IRenderer {
 		data.thread.title = nls.localize('thread', "Thread");
 		data.name.textContent = thread.name;
 
-		data.stateLabel.textContent = thread.stopped ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason)
-			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+		if (thread.stopped) {
+			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason);
+		} else {
+			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+		}
 	}
 
 	private renderError(element: string, data: IErrorTemplateData) {
@@ -524,7 +529,8 @@ export class CallStackRenderer implements IRenderer {
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
-		stackFrame.source.deemphasize ? dom.addClass(data.stackFrame, 'disabled') : dom.removeClass(data.stackFrame, 'disabled');
+		stackFrame.source.presenationHint === 'deemphasize' ? dom.addClass(data.stackFrame, 'disabled') : dom.removeClass(data.stackFrame, 'disabled');
+		stackFrame.source.presenationHint === 'label' ? dom.addClass(data.stackFrame, 'label') : dom.removeClass(data.stackFrame, 'label');
 		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
 		if (stackFrame.source.raw.origin) {
 			data.file.title += `\n${stackFrame.source.raw.origin}`;
@@ -646,7 +652,8 @@ export class VariablesRenderer implements IRenderer {
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService
 	) {
 		// noop
 	}
@@ -688,7 +695,7 @@ export class VariablesRenderer implements IRenderer {
 		} else {
 			const variable = <Variable>element;
 			if (variable === this.debugService.getViewModel().getSelectedExpression() || variable.errorMessage) {
-				renderRenameBox(this.debugService, this.contextViewService, tree, variable, (<IVariableTemplateData>templateData).expression, {
+				renderRenameBox(this.debugService, this.contextViewService, this.themeService, tree, variable, (<IVariableTemplateData>templateData).expression, {
 					initialValue: variable.value,
 					ariaLabel: nls.localize('variableValueAriaLabel', "Type new variable value"),
 					validationOptions: {
@@ -839,7 +846,8 @@ export class WatchExpressionsRenderer implements IRenderer {
 		actionProvider: IActionProvider,
 		private actionRunner: IActionRunner,
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.toDispose = [];
 		this.actionProvider = <WatchExpressionsActionProvider>actionProvider;
@@ -889,7 +897,7 @@ export class WatchExpressionsRenderer implements IRenderer {
 	private renderWatchExpression(tree: ITree, watchExpression: debug.IExpression, data: IWatchExpressionTemplateData): void {
 		let selectedExpression = this.debugService.getViewModel().getSelectedExpression();
 		if ((selectedExpression instanceof Expression && selectedExpression.getId() === watchExpression.getId()) || (watchExpression instanceof Expression && !watchExpression.name)) {
-			renderRenameBox(this.debugService, this.contextViewService, tree, watchExpression, data.expression, {
+			renderRenameBox(this.debugService, this.contextViewService, this.themeService, tree, watchExpression, data.expression, {
 				initialValue: watchExpression.name,
 				placeholder: nls.localize('watchExpressionPlaceholder', "Expression to watch"),
 				ariaLabel: nls.localize('watchExpressionInputAriaLabel', "Type watch expression")
@@ -1081,7 +1089,8 @@ export class BreakpointsRenderer implements IRenderer {
 		private actionRunner: IActionRunner,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService
 	) {
 		// noop
 	}
@@ -1152,7 +1161,7 @@ export class BreakpointsRenderer implements IRenderer {
 		const selected = this.debugService.getViewModel().getSelectedFunctionBreakpoint();
 		if (!functionBreakpoint.name || (selected && selected.getId() === functionBreakpoint.getId())) {
 			data.name.textContent = '';
-			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, {
+			renderRenameBox(this.debugService, this.contextViewService, this.themeService, tree, functionBreakpoint, data.breakpoint, {
 				initialValue: functionBreakpoint.name,
 				placeholder: nls.localize('functionBreakpointPlaceholder', "Function to break on"),
 				ariaLabel: nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint")

@@ -14,10 +14,10 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
 // tslint:enable
 
-// Enable this by default for insiders
+// Enable this by default
 function getDefaultValue(): boolean {
 	const value = window.localStorage.getItem('enablePreviewSCM');
-	return /insider$/.test(pkg.version) ? value !== 'false' : value === 'true';
+	return value !== 'false';
 }
 
 export default class SCMPreview {

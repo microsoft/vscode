@@ -33,6 +33,7 @@ import { MainThreadTerminalService } from './mainThreadTerminalService';
 import { MainThreadWorkspace } from './mainThreadWorkspace';
 import { MainProcessExtensionService } from './mainThreadExtensionService';
 import { MainThreadFileSystemEventService } from './mainThreadFileSystemEventService';
+import { MainThreadTask } from './mainThreadTask';
 import { MainThreadSCM } from './mainThreadSCM';
 
 // --- other interested parties
@@ -86,6 +87,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadTerminalService).set(create(MainThreadTerminalService));
 		col.define(MainContext.MainThreadWorkspace).set(create(MainThreadWorkspace));
 		col.define(MainContext.MainThreadSCM).set(create(MainThreadSCM));
+		col.define(MainContext.MainThreadTask).set(create(MainThreadTask));
 		if (this.extensionService instanceof MainProcessExtensionService) {
 			col.define(MainContext.MainProcessExtensionService).set(<MainProcessExtensionService>this.extensionService);
 		}

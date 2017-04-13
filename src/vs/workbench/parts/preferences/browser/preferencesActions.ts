@@ -44,7 +44,7 @@ export class OpenGlobalKeybindingsAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.preferencesService.openGlobalKeybindingSettings();
+		return this.preferencesService.openGlobalKeybindingSettings(false);
 	}
 }
 

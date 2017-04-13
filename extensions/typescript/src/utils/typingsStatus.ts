@@ -68,8 +68,8 @@ export class AtaProgressReporter {
 	constructor(client: ITypescriptServiceClient) {
 		this._disposable = vscode.Disposable.from(
 			client.onDidBeginInstallTypings(e => this._onBegin(e.eventId)),
-			client.onDidEndInstallTypings(e => this._onEndOrTimeout(e.eventId))
-		);
+			client.onDidEndInstallTypings(e => this._onEndOrTimeout(e.eventId)),
+			client.onTypesInstallerInitializationFailed(_ => this.onTypesInstallerInitializationFailed()));
 	}
 
 	dispose(): void {
@@ -95,5 +95,9 @@ export class AtaProgressReporter {
 			this._promises.delete(eventId);
 			resolve();
 		}
+	}
+
+	private onTypesInstallerInitializationFailed() {
+		vscode.window.showWarningMessage(localize('typesInstallerInitializationFailed', "Could not install typings files for JS/TS language features. Please ensure that NPM is installed"));
 	}
 }

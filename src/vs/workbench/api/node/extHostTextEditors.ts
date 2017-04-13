@@ -6,12 +6,13 @@
 
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
+import { toThenable } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { TextEditorSelectionChangeKind } from './extHostTypes';
 import { IResolvedTextEditorConfiguration, ISelectionChangeEvent } from 'vs/workbench/api/node/mainThreadEditor';
 import * as TypeConverters from './extHostTypeConverters';
-import { TextEditorDecorationType } from './extHostTextEditor';
+import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
 import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData } from './extHost.protocol';
 import * as vscode from 'vscode';
@@ -46,7 +47,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e));
 	}
 
-	getActiveTextEditor(): vscode.TextEditor {
+	getActiveTextEditor(): ExtHostTextEditor {
 		return this._extHostDocumentsAndEditors.activeEditor();
 	}
 
@@ -101,5 +102,9 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 				this._onDidChangeTextEditorViewColumn.fire({ textEditor, viewColumn });
 			}
 		}
+	}
+
+	getDiffInformation(id: string): Thenable<vscode.LineChange[]> {
+		return toThenable(this._proxy.$getDiffInformation(id));
 	}
 }

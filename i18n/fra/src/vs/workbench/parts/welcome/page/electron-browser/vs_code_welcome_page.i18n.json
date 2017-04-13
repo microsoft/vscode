@@ -33,7 +33,7 @@
 	"welcomePage.showCommands": "Rechercher et exécuter toutes les commandes",
 	"welcomePage.showCommandsDescription": "Utilisez et recherchez rapidement des commandes dans le Panneau de configuration ({0})",
 	"welcomePage.showOnStartup": "Afficher la page d'accueil au démarrage",
-	"welcomePage.stackOverflow": "Dépassement de la capacité de la pile",
+	"welcomePage.stackOverflow": "Stack Overflow",
 	"welcomePage.start": "Démarrer",
 	"welcomePage.sublime": "Sublime",
 	"welcomePage.sublimeCurrent": "Sublime (actuel)",

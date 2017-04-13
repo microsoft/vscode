@@ -202,6 +202,11 @@ export type LineNumbersOption = 'on' | 'off' | 'relative' | ((lineNumber: number
  */
 export interface IEditorOptions {
 	/**
+	 * This editor is used inside a diff editor.
+	 * @internal
+	 */
+	inDiffEditor?: boolean;
+	/**
 	 * Enable experimental screen reader support.
 	 * Defaults to `true`.
 	 */
@@ -421,7 +426,7 @@ export interface IEditorOptions {
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
-	quickSuggestions?: boolean;
+	quickSuggestions?: boolean | { other: boolean, comments: boolean, strings: boolean };
 	/**
 	 * Quick suggestions show delay (in ms)
 	 * Defaults to 500 (ms)
@@ -482,7 +487,7 @@ export interface IEditorOptions {
 	/**
 	 * Enable word based suggestions. Defaults to 'true'
 	 */
-	wordBasedSuggestions?: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
+	wordBasedSuggestions?: boolean;
 	/**
 	 * The font size for the suggest widget.
 	 * Defaults to the editor font size.
@@ -713,6 +718,9 @@ export class InternalEditorMinimapOptions {
 export class EditorWrappingInfo {
 	readonly _editorWrappingInfoBrand: void;
 
+	readonly inDiffEditor: boolean;
+	readonly isDominatedByLongLines: boolean;
+	readonly isWordWrapMinified: boolean;
 	readonly isViewportWrapping: boolean;
 	readonly wrappingColumn: number;
 	readonly wrappingIndent: WrappingIndent;
@@ -724,6 +732,9 @@ export class EditorWrappingInfo {
 	 * @internal
 	 */
 	constructor(source: {
+		inDiffEditor: boolean;
+		isDominatedByLongLines: boolean;
+		isWordWrapMinified: boolean;
 		isViewportWrapping: boolean;
 		wrappingColumn: number;
 		wrappingIndent: WrappingIndent;
@@ -731,6 +742,9 @@ export class EditorWrappingInfo {
 		wordWrapBreakAfterCharacters: string;
 		wordWrapBreakObtrusiveCharacters: string;
 	}) {
+		this.inDiffEditor = Boolean(source.inDiffEditor);
+		this.isDominatedByLongLines = Boolean(source.isDominatedByLongLines);
+		this.isWordWrapMinified = Boolean(source.isWordWrapMinified);
 		this.isViewportWrapping = Boolean(source.isViewportWrapping);
 		this.wrappingColumn = source.wrappingColumn | 0;
 		this.wrappingIndent = source.wrappingIndent | 0;
@@ -744,7 +758,10 @@ export class EditorWrappingInfo {
 	 */
 	public equals(other: EditorWrappingInfo): boolean {
 		return (
-			this.isViewportWrapping === other.isViewportWrapping
+			this.inDiffEditor === other.inDiffEditor
+			&& this.isDominatedByLongLines === other.isDominatedByLongLines
+			&& this.isWordWrapMinified === other.isWordWrapMinified
+			&& this.isViewportWrapping === other.isViewportWrapping
 			&& this.wrappingColumn === other.wrappingColumn
 			&& this.wrappingIndent === other.wrappingIndent
 			&& this.wordWrapBreakBeforeCharacters === other.wordWrapBreakBeforeCharacters
@@ -788,6 +805,7 @@ export class InternalEditorViewOptions {
 	readonly stopRenderingLineAfter: number;
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	readonly renderControlCharacters: boolean;
+	readonly fontLigatures: boolean;
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	readonly scrollbar: InternalEditorScrollbarOptions;
@@ -822,6 +840,7 @@ export class InternalEditorViewOptions {
 		stopRenderingLineAfter: number;
 		renderWhitespace: 'none' | 'boundary' | 'all';
 		renderControlCharacters: boolean;
+		fontLigatures: boolean;
 		renderIndentGuides: boolean;
 		renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 		scrollbar: InternalEditorScrollbarOptions;
@@ -852,6 +871,7 @@ export class InternalEditorViewOptions {
 		this.stopRenderingLineAfter = source.stopRenderingLineAfter | 0;
 		this.renderWhitespace = source.renderWhitespace;
 		this.renderControlCharacters = Boolean(source.renderControlCharacters);
+		this.fontLigatures = Boolean(source.fontLigatures);
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
 		this.renderLineHighlight = source.renderLineHighlight;
 		this.scrollbar = source.scrollbar.clone();
@@ -916,6 +936,7 @@ export class InternalEditorViewOptions {
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.renderWhitespace === other.renderWhitespace
 			&& this.renderControlCharacters === other.renderControlCharacters
+			&& this.fontLigatures === other.fontLigatures
 			&& this.renderIndentGuides === other.renderIndentGuides
 			&& this.renderLineHighlight === other.renderLineHighlight
 			&& this.scrollbar.equals(other.scrollbar)
@@ -953,6 +974,7 @@ export class InternalEditorViewOptions {
 			stopRenderingLineAfter: this.stopRenderingLineAfter !== newOpts.stopRenderingLineAfter,
 			renderWhitespace: this.renderWhitespace !== newOpts.renderWhitespace,
 			renderControlCharacters: this.renderControlCharacters !== newOpts.renderControlCharacters,
+			fontLigatures: this.fontLigatures !== newOpts.fontLigatures,
 			renderIndentGuides: this.renderIndentGuides !== newOpts.renderIndentGuides,
 			renderLineHighlight: this.renderLineHighlight !== newOpts.renderLineHighlight,
 			scrollbar: (!this.scrollbar.equals(newOpts.scrollbar)),
@@ -994,6 +1016,7 @@ export interface IViewConfigurationChangedEvent {
 	readonly stopRenderingLineAfter: boolean;
 	readonly renderWhitespace: boolean;
 	readonly renderControlCharacters: boolean;
+	readonly fontLigatures: boolean;
 	readonly renderIndentGuides: boolean;
 	readonly renderLineHighlight: boolean;
 	readonly scrollbar: boolean;
@@ -1005,7 +1028,7 @@ export class EditorContribOptions {
 	readonly selectionClipboard: boolean;
 	readonly hover: boolean;
 	readonly contextmenu: boolean;
-	readonly quickSuggestions: boolean;
+	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 	readonly quickSuggestionsDelay: number;
 	readonly parameterHints: boolean;
 	readonly iconsInSuggestions: boolean;
@@ -1016,7 +1039,7 @@ export class EditorContribOptions {
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly emptySelectionClipboard: boolean;
-	readonly wordBasedSuggestions: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
+	readonly wordBasedSuggestions: boolean;
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
 	readonly selectionHighlight: boolean;
@@ -1032,7 +1055,7 @@ export class EditorContribOptions {
 		selectionClipboard: boolean;
 		hover: boolean;
 		contextmenu: boolean;
-		quickSuggestions: boolean;
+		quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 		quickSuggestionsDelay: number;
 		parameterHints: boolean;
 		iconsInSuggestions: boolean;
@@ -1043,7 +1066,7 @@ export class EditorContribOptions {
 		acceptSuggestionOnCommitCharacter: boolean;
 		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		emptySelectionClipboard: boolean;
-		wordBasedSuggestions: boolean | { strings?: boolean, comments?: boolean, default?: boolean };
+		wordBasedSuggestions: boolean;
 		suggestFontSize: number;
 		suggestLineHeight: number;
 		selectionHighlight: boolean;
@@ -1055,7 +1078,7 @@ export class EditorContribOptions {
 		this.selectionClipboard = Boolean(source.selectionClipboard);
 		this.hover = Boolean(source.hover);
 		this.contextmenu = Boolean(source.contextmenu);
-		this.quickSuggestions = Boolean(source.quickSuggestions);
+		this.quickSuggestions = source.quickSuggestions;
 		this.quickSuggestionsDelay = source.quickSuggestionsDelay || 0;
 		this.parameterHints = Boolean(source.parameterHints);
 		this.iconsInSuggestions = Boolean(source.iconsInSuggestions);
@@ -1084,7 +1107,7 @@ export class EditorContribOptions {
 			this.selectionClipboard === other.selectionClipboard
 			&& this.hover === other.hover
 			&& this.contextmenu === other.contextmenu
-			&& this.quickSuggestions === other.quickSuggestions
+			&& objects.equals(this.quickSuggestions, other.quickSuggestions)
 			&& this.quickSuggestionsDelay === other.quickSuggestionsDelay
 			&& this.parameterHints === other.parameterHints
 			&& this.iconsInSuggestions === other.iconsInSuggestions
@@ -1257,6 +1280,11 @@ export interface IModelDecorationOverviewRulerOptions {
 	 * e.g.: rgba(100, 100, 100, 0.5)
 	 */
 	darkColor: string;
+	/**
+	 * CSS color to render in the overview ruler.
+	 * e.g.: rgba(100, 100, 100, 0.5)
+	 */
+	hcColor?: string;
 	/**
 	 * The position in the overview ruler.
 	 */
@@ -3536,7 +3564,7 @@ export interface IEditor {
 	/**
 	 * Scroll vertically or horizontally as necessary and reveal a position.
 	 */
-	revealPosition(position: IPosition): void;
+	revealPosition(position: IPosition, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 
 	/**
 	 * Scroll vertically or horizontally as necessary and reveal a position centered vertically.
@@ -4381,24 +4409,8 @@ export var Handler = {
 	CursorLeft: 'cursorLeft',
 	CursorLeftSelect: 'cursorLeftSelect',
 
-	CursorWordLeft: 'cursorWordLeft',
-	CursorWordStartLeft: 'cursorWordStartLeft',
-	CursorWordEndLeft: 'cursorWordEndLeft',
-
-	CursorWordLeftSelect: 'cursorWordLeftSelect',
-	CursorWordStartLeftSelect: 'cursorWordStartLeftSelect',
-	CursorWordEndLeftSelect: 'cursorWordEndLeftSelect',
-
 	CursorRight: 'cursorRight',
 	CursorRightSelect: 'cursorRightSelect',
-
-	CursorWordRight: 'cursorWordRight',
-	CursorWordStartRight: 'cursorWordStartRight',
-	CursorWordEndRight: 'cursorWordEndRight',
-
-	CursorWordRightSelect: 'cursorWordRightSelect',
-	CursorWordStartRightSelect: 'cursorWordStartRightSelect',
-	CursorWordEndRightSelect: 'cursorWordEndRightSelect',
 
 	CursorUp: 'cursorUp',
 	CursorUpSelect: 'cursorUpSelect',
@@ -4453,14 +4465,6 @@ export var Handler = {
 
 	DeleteLeft: 'deleteLeft',
 	DeleteRight: 'deleteRight',
-
-	DeleteWordLeft: 'deleteWordLeft',
-	DeleteWordStartLeft: 'deleteWordStartLeft',
-	DeleteWordEndLeft: 'deleteWordEndLeft',
-
-	DeleteWordRight: 'deleteWordRight',
-	DeleteWordStartRight: 'deleteWordStartRight',
-	DeleteWordEndRight: 'deleteWordEndRight',
 
 	RemoveSecondaryCursors: 'removeSecondaryCursors',
 	CancelSelection: 'cancelSelection',
@@ -4596,6 +4600,15 @@ export class ColorZone {
 }
 
 /**
+ * @internal
+ */
+export const enum ThemeType {
+	Light = 1,
+	Dark = 2,
+	HighContrast = 3
+}
+
+/**
  * A zone in the overview ruler
  * @internal
  */
@@ -4609,6 +4622,7 @@ export class OverviewRulerZone {
 
 	private _color: string;
 	private _darkColor: string;
+	private _hcColor: string;
 
 	private _colorZones: ColorZone[];
 
@@ -4616,7 +4630,7 @@ export class OverviewRulerZone {
 		startLineNumber: number, endLineNumber: number,
 		position: OverviewRulerLane,
 		forceHeight: number,
-		color: string, darkColor: string
+		color: string, darkColor: string, hcColor: string
 	) {
 		this.startLineNumber = startLineNumber;
 		this.endLineNumber = endLineNumber;
@@ -4624,12 +4638,16 @@ export class OverviewRulerZone {
 		this.forceHeight = forceHeight;
 		this._color = color;
 		this._darkColor = darkColor;
+		this._hcColor = hcColor;
 		this._colorZones = null;
 	}
 
-	public getColor(useDarkColor: boolean): string {
-		if (useDarkColor) {
-			return this._darkColor;
+	public getColor(themeType: ThemeType): string {
+		switch (themeType) {
+			case ThemeType.HighContrast:
+				return this._hcColor;
+			case ThemeType.Dark:
+				return this._darkColor;
 		}
 		return this._color;
 	}
@@ -4642,6 +4660,7 @@ export class OverviewRulerZone {
 			&& this.forceHeight === other.forceHeight
 			&& this._color === other._color
 			&& this._darkColor === other._darkColor
+			&& this._hcColor === other._hcColor
 		);
 	}
 
@@ -4652,7 +4671,10 @@ export class OverviewRulerZone {
 					if (this.position === other.position) {
 						if (this._darkColor === other._darkColor) {
 							if (this._color === other._color) {
-								return 0;
+								if (this._hcColor === other._hcColor) {
+									return 0;
+								}
+								return this._hcColor < other._hcColor ? -1 : 1;
 							}
 							return this._color < other._color ? -1 : 1;
 						}

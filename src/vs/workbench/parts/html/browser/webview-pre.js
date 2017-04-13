@@ -57,9 +57,6 @@ document.addEventListener("DOMContentLoaded", function (event) {
 		initData.activeTheme = activeTheme;
 
 		// webview
-		var defaultStyles = document.getElementById('_defaultStyles');
-		defaultStyles.innerHTML = initData.styles;
-
 		var target = getTarget()
 		if (!target) {
 			return;
@@ -68,7 +65,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 		styleBody(body[0]);
 
 		// iframe
-		defaultStyles = getTarget().contentDocument.getElementById('_defaultStyles');
+		defaultStyles = target.contentDocument.getElementById('_defaultStyles');
 		if (defaultStyles) {
 			defaultStyles.innerHTML = initData.styles;
 		}
@@ -132,6 +129,10 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 		// write new content onto iframe
 		newFrame.contentDocument.open('text/html', 'replace');
+		newFrame.contentWindow.onbeforeunload = function (e) {
+			console.log('prevented webview navigation');
+			return false;
+		};
 
 		// workaround for https://github.com/Microsoft/vscode/issues/12865
 		// check new scrollTop and reset if neccessary

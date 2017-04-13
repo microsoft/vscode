@@ -15,6 +15,16 @@ import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
+function getThemeType(themeId: string): editorCommon.ThemeType {
+	if (themes.isHighContrastTheme(themeId)) {
+		return editorCommon.ThemeType.HighContrast;
+	}
+	if (themes.isLightTheme(themeId)) {
+		return editorCommon.ThemeType.Light;
+	}
+	return editorCommon.ThemeType.Dark;
+}
+
 export class DecorationsOverviewRuler extends ViewPart {
 
 	static MIN_DECORATION_HEIGHT = 6;
@@ -54,7 +64,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		);
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
 		let theme = this._context.configuration.editor.viewInfo.theme;
-		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
+		this._overviewRuler.setThemeType(getThemeType(theme), false);
 		this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
 
 		this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
@@ -123,7 +133,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		if (e.viewInfo.theme) {
 			let theme = this._context.configuration.editor.viewInfo.theme;
-			this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
+			this._overviewRuler.setThemeType(getThemeType(theme), false);
 			shouldRender = true;
 		}
 
@@ -179,14 +189,15 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let dec = decorations[i];
-			let ovewviewRuler = dec.source.options.overviewRuler;
+			let overviewRuler = dec.source.options.overviewRuler;
 			zones.push(new editorCommon.OverviewRulerZone(
 				dec.range.startLineNumber,
 				dec.range.endLineNumber,
-				ovewviewRuler.position,
+				overviewRuler.position,
 				0,
-				ovewviewRuler.color,
-				ovewviewRuler.darkColor
+				overviewRuler.color,
+				overviewRuler.darkColor,
+				overviewRuler.hcColor
 			));
 		}
 
@@ -205,6 +216,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 				editorCommon.OverviewRulerLane.Full,
 				2,
 				DecorationsOverviewRuler._CURSOR_COLOR,
+				DecorationsOverviewRuler._CURSOR_COLOR_DARK,
 				DecorationsOverviewRuler._CURSOR_COLOR_DARK
 			));
 		}

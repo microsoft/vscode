@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ICommonCodeEditor, IRange, ModeContextKeys, EditorContextKeys } from 'vs/editor/common/editorCommon';
-import { SymbolInformation, SymbolKind, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { SymbolInformation, DocumentSymbolProviderRegistry, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { getDocumentSymbols, IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
@@ -191,7 +191,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 				}
 
 				// Add
-				results.push(new SymbolEntry(label, SymbolKind.from(element.kind), description, element.location.range, highlights, editor, controller));
+				results.push(new SymbolEntry(label, symbolKindToCssClass(element.kind), description, element.location.range, highlights, editor, controller));
 			}
 		}
 

@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { workspace, TextDocument, window, Position, Uri, EventEmitter, WorkspaceEdit, Disposable } from 'vscode';
+import { workspace, TextDocument, window, Position, Uri, EventEmitter, WorkspaceEdit, Disposable, EndOfLine } from 'vscode';
 import { createRandomFile, deleteFile, cleanUp, pathEquals } from './utils';
 import { join, basename } from 'path';
 import * as fs from 'fs';
@@ -60,7 +60,7 @@ suite('workspace-namespace', () => {
 
 	test('openTextDocument', () => {
 		let len = workspace.textDocuments.length;
-		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './simple.txt')).then(doc => {
 			assert.ok(doc);
 			assert.equal(workspace.textDocuments.length, len + 1);
 		});
@@ -159,6 +159,86 @@ suite('workspace-namespace', () => {
 			registration.dispose();
 		});
 	});
+
+	test('eol, read', () => {
+		const a = createRandomFile('foo\nbar\nbar').then(file => {
+			return workspace.openTextDocument(file).then(doc => {
+				assert.equal(doc.eol, EndOfLine.LF);
+			});
+		});
+		const b = createRandomFile('foo\nbar\nbar\r\nbaz').then(file => {
+			return workspace.openTextDocument(file).then(doc => {
+				assert.equal(doc.eol, EndOfLine.LF);
+			});
+		});
+		const c = createRandomFile('foo\r\nbar\r\nbar').then(file => {
+			return workspace.openTextDocument(file).then(doc => {
+				assert.equal(doc.eol, EndOfLine.CRLF);
+			});
+		});
+		return Promise.all([a, b, c]);
+	});
+
+	// test('eol, change via editor', () => {
+	// 	return createRandomFile('foo\nbar\nbar').then(file => {
+	// 		return workspace.openTextDocument(file).then(doc => {
+	// 			assert.equal(doc.eol, EndOfLine.LF);
+	// 			return window.showTextDocument(doc).then(editor => {
+	// 				return editor.edit(builder => builder.setEndOfLine(EndOfLine.CRLF));
+
+	// 			}).then(value => {
+	// 				assert.ok(value);
+	// 				assert.ok(doc.isDirty);
+	// 				assert.equal(doc.eol, EndOfLine.CRLF);
+	// 			});
+	// 		});
+	// 	});
+	// });
+
+	// test('eol, change via applyEdit', () => {
+	// 	return createRandomFile('foo\nbar\nbar').then(file => {
+	// 		return workspace.openTextDocument(file).then(doc => {
+	// 			assert.equal(doc.eol, EndOfLine.LF);
+
+	// 			const edit = new WorkspaceEdit();
+	// 			edit.set(file, [TextEdit.setEndOfLine(EndOfLine.CRLF)]);
+	// 			return workspace.applyEdit(edit).then(value => {
+	// 				assert.ok(value);
+	// 				assert.ok(doc.isDirty);
+	// 				assert.equal(doc.eol, EndOfLine.CRLF);
+	// 			});
+	// 		});
+	// 	});
+	// });
+
+	// test('eol, change via onWillSave', () => {
+
+	// 	let called = false;
+	// 	let sub = workspace.onWillSaveTextDocument(e => {
+	// 		called = true;
+	// 		e.waitUntil(Promise.resolve([TextEdit.setEndOfLine(EndOfLine.LF)]));
+	// 	});
+
+	// 	return createRandomFile('foo\r\nbar\r\nbar').then(file => {
+	// 		return workspace.openTextDocument(file).then(doc => {
+	// 			assert.equal(doc.eol, EndOfLine.CRLF);
+	// 			const edit = new WorkspaceEdit();
+	// 			edit.set(file, [TextEdit.insert(new Position(0, 0), '-changes-')]);
+
+	// 			return workspace.applyEdit(edit).then(success => {
+	// 				assert.ok(success);
+	// 				return doc.save();
+
+	// 			}).then(success => {
+	// 				assert.ok(success);
+	// 				assert.ok(called);
+	// 				assert.ok(!doc.isDirty);
+	// 				assert.equal(doc.eol, EndOfLine.LF);
+	// 				sub.dispose();
+	// 			});
+	// 		});
+	// 	});
+	// });
 
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', () => {
 		return createRandomFile().then(file => {

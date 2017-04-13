@@ -15,10 +15,10 @@ import { IPartService, Position, ILayoutOptions, Parts } from 'vs/workbench/serv
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getZoomFactor } from 'vs/base/browser/browser';
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const MIN_EDITOR_PART_HEIGHT = 70;
@@ -71,6 +71,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private startPanelHeight: number;
 	private panelHeight: number;
 	private panelHeightBeforeMaximized: number;
+	private panelMaximized: boolean;
 	private panelWidth: number;
 	private layoutEditorGroupsVertically: boolean;
 
@@ -93,7 +94,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService
+		@IThemeService themeService: IThemeService
 	) {
 		this.parent = parent;
 		this.workbenchContainer = workbenchContainer;
@@ -107,6 +108,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.toUnbind = [];
 		this.partLayoutInfo = this.getPartLayoutInfo();
 		this.panelHeightBeforeMaximized = 0;
+		this.panelMaximized = false;
 
 		this.sashX = new Sash(this.workbenchContainer.getHTMLElement(), this, {
 			baseSize: 5
@@ -122,7 +124,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		this.layoutEditorGroupsVertically = (this.editorGroupService.getGroupOrientation() !== 'horizontal');
 
-		this.toUnbind.push(themeService.onDidColorThemeChange(_ => this.layout()));
+		this.toUnbind.push(themeService.onThemeChange(_ => this.layout()));
 		this.toUnbind.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(editorGroupService.onGroupOrientationChanged(e => this.onGroupOrientationChanged()));
 
@@ -342,9 +344,13 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			panelHeight = sidebarSize.height * DEFAULT_PANEL_HEIGHT_COEFFICIENT;
 		}
 		if (options && options.toggleMaximizedPanel) {
-			const heightToSwap = panelHeight;
-			panelHeight = panelHeight === maxPanelHeight ? Math.max(this.partLayoutInfo.panel.minHeight, Math.min(this.panelHeightBeforeMaximized, maxPanelHeight)) : maxPanelHeight;
-			this.panelHeightBeforeMaximized = heightToSwap;
+			panelHeight = this.panelMaximized ? Math.max(this.partLayoutInfo.panel.minHeight, Math.min(this.panelHeightBeforeMaximized, maxPanelHeight)) : maxPanelHeight;
+		}
+		this.panelMaximized = panelHeight === maxPanelHeight;
+		if (panelHeight / maxPanelHeight < 0.7) {
+			// Remember the previous height only if the panel size is not too large.
+			// To get a nice minimize effect even if a user dragged the panel sash to maximum.
+			this.panelHeightBeforeMaximized = panelHeight;
 		}
 		const panelDimension = new Dimension(this.workbenchSize.width - sidebarSize.width - activityBarSize.width, panelHeight);
 		this.panelWidth = panelDimension.width;
@@ -527,6 +533,56 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 	public getHorizontalSashWidth(sash: Sash): number {
 		return this.panelWidth;
+	}
+
+	public isPanelMaximized(): boolean {
+		return this.panelMaximized;
+	}
+
+	// change part size along the main axis
+	public resizePart(part: Parts, sizeChange: number): void {
+		const visibleEditors = this.editorService.getVisibleEditors().length;
+		const sizeChangePxWidth = this.workbenchSize.width * (sizeChange / 100);
+		const sizeChangePxHeight = this.workbenchSize.height * (sizeChange / 100);
+
+		let doLayout = false;
+		let newSashSize: number = 0;
+
+		switch (part) {
+			case Parts.SIDEBAR_PART:
+				newSashSize = this.sidebarWidth + sizeChangePxWidth;
+				this.sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, newSashSize); // Sidebar can not become smaller than MIN_PART_WIDTH
+
+				if (this.layoutEditorGroupsVertically && (this.workbenchSize.width - this.sidebarWidth < visibleEditors * MIN_EDITOR_PART_WIDTH)) {
+					this.sidebarWidth = (this.workbenchSize.width - visibleEditors * MIN_EDITOR_PART_WIDTH);
+				}
+
+				doLayout = true;
+				break;
+			case Parts.PANEL_PART:
+				newSashSize = this.panelHeight + sizeChangePxHeight;
+				this.panelHeight = Math.max(this.partLayoutInfo.panel.minHeight, newSashSize);
+				doLayout = true;
+				break;
+			case Parts.EDITOR_PART:
+				// If we have one editor we can cheat and resize sidebar with the negative delta
+				const visibleEditorCount = this.editorService.getVisibleEditors().length;
+
+				if (visibleEditorCount === 1) {
+					this.sidebarWidth = this.sidebarWidth - sizeChangePxWidth;
+					doLayout = true;
+				} else {
+					const stacks = this.editorGroupService.getStacksModel();
+					const activeGroup = stacks.positionOfGroup(stacks.activeGroup);
+
+					this.editorGroupService.resizeGroup(activeGroup, sizeChangePxWidth);
+					doLayout = false;
+				}
+		}
+
+		if (doLayout) {
+			this.layout();
+		}
 	}
 
 	public dispose(): void {

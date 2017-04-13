@@ -88,6 +88,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 	}
 
 	public dispose(): void {
+
 		// Free the diff editor model but do not propagate the dispose() call to the two inputs
 		// We never created the two inputs (original and modified) so we can not dispose
 		// them without sideeffects.
@@ -95,6 +96,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 			this.cachedModel.dispose();
 			this.cachedModel = null;
 		}
+
 		super.dispose();
 	}
 }

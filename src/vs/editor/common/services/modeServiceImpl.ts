@@ -77,21 +77,16 @@ export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = Ext
 export class ModeServiceImpl implements IModeService {
 	public _serviceBrand: any;
 
-	private _instantiatedModes: { [modeId: string]: IMode; };
+	private readonly _instantiatedModes: { [modeId: string]: IMode; };
+	private readonly _registry: LanguagesRegistry;
 
-	private _registry: LanguagesRegistry;
-
-	private _onDidAddModes: Emitter<string[]> = new Emitter<string[]>();
-	public onDidAddModes: Event<string[]> = this._onDidAddModes.event;
-
-	private _onDidCreateMode: Emitter<IMode> = new Emitter<IMode>();
-	public onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
+	private readonly _onDidCreateMode: Emitter<IMode> = new Emitter<IMode>();
+	public readonly onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
 	constructor() {
 		this._instantiatedModes = {};
 
 		this._registry = new LanguagesRegistry();
-		this._registry.onDidAddModes((modes) => this._onDidAddModes.fire(modes));
 	}
 
 	protected _onReady(): TPromise<boolean> {
@@ -195,7 +190,7 @@ export class ModeServiceImpl implements IModeService {
 			}).done(null, onUnexpectedError);
 			return r;
 		}
-		return undefined;
+		return null;
 	}
 
 	public getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode> {

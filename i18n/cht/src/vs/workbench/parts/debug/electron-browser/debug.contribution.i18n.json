@@ -10,6 +10,7 @@
 	"debugCommands": "偵錯組態",
 	"debugConfigurationTitle": "偵錯",
 	"debugPanel": "偵錯主控台",
+	"hideActionBar": "控制是否應隱藏浮點偵錯動作列",
 	"inlineValues": "在偵錯時於編輯器以內嵌方式顯示變數值",
 	"openExplorerOnEnd": "自動於偵錯工作階段結束時開啟總管檢視",
 	"toggleDebugPanel": "偵錯主控台",

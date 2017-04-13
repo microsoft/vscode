@@ -20,7 +20,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -30,6 +30,9 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { highContrastBorder, highContrastOutline, focus } from 'vs/platform/theme/common/colorRegistry';
 
 interface IViewletActivity {
 	badge: IBadge;
@@ -64,9 +67,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IStorageService private storageService: IStorageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(id, { hasTitle: false });
+		super(id, { hasTitle: false }, themeService);
 
 		this.viewletIdToActionItems = Object.create(null);
 		this.viewletIdToActions = Object.create(null);
@@ -170,7 +174,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		} else {
 			// update
-			const [{badge, clazz}] = stack;
+			const [{ badge, clazz }] = stack;
 			action.setBadge(badge);
 			if (clazz) {
 				action.class = clazz;
@@ -208,6 +212,24 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		});
 
 		return $result;
+	}
+
+	public updateStyles(): void {
+		super.updateStyles();
+
+		// Part container
+		const container = this.getContainer();
+		container.style('background-color', this.getColor(ACTIVITY_BAR_BACKGROUND));
+
+		const useBorder = this.isHighContrastTheme;
+		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
+		container.style('box-sizing', useBorder && isPositionLeft ? 'border-box' : null);
+		container.style('border-right-width', useBorder && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', useBorder && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', useBorder && isPositionLeft ? this.getColor(highContrastBorder) : null);
+		container.style('border-left-width', useBorder && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', useBorder && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', useBorder && !isPositionLeft ? this.getColor(highContrastBorder) : null);
 	}
 
 	private showContextMenu(e: MouseEvent): void {
@@ -490,3 +512,68 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		super.shutdown();
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// High Contrast Styling
+	if (theme.type === 'hc') {
+		const outline = theme.getColor(highContrastOutline);
+
+		collector.addRule(`
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label:before {
+				content: "";
+				position: absolute;
+				top: 9px;
+				left: 9px;
+				height: 32px;
+				width: 32px;
+				opacity: 0.6;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item .action-label.active:before {
+				border: none;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:hover:before {
+				outline: 1px solid;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:hover:before {
+				outline: 1px dashed;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.active,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label:before {
+				opacity: 1;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+				border-left-color: ${outline};
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:hover:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:hover:before {
+				outline-color: ${outline};
+			}
+		`);
+	}
+
+	// Non High Contrast Themes
+	else {
+		const focusBorder = theme.getColor(focus);
+
+		collector.addRule(`
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
+				opacity: 0.6;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+				border-left-color: ${focusBorder};
+			}
+		`);
+	}
+});

@@ -315,10 +315,10 @@ suite('Event utils', () => {
 			});
 		});
 
-		test('should emit when done - setTimeout', () => {
+		test('should emit when done - setTimeout (#2)', () => {
 			let count = 0;
 
-			const event = fromPromise(TPromise.timeout(10));
+			const event = fromPromise(TPromise.timeout(30));
 			event(() => count++);
 
 			assert.equal(count, 0);
@@ -326,7 +326,7 @@ suite('Event utils', () => {
 			return TPromise.timeout(0).then(() => {
 				assert.equal(count, 0);
 
-				return TPromise.timeout(10).then(() => {
+				return TPromise.timeout(35).then(() => {
 					assert.equal(count, 1);
 				});
 			});

@@ -8,7 +8,7 @@
 	"breakpointsAriaTreeLabel": "Esegui debug punti di interruzione",
 	"breakpointsSection": "Sezione Punti di interruzione",
 	"callStack": "Stack di chiamate",
-	"callStackAriaLabel": "Esegui debug stack di chiamate",
+	"callStackAriaLabel": "Stack di chiamate di debug",
 	"callstackSection": "Sezione Stack di chiamate",
 	"debugStopped": "In pausa su {0}",
 	"expressionsSection": "Sezione Espressioni",
