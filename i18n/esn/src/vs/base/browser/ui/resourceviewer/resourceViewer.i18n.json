@@ -8,6 +8,7 @@
 	"largeImageError": "La imagen es demasiado grande para mostrarse en el editor. ",
 	"nativeBinaryError": "El archivo no se mostrará en el editor porque es binario, muy grande o usa una codificación de texto no compatible.",
 	"resourceOpenExternalButton": "Abrir imagen",
+	"resourceOpenExternalText": "¿se usará el programa externo?",
 	"sizeB": "{0} B",
 	"sizeGB": "{0} GB",
 	"sizeKB": "{0} KB",

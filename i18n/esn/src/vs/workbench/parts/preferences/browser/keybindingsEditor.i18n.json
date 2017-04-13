@@ -22,9 +22,11 @@
 	"keybindingsInputName": "Métodos abreviados de teclado",
 	"keybindingsLabel": "Enlaces de teclado",
 	"noKeybinding": "No se ha asignado ningún enlace de teclado.",
+	"noWhen": "No, cuando hay contexto.",
 	"removeLabel": "Quitar enlace de teclado",
 	"resetLabel": "Restablecer enlaces de teclado",
 	"source": "Origen",
 	"sourceAriaLabel": "El origen es {0}.",
-	"when": "Cuando"
+	"when": "Cuando",
+	"whenAriaLabel": "Cuando es {0}."
 }
