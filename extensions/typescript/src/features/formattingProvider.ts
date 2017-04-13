@@ -19,6 +19,7 @@ interface Configuration {
 	insertSpaceAfterFunctionKeywordForAnonymousFunctions: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: boolean;
+	insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: boolean;
 	insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: boolean;
 	insertSpaceBeforeFunctionParenthesis: boolean;
@@ -37,6 +38,7 @@ namespace Configuration {
 	export const insertSpaceBeforeFunctionParenthesis: string = 'insertSpaceBeforeFunctionParenthesis';
 	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis';
 	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets';
+	export const insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces';
 	export const insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces';
 	export const insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: string = 'insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces';
 	export const placeOpenBraceOnNewLineForFunctions: string = 'placeOpenBraceOnNewLineForFunctions';
@@ -64,6 +66,7 @@ namespace Configuration {
 		result.insertSpaceBeforeFunctionParenthesis = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets = false;
+		result.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces = true;
 		result.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces = false;
 		result.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces = false;
 		result.placeOpenBraceOnNewLineForFunctions = false;
@@ -219,6 +222,7 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			insertSpaceBeforeFunctionParenthesis: this.config.insertSpaceBeforeFunctionParenthesis,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces,
 			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces,
 			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: this.config.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces,
 			placeOpenBraceOnNewLineForFunctions: this.config.placeOpenBraceOnNewLineForFunctions,

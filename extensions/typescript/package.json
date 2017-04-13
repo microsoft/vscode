@@ -191,6 +191,11 @@
           "default": false,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
         },
+        "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%"
+        },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
           "type": "boolean",
           "default": false,
@@ -260,6 +265,11 @@
           "type": "boolean",
           "default": false,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
+        },
+        "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
+          "type": "boolean",
+          "default": false,
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%"
         },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
           "type": "boolean",
