@@ -414,6 +414,9 @@ export interface IListStyles {
 	listHoverBackground?: Color;
 	listDropBackground?: Color;
 	listFocusOutline?: Color;
+	listInactiveFocusOutline?: Color;
+	listSelectionOutline?: Color;
+	listHoverOutline?: Color;
 }
 
 const defaultStyles: IListStyles = {
@@ -423,7 +426,6 @@ const defaultStyles: IListStyles = {
 	listFocusAndSelectionBackground: Color.fromHex('#094771'),
 	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
-	listInactiveFocusBackground: Color.transparent,
 	listHoverBackground: Color.fromHex('#2A2D2E'),
 	listDropBackground: Color.fromHex('#383B3D')
 };
@@ -809,27 +811,44 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	style(styles: IListStyles): void {
-
-		// Indicate selection/focus via background color
-		if (!styles.listFocusOutline) {
-			this.styleElement.innerHTML = `
-				.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }
-				.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; color: ${styles.listActiveSelectionForeground}; }
-				.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; color: ${styles.listFocusAndSelectionForeground}; }
-				.monaco-list.${this.idPrefix} .monaco-list-row.focused { background-color: ${styles.listInactiveFocusBackground}; }
-				.monaco-list.${this.idPrefix} .monaco-list-row.selected { background-color: ${styles.listInactiveSelectionBackground}; }
-				.monaco-list.${this.idPrefix} .monaco-list-row:hover { background-color: ${styles.listHoverBackground}; }
-			`;
+		let content = '';
+		if (styles.listFocusBackground) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`;
 		}
-
-		// Indicate selection/focus via outline
-		else {
-			this.styleElement.innerHTML = `
-				.monaco-list.${this.idPrefix} .monaco-list-row.selected { outline: 1px dotted ${styles.listFocusOutline}; color: white; }
-				.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; background: transparent }
-				.monaco-list.${this.idPrefix} .monaco-list-row:hover { outline: 1px dashed ${styles.listFocusOutline}; outline-offset: -1px; background: transparent; }
-			`;
+		if (styles.listActiveSelectionBackground) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`;
 		}
+		if (styles.listActiveSelectionForeground) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`;
+		}
+		if (styles.listFocusAndSelectionBackground) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }`;
+		}
+		if (styles.listFocusAndSelectionForeground) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }`;
+		}
+		if (styles.listInactiveFocusBackground) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`;
+		}
+		if (styles.listInactiveSelectionBackground) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row.selected { background-color:  ${styles.listInactiveSelectionBackground}; }`;
+		}
+		if (styles.listHoverBackground) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row:hover { background-color:  ${styles.listHoverBackground}; }`;
+		}
+		if (styles.listSelectionOutline) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; }`;
+		}
+		if (styles.listFocusOutline) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`;
+		}
+		if (styles.listInactiveFocusOutline) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row.focused { outline: 1px dotted ${styles.listInactiveFocusOutline}; outline-offset: -1px; }`;
+		}
+		if (styles.listHoverOutline) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`;
+		}
+		this.styleElement.innerHTML = content;
 	}
 
 	private toListEvent({ indexes }: ITraitChangeEvent) {

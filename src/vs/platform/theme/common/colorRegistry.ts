@@ -144,15 +144,20 @@ export const selectBackground = registerColor('dropdownBackground', { dark: '#3C
 export const selectForeground = registerColor('dropdownForeground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('dropdownForeground', "Dropdown foreground."));
 export const selectBorder = registerColor('dropdownBorder', { dark: selectBackground, light: '#CECECE', hc: selectBackground }, nls.localize('dropdownBorder', "Dropdown border."));
 
-export const listFocusBackground = registerColor('listFocusBackground', { dark: '#073655', light: '#DCEBFC', hc: null }, nls.localize('listFocusBackground', "List/Tree focus background when active"));
-export const listInactiveFocusBackground = registerColor('listInactiveFocusBackground', { dark: null, light: null, hc: null }, nls.localize('listInactiveFocusBackground', "List/Tree focus background when inactive"));
-export const listActiveSelectionBackground = registerColor('listActiveSelectionBackground', { dark: '#0E639C', light: '#4FA7FF', hc: null }, nls.localize('listActiveSelectionBackground', "List/Tree selection background when active"));
-export const listActiveSelectionForeground = registerColor('listActiveSelectionForeground', { dark: Color.white, light: Color.white, hc: null }, nls.localize('listActiveSelectionForeground', "List/Tree selection foreground when active"));
-export const listFocusAndSelectionBackground = registerColor('listFocusAndSelectionBackground', { dark: '#094771', light: '#3399FF', hc: null }, nls.localize('listFocusAndSelectionBackground', "List/Tree focus and selection background"));
-export const listFocusAndSelectionForeground = registerColor('listFocusAndSelectionForeground', { dark: Color.white, light: Color.white, hc: null }, nls.localize('listFocusAndSelectionForeground', "List/Tree focus and selection foreground"));
-export const listInactiveSelectionBackground = registerColor('listInactiveSelectionBackground', { dark: '#3F3F46', light: '#CCCEDB', hc: null }, nls.localize('listInactiveSelectionBackground', "List/Tree selection background when inactive"));
-export const listHoverBackground = registerColor('listHoverBackground', { dark: '#2A2D2E', light: '#F0F0F0', hc: null }, nls.localize('listHoverBackground', "List/Tree hover background"));
-export const listDropBackground = registerColor('listDropBackground', { dark: '#383B3D', light: '#DDECFF', hc: null }, nls.localize('listDropBackground', "List/Tree drag and drop background"));
+export const listFocusBackground = registerColor('listFocusBackground', { dark: '#073655', light: '#DCEBFC', hc: null }, nls.localize('listFocusBackground', "List/Tree focus background when active."));
+export const listInactiveFocusBackground = registerColor('listInactiveFocusBackground', { dark: null, light: null, hc: null }, nls.localize('listInactiveFocusBackground', "List/Tree focus background when inactive."));
+export const listActiveSelectionBackground = registerColor('listActiveSelectionBackground', { dark: '#0E639C', light: '#4FA7FF', hc: null }, nls.localize('listActiveSelectionBackground', "List/Tree selection background when active."));
+export const listActiveSelectionForeground = registerColor('listActiveSelectionForeground', { dark: Color.white, light: Color.white, hc: Color.white }, nls.localize('listActiveSelectionForeground', "List/Tree selection foreground when active."));
+export const listFocusAndSelectionBackground = registerColor('listFocusAndSelectionBackground', { dark: '#094771', light: '#3399FF', hc: null }, nls.localize('listFocusAndSelectionBackground', "List/Tree focus and selection background."));
+export const listFocusAndSelectionForeground = registerColor('listFocusAndSelectionForeground', { dark: Color.white, light: Color.white, hc: Color.white }, nls.localize('listFocusAndSelectionForeground', "List/Tree focus and selection foreground."));
+export const listInactiveSelectionBackground = registerColor('listInactiveSelectionBackground', { dark: '#3F3F46', light: '#CCCEDB', hc: null }, nls.localize('listInactiveSelectionBackground', "List/Tree selection background when inactive."));
+export const listHoverBackground = registerColor('listHoverBackground', { dark: '#2A2D2E', light: '#F0F0F0', hc: null }, nls.localize('listHoverBackground', "List/Tree hover background."));
+export const listDropBackground = registerColor('listDropBackground', { dark: '#383B3D', light: '#DDECFF', hc: null }, nls.localize('listDropBackground', "List/Tree drag and drop background."));
+
+export const listFocusOutline = registerColor('listFocusOutline', { dark: null, light: null, hc: highContrastOutline }, nls.localize('listFocusOutline', "List/Tree focus outline color when active."));
+export const listInactiveFocusOutline = registerColor('listInactiveFocusOutline', { dark: null, light: null, hc: null }, nls.localize('listInactiveFocusOutline', "List/Tree focus outline color when inactive."));
+export const listSelectionOutline = registerColor('listSelectionOutline', { dark: null, light: null, hc: highContrastOutline }, nls.localize('listSelectionOutline', "List/Tree selection outline color."));
+export const listHoverOutline = registerColor('listHoverOutline', { dark: null, light: null, hc: highContrastOutline }, nls.localize('listHoverOutline', "List/Tree hover outline color."));
 
 /**
  * Editor background color.

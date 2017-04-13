@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, listHoverOutline, listSelectionOutline, listFocusOutline, listInactiveFocusOutline } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from "vs/base/common/lifecycle";
 
 export interface IThemable {
@@ -74,7 +74,9 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 	listInactiveSelectionBackground?: ColorIdentifier,
 	listHoverBackground?: ColorIdentifier,
 	listDropBackground?: ColorIdentifier,
-	listFocusOutline?: ColorIdentifier
+	listFocusOutline?: ColorIdentifier,
+	listSelectionOutline?: ColorIdentifier,
+	listHoverOutline?: ColorIdentifier
 }): IDisposable {
 	return attachStyler(themeService, widget, {
 		foreground: (style && style.foreground) || foreground,
@@ -91,7 +93,9 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
 		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
 		listDropBackground: (style && style.listDropBackground) || listDropBackground,
-		listFocusOutline: (style && style.listFocusOutline) || highContrastOutline
+		listFocusOutline: (style && style.listFocusOutline) || listFocusOutline,
+		listSelectionOutline: (style && style.listSelectionOutline) || listSelectionOutline,
+		listHoverOutline: (style && style.listHoverOutline) || listHoverOutline
 	});
 }
 
@@ -105,7 +109,10 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 	listInactiveSelectionBackground?: ColorIdentifier,
 	listHoverBackground?: ColorIdentifier,
 	listDropBackground?: ColorIdentifier,
-	listFocusOutline?: ColorIdentifier
+	listFocusOutline?: ColorIdentifier,
+	listInactiveFocusOutline?: ColorIdentifier,
+	listSelectionOutline?: ColorIdentifier,
+	listHoverOutline?: ColorIdentifier,
 }): IDisposable {
 	return attachStyler(themeService, widget, {
 		listFocusBackground: (style && style.listFocusBackground) || listFocusBackground,
@@ -117,6 +124,9 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
 		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
 		listDropBackground: (style && style.listDropBackground) || listDropBackground,
-		listFocusOutline: (style && style.listFocusOutline) || highContrastOutline
+		listFocusOutline: (style && style.listFocusOutline) || listFocusOutline,
+		listInactiveFocusOutline: (style && style.listInactiveFocusOutline) || listInactiveFocusOutline,
+		listSelectionOutline: (style && style.listSelectionOutline) || listSelectionOutline,
+		listHoverOutline: (style && style.listHoverOutline) || listHoverOutline,
 	});
 }
