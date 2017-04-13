@@ -48,10 +48,17 @@ suite('Strings', () => {
 
 	test('compareIgnoreCase', function () {
 
-		function assertCompareIgnoreCase(a: string, b: string): void {
+		function assertCompareIgnoreCase(a: string, b: string, recurse = true): void {
 			let actual = strings.compareIgnoreCase(a, b);
+			actual = actual > 0 ? 1 : actual < 0 ? -1 : actual;
+
 			let expected = strings.compare(a.toLowerCase(), b.toLowerCase());
+			expected = expected > 0 ? 1 : expected < 0 ? -1 : expected;
 			assert.equal(actual, expected, `${a} <> ${b}`);
+
+			if (recurse) {
+				assertCompareIgnoreCase(b, a, false);
+			}
 		}
 
 		assertCompareIgnoreCase('', '');
@@ -63,6 +70,16 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('Code', 'code');
 		assertCompareIgnoreCase('Code', 'cöde');
 
+		assertCompareIgnoreCase('B', 'a');
+		assertCompareIgnoreCase('a', 'B');
+		assertCompareIgnoreCase('b', 'a');
+		assertCompareIgnoreCase('a', 'b');
+
+		assertCompareIgnoreCase('aa', 'ab');
+		assertCompareIgnoreCase('aa', 'aB');
+		assertCompareIgnoreCase('aa', 'aA');
+		assertCompareIgnoreCase('a', 'aa');
+		assertCompareIgnoreCase('ab', 'aA');
 	});
 
 	test('format', function () {

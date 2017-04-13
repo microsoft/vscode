@@ -330,22 +330,32 @@ export function compare(a: string, b: string): number {
 export function compareIgnoreCase(a: string, b: string): number {
 	const len = Math.min(a.length, b.length);
 	for (let i = 0; i < len; i++) {
-		const codeA = a.charCodeAt(i);
-		const codeB = b.charCodeAt(i);
+		let codeA = a.charCodeAt(i);
+		let codeB = b.charCodeAt(i);
 
 		if (codeA === codeB) {
 			// equal
 			continue;
 		}
 
-		if (isAsciiLetter(codeA) && isAsciiLetter(codeB)) {
-			const diff = codeA - codeB;
-			if (diff === 32 || diff === -32) {
-				// equal -> ignoreCase
-				continue;
-			} else {
-				return diff;
-			}
+		if (isUpperAsciiLetter(codeA)) {
+			codeA -= 32;
+		}
+
+		if (isUpperAsciiLetter(codeB)) {
+			codeB -= 32;
+		}
+
+		const diff = codeA - codeB;
+
+		if (diff === 0) {
+			// equal -> ignoreCase
+			continue;
+
+		} else if (isLowerAsciiLetter(codeA) && isLowerAsciiLetter(codeB)) {
+			//
+			return diff;
+
 		} else {
 			return compare(a.toLowerCase(), b.toLowerCase());
 		}
@@ -360,8 +370,16 @@ export function compareIgnoreCase(a: string, b: string): number {
 	}
 }
 
+function isLowerAsciiLetter(code: number): boolean {
+	return code >= CharCode.a && code <= CharCode.z;
+}
+
+function isUpperAsciiLetter(code: number): boolean {
+	return code >= CharCode.A && code <= CharCode.Z;
+}
+
 function isAsciiLetter(code: number): boolean {
-	return (code >= CharCode.a && code <= CharCode.z) || (code >= CharCode.A && code <= CharCode.Z);
+	return isLowerAsciiLetter(code) || isUpperAsciiLetter(code);
 }
 
 export function equalsIgnoreCase(a: string, b: string): boolean {
