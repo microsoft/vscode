@@ -1,3 +1,3 @@
 #!/bin/bash
 
-xvfb-run ./test.sh
+xvfb-run ./test.sh "$@"
