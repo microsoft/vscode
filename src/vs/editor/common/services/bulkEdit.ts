@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { flatten } from 'vs/base/common/arrays';
-import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
+import { IStringDictionary, forEach, values, groupBy, size } from 'vs/base/common/collections';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -290,6 +290,7 @@ export interface BulkEdit {
 	progress(progress: IProgressRunner);
 	add(edit: IResourceEdit[]): void;
 	finish(): TPromise<ISelection>;
+	ariaMessage(): string;
 }
 
 export function bulkEdit(textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor, edits: IResourceEdit[], fileService?: IFileService, progress: IProgressRunner = null): TPromise<any> {
@@ -365,9 +366,22 @@ export function createBulkEdit(textModelResolverService: ITextModelResolverServi
 		});
 	}
 
+	function ariaMessage(): string {
+		let editCount = all.length;
+		let resourceCount = size(groupBy(all, edit => edit.resource.toString()));
+		if (editCount === 0) {
+			return nls.localize('summary.0', "Made no edits");
+		} else if (editCount > 1 && resourceCount > 1) {
+			return nls.localize('summary.nm', "Made {0} text edits in {1} files", editCount, resourceCount);
+		} else {
+			return nls.localize('summary.n0', "Made {0} text edits in one file", editCount, resourceCount);
+		}
+	}
+
 	return {
 		progress,
 		add,
-		finish
+		finish,
+		ariaMessage
 	};
 }
