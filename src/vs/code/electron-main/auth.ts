@@ -77,8 +77,13 @@ export class ProxyAuthHandler {
 		const javascript = 'promptForCredentials(' + JSON.stringify(data) + ')';
 
 		event.preventDefault();
+
+		const onWindowClose = () => cb('', '');
+		win.on('close', onWindowClose);
+
 		win.webContents.executeJavaScript(javascript, true).then(({ username, password }: Credentials) => {
 			cb(username, password);
+			win.removeListener('close', onWindowClose);
 			win.close();
 		});
 	}
