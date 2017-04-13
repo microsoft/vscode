@@ -40,6 +40,11 @@ import { FileReferences, OneReference, ReferencesModel } from './referencesModel
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { ListFocusContext } from 'vs/platform/list/browser/listService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandService } from 'vs/platform/commands/common/commandService';
 
 class DecorationsManager implements IDisposable {
 
@@ -217,11 +222,161 @@ class DataSource implements tree.IDataSource {
 
 class Controller extends DefaultController {
 
+	private _commandServices: ICommandService;
+
 	static Events = {
 		FOCUSED: 'events/custom/focused',
 		SELECTED: 'events/custom/selected',
 		OPEN_TO_SIDE: 'events/custom/opentoside'
 	};
+
+	static CmdIds = {
+		ENTER: 'referencelist.select',
+		ESCAPE: 'refrencelist.exit',
+		UP: 'refrencelist.up',
+		DOWN: 'refrencelist.down',
+		LEFT: 'refrencelist.left',
+		RIGHT: 'refrencelist.right',
+		PAGEUP: 'refrencelist.pageup',
+		PAGEDOWN: 'refrencelist.pagedown'
+	};
+
+	constructor(
+		@ICommandService commandServices: ICommandService
+	) {
+		super();
+
+		this._commandServices = commandServices;
+		this.registerCommands();
+	}
+
+	/**
+	 * Registers commands to handle key and mouse events.
+	 */
+	registerCommands() {
+		// Command to handle Enter.
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: Controller.CmdIds.ENTER,
+			weight: KeybindingsRegistry.WEIGHT.builtinExtension(),
+			when: ListFocusContext,
+			primary: KeyCode.Enter,
+			secondary: [KeyMod.CtrlCmd | KeyCode.Enter],
+			mac: {
+				primary: KeyCode.Enter,
+				secondary: [KeyMod.CtrlCmd | KeyCode.Enter, KeyMod.CtrlCmd | KeyCode.DownArrow]
+			},
+			handler: (accessor, tree: tree.ITree, event: IKeyboardEvent) => {
+				var element = tree.getFocus();
+				if (element instanceof FileReferences) {
+					return this._expandCollapse(tree, element);
+				}
+
+				var result = super.onEnter(tree, event);
+				if (event.ctrlKey || event.metaKey) {
+					tree.emit(Controller.Events.OPEN_TO_SIDE, element);
+				} else {
+					tree.emit(Controller.Events.SELECTED, element);
+				}
+				return result;
+			}
+		});
+
+		// Command to handle Escape
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: Controller.CmdIds.ESCAPE,
+			weight: KeybindingsRegistry.WEIGHT.builtinExtension(),
+			when: ListFocusContext,
+			primary: KeyCode.Escape,
+			secondary: [KeyMod.Shift | KeyCode.Escape],
+			handler: (accessor, tree: tree.ITree, event: IKeyboardEvent) => {
+				return false;
+			}
+		});
+
+		// Command to handle Up
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: Controller.CmdIds.UP,
+			weight: KeybindingsRegistry.WEIGHT.builtinExtension(),
+			when: ListFocusContext,
+			primary: KeyCode.UpArrow,
+			secondary: [KeyMod.Alt | KeyCode.UpArrow],
+			handler: (accessor, tree: tree.ITree, event: IKeyboardEvent) => {
+				super.onUp(tree, event);
+				this._fakeFocus(tree, event);
+				return true;
+			}
+		});
+
+		// Command to handle Down
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: Controller.CmdIds.DOWN,
+			weight: KeybindingsRegistry.WEIGHT.builtinExtension(),
+			when: ListFocusContext,
+			primary: KeyCode.DownArrow,
+			secondary: [KeyMod.Alt | KeyCode.DownArrow],
+			handler: (accessor, tree: tree.ITree, event: IKeyboardEvent) => {
+				super.onDown(tree, event);
+				this._fakeFocus(tree, event);
+				return true;
+			}
+		});
+
+		// Command to handle Left
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: Controller.CmdIds.LEFT,
+			weight: KeybindingsRegistry.WEIGHT.builtinExtension(),
+			when: ListFocusContext,
+			primary: KeyCode.LeftArrow,
+			secondary: [KeyMod.Alt | KeyCode.LeftArrow],
+			handler: (accessor, tree: tree.ITree, event: IKeyboardEvent) => {
+				super.onLeft(tree, event);
+				this._fakeFocus(tree, event);
+				return true;
+			}
+		});
+
+		// Command to handle Right
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: Controller.CmdIds.RIGHT,
+			weight: KeybindingsRegistry.WEIGHT.builtinExtension(),
+			when: ListFocusContext,
+			primary: KeyCode.RightArrow,
+			secondary: [KeyMod.Alt | KeyCode.RightArrow],
+			handler: (accessor, tree: tree.ITree, event: IKeyboardEvent) => {
+				super.onRight(tree, event);
+				this._fakeFocus(tree, event);
+				return true;
+			}
+		});
+
+		// Command to handle PageUp
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: Controller.CmdIds.PAGEUP,
+			weight: KeybindingsRegistry.WEIGHT.builtinExtension(),
+			when: ListFocusContext,
+			primary: KeyCode.PageUp,
+			secondary: [KeyMod.Alt | KeyCode.PageUp],
+			handler: (accessor, tree: tree.ITree, event: IKeyboardEvent) => {
+				super.onPageUp(tree, event);
+				this._fakeFocus(tree, event);
+				return true;
+			}
+		});
+
+		// Command to handle PageDown
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: Controller.CmdIds.PAGEDOWN,
+			weight: KeybindingsRegistry.WEIGHT.builtinExtension(),
+			when: ListFocusContext,
+			primary: KeyCode.PageDown,
+			secondary: [KeyMod.Alt | KeyCode.PageDown],
+			handler: (accessor, tree: tree.ITree, event: IKeyboardEvent) => {
+				super.onPageDown(tree, event);
+				this._fakeFocus(tree, event);
+				return true;
+			}
+		});
+	}
 
 	public onTap(tree: tree.ITree, element: any, event: GestureEvent): boolean {
 		if (element instanceof FileReferences) {
@@ -275,59 +430,108 @@ class Controller extends DefaultController {
 		return true;
 	}
 
+	// Done
 	public onEscape(tree: tree.ITree, event: IKeyboardEvent): boolean {
-		return false;
-	}
+		let result: boolean;
 
-	public onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
-		var element = tree.getFocus();
-		if (element instanceof FileReferences) {
-			return this._expandCollapse(tree, element);
-		}
+		this._commandServices
+			.executeCommand(Controller.CmdIds.ESCAPE, tree, event)
+			.then(() => {
+				result = false;
+			});
 
-		var result = super.onEnter(tree, event);
-		if (event.ctrlKey || event.metaKey) {
-			tree.emit(Controller.Events.OPEN_TO_SIDE, element);
-		} else {
-			tree.emit(Controller.Events.SELECTED, element);
-		}
 		return result;
 	}
 
+	// Done
+	public onEnter(tree: tree.ITree, event: IKeyboardEvent): boolean {
+		let result: boolean;
+
+		this._commandServices
+			.executeCommand(Controller.CmdIds.ENTER, tree, event)
+			.then(() => {
+				result = true;
+			});
+
+		return result;
+	}
+
+	// Done
 	public onUp(tree: tree.ITree, event: IKeyboardEvent): boolean {
-		super.onUp(tree, event);
-		this._fakeFocus(tree, event);
-		return true;
+		let result: boolean;
+
+		this._commandServices
+			.executeCommand(Controller.CmdIds.UP, tree, event)
+			.then(() => {
+				result = true;
+			});
+
+		return result;
 	}
 
+	// Done
 	public onPageUp(tree: tree.ITree, event: IKeyboardEvent): boolean {
-		super.onPageUp(tree, event);
-		this._fakeFocus(tree, event);
-		return true;
+		let result: boolean;
+
+		this._commandServices
+			.executeCommand(Controller.CmdIds.PAGEUP, tree, event)
+			.then(() => {
+				result = true;
+			});
+
+		return result;
 	}
 
+	// Done
 	public onLeft(tree: tree.ITree, event: IKeyboardEvent): boolean {
-		super.onLeft(tree, event);
-		this._fakeFocus(tree, event);
-		return true;
+		let result: boolean;
+
+		this._commandServices
+			.executeCommand(Controller.CmdIds.LEFT, tree, event)
+			.then(() => {
+				result = true;
+			});
+
+		return result;
 	}
 
+	// Done
 	public onDown(tree: tree.ITree, event: IKeyboardEvent): boolean {
-		super.onDown(tree, event);
-		this._fakeFocus(tree, event);
-		return true;
+		let result: boolean;
+
+		this._commandServices
+			.executeCommand(Controller.CmdIds.DOWN, tree, event)
+			.then(() => {
+				result = true;
+			});
+
+		return result;
 	}
 
+	// Done
 	public onPageDown(tree: tree.ITree, event: IKeyboardEvent): boolean {
-		super.onPageDown(tree, event);
-		this._fakeFocus(tree, event);
-		return true;
+		let result: boolean;
+
+		this._commandServices
+			.executeCommand(Controller.CmdIds.PAGEDOWN, tree, event)
+			.then(() => {
+				result = true;
+			});
+
+		return result;
 	}
 
+	// Done
 	public onRight(tree: tree.ITree, event: IKeyboardEvent): boolean {
-		super.onRight(tree, event);
-		this._fakeFocus(tree, event);
-		return true;
+		let result: boolean;
+
+		this._commandServices
+			.executeCommand(Controller.CmdIds.RIGHT, tree, event)
+			.then(() => {
+				result = true;
+			});
+
+		return result;
 	}
 
 	private _fakeFocus(tree: tree.ITree, event: IKeyboardEvent): void {
@@ -605,7 +809,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer),
 				//sorter: new Sorter(),
-				controller: new Controller()
+				controller: new Controller(this._instantiationService.createInstance(CommandService))
 			};
 
 			var options = {
