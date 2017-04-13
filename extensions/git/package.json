@@ -613,6 +613,11 @@
           ],
           "description": "%config.checkoutType%",
           "default": "all"
+        },
+        "git.ignoreLegacyWarning": {
+          "type": "boolean",
+          "description": "%config.ignoreLegacyWarning%",
+          "default": false
         }
       }
     }

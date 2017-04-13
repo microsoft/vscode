@@ -6,7 +6,7 @@
 'use strict';
 
 import { ExtensionContext, workspace, window, Disposable, commands, Uri } from 'vscode';
-import { findGit, Git } from './git';
+import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { GitSCMProvider } from './scmProvider';
 import { CommandCenter } from './commands';
@@ -65,27 +65,7 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 		model
 	);
 
-	const IgnoreOldGitStorageKey = 'settings.extension.git.ignoreOld';
-
-	// Check user setting to show older version message
-	if (!context.globalState.get(IgnoreOldGitStorageKey)) {
-		if (/^[01]/.test(info.version)) {
-			const update = localize('updateGit', "Update Git");
-			const neverShowAgain = localize('neverShowAgain', "Don't show again");
-
-			const choice = await window.showWarningMessage(
-				localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version),
-				update,
-				neverShowAgain
-			);
-
-			if (choice === update) {
-				commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
-			} else if (choice === neverShowAgain) {
-				context.globalState.update(IgnoreOldGitStorageKey, true);
-			}
-		}
-	}
+	await checkGitVersion(info);
 }
 
 export function activate(context: ExtensionContext): any {
@@ -94,4 +74,32 @@ export function activate(context: ExtensionContext): any {
 
 	init(context, disposables)
 		.catch(err => console.error(err));
+}
+
+async function checkGitVersion(info: IGit): Promise<void> {
+	const config = workspace.getConfiguration('git');
+	const shouldIgnore = config.get<boolean>('ignoreLegacyWarning') === true;
+
+	if (shouldIgnore) {
+		return;
+	}
+
+	if (!/^[01]/.test(info.version)) {
+		return;
+	}
+
+	const update = localize('updateGit', "Update Git");
+	const neverShowAgain = localize('neverShowAgain', "Don't show again");
+
+	const choice = await window.showWarningMessage(
+		localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version),
+		update,
+		neverShowAgain
+	);
+
+	if (choice === update) {
+		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+	} else if (choice === neverShowAgain) {
+		await config.update('ignoreLegacyWarning', true, true);
+	}
 }
