@@ -47,6 +47,8 @@ export class ProxyAuthHandler {
 			return;
 		}
 
+		event.preventDefault();
+
 		const opts: any = {
 			alwaysOnTop: true,
 			skipTaskbar: true,
@@ -68,19 +70,16 @@ export class ProxyAuthHandler {
 		const config = {};
 		const baseUrl = require.toUrl('./auth.html');
 		const url = `${baseUrl}?config=${encodeURIComponent(JSON.stringify(config))}`;
-		win.loadURL(url);
-
 		const proxyUrl = `${authInfo.host}:${authInfo.port}`;
 		const title = localize('authRequire', "Proxy Authentication Required");
 		const message = localize('proxyauth', "The proxy {0} requires authentication.", proxyUrl);
 		const data = { title, message };
 		const javascript = 'promptForCredentials(' + JSON.stringify(data) + ')';
 
-		event.preventDefault();
-
 		const onWindowClose = () => cb('', '');
 		win.on('close', onWindowClose);
 
+		win.loadURL(url);
 		win.webContents.executeJavaScript(javascript, true).then(({ username, password }: Credentials) => {
 			cb(username, password);
 			win.removeListener('close', onWindowClose);
