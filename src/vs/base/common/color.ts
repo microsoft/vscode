@@ -113,14 +113,27 @@ function hex2rgba(hex: string): RGBA {
 		// Invalid color
 		return null;
 	}
-	if (hex.length === 7 && hex.charCodeAt(0) === CharCode.Hash) {
+	const length = hex.length;
+
+	if (length === 0) {
+		// Invalid color
+		return null;
+	}
+
+	if (hex.charCodeAt(0) !== CharCode.Hash) {
+		// Does not begin with a #
+		return null;
+	}
+
+	if (length === 7) {
 		// #RRGGBB format
 		const r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
 		const g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
 		const b = 16 * _parseHexDigit(hex.charCodeAt(5)) + _parseHexDigit(hex.charCodeAt(6));
 		return new RGBA(r, g, b, 255);
 	}
-	if (hex.length === 9 && hex.charCodeAt(0) === CharCode.Hash) {
+
+	if (length === 9) {
 		// #RRGGBBAA format
 		const r = 16 * _parseHexDigit(hex.charCodeAt(1)) + _parseHexDigit(hex.charCodeAt(2));
 		const g = 16 * _parseHexDigit(hex.charCodeAt(3)) + _parseHexDigit(hex.charCodeAt(4));
@@ -128,12 +141,50 @@ function hex2rgba(hex: string): RGBA {
 		const a = 16 * _parseHexDigit(hex.charCodeAt(7)) + _parseHexDigit(hex.charCodeAt(8));
 		return new RGBA(r, g, b, a);
 	}
+
+	if (length === 4) {
+		// #RGB format
+		const r = _parseHexDigit(hex.charCodeAt(1));
+		const g = _parseHexDigit(hex.charCodeAt(2));
+		const b = _parseHexDigit(hex.charCodeAt(3));
+		return new RGBA(16 * r + r, 16 * g + g, 16 * b + b);
+	}
+
+	if (length === 5) {
+		// #RGBA format
+		const r = _parseHexDigit(hex.charCodeAt(1));
+		const g = _parseHexDigit(hex.charCodeAt(2));
+		const b = _parseHexDigit(hex.charCodeAt(3));
+		const a = _parseHexDigit(hex.charCodeAt(4));
+		return new RGBA(16 * r + r, 16 * g + g, 16 * b + b, 16 * a + a);
+	}
+
 	// Invalid color
 	return null;
 }
 
 export function isValidHexColor(hex: string): boolean {
-	return /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(hex);
+	if (/^#[0-9a-f]{6}$/i.test(hex)) {
+		// #rrggbb
+		return true;
+	}
+
+	if (/^#[0-9a-f]{8}$/i.test(hex)) {
+		// #rrggbbaa
+		return true;
+	}
+
+	if (/^#[0-9a-f]{3}$/i.test(hex)) {
+		// #rgb
+		return true;
+	}
+
+	if (/^#[0-9a-f]{4}$/i.test(hex)) {
+		// #rgba
+		return true;
+	}
+
+	return false;
 }
 
 function _parseHexDigit(charCode: CharCode): number {
