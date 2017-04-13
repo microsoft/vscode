@@ -15,7 +15,7 @@ import * as glob from 'glob';
 import * as http from 'http';
 
 var util = require('gulp-util');
-var Iconv  = require('iconv').Iconv;
+var iconv = require('iconv-lite');
 
 function log(message: any, ...rest: any[]): void {
 	util.log(util.colors.green('[i18n]'), message, ...rest);
@@ -1134,11 +1134,10 @@ function createIslFile(base: string, originalFilePath: string, messages: Map<str
 	const tag = iso639_3_to_2[language];
 	const basename = path.basename(originalFilePath);
 	const filePath = `${path.join(base, path.dirname(originalFilePath), basename)}.${tag}.isl`;
-	const iconv = new Iconv('UTF-8', encodings[language]);
 
 	return new File({
 		path: filePath,
-		contents: iconv.convert(new Buffer(content.join('\r\n'), 'utf8'))
+		contents: iconv.encode(new Buffer(content.join('\r\n'), 'utf8'), encodings[language])
 	});
 }
 

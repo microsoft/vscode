@@ -13,7 +13,7 @@ var xml2js = require("xml2js");
 var glob = require("glob");
 var http = require("http");
 var util = require('gulp-util');
-var Iconv = require('iconv').Iconv;
+var iconv = require('iconv-lite');
 function log(message) {
     var rest = [];
     for (var _i = 1; _i < arguments.length; _i++) {
@@ -1019,10 +1019,9 @@ function createIslFile(base, originalFilePath, messages, language) {
     var tag = iso639_3_to_2[language];
     var basename = path.basename(originalFilePath);
     var filePath = path.join(base, path.dirname(originalFilePath), basename) + "." + tag + ".isl";
-    var iconv = new Iconv('UTF-8', encodings[language]);
     return new File({
         path: filePath,
-        contents: iconv.convert(new Buffer(content.join('\r\n'), 'utf8'))
+        contents: iconv.encode(new Buffer(content.join('\r\n'), 'utf8'), encodings[language])
     });
 }
 function encodeEntities(value) {
