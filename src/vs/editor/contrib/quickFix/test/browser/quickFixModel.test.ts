@@ -13,30 +13,33 @@ import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { QuickFixOracle } from 'vs/editor/contrib/quickFix/browser/quickFixModel';
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 
 suite('QuickFix', () => {
-	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
 
+	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
 	let uri = URI.parse('untitled:path');
-	let model = Model.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
+	let model: Model;
 	let markerService: MarkerService;
 	let editor: ICommonCodeEditor;
-
-	let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-		provideCodeActions() {
-			return [{ command: { id: 'test-command', title: 'test', arguments: [] }, score: 1 }];
-		}
-	});
+	let reg: IDisposable;
 
 	setup(() => {
+		reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
+			provideCodeActions() {
+				return [{ command: { id: 'test-command', title: 'test', arguments: [] }, score: 1 }];
+			}
+		});
 		markerService = new MarkerService();
+		model = Model.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
 		editor = mockCodeEditor([], { model });
 		editor.setPosition({ lineNumber: 1, column: 1 });
 	});
 
-	suiteTeardown(() => {
+	teardown(() => {
 		reg.dispose();
+		editor.dispose();
 		model.dispose();
 	});
 
