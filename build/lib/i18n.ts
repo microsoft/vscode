@@ -15,7 +15,7 @@ import * as glob from 'glob';
 import * as http from 'http';
 
 var util = require('gulp-util');
-var iconv  = require('iconv-lite');
+var Iconv  = require('iconv').Iconv;
 
 function log(message: any, ...rest: any[]): void {
 	util.log(util.colors.green('[i18n]'), message, ...rest);
@@ -34,6 +34,12 @@ interface Item {
 export interface Resource {
 	name: string;
 	project: string;
+}
+
+interface ParsedXLF {
+	messages: Map<string>;
+	originalFilePath: string;
+	language: string;
 }
 
 interface LocalizeInfo {
@@ -214,7 +220,7 @@ export class XLF {
         this.buffer.push(line.toString());
     }
 
-	static parse = function(xlfString: string) : Promise<{ messages: Map<string>,  originalFilePath: string, language: string }[]> {
+	static parse = function(xlfString: string) : Promise<ParsedXLF[]> {
 		return new Promise((resolve, reject) => {
 			let parser = new xml2js.Parser();
 
@@ -989,11 +995,11 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 		};
 
 		let request = http.request(options, (res) => {
-				let xlfBuffer: string = '';
-				res.on('data', (data) => xlfBuffer += data);
+				let xlfBuffer: Buffer[] = [];
+				res.on('data', (chunk) => xlfBuffer.push(chunk));
 				res.on('end', () => {
 					if (res.statusCode === 200) {
-						resolve(new File({ contents: new Buffer(xlfBuffer), path: `${project}/${iso639_2_to_3[language]}/${slug}.xlf` }));
+						resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${iso639_2_to_3[language]}/${slug}.xlf` }));
 					}
 					reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
 				});
@@ -1006,10 +1012,13 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 }
 
 export function prepareJsonFiles(): ThroughStream {
+	let parsePromises: Promise<ParsedXLF[]>[] = [];
+
 	return through(function(xlf: File) {
 		let stream = this;
-
-		XLF.parse(xlf.contents.toString()).then(
+		let parsePromise = XLF.parse(xlf.contents.toString());
+		parsePromises.push(parsePromise);
+		parsePromise.then(
 			function(resolvedFiles) {
 				resolvedFiles.forEach(file => {
 					let messages = file.messages, translatedFile;
@@ -1033,10 +1042,14 @@ export function prepareJsonFiles(): ThroughStream {
 				throw new Error(`XLF parsing error: ${rejectReason}`);
 			}
 		);
+	}, function() {
+		Promise.all(parsePromises)
+			.then(() => { this.emit('end'); })
+			.catch(reason => { throw new Error(reason); });
 	});
 }
 
-export function createI18nFile(base: string, originalFilePath: string, messages: Map<string>): File {
+function createI18nFile(base: string, originalFilePath: string, messages: Map<string>): File {
 	let content = [
 		'/*---------------------------------------------------------------------------------------------',
 		' *  Copyright (c) Microsoft Corporation. All rights reserved.',
@@ -1076,7 +1089,7 @@ const encodings: Map<string> = {
 	'ita': 'CP1252'
 };
 
-export function createIslFile(base: string, originalFilePath: string, messages: Map<string>, language: string): File {
+function createIslFile(base: string, originalFilePath: string, messages: Map<string>, language: string): File {
 	let content: string[] = [];
 	let originalContent: TextModel;
 	if (path.basename(originalFilePath) === 'Default') {
@@ -1118,13 +1131,14 @@ export function createIslFile(base: string, originalFilePath: string, messages: 
 		}
 	});
 
-	let tag = iso639_3_to_2[language];
-	let basename = path.basename(originalFilePath);
-	let filePath = `${path.join(base, path.dirname(originalFilePath), basename)}.${tag}.isl`;
+	const tag = iso639_3_to_2[language];
+	const basename = path.basename(originalFilePath);
+	const filePath = `${path.join(base, path.dirname(originalFilePath), basename)}.${tag}.isl`;
+	const iconv = new Iconv('UTF-8', encodings[language]);
 
 	return new File({
 		path: filePath,
-		contents: iconv.encode(new Buffer(content.join('\r\n'), 'utf8'), encodings[language])
+		contents: iconv.convert(new Buffer(content.join('\r\n'), 'utf8'))
 	});
 }
 
@@ -1149,6 +1163,6 @@ function encodeEntities(value: string): string {
 	return result.join('');
 }
 
-export function decodeEntities(value:string): string {
+function decodeEntities(value:string): string {
 	return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
