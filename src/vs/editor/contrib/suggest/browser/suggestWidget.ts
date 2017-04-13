@@ -28,7 +28,7 @@ import { ICompletionItem, CompletionModel } from './completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from "vs/platform/theme/common/styler";
-import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
+import { IThemeService, ITheme, registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { registerColor, editorWidgetBackground, highContrastBorder, listFocusBackground, listFocusOutline } from "vs/platform/theme/common/colorRegistry";
 
 const sticky = false; // for development purposes
@@ -49,6 +49,7 @@ interface ISuggestionTemplateData {
  */
 export const editorSuggestWidgetBackground = registerColor('editorSuggestWidgetBackground', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
 export const editorSuggestWidgetBorder = registerColor('editorSuggestWidgetBorder', { dark: '#454545', light: '#C8C8C8', hc: highContrastBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
+export const editorSuggestMatchHighlight = registerColor('editorSuggestMatchHighlight', { dark: '#219AE4', light: '#186B9E', hc: '#219AE4' }, nls.localize('editorSuggestMatchHighlight', 'Color of the match highlight in the suggest widget.'));
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
 function matchesColor(text: string) {
@@ -923,3 +924,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let matchHighlight = theme.getColor(editorSuggestMatchHighlight);
+	if (matchHighlight) {
+		collector.addRule(`.monaco-editor.${theme.selector} .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
+	}
+});
