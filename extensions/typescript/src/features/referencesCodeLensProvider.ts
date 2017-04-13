@@ -56,7 +56,7 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 				title: locations.length === 1
 					? localize('oneReferenceLabel', '1 reference')
 					: localize('manyReferenceLabel', '{0} references', locations.length),
-				command: 'editor.action.showReferences',
+				command: locations.length ? 'editor.action.showReferences' : '',
 				arguments: [codeLens.document, codeLens.range.start, locations]
 			};
 			return codeLens;
