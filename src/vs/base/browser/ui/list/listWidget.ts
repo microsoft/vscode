@@ -410,6 +410,7 @@ export interface IListStyles {
 	listFocusAndSelectionBackground?: Color;
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
+	listInactiveFocusBackground?: Color;
 	listHoverBackground?: Color;
 	listDropBackground?: Color;
 	listFocusOutline?: Color;
@@ -422,6 +423,7 @@ const defaultStyles: IListStyles = {
 	listFocusAndSelectionBackground: Color.fromHex('#094771'),
 	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
+	listInactiveFocusBackground: Color.transparent,
 	listHoverBackground: Color.fromHex('#2A2D2E'),
 	listDropBackground: Color.fromHex('#383B3D')
 };
@@ -814,6 +816,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 				.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }
 				.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; color: ${styles.listActiveSelectionForeground}; }
 				.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; color: ${styles.listFocusAndSelectionForeground}; }
+				.monaco-list.${this.idPrefix} .monaco-list-row.focused { background-color: ${styles.listInactiveFocusBackground}; }
 				.monaco-list.${this.idPrefix} .monaco-list-row.selected { background-color: ${styles.listInactiveSelectionBackground}; }
 				.monaco-list.${this.idPrefix} .monaco-list-row:hover { background-color: ${styles.listHoverBackground}; }
 			`;
