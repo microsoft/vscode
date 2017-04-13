@@ -67,14 +67,14 @@ export default class Webview {
 		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
 		this._webview.setAttribute('disableblinkfeatures', 'Auxclick');
 
+		this._webview.setAttribute('disableguestresize', '');
+
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
 
 		this._ready = new TPromise<this>(resolve => {
 			const subscription = addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'webview-ready') {
-					this.layout();
-
 					// console.info('[PID Webview] ' + event.args[0]);
 					addClass(this._webview, 'ready'); // can be found by debug command
 
@@ -87,6 +87,9 @@ export default class Webview {
 		this._disposables = [
 			addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 				console.log(`[Embedded Page] ${e.message}`);
+			}),
+			addDisposableListener(this._webview, 'dom-ready', () => {
+				this.layout();
 			}),
 			addDisposableListener(this._webview, 'crashed', function () {
 				console.error('embedded page crashed');
@@ -245,11 +248,15 @@ export default class Webview {
 		if (!contents) {
 			return;
 		}
+		const window = contents.getOwnerBrowserWindow();
+		if (!window || !window.webContents) {
+			return;
+		}
+		window.webContents.getZoomFactor(factor => {
+			contents.setZoomFactor(factor);
 
-		const width = this.parent.clientWidth;
-		const height = this.parent.clientHeight;
-
-		contents.getZoomFactor(factor => {
+			const width = this.parent.clientWidth;
+			const height = this.parent.clientHeight;
 			contents.setSize({
 				normal: {
 					width: Math.floor(width * factor),
