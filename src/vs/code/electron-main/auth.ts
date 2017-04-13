@@ -19,10 +19,16 @@ type LoginEvent = {
 	cb: (username: string, password: string) => void;
 };
 
-export class AuthHandler {
+type Credentials = {
+	username: string;
+	password: string;
+};
+
+export class ProxyAuthHandler {
 
 	_serviceBrand: any;
 
+	private retryCount = 0;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -33,14 +39,22 @@ export class AuthHandler {
 	}
 
 	private onLogin({ event, authInfo, cb }: LoginEvent): void {
+		if (!authInfo.isProxy) {
+			return;
+		}
+
+		if (this.retryCount++ > 1) {
+			return;
+		}
+
 		const opts: any = {
 			alwaysOnTop: true,
 			skipTaskbar: true,
 			resizable: false,
 			width: 450,
-			height: 260,
+			height: 220,
 			show: true,
-			title: localize('authRequired', "Authentication Required")
+			title: 'VS Code'
 		};
 
 		const focusedWindow = this.windowsService.getFocusedWindow();
@@ -51,18 +65,19 @@ export class AuthHandler {
 		}
 
 		const win = new BrowserWindow(opts);
-
 		const config = {};
-
 		const baseUrl = require.toUrl('./auth.html');
 		const url = `${baseUrl}?config=${encodeURIComponent(JSON.stringify(config))}`;
 		win.loadURL(url);
 
 		const proxyUrl = `${authInfo.host}:${authInfo.port}`;
-		const message = localize('proxyauth', "The proxy {0} requires a username and password.", proxyUrl);
+		const title = localize('authRequire', "Proxy Authentication Required");
+		const message = localize('proxyauth', "The proxy {0} requires authentication.", proxyUrl);
+		const data = { title, message };
+		const javascript = 'promptForCredentials(' + JSON.stringify(data) + ')';
 
 		event.preventDefault();
-		win.webContents.executeJavaScript('promptForCredentials(' + JSON.stringify({ message }) + ')', true).then(({ username, password }: { username: string, password: string }) => {
+		win.webContents.executeJavaScript(javascript, true).then(({ username, password }: Credentials) => {
 			cb(username, password);
 			win.close();
 		});

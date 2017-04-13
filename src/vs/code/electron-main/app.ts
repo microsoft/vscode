@@ -44,7 +44,7 @@ import { resolveCommonProperties, machineIdStorageKey, machineIdIpcChannel } fro
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { AuthHandler } from './auth';
+import { ProxyAuthHandler } from './auth';
 import { IDisposable, dispose } from "vs/base/common/lifecycle";
 import { ConfigurationService } from "vs/platform/configuration/node/configurationService";
 import { TPromise } from "vs/base/common/winjs.base";
@@ -157,7 +157,7 @@ export class VSCodeApplication {
 		const appInstantiationService = this.initServices();
 
 		// Setup Auth Handler
-		const authHandler = appInstantiationService.createInstance(AuthHandler);
+		const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
 		this.toDispose.push(authHandler);
 
 		// Open Windows
