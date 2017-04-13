@@ -12,7 +12,9 @@ import { TableOfContentsProvider } from './tableOfContentsProvider';
 
 export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
-	constructor(private engine: MarkdownEngine) { }
+	constructor(
+		private engine: MarkdownEngine
+	) { }
 
 	provideDocumentSymbols(document: vscode.TextDocument): vscode.ProviderResult<vscode.SymbolInformation[]> {
 		const toc = new TableOfContentsProvider(this.engine, document);

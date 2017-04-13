@@ -87,7 +87,6 @@ export class MarkdownEngine {
 		const frontMatterMatch = FrontMatterRegex.exec(text);
 		if (frontMatterMatch) {
 			const frontMatter = frontMatterMatch[0];
-
 			offset = frontMatter.split(/\r\n|\n|\r/g).length - 1;
 			text = text.substr(frontMatter.length);
 		}
@@ -125,6 +124,7 @@ export class MarkdownEngine {
 				token.attrSet('data-line', this.firstLine + token.map[0]);
 				token.attrJoin('class', 'code-line');
 			}
+
 			if (original) {
 				return original(tokens, idx, options, env, self);
 			} else {

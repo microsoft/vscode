@@ -131,8 +131,8 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
 		const sourceUri = vscode.Uri.parse(uri.query);
 		return vscode.workspace.openTextDocument(sourceUri).then(document => {
-			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
-			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
+			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor').get('scrollBeyondLastLine', false);
+			const wordWrap = vscode.workspace.getConfiguration('editor').get('wordWrap', false);
 
 			const markdownConfig = vscode.workspace.getConfiguration('markdown');
 			const previewFrontMatter = markdownConfig.get('previewFrontMatter', 'hide');
