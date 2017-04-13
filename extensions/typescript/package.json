@@ -193,7 +193,7 @@
         },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%"
         },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
@@ -268,7 +268,7 @@
         },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%"
         },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
