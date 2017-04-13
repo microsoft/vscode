@@ -699,6 +699,26 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents options to configure the behavior of showing a [document](#TextDocument) in an [editor](#TextEditor).
+	 */
+	export interface ShowTextDocumentOptions {
+		/**
+		 * An optional view column in which the [editor](#TextEditor) should be shown. The default is the [one](#ViewColumn.One), other values are adjusted to be __Min(column, columnCount + 1)__.
+		 */
+		column ?: ViewColumn,
+
+		/**
+		 * An optional flag that when `true` will stop the [editor](#TextEditor) from taking focus.
+		 */
+		preserveFocus?: boolean,
+
+		/**
+		 * An optional flag that when `true` will pin the [editor](#TextEditor).
+		 */
+		pinned?: boolean
+	}
+
+	/**
 	 * Represents theme specific rendering styles for a [text editor decoration](#TextEditorDecorationType).
 	 */
 	export interface ThemableDecorationRenderOptions {
@@ -3664,12 +3684,10 @@ declare module 'vscode' {
 		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
-		 * @param column A view column in which the editor should be shown. The default is the [one](#ViewColumn.One), other values
-		 * are adjusted to be __Min(column, columnCount + 1)__.
-		 * @param options Editor options for showing the text editor.
+		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
-		export function showTextDocument(document: TextDocument, column?: ViewColumn, options?: { preserveFocus?: boolean, pinned?: boolean }): Thenable<TextEditor>;
+		export function showTextDocument(document: TextDocument, options?: ShowTextDocumentOptions): Thenable<TextEditor>;
 
 		/**
 		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.

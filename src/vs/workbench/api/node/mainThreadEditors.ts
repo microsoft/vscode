@@ -12,7 +12,8 @@ import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILi
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorRevealType, MainThreadTextEditor, IApplyEditsOptions, IUndoStopOptions, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditor';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -20,6 +21,7 @@ import { equals as objectEquals } from 'vs/base/common/objects';
 import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData } from './extHost.protocol';
 import { IRange } from "vs/editor/common/core/range";
 import { ISelection } from "vs/editor/common/core/selection";
+import * as vscode from 'vscode';
 
 export class MainThreadEditors extends MainThreadEditorsShape {
 
@@ -104,27 +106,16 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	// --- from extension host process
 
-	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string>;
-	$tryShowTextDocument(resource: URI, position: EditorPosition, options: { preserveFocus: boolean, pinned: boolean }): TPromise<string>;
-	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocusOrOptions: boolean | { preserveFocus: boolean, pinned: boolean }): TPromise<string>;
-	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocusOrOptions: boolean | { preserveFocus: boolean, pinned: boolean }): TPromise<string> {
-
-		let options: { preserveFocus: boolean, pinned: boolean };
-		if (typeof preserveFocusOrOptions === 'object') {
-			options = {
-				preserveFocus: preserveFocusOrOptions.preserveFocus,
-				pinned: preserveFocusOrOptions.pinned === undefined ? true : preserveFocusOrOptions.pinned
-			};
-		} else {
-			options = {
-				preserveFocus: preserveFocusOrOptions,
-				pinned: true
-			};
-		}
+	$tryShowTextDocument(resource: URI, options: vscode.ShowTextDocumentOptions): TPromise<string> {
+		const position: EditorPosition = TypeConverters.fromViewColumn(options.column);
+		const editorOptions: IEditorOptions = {
+			preserveFocus: options.preserveFocus,
+			pinned: options.pinned
+		};
 
 		const input = {
 			resource,
-			options
+			options: editorOptions
 		};
 
 		return this._workbenchEditorService.openEditor(input, position).then(editor => {

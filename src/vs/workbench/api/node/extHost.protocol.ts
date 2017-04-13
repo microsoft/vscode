@@ -134,10 +134,7 @@ export abstract class MainThreadDocumentsShape {
 }
 
 export abstract class MainThreadEditorsShape {
-	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string>;
-	$tryShowTextDocument(resource: URI, position: EditorPosition, options: { preserveFocus: boolean, pinned: boolean }): TPromise<string>;
-	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocusOrOptions: boolean | { preserveFocus: boolean, pinned: boolean }): TPromise<string>;
-	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocusOrOptions: boolean | { preserveFocus: boolean, pinned: boolean }): TPromise<string> { throw ni(); }
+	$tryShowTextDocument(resource: URI, options: vscode.ShowTextDocumentOptions): TPromise<string> { throw ni(); }
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void { throw ni(); }
 	$removeTextEditorDecorationType(key: string): void { throw ni(); }
 	$tryShowEditor(id: string, position: EditorPosition): TPromise<void> { throw ni(); }

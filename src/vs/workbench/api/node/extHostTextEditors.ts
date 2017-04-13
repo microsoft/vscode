@@ -56,9 +56,25 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 	}
 
 	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, options: { preserveFocus: boolean, pinned: boolean }): TPromise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocusOrOptions: boolean | { preserveFocus: boolean, pinned: boolean }): TPromise<vscode.TextEditor> {
-		return this._proxy.$tryShowTextDocument(<URI>document.uri, TypeConverters.fromViewColumn(column), preserveFocusOrOptions).then(id => {
+	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): TPromise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.ShowTextDocumentOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.ShowTextDocumentOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+		let options: vscode.ShowTextDocumentOptions;
+		if (typeof columnOrOptions === 'number') {
+			options = {
+				column: columnOrOptions,
+				preserveFocus: preserveFocus,
+				pinned: true
+			};
+		} else {
+			options = {
+				column: columnOrOptions.column,
+				preserveFocus: columnOrOptions.preserveFocus,
+				pinned: columnOrOptions.pinned === undefined ? true : columnOrOptions.pinned
+			};
+		}
+
+		return this._proxy.$tryShowTextDocument(<URI>document.uri, options).then(id => {
 			let editor = this._extHostDocumentsAndEditors.getEditor(id);
 			if (editor) {
 				return editor;
