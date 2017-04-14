@@ -298,7 +298,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		super.dispose();
 	}
 
-	protected _createContentChangedFlushEvent(): editorCommon.IModelContentChangedFlushEvent {
+	private _createContentChangedFlushEvent(): editorCommon.IModelContentChangedFlushEvent {
 		return {
 			changeType: editorCommon.EventType.ModelRawContentChangedFlush,
 			versionId: this._versionId,
@@ -308,15 +308,16 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		};
 	}
 
-	protected _emitContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean): void {
-		var e: editorCommon.IModelContentChangedEvent2 = {
+	protected _emitContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): void {
+		const e: editorCommon.IModelContentChangedEvent2 = {
 			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 			rangeLength: rangeLength,
 			text: text,
 			eol: this._EOL,
 			versionId: this.getVersionId(),
 			isUndoing: isUndoing,
-			isRedoing: isRedoing
+			isRedoing: isRedoing,
+			isFlush: isFlush
 		};
 		if (!this._isDisposing) {
 			this.emit(editorCommon.EventType.ModelContentChanged2, e);
@@ -372,7 +373,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 		this._emitModelContentChangedFlushEvent(this._createContentChangedFlushEvent());
 
-		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false);
+		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, true);
 	}
 
 	public getValue(eol?: editorCommon.EndOfLinePreference, preserveBOM: boolean = false): string {
@@ -595,16 +596,16 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 	public setEOL(eol: editorCommon.EndOfLineSequence): void {
 		this._assertNotDisposed();
-		var newEOL = (eol === editorCommon.EndOfLineSequence.CRLF ? '\r\n' : '\n');
+		const newEOL = (eol === editorCommon.EndOfLineSequence.CRLF ? '\r\n' : '\n');
 		if (this._EOL === newEOL) {
 			// Nothing to do
 			return;
 		}
 
-		var oldFullModelRange = this.getFullModelRange();
-		var oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
-		var endLineNumber = this.getLineCount();
-		var endColumn = this.getLineMaxColumn(endLineNumber);
+		const oldFullModelRange = this.getFullModelRange();
+		const oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
+		const endLineNumber = this.getLineCount();
+		const endColumn = this.getLineMaxColumn(endLineNumber);
 
 		this._EOL = newEOL;
 		this._lineStarts = null;
@@ -612,7 +613,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 		this._emitModelContentChangedFlushEvent(this._createContentChangedFlushEvent());
 
-		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false);
+		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, false);
 	}
 
 	public getLineMinColumn(lineNumber: number): number {

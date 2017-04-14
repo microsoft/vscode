@@ -659,7 +659,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				eol: this._EOL,
 				versionId: -1,
 				isUndoing: this._isUndoing,
-				isRedoing: this._isRedoing
+				isRedoing: this._isRedoing,
+				isFlush: false
 			});
 
 			// console.log('AFTER:');

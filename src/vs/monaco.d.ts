@@ -2460,6 +2460,11 @@ declare module monaco.editor {
          * Flag that indicates that this event was generated while redoing.
          */
         readonly isRedoing: boolean;
+        /**
+         * Flag that indicates that all decorations were lost with this edit.
+         * The model has been reset to a new value.
+         */
+        readonly isFlush: boolean;
     }
 
     /**

@@ -2476,6 +2476,11 @@ export interface IModelContentChangedEvent2 {
 	 * Flag that indicates that this event was generated while redoing.
 	 */
 	readonly isRedoing: boolean;
+	/**
+	 * Flag that indicates that all decorations were lost with this edit.
+	 * The model has been reset to a new value.
+	 */
+	readonly isFlush: boolean;
 }
 /**
  * An event describing a change in the text of a model.
