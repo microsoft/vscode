@@ -10,9 +10,9 @@ import URI from 'vs/base/common/uri';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Position } from 'vs/workbench/api/node/extHostTypes';
 import { Range as CodeEditorRange } from 'vs/editor/common/core/range';
-import * as EditorCommon from 'vs/editor/common/editorCommon';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IModelChangedData } from 'vs/editor/common/model/mirrorModel2';
 
 
 suite('ExtHostDocumentData', () => {
@@ -101,8 +101,6 @@ suite('ExtHostDocumentData', () => {
 			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 			text: '\t ',
 			eol: undefined,
-			isRedoing: undefined,
-			isUndoing: undefined,
 			versionId: undefined,
 			rangeLength: undefined,
 		}]);
@@ -157,8 +155,6 @@ suite('ExtHostDocumentData', () => {
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: '',
 			eol: undefined,
-			isRedoing: undefined,
-			isUndoing: undefined,
 			versionId: undefined,
 			rangeLength: undefined,
 		}]);
@@ -174,8 +170,6 @@ suite('ExtHostDocumentData', () => {
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: 'is could be',
 			eol: undefined,
-			isRedoing: undefined,
-			isUndoing: undefined,
 			versionId: undefined,
 			rangeLength: undefined,
 		}]);
@@ -191,8 +185,6 @@ suite('ExtHostDocumentData', () => {
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 1, endColumn: 6 },
 			text: 'is could be\na line with number',
 			eol: undefined,
-			isRedoing: undefined,
-			isUndoing: undefined,
 			versionId: undefined,
 			rangeLength: undefined,
 		}]);
@@ -211,8 +203,6 @@ suite('ExtHostDocumentData', () => {
 			range: { startLineNumber: 1, startColumn: 3, endLineNumber: 2, endColumn: 6 },
 			text: '',
 			eol: undefined,
-			isRedoing: undefined,
-			isUndoing: undefined,
 			versionId: undefined,
 			rangeLength: undefined,
 		}]);
@@ -311,19 +301,17 @@ suite('ExtHostDocumentData updates line mapping', () => {
 		}
 	}
 
-	function createChangeEvent(range: CodeEditorRange, text: string, eol?: string): EditorCommon.IModelContentChangedEvent2 {
+	function createChangeEvent(range: CodeEditorRange, text: string, eol?: string): IModelChangedData {
 		return {
 			range: range,
 			text: text,
 			eol: eol,
-			isRedoing: undefined,
-			isUndoing: undefined,
 			versionId: undefined,
 			rangeLength: undefined,
 		};
 	}
 
-	function testLineMappingDirectionAfterEvents(lines: string[], eol: string, direction: AssertDocumentLineMappingDirection, events: EditorCommon.IModelContentChangedEvent2[]): void {
+	function testLineMappingDirectionAfterEvents(lines: string[], eol: string, direction: AssertDocumentLineMappingDirection, events: IModelChangedData[]): void {
 		let myDocument = new ExtHostDocumentData(undefined, URI.file(''), lines.slice(0), eol, 'text', 1, false);
 		assertDocumentLineMapping(myDocument, direction);
 
@@ -331,7 +319,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 		assertDocumentLineMapping(myDocument, direction);
 	}
 
-	function testLineMappingAfterEvents(lines: string[], events: EditorCommon.IModelContentChangedEvent2[]): void {
+	function testLineMappingAfterEvents(lines: string[], events: IModelChangedData[]): void {
 		testLineMappingDirectionAfterEvents(lines, '\n', AssertDocumentLineMappingDirection.PositionToOffset, events);
 		testLineMappingDirectionAfterEvents(lines, '\n', AssertDocumentLineMappingDirection.OffsetToPosition, events);
 

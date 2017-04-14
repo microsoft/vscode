@@ -289,7 +289,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				versionId: 2,
 				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
 				text: 'bar',
-				rangeLength: undefined, eol: undefined, isRedoing: undefined, isUndoing: undefined,
+				rangeLength: undefined, eol: undefined
 			}], true);
 
 			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
@@ -314,7 +314,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 						range,
 						text: newText,
 						versionId: documents.getDocumentData(resource).version + 1,
-						rangeLength: undefined, eol: undefined, isRedoing: undefined, isUndoing: undefined,
+						rangeLength: undefined, eol: undefined
 					}], true);
 				}
 				return TPromise.as(true);

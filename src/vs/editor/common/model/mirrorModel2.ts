@@ -5,8 +5,31 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { IModelContentChangedEvent2, IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+
+export interface IModelChangedData {
+	/**
+	 * The range that got replaced.
+	 */
+	readonly range: IRange;
+	/**
+	 * The length of the range that got replaced.
+	 */
+	readonly rangeLength: number;
+	/**
+	 * The new text for the range.
+	 */
+	readonly text: string;
+	/**
+	 * The (new) end-of-line character.
+	 */
+	readonly eol: string;
+	/**
+	 * The new version id the model has transitioned to.
+	 */
+	readonly versionId: number;
+}
 
 export class MirrorModel2 {
 
@@ -35,7 +58,7 @@ export class MirrorModel2 {
 		return this._lines.join(this._eol);
 	}
 
-	onEvents(events: IModelContentChangedEvent2[]): void {
+	onEvents(events: IModelChangedData[]): void {
 		let newEOL: string = null;
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
