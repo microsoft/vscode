@@ -505,6 +505,17 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return this._lines.length;
 	}
 
+	public getLineCountInRange(rawRange: editorCommon.IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): number {
+		this._assertNotDisposed();
+		var range = this.validateRange(rawRange);
+
+		if (range.isEmpty()) {
+			return 1;
+		}
+
+		return (range.endLineNumber - range.startLineNumber) + 1;
+	}
+
 	public getLineContent(lineNumber: number): string {
 		this._assertNotDisposed();
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {

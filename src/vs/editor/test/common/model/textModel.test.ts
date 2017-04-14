@@ -822,6 +822,20 @@ suite('TextModel.mightContainRTL', () => {
 
 });
 
+suite('TextModel.getLineCountInRange', () => {
+	test('getLineCountInRange', () => {
+		// Use range with 5 lines in total.
+		var m = new TextModel([], TextModel.toRawText('aaa\r\nbbb\r\nccc\r\nddd\r\neee', TextModel.DEFAULT_CREATION_OPTIONS));
+		assert.equal(m.getLineCountInRange(new Range(1, 1, 1, 1)), 1, 'Collapsed range in first line');
+		assert.equal(m.getLineCountInRange(new Range(1, 1, 1, 3)), 1, 'First line selection');
+		assert.equal(m.getLineCountInRange(new Range(1, 1, 2, 1)), 2, 'Two lines selected');
+		assert.equal(m.getLineCountInRange(new Range(2, 3, 4, 1)), 3, 'Three lines edge case');
+		assert.equal(m.getLineCountInRange(new Range(1, 1, 5, 1)), 5, 'Range across all the lines');
+		assert.equal(m.getLineCountInRange(new Range(2, 1, 1, 1)), 2, 'Backward range from second line to the first');
+		assert.equal(m.getLineCountInRange(new Range(1, 1, 1000, 1000)), 5, 'Overflowing range');
+	});
+});
+
 suite('TextModel.getLineIndentGuide', () => {
 	function assertIndentGuides(lines: [number, string][]): void {
 		let text = lines.map(l => l[1]).join('\n');

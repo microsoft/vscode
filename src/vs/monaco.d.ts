@@ -2073,6 +2073,12 @@ declare module monaco.editor {
          */
         getLineCount(): number;
         /**
+         * Get the number of lines in a certain range.
+         * @param range The range to be checked.
+         * @return Number of lines.
+         */
+        getLineCountInRange(range: IRange, eol?: EndOfLinePreference): number;
+        /**
          * Get the text for a certain line.
          */
         getLineContent(lineNumber: number): string;

@@ -87,6 +87,7 @@ function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 interface IEditorSelectionStatus {
 	selections?: Selection[];
 	charactersSelected?: number;
+	linesSelected?: number;
 }
 
 class StateChange {
@@ -223,7 +224,7 @@ class State {
 	}
 }
 
-const nlsSingleSelectionRange = nls.localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
+const nlsSingleSelectionRange = nls.localize('singleSelectionRange', "Ln {0}, Col {1} ({3} lines, {2} characters selected)");
 const nlsSingleSelection = nls.localize('singleSelection', "Ln {0}, Col {1}");
 const nlsMultiSelectionRange = nls.localize('multiSelectionRange', "{0} selections ({1} characters selected)");
 const nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
@@ -423,7 +424,7 @@ export class EditorStatus implements IStatusbarItem {
 
 		if (info.selections.length === 1) {
 			if (info.charactersSelected) {
-				return strings.format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
+				return strings.format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected, info.linesSelected);
 			}
 
 			return strings.format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
@@ -598,10 +599,12 @@ export class EditorStatus implements IStatusbarItem {
 
 			// Compute selection length
 			info.charactersSelected = 0;
+			info.linesSelected = 0;
 			const textModel = getTextModel(editorWidget);
 			if (textModel) {
 				info.selections.forEach(selection => {
 					info.charactersSelected += textModel.getValueLengthInRange(selection);
+					info.linesSelected += textModel.getLineCountInRange(selection);
 				});
 			}
 
