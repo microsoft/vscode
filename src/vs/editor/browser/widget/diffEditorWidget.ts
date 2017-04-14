@@ -129,9 +129,6 @@ let DIFF_EDITOR_ID = 0;
 
 export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDiffEditor {
 
-	public onDidChangeModelRawContent(listener: (e: editorCommon.IModelRawContentChangedEvent) => void): IDisposable {
-		return this.addListener(editorCommon.EventType.ModelRawContentChanged, listener);
-	}
 	public onDidChangeModelContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
 		return this.addListener(editorCommon.EventType.ModelContentChanged, listener);
 	}

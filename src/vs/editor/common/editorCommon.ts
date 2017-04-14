@@ -3422,13 +3422,6 @@ export interface IEditorAction {
  */
 export interface IEditor {
 	/**
-	 * @deprecated. Please use `onDidChangeModelContent` instead.
-	 * An event emitted when the content of the current model has changed.
-	 * @internal
-	 * @event
-	 */
-	onDidChangeModelRawContent(listener: (e: IModelRawContentChangedEvent) => void): IDisposable;
-	/**
 	 * An event emitted when the content of the current model has changed.
 	 * @event
 	 */

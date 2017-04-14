@@ -97,11 +97,11 @@ export class FindModelBoundToEditorModel {
 		}));
 
 		this._ignoreModelContentChanged = false;
-		this._toDispose.push(this._editor.onDidChangeModelRawContent((e: editorCommon.IModelRawContentChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeModelContent((e) => {
 			if (this._ignoreModelContentChanged) {
 				return;
 			}
-			if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
+			if (e.isFlush) {
 				// a model.setValue() was called
 				this._decorations.reset();
 			}

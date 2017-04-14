@@ -34,7 +34,6 @@ let EDITOR_ID = 0;
 
 export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
 
-	public readonly onDidChangeModelRawContent: Event<editorCommon.IModelRawContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelRawContentChanged);
 	public readonly onDidChangeModelContent: Event<editorCommon.IModelContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelContentChanged);
 	public readonly onDidChangeModelLanguage: Event<editorCommon.IModelLanguageChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelLanguageChanged);
 	public readonly onDidChangeModelOptions: Event<editorCommon.IModelOptionsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelOptionsChanged);
