@@ -30,6 +30,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { OutputService } from "vs/workbench/parts/output/browser/outputServices";
+
 import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
 
@@ -67,6 +70,7 @@ suite('TextSearch performance (integration)', () => {
 			[IEditorGroupService, new TestEditorGroupService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
+			[IOutputService, createSyncDescriptor(OutputService)],
 			[ISearchService, createSyncDescriptor(SearchService)]
 		));
 
