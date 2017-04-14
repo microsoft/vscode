@@ -460,7 +460,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	public goToProjectConfig(
 		isTypeScriptProject: boolean,
 		resource: Uri
-	): Thenable<TextEditor> | undefined {
+	): Thenable<TextEditor | undefined> | undefined {
 		const rootPath = workspace.rootPath;
 		if (!rootPath) {
 			window.showInformationMessage(
@@ -480,9 +480,10 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			return;
 		}
 
-		return this.client.execute('projectInfo', { file, needFileNameList: false }).then(res => {
+		return this.client.execute('projectInfo', { file, needFileNameList: false } as protocol.ProjectInfoRequestArgs).then(res => {
 			if (!res || !res.body) {
-				return window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
+				return window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'))
+					.then(() => void 0);
 			}
 
 			const { configFileName } = res.body;
