@@ -149,7 +149,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 			}
 
 			// Clean up old frames
-			[].forEach.call(document.body.getElementsByTagName('iframe'), frame => {
+			[].forEach.call(document.body.getElementsByTagName('iframe'), function (frame) {
 				if (frame.id !== '_target') {
 					document.body.removeChild(frame);
 				}
