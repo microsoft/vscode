@@ -23,6 +23,7 @@ import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { KeyCode } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
+import { EmitterEvent } from 'vs/base/common/eventEmitter';
 
 export interface IRow {
 	element: HTMLElement;
@@ -676,14 +677,14 @@ export class TreeView extends HeightMap {
 		this.modelListeners.push(this.model.addBulkListener((e) => this.onModelEvents(e)));
 	}
 
-	private onModelEvents(events: any[]): void {
+	private onModelEvents(events: EmitterEvent[]): void {
 		var elementsToRefresh: Model.Item[] = [];
 
 		for (var i = 0, len = events.length; i < len; i++) {
 			var event = events[i];
-			var data = event.getData();
+			var data = event.data;
 
-			switch (event.getType()) {
+			switch (event.type) {
 				case 'refreshing':
 					this.onRefreshing();
 					break;
