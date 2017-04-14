@@ -62,6 +62,7 @@ import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant }
 import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
 import { attachListStyler } from "vs/platform/theme/common/styler";
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
 
 export class SearchViewlet extends Viewlet {
 
@@ -122,7 +123,8 @@ export class SearchViewlet extends Viewlet {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IListService private listService: IListService,
-		@IThemeService protected themeService: IThemeService
+		@IThemeService protected themeService: IThemeService,
+		@IOutputService private outputService: IOutputService
 	) {
 		super(Constants.VIEWLET_ID, telemetryService, themeService);
 
@@ -973,7 +975,9 @@ export class SearchViewlet extends Viewlet {
 		this.showEmptyStage();
 
 		let isDone = false;
+		const outputChannel = this.outputService.getChannel('search');
 		let onComplete = (completed?: ISearchComplete) => {
+			outputChannel.append('\n');
 			isDone = true;
 
 			// Complete up to 100% as needed
@@ -1087,6 +1091,7 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		let onError = (e: any) => {
+			outputChannel.append('\n');
 			if (errors.isPromiseCanceledError(e)) {
 				onComplete(null);
 			} else {
@@ -1107,6 +1112,10 @@ export class SearchViewlet extends Viewlet {
 			}
 			if (p.worked) {
 				worked = p.worked;
+			}
+
+			if (p.message) {
+				outputChannel.append(p.message);
 			}
 		};
 
@@ -1158,8 +1167,8 @@ export class SearchViewlet extends Viewlet {
 		}, 100);
 
 		this.searchWidget.setReplaceAllActionState(false);
-		// this.replaceService.disposeAllReplacePreviews();
-		this.viewModel.search(query).done(onComplete, onError, query.useRipgrep ? undefined : onProgress);
+
+		this.viewModel.search(query).done(onComplete, onError, onProgress);
 	}
 
 	private updateSearchResultCount(): void {

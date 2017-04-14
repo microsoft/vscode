@@ -57,7 +57,7 @@ export class RipgrepEngine {
 
 		process.nextTick(() => {
 			// Allow caller to register progress callback
-			const rgCmd = `\nrg ${rgArgs.args.join(' ')}\ncwd: ${rootFolder}\n`;
+			const rgCmd = `rg ${rgArgs.args.join(' ')}\ncwd: ${rootFolder}\n`;
 			onMessage({ message: rgCmd });
 		});
 		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: rootFolder });
