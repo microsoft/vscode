@@ -22,8 +22,6 @@ import { ISearchChannel, SearchChannelClient } from './searchIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
 
-import { IOutputService } from 'vs/workbench/parts/output/common/output';
-
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
 
@@ -34,8 +32,7 @@ export class SearchService implements ISearchService {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IOutputService private outputService: IOutputService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose);
 	}
@@ -76,7 +73,6 @@ export class SearchService implements ISearchService {
 			// Allow caller to register progress callback
 			process.nextTick(() => localResults.values().filter((res) => !!res).forEach(onProgress));
 
-			const outputChannel = this.outputService.getChannel('search');
 			rawSearchQuery = searchP.then(
 
 				// on Complete
@@ -101,11 +97,6 @@ export class SearchService implements ISearchService {
 						if (!localResults.has(progress.resource)) { // don't override local results
 							onProgress(progress);
 						}
-					}
-
-					// Log
-					else if (progress.message) {
-						outputChannel.append(progress.message);
 					}
 
 					// Progress
