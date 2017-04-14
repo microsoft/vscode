@@ -80,7 +80,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 	});
 
 	// update iframe-contents
-	ipcRenderer.on('content', function (event, value) {
+	ipcRenderer.on('content', function(_event, value) {
 		const text = value.join('\n');
 		const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
@@ -95,7 +95,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 		// set base-url if applicable
 		if (initData.baseUrl && newDocument.head.getElementsByTagName('base').length === 0) {
-			const baseElement = document.createElement('base');
+			const baseElement = newDocument.createElement('base');
 			baseElement.href = initData.baseUrl;
 			newDocument.head.appendChild(baseElement);
 		}
