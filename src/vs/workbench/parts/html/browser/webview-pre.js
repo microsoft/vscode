@@ -136,20 +136,28 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 		// workaround for https://github.com/Microsoft/vscode/issues/12865
 		// check new scrollTop and reset if neccessary
-		newFrame.contentWindow.addEventListener('DOMContentLoaded', function () {
-			if (newFrame.contentDocument.body && scrollTop !== newFrame.contentDocument.body.scrollTop) {
-				newFrame.contentDocument.body.scrollTop = scrollTop;
+		newFrame.contentWindow.addEventListener('DOMContentLoaded', function (e) {
+			const contentDocument = e.target;
+			if (contentDocument.body) {
+				if (scrollTop !== contentDocument.body.scrollTop) {
+					contentDocument.body.scrollTop = scrollTop;
+				}
+
+				// bubble out link-clicks
+				contentDocument.body.addEventListener('click', handleInnerClick);
 			}
 
-			// bubble out link-clicks
-			if (newFrame.contentDocument.body) {
-				newFrame.contentDocument.body.addEventListener('click', handleInnerClick);
-			}
+			// Clean up old frames
+			[].forEach.call(document.body.getElementsByTagName('iframe'), frame => {
+				if (frame.id !== '_target') {
+					document.body.removeChild(frame);
+				}
+			});
 
-			if (frame) {
-				document.body.removeChild(frame);
+			const newFrame = document.getElementById('_target');
+			if (newFrame.contentDocument === contentDocument) {
+				newFrame.style.display = 'block';
 			}
-			newFrame.style.display = 'block';
 		});
 
 		// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
