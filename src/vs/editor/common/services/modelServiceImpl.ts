@@ -135,7 +135,7 @@ class ModelMarkerHandler {
 		}
 
 		let hoverMessage: MarkedString[] = null;
-		let {message, source} = marker;
+		let { message, source } = marker;
 
 		if (typeof message === 'string') {
 			message = message.trim();

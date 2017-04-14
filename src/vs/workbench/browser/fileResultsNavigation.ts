@@ -45,7 +45,7 @@ export default class FileResultsNavigation extends Disposable {
 		});
 	}
 
-	private onSelection({payload}: any): void {
+	private onSelection({ payload }: any): void {
 		if (payload && payload.fromFocus) {
 			return;
 		}

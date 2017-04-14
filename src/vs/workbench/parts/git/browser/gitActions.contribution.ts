@@ -519,7 +519,7 @@ export class RevertRangesAction extends baseeditor.EditorInputAction {
 	public run(): TPromise<any> {
 		const selections = this.editor.getSelections();
 		const changes = getSelectedChanges(this.editor.getLineChanges(), selections);
-		const {original, modified} = this.editor.getModel();
+		const { original, modified } = this.editor.getModel();
 
 		const revertEdits = getChangeRevertEdits(original, modified, changes);
 

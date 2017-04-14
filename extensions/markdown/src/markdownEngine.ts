@@ -106,7 +106,7 @@ export class MarkdownEngine {
 	}
 
 	public parse(document: vscode.Uri, source: string): IToken[] {
-		const {text, offset} = this.stripFrontmatter(source);
+		const { text, offset } = this.stripFrontmatter(source);
 		this.currentDocument = document;
 		return this.engine.parse(text, {}).map(token => {
 			if (token.map) {

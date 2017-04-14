@@ -124,7 +124,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		}
 	}
 
-	private onDidUninstallExtension({id, error}: DidUninstallExtensionEvent): void {
+	private onDidUninstallExtension({ id, error }: DidUninstallExtensionEvent): void {
 		if (!error) {
 			id = getIdAndVersionFromLocalExtensionId(id).id;
 			if (id) {
