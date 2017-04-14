@@ -113,8 +113,8 @@ export class NativeGitIndexStringEditorInput
 		this.delayer = new async.ThrottledDelayer<WorkbenchEditorCommon.EditorModel>(1000);
 
 		this.toDispose = [];
-		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.STATE_CHANGED, () => this.onGitServiceStateChange()));
-		this.toDispose.push(this.gitService.addListener2(git.ServiceEvents.OPERATION_END, () => this.onGitServiceStateChange()));
+		this.toDispose.push(this.gitService.addListener(git.ServiceEvents.STATE_CHANGED, () => this.onGitServiceStateChange()));
+		this.toDispose.push(this.gitService.addListener(git.ServiceEvents.OPERATION_END, () => this.onGitServiceStateChange()));
 	}
 
 	public getTypeId(): string {

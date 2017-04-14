@@ -138,7 +138,7 @@ export class ItemRegistry extends Events.EventEmitter {
 
 	public register(item: Item): void {
 		Assert.ok(!this.isRegistered(item.id), 'item already registered: ' + item.id);
-		this.items[item.id] = { item, disposable: this.addEmitter2(item) };
+		this.items[item.id] = { item, disposable: this.addEmitter(item) };
 	}
 
 	public deregister(item: Item): void {
@@ -807,8 +807,8 @@ export class TreeModel extends Events.EventEmitter {
 		this.registry = new ItemRegistry();
 
 		this.registryDisposable = combinedDisposable([
-			this.addEmitter2(this.registry),
-			this.registry.addListener2('item:dispose', (event: IItemDisposeEvent) => {
+			this.addEmitter(this.registry),
+			this.registry.addListener('item:dispose', (event: IItemDisposeEvent) => {
 				event.item.getAllTraits()
 					.forEach(trait => delete this.traitsToItems[trait][event.item.id]);
 			})

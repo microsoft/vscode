@@ -217,7 +217,7 @@ export class MarkersPanel extends Panel {
 				keyboardSupport: false
 			});
 
-		this._register(this.tree.addListener2('focus', (e: { focus: any }) => {
+		this._register(this.tree.addListener('focus', (e: { focus: any }) => {
 			this.markerFocusContextKey.set(e.focus instanceof Marker);
 		}));
 
@@ -250,7 +250,7 @@ export class MarkersPanel extends Panel {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(e.config)));
 		this.toDispose.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
 		this.toDispose.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
-		this.toDispose.push(this.tree.addListener2('selection', () => this.onSelected()));
+		this.toDispose.push(this.tree.addListener('selection', () => this.onSelected()));
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {

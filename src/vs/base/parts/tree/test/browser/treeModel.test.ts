@@ -76,7 +76,7 @@ class EventCounter {
 	}
 
 	public listen(emitter: ee.IEventEmitter, event: string, fn: (e) => void = null): () => void {
-		let r = emitter.addListener2(event, (e) => {
+		let r = emitter.addListener(event, (e) => {
 			this._count++;
 			if (fn) {
 				fn(e);
@@ -1357,7 +1357,7 @@ suite('TreeModel - Dynamic data model', () => {
 			model.collapse('father');
 
 			var times = 0;
-			var listener = dataModel.addListener2('getChildren', (element) => {
+			var listener = dataModel.addListener('getChildren', (element) => {
 				times++;
 				assert.equal(element, 'grandfather');
 			});
@@ -1366,7 +1366,7 @@ suite('TreeModel - Dynamic data model', () => {
 				assert.equal(times, 1);
 				listener.dispose();
 
-				listener = dataModel.addListener2('getChildren', (element) => {
+				listener = dataModel.addListener('getChildren', (element) => {
 					times++;
 					assert.equal(element, 'father');
 				});
@@ -1406,8 +1406,8 @@ suite('TreeModel - Dynamic data model', () => {
 
 			var getTimes = 0;
 			var gotTimes = 0;
-			var getListener = dataModel.addListener2('getChildren', (element) => { getTimes++; });
-			var gotListener = dataModel.addListener2('gotChildren', (element) => { gotTimes++; });
+			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
+			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
 
 			var p1 = model.refresh('father');
 			assert.equal(getTimes, 1);
@@ -1454,10 +1454,10 @@ suite('TreeModel - Dynamic data model', () => {
 			counter.listen(model, 'item:refresh', (e) => { refreshTimes++; });
 
 			var getTimes = 0;
-			var getListener = dataModel.addListener2('getChildren', (element) => { getTimes++; });
+			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
 
 			var gotTimes = 0;
-			var gotListener = dataModel.addListener2('gotChildren', (element) => { gotTimes++; });
+			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
 
 			var p1, p2;
 
@@ -1534,8 +1534,8 @@ suite('TreeModel - Dynamic data model', () => {
 
 			var getTimes = 0;
 			var gotTimes = 0;
-			var getListener = dataModel.addListener2('getChildren', (element) => { getTimes++; });
-			var gotListener = dataModel.addListener2('gotChildren', (element) => { gotTimes++; });
+			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
+			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
 
 			var p1, p2;
 

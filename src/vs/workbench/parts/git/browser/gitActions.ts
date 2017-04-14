@@ -67,7 +67,7 @@ export abstract class GitAction extends Action {
 		super(id, label, cssClass, false);
 
 		this.gitService = gitService;
-		this.toDispose = [this.gitService.addBulkListener2(() => this.onGitServiceChange())];
+		this.toDispose = [this.gitService.addBulkListener(() => this.onGitServiceChange())];
 		this.onGitServiceChange();
 	}
 
@@ -700,7 +700,7 @@ export abstract class BaseCommitAction extends GitAction {
 
 		this.commitState = commitState;
 
-		this.toDispose.push(commitState.addListener2('change/commitInputBox', () => {
+		this.toDispose.push(commitState.addListener('change/commitInputBox', () => {
 			this.updateEnablement();
 		}));
 

@@ -38,10 +38,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	}
 
 	public onDidChangeRawContent(listener: (e: editorCommon.IModelRawContentChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
+		return this.addListener(editorCommon.EventType.ModelRawContentChanged, listener);
 	}
 	public onDidChangeContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelContentChanged, listener);
+		return this.addListener(editorCommon.EventType.ModelContentChanged, listener);
 	}
 
 	private _commandManager: EditStack;

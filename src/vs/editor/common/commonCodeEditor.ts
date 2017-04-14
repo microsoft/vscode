@@ -815,7 +815,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 			this._createView();
 
-			this.listenersToRemove.push(this._getViewInternalEventBus().addBulkListener2((events) => {
+			this.listenersToRemove.push(this._getViewInternalEventBus().addBulkListener((events) => {
 				for (let i = 0, len = events.length; i < len; i++) {
 					let eventType = events[i].getType();
 					let e = events[i].getData();
@@ -877,7 +877,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				}
 			}));
 
-			this.listenersToRemove.push(this.cursor.addBulkListener2((events) => {
+			this.listenersToRemove.push(this.cursor.addBulkListener((events) => {
 				for (let i = 0, len = events.length; i < len; i++) {
 					let eventType = events[i].getType();
 					let e = events[i].getData();

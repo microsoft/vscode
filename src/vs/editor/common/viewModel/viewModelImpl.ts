@@ -225,7 +225,7 @@ export class ViewModel implements IViewModel {
 	}
 
 	public addEventSource(eventSource: IEventEmitter): void {
-		this.listenersToRemove.push(eventSource.addBulkListener2((events: EmitterEvent[]) => this.onEvents(events)));
+		this.listenersToRemove.push(eventSource.addBulkListener((events: EmitterEvent[]) => this.onEvents(events)));
 	}
 
 	private onEvents(events: EmitterEvent[]): void {

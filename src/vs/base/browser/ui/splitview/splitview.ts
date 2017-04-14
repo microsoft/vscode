@@ -509,19 +509,19 @@ export class SplitView implements
 		if (this.views.length > 2) {
 			let s = new sash.Sash(this.el, this, { orientation: this.sashOrientation });
 			this.sashes.splice(index - 1, 0, s);
-			this.sashesListeners.push(s.addListener2('start', e => this.onSashStart(s, this.eventWrapper(e))));
-			this.sashesListeners.push(s.addListener2('change', e => this.onSashChange(s, this.eventWrapper(e))));
+			this.sashesListeners.push(s.addListener('start', e => this.onSashStart(s, this.eventWrapper(e))));
+			this.sashesListeners.push(s.addListener('change', e => this.onSashChange(s, this.eventWrapper(e))));
 		}
 
-		this.viewChangeListeners.splice(index, 0, view.addListener2('change', size => this.onViewChange(view, size)));
+		this.viewChangeListeners.splice(index, 0, view.addListener('change', size => this.onViewChange(view, size)));
 		this.onViewChange(view, view.minimumSize);
 
 		let viewFocusTracker = dom.trackFocus(viewElement);
 		this.viewFocusListeners.splice(index, 0, viewFocusTracker);
 		viewFocusTracker.addFocusListener(() => this._onFocus.fire(view));
 
-		this.viewFocusPreviousListeners.splice(index, 0, view.addListener2('focusPrevious', () => index > 0 && this.views[index - 1].focus()));
-		this.viewFocusNextListeners.splice(index, 0, view.addListener2('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
+		this.viewFocusPreviousListeners.splice(index, 0, view.addListener('focusPrevious', () => index > 0 && this.views[index - 1].focus()));
+		this.viewFocusNextListeners.splice(index, 0, view.addListener('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
 	}
 
 	removeView(view: IView): void {

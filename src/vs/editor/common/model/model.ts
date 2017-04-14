@@ -24,16 +24,16 @@ var MODEL_ID = 0;
 export class Model extends EditableTextModel implements IModel {
 
 	public onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable {
-		return this.addListener2(EventType.ModelDecorationsChanged, listener);
+		return this.addListener(EventType.ModelDecorationsChanged, listener);
 	}
 	public onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable {
-		return this.addListener2(EventType.ModelOptionsChanged, listener);
+		return this.addListener(EventType.ModelOptionsChanged, listener);
 	}
 	public onWillDispose(listener: () => void): IDisposable {
-		return this.addListener2(EventType.ModelDispose, listener);
+		return this.addListener(EventType.ModelDispose, listener);
 	}
 	public onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable {
-		return this.addListener2(EventType.ModelLanguageChanged, listener);
+		return this.addListener(EventType.ModelLanguageChanged, listener);
 	}
 
 	public addBulkListener(listener: BulkListenerCallback): IDisposable {

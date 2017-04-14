@@ -673,7 +673,7 @@ export class TreeView extends HeightMap {
 		this.releaseModel();
 		this.model = newModel;
 
-		this.modelListeners.push(this.model.addBulkListener2((e) => this.onModelEvents(e)));
+		this.modelListeners.push(this.model.addBulkListener((e) => this.onModelEvents(e)));
 	}
 
 	private onModelEvents(events: any[]): void {

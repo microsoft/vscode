@@ -213,7 +213,7 @@ export class EventMultiplexer<T> implements IDisposable {
  */
 export function fromEventEmitter<T>(emitter: EventEmitter, eventType: string): Event<T> {
 	return function (listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable {
-		const result = emitter.addListener2(eventType, function () {
+		const result = emitter.addListener(eventType, function () {
 			listener.apply(thisArgs, arguments);
 		});
 		if (Array.isArray(disposables)) {

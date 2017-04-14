@@ -104,10 +104,10 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 
 		this.view.setModel(this.model);
 
-		this.addEmitter2(this.model);
-		this.addEmitter2(this.view);
+		this.addEmitter(this.model);
+		this.addEmitter(this.view);
 
-		this.toDispose.push(this.model.addListener2('highlight', () => this._onHighlightChange.fire()));
+		this.toDispose.push(this.model.addListener('highlight', () => this._onHighlightChange.fire()));
 	}
 
 	public style(styles: _.ITreeStyles): void {

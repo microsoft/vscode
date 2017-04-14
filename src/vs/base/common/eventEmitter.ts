@@ -35,10 +35,10 @@ export interface BulkListenerCallback {
 }
 
 export interface IEventEmitter extends IDisposable {
-	addListener2(eventType: string, listener: ListenerCallback): IDisposable;
+	addListener(eventType: string, listener: ListenerCallback): IDisposable;
 	addOneTimeDisposableListener(eventType: string, listener: ListenerCallback): IDisposable;
-	addBulkListener2(listener: BulkListenerCallback): IDisposable;
-	addEmitter2(eventEmitter: IEventEmitter): IDisposable;
+	addBulkListener(listener: BulkListenerCallback): IDisposable;
+	addEmitter(eventEmitter: IEventEmitter): IDisposable;
 }
 
 export interface IListenersMap {
@@ -76,7 +76,7 @@ export class EventEmitter implements IEventEmitter {
 		this._allowedEventTypes = null;
 	}
 
-	private addListener(eventType: string, listener: ListenerCallback): IDisposable {
+	public addListener(eventType: string, listener: ListenerCallback): IDisposable {
 		if (eventType === '*') {
 			throw new Error('Use addBulkListener(listener) to register your listener!');
 		}
@@ -108,10 +108,6 @@ export class EventEmitter implements IEventEmitter {
 		};
 	}
 
-	public addListener2(eventType: string, listener: ListenerCallback): IDisposable {
-		return this.addListener(eventType, listener);
-	}
-
 	public addOneTimeDisposableListener(eventType: string, listener: ListenerCallback): IDisposable {
 		const disposable = this.addListener(eventType, value => {
 			disposable.dispose();
@@ -121,7 +117,7 @@ export class EventEmitter implements IEventEmitter {
 		return disposable;
 	}
 
-	protected addBulkListener(listener: BulkListenerCallback): IDisposable {
+	public addBulkListener(listener: BulkListenerCallback): IDisposable {
 
 		this._bulkListeners.push(listener);
 
@@ -132,12 +128,8 @@ export class EventEmitter implements IEventEmitter {
 		};
 	}
 
-	public addBulkListener2(listener: BulkListenerCallback): IDisposable {
-		return this.addBulkListener(listener);
-	}
-
-	private addEmitter(eventEmitter: IEventEmitter): IDisposable {
-		return eventEmitter.addBulkListener2((events: EmitterEvent[]): void => {
+	public addEmitter(eventEmitter: IEventEmitter): IDisposable {
+		return eventEmitter.addBulkListener((events: EmitterEvent[]): void => {
 			var newEvents = events;
 
 			if (this._deferredCnt === 0) {
@@ -147,10 +139,6 @@ export class EventEmitter implements IEventEmitter {
 				this._collectedEvents.push.apply(this._collectedEvents, newEvents);
 			}
 		});
-	}
-
-	public addEmitter2(eventEmitter: IEventEmitter): IDisposable {
-		return this.addEmitter(eventEmitter);
 	}
 
 	private _removeListener(eventType: string, listener: ListenerCallback): void {
@@ -204,7 +192,7 @@ export class EventEmitter implements IEventEmitter {
 
 	public emit(eventType: string, data: any = {}): void {
 		if (this._allowedEventTypes && !this._allowedEventTypes.hasOwnProperty(eventType)) {
-			throw new Error('Cannot emit this event type because it wasn\'t white-listed!');
+			throw new Error('Cannot emit this event type because it wasn\'t listed!');
 		}
 		// Early return if no listeners would get this
 		if (!this._listeners.hasOwnProperty(eventType) && this._bulkListeners.length === 0) {

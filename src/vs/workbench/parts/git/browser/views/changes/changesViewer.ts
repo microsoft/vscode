@@ -282,7 +282,7 @@ export class Renderer implements tree.IRenderer {
 
 		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
 		data.actionBar.push(this.actionProvider.getActionsForGroupStatusType(statusType), { icon: true, label: false });
-		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
+		data.actionBar.addListener('run', e => e.error && this.onError(e.error));
 
 		return data;
 	}
@@ -304,7 +304,7 @@ export class Renderer implements tree.IRenderer {
 
 		data.actionBar = new actionbar.ActionBar(container, { actionRunner: this.actionRunner });
 		data.actionBar.push(this.actionProvider.getActionsForFileStatusType(statusType), { icon: true, label: false });
-		data.actionBar.addListener2('run', e => e.error && this.onError(e.error));
+		data.actionBar.addListener('run', e => e.error && this.onError(e.error));
 
 		return data;
 	}

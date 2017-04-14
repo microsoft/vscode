@@ -94,7 +94,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 		this.syncLabelElement = append(this.syncElement, $('span.ahead-behind'));
 
 		this.setState(this.state);
-		this.toDispose.push(this.gitService.addBulkListener2(() => this.onGitServiceChange()));
+		this.toDispose.push(this.gitService.addBulkListener(() => this.onGitServiceChange()));
 		return combinedDisposable(this.toDispose);
 	}
 

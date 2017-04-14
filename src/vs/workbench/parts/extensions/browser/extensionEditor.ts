@@ -434,7 +434,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		tree.setInput(extensionDependencies);
 
-		this.contentDisposables.push(tree.addListener2('selection', event => {
+		this.contentDisposables.push(tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				controller.openExtension(tree, false);
 			}

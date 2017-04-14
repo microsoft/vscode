@@ -130,31 +130,31 @@ let DIFF_EDITOR_ID = 0;
 export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDiffEditor {
 
 	public onDidChangeModelRawContent(listener: (e: editorCommon.IModelRawContentChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
+		return this.addListener(editorCommon.EventType.ModelRawContentChanged, listener);
 	}
 	public onDidChangeModelContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelContentChanged, listener);
+		return this.addListener(editorCommon.EventType.ModelContentChanged, listener);
 	}
 	public onDidChangeModelLanguage(listener: (e: editorCommon.IModelLanguageChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelLanguageChanged, listener);
+		return this.addListener(editorCommon.EventType.ModelLanguageChanged, listener);
 	}
 	public onDidChangeModelOptions(listener: (e: editorCommon.IModelOptionsChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelOptionsChanged, listener);
+		return this.addListener(editorCommon.EventType.ModelOptionsChanged, listener);
 	}
 	public onDidChangeConfiguration(listener: (e: editorCommon.IConfigurationChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ConfigurationChanged, listener);
+		return this.addListener(editorCommon.EventType.ConfigurationChanged, listener);
 	}
 	public onDidChangeCursorPosition(listener: (e: editorCommon.ICursorPositionChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.CursorPositionChanged, listener);
+		return this.addListener(editorCommon.EventType.CursorPositionChanged, listener);
 	}
 	public onDidChangeCursorSelection(listener: (e: editorCommon.ICursorSelectionChangedEvent) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.CursorSelectionChanged, listener);
+		return this.addListener(editorCommon.EventType.CursorSelectionChanged, listener);
 	}
 	public onDidDispose(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.Disposed, listener);
+		return this.addListener(editorCommon.EventType.Disposed, listener);
 	}
 	public onDidUpdateDiff(listener: () => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.DiffUpdated, listener);
+		return this.addListener(editorCommon.EventType.DiffUpdated, listener);
 	}
 
 	private static ONE_OVERVIEW_WIDTH = 15;
@@ -379,14 +379,14 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _createLeftHandSideEditor(options: editorCommon.IDiffEditorOptions, instantiationService: IInstantiationService): void {
 		this.originalEditor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
-		this._toDispose.push(this.originalEditor.addBulkListener2((events) => this._onOriginalEditorEvents(events)));
-		this._toDispose.push(this.addEmitter2(this.originalEditor));
+		this._toDispose.push(this.originalEditor.addBulkListener((events) => this._onOriginalEditorEvents(events)));
+		this._toDispose.push(this.addEmitter(this.originalEditor));
 	}
 
 	private _createRightHandSideEditor(options: editorCommon.IDiffEditorOptions, instantiationService: IInstantiationService): void {
 		this.modifiedEditor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
-		this._toDispose.push(this.modifiedEditor.addBulkListener2((events) => this._onModifiedEditorEvents(events)));
-		this._toDispose.push(this.addEmitter2(this.modifiedEditor));
+		this._toDispose.push(this.modifiedEditor.addBulkListener((events) => this._onModifiedEditorEvents(events)));
+		this._toDispose.push(this.addEmitter(this.modifiedEditor));
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: editorCommon.IEditorOptions): CodeEditor {
@@ -1425,10 +1425,10 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 			this._sash.disable();
 		}
 
-		this._sash.addListener2('start', () => this.onSashDragStart());
-		this._sash.addListener2('change', (e: ISashEvent) => this.onSashDrag(e));
-		this._sash.addListener2('end', () => this.onSashDragEnd());
-		this._sash.addListener2('reset', () => this.onSashReset());
+		this._sash.addListener('start', () => this.onSashDragStart());
+		this._sash.addListener('change', (e: ISashEvent) => this.onSashDrag(e));
+		this._sash.addListener('end', () => this.onSashDragEnd());
+		this._sash.addListener('reset', () => this.onSashReset());
 	}
 
 	public dispose(): void {

@@ -26,8 +26,8 @@ export default class FileResultsNavigation extends Disposable {
 	constructor(private tree: ITree) {
 		super();
 		this.throttler = new Throttler();
-		this._register(this.tree.addListener2('focus', e => this.onFocus(e)));
-		this._register(this.tree.addListener2('selection', e => this.onSelection(e)));
+		this._register(this.tree.addListener('focus', e => this.onFocus(e)));
+		this._register(this.tree.addListener('selection', e => this.onSelection(e)));
 	}
 
 	private onFocus(event: any): void {

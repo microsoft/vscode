@@ -328,7 +328,7 @@ export class CallStackView extends CollapsibleViewletView {
 		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree));
 
-		this.toDispose.push(this.tree.addListener2('selection', event => {
+		this.toDispose.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof ThreadAndProcessIds) {
@@ -460,7 +460,7 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree, [this.breakpointsFocusedContext]));
 
-		this.toDispose.push(this.tree.addListener2('selection', event => {
+		this.toDispose.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof Breakpoint) {

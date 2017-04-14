@@ -943,10 +943,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Sash One
 		this.sashOne = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toUnbind.push(this.sashOne.addListener2('start', () => this.onSashOneDragStart()));
-		this.toUnbind.push(this.sashOne.addListener2('change', (e: ISashEvent) => this.onSashOneDrag(e)));
-		this.toUnbind.push(this.sashOne.addListener2('end', () => this.onSashOneDragEnd()));
-		this.toUnbind.push(this.sashOne.addListener2('reset', () => this.onSashOneReset()));
+		this.toUnbind.push(this.sashOne.addListener('start', () => this.onSashOneDragStart()));
+		this.toUnbind.push(this.sashOne.addListener('change', (e: ISashEvent) => this.onSashOneDrag(e)));
+		this.toUnbind.push(this.sashOne.addListener('end', () => this.onSashOneDragEnd()));
+		this.toUnbind.push(this.sashOne.addListener('reset', () => this.onSashOneReset()));
 		this.sashOne.hide();
 
 		// Silo Two
@@ -954,10 +954,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Sash Two
 		this.sashTwo = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toUnbind.push(this.sashTwo.addListener2('start', () => this.onSashTwoDragStart()));
-		this.toUnbind.push(this.sashTwo.addListener2('change', (e: ISashEvent) => this.onSashTwoDrag(e)));
-		this.toUnbind.push(this.sashTwo.addListener2('end', () => this.onSashTwoDragEnd()));
-		this.toUnbind.push(this.sashTwo.addListener2('reset', () => this.onSashTwoReset()));
+		this.toUnbind.push(this.sashTwo.addListener('start', () => this.onSashTwoDragStart()));
+		this.toUnbind.push(this.sashTwo.addListener('change', (e: ISashEvent) => this.onSashTwoDrag(e)));
+		this.toUnbind.push(this.sashTwo.addListener('end', () => this.onSashTwoDragEnd()));
+		this.toUnbind.push(this.sashTwo.addListener('reset', () => this.onSashTwoReset()));
 		this.sashTwo.hide();
 
 		// Silo Three

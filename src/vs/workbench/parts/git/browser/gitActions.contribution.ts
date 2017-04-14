@@ -74,7 +74,7 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 		this.partService = partService;
 		this.contextService = contextService;
 
-		this.toDispose = [this.gitService.addBulkListener2(() => this.onGitStateChanged())];
+		this.toDispose = [this.gitService.addBulkListener(() => this.onGitStateChanged())];
 
 		this.enabled = this.isEnabled();
 	}
