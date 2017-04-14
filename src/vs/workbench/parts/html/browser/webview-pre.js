@@ -80,7 +80,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 	});
 
 	// update iframe-contents
-	ipcRenderer.on('content', function(_event, value) {
+	ipcRenderer.on('content', function (_event, value) {
 		const text = value.join('\n');
 		const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
@@ -134,16 +134,17 @@ document.addEventListener("DOMContentLoaded", function (event) {
 			return false;
 		};
 
-		// workaround for https://github.com/Microsoft/vscode/issues/12865
-		// check new scrollTop and reset if neccessary
 		newFrame.contentWindow.addEventListener('DOMContentLoaded', function (e) {
 			const contentDocument = e.target;
 			if (contentDocument.body) {
+
+				// Workaround for https://github.com/Microsoft/vscode/issues/12865
+				// check new scrollTop and reset if neccessary
 				if (scrollTop !== contentDocument.body.scrollTop) {
 					contentDocument.body.scrollTop = scrollTop;
 				}
 
-				// bubble out link-clicks
+				// Bubble out link clicks
 				contentDocument.body.addEventListener('click', handleInnerClick);
 			}
 
