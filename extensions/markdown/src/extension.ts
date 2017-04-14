@@ -176,12 +176,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
-		vscode.workspace.textDocuments.forEach(document => {
-			if (document.uri.scheme === 'markdown') {
-				// update all generated md documents
-				contentProvider.update(document.uri);
-			}
-		});
+		contentProvider.updateConfiguration();
 	}));
 
 	context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(event => {
