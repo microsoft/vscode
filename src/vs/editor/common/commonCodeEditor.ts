@@ -768,8 +768,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 			this.listenersToRemove.push(this.model.addBulkListener((events) => {
 				for (let i = 0, len = events.length; i < len; i++) {
-					let eventType = events[i].getType();
-					let e = events[i].getData();
+					let eventType = events[i].type;
+					let e = events[i].data;
 
 					switch (eventType) {
 						case editorCommon.EventType.ModelDecorationsChanged:
@@ -817,8 +817,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 			this.listenersToRemove.push(this._getViewInternalEventBus().addBulkListener((events) => {
 				for (let i = 0, len = events.length; i < len; i++) {
-					let eventType = events[i].getType();
-					let e = events[i].getData();
+					let eventType = events[i].type;
+					let e = events[i].data;
 
 					switch (eventType) {
 						case editorCommon.EventType.ViewFocusGained:
@@ -879,8 +879,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 			this.listenersToRemove.push(this.cursor.addBulkListener((events) => {
 				for (let i = 0, len = events.length; i < len; i++) {
-					let eventType = events[i].getType();
-					let e = events[i].getData();
+					let eventType = events[i].type;
+					let e = events[i].data;
 
 					switch (eventType) {
 						case editorCommon.EventType.CursorPositionChanged:

@@ -139,11 +139,11 @@ export class Cursor extends EventEmitter {
 			let hadFlushEvent = false;
 			for (let i = 0, len = events.length; i < len; i++) {
 				const event = events[i];
-				const eventType = event.getType();
+				const eventType = event.type;
 
 				if (eventType === editorCommon.EventType.ModelRawContentChanged) {
 					hadContentChange = true;
-					const changeEvent = <editorCommon.IModelRawContentChangedEvent>event.getData();
+					const changeEvent = <editorCommon.IModelRawContentChangedEvent>event.data;
 
 					if (changeEvent.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
 						hadFlushEvent = true;

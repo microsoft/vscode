@@ -121,8 +121,8 @@ suite('EventEmitter', () => {
 	test('deferred emit maintains events order for bulk listeners', function () {
 		let count = 0;
 		eventEmitter.addBulkListener(function (events) {
-			assert.equal(events[0].getType(), 'eventType2');
-			assert.equal(events[1].getType(), 'eventType1');
+			assert.equal(events[0].type, 'eventType2');
+			assert.equal(events[1].type, 'eventType1');
 			count++;
 		});
 		eventEmitter.deferredEmit(function () {

@@ -753,7 +753,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _recomputeIfNecessary(events: EmitterEvent[]): void {
 		let changed = false;
 		for (let i = 0; !changed && i < events.length; i++) {
-			let type = events[i].getType();
+			let type = events[i].type;
 			changed = changed || type === editorCommon.EventType.ModelRawContentChanged;
 		}
 		if (changed && this._isVisible) {
@@ -768,8 +768,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _onOriginalEditorEvents(events: EmitterEvent[]): void {
 		for (let i = 0; i < events.length; i++) {
-			let type = events[i].getType();
-			let data = events[i].getData();
+			let type = events[i].type;
+			let data = events[i].data;
 
 			if (type === 'scroll') {
 				this._onOriginalEditorScroll(data);
@@ -783,8 +783,8 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _onModifiedEditorEvents(events: EmitterEvent[]): void {
 		for (let i = 0; i < events.length; i++) {
-			let type = events[i].getType();
-			let data = events[i].getData();
+			let type = events[i].type;
+			let data = events[i].data;
 
 			if (type === 'scroll') {
 				this._onModifiedEditorScroll(data);

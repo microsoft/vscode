@@ -448,7 +448,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.push(model.addBulkListener((events) => {
 			let hadChange = false;
 			for (let i = 0; i < events.length; i++) {
-				const eventType = events[i].getType();
+				const eventType = events[i].type;
 				if (eventType === editorCommon.EventType.ModelRawContentChanged) {
 					hadChange = true;
 					break;

@@ -468,7 +468,7 @@ export class ModelServiceImpl implements IModelService {
 		// First look for dispose
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.getType() === editorCommon.EventType.ModelDispose) {
+			if (e.type === editorCommon.EventType.ModelDispose) {
 				this._onModelDisposing(modelData.model);
 				// no more processing since model got disposed
 				return;
@@ -478,9 +478,9 @@ export class ModelServiceImpl implements IModelService {
 		// Second, look for mode change
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.getType() === editorCommon.EventType.ModelLanguageChanged) {
+			if (e.type === editorCommon.EventType.ModelLanguageChanged) {
 				const model = modelData.model;
-				const oldModeId = (<editorCommon.IModelLanguageChangedEvent>e.getData()).oldLanguage;
+				const oldModeId = (<editorCommon.IModelLanguageChangedEvent>e.data).oldLanguage;
 				const newModeId = model.getLanguageIdentifier().language;
 				const oldOptions = this.getCreationOptions(oldModeId);
 				const newOptions = this.getCreationOptions(newModeId);

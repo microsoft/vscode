@@ -84,7 +84,7 @@ export class Lock {
 			var unbindListener: IDisposable;
 
 			return new WinJS.Promise((c, e) => {
-				unbindListener = lock.addOneTimeDisposableListener('unlock', () => {
+				unbindListener = lock.addOneTimeListener('unlock', () => {
 					return this.run(item, fn).then(c, e);
 				});
 			}, () => { unbindListener.dispose(); });

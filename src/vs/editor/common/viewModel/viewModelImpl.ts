@@ -236,7 +236,7 @@ export class ViewModel implements IViewModel {
 
 	private static _containsModelContentChangeEvent(events: EmitterEvent[]): boolean {
 		for (let i = 0, len = events.length; i < len; i++) {
-			let eventType = events[i].getType();
+			let eventType = events[i].type;
 			if (eventType === editorCommon.EventType.ModelRawContentChanged) {
 				return true;
 			}
@@ -246,7 +246,7 @@ export class ViewModel implements IViewModel {
 
 	private static _containsWrappingRelatedEvents(events: EmitterEvent[]): boolean {
 		for (let i = 0, len = events.length; i < len; i++) {
-			let eventType = events[i].getType();
+			let eventType = events[i].type;
 			if (eventType === editorCommon.EventType.ModelOptionsChanged) {
 				return true;
 			}
@@ -295,9 +295,9 @@ export class ViewModel implements IViewModel {
 
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			let data = e.getData();
+			let data = e.data;
 
-			switch (e.getType()) {
+			switch (e.type) {
 
 				case editorCommon.EventType.ModelRawContentChanged:
 					let modelContentChangedEvent = <editorCommon.IModelRawContentChangedEvent>data;
