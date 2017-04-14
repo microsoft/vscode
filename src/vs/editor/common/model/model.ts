@@ -12,7 +12,6 @@ import {
 import { EditableTextModel } from 'vs/editor/common/model/editableTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 
@@ -24,20 +23,16 @@ var MODEL_ID = 0;
 export class Model extends EditableTextModel implements IModel {
 
 	public onDidChangeDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable {
-		return this.addListener(EventType.ModelDecorationsChanged, listener);
+		return this._eventEmitter.addListener(EventType.ModelDecorationsChanged, listener);
 	}
 	public onDidChangeOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable {
-		return this.addListener(EventType.ModelOptionsChanged, listener);
+		return this._eventEmitter.addListener(EventType.ModelOptionsChanged, listener);
 	}
 	public onWillDispose(listener: () => void): IDisposable {
-		return this.addListener(EventType.ModelDispose, listener);
+		return this._eventEmitter.addListener(EventType.ModelDispose, listener);
 	}
 	public onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable {
-		return this.addListener(EventType.ModelLanguageChanged, listener);
-	}
-
-	public addBulkListener(listener: BulkListenerCallback): IDisposable {
-		return super.addBulkListener(listener);
+		return this._eventEmitter.addListener(EventType.ModelLanguageChanged, listener);
 	}
 
 	public static createFromString(text: string, options: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): Model {
@@ -71,7 +66,7 @@ export class Model extends EditableTextModel implements IModel {
 
 	public dispose(): void {
 		this._isDisposing = true;
-		this.emit(EventType.ModelDispose);
+		this._eventEmitter.emit(EventType.ModelDispose);
 		super.dispose();
 		this._isDisposing = false;
 	}

@@ -38,10 +38,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	}
 
 	public onDidChangeRawContent(listener: (e: editorCommon.IModelRawContentChangedEvent) => void): IDisposable {
-		return this.addListener(editorCommon.EventType.ModelRawContentChanged, listener);
+		return this._eventEmitter.addListener(editorCommon.EventType.ModelRawContentChanged, listener);
 	}
 	public onDidChangeContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
-		return this.addListener(editorCommon.EventType.ModelContentChanged, listener);
+		return this._eventEmitter.addListener(editorCommon.EventType.ModelContentChanged, listener);
 	}
 
 	private _commandManager: EditStack;
@@ -91,10 +91,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public pushEditOperations(beforeCursorState: Selection[], editOperations: editorCommon.IIdentifiedSingleEditOperation[], cursorStateComputer: editorCommon.ICursorStateComputer): Selection[] {
 		try {
-			this._beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			return this._pushEditOperations(beforeCursorState, editOperations, cursorStateComputer);
 		} finally {
-			this._endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
 		}
 	}
 
@@ -273,12 +273,12 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
 		try {
-			this._beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			let markersTracker = this._acquireMarkersTracker();
 			return this._applyEdits(markersTracker, rawOperations);
 		} finally {
 			this._releaseMarkersTracker();
-			this._endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
 		}
 	}
 
@@ -690,7 +690,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			}
 
 			for (let i = 0, len = contentChangedEvents.length; i < len; i++) {
-				this.emit(editorCommon.EventType.ModelRawContentChanged, contentChangedEvents[i]);
+				this._eventEmitter.emit(editorCommon.EventType.ModelRawContentChanged, contentChangedEvents[i]);
 			}
 			const e: editorCommon.IModelContentChangedEvent = {
 				changes: contentChanges,
@@ -700,7 +700,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				isRedoing: this._isRedoing,
 				isFlush: false
 			};
-			this.emit(editorCommon.EventType.ModelContentChanged, e);
+			this._eventEmitter.emit(editorCommon.EventType.ModelContentChanged, e);
 		}
 
 		// this._assertLineNumbersOK();
@@ -752,12 +752,12 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public undo(): Selection[] {
 		try {
-			this._beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			this._acquireMarkersTracker();
 			return this._undo();
 		} finally {
 			this._releaseMarkersTracker();
-			this._endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
 		}
 	}
 
@@ -777,12 +777,12 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public redo(): Selection[] {
 		try {
-			this._beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			this._acquireMarkersTracker();
 			return this._redo();
 		} finally {
 			this._releaseMarkersTracker();
-			this._endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
 		}
 	}
 

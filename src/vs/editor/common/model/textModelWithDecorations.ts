@@ -199,12 +199,12 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		this._assertNotDisposed();
 
 		try {
-			this._beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			let decorationsTracker = this._acquireDecorationsTracker();
 			return this._changeDecorations(decorationsTracker, ownerId, callback);
 		} finally {
 			this._releaseDecorationsTracker();
-			this._endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
 		}
 	}
 
@@ -541,7 +541,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 	private emitModelDecorationsChangedEvent(e: editorCommon.IModelDecorationsChangedEvent): void {
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelDecorationsChanged, e);
+			this._eventEmitter.emit(editorCommon.EventType.ModelDecorationsChanged, e);
 		}
 	}
 

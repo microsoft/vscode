@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { OrderGuaranteeEventEmitter } from 'vs/base/common/eventEmitter';
+import { OrderGuaranteeEventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -16,6 +16,7 @@ import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer'
 import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
@@ -25,7 +26,7 @@ export interface ITextModelCreationData {
 	readonly options: editorCommon.TextModelResolvedOptions;
 }
 
-export class TextModel extends OrderGuaranteeEventEmitter implements editorCommon.ITextModel {
+export class TextModel implements editorCommon.ITextModel {
 	private static MODEL_SYNC_LIMIT = 5 * 1024 * 1024; // 5 MB
 	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
 
@@ -68,6 +69,12 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		};
 	}
 
+	public addBulkListener(listener: BulkListenerCallback): IDisposable {
+		return this._eventEmitter.addBulkListener(listener);
+	}
+
+	protected readonly _eventEmitter: OrderGuaranteeEventEmitter;
+
 	/*protected*/ _lines: ModelLine[];
 	protected _EOL: string;
 	protected _isDisposed: boolean;
@@ -90,7 +97,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
 		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged, editorCommon.EventType.ModelOptionsChanged, editorCommon.EventType.ModelContentChanged);
-		super(allowedEventTypes);
+		this._eventEmitter = new OrderGuaranteeEventEmitter(allowedEventTypes);
 
 		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
 
@@ -152,7 +159,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			}
 		}
 
-		this.emit(editorCommon.EventType.ModelOptionsChanged, e);
+		this._eventEmitter.emit(editorCommon.EventType.ModelOptionsChanged, e);
 	}
 
 	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
@@ -295,7 +302,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		this._EOL = null;
 		this._BOM = null;
 
-		super.dispose();
+		this._eventEmitter.dispose();
 	}
 
 	private _createContentChangedFlushEvent(): editorCommon.IModelRawContentChangedFlushEvent {
@@ -322,7 +329,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			isFlush: isFlush
 		};
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelContentChanged, e);
+			this._eventEmitter.emit(editorCommon.EventType.ModelContentChanged, e);
 		}
 	}
 
@@ -766,7 +773,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 
 	protected _emitModelContentChangedFlushEvent(e: editorCommon.IModelRawContentChangedFlushEvent): void {
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelRawContentChanged, e);
+			this._eventEmitter.emit(editorCommon.EventType.ModelRawContentChanged, e);
 		}
 	}
 

@@ -197,11 +197,11 @@ export class EventEmitter implements IEventEmitter {
 		}
 	}
 
-	protected _beginDeferredEmit(): void {
+	public beginDeferredEmit(): void {
 		this._deferredCnt = this._deferredCnt + 1;
 	}
 
-	protected _endDeferredEmit(): void {
+	public endDeferredEmit(): void {
 		this._deferredCnt = this._deferredCnt - 1;
 
 		if (this._deferredCnt === 0) {
@@ -210,11 +210,11 @@ export class EventEmitter implements IEventEmitter {
 	}
 
 	public deferredEmit<T>(callback: () => T): T {
-		this._beginDeferredEmit();
+		this.beginDeferredEmit();
 
 		let result: T = safeInvokeNoArg<T>(callback);
 
-		this._endDeferredEmit();
+		this.endDeferredEmit();
 
 		return result;
 	}

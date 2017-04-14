@@ -841,10 +841,10 @@ export class TreeModel extends Events.EventEmitter {
 
 	public refreshAll(elements: any[], recursive: boolean = true): WinJS.Promise {
 		try {
-			this._beginDeferredEmit();
+			this.beginDeferredEmit();
 			return this._refreshAll(elements, recursive);
 		} finally {
-			this._endDeferredEmit();
+			this.endDeferredEmit();
 		}
 	}
 
