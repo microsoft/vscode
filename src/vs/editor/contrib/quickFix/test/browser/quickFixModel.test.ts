@@ -14,7 +14,16 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { QuickFixOracle } from 'vs/editor/contrib/quickFix/browser/quickFixModel';
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import Event from 'vs/base/common/event';
 
+function promiseOnce<T>(event: Event<T>): TPromise<T> {
+	return new TPromise(resolve => {
+		let reg = event(e => {
+			reg.dispose();
+			resolve(e);
+		});
+	});
+}
 
 suite('QuickFix', () => {
 
@@ -41,6 +50,7 @@ suite('QuickFix', () => {
 		reg.dispose();
 		editor.dispose();
 		model.dispose();
+		markerService.dispose();
 	});
 
 	test('Orcale -> marker added', done => {
@@ -95,45 +105,54 @@ suite('QuickFix', () => {
 
 	});
 
-	// test('Oracle -> ask once per marker/word', () => {
+	test('Oracle -> ask once per marker/word', () => {
 
-	// 	markerService.changeOne('fake', uri, [{
-	// 		startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
-	// 		message: 'error',
-	// 		severity: 1,
-	// 		code: '',
-	// 		source: ''
-	// 	}]);
+		const start = promiseOnce(markerService.onMarkerChanged);
 
-	// 	let counter = 0;
-	// 	let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-	// 		provideCodeActions() {
-	// 			counter += 1;
-	// 			return [];
-	// 		}
-	// 	});
+		markerService.changeOne('fake', uri, [{
+			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
+			message: 'error',
+			severity: 1,
+			code: '',
+			source: ''
+		}]);
 
-	// 	let fixes: TPromise<any>[] = [];
-	// 	let oracle = new QuickFixOracle(editor, markerService, e => {
-	// 		fixes.push(e.fixes);
-	// 	}, 10);
+		return start.then(() => {
 
-	// 	editor.setPosition({ lineNumber: 1, column: 3 }); // marker
-	// 	editor.setPosition({ lineNumber: 1, column: 6 }); // (same) marker
+			let stacks: string[] = [];
+			let counter = 0;
+			let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
+				provideCodeActions() {
+					counter += 1;
+					stacks.push(new Error().stack);
+					return [];
+				}
+			});
 
-	// 	return TPromise.timeout(20).then(() => {
+			let fixes: TPromise<any>[] = [];
+			let oracle = new QuickFixOracle(editor, markerService, e => {
+				fixes.push(e.fixes);
+			}, 10);
 
-	// 		editor.setPosition({ lineNumber: 1, column: 8 }); // whitespace
-	// 		editor.setPosition({ lineNumber: 2, column: 2 }); // word
-	// 		editor.setPosition({ lineNumber: 2, column: 6 }); // (same) word
+			editor.setPosition({ lineNumber: 1, column: 3 }); // marker
+			editor.setPosition({ lineNumber: 1, column: 6 }); // (same) marker
 
-	// 		return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
-	// 			reg.dispose();
-	// 			oracle.dispose();
-	// 			assert.equal(counter, 2);
-	// 		});
-	// 	});
-	// });
+			return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(() => {
+
+				assert.equal(counter, 1, stacks.join('\n----\n'));
+
+				editor.setPosition({ lineNumber: 1, column: 8 }); // whitespace
+				editor.setPosition({ lineNumber: 2, column: 2 }); // word
+				editor.setPosition({ lineNumber: 2, column: 6 }); // (same) word
+
+				return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
+					reg.dispose();
+					oracle.dispose();
+					assert.equal(counter, 2, stacks.join('\n----\n'));
+				});
+			});
+		});
+	});
 
 	test('Oracle -> selection wins over marker', () => {
 
