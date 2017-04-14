@@ -41,6 +41,7 @@ import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/se
 import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler } from "vs/platform/theme/common/styler";
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 class DecorationsManager implements IDisposable {
 
@@ -402,7 +403,25 @@ class Renderer extends LegacyRenderer {
 
 		return null;
 	}
+}
 
+class AriaProvider implements tree.IAccessibilityProvider {
+
+	getAriaLabel(tree: tree.ITree, element: FileReferences | OneReference): string {
+		if (element instanceof FileReferences) {
+			const len = element.children.length;
+			if (len === 1) {
+				return nls.localize('aria.fileReferences.1', "1 reference in {0}", element.uri.fsPath);
+			} else {
+				return nls.localize('aria.fileReferences.N', "{0} references in {1}", len, element.uri.fsPath);
+			}
+		} else if (element instanceof OneReference) {
+			return nls.localize('aria.oneReference', "reference in {0} on line {1} at column {2}", element.uri.fsPath, element.range.startLineNumber, element.range.startColumn);
+
+		} else {
+			return undefined;
+		}
+	}
 }
 
 class VSash {
@@ -602,11 +621,11 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
-			var config = {
+			var config = <tree.ITreeConfiguration>{
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer),
-				//sorter: new Sorter(),
-				controller: new Controller()
+				controller: new Controller(),
+				accessibilityProvider: new AriaProvider()
 			};
 
 			var options = {
@@ -714,6 +733,9 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._preview.layout();
 		this._tree.layout();
 		this.focus();
+
+		// announce results found
+		alert(nls.localize('aria.result', "Found {0} references", this._model.references.length));
 
 		// pick input and a reference to begin with
 		const input = this._model.groups.length === 1 ? this._model.groups[0] : this._model;
