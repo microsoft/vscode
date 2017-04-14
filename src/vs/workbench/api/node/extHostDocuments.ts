@@ -19,7 +19,7 @@ import { TextSource } from 'vs/editor/common/model/textSource';
 import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from './extHost.protocol';
 import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { IModelChangedData } from 'vs/editor/common/model/mirrorModel2';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel2';
 
 export class ExtHostDocuments extends ExtHostDocumentsShape {
 
@@ -185,17 +185,17 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 		document._acceptIsDirty(false);
 	}
 
-	public $acceptModelChanged(strURL: string, events: IModelChangedData[], isDirty: boolean): void {
+	public $acceptModelChanged(strURL: string, events: IModelChangedEvent, isDirty: boolean): void {
 		let data = this._documentsAndEditors.getDocument(strURL);
 		data._acceptIsDirty(isDirty);
 		data.onEvents(events);
 		this._onDidChangeDocument.fire({
 			document: data.document,
-			contentChanges: events.map((e) => {
+			contentChanges: events.changes.map((change) => {
 				return {
-					range: TypeConverters.toRange(e.range),
-					rangeLength: e.rangeLength,
-					text: e.text
+					range: TypeConverters.toRange(change.range),
+					rangeLength: change.rangeLength,
+					text: change.text
 				};
 			})
 		});

@@ -89,7 +89,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 	private _shouldDenyMode: boolean;
 
 	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
-		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged, editorCommon.EventType.ModelOptionsChanged, editorCommon.EventType.ModelContentChanged2);
+		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged, editorCommon.EventType.ModelOptionsChanged, editorCommon.EventType.ModelContentChanged);
 		super(allowedEventTypes);
 
 		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
@@ -298,7 +298,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		super.dispose();
 	}
 
-	private _createContentChangedFlushEvent(): editorCommon.IModelContentChangedFlushEvent {
+	private _createContentChangedFlushEvent(): editorCommon.IModelRawContentChangedFlushEvent {
 		return {
 			changeType: editorCommon.EventType.ModelRawContentChangedFlush,
 			versionId: this._versionId,
@@ -308,11 +308,13 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		};
 	}
 
-	protected _emitContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): void {
-		const e: editorCommon.IModelContentChangedEvent2 = {
-			range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
-			rangeLength: rangeLength,
-			text: text,
+	private _emitContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): void {
+		const e: editorCommon.IModelContentChangedEvent = {
+			changes: [{
+				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
+				rangeLength: rangeLength,
+				text: text,
+			}],
 			eol: this._EOL,
 			versionId: this.getVersionId(),
 			isUndoing: isUndoing,
@@ -320,7 +322,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 			isFlush: isFlush
 		};
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelContentChanged2, e);
+			this.emit(editorCommon.EventType.ModelContentChanged, e);
 		}
 	}
 
@@ -762,7 +764,7 @@ export class TextModel extends OrderGuaranteeEventEmitter implements editorCommo
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
-	protected _emitModelContentChangedFlushEvent(e: editorCommon.IModelContentChangedFlushEvent): void {
+	protected _emitModelContentChangedFlushEvent(e: editorCommon.IModelRawContentChangedFlushEvent): void {
 		if (!this._isDisposing) {
 			this.emit(editorCommon.EventType.ModelRawContentChanged, e);
 		}

@@ -14,7 +14,7 @@ import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { stringDiff } from 'vs/base/common/diff/diff';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
-import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
+import { MirrorModel2, IModelChangedEvent } from 'vs/editor/common/model/mirrorModel2';
 import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit } from 'vs/editor/common/modes';
 import { computeLinks } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
@@ -528,12 +528,12 @@ export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IR
 		this._models[data.url] = new MirrorModel(URI.parse(data.url), data.lines, data.EOL, data.versionId);
 	}
 
-	public acceptModelChanged(strURL: string, events: editorCommon.IModelContentChangedEvent2[]): void {
+	public acceptModelChanged(strURL: string, e: IModelChangedEvent): void {
 		if (!this._models[strURL]) {
 			return;
 		}
 		let model = this._models[strURL];
-		model.onEvents(events);
+		model.onEvents(e);
 	}
 
 	public acceptRemovedModel(strURL: string): void {

@@ -93,13 +93,13 @@ export function assertSyncedModels(text: string, callback: (model: EditableTextM
 	var mirrorModel2 = new MirrorModel2(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
 	var mirrorModel2PrevVersionId = model.getVersionId();
 
-	model.onDidChangeContent((e: editorCommon.IModelContentChangedEvent2) => {
+	model.onDidChangeContent((e: editorCommon.IModelContentChangedEvent) => {
 		let versionId = e.versionId;
 		if (versionId < mirrorModel2PrevVersionId) {
 			console.warn('Model version id did not advance between edits (2)');
 		}
 		mirrorModel2PrevVersionId = versionId;
-		mirrorModel2.onEvents([e]);
+		mirrorModel2.onEvents(e);
 	});
 
 	var assertMirrorModels = () => {

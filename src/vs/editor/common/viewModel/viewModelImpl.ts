@@ -300,26 +300,26 @@ export class ViewModel implements IViewModel {
 			switch (e.getType()) {
 
 				case editorCommon.EventType.ModelRawContentChanged:
-					let modelContentChangedEvent = <editorCommon.IModelContentChangedEvent>data;
+					let modelContentChangedEvent = <editorCommon.IModelRawContentChangedEvent>data;
 
 					switch (modelContentChangedEvent.changeType) {
 						case editorCommon.EventType.ModelRawContentChangedFlush:
-							this.onModelFlushed(eventsCollector, <editorCommon.IModelContentChangedFlushEvent>modelContentChangedEvent);
+							this.onModelFlushed(eventsCollector, <editorCommon.IModelRawContentChangedFlushEvent>modelContentChangedEvent);
 							hadOtherModelChange = true;
 							break;
 
 						case editorCommon.EventType.ModelRawContentChangedLinesDeleted:
-							this.onModelLinesDeleted(eventsCollector, <editorCommon.IModelContentChangedLinesDeletedEvent>modelContentChangedEvent);
+							this.onModelLinesDeleted(eventsCollector, <editorCommon.IModelRawContentChangedLinesDeletedEvent>modelContentChangedEvent);
 							hadOtherModelChange = true;
 							break;
 
 						case editorCommon.EventType.ModelRawContentChangedLinesInserted:
-							this.onModelLinesInserted(eventsCollector, <editorCommon.IModelContentChangedLinesInsertedEvent>modelContentChangedEvent);
+							this.onModelLinesInserted(eventsCollector, <editorCommon.IModelRawContentChangedLinesInsertedEvent>modelContentChangedEvent);
 							hadOtherModelChange = true;
 							break;
 
 						case editorCommon.EventType.ModelRawContentChangedLineChanged:
-							hadModelLineChangeThatChangedLineMapping = this.onModelLineChanged(eventsCollector, <editorCommon.IModelContentChangedLineChangedEvent>modelContentChangedEvent);
+							hadModelLineChangeThatChangedLineMapping = this.onModelLineChanged(eventsCollector, <editorCommon.IModelRawContentChangedLineChangedEvent>modelContentChangedEvent);
 							break;
 
 						default:
@@ -336,7 +336,7 @@ export class ViewModel implements IViewModel {
 					// That's ok, a model tokens changed event will follow shortly
 					break;
 
-				case editorCommon.EventType.ModelContentChanged2:
+				case editorCommon.EventType.ModelContentChanged:
 					// Ignore
 					break;
 
@@ -409,14 +409,14 @@ export class ViewModel implements IViewModel {
 	}
 
 	// --- begin inbound event conversion
-	private onModelFlushed(eventsCollector: ViewEventsCollector, e: editorCommon.IModelContentChangedFlushEvent): void {
+	private onModelFlushed(eventsCollector: ViewEventsCollector, e: editorCommon.IModelRawContentChangedFlushEvent): void {
 		this.lines.onModelFlushed(eventsCollector, e.versionId);
 		this.decorations.reset();
 	}
 	private onModelDecorationsChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelDecorationsChangedEvent): void {
 		this.decorations.onModelDecorationsChanged(eventsCollector, e);
 	}
-	private onModelLinesDeleted(eventsCollector: ViewEventsCollector, e: editorCommon.IModelContentChangedLinesDeletedEvent): void {
+	private onModelLinesDeleted(eventsCollector: ViewEventsCollector, e: editorCommon.IModelRawContentChangedLinesDeletedEvent): void {
 		this.lines.onModelLinesDeleted(eventsCollector, e.versionId, e.fromLineNumber, e.toLineNumber);
 	}
 	private onModelTokensChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelTokensChangedEvent): void {
@@ -434,11 +434,11 @@ export class ViewModel implements IViewModel {
 
 		eventsCollector.emit(new viewEvents.ViewTokensChangedEvent(viewRanges));
 	}
-	private onModelLineChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelContentChangedLineChangedEvent): boolean {
+	private onModelLineChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelRawContentChangedLineChangedEvent): boolean {
 		var lineMappingChanged = this.lines.onModelLineChanged(eventsCollector, e.versionId, e.lineNumber, e.detail);
 		return lineMappingChanged;
 	}
-	private onModelLinesInserted(eventsCollector: ViewEventsCollector, e: editorCommon.IModelContentChangedLinesInsertedEvent): void {
+	private onModelLinesInserted(eventsCollector: ViewEventsCollector, e: editorCommon.IModelRawContentChangedLinesInsertedEvent): void {
 		this.lines.onModelLinesInserted(eventsCollector, e.versionId, e.fromLineNumber, e.toLineNumber, e.detail.split('\n'));
 	}
 

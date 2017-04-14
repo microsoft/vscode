@@ -2382,7 +2382,7 @@ declare module monaco.editor {
          * An event emitted when the contents of the model have changed.
          * @event
          */
-        onDidChangeContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
+        onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
         /**
          * An event emitted when decorations of the model have changed.
          * @event
@@ -2428,10 +2428,7 @@ declare module monaco.editor {
         readonly newLanguage: string;
     }
 
-    /**
-     * An event describing a change in the text of a model.
-     */
-    export interface IModelContentChangedEvent2 {
+    export interface IModelContentChange {
         /**
          * The range that got replaced.
          */
@@ -2444,6 +2441,13 @@ declare module monaco.editor {
          * The new text for the range.
          */
         readonly text: string;
+    }
+
+    /**
+     * An event describing a change in the text of a model.
+     */
+    export interface IModelContentChangedEvent {
+        readonly changes: IModelContentChange[];
         /**
          * The (new) end-of-line character.
          */
@@ -2451,7 +2455,7 @@ declare module monaco.editor {
         /**
          * The new version id the model has transitioned to.
          */
-        versionId: number;
+        readonly versionId: number;
         /**
          * Flag that indicates that this event was generated while undoing.
          */
@@ -2971,7 +2975,7 @@ declare module monaco.editor {
          * An event emitted when the content of the current model has changed.
          * @event
          */
-        onDidChangeModelContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
+        onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the language of the current model has changed.
          * @event

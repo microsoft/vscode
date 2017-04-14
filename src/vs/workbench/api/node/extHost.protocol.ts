@@ -38,7 +38,7 @@ import { IApplyEditsOptions, IUndoStopOptions, TextEditorRevealType, ITextEditor
 
 import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
-import { IModelChangedData } from 'vs/editor/common/model/mirrorModel2';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel2';
 
 export interface IEnvironment {
 	enableProposedApi: boolean;
@@ -313,7 +313,7 @@ export abstract class ExtHostDocumentsShape {
 	$acceptModelSaved(strURL: string): void { throw ni(); }
 	$acceptModelDirty(strURL: string): void { throw ni(); }
 	$acceptModelReverted(strURL: string): void { throw ni(); }
-	$acceptModelChanged(strURL: string, events: IModelChangedData[], isDirty: boolean): void { throw ni(); }
+	$acceptModelChanged(strURL: string, e: IModelChangedEvent, isDirty: boolean): void { throw ni(); }
 }
 
 export abstract class ExtHostDocumentSaveParticipantShape {

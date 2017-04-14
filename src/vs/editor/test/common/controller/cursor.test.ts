@@ -2863,7 +2863,7 @@ suite('ElectricCharacter', () => {
 			moveTo(cursor, 1, 5);
 			let changeText: string = null;
 			model.onDidChangeContent(e => {
-				changeText = e.text;
+				changeText = e.changes[0].text;
 			});
 			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
 			assert.deepEqual(model.getLineContent(1), '(div)');

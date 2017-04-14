@@ -97,7 +97,7 @@ export class FindModelBoundToEditorModel {
 		}));
 
 		this._ignoreModelContentChanged = false;
-		this._toDispose.push(this._editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeModelRawContent((e: editorCommon.IModelRawContentChangedEvent) => {
 			if (this._ignoreModelContentChanged) {
 				return;
 			}

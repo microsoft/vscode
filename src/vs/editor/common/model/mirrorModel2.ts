@@ -5,22 +5,11 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { IPosition, IRange, IModelContentChange } from 'vs/editor/common/editorCommon';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 
-export interface IModelChangedData {
-	/**
-	 * The range that got replaced.
-	 */
-	readonly range: IRange;
-	/**
-	 * The length of the range that got replaced.
-	 */
-	readonly rangeLength: number;
-	/**
-	 * The new text for the range.
-	 */
-	readonly text: string;
+export interface IModelChangedEvent {
+	readonly changes: IModelContentChange[];
 	/**
 	 * The (new) end-of-line character.
 	 */
@@ -58,34 +47,24 @@ export class MirrorModel2 {
 		return this._lines.join(this._eol);
 	}
 
-	onEvents(events: IModelChangedData[]): void {
-		let newEOL: string = null;
-		for (let i = 0, len = events.length; i < len; i++) {
-			let e = events[i];
-			if (e.eol) {
-				newEOL = e.eol;
-			}
-		}
-		if (newEOL && newEOL !== this._eol) {
-			this._eol = newEOL;
+	onEvents(e: IModelChangedEvent): void {
+		if (e.eol && e.eol !== this._eol) {
+			this._eol = e.eol;
 			this._lineStarts = null;
 		}
 
 		// Update my lines
-		let lastVersionId = -1;
-		for (let i = 0, len = events.length; i < len; i++) {
-			let e = events[i];
-
-			this._acceptDeleteRange(e.range);
+		const changes = e.changes;
+		for (let i = 0, len = changes.length; i < len; i++) {
+			const change = changes[i];
+			this._acceptDeleteRange(change.range);
 			this._acceptInsertText({
-				lineNumber: e.range.startLineNumber,
-				column: e.range.startColumn
-			}, e.text);
-			lastVersionId = Math.max(lastVersionId, e.versionId);
+				lineNumber: change.range.startLineNumber,
+				column: change.range.startColumn
+			}, change.text);
 		}
-		if (lastVersionId !== -1) {
-			this._versionId = lastVersionId;
-		}
+
+		this._versionId = e.versionId;
 	}
 
 	protected _ensureLineStarts(): void {

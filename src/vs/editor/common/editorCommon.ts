@@ -2363,12 +2363,12 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * @internal
 	 * @event
 	 */
-	onDidChangeRawContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+	onDidChangeRawContent(listener: (e: IModelRawContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the contents of the model have changed.
 	 * @event
 	 */
-	onDidChangeContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
+	onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when decorations of the model have changed.
 	 * @event
@@ -2444,10 +2444,7 @@ export interface IModelLanguageChangedEvent {
 	readonly newLanguage: string;
 }
 
-/**
- * An event describing a change in the text of a model.
- */
-export interface IModelContentChangedEvent2 {
+export interface IModelContentChange {
 	/**
 	 * The range that got replaced.
 	 */
@@ -2460,6 +2457,13 @@ export interface IModelContentChangedEvent2 {
 	 * The new text for the range.
 	 */
 	readonly text: string;
+}
+
+/**
+ * An event describing a change in the text of a model.
+ */
+export interface IModelContentChangedEvent {
+	readonly changes: IModelContentChange[];
 	/**
 	 * The (new) end-of-line character.
 	 */
@@ -2467,7 +2471,7 @@ export interface IModelContentChangedEvent2 {
 	/**
 	 * The new version id the model has transitioned to.
 	 */
-	versionId: number;
+	readonly versionId: number;
 	/**
 	 * Flag that indicates that this event was generated while undoing.
 	 */
@@ -2486,7 +2490,7 @@ export interface IModelContentChangedEvent2 {
  * An event describing a change in the text of a model.
  * @internal
  */
-export interface IModelContentChangedEvent {
+export interface IModelRawContentChangedEvent {
 	/**
 	 * The event type. It can be used to detect the actual event type:
 	 * 		EditorCommon.EventType.ModelContentChangedFlush => IModelContentChangedFlushEvent
@@ -2513,13 +2517,13 @@ export interface IModelContentChangedEvent {
  * An event describing that a model has been reset to a new value.
  * @internal
  */
-export interface IModelContentChangedFlushEvent extends IModelContentChangedEvent {
+export interface IModelRawContentChangedFlushEvent extends IModelRawContentChangedEvent {
 }
 /**
  * An event describing that a line has changed in a model.
  * @internal
  */
-export interface IModelContentChangedLineChangedEvent extends IModelContentChangedEvent {
+export interface IModelRawContentChangedLineChangedEvent extends IModelRawContentChangedEvent {
 	/**
 	 * The line that has changed.
 	 */
@@ -2533,7 +2537,7 @@ export interface IModelContentChangedLineChangedEvent extends IModelContentChang
  * An event describing that line(s) have been deleted in a model.
  * @internal
  */
-export interface IModelContentChangedLinesDeletedEvent extends IModelContentChangedEvent {
+export interface IModelRawContentChangedLinesDeletedEvent extends IModelRawContentChangedEvent {
 	/**
 	 * At what line the deletion began (inclusive).
 	 */
@@ -2547,7 +2551,7 @@ export interface IModelContentChangedLinesDeletedEvent extends IModelContentChan
  * An event describing that line(s) have been inserted in a model.
  * @internal
  */
-export interface IModelContentChangedLinesInsertedEvent extends IModelContentChangedEvent {
+export interface IModelRawContentChangedLinesInsertedEvent extends IModelRawContentChangedEvent {
 	/**
 	 * Before what line did the insertion begin
 	 */
@@ -3423,12 +3427,12 @@ export interface IEditor {
 	 * @internal
 	 * @event
 	 */
-	onDidChangeModelRawContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+	onDidChangeModelRawContent(listener: (e: IModelRawContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the content of the current model has changed.
 	 * @event
 	 */
-	onDidChangeModelContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
+	onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the language of the current model has changed.
 	 * @event
@@ -4128,8 +4132,8 @@ export var EventType = {
 	ModelTokensChanged: 'modelTokensChanged',
 	ModelLanguageChanged: 'modelLanguageChanged',
 	ModelOptionsChanged: 'modelOptionsChanged',
-	ModelRawContentChanged: 'contentChanged',
-	ModelContentChanged2: 'contentChanged2',
+	ModelContentChanged: 'contentChanged',
+	ModelRawContentChanged: 'rawContentChanged',
 	ModelRawContentChangedFlush: 'flush',
 	ModelRawContentChangedLinesDeleted: 'linesDeleted',
 	ModelRawContentChangedLinesInserted: 'linesInserted',

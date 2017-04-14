@@ -142,7 +142,7 @@ export class InsertSnippetController {
 		// print();
 
 		this.listenersToRemove = [];
-		this.listenersToRemove.push(this.editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidChangeModelRawContent((e: editorCommon.IModelRawContentChangedEvent) => {
 			// console.log('-------MODEL CHANGED');
 			// print();
 			if (this.isFinished) {
@@ -153,22 +153,22 @@ export class InsertSnippetController {
 				// a model.setValue() was called
 				this.stopAll();
 			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLineChanged) {
-				var changedLine = (<editorCommon.IModelContentChangedLineChangedEvent>e).lineNumber;
+				var changedLine = (<editorCommon.IModelRawContentChangedLineChangedEvent>e).lineNumber;
 				var highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
 
 				if (changedLine < highlightRange.startLineNumber || changedLine > highlightRange.endLineNumber) {
 					this.stopAll();
 				}
 			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLinesInserted) {
-				var insertLine = (<editorCommon.IModelContentChangedLinesInsertedEvent>e).fromLineNumber;
+				var insertLine = (<editorCommon.IModelRawContentChangedLinesInsertedEvent>e).fromLineNumber;
 				var highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
 
 				if (insertLine < highlightRange.startLineNumber || insertLine > highlightRange.endLineNumber) {
 					this.stopAll();
 				}
 			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLinesDeleted) {
-				var deleteLine1 = (<editorCommon.IModelContentChangedLinesDeletedEvent>e).fromLineNumber;
-				var deleteLine2 = (<editorCommon.IModelContentChangedLinesDeletedEvent>e).toLineNumber;
+				var deleteLine1 = (<editorCommon.IModelRawContentChangedLinesDeletedEvent>e).fromLineNumber;
+				var deleteLine2 = (<editorCommon.IModelRawContentChangedLinesDeletedEvent>e).toLineNumber;
 				var highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
 
 				var deletedLinesAbove = (deleteLine2 < highlightRange.startLineNumber);

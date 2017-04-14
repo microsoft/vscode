@@ -37,11 +37,11 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		return new EditableTextModel([], RawTextSource.fromString(text), options, languageIdentifier);
 	}
 
-	public onDidChangeRawContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
+	public onDidChangeRawContent(listener: (e: editorCommon.IModelRawContentChangedEvent) => void): IDisposable {
 		return this.addListener2(editorCommon.EventType.ModelRawContentChanged, listener);
 	}
-	public onDidChangeContent(listener: (e: editorCommon.IModelContentChangedEvent2) => void): IDisposable {
-		return this.addListener2(editorCommon.EventType.ModelContentChanged2, listener);
+	public onDidChangeContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
+		return this.addListener2(editorCommon.EventType.ModelContentChanged, listener);
 	}
 
 	private _commandManager: EditStack;
@@ -465,8 +465,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		// Sort operations descending
 		operations.sort(EditableTextModel._sortOpsDescending);
 
-		let contentChangedEvents: editorCommon.IModelContentChangedEvent[] = [];
-		let contentChanged2Events: editorCommon.IModelContentChangedEvent2[] = [];
+		let contentChangedEvents: editorCommon.IModelRawContentChangedEvent[] = [];
+		let contentChanges: editorCommon.IModelContentChange[] = [];
 		let lineEditsQueue: IIdentifiedLineEdit[] = [];
 
 		let queueLineEdit = (lineEdit: IIdentifiedLineEdit) => {
@@ -652,15 +652,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				contentChangedEvents.push(this._createLinesInsertedEvent(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n')));
 			}
 
-			contentChanged2Events.push({
+			contentChanges.push({
 				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 				rangeLength: op.rangeLength,
-				text: op.lines ? op.lines.join(this.getEOL()) : '',
-				eol: this._EOL,
-				versionId: -1,
-				isUndoing: this._isUndoing,
-				isRedoing: this._isRedoing,
-				isFlush: false
+				text: op.lines ? op.lines.join(this.getEOL()) : ''
 			});
 
 			// console.log('AFTER:');
@@ -679,30 +674,33 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			this._lines[lineNumber - 1].updateLineNumber(markersTracker, lineNumber);
 		}
 
-		if (contentChangedEvents.length !== 0 || contentChanged2Events.length !== 0) {
+		if (contentChangedEvents.length !== 0 || contentChanges.length !== 0) {
 			if (contentChangedEvents.length === 0) {
 				// Fabricate a fake line changed event to get an event out
 				// This most likely occurs when there edit operations are no-ops
 				contentChangedEvents.push(this._createLineChangedEvent(minTouchedLineNumber));
 			}
 
-			let versionBumps = Math.max(contentChangedEvents.length, contentChanged2Events.length);
+			let versionBumps = Math.max(contentChangedEvents.length, contentChanges.length);
 			let finalVersionId = this.getVersionId() + versionBumps;
 			this._setVersionId(finalVersionId);
 
 			for (let i = contentChangedEvents.length - 1, versionId = finalVersionId; i >= 0; i-- , versionId--) {
 				contentChangedEvents[i].versionId = versionId;
 			}
-			for (let i = contentChanged2Events.length - 1, versionId = finalVersionId; i >= 0; i-- , versionId--) {
-				contentChanged2Events[i].versionId = versionId;
-			}
 
 			for (let i = 0, len = contentChangedEvents.length; i < len; i++) {
 				this.emit(editorCommon.EventType.ModelRawContentChanged, contentChangedEvents[i]);
 			}
-			for (let i = 0, len = contentChanged2Events.length; i < len; i++) {
-				this.emit(editorCommon.EventType.ModelContentChanged2, contentChanged2Events[i]);
-			}
+			const e: editorCommon.IModelContentChangedEvent = {
+				changes: contentChanges,
+				eol: this._EOL,
+				versionId: finalVersionId,
+				isUndoing: this._isUndoing,
+				isRedoing: this._isRedoing,
+				isFlush: false
+			};
+			this.emit(editorCommon.EventType.ModelContentChanged, e);
 		}
 
 		// this._assertLineNumbersOK();
@@ -824,7 +822,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		}
 	}
 
-	private _createLineChangedEvent(lineNumber: number): editorCommon.IModelContentChangedLineChangedEvent {
+	private _createLineChangedEvent(lineNumber: number): editorCommon.IModelRawContentChangedLineChangedEvent {
 		return {
 			changeType: editorCommon.EventType.ModelRawContentChangedLineChanged,
 			lineNumber: lineNumber,
@@ -835,7 +833,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		};
 	}
 
-	private _createLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): editorCommon.IModelContentChangedLinesDeletedEvent {
+	private _createLinesDeletedEvent(fromLineNumber: number, toLineNumber: number): editorCommon.IModelRawContentChangedLinesDeletedEvent {
 		return {
 			changeType: editorCommon.EventType.ModelRawContentChangedLinesDeleted,
 			fromLineNumber: fromLineNumber,
@@ -846,7 +844,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		};
 	}
 
-	private _createLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, newLinesContent: string): editorCommon.IModelContentChangedLinesInsertedEvent {
+	private _createLinesInsertedEvent(fromLineNumber: number, toLineNumber: number, newLinesContent: string): editorCommon.IModelRawContentChangedLinesInsertedEvent {
 		return {
 			changeType: editorCommon.EventType.ModelRawContentChangedLinesInserted,
 			fromLineNumber: fromLineNumber,

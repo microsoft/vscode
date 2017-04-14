@@ -236,22 +236,11 @@ class EditorModelManager extends Disposable {
 		});
 
 		let toDispose: IDisposable[] = [];
-		toDispose.push(model.addBulkListener((events) => {
-			let changedEvents: editorCommon.IModelContentChangedEvent2[] = [];
-			for (let i = 0, len = events.length; i < len; i++) {
-				let e = events[i];
-				switch (e.getType()) {
-					case editorCommon.EventType.ModelContentChanged2:
-						changedEvents.push(<editorCommon.IModelContentChangedEvent2>e.getData());
-						break;
-					case editorCommon.EventType.ModelDispose:
-						this._stopModelSync(modelUrl);
-						return;
-				}
-			}
-			if (changedEvents.length > 0) {
-				this._proxy.acceptModelChanged(modelUrl.toString(), changedEvents);
-			}
+		toDispose.push(model.onDidChangeContent((e) => {
+			this._proxy.acceptModelChanged(modelUrl.toString(), e);
+		}));
+		toDispose.push(model.onWillDispose(() => {
+			this._stopModelSync(modelUrl);
 		}));
 		toDispose.push({
 			dispose: () => {

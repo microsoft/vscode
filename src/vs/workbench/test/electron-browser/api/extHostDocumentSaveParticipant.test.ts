@@ -285,12 +285,15 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
 
 			// concurrent change from somewhere
-			documents.$acceptModelChanged(resource.toString(), [{
-				versionId: 2,
-				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-				text: 'bar',
-				rangeLength: undefined, eol: undefined
-			}], true);
+			documents.$acceptModelChanged(resource.toString(), {
+				changes: [{
+					range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+					rangeLength: undefined,
+					text: 'bar'
+				}],
+				eol: undefined,
+				versionId: 2
+			}, true);
 
 			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
 		});
@@ -310,12 +313,15 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			$applyWorkspaceEdit(_edits: IResourceEdit[]) {
 
 				for (const { resource, newText, range } of _edits) {
-					documents.$acceptModelChanged(resource.toString(), [{
-						range,
-						text: newText,
-						versionId: documents.getDocumentData(resource).version + 1,
-						rangeLength: undefined, eol: undefined
-					}], true);
+					documents.$acceptModelChanged(resource.toString(), {
+						changes: [{
+							range,
+							rangeLength: undefined,
+							text: newText
+						}],
+						eol: undefined,
+						versionId: documents.getDocumentData(resource).version + 1
+					}, true);
 				}
 				return TPromise.as(true);
 			}

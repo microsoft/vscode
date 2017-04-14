@@ -24,7 +24,7 @@ import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecyc
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IEditorAction, ICommonCodeEditor, IModelContentChangedEvent, IModelOptionsChangedEvent, IModelLanguageChangedEvent, ICursorPositionChangedEvent, EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction, ICommonCodeEditor, IModelRawContentChangedEvent, IModelOptionsChangedEvent, IModelLanguageChangedEvent, ICursorPositionChangedEvent, EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
 import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/common/indentation';
@@ -504,7 +504,7 @@ export class EditorStatus implements IStatusbarItem {
 			}));
 
 			// Hook Listener for content changes
-			this.activeEditorListeners.push(control.onDidChangeModelRawContent((event: IModelContentChangedEvent) => {
+			this.activeEditorListeners.push(control.onDidChangeModelRawContent((event: IModelRawContentChangedEvent) => {
 				this.onEOLChange(control);
 			}));
 

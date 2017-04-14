@@ -34,8 +34,8 @@ let EDITOR_ID = 0;
 
 export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
 
-	public readonly onDidChangeModelRawContent: Event<editorCommon.IModelContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelRawContentChanged);
-	public readonly onDidChangeModelContent: Event<editorCommon.IModelContentChangedEvent2> = fromEventEmitter(this, editorCommon.EventType.ModelContentChanged2);
+	public readonly onDidChangeModelRawContent: Event<editorCommon.IModelRawContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelRawContentChanged);
+	public readonly onDidChangeModelContent: Event<editorCommon.IModelContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelContentChanged);
 	public readonly onDidChangeModelLanguage: Event<editorCommon.IModelLanguageChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelLanguageChanged);
 	public readonly onDidChangeModelOptions: Event<editorCommon.IModelOptionsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelOptionsChanged);
 	public readonly onDidChangeModelDecorations: Event<editorCommon.IModelDecorationsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelDecorationsChanged);
@@ -785,8 +785,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							this.emit(editorCommon.EventType.ModelRawContentChanged, e);
 							break;
 
-						case editorCommon.EventType.ModelContentChanged2:
-							this.emit(editorCommon.EventType.ModelContentChanged2, e);
+						case editorCommon.EventType.ModelContentChanged:
+							this.emit(editorCommon.EventType.ModelContentChanged, e);
 							break;
 
 						case editorCommon.EventType.ModelOptionsChanged:
