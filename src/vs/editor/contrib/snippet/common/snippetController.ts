@@ -141,6 +141,8 @@ export class InsertSnippetController {
 		// };
 		// print();
 
+		let _highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
+
 		this.listenersToRemove = [];
 		this.listenersToRemove.push(this.editor.onDidChangeModelContent((e) => {
 			// console.log('-------MODEL CHANGED');
@@ -162,17 +164,18 @@ export class InsertSnippetController {
 				return;
 			}
 
-			const highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
-
 			for (let i = 0, len = e.changes.length; i < len; i++) {
 				const change = e.changes[i];
-				const intersection = highlightRange.intersectRanges(change.range);
+				const intersection = _highlightRange.intersectRanges(change.range);
 				if (intersection === null) {
 					// Did an edit outside of the snippet
 					this.stopAll();
 					return;
 				}
 			}
+
+			// Keep the highlightRange for the next round of model change events
+			_highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
 		}));
 
 		this.listenersToRemove.push(this.editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
@@ -180,6 +183,10 @@ export class InsertSnippetController {
 				return;
 			}
 			var highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
+			if (!highlightRange) {
+				this.stopAll();
+				return;
+			}
 			var lineNumber = e.position.lineNumber;
 			if (lineNumber < highlightRange.startLineNumber || lineNumber > highlightRange.endLineNumber) {
 				this.stopAll();
