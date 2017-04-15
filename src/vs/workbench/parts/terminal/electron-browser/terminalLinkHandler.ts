@@ -12,6 +12,7 @@ import Uri from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -20,13 +21,15 @@ const pathSeparatorClause = '\\/';
 const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;]'; // '":; are allowed in paths but they are often separators so ignore them
 const escapedExcludedPathCharactersClause = '(\\\\s|\\\\!|\\\\$|\\\\`|\\\\&|\\\\*|(|)|\\+)';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
-const UNIX_LIKE_LOCAL_LINK_REGEX = new RegExp('((' + pathPrefix + '|(' + excludedPathCharactersClause + '|' + escapedExcludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + '|' + escapedExcludedPathCharactersClause + ')+)+)');
+const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + '|' + escapedExcludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + '|' + escapedExcludedPathCharactersClause + ')+)+)';
+// const UNIX_LIKE_LOCAL_LINK_REGEX = new RegExp(unixLocalLinkClause);
 const winDrivePrefix = '[a-zA-Z]:';
 const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
 const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]';
 /** A regex that matches paths in the form c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
-const WINDOWS_LOCAL_LINK_REGEX = new RegExp('((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)');
+const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
+// const WINDOWS_LOCAL_LINK_REGEX = new RegExp(winLocalLinkClause);
 /** Higher than local link, lower than hypertext */
 const CUSTOM_LINK_PRIORITY = -1;
 /** Lowest */
@@ -39,12 +42,40 @@ export class TerminalLinkHandler {
 	private _tooltipDisposables: IDisposable[] = [];
 	private _widgetManager: TerminalWidgetManager;
 
+	// Changing any regex may effect this value, hence changes this as well if required.
+	private _lineAndColumnMatchIndex = 12;
+	private _lineAndColumnClauses = [
+		'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
+		'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
+		'(([^\\s\\(\\)]*)(\\s?\\((\\d+)(,(\\d+))?)\\))', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18)
+		'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
+	];
+
+	private _winLocalLinkPattern: RegExp;
+	private _unixLocalLinkPattern: RegExp;
+
 	constructor(
 		private _xterm: any,
 		private _platform: platform.Platform,
+		@IOpenerService private _openerService: IOpenerService,
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
+
+		// As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
+		// replacing space with nonBreakningSpace.
+		this._lineAndColumnClauses = this._lineAndColumnClauses
+			.map(clause => clause.replace(/ /g, `${'\u00A0'}`));
+
+		// Append line and column number regex in both Windows and Unix system.
+		this._winLocalLinkPattern = new RegExp(
+			`${winLocalLinkClause}(${this._lineAndColumnClauses.join('|')})`
+		);
+
+		this._unixLocalLinkPattern = new RegExp(
+			`${unixLocalLinkClause}(${this._lineAndColumnClauses.join('|')})`
+		);
+
 		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(() => true));
 		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
 			this._validateWebLink(uri, element, callback);
@@ -76,8 +107,8 @@ export class TerminalLinkHandler {
 			this._handleLocalLink(url);
 			return;
 		});
+
 		return this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
-			matchIndex: 1,
 			validationCallback: (link: string, element: HTMLElement, callback: (isValid: boolean) => void) => this._validateLocalLink(link, element, callback),
 			priority: LOCAL_LINK_PRIORITY
 		});
@@ -100,9 +131,9 @@ export class TerminalLinkHandler {
 
 	protected get _localLinkRegex(): RegExp {
 		if (this._platform === platform.Platform.Windows) {
-			return WINDOWS_LOCAL_LINK_REGEX;
+			return this._winLocalLinkPattern;
 		}
-		return UNIX_LIKE_LOCAL_LINK_REGEX;
+		return this._unixLocalLinkPattern;
 	}
 
 	private _handleLocalLink(link: string): TPromise<void> {
@@ -110,8 +141,25 @@ export class TerminalLinkHandler {
 			if (!resolvedLink) {
 				return void 0;
 			}
-			const resource = Uri.file(path.normalize(path.resolve(resolvedLink)));
-			return this._editorService.openEditor({ resource }).then(() => void 0);
+
+			let normalizedPath = path.normalize(path.resolve(resolvedLink));
+			const normalizedUrl = this._extractLinkUrl(normalizedPath);
+
+			const lineColumnInfo = this._extractLineColumnInfo(normalizedPath);
+			if (lineColumnInfo.lineNumber) {
+				normalizedPath += `#${lineColumnInfo.lineNumber}`;
+
+				if (lineColumnInfo.columnNumber) {
+					normalizedPath += `,${lineColumnInfo.columnNumber}`;
+				}
+			}
+
+			let resource = Uri.file(normalizedUrl);
+			resource = resource.with({
+				fragment: Uri.parse(normalizedPath).fragment
+			});
+
+			return this._openerService.open(resource);
 		});
 	}
 
@@ -188,12 +236,54 @@ export class TerminalLinkHandler {
 			return TPromise.as(void 0);
 		}
 
+		const linkUrl = this._extractLinkUrl(link);
 		// Open an editor if the path exists
-		return pfs.fileExists(link).then(isFile => {
+		return pfs.fileExists(linkUrl).then(isFile => {
 			if (!isFile) {
 				return null;
 			}
 			return link;
 		});
+	}
+
+	/**
+	 * Returns line and column number of URl if that is present.
+	 *
+	 * @param link Url link which may contain line and column number.
+	 */
+	private _extractLineColumnInfo(link: string) {
+		const matches: string[] = this._localLinkRegex.exec(link);
+
+		let lineColumnClauseLength = this._lineAndColumnClauses.length;
+		let lineColumnInfo: any = {};
+
+		for (let i = 0; i < lineColumnClauseLength; i++) {
+			let lineMatchIndex = this._lineAndColumnMatchIndex + 6 * i;
+
+			const rowNumber = matches[lineMatchIndex];
+			if (rowNumber) {
+				lineColumnInfo['lineNumber'] = rowNumber;
+
+				// check if column number exists
+				const columnNumber = matches[lineMatchIndex + 2];
+				if (columnNumber) {
+					lineColumnInfo['columnNumber'] = columnNumber;
+				}
+
+				break;
+			}
+		}
+
+		return lineColumnInfo;
+	}
+
+	/**
+	 * Returns url from link as link may contain line and column information.
+	 *
+	 * @param link url link which may contain line and column number.
+	 */
+	private _extractLinkUrl(link: string): string {
+		const matches: string[] = this._localLinkRegex.exec(link);
+		return matches[1];
 	}
 }
