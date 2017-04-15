@@ -2363,7 +2363,7 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * @internal
 	 * @event
 	 */
-	onDidChangeRawContent(listener: (e: IModelRawContentChangedEvent) => void): IDisposable;
+	onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the contents of the model have changed.
 	 * @event
@@ -2487,84 +2487,119 @@ export interface IModelContentChangedEvent {
 	readonly isFlush: boolean;
 }
 /**
- * An event describing a change in the text of a model.
  * @internal
  */
-export interface IModelRawContentChangedEvent {
-	/**
-	 * The event type. It can be used to detect the actual event type:
-	 * 		EditorCommon.EventType.ModelContentChangedFlush => IModelContentChangedFlushEvent
-	 * 		EditorCommon.EventType.ModelContentChangedLinesDeleted => IModelContentChangedLineChangedEvent
-	 * 		EditorCommon.EventType.ModelContentChangedLinesInserted => IModelContentChangedLinesDeletedEvent
-	 * 		EditorCommon.EventType.ModelContentChangedLineChanged => IModelContentChangedLinesInsertedEvent
-	 */
-	readonly changeType: string;
-	/**
-	 * The new version id the model has transitioned to.
-	 */
-	versionId: number;
-	/**
-	 * Flag that indicates that this event was generated while undoing.
-	 */
-	readonly isUndoing: boolean;
-	/**
-	 * Flag that indicates that this event was generated while redoing.
-	 */
-	readonly isRedoing: boolean;
+export const enum RawContentChangedType {
+	Flush = 1,
+	LineChanged = 2,
+	LinesDeleted = 3,
+	LinesInserted = 4
 }
-
 /**
  * An event describing that a model has been reset to a new value.
  * @internal
  */
-export interface IModelRawContentChangedFlushEvent extends IModelRawContentChangedEvent {
+export class ModelRawFlush {
+	public readonly type = RawContentChangedType.Flush;
 }
 /**
  * An event describing that a line has changed in a model.
  * @internal
  */
-export interface IModelRawContentChangedLineChangedEvent extends IModelRawContentChangedEvent {
+export class ModelRawLineChanged {
+	public readonly type = RawContentChangedType.LineChanged;
 	/**
 	 * The line that has changed.
 	 */
-	readonly lineNumber: number;
+	public readonly lineNumber: number;
 	/**
 	 * The new value of the line.
 	 */
-	readonly detail: string;
+	public readonly detail: string;
+
+	constructor(lineNumber: number, detail: string) {
+		this.lineNumber = lineNumber;
+		this.detail = detail;
+	}
 }
 /**
  * An event describing that line(s) have been deleted in a model.
  * @internal
  */
-export interface IModelRawContentChangedLinesDeletedEvent extends IModelRawContentChangedEvent {
+export class ModelRawLinesDeleted {
+	public readonly type = RawContentChangedType.LinesDeleted;
 	/**
 	 * At what line the deletion began (inclusive).
 	 */
-	readonly fromLineNumber: number;
+	public readonly fromLineNumber: number;
 	/**
 	 * At what line the deletion stopped (inclusive).
 	 */
-	readonly toLineNumber: number;
+	public readonly toLineNumber: number;
+
+	constructor(fromLineNumber: number, toLineNumber: number) {
+		this.fromLineNumber = fromLineNumber;
+		this.toLineNumber = toLineNumber;
+	}
 }
 /**
  * An event describing that line(s) have been inserted in a model.
  * @internal
  */
-export interface IModelRawContentChangedLinesInsertedEvent extends IModelRawContentChangedEvent {
+export class ModelRawLinesInserted {
+	public readonly type = RawContentChangedType.LinesInserted;
 	/**
 	 * Before what line did the insertion begin
 	 */
-	readonly fromLineNumber: number;
+	public readonly fromLineNumber: number;
 	/**
 	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
 	 */
-	readonly toLineNumber: number;
+	public readonly toLineNumber: number;
 	/**
 	 * The text that was inserted
 	 */
-	readonly detail: string;
+	public readonly detail: string;
+
+	constructor(fromLineNumber: number, toLineNumber: number, detail: string) {
+		this.fromLineNumber = fromLineNumber;
+		this.toLineNumber = toLineNumber;
+		this.detail = detail;
+	}
 }
+/**
+ * @internal
+ */
+export type ModelRawChange = ModelRawFlush | ModelRawLineChanged | ModelRawLinesDeleted | ModelRawLinesInserted;
+
+/**
+ * An event describing a change in the text of a model.
+ * @internal
+ */
+export class ModelRawContentChangedEvent {
+
+	public readonly changes: ModelRawChange[];
+	/**
+	 * The new version id the model has transitioned to.
+	 */
+	public readonly versionId: number;
+	/**
+	 * Flag that indicates that this event was generated while undoing.
+	 */
+	public readonly isUndoing: boolean;
+	/**
+	 * Flag that indicates that this event was generated while redoing.
+	 */
+	public readonly isRedoing: boolean;
+
+	constructor(changes: ModelRawChange[], versionId: number, isUndoing: boolean, isRedoing: boolean) {
+		this.changes = changes;
+		this.versionId = versionId;
+		this.isUndoing = isUndoing;
+		this.isRedoing = isRedoing;
+	}
+}
+
 /**
  * An event describing that model decorations have changed.
  */
@@ -4126,11 +4161,7 @@ export var EventType = {
 	ModelLanguageChanged: 'modelLanguageChanged',
 	ModelOptionsChanged: 'modelOptionsChanged',
 	ModelContentChanged: 'contentChanged',
-	ModelRawContentChanged: 'rawContentChanged',
-	ModelRawContentChangedFlush: 'flush',
-	ModelRawContentChangedLinesDeleted: 'linesDeleted',
-	ModelRawContentChangedLinesInserted: 'linesInserted',
-	ModelRawContentChangedLineChanged: 'lineChanged',
+	ModelRawContentChanged2: 'rawContentChanged2',
 
 	EditorTextBlur: 'blur',
 	EditorTextFocus: 'focus',

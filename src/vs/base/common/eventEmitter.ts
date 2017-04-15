@@ -247,8 +247,8 @@ export class OrderGuaranteeEventEmitter extends EventEmitter {
 
 	private _emitQueue: EmitQueueElement[];
 
-	constructor(allowedEventTypes: string[] = null) {
-		super(allowedEventTypes);
+	constructor() {
+		super(null);
 		this._emitQueue = [];
 	}
 

@@ -751,7 +751,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		let changed = false;
 		for (let i = 0; !changed && i < events.length; i++) {
 			let type = events[i].type;
-			changed = changed || type === editorCommon.EventType.ModelRawContentChanged;
+			changed = changed || type === editorCommon.EventType.ModelRawContentChanged2;
 		}
 		if (changed && this._isVisible) {
 			// Clear previous timeout if necessary

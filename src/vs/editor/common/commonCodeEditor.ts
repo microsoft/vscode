@@ -780,8 +780,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 							this.emit(editorCommon.EventType.ModelLanguageChanged, e);
 							break;
 
-						case editorCommon.EventType.ModelRawContentChanged:
-							this.emit(editorCommon.EventType.ModelRawContentChanged, e);
+						case editorCommon.EventType.ModelRawContentChanged2:
+							this.emit(editorCommon.EventType.ModelRawContentChanged2, e);
 							break;
 
 						case editorCommon.EventType.ModelContentChanged:

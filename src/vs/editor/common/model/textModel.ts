@@ -39,7 +39,7 @@ export class TextModel implements editorCommon.ITextModel {
 	};
 
 	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): TextModel {
-		return new TextModel([], RawTextSource.fromString(text), options);
+		return new TextModel(RawTextSource.fromString(text), options);
 	}
 
 	public static resolveCreationData(rawTextSource: IRawTextSource, options: editorCommon.ITextModelCreationOptions): ITextModelCreationData {
@@ -95,9 +95,8 @@ export class TextModel implements editorCommon.ITextModel {
 	private _shouldSimplifyMode: boolean;
 	private _shouldDenyMode: boolean;
 
-	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
-		allowedEventTypes.push(editorCommon.EventType.ModelRawContentChanged, editorCommon.EventType.ModelOptionsChanged, editorCommon.EventType.ModelContentChanged);
-		this._eventEmitter = new OrderGuaranteeEventEmitter(allowedEventTypes);
+	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
+		this._eventEmitter = new OrderGuaranteeEventEmitter();
 
 		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
 
@@ -282,7 +281,7 @@ export class TextModel implements editorCommon.ITextModel {
 		this._setVersionId(this._versionId + 1);
 	}
 
-	protected _setVersionId(newVersionId: number): void {
+	private _setVersionId(newVersionId: number): void {
 		this._versionId = newVersionId;
 		this._alternativeVersionId = this._versionId;
 	}
@@ -303,16 +302,6 @@ export class TextModel implements editorCommon.ITextModel {
 		this._BOM = null;
 
 		this._eventEmitter.dispose();
-	}
-
-	private _createContentChangedFlushEvent(): editorCommon.IModelRawContentChangedFlushEvent {
-		return {
-			changeType: editorCommon.EventType.ModelRawContentChangedFlush,
-			versionId: this._versionId,
-			// TODO@Alex -> remove these fields from here
-			isUndoing: false,
-			isRedoing: false
-		};
 	}
 
 	private _emitContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): void {
@@ -380,7 +369,16 @@ export class TextModel implements editorCommon.ITextModel {
 
 		this._resetValue(newValue);
 
-		this._emitModelContentChangedFlushEvent(this._createContentChangedFlushEvent());
+		this._emitModelRawContentChangedEvent(
+			new editorCommon.ModelRawContentChangedEvent(
+				[
+					new editorCommon.ModelRawFlush()
+				],
+				this._versionId,
+				false,
+				false
+			)
+		);
 
 		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, true);
 	}
@@ -620,7 +618,16 @@ export class TextModel implements editorCommon.ITextModel {
 		this._lineStarts = null;
 		this._increaseVersionId();
 
-		this._emitModelContentChangedFlushEvent(this._createContentChangedFlushEvent());
+		this._emitModelRawContentChangedEvent(
+			new editorCommon.ModelRawContentChangedEvent(
+				[
+					new editorCommon.ModelRawFlush()
+				],
+				this._versionId,
+				false,
+				false
+			)
+		);
 
 		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, false);
 	}
@@ -771,10 +778,12 @@ export class TextModel implements editorCommon.ITextModel {
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
-	protected _emitModelContentChangedFlushEvent(e: editorCommon.IModelRawContentChangedFlushEvent): void {
-		if (!this._isDisposing) {
-			this._eventEmitter.emit(editorCommon.EventType.ModelRawContentChanged, e);
+	protected _emitModelRawContentChangedEvent(e: editorCommon.ModelRawContentChangedEvent): void {
+		if (this._isDisposing) {
+			// Do not confuse listeners by emitting any event after disposing
+			return;
 		}
+		this._eventEmitter.emit(editorCommon.EventType.ModelRawContentChanged2, e);
 	}
 
 	private _constructLines(textSource: ITextSource): void {

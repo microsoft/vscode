@@ -449,7 +449,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			let hadChange = false;
 			for (let i = 0; i < events.length; i++) {
 				const eventType = events[i].type;
-				if (eventType === editorCommon.EventType.ModelRawContentChanged) {
+				if (eventType === editorCommon.EventType.ModelRawContentChanged2) {
 					hadChange = true;
 					break;
 				}

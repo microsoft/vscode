@@ -45,7 +45,7 @@ export class Model extends EditableTextModel implements IModel {
 	private _attachedEditorCount: number;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: ITextModelCreationOptions, languageIdentifier: LanguageIdentifier, associatedResource: URI = null) {
-		super([EventType.ModelDispose], rawTextSource, creationOptions, languageIdentifier);
+		super(rawTextSource, creationOptions, languageIdentifier);
 
 		// Generate a new unique model id
 		MODEL_ID++;

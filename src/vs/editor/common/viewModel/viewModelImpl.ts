@@ -237,7 +237,7 @@ export class ViewModel implements IViewModel {
 	private static _containsModelContentChangeEvent(events: EmitterEvent[]): boolean {
 		for (let i = 0, len = events.length; i < len; i++) {
 			let eventType = events[i].type;
-			if (eventType === editorCommon.EventType.ModelRawContentChanged) {
+			if (eventType === editorCommon.EventType.ModelRawContentChanged2) {
 				return true;
 			}
 		}
@@ -294,53 +294,73 @@ export class ViewModel implements IViewModel {
 		let revealPreviousCenteredModelRange = false;
 
 		for (let i = 0, len = events.length; i < len; i++) {
-			let e = events[i];
-			let data = e.data;
+			const _e = events[i];
+			const type = _e.type;
+			const data = _e.data;
 
-			switch (e.type) {
+			switch (type) {
 
-				case editorCommon.EventType.ModelRawContentChanged:
-					let modelContentChangedEvent = <editorCommon.IModelRawContentChangedEvent>data;
+				case editorCommon.EventType.ModelRawContentChanged2: {
+					const e = <editorCommon.ModelRawContentChangedEvent>data;
 
-					switch (modelContentChangedEvent.changeType) {
-						case editorCommon.EventType.ModelRawContentChangedFlush:
-							this.onModelFlushed(eventsCollector, <editorCommon.IModelRawContentChangedFlushEvent>modelContentChangedEvent);
-							hadOtherModelChange = true;
-							break;
+					for (let j = 0, lenJ = e.changes.length; j < lenJ; j++) {
+						const change = e.changes[j];
 
-						case editorCommon.EventType.ModelRawContentChangedLinesDeleted:
-							this.onModelLinesDeleted(eventsCollector, <editorCommon.IModelRawContentChangedLinesDeletedEvent>modelContentChangedEvent);
-							hadOtherModelChange = true;
-							break;
+						switch (change.type) {
+							case editorCommon.RawContentChangedType.Flush:
+								this.lines.onModelFlushed(eventsCollector);
+								this.decorations.reset();
+								hadOtherModelChange = true;
+								break;
 
-						case editorCommon.EventType.ModelRawContentChangedLinesInserted:
-							this.onModelLinesInserted(eventsCollector, <editorCommon.IModelRawContentChangedLinesInsertedEvent>modelContentChangedEvent);
-							hadOtherModelChange = true;
-							break;
+							case editorCommon.RawContentChangedType.LinesDeleted:
+								this.lines.onModelLinesDeleted(eventsCollector, change.fromLineNumber, change.toLineNumber);
+								hadOtherModelChange = true;
+								break;
 
-						case editorCommon.EventType.ModelRawContentChangedLineChanged:
-							hadModelLineChangeThatChangedLineMapping = this.onModelLineChanged(eventsCollector, <editorCommon.IModelRawContentChangedLineChangedEvent>modelContentChangedEvent);
-							break;
+							case editorCommon.RawContentChangedType.LinesInserted:
+								this.lines.onModelLinesInserted(eventsCollector, change.fromLineNumber, change.toLineNumber, change.detail.split('\n'));
+								hadOtherModelChange = true;
+								break;
 
-						default:
-							console.info('ViewModel received unknown event: ');
-							console.info(e);
+							case editorCommon.RawContentChangedType.LineChanged:
+								hadModelLineChangeThatChangedLineMapping = this.lines.onModelLineChanged(eventsCollector, change.lineNumber, change.detail);
+								break;
+
+							default:
+								console.info('ViewModel received unknown event: ');
+								console.info(_e);
+						}
 					}
-					break;
+					this.lines.acceptVersionId(e.versionId);
 
-				case editorCommon.EventType.ModelTokensChanged:
-					this.onModelTokensChanged(eventsCollector, <editorCommon.IModelTokensChangedEvent>data);
 					break;
+				}
+				case editorCommon.EventType.ModelTokensChanged: {
+					const e = <editorCommon.IModelTokensChangedEvent>data;
 
-				case editorCommon.EventType.ModelLanguageChanged:
+					let viewRanges: { fromLineNumber: number; toLineNumber: number; }[] = [];
+					for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
+						const modelRange = e.ranges[j];
+						const viewStartLineNumber = this.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.fromLineNumber, 1)).lineNumber;
+						const viewEndLineNumber = this.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.toLineNumber, this.model.getLineMaxColumn(modelRange.toLineNumber))).lineNumber;
+						viewRanges[j] = {
+							fromLineNumber: viewStartLineNumber,
+							toLineNumber: viewEndLineNumber
+						};
+					}
+					eventsCollector.emit(new viewEvents.ViewTokensChangedEvent(viewRanges));
+					break;
+				}
+				case editorCommon.EventType.ModelLanguageChanged: {
 					// That's ok, a model tokens changed event will follow shortly
 					break;
-
-				case editorCommon.EventType.ModelContentChanged:
+				}
+				case editorCommon.EventType.ModelContentChanged: {
 					// Ignore
 					break;
-
-				case editorCommon.EventType.ModelOptionsChanged:
+				}
+				case editorCommon.EventType.ModelOptionsChanged: {
 					// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
 					let prevLineCount = this.lines.getViewLineCount();
 					let tabSizeChanged = this._onTabSizeChange(eventsCollector, this.model.getOptions().tabSize);
@@ -350,50 +370,56 @@ export class ViewModel implements IViewModel {
 					}
 
 					break;
-
-				case editorCommon.EventType.ModelDecorationsChanged:
-					this.onModelDecorationsChanged(eventsCollector, <editorCommon.IModelDecorationsChangedEvent>data);
+				}
+				case editorCommon.EventType.ModelDecorationsChanged: {
+					const e = <editorCommon.IModelDecorationsChangedEvent>data;
+					this.decorations.onModelDecorationsChanged(eventsCollector, e);
 					break;
-
-				case editorCommon.EventType.ModelDispose:
+				}
+				case editorCommon.EventType.ModelDispose: {
 					// Ignore, since the editor will take care of this and destroy the view shortly
 					break;
-
-				case editorCommon.EventType.CursorPositionChanged:
-					this.onCursorPositionChanged(eventsCollector, <editorCommon.ICursorPositionChangedEvent>data);
-					this._lastCursorPosition = (<editorCommon.ICursorPositionChangedEvent>data).position;
+				}
+				case editorCommon.EventType.CursorPositionChanged: {
+					const e = <editorCommon.ICursorPositionChangedEvent>data;
+					this.cursors.onCursorPositionChanged(eventsCollector, e);
+					this._lastCursorPosition = e.position;
 					break;
-
-				case editorCommon.EventType.CursorSelectionChanged:
-					this.onCursorSelectionChanged(eventsCollector, <editorCommon.ICursorSelectionChangedEvent>data);
+				}
+				case editorCommon.EventType.CursorSelectionChanged: {
+					const e = <editorCommon.ICursorSelectionChangedEvent>data;
+					this.cursors.onCursorSelectionChanged(eventsCollector, e);
 					break;
-
-				case editorCommon.EventType.CursorRevealRange:
-					this.onCursorRevealRange(eventsCollector, <editorCommon.ICursorRevealRangeEvent>data);
+				}
+				case editorCommon.EventType.CursorRevealRange: {
+					const e = <editorCommon.ICursorRevealRangeEvent>data;
+					this.cursors.onCursorRevealRange(eventsCollector, e);
 					break;
-
-				case editorCommon.EventType.CursorScrollRequest:
-					this.onCursorScrollRequest(eventsCollector, <editorCommon.ICursorScrollRequestEvent>data);
+				}
+				case editorCommon.EventType.CursorScrollRequest: {
+					const e = <editorCommon.ICursorScrollRequestEvent>data;
+					this.cursors.onCursorScrollRequest(eventsCollector, e);
 					break;
-
-				case editorCommon.EventType.ConfigurationChanged:
+				}
+				case editorCommon.EventType.ConfigurationChanged: {
+					const e = <editorCommon.IConfigurationChangedEvent>data;
 					revealPreviousCenteredModelRange = this._onWrappingIndentChange(eventsCollector, this.configuration.editor.wrappingInfo.wrappingIndent) || revealPreviousCenteredModelRange;
 					revealPreviousCenteredModelRange = this._onWrappingColumnChange(eventsCollector, this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
 
 					this._renderCustomLineNumbers = this.configuration.editor.viewInfo.renderCustomLineNumbers;
 					this._renderRelativeLineNumbers = this.configuration.editor.viewInfo.renderRelativeLineNumbers;
 
-					if ((<editorCommon.IConfigurationChangedEvent>data).readOnly) {
+					if (e.readOnly) {
 						// Must read again all decorations due to readOnly filtering
 						this.decorations.reset();
 						eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 					}
-					eventsCollector.emit(new viewEvents.ViewConfigurationChangedEvent(<editorCommon.IConfigurationChangedEvent>data));
+					eventsCollector.emit(new viewEvents.ViewConfigurationChangedEvent(e));
 					break;
-
+				}
 				default:
 					console.info('View received unknown event: ');
-					console.info(e);
+					console.info(type, data);
 			}
 		}
 
@@ -407,64 +433,6 @@ export class ViewModel implements IViewModel {
 			this._restoreCenteredModelRange(eventsCollector, previousCenteredModelRange);
 		}
 	}
-
-	// --- begin inbound event conversion
-	private onModelFlushed(eventsCollector: ViewEventsCollector, e: editorCommon.IModelRawContentChangedFlushEvent): void {
-		this.lines.onModelFlushed(eventsCollector, e.versionId);
-		this.decorations.reset();
-	}
-	private onModelDecorationsChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelDecorationsChangedEvent): void {
-		this.decorations.onModelDecorationsChanged(eventsCollector, e);
-	}
-	private onModelLinesDeleted(eventsCollector: ViewEventsCollector, e: editorCommon.IModelRawContentChangedLinesDeletedEvent): void {
-		this.lines.onModelLinesDeleted(eventsCollector, e.versionId, e.fromLineNumber, e.toLineNumber);
-	}
-	private onModelTokensChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelTokensChangedEvent): void {
-		let viewRanges: { fromLineNumber: number; toLineNumber: number; }[] = [];
-
-		for (let i = 0, len = e.ranges.length; i < len; i++) {
-			let modelRange = e.ranges[i];
-			let viewStartLineNumber = this.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.fromLineNumber, 1)).lineNumber;
-			let viewEndLineNumber = this.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.toLineNumber, this.model.getLineMaxColumn(modelRange.toLineNumber))).lineNumber;
-			viewRanges[i] = {
-				fromLineNumber: viewStartLineNumber,
-				toLineNumber: viewEndLineNumber
-			};
-		}
-
-		eventsCollector.emit(new viewEvents.ViewTokensChangedEvent(viewRanges));
-	}
-	private onModelLineChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelRawContentChangedLineChangedEvent): boolean {
-		var lineMappingChanged = this.lines.onModelLineChanged(eventsCollector, e.versionId, e.lineNumber, e.detail);
-		return lineMappingChanged;
-	}
-	private onModelLinesInserted(eventsCollector: ViewEventsCollector, e: editorCommon.IModelRawContentChangedLinesInsertedEvent): void {
-		this.lines.onModelLinesInserted(eventsCollector, e.versionId, e.fromLineNumber, e.toLineNumber, e.detail.split('\n'));
-	}
-
-	private onCursorPositionChanged(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorPositionChangedEvent): void {
-		this.cursors.onCursorPositionChanged(eventsCollector, e);
-	}
-	private onCursorSelectionChanged(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorSelectionChangedEvent): void {
-		this.cursors.onCursorSelectionChanged(eventsCollector, e);
-	}
-	private onCursorRevealRange(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorRevealRangeEvent): void {
-		// Ensure event has viewRange
-		if (!e.viewRange) {
-			e = {
-				range: e.range,
-				viewRange: this.coordinatesConverter.convertModelRangeToViewRange(e.range),
-				verticalType: e.verticalType,
-				revealHorizontal: e.revealHorizontal,
-				revealCursor: e.revealCursor,
-			};
-		}
-		this.cursors.onCursorRevealRange(eventsCollector, e);
-	}
-	private onCursorScrollRequest(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorScrollRequestEvent): void {
-		this.cursors.onCursorScrollRequest(eventsCollector, e);
-	}
-	// --- end inbound event conversion
 
 	public getTabSize(): number {
 		return this.model.getOptions().tabSize;
