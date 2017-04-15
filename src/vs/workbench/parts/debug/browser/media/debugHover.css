@@ -69,7 +69,6 @@
 	color: rgba(108, 108, 108, 0.8);
 	overflow: auto;
 	max-height: 500px;
-	z-index: 60;
 }
 
 .monaco-editor .debug-hover-widget .error {
