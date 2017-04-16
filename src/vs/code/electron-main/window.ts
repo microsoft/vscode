@@ -379,12 +379,6 @@ export class VSCodeWindow {
 		// App commands support
 		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward');
 
-		// Swipe command support (macOS)
-		const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
-		if (config.workbench.editor.swipeToNavigateTabs) {
-			this.registerNavigationListenerOn('swipe', 'left', 'right');
-		}
-
 		// Handle code that wants to open links
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
 			event.preventDefault();
@@ -437,11 +431,20 @@ export class VSCodeWindow {
 	}
 
 	private onConfigurationUpdated(config: IConfiguration): void {
-		const newMenuBarVisibility = this.getMenuBarVisibility(config);
+		const newMenuBarVisibility = this.getMenuBarVisibility();
 		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
 		}
+
+		// Swipe command support (macOS)
+		const workbenchConfig = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		if (workbenchConfig.workbench.editor.swipeToNavigateTabs) {
+			this.registerNavigationListenerOn('swipe', 'left', 'right');
+		} else {
+			this._win.removeAllListeners('swipe');
+		}
+
 	};
 
 	public load(config: IWindowConfiguration): void {
@@ -706,7 +709,7 @@ export class VSCodeWindow {
 		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
 	}
 
-	private getMenuBarVisibility(configuration: IConfiguration): MenuBarVisibility {
+	private getMenuBarVisibility(): MenuBarVisibility {
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
