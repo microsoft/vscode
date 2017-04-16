@@ -439,7 +439,7 @@ export class VSCodeWindow {
 
 		// Swipe command support (macOS)
 		const workbenchConfig = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
-		if (workbenchConfig && workbenchConfig.workbench && workbenchConfig.workbench.editor.swipeToNavigateTabs) {
+		if (workbenchConfig && workbenchConfig.workbench && workbenchConfig.workbench.editor.swipeBetweenOpenFiles) {
 			this.registerNavigationListenerOn('swipe', 'left', 'right');
 		} else {
 			this._win.removeAllListeners('swipe');
