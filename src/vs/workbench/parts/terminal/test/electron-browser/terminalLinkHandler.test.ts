@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { Platform } from 'vs/base/common/platform';
-import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
+import { TerminalLinkHandler, LineColumnInfo } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 import * as path from 'path';
@@ -47,41 +47,261 @@ class TestWorkspace implements IWorkspace {
 suite('Workbench - TerminalLinkHandler', () => {
 	suite('localLinkRegex', () => {
 		test('Windows', () => {
-			const regex = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null).localLinkRegex;
-			function testLink(link: string) {
-				assert.equal(` ${link} `.match(regex)[1], link);
-				assert.equal(`:${link}:`.match(regex)[1], link);
-				assert.equal(`;${link};`.match(regex)[1], link);
-				assert.equal(`(${link})`.match(regex)[1], link);
+			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, null, null, null);
+			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
+				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
+				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
+				assert.equal(terminalLinkHandler.extractLinkUrl(`;${link};`), linkUrl);
+				assert.equal(terminalLinkHandler.extractLinkUrl(`(${link})`), linkUrl);
+
+				if (lineNo) {
+					const lineColumnInfo: LineColumnInfo = terminalLinkHandler.extractLineColumnInfo(link);
+					assert.equal(lineColumnInfo.lineNumber, lineNo);
+
+					if (columnNo) {
+						assert.equal(lineColumnInfo.columnNumber, columnNo);
+					}
+				}
 			}
-			testLink('c:\\foo');
-			testLink('c:/foo');
-			testLink('.\\foo');
-			testLink('./foo');
-			testLink('..\\foo');
-			testLink('../foo');
-			testLink('~\\foo');
-			testLink('~/foo');
-			testLink('c:/a/long/path');
-			testLink('c:\\a\\long\\path');
-			testLink('c:\\mixed/slash\\path');
-			testLink('a/relative/path');
+
+			testLink('c:\\foo', 'c:\\foo');
+			testLink('c:/foo', 'c:/foo');
+			testLink('.\\foo', '.\\foo');
+			testLink('./foo', './foo');
+			testLink('..\\foo', '..\\foo');
+			testLink('../foo', '../foo');
+			testLink('~\\foo', '~\\foo');
+			testLink('~/foo', '~/foo');
+			testLink('c:/a/long/path', 'c:/a/long/path');
+			testLink('c:\\a\\long\\path', 'c:\\a\\long\\path');
+			testLink('c:\\mixed/slash\\path', 'c:\\mixed/slash\\path');
+			testLink('a/relative/path', 'a/relative/path');
+
+			// With line and column number.
+			testLink('c:\\foo:5', 'c:\\foo', '5');
+			testLink('c:\\foo:5:3', 'c:\\foo', '5', '3');
+			testLink('c:\\foo:line 5', 'c:\\foo', '5');
+			testLink('c:\\foo:line 5, column 3', 'c:\\foo', '5', '3');
+			testLink('c:\\foo(5)', 'c:\\foo', '5');
+			testLink('c:\\foo(5,3)', 'c:\\foo', '5', '3');
+			testLink('c:\\foo (5)', 'c:\\foo', '5');
+			testLink('c:\\foo (5,3)', 'c:\\foo', '5', '3');
+			testLink('c:\\foo on line 5', 'c:\\foo', '5');
+			testLink('c:\\foo on line 5, column 3', 'c:\\foo', '5', '3');
+
+			testLink('c:/foo:5', 'c:/foo', '5');
+			testLink('c:/foo:5:3', 'c:/foo', '5', '3');
+			testLink('c:/foo:line 5', 'c:/foo', '5');
+			testLink('c:/foo:line 5, column 3', 'c:/foo', '5', '3');
+			testLink('c:/foo(5)', 'c:/foo', '5');
+			testLink('c:/foo(5,3)', 'c:/foo', '5', '3');
+			testLink('c:/foo (5)', 'c:/foo', '5');
+			testLink('c:/foo (5,3)', 'c:/foo', '5', '3');
+			testLink('c:/foo on line 5', 'c:/foo', '5');
+			testLink('c:/foo on line 5, column 3', 'c:/foo', '5', '3');
+
+			testLink('.\\foo:5', '.\\foo', '5');
+			testLink('.\\foo:5:3', '.\\foo', '5', '3');
+			testLink('.\\foo:line 5', '.\\foo', '5');
+			testLink('.\\foo:line 5, column 3', '.\\foo', '5', '3');
+			testLink('.\\foo(5)', '.\\foo', '5');
+			testLink('.\\foo(5,3)', '.\\foo', '5', '3');
+			testLink('.\\foo (5)', '.\\foo', '5');
+			testLink('.\\foo (5,3)', '.\\foo', '5', '3');
+			testLink('.\\foo on line 5', '.\\foo', '5');
+			testLink('.\\foo on line 5, column 3', '.\\foo', '5', '3');
+
+			testLink('./foo:5', './foo', '5');
+			testLink('./foo:5:3', './foo', '5', '3');
+			testLink('./foo:line 5', './foo', '5');
+			testLink('./foo:line 5, column 3', './foo', '5', '3');
+			testLink('./foo(5)', './foo', '5');
+			testLink('./foo(5,3)', './foo', '5', '3');
+			testLink('./foo (5)', './foo', '5');
+			testLink('./foo (5,3)', './foo', '5', '3');
+			testLink('./foo on line 5', './foo', '5');
+			testLink('./foo on line 5, column 3', './foo', '5', '3');
+
+			testLink('..\\foo:5', '..\\foo', '5');
+			testLink('..\\foo:5:3', '..\\foo', '5', '3');
+			testLink('..\\foo:line 5', '..\\foo', '5');
+			testLink('..\\foo:line 5, column 3', '..\\foo', '5', '3');
+			testLink('..\\foo(5)', '..\\foo', '5');
+			testLink('..\\foo(5,3)', '..\\foo', '5', '3');
+			testLink('..\\foo (5)', '..\\foo', '5');
+			testLink('..\\foo (5,3)', '..\\foo', '5', '3');
+			testLink('..\\foo on line 5', '..\\foo', '5');
+			testLink('..\\foo on line 5, column 3', '..\\foo', '5', '3');
+
+			testLink('../foo:5', '../foo', '5');
+			testLink('../foo:5:3', '../foo', '5', '3');
+			testLink('../foo:line 5', '../foo', '5');
+			testLink('../foo:line 5, column 3', '../foo', '5', '3');
+			testLink('../foo(5)', '../foo', '5');
+			testLink('../foo(5,3)', '../foo', '5', '3');
+			testLink('../foo (5)', '../foo', '5');
+			testLink('../foo (5,3)', '../foo', '5', '3');
+			testLink('../foo on line 5', '../foo', '5');
+			testLink('../foo on line 5, column 3', '../foo', '5', '3');
+
+			testLink('~\\foo:5', '~\\foo', '5');
+			testLink('~\\foo:5:3', '~\\foo', '5', '3');
+			testLink('~\\foo:line 5', '~\\foo', '5');
+			testLink('~\\foo:line 5, column 3', '~\\foo', '5', '3');
+			testLink('~\\foo(5)', '~\\foo', '5');
+			testLink('~\\foo(5,3)', '~\\foo', '5', '3');
+			testLink('~\\foo (5)', '~\\foo', '5');
+			testLink('~\\foo (5,3)', '~\\foo', '5', '3');
+			testLink('~\\foo on line 5', '~\\foo', '5');
+			testLink('~\\foo on line 5, column 3', '~\\foo', '5', '3');
+
+			testLink('~/foo:5', '~/foo', '5');
+			testLink('~/foo:5:3', '~/foo', '5', '3');
+			testLink('~/foo:line 5', '~/foo', '5');
+			testLink('~/foo:line 5, column 3', '~/foo', '5', '3');
+			testLink('~/foo(5)', '~/foo', '5');
+			testLink('~/foo(5,3)', '~/foo', '5', '3');
+			testLink('~/foo (5)', '~/foo', '5');
+			testLink('~/foo (5,3)', '~/foo', '5', '3');
+			testLink('~/foo on line 5', '~/foo', '5');
+			testLink('~/foo on line 5, column 3', '~/foo', '5', '3');
+
+			testLink('c:/a/long/path:5', 'c:/a/long/path', '5');
+			testLink('c:/a/long/path:5:3', 'c:/a/long/path', '5', '3');
+			testLink('c:/a/long/path:line 5', 'c:/a/long/path', '5');
+			testLink('c:/a/long/path:line 5, column 3', 'c:/a/long/path', '5', '3');
+			testLink('c:/a/long/path(5)', 'c:/a/long/path', '5');
+			testLink('c:/a/long/path(5,3)', 'c:/a/long/path', '5', '3');
+			testLink('c:/a/long/path (5)', 'c:/a/long/path', '5');
+			testLink('c:/a/long/path (5,3)', 'c:/a/long/path', '5', '3');
+			testLink('c:/a/long/path on line 5', 'c:/a/long/path', '5');
+			testLink('c:/a/long/path on line 5, column 3', 'c:/a/long/path', '5', '3');
+
+			testLink('c:\\a\\long\\path:5', 'c:\\a\\long\\path', '5');
+			testLink('c:\\a\\long\\path:5:3', 'c:\\a\\long\\path', '5', '3');
+			testLink('c:\\a\\long\\path:line 5', 'c:\\a\\long\\path', '5');
+			testLink('c:\\a\\long\\path:line 5, column 3', 'c:\\a\\long\\path', '5', '3');
+			testLink('c:\\a\\long\\path(5)', 'c:\\a\\long\\path', '5');
+			testLink('c:\\a\\long\\path(5,3)', 'c:\\a\\long\\path', '5', '3');
+			testLink('c:\\a\\long\\path (5)', 'c:\\a\\long\\path', '5');
+			testLink('c:\\a\\long\\path (5,3)', 'c:\\a\\long\\path', '5', '3');
+			testLink('c:\\a\\long\\path on line 5', 'c:\\a\\long\\path', '5');
+			testLink('c:\\a\\long\\path on line 5, column 3', 'c:\\a\\long\\path', '5', '3');
+
+			testLink('c:\\mixed/slash\\path:5', 'c:\\mixed/slash\\path', '5');
+			testLink('c:\\mixed/slash\\path:5:3', 'c:\\mixed/slash\\path', '5', '3');
+			testLink('c:\\mixed/slash\\path:line 5', 'c:\\mixed/slash\\path', '5');
+			testLink('c:\\mixed/slash\\path:line 5, column 3', 'c:\\mixed/slash\\path', '5', '3');
+			testLink('c:\\mixed/slash\\path(5)', 'c:\\mixed/slash\\path', '5');
+			testLink('c:\\mixed/slash\\path(5,3)', 'c:\\mixed/slash\\path', '5', '3');
+			testLink('c:\\mixed/slash\\path (5)', 'c:\\mixed/slash\\path', '5');
+			testLink('c:\\mixed/slash\\path (5,3)', 'c:\\mixed/slash\\path', '5', '3');
+			testLink('c:\\mixed/slash\\path on line 5', 'c:\\mixed/slash\\path', '5');
+			testLink('c:\\mixed/slash\\path on line 5, column 3', 'c:\\mixed/slash\\path', '5', '3');
+
+			testLink('a/relative/path:5', 'a/relative/path', '5');
+			testLink('a/relative/path:5:3', 'a/relative/path', '5', '3');
+			testLink('a/relative/path:line 5', 'a/relative/path', '5');
+			testLink('a/relative/path:line 5, column 3', 'a/relative/path', '5', '3');
+			testLink('a/relative/path(5)', 'a/relative/path', '5');
+			testLink('a/relative/path(5,3)', 'a/relative/path', '5', '3');
+			testLink('a/relative/path (5)', 'a/relative/path', '5');
+			testLink('a/relative/path (5,3)', 'a/relative/path', '5', '3');
+			testLink('a/relative/path on line 5', 'a/relative/path', '5');
+			testLink('a/relative/path on line 5, column 3', 'a/relative/path', '5', '3');
 		});
 
 		test('Linux', () => {
-			const regex = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null).localLinkRegex;
-			function testLink(link: string) {
-				assert.equal(` ${link} `.match(regex)[1], link);
-				assert.equal(`:${link}:`.match(regex)[1], link);
-				assert.equal(`;${link};`.match(regex)[1], link);
-				assert.equal(`(${link})`.match(regex)[1], link);
+			const terminalLinkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, null, null, null);
+			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
+				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
+				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
+				assert.equal(terminalLinkHandler.extractLinkUrl(`;${link};`), linkUrl);
+				assert.equal(terminalLinkHandler.extractLinkUrl(`(${link})`), linkUrl);
+
+				if (lineNo) {
+					const lineColumnInfo: LineColumnInfo = terminalLinkHandler.extractLineColumnInfo(link);
+					assert.equal(lineColumnInfo.lineNumber, lineNo);
+
+					if (columnNo) {
+						assert.equal(lineColumnInfo.columnNumber, columnNo);
+					}
+				}
 			}
-			testLink('/foo');
-			testLink('~/foo');
-			testLink('./foo');
-			testLink('../foo');
-			testLink('/a/long/path');
-			testLink('a/relative/path');
+
+			testLink('/foo', '/foo');
+			testLink('~/foo', '~/foo');
+			testLink('./foo', './foo');
+			testLink('../foo', '../foo');
+			testLink('/a/long/path', '/a/long/path');
+			testLink('a/relative/path', 'a/relative/path');
+
+			// With line and column number.
+			testLink('/foo:5', '/foo', '5');
+			testLink('/foo:5:3', '/foo', '5', '3');
+			testLink('/foo:line 5', '/foo', '5');
+			testLink('/foo:line 5, column 3', '/foo', '5', '3');
+			testLink('/foo(5)', '/foo', '5');
+			testLink('/foo(5,3)', '/foo', '5', '3');
+			testLink('/foo (5)', '/foo', '5');
+			testLink('/foo (5,3)', '/foo', '5', '3');
+			testLink('/foo on line 5', '/foo', '5');
+			testLink('/foo on line 5, column 3', '/foo', '5', '3');
+
+			testLink('~/foo:5', '~/foo', '5');
+			testLink('~/foo:5:3', '~/foo', '5', '3');
+			testLink('~/foo:line 5', '~/foo', '5');
+			testLink('~/foo:line 5, column 3', '~/foo', '5', '3');
+			testLink('~/foo(5)', '~/foo', '5');
+			testLink('~/foo(5,3)', '~/foo', '5', '3');
+			testLink('~/foo (5)', '~/foo', '5');
+			testLink('~/foo (5,3)', '~/foo', '5', '3');
+			testLink('~/foo on line 5', '~/foo', '5');
+			testLink('~/foo on line 5, column 3', '~/foo', '5', '3');
+
+			testLink('./foo:5', './foo', '5');
+			testLink('./foo:5:3', './foo', '5', '3');
+			testLink('./foo:line 5', './foo', '5');
+			testLink('./foo:line 5, column 3', './foo', '5', '3');
+			testLink('./foo(5)', './foo', '5');
+			testLink('./foo(5,3)', './foo', '5', '3');
+			testLink('./foo (5)', './foo', '5');
+			testLink('./foo (5,3)', './foo', '5', '3');
+			testLink('./foo on line 5', './foo', '5');
+			testLink('./foo on line 5, column 3', './foo', '5', '3');
+
+			testLink('../foo:5', '../foo', '5');
+			testLink('../foo:5:3', '../foo', '5', '3');
+			testLink('../foo:line 5', '../foo', '5');
+			testLink('../foo:line 5, column 3', '../foo', '5', '3');
+			testLink('../foo(5)', '../foo', '5');
+			testLink('../foo(5,3)', '../foo', '5', '3');
+			testLink('../foo (5)', '../foo', '5');
+			testLink('../foo (5,3)', '../foo', '5', '3');
+			testLink('../foo on line 5', '../foo', '5');
+			testLink('../foo on line 5, column 3', '../foo', '5', '3');
+
+			testLink('/a/long/path:5', '/a/long/path', '5');
+			testLink('/a/long/path:5:3', '/a/long/path', '5', '3');
+			testLink('/a/long/path:line 5', '/a/long/path', '5');
+			testLink('/a/long/path:line 5, column 3', '/a/long/path', '5', '3');
+			testLink('/a/long/path(5)', '/a/long/path', '5');
+			testLink('/a/long/path(5,3)', '/a/long/path', '5', '3');
+			testLink('/a/long/path (5)', '/a/long/path', '5');
+			testLink('/a/long/path (5,3)', '/a/long/path', '5', '3');
+			testLink('/a/long/path on line 5', '/a/long/path', '5');
+			testLink('/a/long/path on line 5, column 3', '/a/long/path', '5', '3');
+
+			testLink('a/relative/path:5', 'a/relative/path', '5');
+			testLink('a/relative/path:5:3', 'a/relative/path', '5', '3');
+			testLink('a/relative/path:line 5', 'a/relative/path', '5');
+			testLink('a/relative/path:line 5, column 3', 'a/relative/path', '5', '3');
+			testLink('a/relative/path(5)', 'a/relative/path', '5');
+			testLink('a/relative/path(5,3)', 'a/relative/path', '5', '3');
+			testLink('a/relative/path (5)', 'a/relative/path', '5');
+			testLink('a/relative/path (5,3)', 'a/relative/path', '5', '3');
+			testLink('a/relative/path on line 5', 'a/relative/path', '5');
+			testLink('a/relative/path on line 5, column 3', 'a/relative/path', '5', '3');
 		});
 	});
 
