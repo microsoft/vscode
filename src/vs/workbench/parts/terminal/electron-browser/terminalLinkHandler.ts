@@ -43,7 +43,9 @@ export class TerminalLinkHandler {
 	private _widgetManager: TerminalWidgetManager;
 
 	// Changing any regex may effect this value, hence changes this as well if required.
-	private _lineAndColumnMatchIndex = 12;
+	private _winLineAndColumnMatchIndex = 12;
+	private _unixLineAndColumnMatchIndex = 15;
+
 	private _lineAndColumnClauses = [
 		'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
 		'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
@@ -63,9 +65,9 @@ export class TerminalLinkHandler {
 	) {
 
 		// As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
-		// replacing space with nonBreakningSpace.
+		// replacing space with nonBreakningSpace or space ASCII code - 32.
 		this._lineAndColumnClauses = this._lineAndColumnClauses
-			.map(clause => clause.replace(/ /g, `${'\u00A0'}`));
+			.map(clause => clause.replace(/ /g, `[${'\u00A0'} ]`));
 
 		// Append line and column number regex in both Windows and Unix system.
 		this._winLocalLinkPattern = new RegExp(
@@ -143,9 +145,9 @@ export class TerminalLinkHandler {
 			}
 
 			let normalizedPath = path.normalize(path.resolve(resolvedLink));
-			const normalizedUrl = this._extractLinkUrl(normalizedPath);
+			const normalizedUrl = this.extractLinkUrl(normalizedPath);
 
-			const lineColumnInfo = this._extractLineColumnInfo(normalizedPath);
+			const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(normalizedPath);
 			if (lineColumnInfo.lineNumber) {
 				normalizedPath += `#${lineColumnInfo.lineNumber}`;
 
@@ -236,7 +238,7 @@ export class TerminalLinkHandler {
 			return TPromise.as(void 0);
 		}
 
-		const linkUrl = this._extractLinkUrl(link);
+		const linkUrl = this.extractLinkUrl(link);
 		// Open an editor if the path exists
 		return pfs.fileExists(linkUrl).then(isFile => {
 			if (!isFile) {
@@ -251,14 +253,20 @@ export class TerminalLinkHandler {
 	 *
 	 * @param link Url link which may contain line and column number.
 	 */
-	private _extractLineColumnInfo(link: string) {
+	public extractLineColumnInfo(link: string): LineColumnInfo {
 		const matches: string[] = this._localLinkRegex.exec(link);
 
 		let lineColumnClauseLength = this._lineAndColumnClauses.length;
-		let lineColumnInfo: any = {};
+		let lineColumnInfo: LineColumnInfo = {};
+
+		let lineAndColumnMatchIndex = this._winLineAndColumnMatchIndex;
+
+		if (platform.Platform.Windows !== this._platform) {
+			lineAndColumnMatchIndex = this._unixLineAndColumnMatchIndex;
+		}
 
 		for (let i = 0; i < lineColumnClauseLength; i++) {
-			let lineMatchIndex = this._lineAndColumnMatchIndex + 6 * i;
+			let lineMatchIndex = lineAndColumnMatchIndex + 6 * i;
 
 			const rowNumber = matches[lineMatchIndex];
 			if (rowNumber) {
@@ -282,8 +290,13 @@ export class TerminalLinkHandler {
 	 *
 	 * @param link url link which may contain line and column number.
 	 */
-	private _extractLinkUrl(link: string): string {
+	public extractLinkUrl(link: string): string {
 		const matches: string[] = this._localLinkRegex.exec(link);
 		return matches[1];
 	}
 }
+
+export interface LineColumnInfo {
+	lineNumber?: string;
+	columnNumber?: string;
+};
