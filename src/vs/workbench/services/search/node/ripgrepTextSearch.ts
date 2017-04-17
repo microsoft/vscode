@@ -26,7 +26,7 @@ export class RipgrepEngine {
 
 	private ripgrepParser: RipgrepParser;
 
-	private handleResultP: TPromise<any> = TPromise.wrap(null);
+	private resultsHandledP: TPromise<any> = TPromise.wrap(null);
 
 	constructor(private config: IRawSearch) {
 	}
@@ -66,13 +66,14 @@ export class RipgrepEngine {
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
 				const relativePath = path.relative(rootFolder, match.path);
-				this.handleResultP = this.handleResultP
-					.then(() => (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path))))
+				const handleResultP = (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path)))
 					.then(globMatch => {
 						if (!globMatch) {
 							onResult(match);
 						}
 					});
+
+				this.resultsHandledP = TPromise.join([this.resultsHandledP, handleResultP]);
 			} else {
 				onResult(match);
 			}
@@ -102,7 +103,7 @@ export class RipgrepEngine {
 		this.rgProc.on('close', code => {
 			// Trigger last result, then wait on async result handling
 			this.ripgrepParser.flush();
-			this.handleResultP.then(() => {
+			this.resultsHandledP.then(() => {
 				this.rgProc = null;
 				if (!this.isDone) {
 					this.isDone = true;
