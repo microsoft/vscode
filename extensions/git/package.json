@@ -623,6 +623,7 @@
     }
   },
   "dependencies": {
+    "iconv-lite": "0.4.15",
     "vscode-extension-telemetry": "^0.0.6",
     "vscode-nls": "^2.0.1"
   },
