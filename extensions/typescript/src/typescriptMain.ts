@@ -26,7 +26,7 @@ import { ITypescriptServiceClientHost } from './typescriptService';
 
 import HoverProvider from './features/hoverProvider';
 import DefinitionProvider from './features/definitionProvider';
-import ImplementationProvider from './features/ImplementationProvider';
+import ImplementationProvider from './features/implementationProvider';
 import TypeDefintionProvider from './features/typeDefinitionProvider';
 import DocumentHighlightProvider from './features/documentHighlightProvider';
 import ReferenceProvider from './features/referenceProvider';
