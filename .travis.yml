@@ -1,51 +1,139 @@
-sudo: false
 language: cpp
 
-os:
-  - linux
-  - osx
+# amd64 toolchain (used as a base for non-sudo compilation, which is faster) 
+include: &toolchain_amd64
+  sudo: false
+  addons:
+    apt:
+      sources:
+        - ubuntu-toolchain-r-test
+      packages:
+        - gcc-4.9
+        - g++-4.9
+        - gcc-4.9-multilib
+        - g++-4.9-multilib
+        - zip
+        - libgtk2.0-0
+        - libx11-dev
+        - libxkbfile-dev
+        
+# OSX amd64 toolchain
+include: &toolchain_osx_amd64
+  <<: *toolchain_amd64
+  env:
+    - LABEL=amd64_osx
+    - ARCH=amd64
+    - GPP_COMPILER=g++
+    - GCC_COMPILER=gcc
+        
+# linux amd64 toolchain
+include: &toolchain_linux_amd64
+  <<: *toolchain_amd64
+  env:
+    - LABEL=amd64_linux
+    - ARCH=amd64
+    - GPP_COMPILER=g++-4.9
+    - GCC_COMPILER=gcc-4.9
+        
+# cross toolchain (used as a base for multiarch cross-compilation configurations below) 
+include: &toolchain_linux_cross
+  dist: trusty
+  sudo: required # for dpkg --add-architecture locking
+  
+# armhf toolchain
+include: &toolchain_linux_armhf
+  <<: *toolchain_linux_cross
+  env:
+    - LABEL=armhf_linux
+    - CROSS_TOOLCHAIN=true
+    - ARCH=armhf
+    - NPM_ARCH=arm
+    - GNU_TRIPLET=arm-linux-gnueabihf
+    - GNU_MULTILIB_TRIPLET=arm-linux-gnueabihf
+    - GPP_COMPILER=arm-linux-gnueabihf-g++
+    - GCC_COMPILER=arm-linux-gnueabihf-gcc
+    - VSCODE_ELECTRON_PLATFORM=arm
+  
+# arm64 toolchain
+include: &toolchain_linux_arm64
+  <<: *toolchain_linux_cross
+  env:
+    - LABEL=arm64_linux
+    - CROSS_TOOLCHAIN=true
+    - ARCH=arm64
+    - NPM_ARCH=arm
+    - GNU_TRIPLET=aarch64-linux-gnu
+    - GNU_MULTILIB_TRIPLET=arm-linux-gnueabihf
+    - GPP_COMPILER=aarch64-linux-gnu-g++
+    - GCC_COMPILER=aarch64-linux-gnu-gcc
+    - VSCODE_ELECTRON_PLATFORM=arm
 
+# Travis CI build matrix.  Each entry below will trigger an extra, parallel build on Travis.
+matrix:
+  include:
+  - os: osx
+    <<: *toolchain_osx_amd64
+  - os: linux
+    <<: *toolchain_linux_amd64
+  - os: linux
+    <<: *toolchain_linux_armhf
+  - os: linux
+    <<: *toolchain_linux_arm64
+    
 notifications:
   email: false
-
-addons:
-  apt:
-    sources:
-      - ubuntu-toolchain-r-test
-    packages:
-      - gcc-4.9
-      - g++-4.9
-      - gcc-4.9-multilib
-      - g++-4.9-multilib
-      - zip
-      - libgtk2.0-0
-      - libx11-dev
-      - libxkbfile-dev
-
+      
 before_install:
+  - export CXX="${GPP_COMPILER}" CC="${GCC_COMPILER}";
+  - if [[ "${CROSS_TOOLCHAIN}" == "true" ]]; then
+      sudo rm -rf /etc/apt/sources.list.d/**;
+      sudo rm /etc/apt/sources.list; 
+      echo "deb [arch=amd64,i386] http://archive.ubuntu.com/ubuntu xenial main universe multiverse restricted" | sudo tee /etc/apt/sources.list;
+      echo "deb [arch=${ARCH}] http://ports.ubuntu.com/ubuntu-ports xenial main universe multiverse restricted" | sudo tee -a /etc/apt/sources.list;
+      echo "deb-src http://archive.ubuntu.com/ubuntu xenial main universe multiverse restricted" | sudo tee -a /etc/apt/sources.list;
+      sudo dpkg --add-architecture ${ARCH};
+      sudo apt-get update -yq;
+      sudo apt-get install -y libwww-perl libexpat1 libxml-libxml-perl libxml-sax-expat-perl gcc-${GNU_TRIPLET} g++-${GNU_TRIPLET} pkg-config-${GNU_TRIPLET} crossbuild-essential-${ARCH} g++-multilib-${GNU_MULTILIB_TRIPLET} gcc-multilib-${GNU_MULTILIB_TRIPLET} dpkg-dev perl libconfig-inifiles-perl libxml-simple-perl liblocale-gettext-perl libgcc1 libgcc1:${ARCH} libdpkg-perl libconfig-auto-perl libdebian-dpkgcross-perl ucf debconf dpkg-cross libdbus-1-3:${ARCH} libffi6:${ARCH} libpcre3:${ARCH} libselinux1:${ARCH} libp11-kit0:${ARCH} libcomerr2:${ARCH} libk5crypto3:${ARCH} libkrb5-3:${ARCH} libpango-1.0-0:${ARCH} libpangocairo-1.0-0:${ARCH} libpangoft2-1.0-0:${ARCH} libxcursor1:${ARCH} libxfixes3:${ARCH} libglib2.0-0:${ARCH} libfreetype6:${ARCH} libpng12-0:${ARCH} libavahi-client3:${ARCH} libgssapi-krb5-2:${ARCH} fontconfig-config:${ARCH} libexpat1:${ARCH} libjasper1:${ARCH} libjpeg8:${ARCH} libpng12-0:${ARCH} libtiff5:${ARCH} libgdk-pixbuf2.0-common:${ARCH} libgdk-pixbuf2.0-0:${ARCH} libfontconfig1:${ARCH} libcups2:${ARCH} libcairo2:${ARCH} libc6 libc6:${ARCH} libc6-dev:${ARCH} libatk1.0-0:${ARCH} libgtk2.0-0:${ARCH} libx11-dev:${ARCH} libxkbfile-dev:${ARCH};
+    fi
   - git submodule update --init --recursive
   - git clone --depth 1 https://github.com/creationix/nvm.git ./.nvm
   - source ./.nvm/nvm.sh
-  - nvm install 7.4.0
-  - nvm use 7.4.0
+  - nvm install 6.6.0
+  - nvm use 6.6.0 
   - npm config set python `which python`
   - npm install -g gulp
-  - if [ $TRAVIS_OS_NAME == "linux" ]; then
-      export CXX="g++-4.9" CC="gcc-4.9" DISPLAY=:99.0;
+  - if [[ "${TRAVIS_OS_NAME}" == "linux" && "${ARCH}" == "amd64" ]]; then
+      export DISPLAY=:99.0;
       sh -e /etc/init.d/xvfb start;
       sleep 3;
     fi
 
 install:
-  - ./scripts/npm.sh install
+  - if [[ "${ARCH}" == "amd64" ]]; then
+      ./scripts/npm.sh install;
+    else
+      ./scripts/npm.sh install --arch=${NPM_ARCH};
+    fi
 
 script:
-  - gulp hygiene --silent
-  - gulp electron --silent
-  - gulp compile --silent --max_old_space_size=4096
-  - gulp optimize-vscode --silent --max_old_space_size=4096
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --coverage; else ./scripts/test.sh; fi
-  - ./scripts/test-integration.sh
+  - gulp hygiene --silent;
+  - if [[ "${ARCH}" == "amd64" ]]; then
+      gulp electron;
+    else
+      gulp electron --arch=${NPM_ARCH};
+    fi
+  - gulp compile --silent --max_old_space_size=4096;
+  - gulp optimize-vscode --silent --max_old_space_size=4096;
+  - if [[ "${ARCH}" == "amd64" ]]; then 
+      if [[ "${LABEL}" == "amd64_linux" ]]; then
+        ./scripts/test.sh --reporter dot --coverage;
+      else
+        ./scripts/test.sh --reporter dot;
+      fi;
+      ./scripts/test-integration.sh;
+    fi
 
 after_success:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then node_modules/.bin/coveralls < .build/coverage/lcov.info; fi
+  - if [[ "${LABEL}" == "amd64_linux" ]]; then
+      node_modules/.bin/coveralls < .build/coverage/lcov.info;
+    fi
