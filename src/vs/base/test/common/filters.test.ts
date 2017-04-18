@@ -327,6 +327,8 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, 'cons', 2, 'ArrayBufferConstructor', 'Console', 'console');
 		assertTopScore(fuzzyScore, 'Foo', 1, 'foo', 'Foo', 'foo');
 
+		// assertTopScore(fuzzyScore, 'onMess', 1, 'onmessage', 'onMessage', 'onThisMegaEscape');
+
 		assertTopScore(fuzzyScore, 'CC', 1, 'camelCase', 'CamelCase');
 		assertTopScore(fuzzyScore, 'cC', 0, 'camelCase', 'CamelCase');
 		// assertTopScore(fuzzyScore, 'cC', 1, 'ccfoo', 'camelCase');
