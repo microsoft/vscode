@@ -14,8 +14,8 @@ import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/se
 import { IFileService, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, ISelection, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, IModel, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export interface IResourceEdit {

@@ -26,7 +26,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
@@ -624,13 +624,13 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	public setSelection(range: IRange, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(editorRange: Range, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
-	public setSelection(selection: editorCommon.ISelection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
+	public setSelection(selection: ISelection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(editorSelection: Selection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(something: any, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void {
 		this.modifiedEditor.setSelection(something, reveal, revealVerticalInCenter, revealHorizontal);
 	}
 
-	public setSelections(ranges: editorCommon.ISelection[]): void {
+	public setSelections(ranges: ISelection[]): void {
 		this.modifiedEditor.setSelections(ranges);
 	}
 

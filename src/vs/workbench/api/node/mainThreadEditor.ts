@@ -10,7 +10,7 @@ import { IEditor } from 'vs/platform/editor/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 import { TextEditorCursorStyle, cursorStyleToString } from "vs/editor/common/config/editorOptions";
@@ -195,7 +195,7 @@ export class MainThreadTextEditor {
 		return this._lastSelection;
 	}
 
-	public setSelections(selections: EditorCommon.ISelection[]): void {
+	public setSelections(selections: ISelection[]): void {
 		if (this._codeEditor) {
 			this._codeEditor.setSelections(selections);
 			return;

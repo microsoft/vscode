@@ -19,7 +19,7 @@ import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
 import { EditorState } from 'vs/editor/common/core/editorState';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
@@ -399,7 +399,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 	public setSelection(range: IRange, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(editorRange: Range, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
-	public setSelection(selection: editorCommon.ISelection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
+	public setSelection(selection: ISelection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(editorSelection: Selection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(something: any, reveal: boolean = false, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
 		let isSelection = Selection.isISelection(something);
@@ -410,10 +410,10 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 
 		if (isSelection) {
-			this._setSelectionImpl(<editorCommon.ISelection>something, reveal, revealVerticalInCenter, revealHorizontal);
+			this._setSelectionImpl(<ISelection>something, reveal, revealVerticalInCenter, revealHorizontal);
 		} else if (isRange) {
 			// act as if it was an IRange
-			let selection: editorCommon.ISelection = {
+			let selection: ISelection = {
 				selectionStartLineNumber: something.startLineNumber,
 				selectionStartColumn: something.startColumn,
 				positionLineNumber: something.endLineNumber,
@@ -423,7 +423,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 	}
 
-	private _setSelectionImpl(sel: editorCommon.ISelection, reveal: boolean, revealVerticalInCenter: boolean, revealHorizontal: boolean): void {
+	private _setSelectionImpl(sel: ISelection, reveal: boolean, revealVerticalInCenter: boolean, revealHorizontal: boolean): void {
 		if (!this.cursor) {
 			return;
 		}
@@ -514,7 +514,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		);
 	}
 
-	public setSelections(ranges: editorCommon.ISelection[]): void {
+	public setSelections(ranges: ISelection[]): void {
 		if (!this.cursor) {
 			return;
 		}

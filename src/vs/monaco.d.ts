@@ -413,29 +413,6 @@ declare module monaco {
         readonly scrollWidthChanged: boolean;
         readonly scrollHeightChanged: boolean;
     }
-
-    /**
-     * A selection in the editor.
-     * The selection is a range that has an orientation.
-     */
-    export interface ISelection {
-        /**
-         * The line number on which the selection has started.
-         */
-        readonly selectionStartLineNumber: number;
-        /**
-         * The column on `selectionStartLineNumber` where the selection has started.
-         */
-        readonly selectionStartColumn: number;
-        /**
-         * The line number on which the selection has ended.
-         */
-        readonly positionLineNumber: number;
-        /**
-         * The column on `positionLineNumber` where the selection has ended.
-         */
-        readonly positionColumn: number;
-    }
     /**
      * A position in the editor. This interface is suitable for serialization.
      */
@@ -664,6 +641,29 @@ declare module monaco {
          * Test if the range spans multiple lines.
          */
         static spansMultipleLines(range: IRange): boolean;
+    }
+
+    /**
+     * A selection in the editor.
+     * The selection is a range that has an orientation.
+     */
+    export interface ISelection {
+        /**
+         * The line number on which the selection has started.
+         */
+        readonly selectionStartLineNumber: number;
+        /**
+         * The column on `selectionStartLineNumber` where the selection has started.
+         */
+        readonly selectionStartColumn: number;
+        /**
+         * The line number on which the selection has ended.
+         */
+        readonly positionLineNumber: number;
+        /**
+         * The column on `positionLineNumber` where the selection has ended.
+         */
+        readonly positionColumn: number;
     }
 
     /**

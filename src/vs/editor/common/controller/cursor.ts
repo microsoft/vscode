@@ -14,7 +14,7 @@ import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/contr
 import { IViewModelHelper, OneCursor, OneCursorOp, CursorContext } from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
+import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CursorColumns, EditOperationResult, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -226,7 +226,7 @@ export class Cursor extends EventEmitter {
 
 	public restoreState(states: editorCommon.ICursorState[]): void {
 
-		var desiredSelections: editorCommon.ISelection[] = [],
+		var desiredSelections: ISelection[] = [],
 			state: editorCommon.ICursorState;
 
 		for (var i = 0; i < states.length; i++) {
@@ -316,7 +316,7 @@ export class Cursor extends EventEmitter {
 		return this.cursors.getPosition(0);
 	}
 
-	public setSelections(source: string, selections: editorCommon.ISelection[]): void {
+	public setSelections(source: string, selections: ISelection[]): void {
 		this._onHandler('setSelections', (ctx: IMultipleCursorOperationContext) => {
 			ctx.shouldReveal = false;
 			this.cursors.setSelections(selections);

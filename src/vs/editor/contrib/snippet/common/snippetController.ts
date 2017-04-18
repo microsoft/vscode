@@ -16,10 +16,8 @@ import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'v
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISnippetVariableResolver, ICodeSnippet, CodeSnippet } from './snippet';
 import { SnippetVariablesResolver } from './snippetVariables';
-
 import EditorContextKeys = editorCommon.EditorContextKeys;
 import { IPosition } from "vs/editor/common/core/position";
-
 
 export class InsertSnippetController {
 
@@ -336,15 +334,15 @@ export class InsertSnippetController {
 	}
 
 	private doLinkEditing(): void {
-		const selections: editorCommon.ISelection[] = [];
+		const selections: Selection[] = [];
 		for (let i = 0, len = this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges.length; i < len; i++) {
 			const range = this.model.getDecorationRange(this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges[i]);
-			selections.push({
-				selectionStartLineNumber: range.startLineNumber,
-				selectionStartColumn: range.startColumn,
-				positionLineNumber: range.endLineNumber,
-				positionColumn: range.endColumn
-			});
+			selections.push(new Selection(
+				range.startLineNumber,
+				range.startColumn,
+				range.endLineNumber,
+				range.endColumn
+			));
 		}
 		this.editor.setSelections(selections);
 		this.editor.revealRangeInCenterIfOutsideViewport(this.editor.getSelection());

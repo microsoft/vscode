@@ -15,7 +15,7 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { IndentRange } from 'vs/editor/common/model/indentRanges';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -35,28 +35,6 @@ export interface Event<T> {
 
 // --- position & range
 
-/**
- * A selection in the editor.
- * The selection is a range that has an orientation.
- */
-export interface ISelection {
-	/**
-	 * The line number on which the selection has started.
-	 */
-	readonly selectionStartLineNumber: number;
-	/**
-	 * The column on `selectionStartLineNumber` where the selection has started.
-	 */
-	readonly selectionStartColumn: number;
-	/**
-	 * The line number on which the selection has ended.
-	 */
-	readonly positionLineNumber: number;
-	/**
-	 * The column on `positionLineNumber` where the selection has ended.
-	 */
-	readonly positionColumn: number;
-}
 
 /**
  * Vertical Lane in the overview ruler of the editor.

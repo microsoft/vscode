@@ -41,6 +41,7 @@ import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel2';
 import { IPosition } from "vs/editor/common/core/position";
 import { IRange } from "vs/editor/common/core/range";
+import { ISelection } from "vs/editor/common/core/selection";
 
 export interface IEnvironment {
 	enableProposedApi: boolean;
@@ -140,7 +141,7 @@ export abstract class MainThreadEditorsShape {
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> { throw ni(); }
 	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<any> { throw ni(); }
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> { throw ni(); }
-	$trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
+	$trySetSelections(id: string, selections: ISelection[]): TPromise<any> { throw ni(); }
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
 	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<any> { throw ni(); }
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]> { throw ni(); }
@@ -326,7 +327,7 @@ export interface ITextEditorAddData {
 	id: string;
 	document: URI;
 	options: IResolvedTextEditorConfiguration;
-	selections: editorCommon.ISelection[];
+	selections: ISelection[];
 	editorPosition: EditorPosition;
 }
 export interface ITextEditorPositionData {

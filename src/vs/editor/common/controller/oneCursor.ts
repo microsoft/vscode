@@ -7,7 +7,7 @@
 import { SingleCursorState, CursorConfiguration, ICursorSimpleModel, CursorState } from 'vs/editor/common/controller/cursorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
+import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
 import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
@@ -245,7 +245,7 @@ export class OneCursor {
 		context.model._removeMarker(this._selEndMarker);
 	}
 
-	public setSelection(context: CursorContext, selection: editorCommon.ISelection, viewSelection: editorCommon.ISelection = null): void {
+	public setSelection(context: CursorContext, selection: ISelection, viewSelection: ISelection = null): void {
 		let position = context.model.validatePosition({
 			lineNumber: selection.positionLineNumber,
 			column: selection.positionColumn
