@@ -8,7 +8,6 @@
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import * as collections from 'vs/base/common/collections';
 import { Marker, Variable, Placeholder, Text, SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
 
 export interface IIndentationNormalizer {
@@ -55,7 +54,45 @@ export class CodeSnippet implements ICodeSnippet {
 	}
 
 	static fromEmmet(template: string): CodeSnippet {
-		return EmmetSnippetParser.parse(template);
+		let matchFinalStops = template.match(/\$\{0\}|\$0/g);
+		if (!matchFinalStops || matchFinalStops.length === 1) {
+			return CodeSnippet.fromTextmate(template);
+		}
+
+		// Emmet sometimes returns snippets with multiple ${0}
+		// In such cases, replace ${0} with incremental tab stops
+
+		const snippetMarkers: Marker[] = new SnippetParser(true, false).parse(template) || [];
+		let getMaxTabStop = (markers: Marker[]): number => {
+			let currentMaxTabStop = -1;
+			markers.forEach(marker => {
+				if (marker instanceof Placeholder && /^\d+$/.test(marker['name'])) {
+					let currentTabStop = Number(marker['name']);
+					let nestedMaxTabStop = getMaxTabStop(marker['defaultValue'] || []);
+					currentMaxTabStop = Math.max(currentMaxTabStop, currentTabStop, nestedMaxTabStop);
+				}
+			});
+			return currentMaxTabStop;
+		};
+
+		let maxTabStop = getMaxTabStop(snippetMarkers);
+
+		let setNextTabStop = (markers: Marker[]) => {
+			markers.forEach(marker => {
+				if (marker instanceof Placeholder) {
+					if (marker['name'] === '0') {
+						marker['name'] = ++maxTabStop + '';
+					}
+					setNextTabStop(marker['defaultValue'] || []);
+				}
+			});
+		};
+
+		setNextTabStop(snippetMarkers);
+
+		const snippet = new CodeSnippet();
+		_fillCodeSnippetFromMarker(snippet, snippetMarkers);
+		return snippet;
 	}
 
 	public lines: string[] = [];
@@ -178,298 +215,6 @@ interface IParsedLine {
 	line: string;
 	placeHolders: IParsedLinePlaceHolderInfo[];
 }
-
-const InternalFormatSnippetParser = new class implements ISnippetParser {
-
-	private _lastGeneratedId: number;
-	private _snippet: CodeSnippet;
-
-	parse(template: string): CodeSnippet {
-		this._lastGeneratedId = 0;
-		this._snippet = new CodeSnippet();
-		this.parseTemplate(template);
-		return this._snippet;
-	}
-
-	private parseTemplate(template: string): void {
-
-		var placeHoldersMap: collections.IStringDictionary<IPlaceHolder> = Object.create(null);
-		var i: number, len: number, j: number, lenJ: number, templateLines = template.split('\n');
-
-		for (i = 0, len = templateLines.length; i < len; i++) {
-			var parsedLine = this.parseLine(templateLines[i], (id: string) => {
-				if (placeHoldersMap[id]) {
-					return placeHoldersMap[id].value;
-				}
-				return '';
-			});
-			for (j = 0, lenJ = parsedLine.placeHolders.length; j < lenJ; j++) {
-				var linePlaceHolder = parsedLine.placeHolders[j];
-				var occurence = new Range(i + 1, linePlaceHolder.startColumn, i + 1, linePlaceHolder.endColumn);
-				var placeHolder: IPlaceHolder;
-
-				if (placeHoldersMap[linePlaceHolder.id]) {
-					placeHolder = placeHoldersMap[linePlaceHolder.id];
-				} else {
-					placeHolder = {
-						id: linePlaceHolder.id,
-						value: linePlaceHolder.value,
-						occurences: []
-					};
-					this._snippet.placeHolders.push(placeHolder);
-					placeHoldersMap[linePlaceHolder.id] = placeHolder;
-				}
-
-				placeHolder.occurences.push(occurence);
-			}
-
-			this._snippet.lines.push(parsedLine.line);
-		}
-
-		// Named variables (e.g. {greeting} and {greeting:Hello}) are sorted first, followed by
-		// tab-stops and numeric variables (e.g. $1, $2, ${3:foo}) which are sorted in ascending order
-		this._snippet.placeHolders.sort((a, b) => {
-			let nonIntegerId = (v: IPlaceHolder) => !(/^\d+$/).test(v.id);
-			let isFinishPlaceHolder = (v: IPlaceHolder) => v.id === '' && v.value === '';
-
-			// Sort finish placeholder last
-			if (isFinishPlaceHolder(a)) {
-				return 1;
-			} else if (isFinishPlaceHolder(b)) {
-				return -1;
-			}
-
-			// Sort named placeholders first
-			if (nonIntegerId(a) && nonIntegerId(b)) {
-				return 0;
-			} else if (nonIntegerId(a)) {
-				return -1;
-			} else if (nonIntegerId(b)) {
-				return 1;
-			}
-
-			if (a.id === b.id) {
-				return 0;
-			}
-
-			return Number(a.id) < Number(b.id) ? -1 : 1;
-		});
-
-		if (this._snippet.placeHolders.length > 0 && this._snippet.placeHolders[this._snippet.placeHolders.length - 1].value === '') {
-			this._snippet.finishPlaceHolderIndex = this._snippet.placeHolders.length - 1;
-		}
-	}
-
-	private parseLine(line: string, findDefaultValueForIdFromPrevLines: (id: string) => string): IParsedLine {
-
-		// Placeholder 0 is the entire line
-		var placeHolderStack: { placeHolderId: string; placeHolderText: string; }[] = [{ placeHolderId: '', placeHolderText: '' }];
-		var placeHolders: IParsedLinePlaceHolderInfo[] = [];
-
-		const findDefaultValueForId = (id) => {
-			const result = findDefaultValueForIdFromPrevLines(id);
-			if (result) {
-				return result;
-			}
-			for (const placeHolder of placeHolders) {
-				if (placeHolder.id === id && placeHolder.value) {
-					return placeHolder.value;
-				}
-			}
-			return '';
-		};
-
-		var i = 0;
-		var len = line.length;
-		var resultIndex = 0;
-		while (i < len) {
-
-			var restOfLine = line.substr(i);
-
-			// Look for the start of a placeholder {{
-			if (/^{{/.test(restOfLine)) {
-				i += 2;
-				placeHolderStack.push({ placeHolderId: '', placeHolderText: '' });
-
-				// Look for id
-				var matches = restOfLine.match(/^{{(\w+):/);
-				if (Array.isArray(matches) && matches.length === 2) {
-					placeHolderStack[placeHolderStack.length - 1].placeHolderId = matches[1];
-					i += matches[1].length + 1; // +1 to account for the : at the end of the id
-				}
-
-				continue;
-			}
-
-			// Look for the end of a placeholder. placeHolderStack[0] is the top-level line.
-			if (placeHolderStack.length > 1 && /^}}/.test(restOfLine)) {
-				i += 2;
-
-				if (placeHolderStack[placeHolderStack.length - 1].placeHolderId.length === 0) {
-					// This placeholder did not have an explicit id
-					placeHolderStack[placeHolderStack.length - 1].placeHolderId = placeHolderStack[placeHolderStack.length - 1].placeHolderText;
-
-					if (placeHolderStack[placeHolderStack.length - 1].placeHolderId === '_') {
-						// This is just an empty tab stop
-						placeHolderStack[placeHolderStack.length - 1].placeHolderId = 'TAB_STOP_' + String(++this._lastGeneratedId);
-						placeHolderStack[placeHolderStack.length - 1].placeHolderText = '';
-						--resultIndex; // Roll back one iteration of the result index as we made the text empty
-					}
-				}
-
-				if (placeHolderStack[placeHolderStack.length - 1].placeHolderText.length === 0) {
-					// This placeholder is empty or was a mirror
-					var defaultValue = findDefaultValueForId(placeHolderStack[placeHolderStack.length - 1].placeHolderId);
-					placeHolderStack[placeHolderStack.length - 1].placeHolderText = defaultValue;
-					resultIndex += defaultValue.length;
-				}
-
-				placeHolders.push({
-					id: placeHolderStack[placeHolderStack.length - 1].placeHolderId,
-					value: placeHolderStack[placeHolderStack.length - 1].placeHolderText,
-					startColumn: resultIndex + 1 - placeHolderStack[placeHolderStack.length - 1].placeHolderText.length,
-					endColumn: resultIndex + 1
-				});
-
-				// Insert our text into the previous placeholder
-				placeHolderStack[placeHolderStack.length - 2].placeHolderText += placeHolderStack[placeHolderStack.length - 1].placeHolderText;
-				placeHolderStack.pop();
-				continue;
-			}
-
-			// Look for escapes
-			if (/^\\./.test(restOfLine)) {
-				if (restOfLine.charAt(1) === '{' || restOfLine.charAt(1) === '}' || restOfLine.charAt(1) === '\\') {
-					++i; // Skip the escape slash and take the character literally
-				} else {
-					// invalid escapes
-					placeHolderStack[placeHolderStack.length - 1].placeHolderText += line.charAt(i);
-					++resultIndex;
-					++i;
-				}
-			}
-
-			//This is an escape sequence or not a special character, just insert it
-			placeHolderStack[placeHolderStack.length - 1].placeHolderText += line.charAt(i);
-			++resultIndex;
-			++i;
-		}
-
-		// Sort the placeholder in order of apperance:
-		placeHolders.sort((a, b) => {
-			if (a.startColumn < b.startColumn) {
-				return -1;
-			}
-			if (a.startColumn > b.startColumn) {
-				return 1;
-			}
-			if (a.endColumn < b.endColumn) {
-				return -1;
-			}
-			if (a.endColumn > b.endColumn) {
-				return 1;
-			}
-			return 0;
-		});
-
-		return {
-			line: placeHolderStack[0].placeHolderText,
-			placeHolders: placeHolders
-		};
-	}
-};
-
-const EmmetSnippetParser = new class implements ISnippetParser {
-
-	parse(template: string): CodeSnippet {
-		template = _convertExternalSnippet(template, ExternalSnippetType.EmmetSnippet);
-		return InternalFormatSnippetParser.parse(template);
-	}
-};
-
-export enum ExternalSnippetType {
-	TextMateSnippet,
-	EmmetSnippet
-}
-
-// This is used for both TextMate and Emmet
-function _convertExternalSnippet(snippet: string, snippetType: ExternalSnippetType): string {
-	var openBraces = 0;
-	var convertedSnippet = '';
-	var i = 0;
-	var len = snippet.length;
-
-	while (i < len) {
-		var restOfLine = snippet.substr(i);
-
-		// Cursor tab stop
-		if (/^\$0/.test(restOfLine)) {
-			i += 2;
-			convertedSnippet += snippetType === ExternalSnippetType.EmmetSnippet ? '{{_}}' : '{{}}';
-			continue;
-		}
-		if (/^\$\{0\}/.test(restOfLine)) {
-			i += 4;
-			convertedSnippet += snippetType === ExternalSnippetType.EmmetSnippet ? '{{_}}' : '{{}}';
-			continue;
-		}
-
-		// Tab stops
-		var matches = restOfLine.match(/^\$(\d+)/);
-		if (Array.isArray(matches) && matches.length === 2) {
-			i += 1 + matches[1].length;
-			convertedSnippet += '{{' + matches[1] + ':}}';
-			continue;
-		}
-		matches = restOfLine.match(/^\$\{(\d+)\}/);
-		if (Array.isArray(matches) && matches.length === 2) {
-			i += 3 + matches[1].length;
-			convertedSnippet += '{{' + matches[1] + ':}}';
-			continue;
-		}
-
-		// Open brace patterns placeholder
-		if (/^\${/.test(restOfLine)) {
-			i += 2;
-			++openBraces;
-			convertedSnippet += '{{';
-			continue;
-		}
-
-		// Close brace patterns placeholder
-		if (openBraces > 0 && /^}/.test(restOfLine)) {
-			i += 1;
-			--openBraces;
-			convertedSnippet += '}}';
-			continue;
-		}
-
-		// Escapes
-		if (/^\\./.test(restOfLine)) {
-			i += 2;
-			if (/^\\\$/.test(restOfLine)) {
-				convertedSnippet += '$';
-			} else {
-				convertedSnippet += restOfLine.substr(0, 2);
-			}
-			continue;
-		}
-
-		// Escape braces that don't belong to a placeholder
-		matches = restOfLine.match(/^({|})/);
-		if (Array.isArray(matches) && matches.length === 2) {
-			i += 1;
-			convertedSnippet += '\\' + matches[1];
-			continue;
-		}
-
-		i += 1;
-		convertedSnippet += restOfLine.charAt(0);
-	}
-
-	return convertedSnippet;
-};
-
 
 function _resolveSnippetVariables(marker: Marker[], resolver: ISnippetVariableResolver) {
 	if (resolver) {
