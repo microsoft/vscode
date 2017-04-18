@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IPosition, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IPosition, ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import { Range } from 'vs/editor/common/core/range';
@@ -30,18 +30,19 @@ export class EditorAccessor implements emmet.Editor {
 	private _syntaxProfiles: any;
 	private _excludedLanguages: any;
 	private _grammars: IGrammarContributions;
-
+	private _emmetActionName: string;
 	private _hasMadeEdits: boolean;
 
 	private emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
 
-	constructor(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions) {
+	constructor(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions, emmetActionName?: string) {
 		this._languageIdentifierResolver = languageIdentifierResolver;
 		this._editor = editor;
 		this._syntaxProfiles = syntaxProfiles;
 		this._excludedLanguages = excludedLanguages;
 		this._hasMadeEdits = false;
 		this._grammars = grammars;
+		this._emmetActionName = emmetActionName;
 	}
 
 	public isEmmetEnabledMode(): boolean {
@@ -115,6 +116,12 @@ export class EditorAccessor implements emmet.Editor {
 		}
 
 		let range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
+		let textToReplace = this._editor.getModel().getValueInRange(range);
+		if (this._emmetActionName === 'expand_abbreviation' && (value === textToReplace || value === textToReplace + '${0}')) {
+			this._editor.trigger('emmet', Handler.Tab, {});
+			return;
+		}
+
 		let codeSnippet = snippets.CodeSnippet.fromEmmet(value);
 		SnippetController.get(this._editor).runWithReplaceRange(codeSnippet, range);
 	}
