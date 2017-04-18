@@ -453,7 +453,11 @@ export class Model implements Disposable {
 
 	@throttle
 	async fetch(): Promise<void> {
+		try {
 		await this.run(Operation.Fetch, () => this.repository.fetch());
+		} catch (err) {
+			// noop
+	}
 	}
 
 	async pull(rebase?: boolean): Promise<void> {
