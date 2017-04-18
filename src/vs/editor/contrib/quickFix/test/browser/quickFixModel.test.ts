@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ICommonCodeEditor, IRange } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Model } from 'vs/editor/common/model/model';
@@ -15,6 +15,7 @@ import { QuickFixOracle } from 'vs/editor/contrib/quickFix/browser/quickFixModel
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Event from 'vs/base/common/event';
+import { IRange } from "vs/editor/common/core/range";
 
 function promiseOnce<T>(event: Event<T>): TPromise<T> {
 	return new TPromise(resolve => {

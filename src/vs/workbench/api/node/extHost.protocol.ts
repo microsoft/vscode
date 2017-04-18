@@ -40,6 +40,7 @@ import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/co
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel2';
 import { IPosition } from "vs/editor/common/core/position";
+import { IRange } from "vs/editor/common/core/range";
 
 export interface IEnvironment {
 	enableProposedApi: boolean;
@@ -138,10 +139,10 @@ export abstract class MainThreadEditorsShape {
 	$tryHideEditor(id: string): TPromise<void> { throw ni(); }
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> { throw ni(); }
 	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<any> { throw ni(); }
-	$tryRevealRange(id: string, range: editorCommon.IRange, revealType: TextEditorRevealType): TPromise<any> { throw ni(); }
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> { throw ni(); }
 	$trySetSelections(id: string, selections: editorCommon.ISelection[]): TPromise<any> { throw ni(); }
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> { throw ni(); }
-	$tryInsertSnippet(id: string, template: string, selections: editorCommon.IRange[], opts: IUndoStopOptions): TPromise<any> { throw ni(); }
+	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<any> { throw ni(); }
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]> { throw ni(); }
 }
 
@@ -399,9 +400,9 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$provideHover(handle: number, resource: URI, position: IPosition): TPromise<modes.Hover> { throw ni(); }
 	$provideDocumentHighlights(handle: number, resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]> { throw ni(); }
 	$provideReferences(handle: number, resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> { throw ni(); }
-	$provideCodeActions(handle: number, resource: URI, range: editorCommon.IRange): TPromise<modes.CodeAction[]> { throw ni(); }
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.CodeAction[]> { throw ni(); }
 	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
-	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: editorCommon.IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
+	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]> { throw ni(); }
 	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation> { throw ni(); }

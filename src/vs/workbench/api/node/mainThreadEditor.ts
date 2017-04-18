@@ -9,7 +9,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
@@ -276,7 +276,7 @@ export class MainThreadTextEditor {
 		this._codeEditor.setDecorations(key, ranges);
 	}
 
-	public revealRange(range: EditorCommon.IRange, revealType: TextEditorRevealType): void {
+	public revealRange(range: IRange, revealType: TextEditorRevealType): void {
 		if (!this._codeEditor) {
 			return;
 		}
@@ -387,7 +387,7 @@ export class MainThreadTextEditor {
 		return true;
 	}
 
-	insertSnippet(template: string, ranges: EditorCommon.IRange[], opts: IUndoStopOptions) {
+	insertSnippet(template: string, ranges: IRange[], opts: IUndoStopOptions) {
 
 		if (!this._codeEditor) {
 			return false;

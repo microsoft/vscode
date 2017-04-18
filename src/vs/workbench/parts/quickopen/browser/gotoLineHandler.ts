@@ -12,11 +12,12 @@ import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/comm
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IRange, IEditorViewState, ITextModel, IDiffEditorModel } from 'vs/editor/common/editorCommon';
+import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IEditorViewState, ITextModel, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { IRange } from "vs/editor/common/core/range";
 
 export const GOTO_LINE_PREFIX = ':';
 

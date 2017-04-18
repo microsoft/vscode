@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { binarySearch } from 'vs/base/common/arrays';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
@@ -61,7 +61,7 @@ export class InsertSnippetController {
 	private initialize(adaptedSnippet: ICodeSnippet, startLineNumber: number): void {
 
 		// sorted list of all placeholder occurences for subsequent lockups
-		const sortedOccurrences: editorCommon.IRange[] = [];
+		const sortedOccurrences: IRange[] = [];
 		for (const { occurences } of adaptedSnippet.placeHolders) {
 			for (const range of occurences) {
 				sortedOccurrences.push(range);

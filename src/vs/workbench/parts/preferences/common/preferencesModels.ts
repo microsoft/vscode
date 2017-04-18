@@ -12,7 +12,7 @@ import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
-import { IModel, IRange } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
@@ -21,6 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IRange } from "vs/editor/common/core/range";
 
 class SettingMatches {
 

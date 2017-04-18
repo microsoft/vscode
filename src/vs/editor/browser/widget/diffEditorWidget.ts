@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
@@ -622,7 +622,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this.modifiedEditor.getSelections();
 	}
 
-	public setSelection(range: editorCommon.IRange, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
+	public setSelection(range: IRange, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(editorRange: Range, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(selection: editorCommon.ISelection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(editorSelection: Selection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
@@ -646,19 +646,19 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.modifiedEditor.revealLinesInCenterIfOutsideViewport(startLineNumber, endLineNumber);
 	}
 
-	public revealRange(range: editorCommon.IRange, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = true): void {
+	public revealRange(range: IRange, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = true): void {
 		this.modifiedEditor.revealRange(range, revealVerticalInCenter, revealHorizontal);
 	}
 
-	public revealRangeInCenter(range: editorCommon.IRange): void {
+	public revealRangeInCenter(range: IRange): void {
 		this.modifiedEditor.revealRangeInCenter(range);
 	}
 
-	public revealRangeInCenterIfOutsideViewport(range: editorCommon.IRange): void {
+	public revealRangeInCenterIfOutsideViewport(range: IRange): void {
 		this.modifiedEditor.revealRangeInCenterIfOutsideViewport(range);
 	}
 
-	public revealRangeAtTop(range: editorCommon.IRange): void {
+	public revealRangeAtTop(range: IRange): void {
 		this.modifiedEditor.revealRangeAtTop(range);
 	}
 

@@ -12,7 +12,7 @@ import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/t
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import Event from 'vs/base/common/event';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { Color } from 'vs/base/common/color';
@@ -167,7 +167,7 @@ export interface Hover {
 	 * editor will use the range at the current position or the
 	 * current position itself.
 	 */
-	range: editorCommon.IRange;
+	range: IRange;
 }
 
 /**
@@ -372,7 +372,7 @@ export interface DocumentHighlight {
 	/**
 	 * The range this highlight applies to.
 	 */
-	range: editorCommon.IRange;
+	range: IRange;
 	/**
 	 * The highlight kind, default is [text](#DocumentHighlightKind.Text).
 	 */
@@ -423,7 +423,7 @@ export interface Location {
 	/**
 	 * The document range of this locations.
 	 */
-	range: editorCommon.IRange;
+	range: IRange;
 }
 /**
  * The definition of a symbol represented as one or many [locations](#Location).
@@ -570,7 +570,7 @@ export interface DocumentSymbolProvider {
 }
 
 export interface TextEdit {
-	range: editorCommon.IRange;
+	range: IRange;
 	text: string;
 	eol?: editorCommon.EndOfLineSequence;
 }
@@ -633,14 +633,14 @@ export interface OnTypeFormattingEditProvider {
  */
 export interface IInplaceReplaceSupportResult {
 	value: string;
-	range: editorCommon.IRange;
+	range: IRange;
 }
 
 /**
  * A link inside the editor.
  */
 export interface ILink {
-	range: editorCommon.IRange;
+	range: IRange;
 	url: string;
 }
 /**
@@ -654,7 +654,7 @@ export interface LinkProvider {
 
 export interface IResourceEdit {
 	resource: URI;
-	range: editorCommon.IRange;
+	range: IRange;
 	newText: string;
 }
 export interface WorkspaceEdit {
@@ -673,7 +673,7 @@ export interface Command {
 	arguments?: any[];
 }
 export interface ICodeLensSymbol {
-	range: editorCommon.IRange;
+	range: IRange;
 	id?: string;
 	command?: Command;
 }

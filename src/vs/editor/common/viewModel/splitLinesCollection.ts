@@ -5,7 +5,7 @@
 'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
@@ -417,7 +417,7 @@ export class SplitLinesCollection {
 		}).sort(Range.compareRangesUsingStarts);
 	}
 
-	private _reduceRanges(_ranges: editorCommon.IRange[]): Range[] {
+	private _reduceRanges(_ranges: IRange[]): Range[] {
 		if (_ranges.length === 0) {
 			return [];
 		}
@@ -442,7 +442,7 @@ export class SplitLinesCollection {
 		return result;
 	}
 
-	public setHiddenAreas(eventsCollector: ViewEventsCollector, _ranges: editorCommon.IRange[]): boolean {
+	public setHiddenAreas(eventsCollector: ViewEventsCollector, _ranges: IRange[]): boolean {
 
 		let newRanges = this._reduceRanges(_ranges);
 

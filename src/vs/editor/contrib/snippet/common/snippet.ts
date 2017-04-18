@@ -6,8 +6,7 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Marker, Variable, Placeholder, Text, SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
 
 export interface IIndentationNormalizer {
@@ -17,7 +16,7 @@ export interface IIndentationNormalizer {
 export interface IPlaceHolder {
 	id: string;
 	value: string;
-	occurences: editorCommon.IRange[];
+	occurences: IRange[];
 }
 
 export interface ICodeSnippet {

@@ -30,7 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -563,7 +563,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		return this._onDidSelectReference.event;
 	}
 
-	show(where: editorCommon.IRange) {
+	show(where: IRange) {
 		this.editor.revealRangeInCenterIfOutsideViewport(where);
 		super.show(where, this.layoutData.heightInLines || 18);
 	}

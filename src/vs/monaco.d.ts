@@ -415,28 +415,6 @@ declare module monaco {
     }
 
     /**
-     * A range in the editor. This interface is suitable for serialization.
-     */
-    export interface IRange {
-        /**
-         * Line number on which the range starts (starts at 1).
-         */
-        readonly startLineNumber: number;
-        /**
-         * Column on which the range starts in line `startLineNumber` (starts at 1).
-         */
-        readonly startColumn: number;
-        /**
-         * Line number on which the range ends.
-         */
-        readonly endLineNumber: number;
-        /**
-         * Column on which the range ends in line `endLineNumber`.
-         */
-        readonly endColumn: number;
-    }
-
-    /**
      * A selection in the editor.
      * The selection is a range that has an orientation.
      */
@@ -533,6 +511,28 @@ declare module monaco {
          * Test if `obj` is an `IPosition`.
          */
         static isIPosition(obj: any): obj is IPosition;
+    }
+
+    /**
+     * A range in the editor. This interface is suitable for serialization.
+     */
+    export interface IRange {
+        /**
+         * Line number on which the range starts (starts at 1).
+         */
+        readonly startLineNumber: number;
+        /**
+         * Column on which the range starts in line `startLineNumber` (starts at 1).
+         */
+        readonly startColumn: number;
+        /**
+         * Line number on which the range ends.
+         */
+        readonly endLineNumber: number;
+        /**
+         * Column on which the range ends in line `endLineNumber`.
+         */
+        readonly endColumn: number;
     }
 
     /**

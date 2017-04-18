@@ -18,7 +18,7 @@ import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
 import { EditorState } from 'vs/editor/common/core/editorState';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
@@ -397,7 +397,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		return result;
 	}
 
-	public setSelection(range: editorCommon.IRange, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
+	public setSelection(range: IRange, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(editorRange: Range, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(selection: editorCommon.ISelection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
 	public setSelection(editorSelection: Selection, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void;
@@ -470,7 +470,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		);
 	}
 
-	public revealRange(range: editorCommon.IRange, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = true): void {
+	public revealRange(range: IRange, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = true): void {
 		this._revealRange(
 			range,
 			revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple,
@@ -478,7 +478,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		);
 	}
 
-	public revealRangeInCenter(range: editorCommon.IRange): void {
+	public revealRangeInCenter(range: IRange): void {
 		this._revealRange(
 			range,
 			editorCommon.VerticalRevealType.Center,
@@ -486,7 +486,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		);
 	}
 
-	public revealRangeInCenterIfOutsideViewport(range: editorCommon.IRange): void {
+	public revealRangeInCenterIfOutsideViewport(range: IRange): void {
 		this._revealRange(
 			range,
 			editorCommon.VerticalRevealType.CenterIfOutsideViewport,
@@ -494,7 +494,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		);
 	}
 
-	public revealRangeAtTop(range: editorCommon.IRange): void {
+	public revealRangeAtTop(range: IRange): void {
 		this._revealRange(
 			range,
 			editorCommon.VerticalRevealType.Top,
@@ -502,7 +502,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		);
 	}
 
-	private _revealRange(range: editorCommon.IRange, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+	private _revealRange(range: IRange, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		if (!Range.isIRange(range)) {
 			throw new Error('Invalid arguments');
 		}

@@ -13,7 +13,6 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import types = require('vs/base/common/types');
 import { isWindows } from 'vs/base/common/platform';
 import strings = require('vs/base/common/strings');
-import { IRange } from 'vs/editor/common/editorCommon';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
@@ -78,6 +77,7 @@ interface ITelemetryData {
 
 // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler;
+import { IRange } from "vs/editor/common/core/range";
 
 export class OpenAnythingHandler extends QuickOpenHandler {
 

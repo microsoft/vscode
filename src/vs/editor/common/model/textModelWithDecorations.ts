@@ -8,7 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkedString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { MarkersTracker, LineMarker } from 'vs/editor/common/model/modelLine';
 import { Position } from 'vs/editor/common/core/position';
@@ -210,10 +210,10 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 	private _changeDecorations<T>(decorationsTracker: DecorationsTracker, ownerId: number, callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => T): T {
 		let changeAccessor: editorCommon.IModelDecorationsChangeAccessor = {
-			addDecoration: (range: editorCommon.IRange, options: editorCommon.IModelDecorationOptions): string => {
+			addDecoration: (range: IRange, options: editorCommon.IModelDecorationOptions): string => {
 				return this._addDecorationImpl(decorationsTracker, ownerId, this.validateRange(range), _normalizeOptions(options));
 			},
-			changeDecoration: (id: string, newRange: editorCommon.IRange): void => {
+			changeDecoration: (id: string, newRange: IRange): void => {
 				this._changeDecorationImpl(decorationsTracker, id, this.validateRange(newRange));
 			},
 			changeDecorationOptions: (id: string, options: editorCommon.IModelDecorationOptions) => {
@@ -407,7 +407,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		return this._getDecorationsInRange(new Range(startLineNumber, 1, endLineNumber, endColumn), ownerId, filterOutValidation);
 	}
 
-	public getDecorationsInRange(range: editorCommon.IRange, ownerId?: number, filterOutValidation?: boolean): editorCommon.IModelDecoration[] {
+	public getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean): editorCommon.IModelDecoration[] {
 		let validatedRange = this.validateRange(range);
 		return this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation);
 	}

@@ -7,7 +7,7 @@
 import { OrderGuaranteeEventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ModelLine } from 'vs/editor/common/model/modelLine';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
@@ -408,7 +408,7 @@ export class TextModel implements editorCommon.ITextModel {
 		return fullModelValue;
 	}
 
-	public getEmptiedValueInRange(rawRange: editorCommon.IRange, fillCharacter: string = '', eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
+	public getEmptiedValueInRange(rawRange: IRange, fillCharacter: string = '', eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
 		this._assertNotDisposed();
 		var range = this.validateRange(rawRange);
 
@@ -442,7 +442,7 @@ export class TextModel implements editorCommon.ITextModel {
 		return r;
 	}
 
-	public getValueInRange(rawRange: editorCommon.IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
+	public getValueInRange(rawRange: IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
 		this._assertNotDisposed();
 		var range = this.validateRange(rawRange);
 
@@ -468,7 +468,7 @@ export class TextModel implements editorCommon.ITextModel {
 		return resultLines.join(lineEnding);
 	}
 
-	public getValueLengthInRange(rawRange: editorCommon.IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): number {
+	public getValueLengthInRange(rawRange: IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): number {
 		this._assertNotDisposed();
 		var range = this.validateRange(rawRange);
 
@@ -726,7 +726,7 @@ export class TextModel implements editorCommon.ITextModel {
 		return this._validatePosition(position.lineNumber, position.column, true);
 	}
 
-	public validateRange(_range: editorCommon.IRange): Range {
+	public validateRange(_range: IRange): Range {
 		this._assertNotDisposed();
 		const start = this._validatePosition(_range.startLineNumber, _range.startColumn, false);
 		const end = this._validatePosition(_range.endLineNumber, _range.endColumn, false);

@@ -9,7 +9,7 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { stringDiff } from 'vs/base/common/diff/diff';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -58,7 +58,7 @@ export interface ICommonModel {
 	getLineContent(lineNumber: number): string;
 	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): editorCommon.IWordAtPosition;
 	getAllUniqueWords(wordDefinition: RegExp, skipWordOnce?: string): string[];
-	getValueInRange(range: editorCommon.IRange): string;
+	getValueInRange(range: IRange): string;
 	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range;
 	offsetAt(position: IPosition): number;
 	positionAt(offset: number): IPosition;
@@ -172,7 +172,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		return result;
 	}
 
-	public getValueInRange(range: editorCommon.IRange): string {
+	public getValueInRange(range: IRange): string {
 		range = this._validateRange(range);
 
 		if (range.startLineNumber === range.endLineNumber) {
@@ -214,7 +214,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		};
 	}
 
-	private _validateRange(range: editorCommon.IRange): editorCommon.IRange {
+	private _validateRange(range: IRange): IRange {
 
 		const start = this._validatePosition({ lineNumber: range.startLineNumber, column: range.startColumn });
 		const end = this._validatePosition({ lineNumber: range.endLineNumber, column: range.endColumn });
@@ -328,7 +328,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	private static _diffLimit = 10000;
 
-	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[], ranges: editorCommon.IRange[]): TPromise<TextEdit[]> {
+	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[], ranges: IRange[]): TPromise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return TPromise.as(edits);
@@ -426,7 +426,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- END suggest --------------------------------------------------------------------------
 
-	public navigateValueSet(modelUrl: string, range: editorCommon.IRange, up: boolean, wordDef: string, wordDefFlags: string): TPromise<IInplaceReplaceSupportResult> {
+	public navigateValueSet(modelUrl: string, range: IRange, up: boolean, wordDef: string, wordDefFlags: string): TPromise<IInplaceReplaceSupportResult> {
 		let model = this._getModel(modelUrl);
 		if (!model) {
 			return null;

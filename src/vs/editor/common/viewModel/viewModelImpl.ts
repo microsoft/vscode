@@ -8,7 +8,7 @@ import { EmitterEvent, IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
@@ -141,13 +141,13 @@ export class ViewModel implements IViewModel {
 		this._listeners = [];
 	}
 
-	public setHiddenAreas(ranges: editorCommon.IRange[]): void {
+	public setHiddenAreas(ranges: IRange[]): void {
 		let eventsCollector = new ViewEventsCollector();
 		this._setHiddenAreas(eventsCollector, ranges);
 		this._emit(eventsCollector.finalize());
 	}
 
-	private _setHiddenAreas(eventsCollector: ViewEventsCollector, ranges: editorCommon.IRange[]): void {
+	private _setHiddenAreas(eventsCollector: ViewEventsCollector, ranges: IRange[]): void {
 		let lineMappingChanged = this.lines.setHiddenAreas(eventsCollector, ranges);
 		if (lineMappingChanged) {
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());

@@ -20,7 +20,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
@@ -541,7 +541,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		}).done(undefined, onUnexpectedError);
 	}
 
-	private addDecoration(range: editorCommon.IRange, hoverMessage: MarkedString): void {
+	private addDecoration(range: IRange, hoverMessage: MarkedString): void {
 
 		const newDecorations: editorCommon.IModelDeltaDecoration = {
 			range: range,

@@ -6,7 +6,7 @@
 
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICommentsConfiguration, LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
@@ -38,7 +38,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return true;
 	}
 
-	private _createOperationsForBlockComment(selection: editorCommon.IRange, config: ICommentsConfiguration, model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
+	private _createOperationsForBlockComment(selection: IRange, config: ICommentsConfiguration, model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
 		var startLineNumber = selection.startLineNumber;
 		var startColumn = selection.startColumn;
 		var endLineNumber = selection.endLineNumber;
@@ -69,7 +69,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public static _createRemoveBlockCommentOperations(r: editorCommon.IRange, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
+	public static _createRemoveBlockCommentOperations(r: IRange, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
 		var res: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
@@ -95,7 +95,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return res;
 	}
 
-	public static _createAddBlockCommentOperations(r: editorCommon.IRange, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
+	public static _createAddBlockCommentOperations(r: IRange, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
 		var res: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {

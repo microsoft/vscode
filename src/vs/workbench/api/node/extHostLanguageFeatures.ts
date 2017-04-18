@@ -11,7 +11,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Range, Disposable, CompletionList, CompletionItem, SnippetString } from 'vs/workbench/api/node/extHostTypes';
-import { IRange, ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
@@ -22,6 +22,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from "vs/editor/common/core/position";
+import { IRange } from "vs/editor/common/core/range";
 
 // --- adapter
 

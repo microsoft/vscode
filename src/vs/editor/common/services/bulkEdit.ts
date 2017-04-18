@@ -13,9 +13,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IFileService, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, IModel, ISelection, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export interface IResourceEdit {

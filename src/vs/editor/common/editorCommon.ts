@@ -14,7 +14,7 @@ import { LanguageId, LanguageIdentifier, StandardTokenType } from 'vs/editor/com
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IndentRange } from 'vs/editor/common/model/indentRanges';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
@@ -34,28 +34,6 @@ export interface Event<T> {
 }
 
 // --- position & range
-
-/**
- * A range in the editor. This interface is suitable for serialization.
- */
-export interface IRange {
-	/**
-	 * Line number on which the range starts (starts at 1).
-	 */
-	readonly startLineNumber: number;
-	/**
-	 * Column on which the range starts in line `startLineNumber` (starts at 1).
-	 */
-	readonly startColumn: number;
-	/**
-	 * Line number on which the range ends.
-	 */
-	readonly endLineNumber: number;
-	/**
-	 * Column on which the range ends in line `endLineNumber`.
-	 */
-	readonly endColumn: number;
-}
 
 /**
  * A selection in the editor.

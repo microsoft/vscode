@@ -10,7 +10,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import * as editorOptions from "vs/editor/common/config/editorOptions";
@@ -556,7 +556,7 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * Set the model ranges that will be hidden in the view.
 	 * @internal
 	 */
-	setHiddenAreas(ranges: editorCommon.IRange[]): void;
+	setHiddenAreas(ranges: IRange[]): void;
 
 	/**
 	 * @internal

@@ -16,7 +16,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
@@ -486,7 +486,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._view.render(true, false);
 	}
 
-	public setHiddenAreas(ranges: editorCommon.IRange[]): void {
+	public setHiddenAreas(ranges: IRange[]): void {
 		if (this.viewModel) {
 			this.viewModel.setHiddenAreas(ranges);
 		}

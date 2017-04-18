@@ -13,12 +13,13 @@ import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
-import { ICommonCodeEditor, IRange, ModeContextKeys, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, ModeContextKeys, EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { SymbolInformation, DocumentSymbolProviderRegistry, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { getDocumentSymbols, IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IRange } from "vs/editor/common/core/range";
 
 let SCOPE_PREFIX = ':';
 

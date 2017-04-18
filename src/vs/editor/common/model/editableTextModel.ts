@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditStack } from 'vs/editor/common/model/editStack';
 import { ILineEdit, LineMarker, ModelLine, MarkersTracker } from 'vs/editor/common/model/modelLine';
@@ -790,7 +790,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		}
 	}
 
-	public setEditableRange(range: editorCommon.IRange): void {
+	public setEditableRange(range: IRange): void {
 		this._commandManager.clear();
 
 		if (!this._hasEditableRange && !range) {
