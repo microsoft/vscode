@@ -16,7 +16,7 @@ import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IPosition } from "vs/editor/common/core/position";
-import { IRange } from "vs/editor/common/core/range";
+import { Range } from "vs/editor/common/core/range";
 
 interface ParseResult {
 	position: IPosition;
@@ -131,13 +131,13 @@ export class GotoLineEntry extends QuickOpenEntry {
 		return false;
 	}
 
-	private toSelection(): IRange {
-		return {
-			startLineNumber: this._parseResult.position.lineNumber,
-			startColumn: this._parseResult.position.column,
-			endLineNumber: this._parseResult.position.lineNumber,
-			endColumn: this._parseResult.position.column
-		};
+	private toSelection(): Range {
+		return new Range(
+			this._parseResult.position.lineNumber,
+			this._parseResult.position.column,
+			this._parseResult.position.lineNumber,
+			this._parseResult.position.column
+		);
 	}
 }
 

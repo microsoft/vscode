@@ -13,7 +13,7 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
@@ -333,18 +333,13 @@ export class FoldingController implements IFoldingController {
 		let model = this.editor.getModel();
 		var selections: Selection[] = this.editor.getSelections();
 		var updateSelections = false;
-		let hiddenAreas: IRange[] = [];
+		let hiddenAreas: Range[] = [];
 		this.decorations.filter(dec => dec.isCollapsed).forEach(dec => {
 			let decRange = dec.getDecorationRange(model);
 			if (!decRange) {
 				return;
 			}
-			hiddenAreas.push({
-				startLineNumber: decRange.startLineNumber + 1,
-				startColumn: 1,
-				endLineNumber: decRange.endLineNumber,
-				endColumn: 1
-			});
+			hiddenAreas.push(new Range(decRange.startLineNumber + 1, 1, decRange.endLineNumber, 1));
 			selections.forEach((selection, i) => {
 				if (Range.containsPosition(decRange, selection.getStartPosition())) {
 					selections[i] = selection = selection.setStartPosition(decRange.startLineNumber, model.getLineMaxColumn(decRange.startLineNumber));

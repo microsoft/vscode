@@ -92,13 +92,13 @@ class EditTask implements IDisposable {
 
 		if (edit.range || edit.newText) {
 			// create edit operation
-			let range: IRange;
+			let range: Range;
 			if (!edit.range) {
 				range = this._model.getFullModelRange();
 			} else {
-				range = edit.range;
+				range = Range.lift(edit.range);
 			}
-			this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
+			this._edits.push(EditOperation.replaceMove(range, edit.newText));
 		}
 	}
 

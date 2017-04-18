@@ -408,40 +408,6 @@ export class TextModel implements editorCommon.ITextModel {
 		return fullModelValue;
 	}
 
-	public getEmptiedValueInRange(rawRange: IRange, fillCharacter: string = '', eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
-		this._assertNotDisposed();
-		var range = this.validateRange(rawRange);
-
-		if (range.isEmpty()) {
-			return '';
-		}
-
-		if (range.startLineNumber === range.endLineNumber) {
-			return this._repeatCharacter(fillCharacter, range.endColumn - range.startColumn);
-		}
-
-		var lineEnding = this._getEndOfLine(eol),
-			startLineIndex = range.startLineNumber - 1,
-			endLineIndex = range.endLineNumber - 1,
-			resultLines: string[] = [];
-
-		resultLines.push(this._repeatCharacter(fillCharacter, this._lines[startLineIndex].text.length - range.startColumn + 1));
-		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
-			resultLines.push(this._repeatCharacter(fillCharacter, this._lines[i].text.length));
-		}
-		resultLines.push(this._repeatCharacter(fillCharacter, range.endColumn - 1));
-
-		return resultLines.join(lineEnding);
-	}
-
-	private _repeatCharacter(fillCharacter: string, count: number): string {
-		var r = '';
-		for (var i = 0; i < count; i++) {
-			r += fillCharacter;
-		}
-		return r;
-	}
-
 	public getValueInRange(rawRange: IRange, eol: editorCommon.EndOfLinePreference = editorCommon.EndOfLinePreference.TextDefined): string {
 		this._assertNotDisposed();
 		var range = this.validateRange(rawRange);

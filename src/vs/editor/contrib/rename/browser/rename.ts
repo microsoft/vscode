@@ -27,7 +27,7 @@ import { sequence, asWinJsPromise } from 'vs/base/common/async';
 import { WorkspaceEdit, RenameProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IRange } from "vs/editor/common/core/range";
+import { Range } from "vs/editor/common/core/range";
 
 
 export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
@@ -128,14 +128,14 @@ class RenameController implements IEditorContribution {
 		let lineNumber = selection.startLineNumber,
 			selectionStart = 0,
 			selectionEnd = word.word.length,
-			wordRange: IRange;
+			wordRange: Range;
 
-		wordRange = {
-			startLineNumber: lineNumber,
-			startColumn: word.startColumn,
-			endLineNumber: lineNumber,
-			endColumn: word.endColumn
-		};
+		wordRange = new Range(
+			lineNumber,
+			word.startColumn,
+			lineNumber,
+			word.endColumn
+		);
 
 		if (!selection.isEmpty() && selection.startLineNumber === selection.endLineNumber) {
 			selectionStart = Math.max(0, selection.startColumn - word.startColumn);

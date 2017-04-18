@@ -20,7 +20,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
@@ -461,12 +461,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 			// Multiple results
 			if (results.length > 1) {
-				this.addDecoration({
-					startLineNumber: position.lineNumber,
-					startColumn: word.startColumn,
-					endLineNumber: position.lineNumber,
-					endColumn: word.endColumn
-				}, nls.localize('multipleResults', "Click to show {0} definitions.", results.length));
+				this.addDecoration(new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn), nls.localize('multipleResults', "Click to show {0} definitions.", results.length));
 			}
 
 			// Single result
@@ -530,18 +525,13 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 					ref.dispose();
 
-					this.addDecoration({
-						startLineNumber: position.lineNumber,
-						startColumn: word.startColumn,
-						endLineNumber: position.lineNumber,
-						endColumn: word.endColumn
-					}, hoverMessage);
+					this.addDecoration(new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn), hoverMessage);
 				});
 			}
 		}).done(undefined, onUnexpectedError);
 	}
 
-	private addDecoration(range: IRange, hoverMessage: MarkedString): void {
+	private addDecoration(range: Range, hoverMessage: MarkedString): void {
 
 		const newDecorations: editorCommon.IModelDeltaDecoration = {
 			range: range,

@@ -6,7 +6,7 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { Marker, Variable, Placeholder, Text, SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
 
 export interface IIndentationNormalizer {
@@ -16,7 +16,7 @@ export interface IIndentationNormalizer {
 export interface IPlaceHolder {
 	id: string;
 	value: string;
-	occurences: IRange[];
+	occurences: Range[];
 }
 
 export interface ICodeSnippet {
@@ -276,12 +276,12 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 			const line = snippet.lines.length;
 			const column = snippet.lines[line - 1].length + 1;
 
-			placeHolder.occurences.push({
-				startLineNumber: line,
-				startColumn: column,
-				endLineNumber: line,
-				endColumn: column + Marker.toString(marker.defaultValue).length // TODO multiline placeholders!
-			});
+			placeHolder.occurences.push(new Range(
+				line,
+				column,
+				line,
+				column + Marker.toString(marker.defaultValue).length // TODO multiline placeholders!
+			));
 
 			stack.unshift(...marker.defaultValue);
 

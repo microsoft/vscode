@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { renderMarkedString } from 'vs/base/browser/htmlContentRenderer';
 import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { HoverProviderRegistry, Hover } from 'vs/editor/common/modes';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -226,7 +226,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}
 	}
 
-	private _renderMessages(renderRange: IRange, messages: Hover[]): void {
+	private _renderMessages(renderRange: Range, messages: Hover[]): void {
 
 		// update column from which to show
 		var renderColumn = Number.MAX_VALUE,

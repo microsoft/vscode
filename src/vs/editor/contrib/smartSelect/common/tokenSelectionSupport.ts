@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Node, build, find } from './tokenTree';
@@ -17,7 +17,7 @@ import { IPosition } from "vs/editor/common/core/position";
  */
 export interface ILogicalSelectionEntry {
 	type: string;
-	range: IRange;
+	range: Range;
 }
 
 export class TokenSelectionSupport {
@@ -48,14 +48,14 @@ export class TokenSelectionSupport {
 		return entries;
 	}
 
-	private _doGetRangesToPosition(model: IModel, position: IPosition): IRange[] {
+	private _doGetRangesToPosition(model: IModel, position: IPosition): Range[] {
 
 		var tree = build(model),
 			node: Node,
-			lastRange: IRange;
+			lastRange: Range;
 
 		node = find(tree, position);
-		var ranges: IRange[] = [];
+		var ranges: Range[] = [];
 		while (node) {
 			if (!lastRange || !Range.equalsRange(lastRange, node.range)) {
 				ranges.push(node.range);

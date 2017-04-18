@@ -19,7 +19,7 @@ import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { getDocumentSymbols, IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IRange } from "vs/editor/common/core/range";
+import { Range } from "vs/editor/common/core/range";
 
 let SCOPE_PREFIX = ':';
 
@@ -27,11 +27,11 @@ class SymbolEntry extends QuickOpenEntryGroup {
 	private name: string;
 	private type: string;
 	private description: string;
-	private range: IRange;
+	private range: Range;
 	private editor: ICommonCodeEditor;
 	private decorator: IDecorator;
 
-	constructor(name: string, type: string, description: string, range: IRange, highlights: IHighlight[], editor: ICommonCodeEditor, decorator: IDecorator) {
+	constructor(name: string, type: string, description: string, range: Range, highlights: IHighlight[], editor: ICommonCodeEditor, decorator: IDecorator) {
 		super();
 
 		this.name = name;
@@ -63,7 +63,7 @@ class SymbolEntry extends QuickOpenEntryGroup {
 		return this.type;
 	}
 
-	public getRange(): IRange {
+	public getRange(): Range {
 		return this.range;
 	}
 
@@ -98,13 +98,13 @@ class SymbolEntry extends QuickOpenEntryGroup {
 		return false;
 	}
 
-	private toSelection(): IRange {
-		return {
-			startLineNumber: this.range.startLineNumber,
-			startColumn: this.range.startColumn || 1,
-			endLineNumber: this.range.startLineNumber,
-			endColumn: this.range.startColumn || 1
-		};
+	private toSelection(): Range {
+		return new Range(
+			this.range.startLineNumber,
+			this.range.startColumn || 1,
+			this.range.startLineNumber,
+			this.range.startColumn || 1
+		);
 	}
 }
 
@@ -192,7 +192,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 				}
 
 				// Add
-				results.push(new SymbolEntry(label, symbolKindToCssClass(element.kind), description, element.location.range, highlights, editor, controller));
+				results.push(new SymbolEntry(label, symbolKindToCssClass(element.kind), description, Range.lift(element.location.range), highlights, editor, controller));
 			}
 		}
 

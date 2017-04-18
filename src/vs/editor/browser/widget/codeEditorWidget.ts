@@ -488,7 +488,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	public setHiddenAreas(ranges: IRange[]): void {
 		if (this.viewModel) {
-			this.viewModel.setHiddenAreas(ranges);
+			this.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
 		}
 	}
 

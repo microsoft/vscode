@@ -10,7 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import {
 	CommonFindController, FindStartFocusAction, IFindStartOptions,
@@ -68,7 +68,7 @@ class TestFindController extends CommonFindController {
 
 suite('FindController', () => {
 
-	function fromRange(rng: IRange): number[] {
+	function fromRange(rng: Range): number[] {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 

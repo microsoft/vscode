@@ -15,7 +15,7 @@ import { QuickFixOracle } from 'vs/editor/contrib/quickFix/browser/quickFixModel
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Event from 'vs/base/common/event';
-import { IRange } from "vs/editor/common/core/range";
+import { Range } from "vs/editor/common/core/range";
 
 function promiseOnce<T>(event: Event<T>): TPromise<T> {
 	return new TPromise(resolve => {
@@ -157,7 +157,7 @@ suite('QuickFix', () => {
 
 	test('Oracle -> selection wins over marker', () => {
 
-		let range: IRange;
+		let range: Range;
 		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
 			provideCodeActions(doc, _range) {
 				range = _range;

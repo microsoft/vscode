@@ -15,7 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol, Command } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -228,7 +228,7 @@ class CodeLens {
 		this._data = data;
 		this._decorationIds = new Array<string>(this._data.length);
 
-		let range: IRange;
+		let range: Range;
 		this._data.forEach((codeLensData, i) => {
 
 			helper.addDecoration({
@@ -238,13 +238,13 @@ class CodeLens {
 
 			// the range contains all lenses on this line
 			if (!range) {
-				range = codeLensData.symbol.range;
+				range = Range.lift(codeLensData.symbol.range);
 			} else {
 				range = Range.plusRange(range, codeLensData.symbol.range);
 			}
 		});
 
-		this._contentWidget = new CodeLensContentWidget(editor, Range.lift(range), commandService, messageService);
+		this._contentWidget = new CodeLensContentWidget(editor, range, commandService, messageService);
 		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallabck);
 
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
