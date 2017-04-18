@@ -571,7 +571,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 
 					if (this.apiVersion.has230Features()) {
-						const plugins = this.getTypeScriptServerPlugsins();
+						const plugins = this.getContributedTypeScriptServerPlugins();
 						if (plugins.length) {
 							args.push('--globalPlugins', plugins.map(x => x.name).join(','));
 							args.push('--pluginProbeLocations', plugins.map(x => x.path).join(','));
@@ -806,16 +806,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return desc.version;
 	}
 
-	private getTypeScriptServerPlugsins(): TypeScriptServerPlugin[] {
+	private getContributedTypeScriptServerPlugins(): TypeScriptServerPlugin[] {
 		const plugins: TypeScriptServerPlugin[] = [];
 		for (const extension of extensions.all) {
 			const pack = extension.packageJSON;
 			if (pack.contributes && pack.contributes.typescriptServerPlugins && Array.isArray(pack.contributes.typescriptServerPlugins)) {
 				for (const plugin of pack.contributes.typescriptServerPlugins) {
-					const fullPath = path.resolve(extension.extensionPath, plugin);
 					plugins.push({
-						name: path.basename(fullPath),
-						path: path.dirname(fullPath)
+						name: plugin.name,
+						path: path.join(extension.extensionPath, 'node_modules', plugin.name)
 					});
 				}
 			}
