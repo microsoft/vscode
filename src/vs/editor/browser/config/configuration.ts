@@ -16,13 +16,6 @@ import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
-// See https://github.com/Microsoft/vscode/issues/24483
-const isChromev56 = (
-	navigator.userAgent.indexOf('Chrome/56.') >= 0
-	/* Edge likes to impersonate Chrome sometimes */
-	&& navigator.userAgent.indexOf('Edge/') === -1
-);
-
 class CSSBasedConfigurationCache {
 
 	private _keys: { [key: string]: BareFontInfo; };
@@ -376,20 +369,7 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	protected _getCanUseTranslate3d(): boolean {
-		if (!browser.canUseTranslate3d) {
-			return false;
-		}
-		if (browser.getZoomLevel() !== 0) {
-			return false;
-		}
-		if (isChromev56) {
-			const pixelRatio = browser.getPixelRatio();
-			if (Math.floor(pixelRatio) !== pixelRatio) {
-				// Not an integer
-				return false;
-			}
-		}
-		return true;
+		return browser.canUseTranslate3d();
 	}
 
 	protected _getPixelRatio(): number {
