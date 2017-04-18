@@ -181,7 +181,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 		return model;
 	}
 
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
 

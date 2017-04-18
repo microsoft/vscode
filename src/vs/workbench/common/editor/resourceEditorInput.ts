@@ -68,7 +68,7 @@ export class ResourceEditorInput extends EditorInput {
 		}
 	}
 
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.resource);
 

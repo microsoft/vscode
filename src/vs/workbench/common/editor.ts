@@ -208,7 +208,7 @@ export abstract class EditorInput implements IEditorInput {
 	 *
 	 * Subclasses should extend if they can contribute.
 	 */
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		return { typeId: this.getTypeId() };
 	}
 
@@ -377,7 +377,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.revert();
 	}
 
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		const descriptor = this.master.getTelemetryDescriptor();
 		return objects.assign(descriptor, super.getTelemetryDescriptor());
 	}

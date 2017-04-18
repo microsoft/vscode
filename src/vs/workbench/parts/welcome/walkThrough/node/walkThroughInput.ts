@@ -86,7 +86,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.telemetryFrom || 'walkThrough';
 	}
 
-	getTelemetryDescriptor(): { [key: string]: any; } {
+	getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['target'] = this.getTelemetryFrom();
 		descriptor['resource'] = telemetryURIDescriptor(this.resource);
