@@ -5,7 +5,6 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -669,11 +668,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return this.codeEditorHelper;
 	}
 
-	public getInternalEventBus(): IEventEmitter {
+	public getInternalEventBus(): ViewOutgoingEvents {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.getInternalEventBus: View is disposed');
 		}
-		return this.outgoingEvents.getInternalEventBus();
+		return this.outgoingEvents;
 	}
 
 	public saveState(): editorCommon.IViewState {
@@ -851,11 +850,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		if (this._isDisposed) {
 			throw new Error('ViewImpl._renderOnce: View is disposed');
 		}
-		return this.outgoingEvents.deferredEmit(() => {
-			let r = safeInvokeNoArg(callback);
-			this._scheduleRender();
-			return r;
-		});
+		let r = safeInvokeNoArg(callback);
+		this._scheduleRender();
+		return r;
 	}
 
 	private _scheduleRender(): void {

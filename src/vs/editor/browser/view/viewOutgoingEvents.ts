@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
@@ -14,90 +13,99 @@ import { IScrollEvent, MouseTargetType } from 'vs/editor/common/editorCommon';
 import { IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-
-export const ViewEventType = {
-
-	EditorScroll: 'scroll',
-
-	ViewFocusGained: 'focusGained',
-	ViewFocusLost: 'focusLost',
-
-	ContextMenu: 'contextMenu',
-	MouseDown: 'mousedown',
-	MouseUp: 'mouseup',
-	MouseMove: 'mousemove',
-	MouseLeave: 'mouseleave',
-	MouseDrag: 'mousedrag',
-	MouseDrop: 'mousedrop',
-	KeyDown: 'keydown',
-	KeyUp: 'keyup',
-};
+import Event, { Emitter } from 'vs/base/common/event';
 
 export class ViewOutgoingEvents extends Disposable {
 
+	private readonly _onDidScroll: Emitter<IScrollEvent> = this._register(new Emitter<IScrollEvent>());
+	public readonly onDidScroll: Event<IScrollEvent> = this._onDidScroll.event;
+
+	private readonly _onDidGainFocus: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidGainFocus: Event<void> = this._onDidGainFocus.event;
+
+	private readonly _onDidLoseFocus: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidLoseFocus: Event<void> = this._onDidLoseFocus.event;
+
+	private readonly _onKeyDown: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+
+	private readonly _onKeyUp: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
+
+	private readonly _onContextMenu: Emitter<IEditorMouseEvent> = this._register(new Emitter<IEditorMouseEvent>());
+	public readonly onContextMenu: Event<IEditorMouseEvent> = this._onContextMenu.event;
+
+	private readonly _onMouseMove: Emitter<IEditorMouseEvent> = this._register(new Emitter<IEditorMouseEvent>());
+	public readonly onMouseMove: Event<IEditorMouseEvent> = this._onMouseMove.event;
+
+	private readonly _onMouseLeave: Emitter<IEditorMouseEvent> = this._register(new Emitter<IEditorMouseEvent>());
+	public readonly onMouseLeave: Event<IEditorMouseEvent> = this._onMouseLeave.event;
+
+	private readonly _onMouseUp: Emitter<IEditorMouseEvent> = this._register(new Emitter<IEditorMouseEvent>());
+	public readonly onMouseUp: Event<IEditorMouseEvent> = this._onMouseUp.event;
+
+	private readonly _onMouseDown: Emitter<IEditorMouseEvent> = this._register(new Emitter<IEditorMouseEvent>());
+	public readonly onMouseDown: Event<IEditorMouseEvent> = this._onMouseDown.event;
+
+	private readonly _onMouseDrag: Emitter<IEditorMouseEvent> = this._register(new Emitter<IEditorMouseEvent>());
+	public readonly onMouseDrag: Event<IEditorMouseEvent> = this._onMouseDrag.event;
+
+	private readonly _onMouseDrop: Emitter<IEditorMouseEvent> = this._register(new Emitter<IEditorMouseEvent>());
+	public readonly onMouseDrop: Event<IEditorMouseEvent> = this._onMouseDrop.event;
+
 	private _viewModel: IViewModel;
-	private _actual: EventEmitter;
 
 	constructor(viewModel: IViewModel) {
 		super();
 		this._viewModel = viewModel;
-		this._actual = this._register(new EventEmitter());
-	}
-
-	public getInternalEventBus(): IEventEmitter {
-		return this._actual;
-	}
-
-	public deferredEmit<T>(callback: () => T): T {
-		return this._actual.deferredEmit(callback);
 	}
 
 	public emitScrollChanged(e: viewEvents.ViewScrollChangedEvent): void {
-		this._actual.emit(ViewEventType.EditorScroll, <IScrollEvent>e);
+		this._onDidScroll.fire(e);
 	}
 
 	public emitViewFocusGained(): void {
-		this._actual.emit(ViewEventType.ViewFocusGained, {});
+		this._onDidGainFocus.fire();
 	}
 
 	public emitViewFocusLost(): void {
-		this._actual.emit(ViewEventType.ViewFocusLost, {});
+		this._onDidLoseFocus.fire();
 	}
 
 	public emitKeyDown(e: IKeyboardEvent): void {
-		this._actual.emit(ViewEventType.KeyDown, e);
+		this._onKeyDown.fire(e);
 	}
 
 	public emitKeyUp(e: IKeyboardEvent): void {
-		this._actual.emit(ViewEventType.KeyUp, e);
+		this._onKeyUp.fire(e);
 	}
 
 	public emitContextMenu(e: IEditorMouseEvent): void {
-		this._actual.emit(ViewEventType.ContextMenu, this._convertViewToModelMouseEvent(e));
+		this._onContextMenu.fire(e);
 	}
 
 	public emitMouseMove(e: IEditorMouseEvent): void {
-		this._actual.emit(ViewEventType.MouseMove, this._convertViewToModelMouseEvent(e));
+		this._onMouseMove.fire(e);
 	}
 
 	public emitMouseLeave(e: IEditorMouseEvent): void {
-		this._actual.emit(ViewEventType.MouseLeave, this._convertViewToModelMouseEvent(e));
+		this._onMouseLeave.fire(e);
 	}
 
 	public emitMouseUp(e: IEditorMouseEvent): void {
-		this._actual.emit(ViewEventType.MouseUp, this._convertViewToModelMouseEvent(e));
+		this._onMouseUp.fire(e);
 	}
 
 	public emitMouseDown(e: IEditorMouseEvent): void {
-		this._actual.emit(ViewEventType.MouseDown, this._convertViewToModelMouseEvent(e));
+		this._onMouseDown.fire(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseDrag(e: IEditorMouseEvent): void {
-		this._actual.emit(ViewEventType.MouseDrag, this._convertViewToModelMouseEvent(e));
+		this._onMouseDrag.fire(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseDrop(e: IEditorMouseEvent): void {
-		this._actual.emit(ViewEventType.MouseDrop, this._convertViewToModelMouseEvent(e));
+		this._onMouseDrop.fire(this._convertViewToModelMouseEvent(e));
 	}
 
 	private _convertViewToModelMouseEvent(e: IEditorMouseEvent): IEditorMouseEvent {

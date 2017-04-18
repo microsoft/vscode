@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -13,6 +12,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
+import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 
 /**
  * @internal
@@ -56,7 +56,7 @@ export interface ICodeEditorHelper {
 export interface IView extends IDisposable {
 	domNode: FastDomNode<HTMLElement>;
 
-	getInternalEventBus(): IEventEmitter;
+	getInternalEventBus(): ViewOutgoingEvents;
 
 	createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): IOverviewRuler;
 	getCodeEditorHelper(): ICodeEditorHelper;
