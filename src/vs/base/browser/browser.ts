@@ -8,6 +8,11 @@ import * as Platform from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
+interface BatteryManager {
+	charging: boolean;
+	addEventListener(event: 'chargingchange', callback: () => void): void;
+}
+
 class WindowManager {
 
 	public static INSTANCE = new WindowManager();
@@ -25,6 +30,21 @@ class WindowManager {
 
 	private _onDidChangeFullscreen: Emitter<void> = new Emitter<void>();
 	public onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
+
+	private _isRunningOnBattery: boolean = false;
+	private _onDidChangeIsRunningOnBattery: Emitter<void> = new Emitter<void>();
+	public onDidChangeIsRunningOnBattery: Event<void> = this._onDidChangeIsRunningOnBattery.event;
+
+	constructor() {
+		if (typeof (<any>navigator).getBattery === 'function') {
+			(<any>navigator).getBattery().then((battery: BatteryManager) => {
+				this._setIsRunningOnBattery(!battery.charging);
+				battery.addEventListener('chargingchange', () => {
+					this._setIsRunningOnBattery(!battery.charging);
+				});
+			}, (err) => { /* nothing to do, battery API not available */ });
+		}
+	}
 
 	public getZoomLevel(): number {
 		return this._zoomLevel;
@@ -79,6 +99,26 @@ class WindowManager {
 	public isFullscreen(): boolean {
 		return this._fullscreen;
 	}
+
+	public isRunningOnBattery(): boolean {
+		return this._isRunningOnBattery;
+	}
+
+	private _setIsRunningOnBattery(isRunningOnBattery: boolean): void {
+		if (this._isRunningOnBattery === isRunningOnBattery) {
+			// no change
+			return;
+		}
+		this._isRunningOnBattery = isRunningOnBattery;
+		this._onDidChangeIsRunningOnBattery.fire();
+	}
+}
+
+export function isRunningOnBattery(): boolean {
+	return WindowManager.INSTANCE.isRunningOnBattery();
+}
+export function onDidChangeIsRunningOnBattery(callback: () => void): IDisposable {
+	return WindowManager.INSTANCE.onDidChangeIsRunningOnBattery(callback);
 }
 
 /** A zoom index, e.g. 1, 2, 3 */

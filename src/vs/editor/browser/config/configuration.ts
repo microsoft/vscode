@@ -318,6 +318,7 @@ export class Configuration extends CommonEditorConfiguration {
 		}
 
 		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
+		this._register(browser.onDidChangeIsRunningOnBattery(() => this._recomputeOptions()));
 	}
 
 	private _onReferenceDomElementSizeChanged(): void {
@@ -374,6 +375,10 @@ export class Configuration extends CommonEditorConfiguration {
 
 	protected _getPixelRatio(): number {
 		return browser.getPixelRatio();
+	}
+
+	protected _isRunningOnBattery(): boolean {
+		return browser.isRunningOnBattery();
 	}
 
 	protected readConfiguration(bareFontInfo: BareFontInfo): FontInfo {

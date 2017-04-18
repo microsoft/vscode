@@ -34,6 +34,10 @@ export class TestConfiguration extends CommonEditorConfiguration {
 		return 1;
 	}
 
+	protected _isRunningOnBattery(): boolean {
+		return false;
+	}
+
 	protected readConfiguration(styling: BareFontInfo): FontInfo {
 		return new FontInfo({
 			zoomLevel: 0,
