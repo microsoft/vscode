@@ -63,6 +63,7 @@ import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry
 import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
 import { attachListStyler } from "vs/platform/theme/common/styler";
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { Color } from "vs/base/common/color";
 
 export class SearchViewlet extends Viewlet {
 
@@ -242,17 +243,19 @@ export class SearchViewlet extends Viewlet {
 			});
 
 			// add hint if we have global exclusion
-			this.inputPatternGlobalExclusionsContainer = builder.div({ 'class': 'file-types global-exclude disabled' }, (builder) => {
+			this.inputPatternGlobalExclusionsContainer = builder.div({ 'class': 'file-types global-exclude' }, (builder) => {
 				let title = nls.localize('global.searchScope.folders', "files excluded through settings");
 				builder.element('h4', { text: title });
 
 				this.inputPatternGlobalExclusions = new InputBox(builder.getContainer(), this.contextViewService, {
 					actions: [this.instantiationService.createInstance(ConfigureGlobalExclusionsAction)],
-					ariaLabel: nls.localize('label.global.excludes', 'Configured Search Exclude Patterns')
+					ariaLabel: nls.localize('label.global.excludes', 'Configured Search Exclude Patterns'),
+					// override some styles because this input is disabled
+					inputBackground: Color.transparent,
+					inputForeground: null
 				});
 				this.inputPatternGlobalExclusions.inputElement.readOnly = true;
 				$(this.inputPatternGlobalExclusions.inputElement).attr('aria-readonly', 'true');
-				$(this.inputPatternGlobalExclusions.inputElement).addClass('disabled');
 			}).hide();
 		}).getHTMLElement();
 
