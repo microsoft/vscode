@@ -57,9 +57,6 @@ export class SwitchProvider extends Action {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(DirtyDiffDecorator);
-
 if (SCMPreview.enabled) {
 	const viewletDescriptor = new ViewletDescriptor(
 		'vs/workbench/parts/scm/electron-browser/scmViewlet',
@@ -69,6 +66,9 @@ if (SCMPreview.enabled) {
 		'scm',
 		36
 	);
+
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+		.registerWorkbenchContribution(DirtyDiffDecorator);
 
 	Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 		.registerViewlet(viewletDescriptor);
