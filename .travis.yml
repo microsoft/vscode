@@ -1,6 +1,6 @@
 language: cpp
 
-# amd64 toolchain (used as a base for non-sudo compilation, which is faster) 
+# amd64 toolchain (used as a base for non-sudo compilation, which is faster)
 include: &toolchain_amd64
   sudo: false
   addons:
