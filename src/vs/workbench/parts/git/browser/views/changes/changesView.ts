@@ -40,7 +40,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isEqualOrParent } from 'vs/platform/files/common/files';
-import { attachInputBoxStyler } from "vs/platform/theme/common/styler";
+import { attachInputBoxStyler, attachListStyler } from "vs/platform/theme/common/styler";
 import { IThemeService } from "vs/platform/theme/common/themeService";
 
 import IGitService = git.IGitService;
@@ -198,6 +198,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 				ariaLabel: nls.localize('treeAriaLabel', "Git Changes View")
 			});
 
+		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.tree.setInput(this.gitService.getModel().getStatus());
 		this.tree.expandAll(this.gitService.getModel().getStatus().getGroups());
 
