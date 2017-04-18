@@ -30,7 +30,7 @@ export function attachStyler(themeService: IThemeService, widget: IThemable, opt
 
 export function attachCheckboxStyler(widget: IThemable, themeService: IThemeService, style?: { inputActiveOptionBorderColor?: ColorIdentifier }): IDisposable {
 	return attachStyler(themeService, widget, {
-		inputActiveOptionBorderColor: (style && style.inputActiveOptionBorderColor) || inputActiveOptionBorder
+		inputActiveOptionBorder: (style && style.inputActiveOptionBorderColor) || inputActiveOptionBorder
 	});
 }
 
