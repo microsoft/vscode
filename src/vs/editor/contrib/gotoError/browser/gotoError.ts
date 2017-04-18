@@ -17,7 +17,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Position, IPosition } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
@@ -142,7 +142,7 @@ class MarkerModel {
 		this.move(false);
 	}
 
-	public findMarkerAtPosition(pos: IPosition): IMarker {
+	public findMarkerAtPosition(pos: Position): IMarker {
 		for (const marker of this._markers) {
 			if (Range.containsPosition(marker, pos)) {
 				return marker;
@@ -267,7 +267,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this.editor.applyFontInfo(this._message.domNode);
 	}
 
-	public show(where: IPosition, heightInLines: number): void {
+	public show(where: Position, heightInLines: number): void {
 		super.show(where, heightInLines);
 		this.focus();
 	}
@@ -296,10 +296,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 			this._severity = marker.severity;
 			this._applyTheme(this._themeService.getTheme());
 
-			this.show({
-				lineNumber: marker.startLineNumber,
-				column: marker.startColumn
-			}, this.computeRequiredHeight());
+			this.show(new Position(marker.startLineNumber, marker.startColumn), this.computeRequiredHeight());
 		});
 	}
 

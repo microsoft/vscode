@@ -12,7 +12,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IWordAtPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, SuggestRegistry, StandardTokenType } from 'vs/editor/common/modes';
-import { Position, IPosition } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
 
@@ -69,7 +69,7 @@ export class LineContext {
 	readonly leadingWord: IWordAtPosition;
 	readonly auto;
 
-	constructor(model: IModel, position: IPosition, auto: boolean) {
+	constructor(model: IModel, position: Position, auto: boolean) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;

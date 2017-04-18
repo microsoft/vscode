@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IPosition, Position } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -32,7 +32,7 @@ export class QuickFixContextMenu {
 		this._commandService = commandService;
 	}
 
-	show(fixes: TPromise<CodeAction[]>, at: { x: number; y: number } | IPosition) {
+	show(fixes: TPromise<CodeAction[]>, at: { x: number; y: number } | Position) {
 
 		const actions = fixes.then(value => {
 			return value.map(({ command }) => {
@@ -61,7 +61,7 @@ export class QuickFixContextMenu {
 		return this._visible;
 	}
 
-	private _toCoords(position: IPosition): { x: number, y: number } {
+	private _toCoords(position: Position): { x: number, y: number } {
 
 		this._editor.revealPosition(position);
 		this._editor.render();

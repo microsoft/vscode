@@ -17,7 +17,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISnippetVariableResolver, ICodeSnippet, CodeSnippet } from './snippet';
 import { SnippetVariablesResolver } from './snippetVariables';
 import EditorContextKeys = editorCommon.EditorContextKeys;
-import { IPosition } from "vs/editor/common/core/position";
+import { Position } from "vs/editor/common/core/position";
 
 export class InsertSnippetController {
 
@@ -667,7 +667,7 @@ export class SnippetController {
 		return snippet.bind(model.getLineContent(typeRange.startLineNumber), typeRange.startLineNumber - 1, typeRange.startColumn - 1, model);
 	}
 
-	private static _getSnippetCursorOnly(snippet: ICodeSnippet): IPosition {
+	private static _getSnippetCursorOnly(snippet: ICodeSnippet): Position {
 
 		if (snippet.placeHolders.length !== 1) {
 			return null;
@@ -683,10 +683,10 @@ export class SnippetController {
 			return null;
 		}
 
-		return {
-			lineNumber: placeHolderRange.startLineNumber,
-			column: placeHolderRange.startColumn
-		};
+		return new Position(
+			placeHolderRange.startLineNumber,
+			placeHolderRange.startColumn
+		);
 	}
 
 	public jumpToNextPlaceholder(): void {
