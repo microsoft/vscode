@@ -369,13 +369,13 @@ export class ExplorerView extends CollapsibleViewletView {
 		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Update resource context based on focused element
-		this.toDispose.push(this.explorerViewer.addListener2('focus', (e: { focus: FileStat }) => {
+		this.toDispose.push(this.explorerViewer.addListener('focus', (e: { focus: FileStat }) => {
 			this.resourceContext.set(e.focus && e.focus.resource);
 			this.folderContext.set(e.focus && e.focus.isDirectory);
 		}));
 
 		// Open when selecting via keyboard
-		this.toDispose.push(this.explorerViewer.addListener2('selection', event => {
+		this.toDispose.push(this.explorerViewer.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getSelection();
 

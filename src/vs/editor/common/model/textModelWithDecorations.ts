@@ -140,9 +140,8 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	private _internalDecorations: { [internalDecorationId: number]: InternalDecoration; };
 	private _multiLineDecorationsMap: { [key: string]: InternalDecoration; };
 
-	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
-		allowedEventTypes.push(editorCommon.EventType.ModelDecorationsChanged);
-		super(allowedEventTypes, rawTextSource, creationOptions, languageIdentifier);
+	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
+		super(rawTextSource, creationOptions, languageIdentifier);
 
 		this._instanceId = nextInstanceId();
 		this._lastDecorationId = 0;
@@ -199,12 +198,12 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		this._assertNotDisposed();
 
 		try {
-			this._beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			let decorationsTracker = this._acquireDecorationsTracker();
 			return this._changeDecorations(decorationsTracker, ownerId, callback);
 		} finally {
 			this._releaseDecorationsTracker();
-			this._endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
 		}
 	}
 
@@ -541,7 +540,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 	private emitModelDecorationsChangedEvent(e: editorCommon.IModelDecorationsChangedEvent): void {
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelDecorationsChanged, e);
+			this._eventEmitter.emit(editorCommon.EventType.ModelDecorationsChanged, e);
 		}
 	}
 

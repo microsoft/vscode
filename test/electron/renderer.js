@@ -155,11 +155,12 @@ function loadTests(opts) {
 	// collect unexpected errors
 	loader.require(['vs/base/common/errors'], function (errors) {
 		errors.setUnexpectedErrorHandler(function (err) {
-			try {
-				throw new Error('oops');
-			} catch (e) {
-				_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + e.stack);
+			let stack = (err ? err.stack : null);
+			if (!stack) {
+				stack = new Error().stack;
 			}
+
+			_unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
 		});
 	});
 
@@ -172,7 +173,7 @@ function loadTests(opts) {
 						console.error('');
 						console.error(stack);
 					});
-					assert.ok(false);
+					assert.ok(false, errors);
 				}
 			});
 		});

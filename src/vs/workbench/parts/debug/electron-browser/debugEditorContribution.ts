@@ -240,7 +240,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private marginFreeFromNonDebugDecorations(line: number): boolean {
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
-			for (const {options} of decorations) {
+			for (const { options } of decorations) {
 				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf('debug') === -1) {
 					return false;
 				}

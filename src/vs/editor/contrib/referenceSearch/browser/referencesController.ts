@@ -118,7 +118,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}));
 
 		this._disposables.push(this._widget.onDidSelectReference(event => {
-			let {element, kind} = event;
+			let { element, kind } = event;
 			switch (kind) {
 				case 'open':
 					if (event.source === 'editor'
@@ -214,7 +214,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		this._widget.hide();
 
 		this._ignoreModelChangeEvent = true;
-		const {uri, range} = ref;
+		const { uri, range } = ref;
 
 		this._editorService.openEditor({
 			resource: uri,
@@ -244,7 +244,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	}
 
 	private _openReference(ref: OneReference, sideBySide: boolean): void {
-		const {uri, range} = ref;
+		const { uri, range } = ref;
 		this._editorService.openEditor({
 			resource: uri,
 			options: { selection: range }

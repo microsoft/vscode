@@ -26,6 +26,8 @@ import { IThemeService } from "vs/platform/theme/common/themeService";
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
 import { WorkspaceEdit, RenameProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
+import { alert } from 'vs/base/browser/ui/aria/aria';
+
 
 export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
 
@@ -150,6 +152,8 @@ class RenameController implements IEditorContribution {
 					if (selection) {
 						this.editor.setSelection(selection);
 					}
+					// alert
+					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", word.word, newName, edit.ariaMessage()));
 				});
 
 			}, err => {

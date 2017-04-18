@@ -135,7 +135,7 @@ export class VariablesView extends CollapsibleViewletView {
 
 			this.tree.refresh(expression, false).then(() => {
 				this.tree.setHighlight(expression);
-				this.tree.addOneTimeDisposableListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
+				this.tree.addOneTimeListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedExpression(null);
 					}
@@ -234,7 +234,7 @@ export class WatchExpressionsView extends CollapsibleViewletView {
 
 			this.tree.refresh(expression, false).then(() => {
 				this.tree.setHighlight(expression);
-				this.tree.addOneTimeDisposableListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
+				this.tree.addOneTimeListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedExpression(null);
 					}
@@ -328,7 +328,7 @@ export class CallStackView extends CollapsibleViewletView {
 		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree));
 
-		this.toDispose.push(this.tree.addListener2('selection', event => {
+		this.toDispose.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof ThreadAndProcessIds) {
@@ -460,7 +460,7 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree, [this.breakpointsFocusedContext]));
 
-		this.toDispose.push(this.tree.addListener2('selection', event => {
+		this.toDispose.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof Breakpoint) {
@@ -480,7 +480,7 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 
 			this.tree.refresh(fbp, false).then(() => {
 				this.tree.setHighlight(fbp);
-				this.tree.addOneTimeDisposableListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
+				this.tree.addOneTimeListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedFunctionBreakpoint(null);
 					}

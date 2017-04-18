@@ -431,7 +431,7 @@ export class WalkThroughPart extends BaseEditor {
 
 	private style(div: HTMLElement) {
 		const styleElement = this.partService.getContainer(Parts.EDITOR_PART); // TODO@theme styles should come in via theme registry
-		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(styleElement);
+		const { color, backgroundColor, fontFamily, fontWeight, fontSize } = window.getComputedStyle(styleElement);
 		div.style.color = color;
 		div.style.backgroundColor = backgroundColor;
 		div.style.fontFamily = fontFamily;

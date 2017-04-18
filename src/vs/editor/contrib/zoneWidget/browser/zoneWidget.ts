@@ -389,7 +389,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		}
 
 		let data: { startY: number; heightInLines: number; };
-		this._disposables.add(this._resizeSash.addListener2('start', (e: ISashEvent) => {
+		this._disposables.add(this._resizeSash.addListener('start', (e: ISashEvent) => {
 			if (this._viewZone) {
 				data = {
 					startY: e.startY,
@@ -398,11 +398,11 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 			}
 		}));
 
-		this._disposables.add(this._resizeSash.addListener2('end', () => {
+		this._disposables.add(this._resizeSash.addListener('end', () => {
 			data = undefined;
 		}));
 
-		this._disposables.add(this._resizeSash.addListener2('change', (evt: ISashEvent) => {
+		this._disposables.add(this._resizeSash.addListener('change', (evt: ISashEvent) => {
 			if (data) {
 				let lineDelta = (evt.currentY - data.startY) / this.editor.getConfiguration().lineHeight;
 				let roundedLineDelta = lineDelta < 0 ? Math.ceil(lineDelta) : Math.floor(lineDelta);

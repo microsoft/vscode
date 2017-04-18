@@ -59,7 +59,7 @@ CommandsRegistry.registerCommand('_generateCommandsDocumentation', function (acc
 		// add local commands
 		const commands = CommandsRegistry.getCommands();
 		for (let id in commands) {
-			let {description} = commands[id];
+			let { description } = commands[id];
 			if (description) {
 				result[id] = description;
 			}

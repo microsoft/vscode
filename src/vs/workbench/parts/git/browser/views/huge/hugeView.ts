@@ -50,7 +50,7 @@ export class HugeView extends ee.EventEmitter implements view.IView {
 
 		const button = new Button(this._element);
 		button.label = nls.localize('allo', "Allow large repositories");
-		button.addListener2('click', (e) => {
+		button.addListener('click', (e) => {
 			dom.EventHelper.stop(e);
 			this.gitService.allowHugeRepositories = true;
 			this.gitService.status().done(null, onUnexpectedError);

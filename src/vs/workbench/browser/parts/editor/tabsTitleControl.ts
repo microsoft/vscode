@@ -223,12 +223,12 @@ export class TabsTitleControl extends TitleControl {
 			element.style.outlineWidth = '2px';
 			element.style.outlineStyle = 'dashed';
 			element.style.outlineColor = this.getColor(highContrastOutline);
-			(<any>element).style.outlineOffset = isTab ? '-5px' : '-3px'; // TS fail (gulp watch)
+			element.style.outlineOffset = isTab ? '-5px' : '-3px';
 		} else {
 			element.style.outlineWidth = null;
 			element.style.outlineStyle = null;
 			element.style.outlineColor = this.isHighContrastTheme ? this.getColor(highContrastOutline) : null;
-			(<any>element).style.outlineOffset = null; // TS fail (gulp watch)
+			element.style.outlineOffset = null;
 		}
 	}
 

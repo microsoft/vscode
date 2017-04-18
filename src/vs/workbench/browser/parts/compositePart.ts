@@ -291,7 +291,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			}
 
 			// Action Run Handling
-			this.telemetryActionsListener = this.toolBar.actionRunner.addListener2(events.EventType.RUN, (e: any) => {
+			this.telemetryActionsListener = this.toolBar.actionRunner.addListener(events.EventType.RUN, (e: any) => {
 
 				// Check for Error
 				if (e.error && !errors.isPromiseCanceledError(e.error)) {

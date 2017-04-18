@@ -309,7 +309,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				let setting = settingsModel.getPreference(languageKey);
 				const model = codeEditor.getModel();
 				const configuration = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-				const {eol} = this.configurationService.getConfiguration<{ eol: string }>('files');
+				const { eol } = this.configurationService.getConfiguration<{ eol: string }>('files');
 				if (setting) {
 					if (setting.overrides.length) {
 						const lastSetting = setting.overrides[setting.overrides.length - 1];
@@ -338,7 +338,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private spaces(count: number, {tabSize, insertSpaces}: { tabSize: number; insertSpaces: boolean }): string {
+	private spaces(count: number, { tabSize, insertSpaces }: { tabSize: number; insertSpaces: boolean }): string {
 		return insertSpaces ? strings.repeat(' ', tabSize * count) : strings.repeat('\t', count);
 	}
 

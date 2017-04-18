@@ -150,6 +150,18 @@ export class TextAreaHandler extends Disposable {
 				return;
 			}
 
+			if (Browser.isEdgeOrIE && e.locale === 'ja') {
+				// https://github.com/Microsoft/monaco-editor/issues/339
+				// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
+				// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
+				// which breaks this path of code.
+				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+				let typeInput = this.textAreaState.deduceInput();
+				this._onType.fire(typeInput);
+				this._onCompositionUpdate.fire(e);
+				return;
+			}
+
 			this.textAreaState = this.textAreaState.fromText(e.data);
 			let typeInput = this.textAreaState.updateComposition();
 			this._onType.fire(typeInput);
@@ -178,9 +190,17 @@ export class TextAreaHandler extends Disposable {
 
 		this._register(this.textArea.onCompositionEnd((e) => {
 			// console.log('onCompositionEnd: ' + e.data);
-			this.textAreaState = this.textAreaState.fromText(e.data);
-			let typeInput = this.textAreaState.updateComposition();
-			this._onType.fire(typeInput);
+			if (Browser.isEdgeOrIE && e.locale === 'ja') {
+				// https://github.com/Microsoft/monaco-editor/issues/339
+				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+				let typeInput = this.textAreaState.deduceInput();
+				this._onType.fire(typeInput);
+			}
+			else {
+				this.textAreaState = this.textAreaState.fromText(e.data);
+				let typeInput = this.textAreaState.updateComposition();
+				this._onType.fire(typeInput);
+			}
 
 			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
 			// we cannot assume the text at the end consists only of the composited text

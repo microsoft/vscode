@@ -74,7 +74,7 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 		this.partService = partService;
 		this.contextService = contextService;
 
-		this.toDispose = [this.gitService.addBulkListener2(() => this.onGitStateChanged())];
+		this.toDispose = [this.gitService.addBulkListener(() => this.onGitStateChanged())];
 
 		this.enabled = this.isEnabled();
 	}
@@ -385,7 +385,7 @@ export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction
 		this.editorService = editorService;
 		this.gitService = gitService;
 		this.editor = editor.getControl();
-		this.editor.onDidChangeCursorSelection(() => this.updateEnablement());
+		this.editor.getModifiedEditor().onDidChangeCursorSelection(() => this.updateEnablement());
 		this.editor.onDidUpdateDiff(() => this.updateEnablement());
 		this.class = 'git-action stage-ranges';
 	}
@@ -492,7 +492,7 @@ export class RevertRangesAction extends baseeditor.EditorInputAction {
 		super(RevertRangesAction.ID, RevertRangesAction.LABEL);
 
 		this.editor = editor.getControl();
-		this.editor.onDidChangeCursorSelection(() => this.updateEnablement());
+		this.editor.getModifiedEditor().onDidChangeCursorSelection(() => this.updateEnablement());
 		this.editor.onDidUpdateDiff(() => this.updateEnablement());
 		this.class = 'git-action revert-ranges';
 	}
@@ -519,7 +519,7 @@ export class RevertRangesAction extends baseeditor.EditorInputAction {
 	public run(): TPromise<any> {
 		const selections = this.editor.getSelections();
 		const changes = getSelectedChanges(this.editor.getLineChanges(), selections);
-		const {original, modified} = this.editor.getModel();
+		const { original, modified } = this.editor.getModel();
 
 		const revertEdits = getChangeRevertEdits(original, modified, changes);
 

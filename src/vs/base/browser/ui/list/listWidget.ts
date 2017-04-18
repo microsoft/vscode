@@ -14,7 +14,7 @@ import * as platform from 'vs/base/common/platform';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, createEmptyEvent, any } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, any } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
@@ -410,9 +410,13 @@ export interface IListStyles {
 	listFocusAndSelectionBackground?: Color;
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
+	listInactiveFocusBackground?: Color;
 	listHoverBackground?: Color;
 	listDropBackground?: Color;
 	listFocusOutline?: Color;
+	listInactiveFocusOutline?: Color;
+	listSelectionOutline?: Color;
+	listHoverOutline?: Color;
 }
 
 const defaultStyles: IListStyles = {
@@ -557,7 +561,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return mapEvent(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
-	private _onContextMenu: Event<IListContextMenuEvent<T>> = createEmptyEvent();
+	private _onContextMenu: Event<IListContextMenuEvent<T>> = Event.None;
 	get onContextMenu(): Event<IListContextMenuEvent<T>> {
 		return this._onContextMenu;
 	}
@@ -807,26 +811,44 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	style(styles: IListStyles): void {
-
-		// Indicate selection/focus via background color
-		if (!styles.listFocusOutline) {
-			this.styleElement.innerHTML = `
-				.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }
-				.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; color: ${styles.listActiveSelectionForeground}; }
-				.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; color: ${styles.listFocusAndSelectionForeground}; }
-				.monaco-list.${this.idPrefix} .monaco-list-row.selected { background-color: ${styles.listInactiveSelectionBackground}; }
-				.monaco-list.${this.idPrefix} .monaco-list-row:hover { background-color: ${styles.listHoverBackground}; }
-			`;
+		let content = '';
+		if (styles.listFocusBackground) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`;
 		}
-
-		// Indicate selection/focus via outline
-		else {
-			this.styleElement.innerHTML = `
-				.monaco-list.${this.idPrefix} .monaco-list-row.selected { outline: 1px dotted ${styles.listFocusOutline}; color: white; }
-				.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; background: transparent }
-				.monaco-list.${this.idPrefix} .monaco-list-row:hover { outline: 1px dashed ${styles.listFocusOutline}; outline-offset: -1px; background: transparent; }
-			`;
+		if (styles.listActiveSelectionBackground) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`;
 		}
+		if (styles.listActiveSelectionForeground) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`;
+		}
+		if (styles.listFocusAndSelectionBackground) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }`;
+		}
+		if (styles.listFocusAndSelectionForeground) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }`;
+		}
+		if (styles.listInactiveFocusBackground) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`;
+		}
+		if (styles.listInactiveSelectionBackground) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row.selected { background-color:  ${styles.listInactiveSelectionBackground}; }`;
+		}
+		if (styles.listHoverBackground) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row:hover { background-color:  ${styles.listHoverBackground}; }`;
+		}
+		if (styles.listSelectionOutline) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; }`;
+		}
+		if (styles.listFocusOutline) {
+			content += `.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`;
+		}
+		if (styles.listInactiveFocusOutline) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row.focused { outline: 1px dotted ${styles.listInactiveFocusOutline}; outline-offset: -1px; }`;
+		}
+		if (styles.listHoverOutline) {
+			content += `.monaco-list.${this.idPrefix} .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`;
+		}
+		this.styleElement.innerHTML = content;
 	}
 
 	private toListEvent({ indexes }: ITraitChangeEvent) {

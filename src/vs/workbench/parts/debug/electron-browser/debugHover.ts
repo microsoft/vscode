@@ -91,10 +91,10 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.tree.addListener2('item:expanded', () => {
+		this.toDispose.push(this.tree.addListener('item:expanded', () => {
 			this.layoutTree();
 		}));
-		this.toDispose.push(this.tree.addListener2('item:collapsed', () => {
+		this.toDispose.push(this.tree.addListener('item:collapsed', () => {
 			this.layoutTree();
 		}));
 

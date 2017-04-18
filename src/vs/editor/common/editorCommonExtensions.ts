@@ -137,7 +137,7 @@ export module CommonEditorRegistry {
 	export function registerDefaultLanguageCommand(id: string, handler: (model: editorCommon.IModel, position: Position, args: { [n: string]: any }) => any) {
 		registerLanguageCommand(id, function (accessor, args) {
 
-			const {resource, position} = args;
+			const { resource, position } = args;
 			if (!(resource instanceof URI)) {
 				throw illegalArgument('resource');
 			}

@@ -51,20 +51,11 @@ export class GotoLineEntry extends QuickOpenEntry {
 			position = { lineNumber: numbers[0], column: numbers[1] };
 		}
 
-		let editorType = (<ICodeEditor>this.editor).getEditorType(),
-			model: editorCommon.IModel;
-
-		switch (editorType) {
-			case editorCommon.EditorType.IDiffEditor:
-				model = (<IDiffEditor>this.editor).getModel().modified;
-				break;
-
-			case editorCommon.EditorType.ICodeEditor:
-				model = (<ICodeEditor>this.editor).getModel();
-				break;
-
-			default:
-				throw new Error();
+		let model: editorCommon.IModel;
+		if (editorCommon.isCommonCodeEditor(this.editor)) {
+			model = this.editor.getModel();
+		} else {
+			model = (<IDiffEditor>this.editor).getModel().modified;
 		}
 
 		let isValid = model.validatePosition(position).equals(position),

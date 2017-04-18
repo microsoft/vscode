@@ -489,7 +489,7 @@ export class VSCodeMenu {
 	private setOpenRecentMenu(openRecentMenu: Electron.Menu): void {
 		openRecentMenu.append(this.createMenuItem(nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor"), 'workbench.action.reopenClosedEditor'));
 
-		const {folders, files} = this.windowsService.getRecentPathsList();
+		const { folders, files } = this.windowsService.getRecentPathsList();
 
 		// Folders
 		if (folders.length > 0) {

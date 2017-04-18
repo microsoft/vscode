@@ -28,7 +28,8 @@ import { ICompletionItem, CompletionModel } from './completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from "vs/platform/theme/common/styler";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { IThemeService, ITheme, registerThemingParticipant } from "vs/platform/theme/common/themeService";
+import { registerColor, editorWidgetBackground, highContrastBorder, listFocusBackground, listFocusOutline } from "vs/platform/theme/common/colorRegistry";
 
 const sticky = false; // for development purposes
 
@@ -42,6 +43,13 @@ interface ISuggestionTemplateData {
 	documentation: HTMLElement;
 	disposables: IDisposable[];
 }
+
+/**
+ * Suggest widget colors
+ */
+export const editorSuggestWidgetBackground = registerColor('editorSuggestWidgetBackground', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
+export const editorSuggestWidgetBorder = registerColor('editorSuggestWidgetBorder', { dark: '#454545', light: '#C8C8C8', hc: highContrastBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
+export const editorSuggestMatchHighlight = registerColor('editorSuggestMatchHighlight', { dark: '#219AE4', light: '#186B9E', hc: '#219AE4' }, nls.localize('editorSuggestMatchHighlight', 'Color of the match highlight in the suggest widget.'));
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
 function matchesColor(text: string) {
@@ -376,7 +384,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		});
 
 		this.toDispose = [
-			attachListStyler(this.list, themeService),
+			attachListStyler(this.list, themeService, { listInactiveFocusBackground: listFocusBackground, listInactiveFocusOutline: listFocusOutline }),
+			themeService.onThemeChange(t => this.onThemeChange(t)),
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
@@ -389,6 +398,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);
+
+		this.onThemeChange(themeService.getTheme());
 
 		// TODO@Alex: this is useful, but spammy
 		// var isVisible = false;
@@ -454,6 +465,18 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this._lastAriaAlertLabel = newAriaAlertLabel;
 		if (this._lastAriaAlertLabel) {
 			alert(this._lastAriaAlertLabel);
+		}
+	}
+
+	private onThemeChange(theme: ITheme) {
+		let backgroundColor = theme.getColor(editorSuggestWidgetBackground);
+		if (backgroundColor) {
+			this.element.style.backgroundColor = backgroundColor.toString();
+		}
+		let borderColor = theme.getColor(editorSuggestWidgetBorder);
+		if (borderColor) {
+			let borderWidth = theme.type === 'hc' ? 2 : 1;
+			this.element.style.border = `${borderWidth}px solid ${borderColor}`;
 		}
 	}
 
@@ -635,8 +658,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.focusedItem = null;
 			this.focusedItemIndex = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
-			this.list.setFocus([this.completionModel.topScoreIdx]);
-			this.list.reveal(this.completionModel.topScoreIdx, 0);
+			this.list.setFocus([0]);
+			this.list.reveal(0, 0);
 
 			this.setState(State.Open);
 		}
@@ -901,3 +924,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let matchHighlight = theme.getColor(editorSuggestMatchHighlight);
+	if (matchHighlight) {
+		collector.addRule(`.monaco-editor.${theme.selector} .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
+	}
+});

@@ -103,7 +103,7 @@ export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T> {
 
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
-		let {name, message} = error;
+		let { name, message } = error;
 		let stack: string = (<any>error).stacktrace || (<any>error).stack;
 		return {
 			$isError: true,

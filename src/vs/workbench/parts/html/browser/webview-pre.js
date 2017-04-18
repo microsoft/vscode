@@ -80,7 +80,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 	});
 
 	// update iframe-contents
-	ipcRenderer.on('content', function (event, value) {
+	ipcRenderer.on('content', function (_event, value) {
 		const text = value.join('\n');
 		const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
@@ -95,7 +95,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 
 		// set base-url if applicable
 		if (initData.baseUrl && newDocument.head.getElementsByTagName('base').length === 0) {
-			const baseElement = document.createElement('base');
+			const baseElement = newDocument.createElement('base');
 			baseElement.href = initData.baseUrl;
 			newDocument.head.appendChild(baseElement);
 		}
@@ -134,22 +134,31 @@ document.addEventListener("DOMContentLoaded", function (event) {
 			return false;
 		};
 
-		// workaround for https://github.com/Microsoft/vscode/issues/12865
-		// check new scrollTop and reset if neccessary
-		newFrame.contentWindow.addEventListener('DOMContentLoaded', function () {
-			if (newFrame.contentDocument.body && scrollTop !== newFrame.contentDocument.body.scrollTop) {
-				newFrame.contentDocument.body.scrollTop = scrollTop;
+		newFrame.contentWindow.addEventListener('DOMContentLoaded', function (e) {
+			const contentDocument = e.target;
+			if (contentDocument.body) {
+
+				// Workaround for https://github.com/Microsoft/vscode/issues/12865
+				// check new scrollTop and reset if neccessary
+				if (scrollTop !== contentDocument.body.scrollTop) {
+					contentDocument.body.scrollTop = scrollTop;
+				}
+
+				// Bubble out link clicks
+				contentDocument.body.addEventListener('click', handleInnerClick);
 			}
 
-			// bubble out link-clicks
-			if (newFrame.contentDocument.body) {
-				newFrame.contentDocument.body.addEventListener('click', handleInnerClick);
-			}
+			// Clean up old frames
+			[].forEach.call(document.body.getElementsByTagName('iframe'), function (frame) {
+				if (frame.id !== '_target') {
+					document.body.removeChild(frame);
+				}
+			});
 
-			if (frame) {
-				document.body.removeChild(frame);
+			const newFrame = document.getElementById('_target');
+			if (newFrame.contentDocument === contentDocument) {
+				newFrame.style.display = 'block';
 			}
-			newFrame.style.display = 'block';
 		});
 
 		// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off

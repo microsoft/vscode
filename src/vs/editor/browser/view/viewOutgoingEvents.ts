@@ -35,7 +35,7 @@ export class ViewOutgoingEvents extends Disposable {
 	}
 
 	public emitScrollChanged(e: viewEvents.ViewScrollChangedEvent): void {
-		this._actual.emit('scroll', <IScrollEvent>e);
+		this._actual.emit(EventType.EditorScroll, <IScrollEvent>e);
 	}
 
 	public emitViewFocusGained(): void {

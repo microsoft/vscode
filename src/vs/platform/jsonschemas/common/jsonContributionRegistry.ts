@@ -59,7 +59,7 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 	}
 
 	public addRegistryChangedListener(callback: (e: IJSONContributionRegistryEvent) => void): IDisposable {
-		return this.eventEmitter.addListener2('registryChanged', callback);
+		return this.eventEmitter.addListener('registryChanged', callback);
 	}
 
 	public registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void {

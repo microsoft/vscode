@@ -238,7 +238,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return !!this.textFileService.models.get(this.resource);
 	}
 
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
 

@@ -194,7 +194,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					if (entry instanceof FileEntry) {
 						entry.setRange(searchWithRange ? searchWithRange.range : null);
 
-						const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
+						const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
 						entry.setHighlights(labelHighlights, descriptionHighlights);
 					}
 				});

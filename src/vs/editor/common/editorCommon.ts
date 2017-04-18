@@ -2363,12 +2363,12 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * @internal
 	 * @event
 	 */
-	onDidChangeRawContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+	onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when the contents of the model have changed.
 	 * @event
 	 */
-	onDidChangeContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
+	onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted when decorations of the model have changed.
 	 * @event
@@ -2444,10 +2444,7 @@ export interface IModelLanguageChangedEvent {
 	readonly newLanguage: string;
 }
 
-/**
- * An event describing a change in the text of a model.
- */
-export interface IModelContentChangedEvent2 {
+export interface IModelContentChange {
 	/**
 	 * The range that got replaced.
 	 */
@@ -2460,6 +2457,13 @@ export interface IModelContentChangedEvent2 {
 	 * The new text for the range.
 	 */
 	readonly text: string;
+}
+
+/**
+ * An event describing a change in the text of a model.
+ */
+export interface IModelContentChangedEvent {
+	readonly changes: IModelContentChange[];
 	/**
 	 * The (new) end-of-line character.
 	 */
@@ -2467,7 +2471,7 @@ export interface IModelContentChangedEvent2 {
 	/**
 	 * The new version id the model has transitioned to.
 	 */
-	versionId: number;
+	readonly versionId: number;
 	/**
 	 * Flag that indicates that this event was generated while undoing.
 	 */
@@ -2476,86 +2480,126 @@ export interface IModelContentChangedEvent2 {
 	 * Flag that indicates that this event was generated while redoing.
 	 */
 	readonly isRedoing: boolean;
+	/**
+	 * Flag that indicates that all decorations were lost with this edit.
+	 * The model has been reset to a new value.
+	 */
+	readonly isFlush: boolean;
 }
 /**
- * An event describing a change in the text of a model.
  * @internal
  */
-export interface IModelContentChangedEvent {
-	/**
-	 * The event type. It can be used to detect the actual event type:
-	 * 		EditorCommon.EventType.ModelContentChangedFlush => IModelContentChangedFlushEvent
-	 * 		EditorCommon.EventType.ModelContentChangedLinesDeleted => IModelContentChangedLineChangedEvent
-	 * 		EditorCommon.EventType.ModelContentChangedLinesInserted => IModelContentChangedLinesDeletedEvent
-	 * 		EditorCommon.EventType.ModelContentChangedLineChanged => IModelContentChangedLinesInsertedEvent
-	 */
-	readonly changeType: string;
-	/**
-	 * The new version id the model has transitioned to.
-	 */
-	versionId: number;
-	/**
-	 * Flag that indicates that this event was generated while undoing.
-	 */
-	readonly isUndoing: boolean;
-	/**
-	 * Flag that indicates that this event was generated while redoing.
-	 */
-	readonly isRedoing: boolean;
+export const enum RawContentChangedType {
+	Flush = 1,
+	LineChanged = 2,
+	LinesDeleted = 3,
+	LinesInserted = 4
 }
-
 /**
  * An event describing that a model has been reset to a new value.
  * @internal
  */
-export interface IModelContentChangedFlushEvent extends IModelContentChangedEvent {
+export class ModelRawFlush {
+	public readonly type = RawContentChangedType.Flush;
 }
 /**
  * An event describing that a line has changed in a model.
  * @internal
  */
-export interface IModelContentChangedLineChangedEvent extends IModelContentChangedEvent {
+export class ModelRawLineChanged {
+	public readonly type = RawContentChangedType.LineChanged;
 	/**
 	 * The line that has changed.
 	 */
-	readonly lineNumber: number;
+	public readonly lineNumber: number;
 	/**
 	 * The new value of the line.
 	 */
-	readonly detail: string;
+	public readonly detail: string;
+
+	constructor(lineNumber: number, detail: string) {
+		this.lineNumber = lineNumber;
+		this.detail = detail;
+	}
 }
 /**
  * An event describing that line(s) have been deleted in a model.
  * @internal
  */
-export interface IModelContentChangedLinesDeletedEvent extends IModelContentChangedEvent {
+export class ModelRawLinesDeleted {
+	public readonly type = RawContentChangedType.LinesDeleted;
 	/**
 	 * At what line the deletion began (inclusive).
 	 */
-	readonly fromLineNumber: number;
+	public readonly fromLineNumber: number;
 	/**
 	 * At what line the deletion stopped (inclusive).
 	 */
-	readonly toLineNumber: number;
+	public readonly toLineNumber: number;
+
+	constructor(fromLineNumber: number, toLineNumber: number) {
+		this.fromLineNumber = fromLineNumber;
+		this.toLineNumber = toLineNumber;
+	}
 }
 /**
  * An event describing that line(s) have been inserted in a model.
  * @internal
  */
-export interface IModelContentChangedLinesInsertedEvent extends IModelContentChangedEvent {
+export class ModelRawLinesInserted {
+	public readonly type = RawContentChangedType.LinesInserted;
 	/**
 	 * Before what line did the insertion begin
 	 */
-	readonly fromLineNumber: number;
+	public readonly fromLineNumber: number;
 	/**
 	 * `toLineNumber` - `fromLineNumber` + 1 denotes the number of lines that were inserted
 	 */
-	readonly toLineNumber: number;
+	public readonly toLineNumber: number;
 	/**
 	 * The text that was inserted
 	 */
-	readonly detail: string;
+	public readonly detail: string;
+
+	constructor(fromLineNumber: number, toLineNumber: number, detail: string) {
+		this.fromLineNumber = fromLineNumber;
+		this.toLineNumber = toLineNumber;
+		this.detail = detail;
+	}
 }
+/**
+ * @internal
+ */
+export type ModelRawChange = ModelRawFlush | ModelRawLineChanged | ModelRawLinesDeleted | ModelRawLinesInserted;
+
+/**
+ * An event describing a change in the text of a model.
+ * @internal
+ */
+export class ModelRawContentChangedEvent {
+
+	public readonly changes: ModelRawChange[];
+	/**
+	 * The new version id the model has transitioned to.
+	 */
+	public readonly versionId: number;
+	/**
+	 * Flag that indicates that this event was generated while undoing.
+	 */
+	public readonly isUndoing: boolean;
+	/**
+	 * Flag that indicates that this event was generated while redoing.
+	 */
+	public readonly isRedoing: boolean;
+
+	constructor(changes: ModelRawChange[], versionId: number, isUndoing: boolean, isRedoing: boolean) {
+		this.changes = changes;
+		this.versionId = versionId;
+		this.isUndoing = isUndoing;
+		this.isRedoing = isRedoing;
+	}
+}
+
 /**
  * An event describing that model decorations have changed.
  */
@@ -3413,43 +3457,6 @@ export interface IEditorAction {
  */
 export interface IEditor {
 	/**
-	 * @deprecated. Please use `onDidChangeModelContent` instead.
-	 * An event emitted when the content of the current model has changed.
-	 * @internal
-	 * @event
-	 */
-	onDidChangeModelRawContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
-	/**
-	 * An event emitted when the content of the current model has changed.
-	 * @event
-	 */
-	onDidChangeModelContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
-	/**
-	 * An event emitted when the language of the current model has changed.
-	 * @event
-	 */
-	onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
-	/**
-	 * An event emitted when the options of the current model has changed.
-	 * @event
-	 */
-	onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
-	/**
-	 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
-	 * @event
-	 */
-	onDidChangeConfiguration(listener: (e: IConfigurationChangedEvent) => void): IDisposable;
-	/**
-	 * An event emitted when the cursor position has changed.
-	 * @event
-	 */
-	onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
-	/**
-	 * An event emitted when the cursor selection has changed.
-	 * @event
-	 */
-	onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
-	/**
 	 * An event emitted when the editor has been disposed.
 	 * @event
 	 */
@@ -3809,6 +3816,36 @@ export interface IDecorationOptions {
 
 export interface ICommonCodeEditor extends IEditor {
 	/**
+	 * An event emitted when the content of the current model has changed.
+	 * @event
+	 */
+	onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+	/**
+	 * An event emitted when the language of the current model has changed.
+	 * @event
+	 */
+	onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+	/**
+	 * An event emitted when the options of the current model has changed.
+	 * @event
+	 */
+	onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+	/**
+	 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
+	 * @event
+	 */
+	onDidChangeConfiguration(listener: (e: IConfigurationChangedEvent) => void): IDisposable;
+	/**
+	 * An event emitted when the cursor position has changed.
+	 * @event
+	 */
+	onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
+	/**
+	 * An event emitted when the cursor selection has changed.
+	 * @event
+	 */
+	onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
+	/**
 	 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 	 * @event
 	 */
@@ -4123,13 +4160,10 @@ export var EventType = {
 	ModelTokensChanged: 'modelTokensChanged',
 	ModelLanguageChanged: 'modelLanguageChanged',
 	ModelOptionsChanged: 'modelOptionsChanged',
-	ModelRawContentChanged: 'contentChanged',
-	ModelContentChanged2: 'contentChanged2',
-	ModelRawContentChangedFlush: 'flush',
-	ModelRawContentChangedLinesDeleted: 'linesDeleted',
-	ModelRawContentChangedLinesInserted: 'linesInserted',
-	ModelRawContentChangedLineChanged: 'lineChanged',
+	ModelContentChanged: 'contentChanged',
+	ModelRawContentChanged2: 'rawContentChanged2',
 
+	EditorScroll: 'scroll',
 	EditorTextBlur: 'blur',
 	EditorTextFocus: 'focus',
 	EditorFocus: 'widgetFocus',

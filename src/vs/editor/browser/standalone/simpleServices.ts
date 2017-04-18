@@ -55,7 +55,7 @@ export class SimpleEditor implements IEditor {
 	public isVisible(): boolean { return true; }
 
 	public withTypedEditor<T>(codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-		if (this._widget.getEditorType() === editorCommon.EditorType.ICodeEditor) {
+		if (editorCommon.isCommonCodeEditor(this._widget)) {
 			// Single Editor
 			return codeEditorCallback(<ICodeEditor>this._widget);
 		} else {

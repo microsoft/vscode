@@ -81,7 +81,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.highlightPreferencesRenderer = this._register(instantiationService.createInstance(HighlightPreferencesRenderer, editor));
 		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));
-		this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
+		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this.updatePreference(key, value, source)));
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 	}
 
@@ -122,7 +122,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	}
 
 	private getSetting(setting: ISetting): ISetting {
-		const {key, overrideOf} = setting;
+		const { key, overrideOf } = setting;
 		if (overrideOf) {
 			const setting = this.getSetting(overrideOf);
 			for (const override of setting.overrides) {
@@ -729,7 +729,7 @@ class EditSettingRenderer extends Disposable {
 	private marginFreeFromOtherDecorations(line: number): boolean {
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
-			for (const {options} of decorations) {
+			for (const { options } of decorations) {
 				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME) === -1) {
 					return false;
 				}

@@ -36,6 +36,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { ListFocusContext } from 'vs/platform/list/browser/listService';
 
+import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
+
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
 searchWidgetContributions();
@@ -290,6 +292,10 @@ Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpen
 		]
 	)
 );
+
+// Search output channel
+const outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
+outputChannelRegistry.registerChannel('search', nls.localize('searchOutputChannelTitle', "Search"));
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

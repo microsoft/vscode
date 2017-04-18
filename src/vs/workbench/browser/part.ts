@@ -114,7 +114,7 @@ export class PartLayout {
 	}
 
 	public layout(dimension: Dimension): Dimension[] {
-		const {width, height} = dimension;
+		const { width, height } = dimension;
 
 		// Return the applied sizes to title and content
 		const sizes: Dimension[] = [];

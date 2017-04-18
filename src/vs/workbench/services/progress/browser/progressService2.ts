@@ -89,7 +89,7 @@ export class ProgressService2 implements IProgressService2 {
 		if (this._stack.length === 0) {
 			WindowProgressItem.Instance.hide();
 		} else {
-			const {title, progress} = this._stack[0];
+			const { title, progress } = this._stack[0];
 			WindowProgressItem.Instance.text = progress.value || title;
 			WindowProgressItem.Instance.show();
 		}

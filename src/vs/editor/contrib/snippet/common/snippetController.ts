@@ -61,7 +61,7 @@ export class InsertSnippetController {
 
 		// sorted list of all placeholder occurences for subsequent lockups
 		const sortedOccurrences: editorCommon.IRange[] = [];
-		for (const {occurences} of adaptedSnippet.placeHolders) {
+		for (const { occurences } of adaptedSnippet.placeHolders) {
 			for (const range of occurences) {
 				sortedOccurrences.push(range);
 			}
@@ -72,7 +72,7 @@ export class InsertSnippetController {
 		this.model.changeDecorations((changeAccessor) => {
 
 			for (let i = 0; i < adaptedSnippet.placeHolders.length; i++) {
-				const {occurences} = adaptedSnippet.placeHolders[i];
+				const { occurences } = adaptedSnippet.placeHolders[i];
 				const trackedRanges: string[] = [];
 
 				for (const range of occurences) {
@@ -141,49 +141,41 @@ export class InsertSnippetController {
 		// };
 		// print();
 
+		let _highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
+
 		this.listenersToRemove = [];
-		this.listenersToRemove.push(this.editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidChangeModelContent((e) => {
 			// console.log('-------MODEL CHANGED');
 			// print();
 			if (this.isFinished) {
 				return;
 			}
 
-			if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
+			if (e.isFlush) {
 				// a model.setValue() was called
 				this.stopAll();
-			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLineChanged) {
-				var changedLine = (<editorCommon.IModelContentChangedLineChangedEvent>e).lineNumber;
-				var highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
-
-				if (changedLine < highlightRange.startLineNumber || changedLine > highlightRange.endLineNumber) {
-					this.stopAll();
-				}
-			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLinesInserted) {
-				var insertLine = (<editorCommon.IModelContentChangedLinesInsertedEvent>e).fromLineNumber;
-				var highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
-
-				if (insertLine < highlightRange.startLineNumber || insertLine > highlightRange.endLineNumber) {
-					this.stopAll();
-				}
-			} else if (e.changeType === editorCommon.EventType.ModelRawContentChangedLinesDeleted) {
-				var deleteLine1 = (<editorCommon.IModelContentChangedLinesDeletedEvent>e).fromLineNumber;
-				var deleteLine2 = (<editorCommon.IModelContentChangedLinesDeletedEvent>e).toLineNumber;
-				var highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
-
-				var deletedLinesAbove = (deleteLine2 < highlightRange.startLineNumber);
-				var deletedLinesBelow = (deleteLine1 > highlightRange.endLineNumber);
-
-				if (deletedLinesAbove || deletedLinesBelow) {
-					this.stopAll();
-				}
+				return;
 			}
 
-			var newAlternateVersionId = this.editor.getModel().getAlternativeVersionId();
+			const newAlternateVersionId = this.editor.getModel().getAlternativeVersionId();
 			if (this._initialAlternativeVersionId === newAlternateVersionId) {
 				// We executed undo until we reached the same version we started with
 				this.stopAll();
+				return;
 			}
+
+			for (let i = 0, len = e.changes.length; i < len; i++) {
+				const change = e.changes[i];
+				const intersection = _highlightRange.intersectRanges(change.range);
+				if (intersection === null) {
+					// Did an edit outside of the snippet
+					this.stopAll();
+					return;
+				}
+			}
+
+			// Keep the highlightRange for the next round of model change events
+			_highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
 		}));
 
 		this.listenersToRemove.push(this.editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
@@ -191,6 +183,10 @@ export class InsertSnippetController {
 				return;
 			}
 			var highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
+			if (!highlightRange) {
+				this.stopAll();
+				return;
+			}
 			var lineNumber = e.position.lineNumber;
 			if (lineNumber < highlightRange.startLineNumber || lineNumber > highlightRange.endLineNumber) {
 				this.stopAll();
@@ -423,7 +419,7 @@ class BeforeAfterData {
 
 	next(selection: Selection) {
 		const data = BeforeAfterData.create(this._model, selection, this.overwriteBefore, this.overwriteAfter);
-		let {overwriteBefore, overwriteAfter} = data;
+		let { overwriteBefore, overwriteAfter } = data;
 		if (data._contentBefore !== this._contentBefore) {
 			overwriteBefore = 0;
 		}
@@ -570,13 +566,13 @@ export class SnippetController {
 			.map((selection, i) => ({ selection, i }))
 			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
 
-		for (const {selection, i} of selectionEntries) {
+		for (const { selection, i } of selectionEntries) {
 
 			// only use overwrite[Before|After] for secondary cursors
 			// when the same text as with the primary cursor is selected
 			const beforeAfter = i !== 0 ? primaryBeforeAfter.next(selection) : primaryBeforeAfter;
 
-			let {adaptedSnippet, typeRange} = SnippetController._prepareSnippet(
+			let { adaptedSnippet, typeRange } = SnippetController._prepareSnippet(
 				this._editor,
 				selection,
 				snippet,
@@ -633,7 +629,7 @@ export class SnippetController {
 			// create new selections from the new selection offsets
 			// and restore the order we had at the beginning
 			const result: Selection[] = [];
-			for (const {offset, i} of newSelections) {
+			for (const { offset, i } of newSelections) {
 				const pos = model.getPositionAt(offset);
 				result[i] = new Selection(pos.lineNumber, pos.column, pos.lineNumber, pos.column);
 			}

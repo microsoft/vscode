@@ -147,7 +147,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Application & Editor focus change to respect auto save settings
 		if (this.editorControl instanceof EventEmitter) {
-			this.toUnbind.push(this.editorControl.addListener2(EditorEventType.EditorBlur, () => this.onEditorFocusLost()));
+			this.toUnbind.push(this.editorControl.addListener(EditorEventType.EditorBlur, () => this.onEditorFocusLost()));
 		}
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusLost()));
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));

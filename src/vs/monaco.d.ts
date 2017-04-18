@@ -2382,7 +2382,7 @@ declare module monaco.editor {
          * An event emitted when the contents of the model have changed.
          * @event
          */
-        onDidChangeContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
+        onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
         /**
          * An event emitted when decorations of the model have changed.
          * @event
@@ -2428,10 +2428,7 @@ declare module monaco.editor {
         readonly newLanguage: string;
     }
 
-    /**
-     * An event describing a change in the text of a model.
-     */
-    export interface IModelContentChangedEvent2 {
+    export interface IModelContentChange {
         /**
          * The range that got replaced.
          */
@@ -2444,6 +2441,13 @@ declare module monaco.editor {
          * The new text for the range.
          */
         readonly text: string;
+    }
+
+    /**
+     * An event describing a change in the text of a model.
+     */
+    export interface IModelContentChangedEvent {
+        readonly changes: IModelContentChange[];
         /**
          * The (new) end-of-line character.
          */
@@ -2451,7 +2455,7 @@ declare module monaco.editor {
         /**
          * The new version id the model has transitioned to.
          */
-        versionId: number;
+        readonly versionId: number;
         /**
          * Flag that indicates that this event was generated while undoing.
          */
@@ -2460,6 +2464,11 @@ declare module monaco.editor {
          * Flag that indicates that this event was generated while redoing.
          */
         readonly isRedoing: boolean;
+        /**
+         * Flag that indicates that all decorations were lost with this edit.
+         * The model has been reset to a new value.
+         */
+        readonly isFlush: boolean;
     }
 
     /**
@@ -2963,36 +2972,6 @@ declare module monaco.editor {
      */
     export interface IEditor {
         /**
-         * An event emitted when the content of the current model has changed.
-         * @event
-         */
-        onDidChangeModelContent(listener: (e: IModelContentChangedEvent2) => void): IDisposable;
-        /**
-         * An event emitted when the language of the current model has changed.
-         * @event
-         */
-        onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
-        /**
-         * An event emitted when the options of the current model has changed.
-         * @event
-         */
-        onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
-        /**
-         * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
-         * @event
-         */
-        onDidChangeConfiguration(listener: (e: IConfigurationChangedEvent) => void): IDisposable;
-        /**
-         * An event emitted when the cursor position has changed.
-         * @event
-         */
-        onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
-        /**
-         * An event emitted when the cursor selection has changed.
-         * @event
-         */
-        onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
-        /**
          * An event emitted when the editor has been disposed.
          * @event
          */
@@ -3186,6 +3165,36 @@ declare module monaco.editor {
     }
 
     export interface ICommonCodeEditor extends IEditor {
+        /**
+         * An event emitted when the content of the current model has changed.
+         * @event
+         */
+        onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+        /**
+         * An event emitted when the language of the current model has changed.
+         * @event
+         */
+        onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+        /**
+         * An event emitted when the options of the current model has changed.
+         * @event
+         */
+        onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+        /**
+         * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
+         * @event
+         */
+        onDidChangeConfiguration(listener: (e: IConfigurationChangedEvent) => void): IDisposable;
+        /**
+         * An event emitted when the cursor position has changed.
+         * @event
+         */
+        onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
+        /**
+         * An event emitted when the cursor selection has changed.
+         * @event
+         */
+        onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
         /**
          * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
          * @event

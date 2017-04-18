@@ -556,17 +556,12 @@ export class SplitLinesCollection {
 		return true;
 	}
 
-	public onModelFlushed(eventsCollector: ViewEventsCollector, versionId: number): void {
+	public onModelFlushed(eventsCollector: ViewEventsCollector): void {
 		this._constructLines(true);
 		eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 	}
 
-	public onModelLinesDeleted(eventsCollector: ViewEventsCollector, versionId: number, fromLineNumber: number, toLineNumber: number): void {
-		if (versionId <= this._validModelVersionId) {
-			return;
-		}
-		this._validModelVersionId = versionId;
-
+	public onModelLinesDeleted(eventsCollector: ViewEventsCollector, fromLineNumber: number, toLineNumber: number): void {
 		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(fromLineNumber - 2) + 1);
 		let outputToLineNumber = this.prefixSumComputer.getAccumulatedValue(toLineNumber - 1);
 
@@ -576,12 +571,7 @@ export class SplitLinesCollection {
 		eventsCollector.emit(new viewEvents.ViewLinesDeletedEvent(outputFromLineNumber, outputToLineNumber));
 	}
 
-	public onModelLinesInserted(eventsCollector: ViewEventsCollector, versionId: number, fromLineNumber: number, toLineNumber: number, text: string[]): void {
-		if (versionId <= this._validModelVersionId) {
-			return;
-		}
-		this._validModelVersionId = versionId;
-
+	public onModelLinesInserted(eventsCollector: ViewEventsCollector, fromLineNumber: number, toLineNumber: number, text: string[]): void {
 		let hiddenAreas = this.getHiddenAreas();
 		let isInHiddenArea = false;
 		let testPosition = new Position(fromLineNumber, 1);
@@ -614,11 +604,7 @@ export class SplitLinesCollection {
 		eventsCollector.emit(new viewEvents.ViewLinesInsertedEvent(outputFromLineNumber, outputFromLineNumber + totalOutputLineCount - 1));
 	}
 
-	public onModelLineChanged(eventsCollector: ViewEventsCollector, versionId: number, lineNumber: number, newText: string): boolean {
-		if (versionId <= this._validModelVersionId) {
-			return undefined;
-		}
-		this._validModelVersionId = versionId;
+	public onModelLineChanged(eventsCollector: ViewEventsCollector, lineNumber: number, newText: string): boolean {
 		let lineIndex = lineNumber - 1;
 
 		let oldOutputLineCount = this.lines[lineIndex].getViewLineCount();
@@ -665,6 +651,10 @@ export class SplitLinesCollection {
 		}
 
 		return lineMappingChanged;
+	}
+
+	public acceptVersionId(versionId: number): void {
+		this._validModelVersionId = versionId;
 	}
 
 	public getViewLineCount(): number {

@@ -877,11 +877,11 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	}
 
 	public addFocusListener(fn: () => void): IDisposable {
-		return this._eventEmitter.addListener2('focus', fn);
+		return this._eventEmitter.addListener('focus', fn);
 	}
 
 	public addBlurListener(fn: () => void): IDisposable {
-		return this._eventEmitter.addListener2('blur', fn);
+		return this._eventEmitter.addListener('blur', fn);
 	}
 }
 

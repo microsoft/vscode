@@ -274,7 +274,7 @@ export default class URI {
 
 		const parts: string[] = [];
 
-		let {scheme, authority, path, query, fragment} = uri;
+		let { scheme, authority, path, query, fragment } = uri;
 		if (scheme) {
 			parts.push(scheme, ':');
 		}

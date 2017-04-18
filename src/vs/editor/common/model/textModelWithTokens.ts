@@ -71,10 +71,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private _revalidateTokensTimeout: number;
 
-	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
-		allowedEventTypes.push(editorCommon.EventType.ModelTokensChanged);
-		allowedEventTypes.push(editorCommon.EventType.ModelLanguageChanged);
-		super(allowedEventTypes, rawTextSource, creationOptions);
+	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
+		super(rawTextSource, creationOptions);
 
 		this._languageIdentifier = languageIdentifier || NULL_LANGUAGE_IDENTIFIER;
 		this._tokenizationListener = TokenizationRegistry.onDidChange((e) => {
@@ -160,7 +158,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (!this._isDisposing) {
 			let e = eventBuilder.build();
 			if (e) {
-				this.emit(editorCommon.EventType.ModelTokensChanged, e);
+				this._eventEmitter.emit(editorCommon.EventType.ModelTokensChanged, e);
 			}
 		}
 
@@ -390,13 +388,13 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private emitModelTokensChangedEvent(e: editorCommon.IModelTokensChangedEvent): void {
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelTokensChanged, e);
+			this._eventEmitter.emit(editorCommon.EventType.ModelTokensChanged, e);
 		}
 	}
 
 	private _emitModelModeChangedEvent(e: editorCommon.IModelLanguageChangedEvent): void {
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelLanguageChanged, e);
+			this._eventEmitter.emit(editorCommon.EventType.ModelLanguageChanged, e);
 		}
 	}
 

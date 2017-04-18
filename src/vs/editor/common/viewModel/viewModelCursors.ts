@@ -72,8 +72,14 @@ export class ViewModelCursors {
 	}
 
 	public onCursorRevealRange(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorRevealRangeEvent): void {
+		// Ensure event has viewRange
+		const viewRange = (
+			e.viewRange
+				? e.viewRange
+				: this.coordinatesConverter.convertModelRangeToViewRange(e.range)
+		);
 		eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
-			e.viewRange,
+			viewRange,
 			e.verticalType,
 			e.revealHorizontal,
 			e.revealCursor

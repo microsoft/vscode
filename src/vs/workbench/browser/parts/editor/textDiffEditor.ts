@@ -163,7 +163,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			this.diffNavigator = new DiffNavigator(diffEditor, {
 				alwaysRevealFirst: autoRevealFirstChange
 			});
-			this.diffNavigator.addListener2(DiffNavigator.Events.UPDATED, () => {
+			this.diffNavigator.addListener(DiffNavigator.Events.UPDATED, () => {
 				this.nextDiffAction.updateEnablement();
 				this.previousDiffAction.updateEnablement();
 			});

@@ -385,10 +385,12 @@ suite('Files - TextFileEditorModel', () => {
 		});
 
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.DELETED }]));
-		assert.ok(model.hasState(ModelState.ORPHAN));
+		return TPromise.timeout(110).then(() => {
+			assert.ok(model.hasState(ModelState.ORPHAN));
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.ADDED }]));
-		assert.ok(!model.hasState(ModelState.ORPHAN));
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.ADDED }]));
+			assert.ok(!model.hasState(ModelState.ORPHAN));
+		});
 	});
 
 	test('SaveSequentializer - pending basics', function (done) {

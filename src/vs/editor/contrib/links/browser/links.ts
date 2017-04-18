@@ -260,7 +260,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		const {link} = occurence;
+		const { link } = occurence;
 
 		link.resolve().then(uri => {
 			// open the uri

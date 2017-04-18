@@ -120,7 +120,7 @@ export class CodeSnippet implements ICodeSnippet {
 		for (const originalPlaceHolder of this.placeHolders) {
 			let resultOccurences = [];
 
-			for (let {startLineNumber, startColumn, endLineNumber, endColumn} of originalPlaceHolder.occurences) {
+			for (let { startLineNumber, startColumn, endLineNumber, endColumn } of originalPlaceHolder.occurences) {
 
 				if (startColumn > 1 || startLineNumber === 1) {
 					// placeholders that aren't at the beginning of new snippet lines
