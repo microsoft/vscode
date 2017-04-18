@@ -240,7 +240,7 @@
 		</dict>
 		<dict>
 			<key>match</key>
-			<string>(\b(([A-Za-z0-9\-_\.]+).(?i:exe|com|cmd|bat))\b)</string>
+			<string>(\b(([A-Za-z0-9\-_\.]+)\.(?i:exe|com|cmd|bat))\b)</string>
 			<key>name</key>
 			<string>support.function.powershell</string>
 		</dict>
