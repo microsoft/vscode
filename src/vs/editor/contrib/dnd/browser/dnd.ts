@@ -8,7 +8,7 @@
 import 'vs/css!./dnd';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
@@ -28,8 +28,8 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	private _dragSelection: Selection;
 	private _dndDecorationIds: string[];
 	private _mouseDown: boolean;
-	static TRIGGER_MODIFIER = isWindows ? 'ctrlKey' : 'altKey';
-	static TRIGGER_KEY_VALUE = isWindows ? KeyCode.Ctrl : KeyCode.Alt;
+	static TRIGGER_MODIFIER = isMacintosh ? 'altKey' : 'ctrlKey';
+	static TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
 	static get(editor: editorCommon.ICommonCodeEditor): DragAndDropController {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
