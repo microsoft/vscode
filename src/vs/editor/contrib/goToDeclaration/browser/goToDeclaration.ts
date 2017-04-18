@@ -37,7 +37,7 @@ import { MessageController } from './messageController';
 import * as corePosition from 'vs/editor/common/core/position';
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
-
+import { ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 
@@ -411,7 +411,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		}));
 	}
 
-	private onDidChangeCursorSelection(e: editorCommon.ICursorSelectionChangedEvent): void {
+	private onDidChangeCursorSelection(e: ICursorSelectionChangedEvent): void {
 		if (e.selection && e.selection.startColumn !== e.selection.endColumn) {
 			this.resetHandler(); // immediately stop this feature if the user starts to select (https://github.com/Microsoft/vscode/issues/7827)
 		}

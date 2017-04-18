@@ -31,6 +31,7 @@ import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers'
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
@@ -675,7 +676,7 @@ class EditSettingRenderer extends Disposable {
 		}
 	}
 
-	private onPositionChanged(positionChangeEvent: editorCommon.ICursorPositionChangedEvent) {
+	private onPositionChanged(positionChangeEvent: ICursorPositionChangedEvent) {
 		this.editPreferenceWidgetForMouseMove.hide();
 		const settings = this.getSettings(positionChangeEvent.position.lineNumber);
 		if (settings.length) {

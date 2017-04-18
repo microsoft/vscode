@@ -18,6 +18,7 @@ import { ISnippetVariableResolver, ICodeSnippet, CodeSnippet } from './snippet';
 import { SnippetVariablesResolver } from './snippetVariables';
 import EditorContextKeys = editorCommon.EditorContextKeys;
 import { Position } from "vs/editor/common/core/position";
+import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 export class InsertSnippetController {
 
@@ -177,7 +178,7 @@ export class InsertSnippetController {
 			_highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
 		}));
 
-		this.listenersToRemove.push(this.editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			if (this.isFinished) {
 				return;
 			}

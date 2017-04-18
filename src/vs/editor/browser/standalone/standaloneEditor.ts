@@ -35,6 +35,7 @@ import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/common/
 import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from "vs/editor/common/config/editorOptions";
+import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
 
 /**
  * @internal
@@ -344,7 +345,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		DefaultEndOfLine: editorCommon.DefaultEndOfLine,
 		EndOfLineSequence: editorCommon.EndOfLineSequence,
 		TrackedRangeStickiness: editorCommon.TrackedRangeStickiness,
-		CursorChangeReason: editorCommon.CursorChangeReason,
+		CursorChangeReason: CursorChangeReason,
 		MouseTargetType: MouseTargetType,
 		TextEditorCursorStyle: editorOptions.TextEditorCursorStyle,
 		TextEditorCursorBlinkingStyle: editorOptions.TextEditorCursorBlinkingStyle,

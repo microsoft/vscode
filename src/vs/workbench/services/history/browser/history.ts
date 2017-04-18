@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
-import { ICursorPositionChangedEvent, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -28,6 +28,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { ParsedExpression, parse, IExpression } from 'vs/base/common/glob';
+import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.

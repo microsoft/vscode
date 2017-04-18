@@ -26,6 +26,7 @@ import { Action } from 'vs/base/common/actions';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from "vs/editor/common/core/position";
+import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -154,7 +155,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		}
 	}
 
-	private onCursorChange(e: editorCommon.ICursorPositionChangedEvent): void {
+	private onCursorChange(e: ICursorPositionChangedEvent): void {
 		if (e.source !== 'mouse' && this.focusTitle(e.position)) {
 			this.titleContainer.focus();
 		}
