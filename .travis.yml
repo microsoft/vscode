@@ -102,7 +102,7 @@ before_install:
   - nvm use 6.6.0 
   - npm config set python `which python`
   - npm install -g gulp
-  - if [[ "${TRAVIS_OS_NAME}" == "linux" && "${ARCH}" == "amd64" ]]; then
+  - if [[ "${LABEL}" == "amd64_linux" ]]; then
       export DISPLAY=:99.0;
       sh -e /etc/init.d/xvfb start;
       sleep 3;
