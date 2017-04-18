@@ -15,6 +15,7 @@ import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import { MergeDecorator } from './merge';
 import { Askpass } from './askpass';
+import { toDisposable } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 
@@ -47,7 +48,10 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	const model = new Model(git, workspaceRootPath);
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
-	git.onOutput(str => outputChannel.append(str), null, disposables);
+
+	const onOutput = str => outputChannel.append(str);
+	git.onOutput.addListener('log', onOutput);
+	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
 	const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
 	const statusBarCommands = new StatusBarCommands(model);
