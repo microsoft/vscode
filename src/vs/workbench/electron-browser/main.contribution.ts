@@ -149,9 +149,9 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 };
 
 if (isMacintosh) {
-	workbenchProperties['workbench.editor.swipeBetweenOpenFiles'] = {
+	workbenchProperties['workbench.editor.swipeToNavigate'] = {
 		'type': 'boolean',
-		'description': nls.localize('swipeBetweenOpenFiles', "Navigate between open files using three-finger swipe horizontally."),
+		'description': nls.localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally."),
 		'default': false
 	};
 }

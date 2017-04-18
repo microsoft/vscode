@@ -904,8 +904,8 @@ export const EditorOpenPositioning = {
 };
 
 export interface IWorkbenchEditorConfiguration {
-	workbench: {
-		editor: {
+	workbench?: {
+		editor?: {
 			showTabs: boolean;
 			tabCloseButton: 'left' | 'right' | 'off';
 			showIcons: boolean;
@@ -914,7 +914,7 @@ export interface IWorkbenchEditorConfiguration {
 			closeOnFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
-			swipeBetweenOpenFiles: boolean
+			swipeToNavigate: boolean
 		}
 	};
 }

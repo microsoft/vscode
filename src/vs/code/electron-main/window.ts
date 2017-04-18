@@ -345,8 +345,6 @@ export class VSCodeWindow {
 				this.send('vscode:runAction', 'workbench.action.navigateBack');
 			} else if (cmd === forward) {
 				this.send('vscode:runAction', 'workbench.action.navigateForward');
-			} else {
-				console.warn('[electron command]: did not handle: ', command);
 			}
 		});
 
@@ -439,7 +437,8 @@ export class VSCodeWindow {
 
 		// Swipe command support (macOS)
 		const workbenchConfig = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
-		if (workbenchConfig && workbenchConfig.workbench && workbenchConfig.workbench.editor.swipeBetweenOpenFiles) {
+
+		if (workbenchConfig && workbenchConfig.workbench && workbenchConfig.workbench.editor && workbenchConfig.workbench.editor.swipeToNavigate) {
 			this.registerNavigationListenerOn('swipe', 'left', 'right');
 		} else {
 			this._win.removeAllListeners('swipe');
