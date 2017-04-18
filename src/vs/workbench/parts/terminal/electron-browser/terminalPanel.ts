@@ -204,6 +204,28 @@ export class TerminalPanel extends Panel {
 				event.stopPropagation();
 			}
 		}));
+		this._register(DOM.addDisposableListener(this._parentDomElement, DOM.EventType.DROP, (e: DragEvent) => {
+			if (e.target === this._parentDomElement || DOM.isAncestor(e.target as HTMLElement, this._parentDomElement)) {
+				if (!e.dataTransfer) {
+					return;
+				}
+				const url = e.dataTransfer.getData('URL');
+				const filePath = this._getPathFromUrl(url);
+				const terminal = this._terminalService.getActiveInstance();
+
+				// for files dragged from the tree explorer
+				if (filePath) {
+					terminal.sendText(filePath, false);
+					return;
+				}
+
+				// for files dragged from the filesystem
+				const files = e.dataTransfer.files;
+				if (files.length > 0) {
+					terminal.sendText(files[0].path, false);
+				}
+			}
+		}));
 	}
 
 	private _refreshCtrlHeld(e: KeyboardEvent): void {
@@ -254,5 +276,18 @@ export class TerminalPanel extends Panel {
 			a.fontFamily !== b.fontFamily ||
 			a.fontSize !== b.fontSize ||
 			a.lineHeight !== b.lineHeight;
+	}
+
+	/**
+	 * Removes the trailing file:// from a URL if it exists
+	 * Returns null if it doesn't
+	 */
+	private _getPathFromUrl(url: string): string {
+		const fileRefex = /^file:\/\/(.+)/;
+		const result = fileRefex.exec(url);
+		if (result && result.length === 2) {
+			return result[1];
+		}
+		return null;
 	}
 }
