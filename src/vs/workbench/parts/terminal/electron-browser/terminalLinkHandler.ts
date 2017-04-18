@@ -30,6 +30,23 @@ const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]
 /** A regex that matches paths in the form c:\foo, ~\foo, .\foo, ..\foo, foo\bar */
 const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharactersClause + ')+)?(' + winPathSeparatorClause + '(' + winExcludedPathCharactersClause + ')+)+)';
 // const WINDOWS_LOCAL_LINK_REGEX = new RegExp(winLocalLinkClause);
+
+/** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
+replacing space with nonBreakningSpace or space ASCII code - 32. */
+const lineAndColumnClauses = [
+	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
+	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
+	'(([^\\s\\(\\)]*)(\\s?\\((\\d+)(,(\\d+))?)\\))', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18)
+	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
+].map(clause => clause.replace(/ /g, `[${'\u00A0'} ]`));
+
+// Changing any regex may effect this value, hence changes this as well if required.
+const winLineAndColumnMatchIndex = 12;
+const unixLineAndColumnMatchIndex = 15;
+
+// Each line and column clause have 6 groups (ie no. of expressions in round brackets)
+const lineAndColumnClauseGroupCount = 6;
+
 /** Higher than local link, lower than hypertext */
 const CUSTOM_LINK_PRIORITY = -1;
 /** Lowest */
@@ -42,16 +59,6 @@ export class TerminalLinkHandler {
 	private _tooltipDisposables: IDisposable[] = [];
 	private _widgetManager: TerminalWidgetManager;
 
-	// Changing any regex may effect this value, hence changes this as well if required.
-	private _winLineAndColumnMatchIndex = 12;
-	private _unixLineAndColumnMatchIndex = 15;
-
-	private _lineAndColumnClauses = [
-		'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
-		'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
-		'(([^\\s\\(\\)]*)(\\s?\\((\\d+)(,(\\d+))?)\\))', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18)
-		'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
-	];
 
 	private _winLocalLinkPattern: RegExp;
 	private _unixLocalLinkPattern: RegExp;
@@ -63,19 +70,13 @@ export class TerminalLinkHandler {
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
-
-		// As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
-		// replacing space with nonBreakningSpace or space ASCII code - 32.
-		this._lineAndColumnClauses = this._lineAndColumnClauses
-			.map(clause => clause.replace(/ /g, `[${'\u00A0'} ]`));
-
 		// Append line and column number regex in both Windows and Unix system.
 		this._winLocalLinkPattern = new RegExp(
-			`${winLocalLinkClause}(${this._lineAndColumnClauses.join('|')})`
+			`${winLocalLinkClause}(${lineAndColumnClauses.join('|')})`
 		);
 
 		this._unixLocalLinkPattern = new RegExp(
-			`${unixLocalLinkClause}(${this._lineAndColumnClauses.join('|')})`
+			`${unixLocalLinkClause}(${lineAndColumnClauses.join('|')})`
 		);
 
 		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(() => true));
@@ -147,14 +148,7 @@ export class TerminalLinkHandler {
 			let normalizedPath = path.normalize(path.resolve(resolvedLink));
 			const normalizedUrl = this.extractLinkUrl(normalizedPath);
 
-			const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(normalizedPath);
-			if (lineColumnInfo.lineNumber) {
-				normalizedPath += `#${lineColumnInfo.lineNumber}`;
-
-				if (lineColumnInfo.columnNumber) {
-					normalizedPath += `,${lineColumnInfo.columnNumber}`;
-				}
-			}
+			normalizedPath = this._formatLocalLinkPath(normalizedPath);
 
 			let resource = Uri.file(normalizedUrl);
 			resource = resource.with({
@@ -249,6 +243,23 @@ export class TerminalLinkHandler {
 	}
 
 	/**
+	 * Appends line number and column number to link if they exists.
+	 * @param link link to format, will become link#line_num,col_num.
+	 */
+	private _formatLocalLinkPath(link: string): string {
+		const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link);
+		if (lineColumnInfo.lineNumber) {
+			link += `#${lineColumnInfo.lineNumber}`;
+
+			if (lineColumnInfo.columnNumber) {
+				link += `,${lineColumnInfo.columnNumber}`;
+			}
+		}
+
+		return link;
+	}
+
+	/**
 	 * Returns line and column number of URl if that is present.
 	 *
 	 * @param link Url link which may contain line and column number.
@@ -256,17 +267,17 @@ export class TerminalLinkHandler {
 	public extractLineColumnInfo(link: string): LineColumnInfo {
 		const matches: string[] = this._localLinkRegex.exec(link);
 
-		let lineColumnClauseLength = this._lineAndColumnClauses.length;
+		let lineColumnClauseLength = lineAndColumnClauses.length;
 		let lineColumnInfo: LineColumnInfo = {};
 
-		let lineAndColumnMatchIndex = this._winLineAndColumnMatchIndex;
+		let lineAndColumnMatchIndex = winLineAndColumnMatchIndex;
 
-		if (platform.Platform.Windows !== this._platform) {
-			lineAndColumnMatchIndex = this._unixLineAndColumnMatchIndex;
+		if (this._platform !== platform.Platform.Windows) {
+			lineAndColumnMatchIndex = unixLineAndColumnMatchIndex;
 		}
 
 		for (let i = 0; i < lineColumnClauseLength; i++) {
-			let lineMatchIndex = lineAndColumnMatchIndex + 6 * i;
+			let lineMatchIndex = lineAndColumnMatchIndex + (lineAndColumnClauseGroupCount * i);
 
 			const rowNumber = matches[lineMatchIndex];
 			if (rowNumber) {
