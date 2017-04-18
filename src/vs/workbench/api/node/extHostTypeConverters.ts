@@ -287,6 +287,8 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.File: return 'file';
 			case types.CompletionItemKind.Reference: return 'reference';
 			case types.CompletionItemKind.Folder: return 'folder';
+			case types.CompletionItemKind.Event: return 'event';
+			case types.CompletionItemKind.Operator: return 'operator';
 		}
 		return 'property';
 	},
