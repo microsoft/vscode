@@ -2017,12 +2017,6 @@ declare module monaco.editor {
         trimAutoWhitespace?: boolean;
     }
 
-    export interface IModelOptionsChangedEvent {
-        readonly tabSize: boolean;
-        readonly insertSpaces: boolean;
-        readonly trimAutoWhitespace: boolean;
-    }
-
     /**
      * A textual read-only model.
      */
@@ -2412,97 +2406,6 @@ declare module monaco.editor {
          * and make all necessary clean-up to release this object to the GC.
          */
         dispose(): void;
-    }
-
-    /**
-     * An event describing that the current mode associated with a model has changed.
-     */
-    export interface IModelLanguageChangedEvent {
-        /**
-         * Previous language
-         */
-        readonly oldLanguage: string;
-        /**
-         * New language
-         */
-        readonly newLanguage: string;
-    }
-
-    export interface IModelContentChange {
-        /**
-         * The range that got replaced.
-         */
-        readonly range: IRange;
-        /**
-         * The length of the range that got replaced.
-         */
-        readonly rangeLength: number;
-        /**
-         * The new text for the range.
-         */
-        readonly text: string;
-    }
-
-    /**
-     * An event describing a change in the text of a model.
-     */
-    export interface IModelContentChangedEvent {
-        readonly changes: IModelContentChange[];
-        /**
-         * The (new) end-of-line character.
-         */
-        readonly eol: string;
-        /**
-         * The new version id the model has transitioned to.
-         */
-        readonly versionId: number;
-        /**
-         * Flag that indicates that this event was generated while undoing.
-         */
-        readonly isUndoing: boolean;
-        /**
-         * Flag that indicates that this event was generated while redoing.
-         */
-        readonly isRedoing: boolean;
-        /**
-         * Flag that indicates that all decorations were lost with this edit.
-         * The model has been reset to a new value.
-         */
-        readonly isFlush: boolean;
-    }
-
-    /**
-     * An event describing that model decorations have changed.
-     */
-    export interface IModelDecorationsChangedEvent {
-        /**
-         * Lists of ids for added decorations.
-         */
-        readonly addedDecorations: string[];
-        /**
-         * Lists of ids for changed decorations.
-         */
-        readonly changedDecorations: string[];
-        /**
-         * List of ids for removed decorations.
-         */
-        readonly removedDecorations: string[];
-    }
-
-    /**
-     * An event describing that some ranges of lines have been tokenized (their tokens have changed).
-     */
-    export interface IModelTokensChangedEvent {
-        readonly ranges: {
-            /**
-             * The start of the range (inclusive)
-             */
-            readonly fromLineNumber: number;
-            /**
-             * The end of the range (inclusive)
-             */
-            readonly toLineNumber: number;
-        }[];
     }
 
     /**
@@ -3595,6 +3498,103 @@ declare module monaco.editor {
          * No-Blinking
          */
         Solid = 5,
+    }
+
+    /**
+     * An event describing that the current mode associated with a model has changed.
+     */
+    export interface IModelLanguageChangedEvent {
+        /**
+         * Previous language
+         */
+        readonly oldLanguage: string;
+        /**
+         * New language
+         */
+        readonly newLanguage: string;
+    }
+
+    export interface IModelContentChange {
+        /**
+         * The range that got replaced.
+         */
+        readonly range: IRange;
+        /**
+         * The length of the range that got replaced.
+         */
+        readonly rangeLength: number;
+        /**
+         * The new text for the range.
+         */
+        readonly text: string;
+    }
+
+    /**
+     * An event describing a change in the text of a model.
+     */
+    export interface IModelContentChangedEvent {
+        readonly changes: IModelContentChange[];
+        /**
+         * The (new) end-of-line character.
+         */
+        readonly eol: string;
+        /**
+         * The new version id the model has transitioned to.
+         */
+        readonly versionId: number;
+        /**
+         * Flag that indicates that this event was generated while undoing.
+         */
+        readonly isUndoing: boolean;
+        /**
+         * Flag that indicates that this event was generated while redoing.
+         */
+        readonly isRedoing: boolean;
+        /**
+         * Flag that indicates that all decorations were lost with this edit.
+         * The model has been reset to a new value.
+         */
+        readonly isFlush: boolean;
+    }
+
+    /**
+     * An event describing that model decorations have changed.
+     */
+    export interface IModelDecorationsChangedEvent {
+        /**
+         * Lists of ids for added decorations.
+         */
+        readonly addedDecorations: string[];
+        /**
+         * Lists of ids for changed decorations.
+         */
+        readonly changedDecorations: string[];
+        /**
+         * List of ids for removed decorations.
+         */
+        readonly removedDecorations: string[];
+    }
+
+    /**
+     * An event describing that some ranges of lines have been tokenized (their tokens have changed).
+     */
+    export interface IModelTokensChangedEvent {
+        readonly ranges: {
+            /**
+             * The start of the range (inclusive)
+             */
+            readonly fromLineNumber: number;
+            /**
+             * The end of the range (inclusive)
+             */
+            readonly toLineNumber: number;
+        }[];
+    }
+
+    export interface IModelOptionsChangedEvent {
+        readonly tabSize: boolean;
+        readonly insertSpaces: boolean;
+        readonly trimAutoWhitespace: boolean;
     }
 
     /**

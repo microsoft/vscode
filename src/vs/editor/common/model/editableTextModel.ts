@@ -16,7 +16,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -38,11 +38,11 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		return new EditableTextModel(RawTextSource.fromString(text), options, languageIdentifier);
 	}
 
-	public onDidChangeRawContent(listener: (e: editorCommon.ModelRawContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(TextModelEventType.ModelRawContentChanged2, listener);
+	public onDidChangeRawContent(listener: (e: textModelEvents.ModelRawContentChangedEvent) => void): IDisposable {
+		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelRawContentChanged2, listener);
 	}
-	public onDidChangeContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(TextModelEventType.ModelContentChanged, listener);
+	public onDidChangeContent(listener: (e: textModelEvents.IModelContentChangedEvent) => void): IDisposable {
+		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelContentChanged, listener);
 	}
 
 	private _commandManager: EditStack;
@@ -465,8 +465,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		// Sort operations descending
 		operations.sort(EditableTextModel._sortOpsDescending);
 
-		let rawContentChanges: editorCommon.ModelRawChange[] = [];
-		let contentChanges: editorCommon.IModelContentChange[] = [];
+		let rawContentChanges: textModelEvents.ModelRawChange[] = [];
+		let contentChanges: textModelEvents.IModelContentChange[] = [];
 		let lineEditsQueue: IIdentifiedLineEdit[] = [];
 
 		let queueLineEdit = (lineEdit: IIdentifiedLineEdit) => {
@@ -502,7 +502,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
 				}
 				rawContentChanges.push(
-					new editorCommon.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
+					new textModelEvents.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
 				);
 
 				currentLineNumber = lineNumber;
@@ -516,7 +516,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
 			}
 			rawContentChanges.push(
-				new editorCommon.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
+				new textModelEvents.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
 			);
 
 			lineEditsQueue = [];
@@ -607,11 +607,11 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 				this._lines[spliceStartLineNumber - 1].addMarkers(markersOnDeletedLines);
 				rawContentChanges.push(
-					new editorCommon.ModelRawLineChanged(spliceStartLineNumber, this._lines[spliceStartLineNumber - 1].text)
+					new textModelEvents.ModelRawLineChanged(spliceStartLineNumber, this._lines[spliceStartLineNumber - 1].text)
 				);
 
 				rawContentChanges.push(
-					new editorCommon.ModelRawLinesDeleted(spliceStartLineNumber + 1, spliceStartLineNumber + spliceCnt)
+					new textModelEvents.ModelRawLinesDeleted(spliceStartLineNumber + 1, spliceStartLineNumber + spliceCnt)
 				);
 			}
 
@@ -634,7 +634,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					this._lineStarts.changeValue(spliceLineNumber - 1, this._lines[spliceLineNumber - 1].text.length + this._EOL.length);
 				}
 				rawContentChanges.push(
-					new editorCommon.ModelRawLineChanged(spliceLineNumber, this._lines[spliceLineNumber - 1].text)
+					new textModelEvents.ModelRawLineChanged(spliceLineNumber, this._lines[spliceLineNumber - 1].text)
 				);
 				this._invalidateLine(spliceLineNumber - 1);
 
@@ -660,7 +660,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].text.length + this._EOL.length);
 				}
 				rawContentChanges.push(
-					new editorCommon.ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'))
+					new textModelEvents.ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'))
 				);
 			}
 
@@ -689,14 +689,14 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		if (rawContentChanges.length !== 0 || contentChanges.length !== 0) {
 			this._increaseVersionId();
 
-			this._emitModelRawContentChangedEvent(new editorCommon.ModelRawContentChangedEvent(
+			this._emitModelRawContentChangedEvent(new textModelEvents.ModelRawContentChangedEvent(
 				rawContentChanges,
 				this.getVersionId(),
 				this._isUndoing,
 				this._isRedoing
 			));
 
-			const e: editorCommon.IModelContentChangedEvent = {
+			const e: textModelEvents.IModelContentChangedEvent = {
 				changes: contentChanges,
 				eol: this._EOL,
 				versionId: this.getVersionId(),
@@ -704,7 +704,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				isRedoing: this._isRedoing,
 				isFlush: false
 			};
-			this._eventEmitter.emit(TextModelEventType.ModelContentChanged, e);
+			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelContentChanged, e);
 		}
 
 		// this._assertLineNumbersOK();

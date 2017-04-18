@@ -26,7 +26,10 @@ import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesColle
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { hash } from 'vs/base/common/hash';
 import { EditorModeContext } from 'vs/editor/common/modes/editorModeContext';
-import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
+import {
+	IModelContentChangedEvent, IModelDecorationsChangedEvent,
+	IModelLanguageChangedEvent, IModelOptionsChangedEvent, TextModelEventType
+} from 'vs/editor/common/model/textModelEvents';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -37,17 +40,17 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private readonly _onDidChangeModelContent: Emitter<editorCommon.IModelContentChangedEvent> = this._register(new Emitter<editorCommon.IModelContentChangedEvent>());
-	public readonly onDidChangeModelContent: Event<editorCommon.IModelContentChangedEvent> = this._onDidChangeModelContent.event;
+	private readonly _onDidChangeModelContent: Emitter<IModelContentChangedEvent> = this._register(new Emitter<IModelContentChangedEvent>());
+	public readonly onDidChangeModelContent: Event<IModelContentChangedEvent> = this._onDidChangeModelContent.event;
 
-	private readonly _onDidChangeModelLanguage: Emitter<editorCommon.IModelLanguageChangedEvent> = this._register(new Emitter<editorCommon.IModelLanguageChangedEvent>());
-	public readonly onDidChangeModelLanguage: Event<editorCommon.IModelLanguageChangedEvent> = this._onDidChangeModelLanguage.event;
+	private readonly _onDidChangeModelLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
+	public readonly onDidChangeModelLanguage: Event<IModelLanguageChangedEvent> = this._onDidChangeModelLanguage.event;
 
-	private readonly _onDidChangeModelOptions: Emitter<editorCommon.IModelOptionsChangedEvent> = this._register(new Emitter<editorCommon.IModelOptionsChangedEvent>());
-	public readonly onDidChangeModelOptions: Event<editorCommon.IModelOptionsChangedEvent> = this._onDidChangeModelOptions.event;
+	private readonly _onDidChangeModelOptions: Emitter<IModelOptionsChangedEvent> = this._register(new Emitter<IModelOptionsChangedEvent>());
+	public readonly onDidChangeModelOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeModelOptions.event;
 
-	private readonly _onDidChangeModelDecorations: Emitter<editorCommon.IModelDecorationsChangedEvent> = this._register(new Emitter<editorCommon.IModelDecorationsChangedEvent>());
-	public readonly onDidChangeModelDecorations: Event<editorCommon.IModelDecorationsChangedEvent> = this._onDidChangeModelDecorations.event;
+	private readonly _onDidChangeModelDecorations: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>());
+	public readonly onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeModelDecorations.event;
 
 	private readonly _onDidChangeConfiguration: Emitter<editorCommon.IConfigurationChangedEvent> = this._register(new Emitter<editorCommon.IConfigurationChangedEvent>());
 	public readonly onDidChangeConfiguration: Event<editorCommon.IConfigurationChangedEvent> = this._onDidChangeConfiguration.event;

@@ -15,7 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textModelWithMarkers';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
-import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 class DecorationsTracker {
 
@@ -485,7 +485,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		}
 
 		if (uniqueChangedDecorations.length > 0) {
-			let e: editorCommon.IModelDecorationsChangedEvent = {
+			let e: textModelEvents.IModelDecorationsChangedEvent = {
 				addedDecorations: [],
 				changedDecorations: uniqueChangedDecorations,
 				removedDecorations: []
@@ -531,7 +531,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 			return;
 		}
 
-		let e: editorCommon.IModelDecorationsChangedEvent = {
+		let e: textModelEvents.IModelDecorationsChangedEvent = {
 			addedDecorations: decorationsTracker.addedDecorations,
 			changedDecorations: decorationsTracker.changedDecorations,
 			removedDecorations: decorationsTracker.removedDecorations
@@ -539,9 +539,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		this.emitModelDecorationsChangedEvent(e);
 	}
 
-	private emitModelDecorationsChangedEvent(e: editorCommon.IModelDecorationsChangedEvent): void {
+	private emitModelDecorationsChangedEvent(e: textModelEvents.IModelDecorationsChangedEvent): void {
 		if (!this._isDisposing) {
-			this._eventEmitter.emit(TextModelEventType.ModelDecorationsChanged, e);
+			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelDecorationsChanged, e);
 		}
 	}
 

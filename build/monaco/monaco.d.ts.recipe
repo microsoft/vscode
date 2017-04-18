@@ -66,6 +66,7 @@ export interface ICommandHandler {
 #include(vs/editor/browser/standalone/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/common/scrollable): ScrollbarVisibility
 #includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode;LanguageIdentifier=>languages.LanguageIdentifier): IPosition, IRange, ISelection, SelectionDirection, IScrollEvent
+#includeAll(vs/editor/common/model/textModelEvents):
 #includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):
 #include(vs/editor/common/config/fontInfo): FontInfo, BareFontInfo
 }

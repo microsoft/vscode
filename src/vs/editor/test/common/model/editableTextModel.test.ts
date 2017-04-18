@@ -7,10 +7,11 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, IModelContentChangedEvent } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditableTextModel, IValidatedEditOperation } from 'vs/editor/common/model/editableTextModel';
 import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
+import { IModelContentChangedEvent } from "vs/editor/common/model/textModelEvents";
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 

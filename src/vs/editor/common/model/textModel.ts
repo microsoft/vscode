@@ -17,7 +17,7 @@ import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges'
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
@@ -159,7 +159,7 @@ export class TextModel implements editorCommon.ITextModel {
 			}
 		}
 
-		this._eventEmitter.emit(TextModelEventType.ModelOptionsChanged, e);
+		this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelOptionsChanged, e);
 	}
 
 	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
@@ -306,7 +306,7 @@ export class TextModel implements editorCommon.ITextModel {
 	}
 
 	private _emitContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): void {
-		const e: editorCommon.IModelContentChangedEvent = {
+		const e: textModelEvents.IModelContentChangedEvent = {
 			changes: [{
 				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 				rangeLength: rangeLength,
@@ -319,7 +319,7 @@ export class TextModel implements editorCommon.ITextModel {
 			isFlush: isFlush
 		};
 		if (!this._isDisposing) {
-			this._eventEmitter.emit(TextModelEventType.ModelContentChanged, e);
+			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelContentChanged, e);
 		}
 	}
 
@@ -371,9 +371,9 @@ export class TextModel implements editorCommon.ITextModel {
 		this._resetValue(newValue);
 
 		this._emitModelRawContentChangedEvent(
-			new editorCommon.ModelRawContentChangedEvent(
+			new textModelEvents.ModelRawContentChangedEvent(
 				[
-					new editorCommon.ModelRawFlush()
+					new textModelEvents.ModelRawFlush()
 				],
 				this._versionId,
 				false,
@@ -620,9 +620,9 @@ export class TextModel implements editorCommon.ITextModel {
 		this._increaseVersionId();
 
 		this._emitModelRawContentChangedEvent(
-			new editorCommon.ModelRawContentChangedEvent(
+			new textModelEvents.ModelRawContentChangedEvent(
 				[
-					new editorCommon.ModelRawFlush()
+					new textModelEvents.ModelRawFlush()
 				],
 				this._versionId,
 				false,
@@ -779,12 +779,12 @@ export class TextModel implements editorCommon.ITextModel {
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
-	protected _emitModelRawContentChangedEvent(e: editorCommon.ModelRawContentChangedEvent): void {
+	protected _emitModelRawContentChangedEvent(e: textModelEvents.ModelRawContentChangedEvent): void {
 		if (this._isDisposing) {
 			// Do not confuse listeners by emitting any event after disposing
 			return;
 		}
-		this._eventEmitter.emit(TextModelEventType.ModelRawContentChanged2, e);
+		this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelRawContentChanged2, e);
 	}
 
 	private _constructLines(textSource: ITextSource): void {

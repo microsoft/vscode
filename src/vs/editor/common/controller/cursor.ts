@@ -21,7 +21,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
-import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
+import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 
 export const CursorEventType = {
 	CursorPositionChanged: 'positionChanged',
@@ -151,11 +151,11 @@ export class Cursor extends EventEmitter {
 
 				if (eventType === TextModelEventType.ModelRawContentChanged2) {
 					hadContentChange = true;
-					const changeEvent = <editorCommon.ModelRawContentChangedEvent>event.data;
+					const changeEvent = <ModelRawContentChangedEvent>event.data;
 
 					for (let j = 0, lenJ = changeEvent.changes.length; j < lenJ; j++) {
 						const change = changeEvent.changes[j];
-						if (change.type === editorCommon.RawContentChangedType.Flush) {
+						if (change.changeType === RawContentChangedType.Flush) {
 							hadFlushEvent = true;
 						}
 					}

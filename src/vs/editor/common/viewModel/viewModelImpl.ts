@@ -20,7 +20,7 @@ import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesColle
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import * as errors from 'vs/base/common/errors';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
-import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { CursorEventType } from 'vs/editor/common/controller/cursor';
 
 const ConfigurationChanged = 'configurationChanged';
@@ -241,7 +241,7 @@ export class ViewModel implements IViewModel {
 	private static _containsModelContentChangeEvent(events: EmitterEvent[]): boolean {
 		for (let i = 0, len = events.length; i < len; i++) {
 			let eventType = events[i].type;
-			if (eventType === TextModelEventType.ModelRawContentChanged2) {
+			if (eventType === textModelEvents.TextModelEventType.ModelRawContentChanged2) {
 				return true;
 			}
 		}
@@ -251,7 +251,7 @@ export class ViewModel implements IViewModel {
 	private static _containsWrappingRelatedEvents(events: EmitterEvent[]): boolean {
 		for (let i = 0, len = events.length; i < len; i++) {
 			let eventType = events[i].type;
-			if (eventType === TextModelEventType.ModelOptionsChanged) {
+			if (eventType === textModelEvents.TextModelEventType.ModelOptionsChanged) {
 				return true;
 			}
 			if (eventType === ConfigurationChanged) {
@@ -304,30 +304,30 @@ export class ViewModel implements IViewModel {
 
 			switch (type) {
 
-				case TextModelEventType.ModelRawContentChanged2: {
-					const e = <editorCommon.ModelRawContentChangedEvent>data;
+				case textModelEvents.TextModelEventType.ModelRawContentChanged2: {
+					const e = <textModelEvents.ModelRawContentChangedEvent>data;
 
 					for (let j = 0, lenJ = e.changes.length; j < lenJ; j++) {
 						const change = e.changes[j];
 
-						switch (change.type) {
-							case editorCommon.RawContentChangedType.Flush:
+						switch (change.changeType) {
+							case textModelEvents.RawContentChangedType.Flush:
 								this.lines.onModelFlushed(eventsCollector);
 								this.decorations.reset();
 								hadOtherModelChange = true;
 								break;
 
-							case editorCommon.RawContentChangedType.LinesDeleted:
+							case textModelEvents.RawContentChangedType.LinesDeleted:
 								this.lines.onModelLinesDeleted(eventsCollector, change.fromLineNumber, change.toLineNumber);
 								hadOtherModelChange = true;
 								break;
 
-							case editorCommon.RawContentChangedType.LinesInserted:
+							case textModelEvents.RawContentChangedType.LinesInserted:
 								this.lines.onModelLinesInserted(eventsCollector, change.fromLineNumber, change.toLineNumber, change.detail.split('\n'));
 								hadOtherModelChange = true;
 								break;
 
-							case editorCommon.RawContentChangedType.LineChanged:
+							case textModelEvents.RawContentChangedType.LineChanged:
 								hadModelLineChangeThatChangedLineMapping = this.lines.onModelLineChanged(eventsCollector, change.lineNumber, change.detail);
 								break;
 
@@ -340,8 +340,8 @@ export class ViewModel implements IViewModel {
 
 					break;
 				}
-				case TextModelEventType.ModelTokensChanged: {
-					const e = <editorCommon.IModelTokensChangedEvent>data;
+				case textModelEvents.TextModelEventType.ModelTokensChanged: {
+					const e = <textModelEvents.IModelTokensChangedEvent>data;
 
 					let viewRanges: { fromLineNumber: number; toLineNumber: number; }[] = [];
 					for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
@@ -356,15 +356,15 @@ export class ViewModel implements IViewModel {
 					eventsCollector.emit(new viewEvents.ViewTokensChangedEvent(viewRanges));
 					break;
 				}
-				case TextModelEventType.ModelLanguageChanged: {
+				case textModelEvents.TextModelEventType.ModelLanguageChanged: {
 					// That's ok, a model tokens changed event will follow shortly
 					break;
 				}
-				case TextModelEventType.ModelContentChanged: {
+				case textModelEvents.TextModelEventType.ModelContentChanged: {
 					// Ignore
 					break;
 				}
-				case TextModelEventType.ModelOptionsChanged: {
+				case textModelEvents.TextModelEventType.ModelOptionsChanged: {
 					// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
 					let prevLineCount = this.lines.getViewLineCount();
 					let tabSizeChanged = this._onTabSizeChange(eventsCollector, this.model.getOptions().tabSize);
@@ -375,12 +375,12 @@ export class ViewModel implements IViewModel {
 
 					break;
 				}
-				case TextModelEventType.ModelDecorationsChanged: {
-					const e = <editorCommon.IModelDecorationsChangedEvent>data;
+				case textModelEvents.TextModelEventType.ModelDecorationsChanged: {
+					const e = <textModelEvents.IModelDecorationsChangedEvent>data;
 					this.decorations.onModelDecorationsChanged(eventsCollector, e);
 					break;
 				}
-				case TextModelEventType.ModelDispose: {
+				case textModelEvents.TextModelEventType.ModelDispose: {
 					// Ignore, since the editor will take care of this and destroy the view shortly
 					break;
 				}

@@ -22,7 +22,7 @@ import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
-import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 class ModelTokensChangedEventBuilder {
 
@@ -49,7 +49,7 @@ class ModelTokensChangedEventBuilder {
 		}
 	}
 
-	public build(): editorCommon.IModelTokensChangedEvent {
+	public build(): textModelEvents.IModelTokensChangedEvent {
 		if (this._ranges.length === 0) {
 			return null;
 		}
@@ -159,7 +159,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (!this._isDisposing) {
 			let e = eventBuilder.build();
 			if (e) {
-				this._eventEmitter.emit(TextModelEventType.ModelTokensChanged, e);
+				this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelTokensChanged, e);
 			}
 		}
 
@@ -202,7 +202,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			return;
 		}
 
-		let e: editorCommon.IModelLanguageChangedEvent = {
+		let e: textModelEvents.IModelLanguageChangedEvent = {
 			oldLanguage: this._languageIdentifier.language,
 			newLanguage: languageIdentifier.language
 		};
@@ -387,15 +387,15 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, endLineIndex + 1);
 	}
 
-	private emitModelTokensChangedEvent(e: editorCommon.IModelTokensChangedEvent): void {
+	private emitModelTokensChangedEvent(e: textModelEvents.IModelTokensChangedEvent): void {
 		if (!this._isDisposing) {
-			this._eventEmitter.emit(TextModelEventType.ModelTokensChanged, e);
+			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelTokensChanged, e);
 		}
 	}
 
-	private _emitModelModeChangedEvent(e: editorCommon.IModelLanguageChangedEvent): void {
+	private _emitModelModeChangedEvent(e: textModelEvents.IModelLanguageChangedEvent): void {
 		if (!this._isDisposing) {
-			this._eventEmitter.emit(TextModelEventType.ModelLanguageChanged, e);
+			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelLanguageChanged, e);
 		}
 	}
 

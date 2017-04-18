@@ -42,6 +42,7 @@ import { registerColor, highContrastOutline } from 'vs/platform/theme/common/col
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler } from "vs/platform/theme/common/styler";
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
 class DecorationsManager implements IDisposable {
 
@@ -106,7 +107,7 @@ class DecorationsManager implements IDisposable {
 		});
 	}
 
-	private _onDecorationChanged(event: editorCommon.IModelDecorationsChangedEvent): void {
+	private _onDecorationChanged(event: IModelDecorationsChangedEvent): void {
 		const changedDecorations = event.changedDecorations,
 			toRemove: string[] = [];
 
