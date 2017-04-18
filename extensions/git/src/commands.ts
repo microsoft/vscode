@@ -202,9 +202,12 @@ export class CommandCenter {
 			return;
 		}
 
+		const config = workspace.getConfiguration('git');
+		const cloneDirectory = config.get<string>('cloneDirectory') || os.homedir();
+
 		const parentPath = await window.showInputBox({
 			prompt: localize('parent', "Parent Directory"),
-			value: os.homedir(),
+			value: cloneDirectory,
 			ignoreFocusOut: true
 		});
 

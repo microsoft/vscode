@@ -235,6 +235,11 @@ export function registerContributions(): void {
 				enum: ['all', 'local', 'tags', 'remote'],
 				default: 'all',
 				description: nls.localize('checkoutType', "Controls what type of branches are listed."),
+			},
+			'git.cloneDirectory': {
+				type: 'string',
+				default: null,
+				description: nls.localize('cloneDirectory', "When cloning a new repository, the default location will be set to this directory."),
 			}
 		}
 	});
