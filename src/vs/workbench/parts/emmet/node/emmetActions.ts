@@ -200,7 +200,7 @@ export class EmmetActionContext {
 }
 
 export interface IEmmetActionOptions extends IActionOptions {
-	actionName?: string;
+	actionName: string;
 }
 
 export abstract class EmmetEditorAction extends EditorAction {
@@ -238,6 +238,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const messageService = accessor.get(IMessageService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const workspaceRoot = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : '';
+		const telemetryService = accessor.get(ITelemetryService);
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
@@ -265,6 +266,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 					this.runEmmetAction(accessor, new EmmetActionContext(editor, _emmet, editorAccessor));
 				});
 				editorAccessor.onAfterEmmetAction();
+				telemetryService.publicLog('emmetActionCompleted', { action: this.emmetActionName });
 			});
 		});
 
@@ -275,12 +277,12 @@ export class BasicEmmetEditorAction extends EmmetEditorAction {
 
 	constructor(id: string, label: string, alias: string, actionName: string, kbOpts?: ICommandKeybindingsOptions) {
 		super({
-			id: id,
-			label: label,
-			alias: alias,
+			id,
+			label,
+			alias,
 			precondition: EditorContextKeys.Writable,
-			kbOpts: kbOpts,
-			actionName: actionName
+			kbOpts,
+			actionName
 		});
 	}
 

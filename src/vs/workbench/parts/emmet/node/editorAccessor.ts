@@ -85,6 +85,15 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public replaceContent(value: string, start: number, end: number, no_indent: boolean): void {
+		let range = this.getRangeToReplace(value, start, end);
+		if (!range) {
+			return;
+		}
+		let codeSnippet = snippets.CodeSnippet.fromEmmet(value);
+		SnippetController.get(this._editor).runWithReplaceRange(codeSnippet, range);
+	}
+
+	public getRangeToReplace(value: string, start: number, end: number): Range {
 		//console.log('value', value);
 		let startPosition = this.getPositionFromOffset(start);
 		let endPosition = this.getPositionFromOffset(end);
@@ -96,7 +105,7 @@ export class EditorAccessor implements emmet.Editor {
 			if (strings.startsWith(value, match[0])) {
 				startPosition = { lineNumber: startPosition.lineNumber, column: startPosition.column - match[0].length };
 			} else {
-				return; // ignore
+				return null; // ignore
 			}
 		}
 
@@ -105,7 +114,7 @@ export class EditorAccessor implements emmet.Editor {
 			if (strings.endsWith(value, '>')) {
 				endPosition = { lineNumber: endPosition.lineNumber, column: endPosition.column + 1 };
 			} else {
-				return; // ignore
+				return null; // ignore
 			}
 		}
 
@@ -117,13 +126,15 @@ export class EditorAccessor implements emmet.Editor {
 
 		let range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
 		let textToReplace = this._editor.getModel().getValueInRange(range);
+
+		// During Expand Abbreviation action, if the expanded abbr is the same as the text it intends to replace,
+		// then treat it as a no-op and return TAB to the editor
 		if (this._emmetActionName === 'expand_abbreviation' && (value === textToReplace || value === textToReplace + '${0}')) {
 			this._editor.trigger('emmet', Handler.Tab, {});
-			return;
+			return null;
 		}
 
-		let codeSnippet = snippets.CodeSnippet.fromEmmet(value);
-		SnippetController.get(this._editor).runWithReplaceRange(codeSnippet, range);
+		return range;
 	}
 
 	public onAfterEmmetAction(): void {
