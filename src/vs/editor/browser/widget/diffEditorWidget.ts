@@ -36,10 +36,11 @@ import * as editorOptions from "vs/editor/common/config/editorOptions";
 import { registerThemingParticipant, IThemeService, ITheme } from "vs/platform/theme/common/themeService";
 import { registerColor } from "vs/platform/theme/common/colorRegistry";
 import { Color, RGBA } from "vs/base/common/color";
+import { OverviewRulerZone } from "vs/editor/common/view/overviewZoneManager";
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
-	overviewZones: editorCommon.OverviewRulerZone[];
+	overviewZones: OverviewRulerZone[];
 }
 
 interface IEditorDiffDecorationsWithZones extends IEditorDiffDecorations {
@@ -1521,9 +1522,13 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 					result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Number.MAX_VALUE, 'char-delete', true));
 				}
 
+<<<<<<< HEAD
 				let color = this._removeColor.toString();
 
 				result.overviewZones.push(new editorCommon.OverviewRulerZone(
+=======
+				result.overviewZones.push(new OverviewRulerZone(
+>>>>>>> More clean-up in editorCommon
 					lineChange.originalStartLineNumber,
 					lineChange.originalEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,
@@ -1591,8 +1596,12 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 				if (!isChangeOrDelete(lineChange) || !lineChange.charChanges) {
 					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Number.MAX_VALUE, 'char-insert', true));
 				}
+<<<<<<< HEAD
 				let color = this._insertColor.toString();
 				result.overviewZones.push(new editorCommon.OverviewRulerZone(
+=======
+				result.overviewZones.push(new OverviewRulerZone(
+>>>>>>> More clean-up in editorCommon
 					lineChange.modifiedStartLineNumber,
 					lineChange.modifiedEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,
@@ -1712,8 +1721,12 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 					}
 				});
 
+<<<<<<< HEAD
 				let color = this._removeColor.toString();
 				result.overviewZones.push(new editorCommon.OverviewRulerZone(
+=======
+				result.overviewZones.push(new OverviewRulerZone(
+>>>>>>> More clean-up in editorCommon
 					lineChange.originalStartLineNumber,
 					lineChange.originalEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,
@@ -1752,8 +1765,12 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 					}
 				});
 
+<<<<<<< HEAD
 				let color = this._insertColor.toString();
 				result.overviewZones.push(new editorCommon.OverviewRulerZone(
+=======
+				result.overviewZones.push(new OverviewRulerZone(
+>>>>>>> More clean-up in editorCommon
 					lineChange.modifiedStartLineNumber,
 					lineChange.modifiedEndLineNumber,
 					editorCommon.OverviewRulerLane.Full,

@@ -15,9 +15,10 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { Range } from 'vs/editor/common/core/range';
+import * as editorOptions from "vs/editor/common/config/editorOptions";
 
 export class MockCodeEditor extends CommonCodeEditor {
-	protected _createConfiguration(options: editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
+	protected _createConfiguration(options: editorOptions.IEditorOptions): CommonEditorConfiguration {
 		return new TestConfiguration(options);
 	}
 	public getCenteredRangeInViewport(): Range { return null; }
@@ -77,13 +78,20 @@ export class MockScopeLocation implements IContextKeyServiceTarget {
 	getAttribute(attr: string): string { return undefined; }
 }
 
-export function withMockCodeEditor(text: string[], options: editorCommon.ICodeEditorWidgetCreationOptions, callback: (editor: MockCodeEditor, cursor: Cursor) => void): void {
+export interface MockCodeEditorCreationOptions extends editorOptions.IEditorOptions {
+	/**
+	 * The initial model associated with this code editor.
+	 */
+	model?: editorCommon.IModel;
+}
+
+export function withMockCodeEditor(text: string[], options: MockCodeEditorCreationOptions, callback: (editor: MockCodeEditor, cursor: Cursor) => void): void {
 	let editor = <MockCodeEditor>mockCodeEditor(text, options);
 	callback(editor, editor.getCursor());
 	editor.dispose();
 }
 
-export function mockCodeEditor(text: string[], options: editorCommon.ICodeEditorWidgetCreationOptions): CommonCodeEditor {
+export function mockCodeEditor(text: string[], options: MockCodeEditorCreationOptions): CommonCodeEditor {
 
 	let contextKeyService = new MockContextKeyService();
 

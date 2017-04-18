@@ -6,7 +6,7 @@
 
 import 'vs/css!./media/standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions } from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/browser/standalone/standaloneServices';
@@ -345,7 +345,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		EndOfLineSequence: editorCommon.EndOfLineSequence,
 		TrackedRangeStickiness: editorCommon.TrackedRangeStickiness,
 		CursorChangeReason: editorCommon.CursorChangeReason,
-		MouseTargetType: editorCommon.MouseTargetType,
+		MouseTargetType: MouseTargetType,
 		TextEditorCursorStyle: editorOptions.TextEditorCursorStyle,
 		TextEditorCursorBlinkingStyle: editorOptions.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
@@ -368,11 +368,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// vars
 		EditorType: editorCommon.EditorType,
-		CursorMoveByUnit: editorCommon.CursorMoveByUnit,
-		CursorMovePosition: editorCommon.CursorMovePosition,
-		EditorScrollDirection: editorCommon.EditorScrollDirection,
-		EditorScrollByUnit: editorCommon.EditorScrollByUnit,
-		RevealLineAtArgument: editorCommon.RevealLineAtArgument,
 		Handler: editorCommon.Handler,
 	};
 }

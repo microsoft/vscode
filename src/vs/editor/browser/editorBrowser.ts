@@ -14,9 +14,11 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import * as editorOptions from "vs/editor/common/config/editorOptions";
+import { OverviewRulerZone } from "vs/editor/common/view/overviewZoneManager";
 
 /**
  * @internal
+ * TODO@editorBrowser: MOVE
  */
 export interface IContentWidgetData {
 	widget: IContentWidget;
@@ -25,6 +27,7 @@ export interface IContentWidgetData {
 
 /**
  * @internal
+ * TODO@editorBrowser: MOVE
  */
 export interface IOverlayWidgetData {
 	widget: IOverlayWidget;
@@ -33,6 +36,7 @@ export interface IOverlayWidgetData {
 
 /**
  * @internal
+ * TODO@editorBrowser: MOVE
  */
 export interface ICodeEditorHelper {
 	getScrollWidth(): number;
@@ -53,6 +57,7 @@ export interface ICodeEditorHelper {
 
 /**
  * @internal
+ * TODO@editorBrowser: MOVE
  */
 export interface IView extends IDisposable {
 	domNode: FastDomNode<HTMLElement>;
@@ -85,6 +90,7 @@ export interface IView extends IDisposable {
 
 /**
  * @internal
+ * TODO@editorBrowser: MOVE
  */
 export interface IViewZoneData {
 	viewZoneId: number;
@@ -115,6 +121,7 @@ export interface IMouseDispatchData {
 
 /**
  * @internal
+ * TODO@editorBrowser: MOVE
  */
 export interface IViewController {
 	dispatchMouse(data: IMouseDispatchData);
@@ -141,6 +148,7 @@ export interface IViewController {
 
 /**
  * @internal
+ * TODO@editorBrowser: MOVE
  */
 export const ClassNames = {
 	TEXTAREA_COVER: 'textAreaCover',
@@ -164,6 +172,7 @@ export const ClassNames = {
 
 /**
  * @internal
+ * TODO@editorBrowser: MOVE
  */
 export interface IViewportInfo {
 	visibleRange: Range;
@@ -351,6 +360,68 @@ export interface IOverlayWidget {
 }
 
 /**
+ * Type of hit element with the mouse in the editor.
+ */
+export enum MouseTargetType {
+	/**
+	 * Mouse is on top of an unknown element.
+	 */
+	UNKNOWN,
+	/**
+	 * Mouse is on top of the textarea used for input.
+	 */
+	TEXTAREA,
+	/**
+	 * Mouse is on top of the glyph margin
+	 */
+	GUTTER_GLYPH_MARGIN,
+	/**
+	 * Mouse is on top of the line numbers
+	 */
+	GUTTER_LINE_NUMBERS,
+	/**
+	 * Mouse is on top of the line decorations
+	 */
+	GUTTER_LINE_DECORATIONS,
+	/**
+	 * Mouse is on top of the whitespace left in the gutter by a view zone.
+	 */
+	GUTTER_VIEW_ZONE,
+	/**
+	 * Mouse is on top of text in the content.
+	 */
+	CONTENT_TEXT,
+	/**
+	 * Mouse is on top of empty space in the content (e.g. after line text or below last line)
+	 */
+	CONTENT_EMPTY,
+	/**
+	 * Mouse is on top of a view zone in the content.
+	 */
+	CONTENT_VIEW_ZONE,
+	/**
+	 * Mouse is on top of a content widget.
+	 */
+	CONTENT_WIDGET,
+	/**
+	 * Mouse is on top of the decorations overview ruler.
+	 */
+	OVERVIEW_RULER,
+	/**
+	 * Mouse is on top of a scrollbar.
+	 */
+	SCROLLBAR,
+	/**
+	 * Mouse is on top of an overlay widget.
+	 */
+	OVERLAY_WIDGET,
+	/**
+	 * Mouse is outside of the editor.
+	 */
+	OUTSIDE_EDITOR,
+}
+
+/**
  * Target hit with the mouse in the editor.
  */
 export interface IMouseTarget {
@@ -361,7 +432,7 @@ export interface IMouseTarget {
 	/**
 	 * The target type
 	 */
-	readonly type: editorCommon.MouseTargetType;
+	readonly type: MouseTargetType;
 	/**
 	 * The 'approximate' editor position
 	 */
@@ -399,7 +470,7 @@ export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editor
 export interface IOverviewRuler {
 	getDomNode(): HTMLElement;
 	dispose(): void;
-	setZones(zones: editorCommon.OverviewRulerZone[]): void;
+	setZones(zones: OverviewRulerZone[]): void;
 	setLayout(position: editorOptions.OverviewRulerPosition): void;
 }
 /**

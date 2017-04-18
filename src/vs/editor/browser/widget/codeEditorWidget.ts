@@ -139,7 +139,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	protected abstract _getContributions(): editorBrowser.IEditorContributionCtor[];
 	protected abstract _getActions(): EditorAction[];
 
-	protected _createConfiguration(options: editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
+	protected _createConfiguration(options: IEditorOptions): CommonEditorConfiguration {
 		return new Configuration(options, this.domElement);
 	}
 

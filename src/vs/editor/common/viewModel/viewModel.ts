@@ -4,13 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IViewWhitespaceViewportData, Viewport, IModelDecoration, EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, Viewport, IModelDecoration, EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ViewEvent } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
+
+export interface IViewWhitespaceViewportData {
+	readonly id: number;
+	readonly afterLineNumber: number;
+	readonly verticalOffset: number;
+	readonly height: number;
+}
 
 export interface IViewLayout {
 

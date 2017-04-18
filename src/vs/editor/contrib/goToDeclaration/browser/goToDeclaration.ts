@@ -24,7 +24,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
-import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/common/goToDeclaration';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/referencesController';
@@ -598,7 +598,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private isEnabled(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): boolean {
 		return this.editor.getModel() &&
 			(browser.isIE || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
-			mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_TEXT &&
+			mouseEvent.target.type === MouseTargetType.CONTENT_TEXT &&
 			(mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE)) &&
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}

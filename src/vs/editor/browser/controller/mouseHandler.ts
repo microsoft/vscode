@@ -22,6 +22,7 @@ import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { IViewWhitespaceViewportData } from "vs/editor/common/viewModel/viewModel";
 
 /**
  * Merges mouse events when mouse move events are throttled
@@ -93,7 +94,7 @@ export interface IPointerHandlerHelper {
 	isAfterLines(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
-	getWhitespaceAtVerticalOffset(verticalOffset: number): editorCommon.IViewWhitespaceViewportData;
+	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData;
 
 	/**
 	 * Get the last rendered information of the cursors.
@@ -274,12 +275,12 @@ export class MouseHandler extends ViewEventHandler implements IDisposable {
 	public _onMouseDown(e: EditorMouseEvent): void {
 		let t = this._createMouseTarget(e, true);
 
-		let targetIsContent = (t.type === editorCommon.MouseTargetType.CONTENT_TEXT || t.type === editorCommon.MouseTargetType.CONTENT_EMPTY);
-		let targetIsGutter = (t.type === editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN || t.type === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS || t.type === editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS);
-		let targetIsLineNumbers = (t.type === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
+		let targetIsContent = (t.type === editorBrowser.MouseTargetType.CONTENT_TEXT || t.type === editorBrowser.MouseTargetType.CONTENT_EMPTY);
+		let targetIsGutter = (t.type === editorBrowser.MouseTargetType.GUTTER_GLYPH_MARGIN || t.type === editorBrowser.MouseTargetType.GUTTER_LINE_NUMBERS || t.type === editorBrowser.MouseTargetType.GUTTER_LINE_DECORATIONS);
+		let targetIsLineNumbers = (t.type === editorBrowser.MouseTargetType.GUTTER_LINE_NUMBERS);
 		let selectOnLineNumbers = this._context.configuration.editor.viewInfo.selectOnLineNumbers;
-		let targetIsViewZone = (t.type === editorCommon.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorCommon.MouseTargetType.GUTTER_VIEW_ZONE);
-		let targetIsWidget = (t.type === editorCommon.MouseTargetType.CONTENT_WIDGET);
+		let targetIsViewZone = (t.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE);
+		let targetIsWidget = (t.type === editorBrowser.MouseTargetType.CONTENT_WIDGET);
 
 		let shouldHandle = e.leftButton;
 		if (platform.isMacintosh && e.ctrlKey) {
@@ -402,10 +403,10 @@ class MouseDownOperation extends Disposable {
 		}
 	}
 
-	public start(targetType: editorCommon.MouseTargetType, e: EditorMouseEvent): void {
+	public start(targetType: editorBrowser.MouseTargetType, e: EditorMouseEvent): void {
 		this._lastMouseEvent = e;
 
-		this._mouseState.setStartedOnLineNumbers(targetType === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS);
+		this._mouseState.setStartedOnLineNumbers(targetType === editorBrowser.MouseTargetType.GUTTER_LINE_NUMBERS);
 		this._mouseState.setModifiers(e);
 		let position = this._findMousePosition(e, true);
 		if (!position) {
@@ -494,22 +495,22 @@ class MouseDownOperation extends Disposable {
 
 		if (e.posy < editorContent.y) {
 			let aboveLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(Math.max(this._viewHelper.getScrollTop() - (editorContent.y - e.posy), 0));
-			return new MouseTarget(null, editorCommon.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(aboveLineNumber, 1));
+			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(aboveLineNumber, 1));
 		}
 
 		if (e.posy > editorContent.y + editorContent.height) {
 			let belowLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.y));
-			return new MouseTarget(null, editorCommon.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(belowLineNumber, this._context.model.getLineMaxColumn(belowLineNumber)));
+			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(belowLineNumber, this._context.model.getLineMaxColumn(belowLineNumber)));
 		}
 
 		let possibleLineNumber = this._viewHelper.getLineNumberAtVerticalOffset(this._viewHelper.getScrollTop() + (e.posy - editorContent.y));
 
 		if (e.posx < editorContent.x) {
-			return new MouseTarget(null, editorCommon.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, 1));
+			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, 1));
 		}
 
 		if (e.posx > editorContent.x + editorContent.width) {
-			return new MouseTarget(null, editorCommon.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, this._context.model.getLineMaxColumn(possibleLineNumber)));
+			return new MouseTarget(null, editorBrowser.MouseTargetType.OUTSIDE_EDITOR, mouseColumn, new Position(possibleLineNumber, this._context.model.getLineMaxColumn(possibleLineNumber)));
 		}
 
 		return null;
@@ -527,7 +528,7 @@ class MouseDownOperation extends Disposable {
 			return null;
 		}
 
-		if (t.type === editorCommon.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorCommon.MouseTargetType.GUTTER_VIEW_ZONE) {
+		if (t.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE) {
 			// Force position on view zones to go above or below depending on where selection started from
 			let selectionStart = new Position(this._currentSelection.selectionStartLineNumber, this._currentSelection.selectionStartColumn);
 			let viewZoneData = <editorBrowser.IViewZoneData>t.detail;

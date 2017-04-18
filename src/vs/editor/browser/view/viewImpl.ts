@@ -50,6 +50,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { CursorMovePosition } from "vs/editor/common/controller/oneCursor";
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -524,7 +525,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return e.revealCursor ? this.revealCursor() : false;
 	}
 	private revealCursor(): boolean {
-		this.triggerCursorHandler('revealCursor', editorCommon.Handler.CursorMove, { to: editorCommon.CursorMovePosition.ViewPortIfOutside });
+		this.triggerCursorHandler('revealCursor', editorCommon.Handler.CursorMove, { to: CursorMovePosition.ViewPortIfOutside });
 		return false;
 	}
 

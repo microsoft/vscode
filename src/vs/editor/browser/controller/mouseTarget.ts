@@ -6,8 +6,7 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { MouseTargetType } from 'vs/editor/common/editorCommon';
-import { ClassNames, IMouseTarget, IViewZoneData } from 'vs/editor/browser/editorBrowser';
+import { MouseTargetType, ClassNames, IMouseTarget, IViewZoneData } from 'vs/editor/browser/editorBrowser';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { EditorMouseEvent, PageCoordinates, ClientCoordinates, EditorPagePosition } from 'vs/editor/browser/editorDom';

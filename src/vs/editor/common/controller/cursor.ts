@@ -11,7 +11,11 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/controller/cursorCollection';
-import { IViewModelHelper, OneCursor, OneCursorOp, CursorContext } from 'vs/editor/common/controller/oneCursor';
+import {
+	IViewModelHelper, OneCursor, OneCursorOp, CursorContext, CursorMovePosition,
+	CursorMoveByUnit, RevealLineArguments, RevealLineAtArgument, EditorScrollArguments,
+	EditorScrollDirection, EditorScrollByUnit
+} from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
@@ -1244,7 +1248,7 @@ export class Cursor extends EventEmitter {
 
 	private _moveLeft(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.eventData = ctx.eventData || {};
-		ctx.eventData.to = editorCommon.CursorMovePosition.Left;
+		ctx.eventData.to = CursorMovePosition.Left;
 		ctx.eventData.select = inSelectionMode;
 
 		return this._cursorMove(ctx);
@@ -1252,7 +1256,7 @@ export class Cursor extends EventEmitter {
 
 	private _moveRight(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.eventData = ctx.eventData || {};
-		ctx.eventData.to = editorCommon.CursorMovePosition.Right;
+		ctx.eventData.to = CursorMovePosition.Right;
 		ctx.eventData.select = inSelectionMode;
 
 		return this._cursorMove(ctx);
@@ -1260,9 +1264,9 @@ export class Cursor extends EventEmitter {
 
 	private _moveDown(inSelectionMode: boolean, isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.eventData = ctx.eventData || {};
-		ctx.eventData.to = editorCommon.CursorMovePosition.Down;
+		ctx.eventData.to = CursorMovePosition.Down;
 		ctx.eventData.select = inSelectionMode;
-		ctx.eventData.by = editorCommon.CursorMoveByUnit.WrappedLine;
+		ctx.eventData.by = CursorMoveByUnit.WrappedLine;
 		ctx.eventData.isPaged = isPaged;
 
 		return this._cursorMove(ctx);
@@ -1270,9 +1274,9 @@ export class Cursor extends EventEmitter {
 
 	private _moveUp(inSelectionMode: boolean, isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
 		ctx.eventData = ctx.eventData || {};
-		ctx.eventData.to = editorCommon.CursorMovePosition.Up;
+		ctx.eventData.to = CursorMovePosition.Up;
 		ctx.eventData.select = inSelectionMode;
-		ctx.eventData.by = editorCommon.CursorMoveByUnit.WrappedLine;
+		ctx.eventData.by = CursorMoveByUnit.WrappedLine;
 		ctx.eventData.isPaged = isPaged;
 
 		return this._cursorMove(ctx);
@@ -1557,7 +1561,7 @@ export class Cursor extends EventEmitter {
 
 
 	private _revealLine(ctx: IMultipleCursorOperationContext): boolean {
-		const revealLineArg: editorCommon.RevealLineArguments = ctx.eventData;
+		const revealLineArg: RevealLineArguments = ctx.eventData;
 		const lineNumber = revealLineArg.lineNumber + 1;
 		let range = this.model.validateRange({
 			startLineNumber: lineNumber,
@@ -1570,13 +1574,13 @@ export class Cursor extends EventEmitter {
 		let revealAt = editorCommon.VerticalRevealType.Simple;
 		if (revealLineArg.at) {
 			switch (revealLineArg.at) {
-				case editorCommon.RevealLineAtArgument.Top:
+				case RevealLineAtArgument.Top:
 					revealAt = editorCommon.VerticalRevealType.Top;
 					break;
-				case editorCommon.RevealLineAtArgument.Center:
+				case RevealLineAtArgument.Center:
 					revealAt = editorCommon.VerticalRevealType.Center;
 					break;
-				case editorCommon.RevealLineAtArgument.Bottom:
+				case RevealLineAtArgument.Bottom:
 					revealAt = editorCommon.VerticalRevealType.Bottom;
 					break;
 				default:
@@ -1589,27 +1593,27 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _editorScroll(ctx: IMultipleCursorOperationContext): boolean {
-		let editorScrollArg: editorCommon.EditorScrollArguments = ctx.eventData;
+		let editorScrollArg: EditorScrollArguments = ctx.eventData;
 		editorScrollArg.value = editorScrollArg.value || 1;
 		switch (editorScrollArg.to) {
-			case editorCommon.EditorScrollDirection.Up:
-			case editorCommon.EditorScrollDirection.Down:
+			case EditorScrollDirection.Up:
+			case EditorScrollDirection.Down:
 				return this._scrollUpOrDown(editorScrollArg, ctx);
 		}
 		return true;
 	}
 
-	private _scrollUpOrDown(editorScrollArg: editorCommon.EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
+	private _scrollUpOrDown(editorScrollArg: EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
 		if (this._scrollByReveal(editorScrollArg, ctx)) {
 			return true;
 		}
-		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
+		let up = editorScrollArg.to === EditorScrollDirection.Up;
 		let noOfLines = editorScrollArg.value || 1;
 		switch (editorScrollArg.by) {
-			case editorCommon.EditorScrollByUnit.Page:
+			case EditorScrollByUnit.Page:
 				noOfLines = this.context.config.pageSize * noOfLines;
 				break;
-			case editorCommon.EditorScrollByUnit.HalfPage:
+			case EditorScrollByUnit.HalfPage:
 				noOfLines = Math.round(this.context.config.pageSize / 2) * noOfLines;
 				break;
 		}
@@ -1617,9 +1621,9 @@ export class Cursor extends EventEmitter {
 		return true;
 	}
 
-	private _scrollByReveal(editorScrollArg: editorCommon.EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
-		let up = editorScrollArg.to === editorCommon.EditorScrollDirection.Up;
-		if (editorCommon.EditorScrollByUnit.Line !== editorScrollArg.by) {
+	private _scrollByReveal(editorScrollArg: EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
+		let up = editorScrollArg.to === EditorScrollDirection.Up;
+		if (EditorScrollByUnit.Line !== editorScrollArg.by) {
 			// Scroll by reveal is done only when unit is line.
 			return false;
 		}
@@ -1633,14 +1637,14 @@ export class Cursor extends EventEmitter {
 	}
 
 	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Up, value: 1 };
-		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.WrappedLine;
+		ctx.eventData = <EditorScrollArguments>{ to: EditorScrollDirection.Up, value: 1 };
+		ctx.eventData.by = isPaged ? EditorScrollByUnit.Page : EditorScrollByUnit.WrappedLine;
 		return this._editorScroll(ctx);
 	}
 
 	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.eventData = <editorCommon.EditorScrollArguments>{ to: editorCommon.EditorScrollDirection.Down, value: 1 };
-		ctx.eventData.by = isPaged ? editorCommon.EditorScrollByUnit.Page : editorCommon.EditorScrollByUnit.WrappedLine;
+		ctx.eventData = <EditorScrollArguments>{ to: EditorScrollDirection.Down, value: 1 };
+		ctx.eventData.by = isPaged ? EditorScrollByUnit.Page : EditorScrollByUnit.WrappedLine;
 		return this._editorScroll(ctx);
 	}
 

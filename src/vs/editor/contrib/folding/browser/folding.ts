@@ -15,7 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { CollapsibleRegion, getCollapsibleRegionsToFoldAtLine, getCollapsibleRegionsToUnfoldAtLine, doesLineBelongsToCollapsibleRegion, IFoldingRange } from 'vs/editor/contrib/folding/common/foldingModel';
 import { computeRanges, limitByIndent } from 'vs/editor/contrib/folding/common/indentFoldStrategy';
@@ -274,11 +274,11 @@ export class FoldingController implements IFoldingController {
 
 		let iconClicked = false;
 		switch (e.target.type) {
-			case editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS:
+			case MouseTargetType.GUTTER_LINE_DECORATIONS:
 				iconClicked = true;
 				break;
-			case editorCommon.MouseTargetType.CONTENT_EMPTY:
-			case editorCommon.MouseTargetType.CONTENT_TEXT:
+			case MouseTargetType.CONTENT_EMPTY:
+			case MouseTargetType.CONTENT_TEXT:
 				if (range.isEmpty && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
 					break;
 				}
@@ -305,7 +305,7 @@ export class FoldingController implements IFoldingController {
 		let model = this.editor.getModel();
 
 		if (iconClicked) {
-			if (e.target.type !== editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS) {
+			if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
 				return;
 			}
 		} else {

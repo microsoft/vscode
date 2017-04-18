@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IActionDescriptor, ICodeEditorWidgetCreationOptions, IModel, IModelChangedEvent } from 'vs/editor/common/editorCommon';
+import { IActionDescriptor, IModel, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { StandaloneKeybindingService } from 'vs/editor/browser/standalone/simpleServices';
@@ -29,7 +29,11 @@ import { IThemeService } from "vs/platform/theme/common/themeService";
 /**
  * The options to create an editor.
  */
-export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
+export interface IEditorConstructionOptions extends IEditorOptions {
+	/**
+	 * The initial model associated with this code editor.
+	 */
+	model?: IModel;
 	/**
 	 * The initial value of the auto created model in the editor.
 	 * To not create automatically a model, use `model: null`.

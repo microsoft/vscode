@@ -161,7 +161,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._actions = {};
 	}
 
-	protected abstract _createConfiguration(options: editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration;
+	protected abstract _createConfiguration(options: editorOptions.IEditorOptions): CommonEditorConfiguration;
 
 	public getId(): string {
 		return this.getEditorType() + ':' + this.id;

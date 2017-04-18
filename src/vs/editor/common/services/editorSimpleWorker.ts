@@ -65,6 +65,21 @@ export interface ICommonModel {
 }
 
 /**
+ * Range of a word inside a model.
+ * @internal
+ */
+interface IWordRange {
+	/**
+	 * The index where the word starts.
+	 */
+	readonly start: number;
+	/**
+	 * The index where the word ends.
+	 */
+	readonly end: number;
+}
+
+/**
  * @internal
  */
 class MirrorModel extends BaseMirrorModel implements ICommonModel {
@@ -155,9 +170,8 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		});
 	}
 
-	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
-	private _wordenize(content: string, wordDefinition: RegExp): editorCommon.IWordRange[] {
-		const result: editorCommon.IWordRange[] = [];
+	private _wordenize(content: string, wordDefinition: RegExp): IWordRange[] {
+		const result: IWordRange[] = [];
 		let match: RegExpExecArray;
 
 		wordDefinition.lastIndex = 0; // reset lastIndex just to be sure

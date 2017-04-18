@@ -4,7 +4,112 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { OverviewRulerLane, OverviewRulerZone, ColorZone, ThemeType } from 'vs/editor/common/editorCommon';
+import { OverviewRulerLane, ThemeType } from 'vs/editor/common/editorCommon';
+
+export class ColorZone {
+	_colorZoneBrand: void;
+
+	from: number;
+	to: number;
+	colorId: number;
+	position: OverviewRulerLane;
+
+	constructor(from: number, to: number, colorId: number, position: OverviewRulerLane) {
+		this.from = from | 0;
+		this.to = to | 0;
+		this.colorId = colorId | 0;
+		this.position = position | 0;
+	}
+}
+
+/**
+ * A zone in the overview ruler
+ */
+export class OverviewRulerZone {
+	_overviewRulerZoneBrand: void;
+
+	startLineNumber: number;
+	endLineNumber: number;
+	position: OverviewRulerLane;
+	forceHeight: number;
+
+	private _color: string;
+	private _darkColor: string;
+	private _hcColor: string;
+
+	private _colorZones: ColorZone[];
+
+	constructor(
+		startLineNumber: number, endLineNumber: number,
+		position: OverviewRulerLane,
+		forceHeight: number,
+		color: string, darkColor: string, hcColor: string
+	) {
+		this.startLineNumber = startLineNumber;
+		this.endLineNumber = endLineNumber;
+		this.position = position;
+		this.forceHeight = forceHeight;
+		this._color = color;
+		this._darkColor = darkColor;
+		this._hcColor = hcColor;
+		this._colorZones = null;
+	}
+
+	public getColor(themeType: ThemeType): string {
+		switch (themeType) {
+			case ThemeType.HighContrast:
+				return this._hcColor;
+			case ThemeType.Dark:
+				return this._darkColor;
+		}
+		return this._color;
+	}
+
+	public equals(other: OverviewRulerZone): boolean {
+		return (
+			this.startLineNumber === other.startLineNumber
+			&& this.endLineNumber === other.endLineNumber
+			&& this.position === other.position
+			&& this.forceHeight === other.forceHeight
+			&& this._color === other._color
+			&& this._darkColor === other._darkColor
+			&& this._hcColor === other._hcColor
+		);
+	}
+
+	public compareTo(other: OverviewRulerZone): number {
+		if (this.startLineNumber === other.startLineNumber) {
+			if (this.endLineNumber === other.endLineNumber) {
+				if (this.forceHeight === other.forceHeight) {
+					if (this.position === other.position) {
+						if (this._darkColor === other._darkColor) {
+							if (this._color === other._color) {
+								if (this._hcColor === other._hcColor) {
+									return 0;
+								}
+								return this._hcColor < other._hcColor ? -1 : 1;
+							}
+							return this._color < other._color ? -1 : 1;
+						}
+						return this._darkColor < other._darkColor ? -1 : 1;
+					}
+					return this.position - other.position;
+				}
+				return this.forceHeight - other.forceHeight;
+			}
+			return this.endLineNumber - other.endLineNumber;
+		}
+		return this.startLineNumber - other.startLineNumber;
+	}
+
+	public setColorZones(colorZones: ColorZone[]): void {
+		this._colorZones = colorZones;
+	}
+
+	public getColorZones(): ColorZone[] {
+		return this._colorZones;
+	}
+}
 
 export class OverviewZoneManager {
 
