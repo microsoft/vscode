@@ -129,9 +129,31 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private onFileChanges(e: FileChangesEvent): void {
 
 		// Track ADD and DELETES for updates of this model to orphan-mode
-		const newInOrphanMode = e.contains(this.resource, FileChangeType.DELETED) && !e.contains(this.resource, FileChangeType.ADDED);
-		if (this.inOrphanMode !== newInOrphanMode) {
-			this.setOrphaned(newInOrphanMode);
+		const newInOrphanModeGuess = e.contains(this.resource, FileChangeType.DELETED) && !e.contains(this.resource, FileChangeType.ADDED);
+		if (this.inOrphanMode !== newInOrphanModeGuess) {
+			let checkOrphanedPromise: TPromise<boolean>;
+			if (newInOrphanModeGuess) {
+				// We have received reports of users seeing delete events even though the file still
+				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+				// Since we do not want to mark the model as orphaned, we have to check if the
+				// file is really gone and not just a faulty file event (TODO@Ben revisit when we
+				// have a more stable file watcher in place for this scenario).
+				checkOrphanedPromise = TPromise.timeout(100).then(() => {
+					if (this.disposed) {
+						return true;
+					}
+
+					return this.fileService.existsFile(this.resource).then(exists => !exists);
+				});
+			} else {
+				checkOrphanedPromise = TPromise.as(false);
+			}
+
+			checkOrphanedPromise.done(newInOrphanModeValidated => {
+				if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
+					this.setOrphaned(newInOrphanModeValidated);
+				}
+			});
 		}
 	}
 
