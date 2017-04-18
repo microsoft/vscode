@@ -4748,6 +4748,8 @@ declare module monaco.languages {
         Null = 20,
         EnumMember = 21,
         Struct = 22,
+        Event = 23,
+        Operator = 24,
     }
 
     /**

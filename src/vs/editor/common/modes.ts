@@ -492,7 +492,9 @@ export enum SymbolKind {
 	Key = 19,
 	Null = 20,
 	EnumMember = 21,
-	Struct = 22
+	Struct = 22,
+	Event = 23,
+	Operator = 24
 }
 
 
@@ -525,6 +527,8 @@ export const symbolKindToCssClass = (function () {
 	_fromMapping[SymbolKind.Null] = 'null';
 	_fromMapping[SymbolKind.EnumMember] = 'enum-member';
 	_fromMapping[SymbolKind.Struct] = 'struct';
+	_fromMapping[SymbolKind.Event] = 'event';
+	_fromMapping[SymbolKind.Operator] = 'operator';
 
 	return function toCssClassName(kind: SymbolKind): string {
 		return _fromMapping[kind] || 'property';

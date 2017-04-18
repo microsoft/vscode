@@ -200,6 +200,8 @@ export namespace SymbolKind {
 	_fromMapping[types.SymbolKind.Null] = modes.SymbolKind.Null;
 	_fromMapping[types.SymbolKind.EnumMember] = modes.SymbolKind.EnumMember;
 	_fromMapping[types.SymbolKind.Struct] = modes.SymbolKind.Struct;
+	_fromMapping[types.SymbolKind.Event] = modes.SymbolKind.Event;
+	_fromMapping[types.SymbolKind.Operator] = modes.SymbolKind.Operator;
 
 	export function from(kind: vscode.SymbolKind): modes.SymbolKind {
 		return _fromMapping[kind] || modes.SymbolKind.Property;
