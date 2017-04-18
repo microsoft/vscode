@@ -15,6 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textModelWithMarkers';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
+import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
 
 class DecorationsTracker {
 
@@ -540,7 +541,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 
 	private emitModelDecorationsChangedEvent(e: editorCommon.IModelDecorationsChangedEvent): void {
 		if (!this._isDisposing) {
-			this._eventEmitter.emit(editorCommon.EventType.ModelDecorationsChanged, e);
+			this._eventEmitter.emit(TextModelEventType.ModelDecorationsChanged, e);
 		}
 	}
 

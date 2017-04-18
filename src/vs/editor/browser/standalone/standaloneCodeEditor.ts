@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions, IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType } from 'vs/editor/common/editorCommon';
+import { IEditorOptions, IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { StandaloneKeybindingService } from 'vs/editor/browser/standalone/simpleServices';
@@ -228,7 +228,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 				oldModelUrl: null,
 				newModelUrl: model.uri
 			};
-			this._eventEmitter.emit(EventType.ModelChanged, e);
+			this._onDidChangeModel.fire(e);
 		}
 	}
 

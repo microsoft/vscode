@@ -7,8 +7,7 @@
 
 import 'vs/css!./media/diffEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
@@ -31,6 +30,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
+import Event, { Emitter } from 'vs/base/common/event';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
@@ -127,50 +127,29 @@ class VisualEditorState {
 
 let DIFF_EDITOR_ID = 0;
 
-export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDiffEditor {
-
-	public onDidChangeModelContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
-		return this.addListener(editorCommon.EventType.ModelContentChanged, listener);
-	}
-	public onDidChangeModelLanguage(listener: (e: editorCommon.IModelLanguageChangedEvent) => void): IDisposable {
-		return this.addListener(editorCommon.EventType.ModelLanguageChanged, listener);
-	}
-	public onDidChangeModelOptions(listener: (e: editorCommon.IModelOptionsChangedEvent) => void): IDisposable {
-		return this.addListener(editorCommon.EventType.ModelOptionsChanged, listener);
-	}
-	public onDidChangeConfiguration(listener: (e: editorCommon.IConfigurationChangedEvent) => void): IDisposable {
-		return this.addListener(editorCommon.EventType.ConfigurationChanged, listener);
-	}
-	public onDidChangeCursorPosition(listener: (e: editorCommon.ICursorPositionChangedEvent) => void): IDisposable {
-		return this.addListener(editorCommon.EventType.CursorPositionChanged, listener);
-	}
-	public onDidChangeCursorSelection(listener: (e: editorCommon.ICursorSelectionChangedEvent) => void): IDisposable {
-		return this.addListener(editorCommon.EventType.CursorSelectionChanged, listener);
-	}
-	public onDidDispose(listener: () => void): IDisposable {
-		return this.addListener(editorCommon.EventType.Disposed, listener);
-	}
-	public onDidUpdateDiff(listener: () => void): IDisposable {
-		return this.addListener(editorCommon.EventType.DiffUpdated, listener);
-	}
+export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffEditor {
 
 	private static ONE_OVERVIEW_WIDTH = 15;
 	public static ENTIRE_DIFF_OVERVIEW_WIDTH = 30;
 	private static UPDATE_DIFF_DECORATIONS_DELAY = 200; // ms
 
-	private id: number;
+	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private _toDispose: IDisposable[];
+	private readonly _onDidUpdateDiff: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidUpdateDiff: Event<void> = this._onDidUpdateDiff.event;
+
+	private readonly id: number;
 
 	private _theme: string;
 	private _domElement: HTMLElement;
-	_containerDomElement: HTMLElement;
-	private _overviewDomElement: HTMLElement;
-	private _overviewViewportDomElement: FastDomNode<HTMLElement>;
+	protected readonly _containerDomElement: HTMLElement;
+	private readonly _overviewDomElement: HTMLElement;
+	private readonly _overviewViewportDomElement: FastDomNode<HTMLElement>;
 
 	private _width: number;
 	private _height: number;
-	private _measureDomElementToken: number;
+	private readonly _measureDomElementToken: number;
 
 	private originalEditor: CodeEditor;
 	private _originalDomNode: HTMLElement;
@@ -213,6 +192,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super();
+
 		this._editorWorkerService = editorWorkerService;
 		this._codeEditorService = codeEditorService;
 		this._contextKeyService = contextKeyService.createScoped(domElement);
@@ -247,10 +227,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			this._originalIsEditable = Boolean(options.originalEditable);
 		}
 
-		this._updateDecorationsRunner = new RunOnceScheduler(() => this._updateDecorations(), 0);
-
-		this._toDispose = [];
-		this._toDispose.push(this._updateDecorationsRunner);
+		this._updateDecorationsRunner = this._register(new RunOnceScheduler(() => this._updateDecorations(), 0));
 
 		this._containerDomElement = document.createElement('div');
 		this._containerDomElement.className = DiffEditorWidget._getClassName(this._theme, this._renderSideBySide);
@@ -269,7 +246,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 		this._overviewDomElement.appendChild(this._overviewViewportDomElement.domNode);
 
-		this._toDispose.push(dom.addDisposableListener(this._overviewDomElement, 'mousedown', (e: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._overviewDomElement, 'mousedown', (e: MouseEvent) => {
 			this.modifiedEditor.delegateVerticalScrollbarMouseDown(e);
 		}));
 		this._containerDomElement.appendChild(this._overviewDomElement);
@@ -377,7 +354,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	private _createLeftHandSideEditor(options: editorCommon.IDiffEditorOptions, instantiationService: IInstantiationService): void {
 		this.originalEditor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
 
-		this._toDispose.push(this.originalEditor.onDidScrollChange((e) => {
+		this._register(this.originalEditor.onDidScrollChange((e) => {
 			if (this._isHandlingScrollEvent) {
 				return;
 			}
@@ -392,23 +369,21 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			this._isHandlingScrollEvent = false;
 		}));
 
-		this._toDispose.push(this.originalEditor.onDidChangeViewZones(() => {
+		this._register(this.originalEditor.onDidChangeViewZones(() => {
 			this._onViewZonesChanged();
 		}));
 
-		this._toDispose.push(this.originalEditor.onDidChangeModelContent(() => {
+		this._register(this.originalEditor.onDidChangeModelContent(() => {
 			if (this._isVisible) {
 				this._beginUpdateDecorationsSoon();
 			}
 		}));
-
-		this._toDispose.push(this.addEmitter(this.originalEditor));
 	}
 
 	private _createRightHandSideEditor(options: editorCommon.IDiffEditorOptions, instantiationService: IInstantiationService): void {
 		this.modifiedEditor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
 
-		this._toDispose.push(this.modifiedEditor.onDidScrollChange((e) => {
+		this._register(this.modifiedEditor.onDidScrollChange((e) => {
 			if (this._isHandlingScrollEvent) {
 				return;
 			}
@@ -425,23 +400,21 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			this._layoutOverviewViewport();
 		}));
 
-		this._toDispose.push(this.modifiedEditor.onDidChangeViewZones(() => {
+		this._register(this.modifiedEditor.onDidChangeViewZones(() => {
 			this._onViewZonesChanged();
 		}));
 
-		this._toDispose.push(this.modifiedEditor.onDidChangeConfiguration((e) => {
+		this._register(this.modifiedEditor.onDidChangeConfiguration((e) => {
 			if (e.fontInfo && this.modifiedEditor.getModel()) {
 				this._onViewZonesChanged();
 			}
 		}));
 
-		this._toDispose.push(this.modifiedEditor.onDidChangeModelContent(() => {
+		this._register(this.modifiedEditor.onDidChangeModelContent(() => {
 			if (this._isVisible) {
 				this._beginUpdateDecorationsSoon();
 			}
 		}));
-
-		this._toDispose.push(this.addEmitter(this.modifiedEditor));
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: editorCommon.IEditorOptions): CodeEditor {
@@ -455,8 +428,6 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 	public dispose(): void {
 		this._codeEditorService.removeDiffEditor(this);
 
-		this._toDispose = dispose(this._toDispose);
-
 		window.clearInterval(this._measureDomElementToken);
 
 		this._cleanViewZonesAndDecorations();
@@ -469,7 +440,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 		this._strategy.dispose();
 
-		this.emit(editorCommon.EventType.Disposed);
+		this._onDidDispose.fire();
 
 		super.dispose();
 	}
@@ -842,7 +813,7 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 			) {
 				this._lineChanges = result;
 				this._updateDecorationsRunner.schedule();
-				this.emit(editorCommon.EventType.DiffUpdated, {});
+				this._onDidUpdateDiff.fire();
 			}
 		}, (error) => {
 			if (currentToken === this._diffComputationToken
@@ -1116,11 +1087,12 @@ interface IDataSource {
 	getModifiedEditor(): editorBrowser.ICodeEditor;
 }
 
-class DiffEditorWidgetStyle {
+class DiffEditorWidgetStyle extends Disposable {
 
 	_dataSource: IDataSource;
 
 	constructor(dataSource: IDataSource) {
+		super();
 		this._dataSource = dataSource;
 	}
 
@@ -1397,7 +1369,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		this._disableSash = (enableSplitViewResizing === false);
 		this._sashRatio = null;
 		this._sashPosition = null;
-		this._sash = new Sash(this._dataSource.getContainerDomNode(), this);
+		this._sash = this._register(new Sash(this._dataSource.getContainerDomNode(), this));
 
 		if (this._disableSash) {
 			this._sash.disable();
@@ -1410,7 +1382,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 	}
 
 	public dispose(): void {
-		this._sash.dispose();
+		super.dispose();
 	}
 
 	public setEnableSplitViewResizing(enableSplitViewResizing: boolean): void {
@@ -1664,7 +1636,6 @@ class SideBySideViewZonesComputer extends ViewZonesComputer {
 
 class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditorWidgetStyle {
 
-	private toDispose: IDisposable[];
 	private decorationsLeft: number;
 
 	constructor(dataSource: IDataSource, enableSplitViewResizing: boolean) {
@@ -1672,8 +1643,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 
 		this.decorationsLeft = dataSource.getOriginalEditor().getLayoutInfo().decorationsLeft;
 
-		this.toDispose = [];
-		this.toDispose.push(dataSource.getOriginalEditor().onDidLayoutChange((layoutInfo: editorCommon.EditorLayoutInfo) => {
+		this._register(dataSource.getOriginalEditor().onDidLayoutChange((layoutInfo: editorCommon.EditorLayoutInfo) => {
 			if (this.decorationsLeft !== layoutInfo.decorationsLeft) {
 				this.decorationsLeft = layoutInfo.decorationsLeft;
 				dataSource.relayoutEditors();
@@ -1682,7 +1652,7 @@ class DiffEdtorWidgetInline extends DiffEditorWidgetStyle implements IDiffEditor
 	}
 
 	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+		super.dispose();
 	}
 
 	public setEnableSplitViewResizing(enableSplitViewResizing: boolean): void {

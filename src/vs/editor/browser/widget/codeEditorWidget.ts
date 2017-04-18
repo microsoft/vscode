@@ -9,7 +9,6 @@ import 'vs/editor/common/view/editorColorRegistry'; // initialze editor theming 
 import 'vs/css!./media/tokens';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,24 +26,45 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Colorizer } from 'vs/editor/browser/standalone/colorizer';
 import { View } from 'vs/editor/browser/view/viewImpl';
 import { Disposable } from 'vs/base/common/lifecycle';
-import Event, { Emitter, fromEventEmitter } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
+import { ViewEventType } from 'vs/editor/browser/view/viewOutgoingEvents';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
-	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseUp);
-	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseDown);
-	public readonly onMouseDrag: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseDrag);
-	public readonly onMouseDrop: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseDrop);
-	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.ContextMenu);
-	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseMove);
-	public readonly onMouseLeave: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseLeave);
-	public readonly onKeyUp: Event<IKeyboardEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.KeyUp);
-	public readonly onKeyDown: Event<IKeyboardEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.KeyDown);
-	public readonly onDidLayoutChange: Event<editorCommon.EditorLayoutInfo> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.EditorLayout);
-	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.EditorScroll);
-	public readonly onDidChangeViewZones: Event<void> = fromEventEmitter<void>(this._eventEmitter, editorCommon.EventType.ViewZonesChanged);
+	private readonly _onMouseUp: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = this._onMouseUp.event;
+
+	private readonly _onMouseDown: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDown.event;
+
+	private readonly _onMouseDrag: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseDrag: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDrag.event;
+
+	private readonly _onMouseDrop: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseDrop: Event<editorBrowser.IEditorMouseEvent> = this._onMouseDrop.event;
+
+	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = this._onContextMenu.event;
+
+	private readonly _onMouseMove: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMove.event;
+
+	private readonly _onMouseLeave: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseLeave: Event<editorBrowser.IEditorMouseEvent> = this._onMouseLeave.event;
+
+	private readonly _onKeyUp: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
+
+	private readonly _onKeyDown: Emitter<IKeyboardEvent> = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+
+	private readonly _onDidScrollChange: Emitter<editorCommon.IScrollEvent> = this._register(new Emitter<editorCommon.IScrollEvent>());
+	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = this._onDidScrollChange.event;
+
+	private readonly _onDidChangeViewZones: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeViewZones: Event<void> = this._onDidChangeViewZones.event;
 
 	private _codeEditorService: ICodeEditorService;
 	private _commandService: ICommandService;
@@ -76,9 +96,9 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			let hasFocus = this._focusTracker.hasFocus();
 
 			if (hasFocus) {
-				this._eventEmitter.emit(editorCommon.EventType.EditorFocus, {});
+				this._onDidFocusEditor.fire();
 			} else {
-				this._eventEmitter.emit(editorCommon.EventType.EditorBlur, {});
+				this._onDidBlurEditor.fire();
 			}
 		});
 
@@ -400,7 +420,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 		let hasChanges = this._view.change(callback);
 		if (hasChanges) {
-			this._eventEmitter.emit(editorCommon.EventType.ViewZonesChanged);
+			this._onDidChangeViewZones.fire();
 		}
 	}
 
@@ -523,10 +543,68 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 				this.cursor.trigger(source, handlerId, payload);
 			}
 		);
-	}
 
-	protected _getViewInternalEventBus(): IEventEmitter {
-		return this._view.getInternalEventBus();
+		this.listenersToRemove.push(this._view.getInternalEventBus().addBulkListener((events) => {
+			for (let i = 0, len = events.length; i < len; i++) {
+				let eventType = events[i].type;
+				let e = events[i].data;
+
+				switch (eventType) {
+					case ViewEventType.ViewFocusGained:
+						this._onDidFocusEditorText.fire();
+						// In IE, the focus is not synchronous, so we give it a little help
+						this._onDidFocusEditor.fire();
+						break;
+
+					case ViewEventType.EditorScroll:
+						this._onDidScrollChange.fire(e);
+						break;
+
+					case ViewEventType.ViewFocusLost:
+						this._onDidBlurEditorText.fire();
+						break;
+
+					case ViewEventType.ContextMenu:
+						this._onContextMenu.fire(e);
+						break;
+
+					case ViewEventType.MouseDown:
+						this._onMouseDown.fire(e);
+						break;
+
+					case ViewEventType.MouseUp:
+						this._onMouseUp.fire(e);
+						break;
+
+					case ViewEventType.MouseDrag:
+						this._onMouseDrag.fire(e);
+						break;
+
+					case ViewEventType.MouseDrop:
+						this._onMouseDrop.fire(e);
+						break;
+
+					case ViewEventType.KeyUp:
+						this._onKeyUp.fire(e);
+						break;
+
+					case ViewEventType.MouseMove:
+						this._onMouseMove.fire(e);
+						break;
+
+					case ViewEventType.MouseLeave:
+						this._onMouseLeave.fire(e);
+						break;
+
+					case ViewEventType.KeyDown:
+						this._onKeyDown.fire(e);
+						break;
+
+					default:
+					// console.warn("Unhandled view event: ", e);
+				}
+			}
+		}));
 	}
 
 	protected _detachModel(): editorCommon.IModel {

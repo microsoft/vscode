@@ -22,6 +22,7 @@ import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
+import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
 
 class ModelTokensChangedEventBuilder {
 
@@ -158,7 +159,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		if (!this._isDisposing) {
 			let e = eventBuilder.build();
 			if (e) {
-				this._eventEmitter.emit(editorCommon.EventType.ModelTokensChanged, e);
+				this._eventEmitter.emit(TextModelEventType.ModelTokensChanged, e);
 			}
 		}
 
@@ -388,13 +389,13 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private emitModelTokensChangedEvent(e: editorCommon.IModelTokensChangedEvent): void {
 		if (!this._isDisposing) {
-			this._eventEmitter.emit(editorCommon.EventType.ModelTokensChanged, e);
+			this._eventEmitter.emit(TextModelEventType.ModelTokensChanged, e);
 		}
 	}
 
 	private _emitModelModeChangedEvent(e: editorCommon.IModelLanguageChangedEvent): void {
 		if (!this._isDisposing) {
-			this._eventEmitter.emit(editorCommon.EventType.ModelLanguageChanged, e);
+			this._eventEmitter.emit(TextModelEventType.ModelLanguageChanged, e);
 		}
 	}
 

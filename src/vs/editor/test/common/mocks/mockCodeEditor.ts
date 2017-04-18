@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
@@ -45,7 +44,6 @@ export class MockCodeEditor extends CommonCodeEditor {
 
 	protected _enableEmptySelectionClipboard(): boolean { return false; }
 	protected _createView(): void { }
-	protected _getViewInternalEventBus(): IEventEmitter { return new EventEmitter(); }
 
 	protected _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void { throw new Error('NotImplemented'); }
 	protected _removeDecorationType(key: string): void { throw new Error('NotImplemented'); }

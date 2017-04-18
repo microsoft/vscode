@@ -24,6 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/textSource';
+import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -468,7 +469,7 @@ export class ModelServiceImpl implements IModelService {
 		// First look for dispose
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.type === editorCommon.EventType.ModelDispose) {
+			if (e.type === TextModelEventType.ModelDispose) {
 				this._onModelDisposing(modelData.model);
 				// no more processing since model got disposed
 				return;
@@ -478,7 +479,7 @@ export class ModelServiceImpl implements IModelService {
 		// Second, look for mode change
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.type === editorCommon.EventType.ModelLanguageChanged) {
+			if (e.type === TextModelEventType.ModelLanguageChanged) {
 				const model = modelData.model;
 				const oldModeId = (<editorCommon.IModelLanguageChangedEvent>e.data).oldLanguage;
 				const newModeId = model.getLanguageIdentifier().language;

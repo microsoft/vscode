@@ -20,6 +20,10 @@ import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesColle
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import * as errors from 'vs/base/common/errors';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
+import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
+import { CursorEventType } from 'vs/editor/common/controller/cursor';
+
+const ConfigurationChanged = 'configurationChanged';
 
 export class CoordinatesConverter implements ICoordinatesConverter {
 
@@ -127,7 +131,7 @@ export class ViewModel implements IViewModel {
 		this._toDispose = [];
 		this.listenersToRemove.push(this.model.addBulkListener((events: EmitterEvent[]) => this.onEvents(events)));
 		this._toDispose.push(this.configuration.onDidChange((e) => {
-			this.onEvents([new EmitterEvent(editorCommon.EventType.ConfigurationChanged, e)]);
+			this.onEvents([new EmitterEvent(ConfigurationChanged, e)]);
 		}));
 		this._toDispose.push(MinimapTokensColorTracker.getInstance().onDidChange(() => {
 			this._emit([new viewEvents.ViewTokensColorsChangedEvent()]);
@@ -237,7 +241,7 @@ export class ViewModel implements IViewModel {
 	private static _containsModelContentChangeEvent(events: EmitterEvent[]): boolean {
 		for (let i = 0, len = events.length; i < len; i++) {
 			let eventType = events[i].type;
-			if (eventType === editorCommon.EventType.ModelRawContentChanged2) {
+			if (eventType === TextModelEventType.ModelRawContentChanged2) {
 				return true;
 			}
 		}
@@ -247,10 +251,10 @@ export class ViewModel implements IViewModel {
 	private static _containsWrappingRelatedEvents(events: EmitterEvent[]): boolean {
 		for (let i = 0, len = events.length; i < len; i++) {
 			let eventType = events[i].type;
-			if (eventType === editorCommon.EventType.ModelOptionsChanged) {
+			if (eventType === TextModelEventType.ModelOptionsChanged) {
 				return true;
 			}
-			if (eventType === editorCommon.EventType.ConfigurationChanged) {
+			if (eventType === ConfigurationChanged) {
 				return true;
 			}
 		}
@@ -300,7 +304,7 @@ export class ViewModel implements IViewModel {
 
 			switch (type) {
 
-				case editorCommon.EventType.ModelRawContentChanged2: {
+				case TextModelEventType.ModelRawContentChanged2: {
 					const e = <editorCommon.ModelRawContentChangedEvent>data;
 
 					for (let j = 0, lenJ = e.changes.length; j < lenJ; j++) {
@@ -336,7 +340,7 @@ export class ViewModel implements IViewModel {
 
 					break;
 				}
-				case editorCommon.EventType.ModelTokensChanged: {
+				case TextModelEventType.ModelTokensChanged: {
 					const e = <editorCommon.IModelTokensChangedEvent>data;
 
 					let viewRanges: { fromLineNumber: number; toLineNumber: number; }[] = [];
@@ -352,15 +356,15 @@ export class ViewModel implements IViewModel {
 					eventsCollector.emit(new viewEvents.ViewTokensChangedEvent(viewRanges));
 					break;
 				}
-				case editorCommon.EventType.ModelLanguageChanged: {
+				case TextModelEventType.ModelLanguageChanged: {
 					// That's ok, a model tokens changed event will follow shortly
 					break;
 				}
-				case editorCommon.EventType.ModelContentChanged: {
+				case TextModelEventType.ModelContentChanged: {
 					// Ignore
 					break;
 				}
-				case editorCommon.EventType.ModelOptionsChanged: {
+				case TextModelEventType.ModelOptionsChanged: {
 					// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
 					let prevLineCount = this.lines.getViewLineCount();
 					let tabSizeChanged = this._onTabSizeChange(eventsCollector, this.model.getOptions().tabSize);
@@ -371,37 +375,37 @@ export class ViewModel implements IViewModel {
 
 					break;
 				}
-				case editorCommon.EventType.ModelDecorationsChanged: {
+				case TextModelEventType.ModelDecorationsChanged: {
 					const e = <editorCommon.IModelDecorationsChangedEvent>data;
 					this.decorations.onModelDecorationsChanged(eventsCollector, e);
 					break;
 				}
-				case editorCommon.EventType.ModelDispose: {
+				case TextModelEventType.ModelDispose: {
 					// Ignore, since the editor will take care of this and destroy the view shortly
 					break;
 				}
-				case editorCommon.EventType.CursorPositionChanged: {
+				case CursorEventType.CursorPositionChanged: {
 					const e = <editorCommon.ICursorPositionChangedEvent>data;
 					this.cursors.onCursorPositionChanged(eventsCollector, e);
 					this._lastCursorPosition = e.position;
 					break;
 				}
-				case editorCommon.EventType.CursorSelectionChanged: {
+				case CursorEventType.CursorSelectionChanged: {
 					const e = <editorCommon.ICursorSelectionChangedEvent>data;
 					this.cursors.onCursorSelectionChanged(eventsCollector, e);
 					break;
 				}
-				case editorCommon.EventType.CursorRevealRange: {
+				case CursorEventType.CursorRevealRange: {
 					const e = <editorCommon.ICursorRevealRangeEvent>data;
 					this.cursors.onCursorRevealRange(eventsCollector, e);
 					break;
 				}
-				case editorCommon.EventType.CursorScrollRequest: {
+				case CursorEventType.CursorScrollRequest: {
 					const e = <editorCommon.ICursorScrollRequestEvent>data;
 					this.cursors.onCursorScrollRequest(eventsCollector, e);
 					break;
 				}
-				case editorCommon.EventType.ConfigurationChanged: {
+				case ConfigurationChanged: {
 					const e = <editorCommon.IConfigurationChangedEvent>data;
 					revealPreviousCenteredModelRange = this._onWrappingIndentChange(eventsCollector, this.configuration.editor.wrappingInfo.wrappingIndent) || revealPreviousCenteredModelRange;
 					revealPreviousCenteredModelRange = this._onWrappingColumnChange(eventsCollector, this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;

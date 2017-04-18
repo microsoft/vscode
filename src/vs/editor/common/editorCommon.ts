@@ -4146,61 +4146,6 @@ export var ClassName = {
 };
 
 /**
- * @internal
- */
-export var EventType = {
-	Disposed: 'disposed',
-
-	ConfigurationChanged: 'configurationChanged',
-
-	ModelDispose: 'modelDispose',
-
-	ModelChanged: 'modelChanged',
-
-	ModelTokensChanged: 'modelTokensChanged',
-	ModelLanguageChanged: 'modelLanguageChanged',
-	ModelOptionsChanged: 'modelOptionsChanged',
-	ModelContentChanged: 'contentChanged',
-	ModelRawContentChanged2: 'rawContentChanged2',
-
-	EditorScroll: 'scroll',
-	EditorTextBlur: 'blur',
-	EditorTextFocus: 'focus',
-	EditorFocus: 'widgetFocus',
-	EditorBlur: 'widgetBlur',
-
-	ModelDecorationsChanged: 'decorationsChanged',
-
-	CursorPositionChanged: 'positionChanged',
-	CursorSelectionChanged: 'selectionChanged',
-	CursorRevealRange: 'revealRange',
-	CursorScrollRequest: 'scrollRequest',
-
-	ViewFocusGained: 'focusGained',
-	ViewFocusLost: 'focusLost',
-	ViewZonesChanged: 'zonesChanged',
-
-	ContextMenu: 'contextMenu',
-	MouseDown: 'mousedown',
-	MouseUp: 'mouseup',
-	MouseMove: 'mousemove',
-	MouseLeave: 'mouseleave',
-	MouseDrag: 'mousedrag',
-	MouseDrop: 'mousedrop',
-	KeyDown: 'keydown',
-	KeyUp: 'keyup',
-
-	WillType: 'willType',
-	DidType: 'didType',
-
-	DidPaste: 'didPaste',
-
-	EditorLayout: 'editorLayout',
-
-	DiffUpdated: 'diffUpdated'
-};
-
-/**
  * Positions in the view for cursor move command.
  */
 export const CursorMovePosition = {

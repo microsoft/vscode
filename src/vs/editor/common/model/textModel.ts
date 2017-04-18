@@ -17,6 +17,7 @@ import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges'
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
@@ -158,7 +159,7 @@ export class TextModel implements editorCommon.ITextModel {
 			}
 		}
 
-		this._eventEmitter.emit(editorCommon.EventType.ModelOptionsChanged, e);
+		this._eventEmitter.emit(TextModelEventType.ModelOptionsChanged, e);
 	}
 
 	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
@@ -318,7 +319,7 @@ export class TextModel implements editorCommon.ITextModel {
 			isFlush: isFlush
 		};
 		if (!this._isDisposing) {
-			this._eventEmitter.emit(editorCommon.EventType.ModelContentChanged, e);
+			this._eventEmitter.emit(TextModelEventType.ModelContentChanged, e);
 		}
 	}
 
@@ -783,7 +784,7 @@ export class TextModel implements editorCommon.ITextModel {
 			// Do not confuse listeners by emitting any event after disposing
 			return;
 		}
-		this._eventEmitter.emit(editorCommon.EventType.ModelRawContentChanged2, e);
+		this._eventEmitter.emit(TextModelEventType.ModelRawContentChanged2, e);
 	}
 
 	private _constructLines(textSource: ITextSource): void {

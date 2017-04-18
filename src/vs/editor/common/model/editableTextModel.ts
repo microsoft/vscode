@@ -16,6 +16,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { TextModelEventType } from 'vs/editor/common/model/textModelEvents';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -38,10 +39,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	}
 
 	public onDidChangeRawContent(listener: (e: editorCommon.ModelRawContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(editorCommon.EventType.ModelRawContentChanged2, listener);
+		return this._eventEmitter.addListener(TextModelEventType.ModelRawContentChanged2, listener);
 	}
 	public onDidChangeContent(listener: (e: editorCommon.IModelContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(editorCommon.EventType.ModelContentChanged, listener);
+		return this._eventEmitter.addListener(TextModelEventType.ModelContentChanged, listener);
 	}
 
 	private _commandManager: EditStack;
@@ -703,7 +704,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				isRedoing: this._isRedoing,
 				isFlush: false
 			};
-			this._eventEmitter.emit(editorCommon.EventType.ModelContentChanged, e);
+			this._eventEmitter.emit(TextModelEventType.ModelContentChanged, e);
 		}
 
 		// this._assertLineNumbersOK();
