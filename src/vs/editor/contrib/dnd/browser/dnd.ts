@@ -79,6 +79,10 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
 		this._mouseDown = false;
+		// Whenever users release the mouse, the drag and drop operation should finish and the cursor should revert to text.
+		this._editor.updateOptions({
+			mouseStyle: 'text'
+		});
 	}
 
 	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
