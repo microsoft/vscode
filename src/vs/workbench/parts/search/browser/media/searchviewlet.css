@@ -293,16 +293,6 @@
 	display: none;
 }
 
-.vs .search-viewlet input.disabled,
-.vs .search-viewlet .file-types.disabled .monaco-inputbox {
-	background-color: #E1E1E1;
-}
-
-.vs-dark .search-viewlet input.disabled,
-.vs-dark .search-viewlet .file-types.disabled .monaco-inputbox {
-	background-color: #333;
-}
-
 .search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove,
 .vs-dark .monaco-workbench .search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove {
 	background: url("action-remove-focus.svg") center center no-repeat;
@@ -405,11 +395,6 @@
 	text-decoration: underline;
 }
 
-.search-viewlet .global-exclude input.disabled,
-.search-viewlet .file-types.disabled.global-exclude .monaco-inputbox {
-	background: none;
-}
-
 /* Theming */
 
 .search-viewlet .highlight {
@@ -449,10 +434,6 @@
 .vs-dark .search-viewlet .message {
 	color: #FFF;
 	opacity: .5;
-}
-
-.vs-dark .search-viewlet .global-exclude input.disabled {
-	opacity: .5 !important;
 }
 
 .vs-dark .search-viewlet .filematch {

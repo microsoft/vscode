@@ -111,7 +111,7 @@ export default class ErrorTelemetry {
 		};
 
 		if (err) {
-			let {name, message, stack} = err;
+			let { name, message, stack } = err;
 			data.error = { name, message };
 			if (stack) {
 				data.stack = Array.isArray(err.stack)

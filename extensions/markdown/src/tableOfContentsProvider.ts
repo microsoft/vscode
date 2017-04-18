@@ -21,7 +21,8 @@ export class TableOfContentsProvider {
 
 	public constructor(
 		private engine: MarkdownEngine,
-		private document: vscode.TextDocument) { }
+		private document: vscode.TextDocument
+	) { }
 
 	public getToc(): TocEntry[] {
 		if (!this.toc) {
@@ -44,7 +45,7 @@ export class TableOfContentsProvider {
 		return NaN;
 	}
 
-	private buildToc(document: vscode.TextDocument): any {
+	private buildToc(document: vscode.TextDocument): TocEntry[] {
 		const toc: TocEntry[] = [];
 		const tokens: IToken[] = this.engine.parse(document.uri, document.getText());
 

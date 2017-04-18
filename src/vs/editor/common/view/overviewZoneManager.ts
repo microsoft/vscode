@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { OverviewRulerLane, OverviewRulerZone, ColorZone } from 'vs/editor/common/editorCommon';
+import { OverviewRulerLane, OverviewRulerZone, ColorZone, ThemeType } from 'vs/editor/common/editorCommon';
 
 export class OverviewZoneManager {
 
@@ -17,7 +17,7 @@ export class OverviewZoneManager {
 	private _outerHeight: number;
 	private _maximumHeight: number;
 	private _minimumHeight: number;
-	private _useDarkColor: boolean;
+	private _themeType: ThemeType;
 	private _pixelRatio: number;
 
 	private _lastAssignedId;
@@ -34,7 +34,7 @@ export class OverviewZoneManager {
 		this._outerHeight = 0;
 		this._maximumHeight = 0;
 		this._minimumHeight = 0;
-		this._useDarkColor = false;
+		this._themeType = ThemeType.Light;
 		this._pixelRatio = 1;
 
 		this._lastAssignedId = 0;
@@ -161,11 +161,11 @@ export class OverviewZoneManager {
 		return true;
 	}
 
-	public setUseDarkColor(useDarkColor: boolean): boolean {
-		if (this._useDarkColor === useDarkColor) {
+	public setThemeType(themeType: ThemeType): boolean {
+		if (this._themeType === themeType) {
 			return false;
 		}
-		this._useDarkColor = useDarkColor;
+		this._themeType = themeType;
 		this._colorZonesInvalid = true;
 		return true;
 	}
@@ -176,7 +176,7 @@ export class OverviewZoneManager {
 		const totalHeight = Math.floor(this.getCanvasHeight()); // @perf
 		const maximumHeight = Math.floor(this._maximumHeight * this._pixelRatio); // @perf
 		const minimumHeight = Math.floor(this._minimumHeight * this._pixelRatio); // @perf
-		const useDarkColor = this._useDarkColor; // @perf
+		const themeType = this._themeType; // @perf
 		const outerHeight = Math.floor(this._outerHeight); // @perf
 		const heightRatio = totalHeight / outerHeight;
 
@@ -202,7 +202,7 @@ export class OverviewZoneManager {
 				y1 = Math.floor(y1 * heightRatio);
 
 				let y2 = y1 + forcedHeight;
-				colorZones.push(this.createZone(totalHeight, y1, y2, forcedHeight, forcedHeight, zone.getColor(useDarkColor), zone.position));
+				colorZones.push(this.createZone(totalHeight, y1, y2, forcedHeight, forcedHeight, zone.getColor(themeType), zone.position));
 			} else {
 				let y1 = Math.floor(this._getVerticalOffsetForLine(zone.startLineNumber));
 				let y2 = Math.floor(this._getVerticalOffsetForLine(zone.endLineNumber)) + lineHeight;
@@ -223,10 +223,10 @@ export class OverviewZoneManager {
 						y1 = Math.floor(y1 * heightRatio);
 						y2 = Math.floor(y2 * heightRatio);
 
-						colorZones.push(this.createZone(totalHeight, y1, y2, minimumHeight, maximumHeight, zone.getColor(useDarkColor), zone.position));
+						colorZones.push(this.createZone(totalHeight, y1, y2, minimumHeight, maximumHeight, zone.getColor(themeType), zone.position));
 					}
 				} else {
-					colorZones.push(this.createZone(totalHeight, y1, y2, minimumHeight, zoneMaximumHeight, zone.getColor(useDarkColor), zone.position));
+					colorZones.push(this.createZone(totalHeight, y1, y2, minimumHeight, zoneMaximumHeight, zone.getColor(themeType), zone.position));
 				}
 			}
 

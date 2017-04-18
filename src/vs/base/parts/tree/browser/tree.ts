@@ -13,6 +13,7 @@ import { INavigator } from 'vs/base/common/iterator';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import Event from 'vs/base/common/event';
 import { IAction, IActionItem } from "vs/base/common/actions";
+import { Color } from "vs/base/common/color";
 
 export interface ITree extends Events.IEventEmitter {
 
@@ -338,6 +339,11 @@ export interface ITree extends Events.IEventEmitter {
 	getNavigator(fromElement?: any, subTreeOnly?: boolean): INavigator<any>;
 
 	/**
+	 * Apply styles to the tree.
+	 */
+	style(styles: ITreeStyles): void;
+
+	/**
 	 * Disposes the tree
 	 */
 	dispose(): void;
@@ -644,7 +650,7 @@ export interface ITreeConfiguration {
 	accessibilityProvider?: IAccessibilityProvider;
 }
 
-export interface ITreeOptions {
+export interface ITreeOptions extends ITreeStyles {
 	twistiePixels?: number;
 	showTwistie?: boolean;
 	indentPixels?: number;
@@ -655,6 +661,18 @@ export interface ITreeOptions {
 	paddingOnRow?: boolean;
 	ariaLabel?: string;
 	keyboardSupport?: boolean;
+}
+
+export interface ITreeStyles {
+	listFocusBackground?: Color;
+	listActiveSelectionBackground?: Color;
+	listActiveSelectionForeground?: Color;
+	listFocusAndSelectionBackground?: Color;
+	listFocusAndSelectionForeground?: Color;
+	listInactiveSelectionBackground?: Color;
+	listHoverBackground?: Color;
+	listDropBackground?: Color;
+	listFocusOutline?: Color;
 }
 
 export interface ITreeContext extends ITreeConfiguration {

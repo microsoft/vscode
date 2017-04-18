@@ -12,11 +12,12 @@ export function fromGitUri(uri: Uri): { path: string; ref: string; } {
 }
 
 // As a mitigation for extensions like ESLint showing warnings and errors
-// for git URIs, let's change the file extension of these uris to .git.
-export function toGitUri(uri: Uri, ref: string): Uri {
+// for git URIs, let's change the file extension of these uris to .git,
+// when `replaceFileExtension` is true.
+export function toGitUri(uri: Uri, ref: string, replaceFileExtension = false): Uri {
 	return uri.with({
 		scheme: 'git',
-		path: `${uri.path}.git`,
+		path: replaceFileExtension ? `${uri.path}.git` : uri.path,
 		query: JSON.stringify({
 			path: uri.fsPath,
 			ref

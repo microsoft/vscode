@@ -40,7 +40,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isEqualOrParent } from 'vs/platform/files/common/files';
-import { attachInputBoxStyler } from "vs/platform/theme/common/styler";
+import { attachInputBoxStyler, attachListStyler } from "vs/platform/theme/common/styler";
 import { IThemeService } from "vs/platform/theme/common/themeService";
 
 import IGitService = git.IGitService;
@@ -109,9 +109,9 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 		this.toDispose = [
 			this.smartCommitAction = this.instantiationService.createInstance(GitActions.SmartCommitAction, this),
 			editorGroupService.onEditorsChanged(() => this.onEditorsChanged(this.editorService.getActiveEditorInput()).done(null, Errors.onUnexpectedError)),
-			this.gitService.addListener2(git.ServiceEvents.OPERATION_START, (e) => this.onGitOperationStart(e)),
-			this.gitService.addListener2(git.ServiceEvents.OPERATION_END, (e) => this.onGitOperationEnd(e)),
-			this.gitService.getModel().addListener2(git.ModelEvents.MODEL_UPDATED, this.onGitModelUpdate.bind(this))
+			this.gitService.addListener(git.ServiceEvents.OPERATION_START, (e) => this.onGitOperationStart(e)),
+			this.gitService.addListener(git.ServiceEvents.OPERATION_END, (e) => this.onGitOperationEnd(e)),
+			this.gitService.getModel().addListener(git.ModelEvents.MODEL_UPDATED, this.onGitModelUpdate.bind(this))
 		];
 	}
 
@@ -198,10 +198,11 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 				ariaLabel: nls.localize('treeAriaLabel', "Git Changes View")
 			});
 
+		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.tree.setInput(this.gitService.getModel().getStatus());
 		this.tree.expandAll(this.gitService.getModel().getStatus().getGroups());
 
-		this.toDispose.push(this.tree.addListener2('selection', (e) => this.onSelection(e)));
+		this.toDispose.push(this.tree.addListener('selection', (e) => this.onSelection(e)));
 		this.toDispose.push(this.commitInputBox.onDidHeightChange(() => this.layout()));
 	}
 
@@ -417,7 +418,7 @@ export class ChangesView extends EventEmitter.EventEmitter implements GitView.IV
 			}
 		} else if (operation.id === git.ServiceOperations.RESET) {
 			const promise = this.gitService.getCommit('HEAD');
-			const listener = this.gitService.addListener2(git.ServiceEvents.OPERATION_END, e => {
+			const listener = this.gitService.addListener(git.ServiceEvents.OPERATION_END, e => {
 				if (e.operation.id === git.ServiceOperations.RESET && !e.error) {
 					promise.done(c => this.onUndoLastCommit(c));
 					listener.dispose();

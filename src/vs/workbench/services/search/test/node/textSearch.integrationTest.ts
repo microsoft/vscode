@@ -26,7 +26,7 @@ function rootfolders() {
 const textSearchWorkerProvider = new TextSearchWorkerProvider();
 
 function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Function): TPromise<void> {
-	return new TPromise<void>(resolve => {
+	return new TPromise<void>((resolve, reject) => {
 		let engine = new TextSearchEngine(config, new FileWalker(config), textSearchWorkerProvider);
 
 		let c = 0;
@@ -35,19 +35,24 @@ function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Fu
 				c += countAll(result);
 			}
 		}, () => { }, (error) => {
-			assert.ok(!error);
-			if (typeof expectedResultCount === 'function') {
-				assert(expectedResultCount(c));
-			} else {
-				assert.equal(c, expectedResultCount);
+			try {
+				assert.ok(!error);
+				if (typeof expectedResultCount === 'function') {
+					assert(expectedResultCount(c));
+				} else {
+					assert.equal(c, expectedResultCount);
+				}
+			} catch (e) {
+				reject(e);
 			}
+
 			resolve(undefined);
 		});
 	});
 }
 
 function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): TPromise<void> {
-	return new TPromise<void>(resolve => {
+	return new TPromise<void>((resolve, reject) => {
 		let engine = new RipgrepEngine(config);
 
 		let c = 0;
@@ -56,8 +61,17 @@ function doRipgrepSearchTest(config: IRawSearch, expectedResultCount: number): T
 				c += result.numMatches;
 			}
 		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(c, expectedResultCount);
+			try {
+				assert.ok(!error);
+				if (typeof expectedResultCount === 'function') {
+					assert(expectedResultCount(c));
+				} else {
+					assert.equal(c, expectedResultCount);
+				}
+			} catch (e) {
+				reject(e);
+			}
+
 			resolve(undefined);
 		});
 	});
@@ -98,6 +112,26 @@ suite('Search-integration', () => {
 		};
 
 		doSearchTest(config, 4, done);
+	});
+
+	test('Text: GameOfLife (Word Match, Spaces)', function (done: () => void) {
+		let config = {
+			rootFolders: rootfolders(),
+			filePattern: '*.js',
+			contentPattern: { pattern: ' GameOfLife ', isWordMatch: true }
+		};
+
+		doSearchTest(config, 1, done);
+	});
+
+	test('Text: GameOfLife (Word Match, Punctuation and Spaces)', function (done: () => void) {
+		let config = {
+			rootFolders: rootfolders(),
+			filePattern: '*.js',
+			contentPattern: { pattern: ', as =', isWordMatch: true }
+		};
+
+		doSearchTest(config, 1, done);
 	});
 
 	test('Text: Helvetica (UTF 16)', function (done: () => void) {

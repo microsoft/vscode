@@ -48,6 +48,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from "vs/platform/theme/common/themeService";
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { attachListStyler } from "vs/platform/theme/common/styler";
 
 function renderBody(body: string): string {
 	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
@@ -324,6 +325,9 @@ export class ExtensionEditor extends BaseEditor {
 			.then(renderBody)
 			.then<void>(body => {
 				const webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
+				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, webview);
+				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
+
 				webview.style(this.themeService.getTheme());
 				webview.contents = [body];
 
@@ -425,9 +429,12 @@ export class ExtensionEditor extends BaseEditor {
 				twistiePixels: 20,
 				keyboardSupport: false
 			});
+
+		this.contentDisposables.push(attachListStyler(tree, this.themeService));
+
 		tree.setInput(extensionDependencies);
 
-		this.contentDisposables.push(tree.addListener2('selection', event => {
+		this.contentDisposables.push(tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				controller.openExtension(tree, false);
 			}

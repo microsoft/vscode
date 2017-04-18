@@ -65,7 +65,7 @@
 	"miInsertCursorAbove": "위에 커서 추가(&&A)",
 	"miInsertCursorAtEndOfEachLineSelected": "줄 끝에 커서 추가(&&U)",
 	"miInsertCursorBelow": "아래에 커서 추가(&&D)",
-	"miInstallMoreDebuggers": "추가 디버거 설치(&&I)...",
+	"miInstallAdditionalDebuggers": "&&추가 디버거 설치...",
 	"miInstallingUpdate": "업데이트를 설치하는 중...",
 	"miIntroductoryVideos": "소개 비디오(&&V)",
 	"miKeyboardShortcuts": "바로 가기 키 참조(&&K)",

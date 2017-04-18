@@ -7,18 +7,17 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ClassNames, ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 interface IWidgetData {
 	allowEditorOverflow: boolean;
 	widget: IContentWidget;
-	position: editorCommon.IPosition;
+	position: IPosition;
 	preference: ContentWidgetPositionPreference[];
 	isVisible: boolean;
 	domNode: FastDomNode<HTMLElement>;
@@ -184,7 +183,7 @@ export class ViewContentWidgets extends ViewPart {
 		this.setShouldRender();
 	}
 
-	public setWidgetPosition(widget: IContentWidget, position: editorCommon.IPosition, preference: ContentWidgetPositionPreference[]): void {
+	public setWidgetPosition(widget: IContentWidget, position: IPosition, preference: ContentWidgetPositionPreference[]): void {
 		let widgetData = this._widgets[widget.getId()];
 
 		widgetData.position = position;

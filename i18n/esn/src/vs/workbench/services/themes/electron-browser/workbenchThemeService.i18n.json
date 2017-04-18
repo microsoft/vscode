@@ -25,5 +25,6 @@
 	"vscode.extension.contributes.themes.id": "Identificador del tema de icono como se usa en la configuración de usuario.",
 	"vscode.extension.contributes.themes.label": "Etiqueta del tema de color tal como se muestra en la interfaz de usuario.",
 	"vscode.extension.contributes.themes.path": "Ruta de acceso del archivo tmTheme. La ruta de acceso es relativa a la carpeta de extensión y suele ser './themes/themeFile.tmTheme'.",
-	"vscode.extension.contributes.themes.uiTheme": "Tema base que define los colores que se usan en el editor: 'vs' es el tema de color claro, 'vs-dark' es el tema de color oscuro, 'hc-black' es el tema oscuro de alto contraste."
+	"vscode.extension.contributes.themes.uiTheme": "Tema base que define los colores que se usan en el editor: 'vs' es el tema de color claro, 'vs-dark' es el tema de color oscuro, 'hc-black' es el tema oscuro de alto contraste.",
+	"workbenchColors": "Reemplaza los colores del tema de color seleccionado actualmente. Esta configuración es experimental ya que los nombres de los colores cambiarán en la próxima versión."
 }

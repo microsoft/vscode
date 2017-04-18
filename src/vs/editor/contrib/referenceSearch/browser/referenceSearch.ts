@@ -13,7 +13,7 @@ import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
@@ -91,7 +91,7 @@ export class ReferenceAction extends EditorAction {
 	}
 }
 
-let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: editorCommon.IPosition) => {
+let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition) => {
 
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri');
@@ -102,8 +102,8 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
 
-		let control = <editorCommon.ICommonCodeEditor>editor.getControl();
-		if (!control || typeof control.getEditorType !== 'function') {
+		let control = editor.getControl();
+		if (!editorCommon.isCommonCodeEditor(control)) {
 			return undefined;
 		}
 
@@ -118,15 +118,15 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 	});
 };
 
-let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: editorCommon.IPosition, references: Location[]) => {
+let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition, references: Location[]) => {
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri expected');
 	}
 
 	return accessor.get(IEditorService).openEditor({ resource: resource }).then(editor => {
 
-		let control = <editorCommon.ICommonCodeEditor>editor.getControl();
-		if (!control || typeof control.getEditorType !== 'function') {
+		let control = editor.getControl();
+		if (!editorCommon.isCommonCodeEditor(control)) {
 			return undefined;
 		}
 

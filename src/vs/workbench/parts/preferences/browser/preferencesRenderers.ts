@@ -14,7 +14,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
@@ -81,7 +81,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.highlightPreferencesRenderer = this._register(instantiationService.createInstance(HighlightPreferencesRenderer, editor));
 		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));
-		this._register(this.editSettingActionRenderer.onUpdateSetting(({key, value, source}) => this.updatePreference(key, value, source)));
+		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this.updatePreference(key, value, source)));
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 	}
 
@@ -122,7 +122,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	}
 
 	private getSetting(setting: ISetting): ISetting {
-		const {key, overrideOf} = setting;
+		const { key, overrideOf } = setting;
 		if (overrideOf) {
 			const setting = this.getSetting(overrideOf);
 			for (const override of setting.overrides) {
@@ -285,7 +285,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 }
 
 export interface HiddenAreasProvider {
-	hiddenAreas: editorCommon.IRange[];
+	hiddenAreas: IRange[];
 }
 
 export class StaticContentHidingRenderer extends Disposable implements HiddenAreasProvider {
@@ -295,7 +295,7 @@ export class StaticContentHidingRenderer extends Disposable implements HiddenAre
 		super();
 	}
 
-	get hiddenAreas(): editorCommon.IRange[] {
+	get hiddenAreas(): IRange[] {
 		const model = this.editor.getModel();
 		return [
 			{
@@ -337,8 +337,8 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 		super();
 	}
 
-	public get hiddenAreas(): editorCommon.IRange[] {
-		const hiddenAreas: editorCommon.IRange[] = [];
+	public get hiddenAreas(): IRange[] {
+		const hiddenAreas: IRange[] = [];
 		for (const group of this.hiddenGroups) {
 			hiddenAreas.push(group.range);
 		}
@@ -419,7 +419,7 @@ export class HiddenAreasRenderer extends Disposable {
 	}
 
 	public render() {
-		const ranges: editorCommon.IRange[] = [];
+		const ranges: IRange[] = [];
 		for (const hiddenAreaProvider of this.hiddenAreasProviders) {
 			ranges.push(...hiddenAreaProvider.hiddenAreas);
 		}
@@ -435,7 +435,7 @@ export class HiddenAreasRenderer extends Disposable {
 export class FilteredMatchesRenderer extends Disposable implements HiddenAreasProvider {
 
 	private decorationIds: string[] = [];
-	public hiddenAreas: editorCommon.IRange[] = [];
+	public hiddenAreas: IRange[] = [];
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService
@@ -457,7 +457,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		}
 	}
 
-	private createDecoration(range: editorCommon.IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
+	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
 		return {
 			range,
 			options: {
@@ -467,8 +467,8 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		};
 	}
 
-	private computeHiddenRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], model: editorCommon.IModel): editorCommon.IRange[] {
-		const notMatchesRanges: editorCommon.IRange[] = [];
+	private computeHiddenRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], model: editorCommon.IModel): IRange[] {
+		const notMatchesRanges: IRange[] = [];
 		for (const group of allSettingsGroups) {
 			const filteredGroup = filteredGroups.filter(g => g.title === group.title)[0];
 			if (!filteredGroup) {
@@ -515,7 +515,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		return false;
 	}
 
-	private createCompleteRange(range: editorCommon.IRange, model: editorCommon.IModel): editorCommon.IRange {
+	private createCompleteRange(range: IRange, model: editorCommon.IModel): IRange {
 		return {
 			startLineNumber: range.startLineNumber,
 			startColumn: model.getLineMinColumn(range.startLineNumber),
@@ -556,7 +556,7 @@ export class HighlightPreferencesRenderer extends Disposable {
 		}
 	}
 
-	private createDecoration(range: editorCommon.IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
+	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
 		return {
 			range,
 			options: {
@@ -729,7 +729,7 @@ class EditSettingRenderer extends Disposable {
 	private marginFreeFromOtherDecorations(line: number): boolean {
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
-			for (const {options} of decorations) {
+			for (const { options } of decorations) {
 				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf(EditPreferenceWidget.GLYPH_MARGIN_CLASS_NAME) === -1) {
 					return false;
 				}

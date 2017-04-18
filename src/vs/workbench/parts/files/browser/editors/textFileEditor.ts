@@ -19,7 +19,7 @@ import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel'
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IFileOperationResult, FileOperationResult, FileChangesEvent, IFileService, isEqual } from 'vs/platform/files/common/files';
+import { IFileOperationResult, FileOperationResult, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -123,7 +123,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			const hasInput = !!this.input;
 			const modelDisposed = textFileModel.isDisposed();
-			const inputChanged = hasInput && !isEqual(this.input.getResource().fsPath, textFileModel.getResource().fsPath);
+			const inputChanged = hasInput && this.input.getResource().toString() !== textFileModel.getResource().toString();
 			if (
 				!hasInput ||		// editor got hidden meanwhile
 				modelDisposed || 	// input got disposed meanwhile

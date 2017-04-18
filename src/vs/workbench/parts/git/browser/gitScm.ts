@@ -105,8 +105,8 @@ export class GitSCMProvider implements IWorkbenchContribution, ISCMProvider, ITe
 		};
 
 		const disposables = [
-			this.gitService.addListener2(ServiceEvents.STATE_CHANGED, triggerModelUpdate),
-			this.gitService.addListener2(ServiceEvents.OPERATION_END, e => {
+			this.gitService.addListener(ServiceEvents.STATE_CHANGED, triggerModelUpdate),
+			this.gitService.addListener(ServiceEvents.OPERATION_END, e => {
 				if (e.operation.id !== ServiceOperations.BACKGROUND_FETCH) {
 					triggerModelUpdate();
 				}

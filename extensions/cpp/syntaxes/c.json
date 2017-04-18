@@ -513,7 +513,7 @@
 		"numbers": {
 			"patterns": [
 				{
-					"match": "\\b((0(x|X)[0-9a-fA-F']*)|(0(b|B)[01']*)|(([0-9']+\\.?[0-9']*)|(\\.[0-9']+))((e|E)(\\+|-)?[0-9']+)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\\b",
+					"match": "\\b((0(x|X)[0-9a-fA-F]([0-9a-fA-F']*[0-9a-fA-F])?)|(0(b|B)[01]([01']*[01])?)|(([0-9]([0-9']*[0-9])?\\.?[0-9]*([0-9']*[0-9])?)|(\\.[0-9]([0-9']*[0-9])?))((e|E)(\\+|-)?[0-9]([0-9']*[0-9])?)?)(L|l|UL|ul|u|U|F|f|ll|LL|ull|ULL)?\\b",
 					"name": "constant.numeric.c"
 				}
 			]
@@ -628,6 +628,7 @@
 						}
 					},
 					"end": ":",
+					"applyEndPatternLast": true,
 					"endCaptures": {
 						"0": {
 							"name": "keyword.operator.ternary.c"
@@ -644,7 +645,7 @@
 							"include": "#c_function_call"
 						},
 						{
-							"include": "$self"
+							"include": "$base"
 						}
 					]
 				}
@@ -1950,5 +1951,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-c/commit/676056d40356884d161ea3170257121874092ace"
+	"version": "https://github.com/atom/language-c/commit/1d137279178d06e7f7500800ebc36155e130172e"
 }

@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, listHoverOutline, listSelectionOutline, listFocusOutline, listInactiveFocusOutline } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from "vs/base/common/lifecycle";
 
 export interface IThemable {
@@ -30,7 +30,7 @@ export function attachStyler(themeService: IThemeService, widget: IThemable, opt
 
 export function attachCheckboxStyler(widget: IThemable, themeService: IThemeService, style?: { inputActiveOptionBorderColor?: ColorIdentifier }): IDisposable {
 	return attachStyler(themeService, widget, {
-		inputActiveOptionBorderColor: (style && style.inputActiveOptionBorderColor) || inputActiveOptionBorder
+		inputActiveOptionBorder: (style && style.inputActiveOptionBorderColor) || inputActiveOptionBorder
 	});
 }
 
@@ -59,13 +59,74 @@ export function attachFindInputBoxStyler(widget: IThemable, themeService: ITheme
 	});
 }
 
-export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeService, style?: { foreground?: ColorIdentifier, background?: ColorIdentifier, borderColor?: ColorIdentifier, inputBackground?: ColorIdentifier, inputForeground?: ColorIdentifier, inputBorder?: ColorIdentifier }): IDisposable {
+export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeService, style?: {
+	foreground?: ColorIdentifier,
+	background?: ColorIdentifier,
+	borderColor?: ColorIdentifier,
+	inputBackground?: ColorIdentifier,
+	inputForeground?: ColorIdentifier,
+	inputBorder?: ColorIdentifier,
+	listFocusBackground?: ColorIdentifier,
+	listActiveSelectionBackground?: ColorIdentifier,
+	listActiveSelectionForeground?: ColorIdentifier,
+	listFocusAndSelectionBackground?: ColorIdentifier,
+	listFocusAndSelectionForeground?: ColorIdentifier,
+	listInactiveSelectionBackground?: ColorIdentifier,
+	listHoverBackground?: ColorIdentifier,
+	listDropBackground?: ColorIdentifier,
+	listFocusOutline?: ColorIdentifier,
+	listSelectionOutline?: ColorIdentifier,
+	listHoverOutline?: ColorIdentifier
+}): IDisposable {
 	return attachStyler(themeService, widget, {
 		foreground: (style && style.foreground) || foreground,
 		background: (style && style.background) || editorBackground,
 		borderColor: style && style.borderColor || highContrastBorder,
 		inputBackground: (style && style.inputBackground) || inputBackground,
 		inputForeground: (style && style.inputForeground) || inputForeground,
-		inputBorder: (style && style.inputBorder) || inputBorder
+		inputBorder: (style && style.inputBorder) || inputBorder,
+		listFocusBackground: (style && style.listFocusBackground) || listFocusBackground,
+		listActiveSelectionBackground: (style && style.listActiveSelectionBackground) || listActiveSelectionBackground,
+		listActiveSelectionForeground: (style && style.listActiveSelectionForeground) || listActiveSelectionForeground,
+		listFocusAndSelectionBackground: (style && style.listFocusAndSelectionBackground) || listFocusAndSelectionBackground,
+		listFocusAndSelectionForeground: (style && style.listFocusAndSelectionForeground) || listFocusAndSelectionForeground,
+		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
+		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
+		listDropBackground: (style && style.listDropBackground) || listDropBackground,
+		listFocusOutline: (style && style.listFocusOutline) || listFocusOutline,
+		listSelectionOutline: (style && style.listSelectionOutline) || listSelectionOutline,
+		listHoverOutline: (style && style.listHoverOutline) || listHoverOutline
+	});
+}
+
+export function attachListStyler(widget: IThemable, themeService: IThemeService, style?: {
+	listFocusBackground?: ColorIdentifier,
+	listActiveSelectionBackground?: ColorIdentifier,
+	listActiveSelectionForeground?: ColorIdentifier,
+	listFocusAndSelectionBackground?: ColorIdentifier,
+	listFocusAndSelectionForeground?: ColorIdentifier,
+	listInactiveFocusBackground?: ColorIdentifier,
+	listInactiveSelectionBackground?: ColorIdentifier,
+	listHoverBackground?: ColorIdentifier,
+	listDropBackground?: ColorIdentifier,
+	listFocusOutline?: ColorIdentifier,
+	listInactiveFocusOutline?: ColorIdentifier,
+	listSelectionOutline?: ColorIdentifier,
+	listHoverOutline?: ColorIdentifier,
+}): IDisposable {
+	return attachStyler(themeService, widget, {
+		listFocusBackground: (style && style.listFocusBackground) || listFocusBackground,
+		listActiveSelectionBackground: (style && style.listActiveSelectionBackground) || listActiveSelectionBackground,
+		listActiveSelectionForeground: (style && style.listActiveSelectionForeground) || listActiveSelectionForeground,
+		listFocusAndSelectionBackground: (style && style.listFocusAndSelectionBackground) || listFocusAndSelectionBackground,
+		listFocusAndSelectionForeground: (style && style.listFocusAndSelectionForeground) || listFocusAndSelectionForeground,
+		listInactiveFocusBackground: (style && style.listInactiveFocusBackground) || listInactiveFocusBackground,
+		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
+		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
+		listDropBackground: (style && style.listDropBackground) || listDropBackground,
+		listFocusOutline: (style && style.listFocusOutline) || listFocusOutline,
+		listInactiveFocusOutline: (style && style.listInactiveFocusOutline) || listInactiveFocusOutline,
+		listSelectionOutline: (style && style.listSelectionOutline) || listSelectionOutline,
+		listHoverOutline: (style && style.listHoverOutline) || listHoverOutline,
 	});
 }

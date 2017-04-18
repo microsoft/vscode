@@ -144,6 +144,21 @@ export const selectBackground = registerColor('dropdownBackground', { dark: '#3C
 export const selectForeground = registerColor('dropdownForeground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('dropdownForeground', "Dropdown foreground."));
 export const selectBorder = registerColor('dropdownBorder', { dark: selectBackground, light: '#CECECE', hc: selectBackground }, nls.localize('dropdownBorder', "Dropdown border."));
 
+export const listFocusBackground = registerColor('listFocusBackground', { dark: '#073655', light: '#DCEBFC', hc: null }, nls.localize('listFocusBackground', "List/Tree focus background when active."));
+export const listInactiveFocusBackground = registerColor('listInactiveFocusBackground', { dark: null, light: null, hc: null }, nls.localize('listInactiveFocusBackground', "List/Tree focus background when inactive."));
+export const listActiveSelectionBackground = registerColor('listActiveSelectionBackground', { dark: '#0E639C', light: '#4FA7FF', hc: null }, nls.localize('listActiveSelectionBackground', "List/Tree selection background when active."));
+export const listActiveSelectionForeground = registerColor('listActiveSelectionForeground', { dark: Color.white, light: Color.white, hc: Color.white }, nls.localize('listActiveSelectionForeground', "List/Tree selection foreground when active."));
+export const listFocusAndSelectionBackground = registerColor('listFocusAndSelectionBackground', { dark: '#094771', light: '#3399FF', hc: null }, nls.localize('listFocusAndSelectionBackground', "List/Tree focus and selection background."));
+export const listFocusAndSelectionForeground = registerColor('listFocusAndSelectionForeground', { dark: Color.white, light: Color.white, hc: Color.white }, nls.localize('listFocusAndSelectionForeground', "List/Tree focus and selection foreground."));
+export const listInactiveSelectionBackground = registerColor('listInactiveSelectionBackground', { dark: '#3F3F46', light: '#CCCEDB', hc: null }, nls.localize('listInactiveSelectionBackground', "List/Tree selection background when inactive."));
+export const listHoverBackground = registerColor('listHoverBackground', { dark: '#2A2D2E', light: '#F0F0F0', hc: null }, nls.localize('listHoverBackground', "List/Tree hover background."));
+export const listDropBackground = registerColor('listDropBackground', { dark: '#383B3D', light: '#DDECFF', hc: null }, nls.localize('listDropBackground', "List/Tree drag and drop background."));
+
+export const listFocusOutline = registerColor('listFocusOutline', { dark: null, light: null, hc: highContrastOutline }, nls.localize('listFocusOutline', "List/Tree focus outline color when active."));
+export const listInactiveFocusOutline = registerColor('listInactiveFocusOutline', { dark: null, light: null, hc: null }, nls.localize('listInactiveFocusOutline', "List/Tree focus outline color when inactive."));
+export const listSelectionOutline = registerColor('listSelectionOutline', { dark: null, light: null, hc: highContrastOutline }, nls.localize('listSelectionOutline', "List/Tree selection outline color."));
+export const listHoverOutline = registerColor('listHoverOutline', { dark: null, light: null, hc: highContrastOutline }, nls.localize('listHoverOutline', "List/Tree hover outline color."));
+
 /**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
@@ -161,7 +176,7 @@ export const editorForeground = registerColor('editorForeground', { light: '#333
  */
 export const editorSelection = registerColor('editorSelection', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelection', "Color of the editor selection."));
 export const editorInactiveSelection = registerColor('editorInactiveSelection', { light: transparent(editorSelection, 0.5), dark: transparent(editorSelection, 0.5), hc: null }, nls.localize('editorInactiveSelection', "Color of the selection in an inactive editor."));
-export const editorSelectionHighlight = registerColor('editorSelectionHighlight', { light: lessProminent(editorSelection, editorBackground, 0.3), dark: lessProminent(editorSelection, editorBackground, 0.3), hc: null }, nls.localize('editorSelectionHighlight', 'Color for regions with the same content as the selection.'));
+export const editorSelectionHighlight = registerColor('editorSelectionHighlight', { light: lessProminent(editorSelection, editorBackground, 0.3, 0.6), dark: lessProminent(editorSelection, editorBackground, 0.3, 0.6), hc: null }, nls.localize('editorSelectionHighlight', 'Color for regions with the same content as the selection.'));
 
 /**
  * Editor find match colors.
@@ -179,7 +194,9 @@ export const editorLinkForeground = registerColor('editorLinkForeground', { dark
 /**
  * Find widget
  */
-export const editorFindWidgetBackground = registerColor('editorFindWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorFindWidgetBackground', 'Find widget background.'));
+export const editorWidgetBackground = registerColor('editorWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
+export const editorWidgetShadow = registerColor('editorWidgetShadow', { dark: '#000000', light: '#A8A8A8', hc: null }, nls.localize('editorWidgetShadow', 'Shadow color of editor widgets such as find/replace.'));
+
 
 // ----- color functions
 
@@ -203,18 +220,18 @@ export function transparent(colorValue: ColorValue, factor: number): ColorFuncti
 	};
 }
 
-export function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue, factor: number): ColorFunction {
+function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue, factor: number, transparency: number): ColorFunction {
 	return (theme) => {
 		let from = resolveColorValue(colorValue, theme);
 		if (from) {
 			let backgroundColor = resolveColorValue(backgroundColorValue, theme);
 			if (backgroundColor) {
 				if (from.isDarkerThan(backgroundColor)) {
-					return Color.getLighterColor(from, backgroundColor, factor);
+					return Color.getLighterColor(from, backgroundColor, factor).transparent(transparency);
 				}
-				return Color.getDarkerColor(from, backgroundColor, factor);
+				return Color.getDarkerColor(from, backgroundColor, factor).transparent(transparency);
 			}
-			return from.transparent(factor);
+			return from.transparent(factor * transparency);
 		}
 		return null;
 	};

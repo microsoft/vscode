@@ -11,25 +11,26 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommonCodeEditor, IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
+import { IPosition } from "vs/editor/common/core/position";
 
 
 export class QuickFixOracle {
 
 	private _disposables: IDisposable[] = [];
-	private _currentRange: IRange;
+	private _currentRange: Range;
 
 	constructor(
 		private _editor: ICommonCodeEditor,
 		private _markerService: IMarkerService,
 		private _signalChange: (e: QuickFixComputeEvent) => any,
-		cursorChangeDebounce: number = 250
+		delay: number = 250
 	) {
 		this._disposables.push(
-			this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)),
-			debounceEvent(this._editor.onDidChangeCursorPosition, last => last, cursorChangeDebounce)(e => this._onCursorChange())
+			debounceEvent(this._markerService.onMarkerChanged, (last, cur) => last ? last.concat(cur) : cur, delay / 2)(e => this._onMarkerChanges(e)),
+			debounceEvent(this._editor.onDidChangeCursorPosition, last => last, delay)(e => this._onCursorChange())
 		);
 	}
 
@@ -75,7 +76,7 @@ export class QuickFixOracle {
 		}
 	}
 
-	private _rangeAtPosition(): IRange {
+	private _rangeAtPosition(): Range {
 
 		// (1) check with non empty selection
 		const selection = this._editor.getSelection();
@@ -110,17 +111,12 @@ export class QuickFixOracle {
 		return undefined;
 	}
 
-	private _wordAtPosition(): IRange {
+	private _wordAtPosition(): Range {
 		const pos = this._editor.getPosition();
 		const model = this._editor.getModel();
 		const info = model.getWordAtPosition(pos);
 		if (info) {
-			return {
-				startLineNumber: pos.lineNumber,
-				startColumn: info.startColumn,
-				endLineNumber: pos.lineNumber,
-				endColumn: info.endColumn
-			};
+			return new Range(pos.lineNumber, info.startColumn, pos.lineNumber, info.endColumn);
 		}
 		return undefined;
 	}
@@ -128,7 +124,7 @@ export class QuickFixOracle {
 
 export interface QuickFixComputeEvent {
 	type: 'auto' | 'manual';
-	range: IRange;
+	range: Range;
 	position: IPosition;
 	fixes: TPromise<CodeAction[]>;
 }

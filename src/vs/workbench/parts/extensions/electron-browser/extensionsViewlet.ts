@@ -51,6 +51,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { attachListStyler } from "vs/platform/theme/common/styler";
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -115,6 +116,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			keyboardSupport: false
 		});
 
+		this.disposables.push(attachListStyler(this.list.widget, this.themeService));
 		this.disposables.push(this.listService.register(this.list.widget));
 
 		const onKeyDown = chain(domEvent(this.searchBox, 'keydown'))
@@ -200,11 +202,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ShowRecommendedKeymapExtensionsAction, ShowRecommendedKeymapExtensionsAction.ID, ShowRecommendedKeymapExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL),
 				new Separator(),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs', undefined),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Sort By: Rating"), this.onSearchChange, 'rating', undefined),
-				new Separator(),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..asc', localize('ascending', "Sort Order: ↑"), this.onSearchChange, undefined, 'asc'),
-				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort..desc', localize('descending', "Sort Order: ↓"), this.onSearchChange, undefined, 'desc'),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.install', localize('sort by installs', "Sort By: Install Count"), this.onSearchChange, 'installs'),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.rating', localize('sort by rating', "Sort By: Rating"), this.onSearchChange, 'rating'),
+				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.name', localize('sort by name', "Sort By: Name"), this.onSearchChange, 'name'),
 				new Separator(),
 				this.instantiationService.createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL),
 				this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL),
@@ -253,13 +253,41 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	}
 
 	private async query(value: string): TPromise<IPagedModel<IExtension>> {
+		const query = Query.parse(value);
+
+		let options: IQueryOptions = {
+			sortOrder: SortOrder.Default
+		};
+
+		switch (query.sortBy) {
+			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
+			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
+			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
+		}
+
 		if (!value || /@installed/i.test(value)) {
 			// Show installed extensions
-			value = value ? value.replace(/@installed/g, '').trim().toLowerCase() : '';
+			value = value ? value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
 
-			const local = await this.extensionsWorkbenchService.queryLocal();
-			const result = local
-				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+			let result = await this.extensionsWorkbenchService.queryLocal();
+
+			switch (options.sortBy) {
+				case SortBy.InstallCount:
+					result = result.sort((e1, e2) => e2.installCount - e1.installCount);
+					break;
+				case SortBy.AverageRating:
+					result = result.sort((e1, e2) => e2.rating - e1.rating);
+					break;
+				default:
+					result = result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
+					break;
+			}
+
+			if (options.sortOrder === SortOrder.Descending) {
+				result = result.reverse();
+			}
+
+			result = result
 				.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
 
 			return new PagedModel(result);
@@ -287,19 +315,6 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
 
 			return new PagedModel(result);
-		}
-
-		const query = Query.parse(value);
-		let options: IQueryOptions = {};
-
-		switch (query.sortBy) {
-			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
-			case 'rating': options = assign(options, { sortBy: SortBy.AverageRating }); break;
-		}
-
-		switch (query.sortOrder) {
-			case 'asc': options = assign(options, { sortOrder: SortOrder.Ascending }); break;
-			case 'desc': options = assign(options, { sortOrder: SortOrder.Descending }); break;
 		}
 
 		if (/@recommended:workspace/i.test(query.value)) {

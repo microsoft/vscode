@@ -23,6 +23,7 @@ import { IFoldingController, ID } from 'vs/editor/contrib/folding/common/folding
 import { Selection } from 'vs/editor/common/core/selection';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
+import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 
 @editorContribution
 export class FoldingController implements IFoldingController {
@@ -54,7 +55,7 @@ export class FoldingController implements IFoldingController {
 		this.computeToken = 0;
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
-		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: editorCommon.IConfigurationChangedEvent) => {
+		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			let oldIsEnabled = this._isEnabled;
 			this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
 			if (oldIsEnabled !== this._isEnabled) {
@@ -332,18 +333,13 @@ export class FoldingController implements IFoldingController {
 		let model = this.editor.getModel();
 		var selections: Selection[] = this.editor.getSelections();
 		var updateSelections = false;
-		let hiddenAreas: editorCommon.IRange[] = [];
+		let hiddenAreas: Range[] = [];
 		this.decorations.filter(dec => dec.isCollapsed).forEach(dec => {
 			let decRange = dec.getDecorationRange(model);
 			if (!decRange) {
 				return;
 			}
-			hiddenAreas.push({
-				startLineNumber: decRange.startLineNumber + 1,
-				startColumn: 1,
-				endLineNumber: decRange.endLineNumber,
-				endColumn: 1
-			});
+			hiddenAreas.push(new Range(decRange.startLineNumber + 1, 1, decRange.endLineNumber, 1));
 			selections.forEach((selection, i) => {
 				if (Range.containsPosition(decRange, selection.getStartPosition())) {
 					selections[i] = selection = selection.setStartPosition(decRange.startLineNumber, model.getLineMaxColumn(decRange.startLineNumber));
@@ -616,7 +612,7 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 						name: 'Fold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
 							* 'levels': Number of levels to fold
-							* 'up': If 'true' folds given number of levels up otherwise folds down
+							* 'up': If 'true', folds given number of levels up otherwise folds down
 						`,
 						constraint: foldingArgumentsConstraint
 					}

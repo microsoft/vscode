@@ -6,6 +6,7 @@
 		"editorForeground": "#000000",
 		"editorInactiveSelection": "#E5EBF1",
 		"editorIndentGuides": "#d3d3d3",
-		"editorSelectionHighlight": "#add6ff4d"
+		"editorSelectionHighlight": "#add6ff4d",
+		"editorSuggestWidgetBackground": "#F3F3F3"
 	}
 }

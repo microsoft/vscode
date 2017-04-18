@@ -157,7 +157,7 @@ export class FindInput extends Widget {
 	protected _applyStyles() {
 		if (this.domNode) {
 			const checkBoxStyles: ICheckboxStyles = {
-				inputActiveOptionBorderColor: this.inputActiveOptionBorder,
+				inputActiveOptionBorder: this.inputActiveOptionBorder,
 			};
 			this.regex.style(checkBoxStyles);
 			this.wholeWords.style(checkBoxStyles);
@@ -249,7 +249,7 @@ export class FindInput extends Widget {
 				this.setInputWidth();
 				this.validate();
 			},
-			inputActiveOptionBorderColor: this.inputActiveOptionBorder
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
 		this.wholeWords = this._register(new WholeWordsCheckbox({
 			appendTitle: appendWholeWordsLabel,
@@ -262,7 +262,7 @@ export class FindInput extends Widget {
 				this.setInputWidth();
 				this.validate();
 			},
-			inputActiveOptionBorderColor: this.inputActiveOptionBorder
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: appendCaseSensitiveLabel,
@@ -278,7 +278,7 @@ export class FindInput extends Widget {
 			onKeyDown: (e) => {
 				this._onCaseSensitiveKeyDown.fire(e);
 			},
-			inputActiveOptionBorderColor: this.inputActiveOptionBorder
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
 
 		// Arrow-Key support to navigate between options

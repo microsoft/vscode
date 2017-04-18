@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { VerticalRevealType, IConfigurationChangedEvent, IViewConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { VerticalRevealType } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollEvent } from 'vs/base/common/scrollable';
+import { IViewConfigurationChangedEvent, IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,

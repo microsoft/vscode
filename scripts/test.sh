@@ -29,9 +29,15 @@ test -d node_modules || ./scripts/npm.sh install
 # Build
 test -d out || ./node_modules/.bin/gulp compile
 echo "code $CODE"
+
 # Unit Tests
 export VSCODE_DEV=1
-if [[ "$OSTYPE" == "darwin"* ]]; then
+
+if [[ "$1" == "--xvfb" ]]; then
+	cd $ROOT ; \
+		xvfb-run "$CODE" test/electron/index.js "$@"
+
+elif [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; \
 		"$CODE" \
 		test/electron/index.js "$@"

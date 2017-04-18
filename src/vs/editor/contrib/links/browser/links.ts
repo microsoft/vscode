@@ -25,6 +25,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorLinkForeground, editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IPosition } from "vs/editor/common/core/position";
 
 class LinkOccurence {
 
@@ -260,7 +261,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		const {link} = occurence;
+		const { link } = occurence;
 
 		link.resolve().then(uri => {
 			// open the uri
@@ -278,7 +279,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		}).done(null, onUnexpectedError);
 	}
 
-	public getLinkOccurence(position: editorCommon.IPosition): LinkOccurence {
+	public getLinkOccurence(position: IPosition): LinkOccurence {
 		var decorations = this.editor.getModel().getDecorationsInRange({
 			startLineNumber: position.lineNumber,
 			startColumn: position.column,

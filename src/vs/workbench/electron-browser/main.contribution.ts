@@ -271,8 +271,8 @@ if (isMacintosh) {
 		'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 	};
 
-	// macOS Sierra (10.12.x = darwin 16.x) only
-	if (os.release().indexOf('16.') === 0) {
+	// macOS Sierra (10.12.x = darwin 16.x) and electron > 1.4.6 only
+	if (os.release().indexOf('16.') === 0 && process.versions.electron !== '1.4.6') {
 		properties['window.nativeTabs'] = {
 			'type': 'boolean',
 			'default': false,
@@ -310,6 +310,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('zenMode.hideStatusBar', "Controls if turning on Zen Mode also hides the status bar at the bottom of the workbench.")
+		},
+		'zenMode.hideActivityBar': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('zenMode.hideActivityBar', "Controls if turning on Zen Mode also hides the activity bar at the left of the workbench.")
 		},
 		'zenMode.restore': {
 			'type': 'boolean',

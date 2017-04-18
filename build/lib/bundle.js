@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
+exports.__esModule = true;
 var fs = require("fs");
 var path = require("path");
 var vm = require("vm");
@@ -114,7 +115,8 @@ function emitEntryPoints(modules, entryPoints) {
         }
     });
     return {
-        files: extractStrings(removeDuplicateTSBoilerplate(result)),
+        // TODO@TS 2.1.2
+        files: extractStrings(/*removeDuplicateTSBoilerplate(*/ result /*)*/),
         bundleData: bundleData
     };
 }

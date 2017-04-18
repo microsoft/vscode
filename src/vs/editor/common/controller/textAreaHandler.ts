@@ -40,8 +40,8 @@ export interface ICompositionStartData {
 }
 
 // See https://github.com/Microsoft/monaco-editor/issues/320
-const isChromev55 = (
-	navigator.userAgent.indexOf('Chrome/55.') >= 0
+const isChromev55_v56 = (
+	(navigator.userAgent.indexOf('Chrome/55.') >= 0 || navigator.userAgent.indexOf('Chrome/56.') >= 0)
 	/* Edge likes to impersonate Chrome sometimes */
 	&& navigator.userAgent.indexOf('Edge/') === -1
 );
@@ -118,6 +118,7 @@ export class TextAreaHandler extends Disposable {
 		this._register(this.textArea.onKeyPress((e) => this._onKeyPressHandler(e)));
 
 		this.textareaIsShownAtCursor = false;
+		let compositionLocale = null;
 
 		this._register(this.textArea.onCompositionStart((e) => {
 
@@ -139,15 +140,28 @@ export class TextAreaHandler extends Disposable {
 		}));
 
 		this._register(this.textArea.onCompositionUpdate((e) => {
-			if (isChromev55) {
+			if (isChromev55_v56) {
 				// See https://github.com/Microsoft/monaco-editor/issues/320
-				// where compositionupdate .data is broken in Chrome v55
+				// where compositionupdate .data is broken in Chrome v55 and v56
 				// See https://bugs.chromium.org/p/chromium/issues/detail?id=677050#c9
-				e = {
-					locale: e.locale,
-					data: this.textArea.getValue()
-				};
+				compositionLocale = e.locale;
+				// The textArea doesn't get the composition update yet, the value of textarea is still obsolete
+				// so we can't correct e at this moment.
+				return;
 			}
+
+			if (Browser.isEdgeOrIE && e.locale === 'ja') {
+				// https://github.com/Microsoft/monaco-editor/issues/339
+				// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
+				// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
+				// which breaks this path of code.
+				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+				let typeInput = this.textAreaState.deduceInput();
+				this._onType.fire(typeInput);
+				this._onCompositionUpdate.fire(e);
+				return;
+			}
+
 			this.textAreaState = this.textAreaState.fromText(e.data);
 			let typeInput = this.textAreaState.updateComposition();
 			this._onType.fire(typeInput);
@@ -176,9 +190,17 @@ export class TextAreaHandler extends Disposable {
 
 		this._register(this.textArea.onCompositionEnd((e) => {
 			// console.log('onCompositionEnd: ' + e.data);
-			this.textAreaState = this.textAreaState.fromText(e.data);
-			let typeInput = this.textAreaState.updateComposition();
-			this._onType.fire(typeInput);
+			if (Browser.isEdgeOrIE && e.locale === 'ja') {
+				// https://github.com/Microsoft/monaco-editor/issues/339
+				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+				let typeInput = this.textAreaState.deduceInput();
+				this._onType.fire(typeInput);
+			}
+			else {
+				this.textAreaState = this.textAreaState.fromText(e.data);
+				let typeInput = this.textAreaState.updateComposition();
+				this._onType.fire(typeInput);
+			}
 
 			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
 			// we cannot assume the text at the end consists only of the composited text
@@ -198,6 +220,18 @@ export class TextAreaHandler extends Disposable {
 		this._register(this.textArea.onInput(() => {
 			// console.log('onInput: ' + this.textArea.getValue());
 			if (this.textareaIsShownAtCursor) {
+				// See https://github.com/Microsoft/monaco-editor/issues/320
+				if (isChromev55_v56) {
+					let text = this.textArea.getValue();
+					this.textAreaState = this.textAreaState.fromText(text);
+					let typeInput = this.textAreaState.updateComposition();
+					this._onType.fire(typeInput);
+					let e = {
+						locale: compositionLocale,
+						data: text
+					};
+					this._onCompositionUpdate.fire(e);
+				}
 				// console.log('::ignoring input event because the textarea is shown at cursor: ' + this.textArea.getValue());
 				return;
 			}

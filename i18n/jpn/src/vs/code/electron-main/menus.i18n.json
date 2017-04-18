@@ -65,7 +65,7 @@
 	"miInsertCursorAbove": "カーソルを上に挿入(&&A)",
 	"miInsertCursorAtEndOfEachLineSelected": "カーソルを行末に挿入(&&U)",
 	"miInsertCursorBelow": "カーソルを下に挿入(&&D)",
-	"miInstallMoreDebuggers": "デバッガーをさらにインストール(&&I)...",
+	"miInstallAdditionalDebuggers": "その他のデバッガーをインストールします(&&I)...",
 	"miInstallingUpdate": "更新プログラムをインストールしています...",
 	"miIntroductoryVideos": "紹介ビデオ(&&V)",
 	"miKeyboardShortcuts": "キーボード ショートカットの参照(&&K)",

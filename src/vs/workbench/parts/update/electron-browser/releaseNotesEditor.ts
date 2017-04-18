@@ -58,6 +58,10 @@ export class ReleaseNotesEditor extends BaseEditor {
 	}
 
 	setInput(input: ReleaseNotesInput, options: EditorOptions): TPromise<void> {
+		if (this.input && this.input.matches(input)) {
+			return TPromise.as(undefined);
+		}
+
 		const { text } = input;
 
 		this.contentDisposables = dispose(this.contentDisposables);
@@ -99,7 +103,9 @@ export class ReleaseNotesEditor extends BaseEditor {
 	}
 
 	layout(): void {
-		// noop
+		if (this.webview) {
+			this.webview.layout();
+		}
 	}
 
 	focus(): void {

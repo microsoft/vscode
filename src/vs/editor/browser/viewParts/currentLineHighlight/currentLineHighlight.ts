@@ -139,5 +139,8 @@ registerThemingParticipant((theme, collector) => {
 		if (lineHighlightBorder) {
 			collector.addRule(`.monaco-editor.${theme.selector} .view-overlays .current-line { border: 2px solid ${lineHighlightBorder}; }`);
 		}
+		if (theme.type === 'hc') {
+			collector.addRule(`.monaco-editor.${theme.selector} .view-overlays .current-line { border-width: 1px; }`);
+		}
 	}
 });

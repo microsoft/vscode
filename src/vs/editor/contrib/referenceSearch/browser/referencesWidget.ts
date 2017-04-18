@@ -30,7 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -40,6 +40,10 @@ import { FileReferences, OneReference, ReferencesModel } from './referencesModel
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachListStyler } from "vs/platform/theme/common/styler";
+import { alert } from 'vs/base/browser/ui/aria/aria';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 class DecorationsManager implements IDisposable {
 
@@ -104,7 +108,7 @@ class DecorationsManager implements IDisposable {
 		});
 	}
 
-	private _onDecorationChanged(event: editorCommon.IModelDecorationsChangedEvent): void {
+	private _onDecorationChanged(event: IModelDecorationsChangedEvent): void {
 		const changedDecorations = event.changedDecorations,
 			toRemove: string[] = [];
 
@@ -401,7 +405,25 @@ class Renderer extends LegacyRenderer {
 
 		return null;
 	}
+}
 
+class AriaProvider implements tree.IAccessibilityProvider {
+
+	getAriaLabel(tree: tree.ITree, element: FileReferences | OneReference): string {
+		if (element instanceof FileReferences) {
+			const len = element.children.length;
+			if (len === 1) {
+				return nls.localize('aria.fileReferences.1', "1 reference in {0}", element.uri.fsPath);
+			} else {
+				return nls.localize('aria.fileReferences.N', "{0} references in {1}", len, element.uri.fsPath);
+			}
+		} else if (element instanceof OneReference) {
+			return nls.localize('aria.oneReference', "reference in {0} on line {1} at column {2}", element.uri.fsPath, element.range.startLineNumber, element.range.startColumn);
+
+		} else {
+			return undefined;
+		}
+	}
 }
 
 class VSash {
@@ -423,11 +445,11 @@ class VSash {
 		// compute the current widget clientX postion since
 		// the sash works with clientX when dragging
 		let clientX: number;
-		this._disposables.add(this._sash.addListener2('start', (e: ISashEvent) => {
+		this._disposables.add(this._sash.addListener('start', (e: ISashEvent) => {
 			clientX = e.startX - (this._width * this.ratio);
 		}));
 
-		this._disposables.add(this._sash.addListener2('change', (e: ISashEvent) => {
+		this._disposables.add(this._sash.addListener('change', (e: ISashEvent) => {
 			// compute the new position of the sash and from that
 			// compute the new ratio that we are using
 			let newLeft = e.currentX - clientX;
@@ -541,7 +563,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		return this._onDidSelectReference.event;
 	}
 
-	show(where: editorCommon.IRange) {
+	show(where: IRange) {
 		this.editor.revealRangeInCenterIfOutsideViewport(where);
 		super.show(where, this.layoutData.heightInLines || 18);
 	}
@@ -573,7 +595,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		// editor
 		container.div({ 'class': 'preview inline' }, (div: Builder) => {
 
-			var options: editorCommon.IEditorOptions = {
+			var options: IEditorOptions = {
 				scrollBeyondLastLine: false,
 				scrollbar: DefaultConfig.editor.scrollbar,
 				overviewRulerLanes: 2,
@@ -601,11 +623,11 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
-			var config = {
+			var config = <tree.ITreeConfiguration>{
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer),
-				//sorter: new Sorter(),
-				controller: new Controller()
+				controller: new Controller(),
+				accessibilityProvider: new AriaProvider()
 			};
 
 			var options = {
@@ -614,6 +636,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				ariaLabel: nls.localize('treeAriaLabel', "References")
 			};
 			this._tree = new Tree(div.getHTMLElement(), config, options);
+			this._callOnDispose.push(attachListStyler(this._tree, this._themeService));
 
 			this._treeContainer = div.hide();
 		});
@@ -677,18 +700,18 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
 
 		// listen on selection and focus
-		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.FOCUSED, (element) => {
+		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.FOCUSED, (element) => {
 			if (element instanceof OneReference) {
 				this._revealReference(element);
 				this._onDidSelectReference.fire({ element, kind: 'show', source: 'tree' });
 			}
 		}));
-		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.SELECTED, (element: any) => {
+		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.SELECTED, (element: any) => {
 			if (element instanceof OneReference) {
 				this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });
 			}
 		}));
-		this._disposeOnNewModel.push(this._tree.addListener2(Controller.Events.OPEN_TO_SIDE, (element: any) => {
+		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.OPEN_TO_SIDE, (element: any) => {
 			if (element instanceof OneReference) {
 				this._onDidSelectReference.fire({ element, kind: 'side', source: 'tree' });
 			}
@@ -712,6 +735,9 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._preview.layout();
 		this._tree.layout();
 		this.focus();
+
+		// announce results found
+		alert(nls.localize('aria.result', "Found {0} references", this._model.references.length));
 
 		// pick input and a reference to begin with
 		const input = this._model.groups.length === 1 ? this._model.groups[0] : this._model;

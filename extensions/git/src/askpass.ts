@@ -30,7 +30,7 @@ export class Askpass implements Disposable {
 		req.setEncoding('utf8');
 		req.on('data', (d: string) => chunks.push(d));
 		req.on('end', () => {
-			const {request, host} = JSON.parse(chunks.join(''));
+			const { request, host } = JSON.parse(chunks.join(''));
 
 			this.prompt(host, request).then(result => {
 				res.writeHead(200);

@@ -34,7 +34,6 @@ export class CompletionModel {
 	private _items: ISuggestionItem[];
 
 	private _filteredItems: ICompletionItem[];
-	private _topScoreIdx: number;
 	private _isIncomplete: boolean;
 	private _stats: ICompletionStats;
 
@@ -60,11 +59,6 @@ export class CompletionModel {
 	get items(): ICompletionItem[] {
 		this._ensureCachedState();
 		return this._filteredItems;
-	}
-
-	get topScoreIdx(): number {
-		this._ensureCachedState();
-		return this._topScoreIdx;
 	}
 
 	get incomplete(): boolean {
@@ -100,7 +94,6 @@ export class CompletionModel {
 
 	private _createCachedState(): void {
 		this._filteredItems = [];
-		this._topScoreIdx = 0;
 		this._isIncomplete = false;
 		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
 

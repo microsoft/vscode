@@ -159,17 +159,17 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let startX: number = 0;
 		let startY: number = 0;
 
-		this.sashX.addListener2('start', (e: ISashEvent) => {
+		this.sashX.addListener('start', (e: ISashEvent) => {
 			this.startSidebarWidth = this.sidebarWidth;
 			startX = e.startX;
 		});
 
-		this.sashY.addListener2('start', (e: ISashEvent) => {
+		this.sashY.addListener('start', (e: ISashEvent) => {
 			this.startPanelHeight = this.panelHeight;
 			startY = e.startY;
 		});
 
-		this.sashX.addListener2('change', (e: ISashEvent) => {
+		this.sashX.addListener('change', (e: ISashEvent) => {
 			let doLayout = false;
 			let sidebarPosition = this.partService.getSideBarPosition();
 			let isSidebarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
@@ -209,7 +209,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			}
 		});
 
-		this.sashY.addListener2('change', (e: ISashEvent) => {
+		this.sashY.addListener('change', (e: ISashEvent) => {
 			let doLayout = false;
 			let isPanelVisible = this.partService.isVisible(Parts.PANEL_PART);
 			let newSashHeight = this.startPanelHeight - (e.currentY - startY);
@@ -247,21 +247,21 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			}
 		});
 
-		this.sashX.addListener2('end', () => {
+		this.sashX.addListener('end', () => {
 			this.storageService.store(WorkbenchLayout.sashXWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 		});
 
-		this.sashY.addListener2('end', () => {
+		this.sashY.addListener('end', () => {
 			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 		});
 
-		this.sashY.addListener2('reset', () => {
+		this.sashY.addListener('reset', () => {
 			this.panelHeight = this.sidebarHeight * DEFAULT_PANEL_HEIGHT_COEFFICIENT;
 			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 			this.partService.setPanelHidden(false).done(() => this.layout(), errors.onUnexpectedError);
 		});
 
-		this.sashX.addListener2('reset', () => {
+		this.sashX.addListener('reset', () => {
 			let activeViewlet = this.viewletService.getActiveViewlet();
 			let optimalWidth = activeViewlet && activeViewlet.getOptimalWidth();
 			this.sidebarWidth = Math.max(MIN_SIDEBAR_PART_WIDTH, optimalWidth || 0);

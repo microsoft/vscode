@@ -397,6 +397,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.toUnhook.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
 		this.toUnhook.push(this.editor.onMouseUp((e: IEditorMouseEvent) => this.onEditorMouseUp(e)));
 		this.toUnhook.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
+		this.toUnhook.push(this.editor.onMouseDrag(() => this.resetHandler()));
 		this.toUnhook.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
 		this.toUnhook.push(this.editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 
@@ -460,12 +461,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 			// Multiple results
 			if (results.length > 1) {
-				this.addDecoration({
-					startLineNumber: position.lineNumber,
-					startColumn: word.startColumn,
-					endLineNumber: position.lineNumber,
-					endColumn: word.endColumn
-				}, nls.localize('multipleResults', "Click to show {0} definitions.", results.length));
+				this.addDecoration(new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn), nls.localize('multipleResults', "Click to show {0} definitions.", results.length));
 			}
 
 			// Single result
@@ -529,18 +525,13 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 					ref.dispose();
 
-					this.addDecoration({
-						startLineNumber: position.lineNumber,
-						startColumn: word.startColumn,
-						endLineNumber: position.lineNumber,
-						endColumn: word.endColumn
-					}, hoverMessage);
+					this.addDecoration(new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn), hoverMessage);
 				});
 			}
 		}).done(undefined, onUnexpectedError);
 	}
 
-	private addDecoration(range: editorCommon.IRange, hoverMessage: MarkedString): void {
+	private addDecoration(range: Range, hoverMessage: MarkedString): void {
 
 		const newDecorations: editorCommon.IModelDeltaDecoration = {
 			range: range,

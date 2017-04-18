@@ -74,7 +74,7 @@ class EditorInputCache {
 		this.cache = {};
 		this.toDispose = [];
 
-		this.toDispose.push(this.gitService.getModel().addListener2('fileStatus:dispose', (fileStatus: IFileStatus) => this.onFileStatusDispose(fileStatus)));
+		this.toDispose.push(this.gitService.getModel().addListener('fileStatus:dispose', (fileStatus: IFileStatus) => this.onFileStatusDispose(fileStatus)));
 	}
 
 	getInput(status: IFileStatus): TPromise<EditorInput> {
@@ -296,7 +296,7 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 			return;
 		}
 
-		this.gitServiceStateDisposable = this.gitService.addListener2(ServiceEvents.STATE_CHANGED, (e) => this.onGitServiceStateChange(e));
+		this.gitServiceStateDisposable = this.gitService.addListener(ServiceEvents.STATE_CHANGED, (e) => this.onGitServiceStateChange(e));
 		this._state = AutoFetcherState.Active;
 		this.onGitServiceStateChange(this.gitService.getState());
 	}

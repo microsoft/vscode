@@ -4,79 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as errors from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as mouse from 'vs/base/browser/mouseEvent';
-import keyboard = require('vs/base/browser/keyboardEvent');
 import tree = require('vs/base/parts/tree/browser/tree');
 import treedefaults = require('vs/base/parts/tree/browser/treeDefaults');
-import { MarkersModel, Marker } from 'vs/workbench/parts/markers/common/markersModel';
-import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { MarkersModel } from 'vs/workbench/parts/markers/common/markersModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
-import { ResolvedKeybinding, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 
 export class Controller extends treedefaults.DefaultController {
 
 	private contextMenu: IMenu;
 
-	constructor(private rangeHighlightDecorations: RangeHighlightDecorations, private actionProvider: tree.IActionProvider, @IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+	constructor(
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService private _keybindingService: IKeybindingService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
 		super({ clickBehavior: treedefaults.ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
-
 		this.contextMenu = menuService.createMenu(MenuId.ProblemsPanelContext, contextKeyService);
-
-		// TODO@Sandeep introduce commands for these
-		this.downKeyBindingDispatcher.set(KeyCode.Space, (t, e) => this.onSpace(t, e));
-		this.upKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
 	}
 
 	protected onLeftClick(tree: tree.ITree, element: any, event: mouse.IMouseEvent): boolean {
 		let currentFoucssed = tree.getFocus();
 		if (super.onLeftClick(tree, element, event)) {
-			if (this.openFileAtElement(element, event.detail !== 2, event.ctrlKey || event.metaKey, event.detail === 2)) {
-				return true;
-			}
 			if (element instanceof MarkersModel) {
 				if (currentFoucssed) {
 					tree.setFocus(currentFoucssed);
 				} else {
 					tree.focusFirst();
 				}
-				return true;
 			}
+			return true;
 		}
 		return false;
-	}
-
-	protected onEnter(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
-		if (super.onEnter(tree, event)) {
-			return this.openFileAtElement(tree.getFocus(), false, event.ctrlKey || event.metaKey, true);
-		}
-		return false;
-	}
-
-	protected onSpace(tree: tree.ITree, event: keyboard.IKeyboardEvent): boolean {
-		let element = tree.getFocus();
-		if (element instanceof Marker) {
-			tree.setSelection([element]);
-			return this.openFileAtElement(tree.getFocus(), true, false, false);
-		} else {
-			this.rangeHighlightDecorations.removeHighlightRange();
-		}
-		return super.onSpace(tree, event);
 	}
 
 	public onContextMenu(tree: tree.ITree, element: any, event: tree.ContextMenuEvent): boolean {
@@ -113,32 +80,6 @@ export class Controller extends treedefaults.DefaultController {
 		});
 
 		return true;
-	}
-
-	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
-		if (element instanceof Marker) {
-			const marker: Marker = element;
-			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
-			this.editorService.openEditor({
-				resource: marker.resource,
-				options: {
-					selection: marker.range,
-					preserveFocus,
-					pinned,
-					revealIfVisible: true
-				},
-			}, sideByside).done(editor => {
-				if (editor && preserveFocus) {
-					this.rangeHighlightDecorations.highlightRange(marker, <ICommonCodeEditor>editor.getControl());
-				} else {
-					this.rangeHighlightDecorations.removeHighlightRange();
-				}
-			}, errors.onUnexpectedError);
-			return true;
-		} else {
-			this.rangeHighlightDecorations.removeHighlightRange();
-		}
-		return false;
 	}
 
 	private _getMenuActions(): IAction[] {

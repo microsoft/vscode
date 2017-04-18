@@ -284,15 +284,6 @@
 	animation-name: inherit !important;
 }
 
-/* Theming */
-.monaco-editor .find-widget {
-	box-shadow: 0 2px 8px #A8A8A8;
-}
-
-.monaco-editor.vs-dark .find-widget {
-	box-shadow: 0 2px 8px #000;
-}
-
 .monaco-editor.hc-black .find-widget .previous,
 .monaco-editor.vs-dark .find-widget .previous {
 	background-image: url('images/previous-inverse.svg');

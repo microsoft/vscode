@@ -105,6 +105,7 @@ interface WorkbenchParams {
 interface IZenModeSettings {
 	fullScreen: boolean;
 	hideTabs: boolean;
+	hideActivityBar: boolean;
 	hideStatusBar: boolean;
 	restore: boolean;
 }
@@ -1097,7 +1098,9 @@ export class Workbench implements IPartService {
 			this.setPanelHidden(true, true).done(undefined, errors.onUnexpectedError);
 			this.setSideBarHidden(true, true).done(undefined, errors.onUnexpectedError);
 
-			this.setActivityBarHidden(true, true);
+			if (config.hideActivityBar) {
+				this.setActivityBarHidden(true, true);
+			}
 			if (config.hideStatusBar) {
 				this.setStatusBarHidden(true, true);
 			}

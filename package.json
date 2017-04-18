@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.12.0",
   "electronVersion": "1.6.6",
-  "distro": "f2a689be5af1e70b68eb7432643f1ce01e5d26a5",
+  "distro": "1463a424ecd3b6292f2468e5206e46ddacc71037",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -37,7 +37,7 @@
     "v8-profiler": "jrieken/v8-profiler#vscode",
     "vscode-debugprotocol": "1.18.0",
     "vscode-ripgrep": "0.0.11",
-    "vscode-textmate": "^3.1.3",
+    "vscode-textmate": "^3.1.4",
     "winreg": "1.2.0",
     "xterm": "Tyriar/xterm.js#vscode-release/1.11",
     "yauzl": "2.3.1"
@@ -100,7 +100,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^4.3.1",
-    "typescript": "2.1.5",
+    "typescript": "2.2.2",
     "typescript-formatter": "4.0.1",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",

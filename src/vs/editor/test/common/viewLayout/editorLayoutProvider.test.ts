@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { RenderMinimap, EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/editorCommon';
+import { RenderMinimap, EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
 import { EditorLayoutProvider, IEditorLayoutProviderOpts } from 'vs/editor/common/viewLayout/editorLayoutProvider';
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {

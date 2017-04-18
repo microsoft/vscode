@@ -11,6 +11,7 @@ import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Position } from 'vs/editor/common/core/position';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
+import { IModelContentChangedEvent } from "vs/editor/common/model/textModelEvents";
 
 export function testApplyEditsWithSyncedModels(original: string[], edits: editorCommon.IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
 	var originalStr = original.join('\n');
@@ -81,7 +82,7 @@ function assertLineMapping(model: TextModel, msg: string): void {
 
 
 export function assertSyncedModels(text: string, callback: (model: EditableTextModel, assertMirrorModels: () => void) => void, setup: (model: EditableTextModel) => void = null): void {
-	var model = new EditableTextModel([], RawTextSource.fromString(text), TextModel.DEFAULT_CREATION_OPTIONS, null);
+	var model = new EditableTextModel(RawTextSource.fromString(text), TextModel.DEFAULT_CREATION_OPTIONS, null);
 	model.setEOL(editorCommon.EndOfLineSequence.LF);
 	assertLineMapping(model, 'model');
 
@@ -93,13 +94,13 @@ export function assertSyncedModels(text: string, callback: (model: EditableTextM
 	var mirrorModel2 = new MirrorModel2(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
 	var mirrorModel2PrevVersionId = model.getVersionId();
 
-	model.onDidChangeContent((e: editorCommon.IModelContentChangedEvent2) => {
+	model.onDidChangeContent((e: IModelContentChangedEvent) => {
 		let versionId = e.versionId;
 		if (versionId < mirrorModel2PrevVersionId) {
 			console.warn('Model version id did not advance between edits (2)');
 		}
 		mirrorModel2PrevVersionId = versionId;
-		mirrorModel2.onEvents([e]);
+		mirrorModel2.onEvents(e);
 	});
 
 	var assertMirrorModels = () => {

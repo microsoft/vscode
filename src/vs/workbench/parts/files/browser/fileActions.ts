@@ -193,7 +193,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 		this.tree.refresh(stat, false).then(() => {
 			this.tree.setHighlight(stat);
 
-			const unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+			const unbind = this.tree.addListener(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 				if (!e.highlight) {
 					viewletState.clearEditable(stat);
 					this.tree.refresh(stat).done(null, errors.onUnexpectedError);
@@ -407,7 +407,7 @@ export class BaseNewAction extends BaseFileAction {
 						return this.tree.reveal(stat, 0.5).then(() => {
 							this.tree.setHighlight(stat);
 
-							const unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+							const unbind = this.tree.addListener(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 								if (!e.highlight) {
 									stat.destroy();
 									this.tree.refresh(folder).done(null, errors.onUnexpectedError);
@@ -963,7 +963,7 @@ export class PasteFileAction extends BaseFileAction {
 
 		// Find target
 		let target: FileStat;
-		if (isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath)) {
+		if (this.element.resource.toString() === fileToCopy.resource.toString()) {
 			target = this.element.parent;
 		} else {
 			target = this.element.isDirectory ? this.element : this.element.parent;
@@ -1270,7 +1270,7 @@ export class CompareResourcesAction extends Action {
 		}
 
 		// Check if target is identical to source
-		if (isEqual(this.resource.fsPath, globalResourceToCompare.fsPath)) {
+		if (this.resource.toString() === globalResourceToCompare.toString()) {
 			return false;
 		}
 
@@ -1365,7 +1365,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				const editor = getCodeEditor(activeEditor);
 				if (editor) {
 					const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
-					if (activeResource && isEqual(activeResource.fsPath, source.fsPath)) {
+					if (activeResource && activeResource.toString() === source.toString()) {
 						viewStateOfSource = editor.saveViewState();
 					}
 				}

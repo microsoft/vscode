@@ -63,7 +63,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { IMessageService, IChoiceService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { ChoiceChannel } from 'vs/platform/message/common/messageIpc';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -187,6 +187,12 @@ export class WorkbenchShell {
 
 				// start cached data manager
 				instantiationService.createInstance(NodeCachedDataManager);
+
+				// Check for negative performance numbers
+				// TODO@Ben remove me
+				if (this.timerService.startupMetrics.ellapsed < 0) {
+					this.handleNegativePerformanceNumbers(instantiationService, this.timerService.startupMetrics.ellapsed);
+				}
 			}
 		});
 
@@ -245,11 +251,9 @@ export class WorkbenchShell {
 		const { profileStartup } = this.environmentService;
 		if (profileStartup) {
 			this.extensionService.onReady().then(() => stopProfiling(profileStartup.dir, profileStartup.prefix)).then(() => {
-
 				readdir(profileStartup.dir).then(files => {
 					return files.filter(value => value.indexOf(profileStartup.prefix) === 0);
 				}).then(files => {
-
 					const profileFiles = files.reduce((prev, cur) => `${prev}${join(profileStartup.dir, cur)}\n`, '\n');
 
 					const primaryButton = this.messageService.confirm({
@@ -273,6 +277,16 @@ export class WorkbenchShell {
 
 			}, err => console.error(err));
 		}
+	}
+
+	private handleNegativePerformanceNumbers(i: IInstantiationService, time: number): void {
+		this.messageService.show(Severity.Warning, {
+			message: nls.localize('handleNegativePerformanceNumbers', "Something went wrong measuring startup performance numbers (ellapsed: {0}ms). We would like to learn more about this issue.", time),
+			actions: [
+				i.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL),
+				CloseAction
+			]
+		});
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
@@ -515,6 +529,23 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	if (windowForeground) {
 		collector.addRule(`.monaco-shell { color: ${windowForeground}; }`);
 	}
+
+	// TODO@Ben the workbench background color is not really surfacing anywhere but on Windows
+	// not setting it will cause many part of the worbench to not use subpixel-antialiasing causing
+	// these parts to look fuzzy on higher resolution displays.
+	let workbenchBackground: string;
+	switch (theme.type) {
+		case 'dark':
+			workbenchBackground = '#252526';
+			break;
+		case 'light':
+			workbenchBackground = '#F3F3F3';
+			break;
+		default:
+			workbenchBackground = '#000000';
+	}
+
+	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
 
 	const focusOutline = theme.getColor(focus);
 	if (focusOutline) {

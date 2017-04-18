@@ -15,6 +15,7 @@
 	"searchConfigurationTitle": "검색",
 	"showSearchViewlet": "검색 표시",
 	"showTriggerActions": "작업 영역에서 기호로 이동...",
+	"useIgnoreFilesByDefault": "새 작업 영역에서 검색할 때 기본적으로 .gitignore 파일 및 .ignore 파일을 사용할지 여부를 제어합니다.",
 	"useRipgrep": "텍스트 검색에서 ripgrep 사용 여부를 제어합니다.",
 	"view": "보기"
 }

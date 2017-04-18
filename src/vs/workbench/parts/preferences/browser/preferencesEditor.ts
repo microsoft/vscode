@@ -15,7 +15,7 @@ import { Registry } from 'vs/platform/platform';
 import { toResource, SideBySideEditorInput, EditorOptions, EditorInput, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { IEditorControl, IEditor, Position, Verbosity } from 'vs/platform/editor/common/editor';
+import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -51,6 +51,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { FindController } from 'vs/editor/contrib/find/browser/find';
 import { SelectionHighlighter } from 'vs/editor/contrib/find/common/findController';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -253,7 +254,7 @@ class PreferencesRenderers extends Disposable {
 			this._defaultPreferencesRenderer = defaultPreferencesRenderer;
 
 			this._disposables = dispose(this._disposables);
-			this._defaultPreferencesRenderer.onUpdatePreference(({key, value, source}) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._disposables);
+			this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._disposables);
 			this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._disposables);
 			this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._disposables);
 		}
@@ -469,11 +470,11 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
 	}
 
-	public createEditorControl(parent: Builder, configuration: editorCommon.IEditorOptions): editorCommon.IEditor {
+	public createEditorControl(parent: Builder, configuration: IEditorOptions): editorCommon.IEditor {
 		return this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent.getHTMLElement(), configuration);
 	}
 
-	protected getConfigurationOverrides(): editorCommon.IEditorOptions {
+	protected getConfigurationOverrides(): IEditorOptions {
 		const options = super.getConfigurationOverrides();
 		options.readOnly = true;
 		if (this.input) {

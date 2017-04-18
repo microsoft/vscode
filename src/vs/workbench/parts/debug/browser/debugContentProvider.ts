@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import uri from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { guessMimeTypes, MIME_TEXT } from 'vs/base/common/mime';
@@ -37,7 +36,13 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 			return TPromise.wrapError(localize('unable', "Unable to resolve the resource without a debug session"));
 		}
 		const source = process.sources.get(resource.toString());
-		const rawSource = source ? source.raw : { path: paths.normalize(resource.fsPath, true) };
+		let rawSource: DebugProtocol.Source;
+		if (source) {
+			rawSource = source.raw;
+		} else {
+			// Remove debug: scheme
+			rawSource = { path: resource.with({ scheme: '' }).toString(true) };
+		}
 
 		return process.session.source({ sourceReference: source ? source.reference : undefined, source: rawSource }).then(response => {
 			const mime = response.body.mimeType || guessMimeTypes(resource.toString())[0];

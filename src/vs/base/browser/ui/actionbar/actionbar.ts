@@ -385,7 +385,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			this.toDispose.push(this._actionRunner);
 		}
 
-		this.toDispose.push(this.addEmitter2(this._actionRunner));
+		this.toDispose.push(this.addEmitter(this._actionRunner));
 
 		this.items = [];
 		this.focusedItem = undefined;
@@ -533,7 +533,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
-			this.addEmitter2(item);
+			this.addEmitter(item);
 			item.render(actionItemElement);
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {

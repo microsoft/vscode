@@ -6,8 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { join } from 'path';
-import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, ViewColumn } from 'vscode';
+import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection } from 'vscode';
 import { createRandomFile, deleteFile, cleanUp } from './utils';
 
 suite('editor tests', () => {
@@ -106,75 +105,6 @@ suite('editor tests', () => {
 				assert.ok(applied);
 				assert.equal(doc.getText(), 'new');
 				assert.ok(doc.isDirty);
-			});
-		});
-	});
-
-	test('issue #20867: vscode.window.visibleTextEditors returns closed document 1/2', () => {
-
-		return withRandomFileEditor('Hello world!', editor => {
-
-			const p = new Promise((resolve, reject) => {
-				const sub = workspace.onDidCloseTextDocument(doc => {
-					try {
-						sub.dispose();
-						assert.ok(window.activeTextEditor === undefined);
-						assert.equal(window.visibleTextEditors.length, 0);
-						resolve();
-					} catch (e) {
-						reject(e);
-					}
-				});
-			});
-
-			return Promise.all([
-				delay(800).then(() => commands.executeCommand('workbench.action.closeAllEditors')), // TODO@Ben TODO@Joh this delay is a hack
-				p
-			]).then(() => undefined);
-		});
-	});
-
-	function delay(time) {
-		return new Promise(function (fulfill) {
-			setTimeout(fulfill, time);
-		});
-	}
-
-	test('issue #20867: vscode.window.visibleTextEditors returns closed document 2/2', () => {
-
-		const file10Path = join(workspace.rootPath || '', './10linefile.ts');
-		const file30Path = join(workspace.rootPath || '', './30linefile.ts');
-
-		return Promise.all([
-			workspace.openTextDocument(file10Path),
-			workspace.openTextDocument(file30Path)
-		]).then(docs => {
-			return Promise.all([
-				window.showTextDocument(docs[0], ViewColumn.One),
-				window.showTextDocument(docs[1], ViewColumn.Two),
-			]);
-		}).then(editors => {
-
-			const p = new Promise((resolve, reject) => {
-				const sub = workspace.onDidCloseTextDocument(doc => {
-					try {
-						sub.dispose();
-						assert.ok(window.activeTextEditor === editors[1]);
-						assert.ok(window.visibleTextEditors[0] === editors[1]);
-						assert.equal(window.visibleTextEditors.length, 1);
-						resolve();
-					} catch (e) {
-						reject(e);
-					}
-				});
-			});
-
-			// hide doesn't what it means because it triggers a close event and because it
-			// detached the editor. For this test that's what we want.
-			delay(800).then(() => { // TODO@Ben TODO@Joh this delay is a hack
-				editors[0].hide();
-
-				return p;
 			});
 		});
 	});

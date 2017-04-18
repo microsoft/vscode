@@ -11,6 +11,7 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ViewLineData, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { WrappingIndent } from "vs/editor/common/config/editorOptions";
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -31,7 +32,7 @@ export interface ILineMapping {
 }
 
 export interface ILineMapperFactory {
-	createLineMapping(lineText: string, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: editorCommon.WrappingIndent): ILineMapping;
+	createLineMapping(lineText: string, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): ILineMapping;
 }
 
 export interface IModel {
@@ -320,7 +321,7 @@ export class SplitLine implements ISplitLine {
 	}
 }
 
-function createSplitLine(linePositionMapperFactory: ILineMapperFactory, text: string, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: editorCommon.WrappingIndent, isVisible: boolean): ISplitLine {
+function createSplitLine(linePositionMapperFactory: ILineMapperFactory, text: string, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, isVisible: boolean): ISplitLine {
 	let positionMapper = linePositionMapperFactory.createLineMapping(text, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 	if (positionMapper === null) {
 		// No mapping needed
@@ -340,7 +341,7 @@ export class SplitLinesCollection {
 
 	private wrappingColumn: number;
 	private columnsForFullWidthChar: number;
-	private wrappingIndent: editorCommon.WrappingIndent;
+	private wrappingIndent: WrappingIndent;
 	private tabSize: number;
 	private lines: ISplitLine[];
 
@@ -350,7 +351,7 @@ export class SplitLinesCollection {
 
 	private hiddenAreasIds: string[];
 
-	constructor(model: editorCommon.IModel, linePositionMapperFactory: ILineMapperFactory, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: editorCommon.WrappingIndent) {
+	constructor(model: editorCommon.IModel, linePositionMapperFactory: ILineMapperFactory, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent) {
 		this.model = model;
 		this._validModelVersionId = -1;
 		this.tabSize = tabSize;
@@ -416,7 +417,7 @@ export class SplitLinesCollection {
 		}).sort(Range.compareRangesUsingStarts);
 	}
 
-	private _reduceRanges(_ranges: editorCommon.IRange[]): Range[] {
+	private _reduceRanges(_ranges: Range[]): Range[] {
 		if (_ranges.length === 0) {
 			return [];
 		}
@@ -441,7 +442,7 @@ export class SplitLinesCollection {
 		return result;
 	}
 
-	public setHiddenAreas(eventsCollector: ViewEventsCollector, _ranges: editorCommon.IRange[]): boolean {
+	public setHiddenAreas(eventsCollector: ViewEventsCollector, _ranges: Range[]): boolean {
 
 		let newRanges = this._reduceRanges(_ranges);
 
@@ -532,7 +533,7 @@ export class SplitLinesCollection {
 		return true;
 	}
 
-	public setWrappingIndent(eventsCollector: ViewEventsCollector, newWrappingIndent: editorCommon.WrappingIndent): boolean {
+	public setWrappingIndent(eventsCollector: ViewEventsCollector, newWrappingIndent: WrappingIndent): boolean {
 		if (this.wrappingIndent === newWrappingIndent) {
 			return false;
 		}
@@ -556,17 +557,12 @@ export class SplitLinesCollection {
 		return true;
 	}
 
-	public onModelFlushed(eventsCollector: ViewEventsCollector, versionId: number): void {
+	public onModelFlushed(eventsCollector: ViewEventsCollector): void {
 		this._constructLines(true);
 		eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 	}
 
-	public onModelLinesDeleted(eventsCollector: ViewEventsCollector, versionId: number, fromLineNumber: number, toLineNumber: number): void {
-		if (versionId <= this._validModelVersionId) {
-			return;
-		}
-		this._validModelVersionId = versionId;
-
+	public onModelLinesDeleted(eventsCollector: ViewEventsCollector, fromLineNumber: number, toLineNumber: number): void {
 		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(fromLineNumber - 2) + 1);
 		let outputToLineNumber = this.prefixSumComputer.getAccumulatedValue(toLineNumber - 1);
 
@@ -576,12 +572,7 @@ export class SplitLinesCollection {
 		eventsCollector.emit(new viewEvents.ViewLinesDeletedEvent(outputFromLineNumber, outputToLineNumber));
 	}
 
-	public onModelLinesInserted(eventsCollector: ViewEventsCollector, versionId: number, fromLineNumber: number, toLineNumber: number, text: string[]): void {
-		if (versionId <= this._validModelVersionId) {
-			return;
-		}
-		this._validModelVersionId = versionId;
-
+	public onModelLinesInserted(eventsCollector: ViewEventsCollector, fromLineNumber: number, toLineNumber: number, text: string[]): void {
 		let hiddenAreas = this.getHiddenAreas();
 		let isInHiddenArea = false;
 		let testPosition = new Position(fromLineNumber, 1);
@@ -614,11 +605,7 @@ export class SplitLinesCollection {
 		eventsCollector.emit(new viewEvents.ViewLinesInsertedEvent(outputFromLineNumber, outputFromLineNumber + totalOutputLineCount - 1));
 	}
 
-	public onModelLineChanged(eventsCollector: ViewEventsCollector, versionId: number, lineNumber: number, newText: string): boolean {
-		if (versionId <= this._validModelVersionId) {
-			return undefined;
-		}
-		this._validModelVersionId = versionId;
+	public onModelLineChanged(eventsCollector: ViewEventsCollector, lineNumber: number, newText: string): boolean {
 		let lineIndex = lineNumber - 1;
 
 		let oldOutputLineCount = this.lines[lineIndex].getViewLineCount();
@@ -665,6 +652,10 @@ export class SplitLinesCollection {
 		}
 
 		return lineMappingChanged;
+	}
+
+	public acceptVersionId(versionId: number): void {
+		this._validModelVersionId = versionId;
 	}
 
 	public getViewLineCount(): number {

@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Position, IPosition } from 'vs/editor/common/core/position';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
+import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
+import * as editorOptions from "vs/editor/common/config/editorOptions";
 
 /**
  * @internal
@@ -56,7 +57,7 @@ export interface ICodeEditorHelper {
 export interface IView extends IDisposable {
 	domNode: FastDomNode<HTMLElement>;
 
-	getInternalEventBus(): IEventEmitter;
+	getInternalEventBus(): ViewOutgoingEvents;
 
 	createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): IOverviewRuler;
 	getCodeEditorHelper(): ICodeEditorHelper;
@@ -271,7 +272,7 @@ export interface IContentWidgetPosition {
 	 * Desired position for the content widget.
 	 * `preference` will also affect the placement.
 	 */
-	position: editorCommon.IPosition;
+	position: IPosition;
 	/**
 	 * Placement preference for position, in order of preference.
 	 */
@@ -399,7 +400,7 @@ export interface IOverviewRuler {
 	getDomNode(): HTMLElement;
 	dispose(): void;
 	setZones(zones: editorCommon.OverviewRulerZone[]): void;
-	setLayout(position: editorCommon.OverviewRulerPosition): void;
+	setLayout(position: editorOptions.OverviewRulerPosition): void;
 }
 /**
  * A rich code editor.
@@ -456,7 +457,7 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * An event emitted when the layout of the editor has changed.
 	 * @event
 	 */
-	onDidLayoutChange(listener: (e: editorCommon.EditorLayoutInfo) => void): IDisposable;
+	onDidLayoutChange(listener: (e: editorOptions.EditorLayoutInfo) => void): IDisposable;
 	/**
 	 * An event emitted when the scroll in the editor has changed.
 	 * @event
@@ -549,13 +550,13 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
 	 * Warning: the results of this method are innacurate for positions that are outside the current editor viewport.
 	 */
-	getScrolledVisiblePosition(position: editorCommon.IPosition): { top: number; left: number; height: number; };
+	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
 
 	/**
 	 * Set the model ranges that will be hidden in the view.
 	 * @internal
 	 */
-	setHiddenAreas(ranges: editorCommon.IRange[]): void;
+	setHiddenAreas(ranges: IRange[]): void;
 
 	/**
 	 * @internal

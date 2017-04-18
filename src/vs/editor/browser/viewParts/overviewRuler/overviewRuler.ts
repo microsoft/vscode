@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { OverviewRulerPosition, OverviewRulerZone } from 'vs/editor/common/editorCommon';
+import { OverviewRulerZone } from 'vs/editor/common/editorCommon';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IOverviewRuler } from 'vs/editor/browser/editorBrowser';
 import { OverviewRulerImpl } from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { OverviewRulerPosition } from "vs/editor/common/config/editorOptions";
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 

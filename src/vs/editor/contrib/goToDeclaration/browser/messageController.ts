@@ -15,6 +15,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { commonEditorContribution, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IPosition } from "vs/editor/common/core/position";
 
 @commonEditorContribution
 export class MessageController {
@@ -48,7 +49,7 @@ export class MessageController {
 		this._visible.reset();
 	}
 
-	showMessage(message: string, position: editorCommon.IPosition): void {
+	showMessage(message: string, position: IPosition): void {
 
 		this._visible.set(true);
 		dispose(this._messageWidget);
@@ -111,7 +112,7 @@ class MessageWidget implements IContentWidget {
 	readonly suppressMouseDown = false;
 
 	private _editor: ICodeEditor;
-	private _position: editorCommon.IPosition;
+	private _position: IPosition;
 	private _domNode: HTMLDivElement;
 
 	static fadeOut(messageWidget: MessageWidget): IDisposable {
@@ -127,7 +128,7 @@ class MessageWidget implements IContentWidget {
 		return { dispose };
 	}
 
-	constructor(editor: ICodeEditor, { lineNumber, column }: editorCommon.IPosition, text: string) {
+	constructor(editor: ICodeEditor, { lineNumber, column }: IPosition, text: string) {
 
 		this._editor = editor;
 		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber);

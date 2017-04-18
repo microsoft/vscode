@@ -14,7 +14,7 @@ suite('Stream', () => {
 	test('readExactlyByFile - ANSI', function (done: (err?) => void) {
 		const file = require.toUrl('./fixtures/file.css');
 
-		stream.readExactlyByFile(file, 10).then(({buffer, bytesRead}) => {
+		stream.readExactlyByFile(file, 10).then(({ buffer, bytesRead }) => {
 			assert.equal(bytesRead, 10);
 			assert.equal(buffer.toString(), '/*--------');
 			done();
@@ -24,7 +24,7 @@ suite('Stream', () => {
 	test('readExactlyByFile - empty', function (done: (err?: any) => void) {
 		const file = require.toUrl('./fixtures/empty.txt');
 
-		stream.readExactlyByFile(file, 10).then(({bytesRead}) => {
+		stream.readExactlyByFile(file, 10).then(({ bytesRead }) => {
 			assert.equal(bytesRead, 0);
 			done();
 		}, done);
@@ -33,7 +33,7 @@ suite('Stream', () => {
 	test('readExactlyByStream - ANSI', function (done: (err?: any) => void) {
 		const file = require.toUrl('./fixtures/file.css');
 
-		stream.readExactlyByStream(fs.createReadStream(file), 10).then(({buffer, bytesRead}) => {
+		stream.readExactlyByStream(fs.createReadStream(file), 10).then(({ buffer, bytesRead }) => {
 			assert.equal(bytesRead, 10);
 			assert.equal(buffer.toString(), '/*--------');
 			done();
@@ -43,7 +43,7 @@ suite('Stream', () => {
 	test('readExactlyByStream - empty', function (done: (err?: any) => void) {
 		const file = require.toUrl('./fixtures/empty.txt');
 
-		stream.readExactlyByStream(fs.createReadStream(file), 10).then(({bytesRead}) => {
+		stream.readExactlyByStream(fs.createReadStream(file), 10).then(({ bytesRead }) => {
 			assert.equal(bytesRead, 0);
 			done();
 		}, done);

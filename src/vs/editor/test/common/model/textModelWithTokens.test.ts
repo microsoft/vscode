@@ -77,7 +77,6 @@ suite('TextModelWithTokens', () => {
 		});
 
 		let model = new TextModelWithTokens(
-			[],
 			RawTextSource.fromString(contents.join('\n')),
 			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageIdentifier

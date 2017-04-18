@@ -16,7 +16,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IRange, ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { BulkEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import RenameInputField from './renameInputField';
@@ -26,6 +26,9 @@ import { IThemeService } from "vs/platform/theme/common/themeService";
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
 import { WorkspaceEdit, RenameProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
+import { alert } from 'vs/base/browser/ui/aria/aria';
+import { Range } from "vs/editor/common/core/range";
+
 
 export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
 
@@ -125,14 +128,14 @@ class RenameController implements IEditorContribution {
 		let lineNumber = selection.startLineNumber,
 			selectionStart = 0,
 			selectionEnd = word.word.length,
-			wordRange: IRange;
+			wordRange: Range;
 
-		wordRange = {
-			startLineNumber: lineNumber,
-			startColumn: word.startColumn,
-			endLineNumber: lineNumber,
-			endColumn: word.endColumn
-		};
+		wordRange = new Range(
+			lineNumber,
+			word.startColumn,
+			lineNumber,
+			word.endColumn
+		);
 
 		if (!selection.isEmpty() && selection.startLineNumber === selection.endLineNumber) {
 			selectionStart = Math.max(0, selection.startColumn - word.startColumn);
@@ -150,6 +153,8 @@ class RenameController implements IEditorContribution {
 					if (selection) {
 						this.editor.setSelection(selection);
 					}
+					// alert
+					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", word.word, newName, edit.ariaMessage()));
 				});
 
 			}, err => {

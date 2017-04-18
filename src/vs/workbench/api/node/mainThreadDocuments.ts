@@ -6,7 +6,6 @@
 
 import URI from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { EmitterEvent } from 'vs/base/common/eventEmitter';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
@@ -158,7 +157,9 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		}
 		let modelUrl = model.uri;
 		this._modelIsSynced[modelUrl.toString()] = true;
-		this._modelToDisposeMap[modelUrl.toString()] = model.addBulkListener((events) => this._onModelEvents(modelUrl, events));
+		this._modelToDisposeMap[modelUrl.toString()] = model.onDidChangeContent((e) => {
+			this._proxy.$acceptModelChanged(modelUrl.toString(), e, this._textFileService.isDirty(modelUrl));
+		});
 	}
 
 	private _onModelModeChanged(event: { model: editorCommon.IModel; oldModeId: string; }): void {
@@ -178,21 +179,6 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		delete this._modelIsSynced[modelUrl];
 		this._modelToDisposeMap[modelUrl].dispose();
 		delete this._modelToDisposeMap[modelUrl];
-	}
-
-	private _onModelEvents(modelUrl: URI, events: EmitterEvent[]): void {
-		let changedEvents: editorCommon.IModelContentChangedEvent2[] = [];
-		for (let i = 0, len = events.length; i < len; i++) {
-			let e = events[i];
-			switch (e.getType()) {
-				case editorCommon.EventType.ModelContentChanged2:
-					changedEvents.push(<editorCommon.IModelContentChangedEvent2>e.getData());
-					break;
-			}
-		}
-		if (changedEvents.length > 0) {
-			this._proxy.$acceptModelChanged(modelUrl.toString(), changedEvents, this._textFileService.isDirty(modelUrl));
-		}
 	}
 
 	// --- from extension host process

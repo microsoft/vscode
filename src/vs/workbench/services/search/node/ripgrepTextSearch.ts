@@ -14,19 +14,19 @@ import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
 import * as glob from 'vs/base/common/glob';
-import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
+import { ILineMatch, ISearchLog } from 'vs/platform/search/common/search';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
+import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch } from './search';
 
-export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
+export class RipgrepEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
 	private postProcessExclusions: glob.ParsedExpression;
 
 	private ripgrepParser: RipgrepParser;
 
-	private handleResultP: TPromise<any> = TPromise.wrap(null);
+	private resultsHandledP: TPromise<any> = TPromise.wrap(null);
 
 	constructor(private config: IRawSearch) {
 	}
@@ -38,9 +38,9 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 	}
 
 	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
-	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		if (this.config.rootFolders.length) {
-			this.searchFolder(this.config.rootFolders[0], onResult, onProgress, done);
+			this.searchFolder(this.config.rootFolders[0], onResult, onMessage, done);
 		} else {
 			done(null, {
 				limitHit: false,
@@ -49,26 +49,31 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		}
 	}
 
-	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		const rgArgs = getRgArgs(this.config);
 		if (rgArgs.siblingClauses) {
 			this.postProcessExclusions = glob.parseToAsync(rgArgs.siblingClauses, { trimForExclusions: true });
 		}
 
-		// console.log(`rg ${rgArgs.args.join(' ')}, cwd: ${rootFolder}`);
+		process.nextTick(() => {
+			// Allow caller to register progress callback
+			const rgCmd = `rg ${rgArgs.args.join(' ')}\ncwd: ${rootFolder}\n`;
+			onMessage({ message: rgCmd });
+		});
 		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: rootFolder });
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, rootFolder);
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
 				const relativePath = path.relative(rootFolder, match.path);
-				this.handleResultP = this.handleResultP
-					.then(() => (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path))))
+				const handleResultP = (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path)))
 					.then(globMatch => {
 						if (!globMatch) {
 							onResult(match);
 						}
 					});
+
+				this.resultsHandledP = TPromise.join([this.resultsHandledP, handleResultP]);
 			} else {
 				onResult(match);
 			}
@@ -85,28 +90,41 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 			this.ripgrepParser.handleData(data);
 		});
 
+		let gotData = false;
+		this.rgProc.stdout.once('data', () => gotData = true);
+
+		let stderr = '';
 		this.rgProc.stderr.on('data', data => {
-			// TODO@rob remove console.logs
-			console.log('stderr:');
-			console.log(data.toString());
+			const message = data.toString();
+			onMessage({ message });
+			stderr += message;
 		});
 
 		this.rgProc.on('close', code => {
 			// Trigger last result, then wait on async result handling
 			this.ripgrepParser.flush();
-			this.handleResultP.then(() => {
+			this.resultsHandledP.then(() => {
 				this.rgProc = null;
-				// console.log(`closed with ${code}`);
-
 				if (!this.isDone) {
 					this.isDone = true;
-					done(null, {
-						limitHit: false,
-						stats: null
-					});
+					if (stderr && this.shouldReturnErrorMsg(stderr) && !gotData) {
+						done(new Error(stderr), {
+							limitHit: false,
+							stats: null
+						});
+					} else {
+						done(null, {
+							limitHit: false,
+							stats: null
+						});
+					}
 				}
 			});
 		});
+	}
+
+	private shouldReturnErrorMsg(msg: string): boolean {
+		return strings.startsWith(msg, 'Error parsing regex');
 	}
 }
 
@@ -183,7 +201,6 @@ export class RipgrepParser extends EventEmitter {
 
 		const realTextParts: string[] = [];
 
-		// todo@Rob Consider just rewriting with a regex. I think perf will be fine.
 		for (let i = 0; i < text.length - (RipgrepParser.MATCH_END_MARKER.length - 1);) {
 			if (text.substr(i, RipgrepParser.MATCH_START_MARKER.length) === RipgrepParser.MATCH_START_MARKER) {
 				// Match start

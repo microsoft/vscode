@@ -26,7 +26,7 @@ import { ITypescriptServiceClientHost } from './typescriptService';
 
 import HoverProvider from './features/hoverProvider';
 import DefinitionProvider from './features/definitionProvider';
-import ImplementationProvider from './features/ImplementationProvider';
+import ImplementationProvider from './features/implementationProvider';
 import TypeDefintionProvider from './features/typeDefinitionProvider';
 import DocumentHighlightProvider from './features/documentHighlightProvider';
 import ReferenceProvider from './features/referenceProvider';
@@ -110,7 +110,7 @@ export function activate(context: ExtensionContext): void {
 	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
 		if (editor) {
-			clientHost.goToProjectConfig(isTypeScript, editor.document.uri, editor.document.languageId);
+			clientHost.goToProjectConfig(isTypeScript, editor.document.uri);
 		}
 	};
 	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true)));
@@ -224,19 +224,15 @@ class LanguageProvider {
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new SignatureHelpProvider(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new RenameProvider(client)));
 
-		if (client.apiVersion.has206Features()) {
-			this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
-			this.referenceCodeLensProvider.updateConfiguration();
-			this.disposables.push(languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider));
+		this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
+		this.referenceCodeLensProvider.updateConfiguration();
+		this.disposables.push(languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider));
 
-			this.implementationCodeLensProvider = new ImplementationCodeLensProvider(client);
-			this.implementationCodeLensProvider.updateConfiguration();
-			this.disposables.push(languages.registerCodeLensProvider(selector, this.implementationCodeLensProvider));
-		}
+		this.implementationCodeLensProvider = new ImplementationCodeLensProvider(client);
+		this.implementationCodeLensProvider.updateConfiguration();
+		this.disposables.push(languages.registerCodeLensProvider(selector, this.implementationCodeLensProvider));
 
-		if (client.apiVersion.has213Features()) {
-			this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
-		}
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
 
 		if (client.apiVersion.has220Features()) {
 			this.disposables.push(languages.registerImplementationProvider(selector, new ImplementationProvider(client)));
@@ -463,9 +459,8 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 	public goToProjectConfig(
 		isTypeScriptProject: boolean,
-		resource: Uri,
-		languageId: string
-	): Thenable<TextEditor> | undefined {
+		resource: Uri
+	): Thenable<TextEditor | undefined> | undefined {
 		const rootPath = workspace.rootPath;
 		if (!rootPath) {
 			window.showInformationMessage(
@@ -476,8 +471,8 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		}
 
 		const file = this.client.normalizePath(resource);
-		// TODO: TSServer errors when 'projectInfo' is invoked on a non js/ts file
-		if (!file || !this.languagePerId[languageId]) {
+		// TSServer errors when 'projectInfo' is invoked on a non js/ts file
+		if (!file || !this.handles(file)) {
 			window.showWarningMessage(
 				localize(
 					'typescript.projectConfigUnsupportedFile',
@@ -485,9 +480,10 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			return;
 		}
 
-		return this.client.execute('projectInfo', { file, needFileNameList: false }).then(res => {
+		return this.client.execute('projectInfo', { file, needFileNameList: false } as protocol.ProjectInfoRequestArgs).then(res => {
 			if (!res || !res.body) {
-				return window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'));
+				return window.showWarningMessage(localize('typescript.projectConfigCouldNotGetInfo', 'Could not determine TypeScript or JavaScript project'))
+					.then(() => void 0);
 			}
 
 			const { configFileName } = res.body;

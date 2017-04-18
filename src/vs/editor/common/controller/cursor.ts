@@ -14,13 +14,21 @@ import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/contr
 import { IViewModelHelper, OneCursor, OneCursorOp, CursorContext } from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
+import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CursorColumns, EditOperationResult, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
+import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
+
+export const CursorEventType = {
+	CursorPositionChanged: 'positionChanged',
+	CursorSelectionChanged: 'selectionChanged',
+	CursorRevealRange: 'revealRange',
+	CursorScrollRequest: 'scrollRequest',
+};
 
 const enum RevealTarget {
 	Primary = 0,
@@ -94,10 +102,10 @@ export class Cursor extends EventEmitter {
 
 	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModelHelper: IViewModelHelper, enableEmptySelectionClipboard: boolean) {
 		super([
-			editorCommon.EventType.CursorPositionChanged,
-			editorCommon.EventType.CursorSelectionChanged,
-			editorCommon.EventType.CursorRevealRange,
-			editorCommon.EventType.CursorScrollRequest
+			CursorEventType.CursorPositionChanged,
+			CursorEventType.CursorSelectionChanged,
+			CursorEventType.CursorRevealRange,
+			CursorEventType.CursorScrollRequest
 		]);
 		this.configuration = configuration;
 		this.model = model;
@@ -139,15 +147,17 @@ export class Cursor extends EventEmitter {
 			let hadFlushEvent = false;
 			for (let i = 0, len = events.length; i < len; i++) {
 				const event = events[i];
-				const eventType = event.getType();
+				const eventType = event.type;
 
-				if (eventType === editorCommon.EventType.ModelRawContentChanged) {
+				if (eventType === TextModelEventType.ModelRawContentChanged2) {
 					hadContentChange = true;
-					const changeEvent = <editorCommon.IModelContentChangedEvent>event.getData();
+					const changeEvent = <ModelRawContentChangedEvent>event.data;
 
-					if (changeEvent.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
-						hadFlushEvent = true;
-						break;
+					for (let j = 0, lenJ = changeEvent.changes.length; j < lenJ; j++) {
+						const change = changeEvent.changes[j];
+						if (change.changeType === RawContentChangedType.Flush) {
+							hadFlushEvent = true;
+						}
 					}
 				}
 			}
@@ -216,7 +226,7 @@ export class Cursor extends EventEmitter {
 
 	public restoreState(states: editorCommon.ICursorState[]): void {
 
-		var desiredSelections: editorCommon.ISelection[] = [],
+		var desiredSelections: ISelection[] = [],
 			state: editorCommon.ICursorState;
 
 		for (var i = 0; i < states.length; i++) {
@@ -306,7 +316,7 @@ export class Cursor extends EventEmitter {
 		return this.cursors.getPosition(0);
 	}
 
-	public setSelections(source: string, selections: editorCommon.ISelection[]): void {
+	public setSelections(source: string, selections: ISelection[]): void {
 		this._onHandler('setSelections', (ctx: IMultipleCursorOperationContext) => {
 			ctx.shouldReveal = false;
 			this.cursors.setSelections(selections);
@@ -828,7 +838,7 @@ export class Cursor extends EventEmitter {
 			source: source,
 			isInEditableRange: isInEditableRange
 		};
-		this.emit(editorCommon.EventType.CursorPositionChanged, e);
+		this.emit(CursorEventType.CursorPositionChanged, e);
 	}
 
 	private emitCursorSelectionChanged(source: string, reason: editorCommon.CursorChangeReason): void {
@@ -848,7 +858,7 @@ export class Cursor extends EventEmitter {
 			source: source,
 			reason: reason
 		};
-		this.emit(editorCommon.EventType.CursorSelectionChanged, e);
+		this.emit(CursorEventType.CursorSelectionChanged, e);
 	}
 
 	private emitCursorScrollRequest(deltaLines: number, revealCursor: boolean): void {
@@ -856,7 +866,7 @@ export class Cursor extends EventEmitter {
 			deltaLines,
 			revealCursor
 		};
-		this.emit(editorCommon.EventType.CursorScrollRequest, e);
+		this.emit(CursorEventType.CursorScrollRequest, e);
 	}
 
 	private revealRange(revealTarget: RevealTarget, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
@@ -900,7 +910,7 @@ export class Cursor extends EventEmitter {
 			revealHorizontal: revealHorizontal,
 			revealCursor: revealCursor
 		};
-		this.emit(editorCommon.EventType.CursorRevealRange, e);
+		this.emit(CursorEventType.CursorRevealRange, e);
 	}
 
 	// -----------------------------------------------------------------------------------------------------------

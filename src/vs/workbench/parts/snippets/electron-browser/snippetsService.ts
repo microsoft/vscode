@@ -6,12 +6,13 @@
 
 import { localize } from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { IModel, IPosition } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { ISuggestion, LanguageId } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IPosition } from "vs/editor/common/core/position";
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 

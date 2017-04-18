@@ -7,7 +7,7 @@
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { ICommand, IConfigurationChangedEvent, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
+import { ICommand, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
@@ -15,6 +15,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
+import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 
 export interface CharacterMap {
 	[char: string]: string;

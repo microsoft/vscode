@@ -35,7 +35,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, highContrastBorder, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
-import { Themable, TABS_CONTAINER_BACKGROUND, EDITOR_HEADER_BACKGROUND, EDITOR_GROUP_BORDER_COLOR, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { Themable, TABS_CONTAINER_BACKGROUND, EDITOR_HEADER_BACKGROUND, EDITOR_GROUP_BORDER_COLOR, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 
 export enum Rochade {
 	NONE,
@@ -943,10 +943,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Sash One
 		this.sashOne = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toUnbind.push(this.sashOne.addListener2('start', () => this.onSashOneDragStart()));
-		this.toUnbind.push(this.sashOne.addListener2('change', (e: ISashEvent) => this.onSashOneDrag(e)));
-		this.toUnbind.push(this.sashOne.addListener2('end', () => this.onSashOneDragEnd()));
-		this.toUnbind.push(this.sashOne.addListener2('reset', () => this.onSashOneReset()));
+		this.toUnbind.push(this.sashOne.addListener('start', () => this.onSashOneDragStart()));
+		this.toUnbind.push(this.sashOne.addListener('change', (e: ISashEvent) => this.onSashOneDrag(e)));
+		this.toUnbind.push(this.sashOne.addListener('end', () => this.onSashOneDragEnd()));
+		this.toUnbind.push(this.sashOne.addListener('reset', () => this.onSashOneReset()));
 		this.sashOne.hide();
 
 		// Silo Two
@@ -954,10 +954,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Sash Two
 		this.sashTwo = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toUnbind.push(this.sashTwo.addListener2('start', () => this.onSashTwoDragStart()));
-		this.toUnbind.push(this.sashTwo.addListener2('change', (e: ISashEvent) => this.onSashTwoDrag(e)));
-		this.toUnbind.push(this.sashTwo.addListener2('end', () => this.onSashTwoDragEnd()));
-		this.toUnbind.push(this.sashTwo.addListener2('reset', () => this.onSashTwoReset()));
+		this.toUnbind.push(this.sashTwo.addListener('start', () => this.onSashTwoDragStart()));
+		this.toUnbind.push(this.sashTwo.addListener('change', (e: ISashEvent) => this.onSashTwoDrag(e)));
+		this.toUnbind.push(this.sashTwo.addListener('end', () => this.onSashTwoDragEnd()));
+		this.toUnbind.push(this.sashTwo.addListener('reset', () => this.onSashTwoReset()));
 		this.sashTwo.hide();
 
 		// Silo Three
@@ -1564,14 +1564,15 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	}
 
 	private updateFromDropping(element: HTMLElement, isDropping: boolean): void {
-		const background = this.getColor(isDropping ? EDITOR_DRAG_AND_DROP_BACKGROUND : null);
+		const groupCount = this.stacks.groups.length;
+		const background = this.getColor(isDropping ? EDITOR_DRAG_AND_DROP_BACKGROUND : groupCount > 0 ? EDITOR_GROUP_BACKGROUND : null);
 		element.style.backgroundColor = background;
 
 		const useOutline = this.isHighContrastTheme && isDropping;
 		element.style.outlineColor = useOutline ? this.getColor(highContrastOutline) : null;
 		element.style.outlineStyle = useOutline ? 'dashed' : null;
 		element.style.outlineWidth = useOutline ? '2px' : null;
-		(<any>element).style.outlineOffset = useOutline ? '-2px' : null; // TS fail (gulp watch)
+		element.style.outlineOffset = useOutline ? '-2px' : null;
 	}
 
 	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number, borderLeftTopWidth?: string | number): void {

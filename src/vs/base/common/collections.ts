@@ -39,6 +39,16 @@ export function values<T>(from: any): any[] {
 	return result;
 }
 
+export function size<T>(from: IStringDictionary<T> | INumberDictionary<T>): number {
+	let count = 0;
+	for (var key in from) {
+		if (hasOwnProperty.call(from, key)) {
+			count += 1;
+		}
+	}
+	return count;
+}
+
 /**
  * Iterates over each entry in the provided set. The iterator allows
  * to remove elements and will stop when the callback returns {{false}}.

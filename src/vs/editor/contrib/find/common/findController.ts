@@ -876,13 +876,16 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	}
 
 	private _update(): void {
-		let model = this.editor.getModel();
+		const model = this.editor.getModel();
 		if (!model) {
 			return;
 		}
 
+		const config = this.editor.getConfiguration();
+
 		this.lastWordUnderCursor = null;
-		if (!this.editor.getConfiguration().contribInfo.selectionHighlight) {
+		if (!config.contribInfo.selectionHighlight) {
+			this.removeDecorations();
 			return;
 		}
 
@@ -901,6 +904,11 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			// This is an empty selection
 			if (hasFindOccurences) {
 				// Do not interfere with semantic word highlighting in the no selection case
+				this.removeDecorations();
+				return;
+			}
+
+			if (!config.contribInfo.occurrencesHighlight) {
 				this.removeDecorations();
 				return;
 			}

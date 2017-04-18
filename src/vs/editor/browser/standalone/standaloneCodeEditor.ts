@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions, IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType } from 'vs/editor/common/editorCommon';
+import { IActionDescriptor, ICodeEditorWidgetCreationOptions, IModel, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { StandaloneKeybindingService } from 'vs/editor/browser/standalone/simpleServices';
@@ -23,6 +23,7 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
+import { IDiffEditorOptions, IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 /**
  * The options to create an editor.
@@ -228,7 +229,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 				oldModelUrl: null,
 				newModelUrl: model.uri
 			};
-			this.emit(EventType.ModelChanged, e);
+			this._onDidChangeModel.fire(e);
 		}
 	}
 

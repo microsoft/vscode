@@ -761,7 +761,9 @@ export enum SymbolKind {
 	Key = 19,
 	Null = 20,
 	EnumMember = 21,
-	Struct = 22
+	Struct = 22,
+	Event = 23,
+	Operator = 24
 }
 
 export class SymbolInformation {
@@ -872,7 +874,9 @@ export enum CompletionItemKind {
 	Folder = 18,
 	EnumMember = 19,
 	Constant = 20,
-	Struct = 21
+	Struct = 21,
+	Event = 22,
+	Operator = 23
 }
 
 export class CompletionItem {

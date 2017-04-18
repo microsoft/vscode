@@ -369,7 +369,7 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	protected _getCanUseTranslate3d(): boolean {
-		return browser.canUseTranslate3d && browser.getZoomLevel() === 0;
+		return browser.canUseTranslate3d();
 	}
 
 	protected _getPixelRatio(): number {

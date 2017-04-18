@@ -14,7 +14,7 @@ import errors = require('vs/base/common/errors');
 import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent, IActionProvider } from 'vs/base/parts/tree/browser/tree';
+import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent, IActionProvider, ITreeStyles } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, MessageType, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import Severity from 'vs/base/common/severity';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -26,6 +26,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Color } from "vs/base/common/color";
+import { mixin } from "vs/base/common/objects";
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -45,7 +46,7 @@ export interface IQuickOpenOptions extends IQuickOpenStyles {
 	keyboardSupport?: boolean;
 }
 
-export interface IQuickOpenStyles extends IInputBoxStyles {
+export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
 	background?: Color;
 	foreground?: Color;
 	borderColor?: Color;
@@ -76,6 +77,11 @@ export enum HideReason {
 	FOCUS_LOST,
 	CANCELED
 }
+
+const defaultStyles = {
+	background: Color.fromHex('#1E1E1E'),
+	foreground: Color.fromHex('#CCCCCC')
+};
 
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
 
@@ -111,7 +117,8 @@ export class QuickOpenWidget implements IModelProvider {
 		this.container = container;
 		this.callbacks = callbacks;
 		this.options = options;
-		this.styles = options;
+		this.styles = options || Object.create(null);
+		mixin(this.styles, defaultStyles, false);
 		this.usageLogger = usageLogger;
 		this.model = null;
 	}
@@ -222,11 +229,11 @@ export class QuickOpenWidget implements IModelProvider {
 				this.treeElement = this.tree.getHTMLElement();
 
 				// Handle Focus and Selection event
-				this.toUnbind.push(this.tree.addListener2(EventType.FOCUS, (event: IFocusEvent) => {
+				this.toUnbind.push(this.tree.addListener(EventType.FOCUS, (event: IFocusEvent) => {
 					this.elementFocused(event.focus, event);
 				}));
 
-				this.toUnbind.push(this.tree.addListener2(EventType.SELECTION, (event: ISelectionEvent) => {
+				this.toUnbind.push(this.tree.addListener(EventType.SELECTION, (event: ISelectionEvent) => {
 					if (event.selection && event.selection.length > 0) {
 						this.elementSelected(event.selection[0], event);
 					}
@@ -335,6 +342,10 @@ export class QuickOpenWidget implements IModelProvider {
 				inputForeground: this.styles.inputForeground,
 				inputBorder: this.styles.inputBorder
 			});
+		}
+
+		if (this.tree) {
+			this.tree.style(this.styles);
 		}
 	}
 

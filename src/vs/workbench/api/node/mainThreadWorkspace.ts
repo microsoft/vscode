@@ -9,7 +9,7 @@ import { ISearchService, QueryType } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Uri } from 'vscode';
@@ -94,9 +94,8 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		let codeEditor: ICommonCodeEditor;
 		let editor = this._editorService.getActiveEditor();
 		if (editor) {
-			let candidate = <ICommonCodeEditor>editor.getControl();
-			if (typeof candidate.getEditorType === 'function') {
-				// enough proof
+			let candidate = editor.getControl();
+			if (isCommonCodeEditor(candidate)) {
 				codeEditor = candidate;
 			}
 		}

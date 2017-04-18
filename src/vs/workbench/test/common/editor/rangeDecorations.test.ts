@@ -18,7 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -60,7 +60,7 @@ suite('Editor - Range decorations', () => {
 	});
 
 	test('highlight range for the resource if it is an active editor', function () {
-		let range: editorCommon.IRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+		let range: IRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
 		testObject.highlightRange({ resource: model.uri, range });
 
 		let actuals = rangeHighlightDecorations(model);
@@ -79,7 +79,7 @@ suite('Editor - Range decorations', () => {
 
 	test('highlight range for the resource removes previous highlight', function () {
 		testObject.highlightRange({ resource: model.uri, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } });
-		let range: editorCommon.IRange = { startLineNumber: 2, startColumn: 2, endLineNumber: 4, endColumn: 3 };
+		let range: IRange = { startLineNumber: 2, startColumn: 2, endLineNumber: 4, endColumn: 3 };
 		testObject.highlightRange({ resource: model.uri, range });
 
 		let actuals = rangeHighlightDecorations(model);
@@ -91,7 +91,7 @@ suite('Editor - Range decorations', () => {
 		testObject.highlightRange({ resource: model.uri, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } });
 
 		let anotherModel = prepareActiveEditor('anotherModel');
-		let range: editorCommon.IRange = { startLineNumber: 2, startColumn: 2, endLineNumber: 4, endColumn: 3 };
+		let range: IRange = { startLineNumber: 2, startColumn: 2, endLineNumber: 4, endColumn: 3 };
 		testObject.highlightRange({ resource: anotherModel.uri, range });
 
 		let actuals = rangeHighlightDecorations(model);
@@ -127,7 +127,7 @@ suite('Editor - Range decorations', () => {
 	});
 
 	test('previous highlight is not removed if not active editor', function () {
-		let range: editorCommon.IRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
+		let range: IRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 };
 		testObject.highlightRange({ resource: model.uri, range });
 
 		let model1 = aModel(URI.file('some model'));
@@ -157,8 +157,8 @@ suite('Editor - Range decorations', () => {
 		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditorInput', editorInput);
 	}
 
-	function rangeHighlightDecorations(m: Model): editorCommon.IRange[] {
-		let rangeHighlights: editorCommon.IRange[] = [];
+	function rangeHighlightDecorations(m: Model): IRange[] {
+		let rangeHighlights: IRange[] = [];
 
 		for (let dec of m.getAllDecorations()) {
 			if (dec.options.className === 'rangeHighlight') {

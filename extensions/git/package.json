@@ -613,12 +613,17 @@
           ],
           "description": "%config.checkoutType%",
           "default": "all"
+        },
+        "git.ignoreLegacyWarning": {
+          "type": "boolean",
+          "description": "%config.ignoreLegacyWarning%",
+          "default": false
         }
       }
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "^0.0.6",
+    "vscode-extension-telemetry": "^0.0.7",
     "vscode-nls": "^2.0.1"
   },
   "devDependencies": {

@@ -164,6 +164,12 @@
 	"repositoryURL": "https://github.com/aadsm/jschardet",
 	"license": "LGPL",
 	"licenseDetail": [
+		"Chardet was originally ported from C++ by Mark Pilgrim. It is now maintained",
+		" by Dan Blanchard and Ian Cordasco, and was formerly maintained by Erik Rose.",
+		" JSChardet was ported from python to JavaScript by António Afonso ",
+		" (https://github.com/aadsm/jschardet) and transformed into an npm package by ",
+		"Markus Ast (https://github.com/brainafk)",
+		"",
 		"GNU LESSER GENERAL PUBLIC LICENSE",
 		"\t\t       Version 2.1, February 1999",
 		"",

@@ -51,7 +51,7 @@ export class NoWorkspaceView
 
 		this._openFolderButton = new Button(this._element);
 		this._openFolderButton.label = nls.localize('openFolder', "Open Folder");
-		this._openFolderButton.addListener2('click', () => {
+		this._openFolderButton.addListener('click', () => {
 			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
 			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
 			this.actionRunner.run(action).done(() => {

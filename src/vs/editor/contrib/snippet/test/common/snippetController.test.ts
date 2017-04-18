@@ -129,7 +129,7 @@ suite('SnippetController', () => {
 				forceMoveMarkers: false,
 				identifier: null,
 				isAutoWhitespaceEdit: false,
-				range: new Range(7, 100, 8, 100),
+				range: new Range(8, 1, 8, 100),
 				text: null
 			}]);
 

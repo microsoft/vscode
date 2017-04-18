@@ -21,12 +21,15 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Context as SuggestContext } from './suggest';
 import { ICompletionItem, CompletionModel } from './completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { attachListStyler } from "vs/platform/theme/common/styler";
+import { IThemeService, ITheme, registerThemingParticipant } from "vs/platform/theme/common/themeService";
+import { registerColor, editorWidgetBackground, highContrastBorder, listFocusBackground, listFocusOutline } from "vs/platform/theme/common/colorRegistry";
 
 const sticky = false; // for development purposes
 
@@ -40,6 +43,13 @@ interface ISuggestionTemplateData {
 	documentation: HTMLElement;
 	disposables: IDisposable[];
 }
+
+/**
+ * Suggest widget colors
+ */
+export const editorSuggestWidgetBackground = registerColor('editorSuggestWidgetBackground', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
+export const editorSuggestWidgetBorder = registerColor('editorSuggestWidgetBorder', { dark: '#454545', light: '#C8C8C8', hc: highContrastBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
+export const editorSuggestMatchHighlight = registerColor('editorSuggestMatchHighlight', { dark: '#219AE4', light: '#186B9E', hc: '#219AE4' }, nls.localize('editorSuggestMatchHighlight', 'Color of the match highlight in the suggest widget.'));
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
 function matchesColor(text: string) {
@@ -266,6 +276,14 @@ class SuggestionDetails {
 		this.body.scrollTop -= much;
 	}
 
+	scrollTop(): void {
+		this.body.scrollTop = 0;
+	}
+
+	scrollBottom(): void {
+		this.body.scrollTop = this.body.scrollHeight;
+	}
+
 	pageDown(): void {
 		this.scrollDown(80);
 	}
@@ -342,7 +360,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
 	) {
 		this.isAuto = false;
 		this.focusedItem = null;
@@ -365,6 +384,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		});
 
 		this.toDispose = [
+			attachListStyler(this.list, themeService, { listInactiveFocusBackground: listFocusBackground, listInactiveFocusOutline: listFocusOutline }),
+			themeService.onThemeChange(t => this.onThemeChange(t)),
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
 			this.list.onFocusChange(e => this.onListFocus(e)),
@@ -377,6 +398,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.editor.addContentWidget(this);
 		this.setState(State.Hidden);
+
+		this.onThemeChange(themeService.getTheme());
 
 		// TODO@Alex: this is useful, but spammy
 		// var isVisible = false;
@@ -442,6 +465,18 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this._lastAriaAlertLabel = newAriaAlertLabel;
 		if (this._lastAriaAlertLabel) {
 			alert(this._lastAriaAlertLabel);
+		}
+	}
+
+	private onThemeChange(theme: ITheme) {
+		let backgroundColor = theme.getColor(editorSuggestWidgetBackground);
+		if (backgroundColor) {
+			this.element.style.backgroundColor = backgroundColor.toString();
+		}
+		let borderColor = theme.getColor(editorSuggestWidgetBorder);
+		if (borderColor) {
+			let borderWidth = theme.type === 'hc' ? 2 : 1;
+			this.element.style.border = `${borderWidth}px solid ${borderColor}`;
 		}
 	}
 
@@ -623,8 +658,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.focusedItem = null;
 			this.focusedItemIndex = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
-			this.list.setFocus([this.completionModel.topScoreIdx]);
-			this.list.reveal(this.completionModel.topScoreIdx, 0);
+			this.list.setFocus([0]);
+			this.list.reveal(0, 0);
 
 			this.setState(State.Open);
 		}
@@ -661,6 +696,21 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 
+	selectLast(): boolean {
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				this.details.scrollBottom();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusLast();
+				return true;
+		}
+	}
+
 	selectPreviousPage(): boolean {
 		switch (this.state) {
 			case State.Hidden:
@@ -689,6 +739,21 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			default:
 				this.list.focusPrevious(1, true);
 				return false;
+		}
+	}
+
+	selectFirst(): boolean {
+		switch (this.state) {
+			case State.Hidden:
+				return false;
+			case State.Details:
+				this.details.scrollTop();
+				return true;
+			case State.Loading:
+				return !this.isAuto;
+			default:
+				this.list.focusFirst();
+				return true;
 		}
 	}
 
@@ -859,3 +924,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let matchHighlight = theme.getColor(editorSuggestMatchHighlight);
+	if (matchHighlight) {
+		collector.addRule(`.monaco-editor.${theme.selector} .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
+	}
+});

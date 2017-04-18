@@ -378,17 +378,20 @@ suite('Files - TextFileEditorModel', () => {
 	test('Orphaned models - state and event', function (done) {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
-		model.onDidStateChange(e => {
+		const unbind = model.onDidStateChange(e => {
 			if (e === StateChange.ORPHANED_CHANGE) {
+				unbind.dispose();
 				done();
 			}
 		});
 
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.DELETED }]));
-		assert.ok(model.hasState(ModelState.ORPHAN));
+		return TPromise.timeout(110).then(() => {
+			assert.ok(model.hasState(ModelState.ORPHAN));
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.ADDED }]));
-		assert.ok(!model.hasState(ModelState.ORPHAN));
+			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.ADDED }]));
+			assert.ok(!model.hasState(ModelState.ORPHAN));
+		});
 	});
 
 	test('SaveSequentializer - pending basics', function (done) {

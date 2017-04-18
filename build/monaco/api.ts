@@ -228,6 +228,7 @@ function format(text:string): string {
 			insertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
 			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: true,
 			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
 			placeOpenBraceOnNewLineForFunctions: false,
 			placeOpenBraceOnNewLineForControlBlocks: false,

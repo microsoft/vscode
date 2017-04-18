@@ -12,6 +12,10 @@ export function isDarkTheme(themeId: string) {
 	return /vs-dark($| )/.test(themeId);
 }
 
+export function isHighContrastTheme(themeId: string) {
+	return /hc-black($| )/.test(themeId);
+}
+
 export function getSyntaxThemeId(themeId: string) {
 	return themeId.split(' ')[1];
 }

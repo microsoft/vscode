@@ -36,7 +36,10 @@ import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegis
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { isEqual } from 'vs/platform/files/common/files';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
+import { debounceEvent } from 'vs/base/common/event';
+import { attachListStyler } from "vs/platform/theme/common/styler";
 
 export class MarkersPanel extends Panel {
 
@@ -145,6 +148,32 @@ export class MarkersPanel extends Panel {
 		return this.actions;
 	}
 
+	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
+		if (element instanceof Marker) {
+			const marker: Marker = element;
+			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
+			this.editorService.openEditor({
+				resource: marker.resource,
+				options: {
+					selection: marker.range,
+					preserveFocus,
+					pinned,
+					revealIfVisible: true
+				},
+			}, sideByside).done(editor => {
+				if (editor && preserveFocus) {
+					this.rangeHighlightDecorations.highlightRange(marker, <ICommonCodeEditor>editor.getControl());
+				} else {
+					this.rangeHighlightDecorations.removeHighlightRange();
+				}
+			}, errors.onUnexpectedError);
+			return true;
+		} else {
+			this.rangeHighlightDecorations.removeHighlightRange();
+		}
+		return false;
+	}
+
 	private refreshPanel(): TPromise<any> {
 		this.collapseAllAction.enabled = this.markersModel.hasFilteredResources();
 		dom.toggleClass(this.treeContainer, 'hidden', !this.markersModel.hasFilteredResources());
@@ -175,7 +204,7 @@ export class MarkersPanel extends Panel {
 		dom.addClass(this.treeContainer, 'show-file-icons');
 		var actionProvider = this.instantiationService.createInstance(ContributableActionProvider);
 		var renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
-		let controller = this.instantiationService.createInstance(Controller, this.rangeHighlightDecorations, actionProvider);
+		let controller = this.instantiationService.createInstance(Controller);
 		this.tree = new TreeImpl.Tree(this.treeContainer, {
 			dataSource: new Viewer.DataSource(),
 			renderer,
@@ -189,14 +218,15 @@ export class MarkersPanel extends Panel {
 				keyboardSupport: false
 			});
 
-		this._register(this.tree.addListener2('focus', (e: { focus: any }) => {
+		this._register(attachListStyler(this.tree, this.themeService));
+
+		this._register(this.tree.addListener('focus', (e: { focus: any }) => {
 			this.markerFocusContextKey.set(e.focus instanceof Marker);
 		}));
 
-		this._register(this.tree.addListener2('selection', event => {
-			if (event && event.payload && event.payload.origin === 'keyboard') {
-				controller.openFileAtElement(this.tree.getFocus(), false, false, true);
-			}
+		const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree));
+		this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
+			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.editorOptions.pinned, options.sideBySide);
 		}));
 
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
@@ -223,7 +253,7 @@ export class MarkersPanel extends Panel {
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(e.config)));
 		this.toDispose.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
 		this.toDispose.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
-		this.toDispose.push(this.tree.addListener2('selection', () => this.onSelected()));
+		this.toDispose.push(this.tree.addListener('selection', () => this.onSelected()));
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
@@ -345,7 +375,7 @@ export class MarkersPanel extends Panel {
 		let selectedElement = this.tree.getSelection();
 		if (selectedElement && selectedElement.length > 0) {
 			if (selectedElement[0] instanceof Marker) {
-				if (isEqual(resource.uri, selectedElement[0].marker.resource)) {
+				if (resource.uri.toString() === selectedElement[0].marker.resource.toString()) {
 					return true;
 				}
 			}

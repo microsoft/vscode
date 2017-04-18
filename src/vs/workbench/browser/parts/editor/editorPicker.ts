@@ -124,7 +124,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 				return false;
 			}
 
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(e, searchValue, true /* fuzzy highlight */);
+			const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(e, searchValue, true /* fuzzy highlight */);
 			e.setHighlights(labelHighlights, descriptionHighlights);
 
 			return true;

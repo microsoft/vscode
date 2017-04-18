@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ICommonCodeEditor, IRange } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Model } from 'vs/editor/common/model/model';
@@ -13,31 +13,45 @@ import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { QuickFixOracle } from 'vs/editor/contrib/quickFix/browser/quickFixModel';
 import { CodeActionProviderRegistry, LanguageIdentifier } from 'vs/editor/common/modes';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import Event from 'vs/base/common/event';
+import { Range } from "vs/editor/common/core/range";
 
+function promiseOnce<T>(event: Event<T>): TPromise<T> {
+	return new TPromise(resolve => {
+		let reg = event(e => {
+			reg.dispose();
+			resolve(e);
+		});
+	});
+}
 
 suite('QuickFix', () => {
-	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
 
+	const languageIdentifier = new LanguageIdentifier('foo-lang', 3);
 	let uri = URI.parse('untitled:path');
-	let model = Model.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
+	let model: Model;
 	let markerService: MarkerService;
 	let editor: ICommonCodeEditor;
-
-	let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-		provideCodeActions() {
-			return [{ command: { id: 'test-command', title: 'test', arguments: [] }, score: 1 }];
-		}
-	});
+	let reg: IDisposable;
 
 	setup(() => {
+		reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
+			provideCodeActions() {
+				return [{ command: { id: 'test-command', title: 'test', arguments: [] }, score: 1 }];
+			}
+		});
 		markerService = new MarkerService();
+		model = Model.createFromString('foobar  foo bar\nfarboo far boo', undefined, languageIdentifier, uri);
 		editor = mockCodeEditor([], { model });
 		editor.setPosition({ lineNumber: 1, column: 1 });
 	});
 
-	suiteTeardown(() => {
+	teardown(() => {
 		reg.dispose();
+		editor.dispose();
 		model.dispose();
+		markerService.dispose();
 	});
 
 	test('Orcale -> marker added', done => {
@@ -93,13 +107,8 @@ suite('QuickFix', () => {
 	});
 
 	test('Oracle -> ask once per marker/word', () => {
-		let counter = 0;
-		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
-			provideCodeActions() {
-				counter += 1;
-				return [];
-			}
-		});
+
+		const start = promiseOnce(markerService.onMarkerChanged);
 
 		markerService.changeOne('fake', uri, [{
 			startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 6,
@@ -109,31 +118,46 @@ suite('QuickFix', () => {
 			source: ''
 		}]);
 
-		let fixes: TPromise<any>[] = [];
-		let oracle = new QuickFixOracle(editor, markerService, e => {
-			fixes.push(e.fixes);
-		}, 10);
+		return start.then(() => {
 
-		editor.setPosition({ lineNumber: 1, column: 3 }); // marker
-		editor.setPosition({ lineNumber: 1, column: 6 }); // (same) marker
+			let stacks: string[] = [];
+			let counter = 0;
+			let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
+				provideCodeActions() {
+					counter += 1;
+					stacks.push(new Error().stack);
+					return [];
+				}
+			});
 
-		return TPromise.timeout(20).then(() => {
+			let fixes: TPromise<any>[] = [];
+			let oracle = new QuickFixOracle(editor, markerService, e => {
+				fixes.push(e.fixes);
+			}, 10);
 
-			editor.setPosition({ lineNumber: 1, column: 8 }); // whitespace
-			editor.setPosition({ lineNumber: 2, column: 2 }); // word
-			editor.setPosition({ lineNumber: 2, column: 6 }); // (same) word
+			editor.setPosition({ lineNumber: 1, column: 3 }); // marker
+			editor.setPosition({ lineNumber: 1, column: 6 }); // (same) marker
 
-			return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
-				reg.dispose();
-				oracle.dispose();
-				assert.equal(counter, 2);
+			return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(() => {
+
+				assert.equal(counter, 1, stacks.join('\n----\n'));
+
+				editor.setPosition({ lineNumber: 1, column: 8 }); // whitespace
+				editor.setPosition({ lineNumber: 2, column: 2 }); // word
+				editor.setPosition({ lineNumber: 2, column: 6 }); // (same) word
+
+				return TPromise.join([TPromise.timeout(20)].concat(fixes)).then(_ => {
+					reg.dispose();
+					oracle.dispose();
+					assert.equal(counter, 2, stacks.join('\n----\n'));
+				});
 			});
 		});
 	});
 
 	test('Oracle -> selection wins over marker', () => {
 
-		let range: IRange;
+		let range: Range;
 		let reg = CodeActionProviderRegistry.register(languageIdentifier.language, {
 			provideCodeActions(doc, _range) {
 				range = _range;

@@ -64,6 +64,7 @@
 	display: none;
 }
 
+.scm-viewlet .monaco-list .monaco-list-row.selected > .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.selected > .resource > .actions,
 .scm-viewlet .monaco-list:not(.selection-multiple) .monaco-list-row > .resource:hover > .actions {
 	display: block;

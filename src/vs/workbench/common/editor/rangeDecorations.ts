@@ -10,10 +10,11 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/platform/files/common/files';
+import { IRange } from "vs/editor/common/core/range";
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
-	range: editorCommon.IRange;
+	range: IRange;
 	isWholeLine?: boolean;
 }
 
