@@ -29,6 +29,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -80,7 +81,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	constructor(
 		domElement: HTMLElement,
-		options: editorCommon.IEditorOptions,
+		options: IEditorOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
@@ -151,7 +152,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: editorCommon.IEditorOptions): void {
+	public updateOptions(newOptions: IEditorOptions): void {
 		let oldTheme = this._configuration.editor.viewInfo.theme;
 		super.updateOptions(newOptions);
 		let newTheme = this._configuration.editor.viewInfo.theme;

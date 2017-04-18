@@ -21,6 +21,7 @@ import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol, Command } 
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeLensData, getCodeLensData } from '../common/codelens';
+import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
@@ -352,7 +353,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 		this._globalToDispose.push(this._editor.onDidChangeModel(() => this.onModelChange()));
 		this._globalToDispose.push(this._editor.onDidChangeModelLanguage(() => this.onModelChange()));
-		this._globalToDispose.push(this._editor.onDidChangeConfiguration((e: editorCommon.IConfigurationChangedEvent) => {
+		this._globalToDispose.push(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 			if (prevIsEnabled !== this._isEnabled) {

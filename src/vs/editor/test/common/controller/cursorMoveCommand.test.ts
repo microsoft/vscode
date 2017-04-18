@@ -7,13 +7,14 @@
 import * as assert from 'assert';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
-import { Handler, IEditorOptions, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection } from 'vs/editor/common/editorCommon';
+import { Handler, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode } from 'vs/editor/common/modes';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { viewModelHelper as aViewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
 import { Range } from 'vs/editor/common/core/range';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 let H = Handler;
 

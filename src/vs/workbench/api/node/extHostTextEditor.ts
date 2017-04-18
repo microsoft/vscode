@@ -11,11 +11,12 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
-import { ISingleEditOperation, TextEditorCursorStyle, IRange } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation, IRange } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditor';
 import * as TypeConverters from './extHostTypeConverters';
 import { MainThreadEditorsShape } from './extHost.protocol';
 import * as vscode from 'vscode';
+import { TextEditorCursorStyle } from "vs/editor/common/config/editorOptions";
 
 export class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 

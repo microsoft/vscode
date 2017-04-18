@@ -65,9 +65,10 @@ export interface ICommandHandler {
 #include(vs/platform/markers/common/markers): IMarkerData
 #include(vs/editor/browser/standalone/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/common/scrollable): ScrollbarVisibility
-#includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode;LanguageIdentifier=>languages.LanguageIdentifier): IPosition, IRange, ISelection, SelectionDirection, IScrollEvent
+#includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode;LanguageIdentifier=>languages.LanguageIdentifier;editorOptions.=>): IPosition, IRange, ISelection, SelectionDirection, IScrollEvent
 #includeAll(vs/editor/common/model/textModelEvents):
-#includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):
+#includeAll(vs/editor/common/config/editorOptions):
+#includeAll(vs/editor/browser/editorBrowser;editorCommon.=>;editorOptions.=>):
 #include(vs/editor/common/config/fontInfo): FontInfo, BareFontInfo
 }
 

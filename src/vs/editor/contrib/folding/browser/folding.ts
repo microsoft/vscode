@@ -23,6 +23,7 @@ import { IFoldingController, ID } from 'vs/editor/contrib/folding/common/folding
 import { Selection } from 'vs/editor/common/core/selection';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
+import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 
 @editorContribution
 export class FoldingController implements IFoldingController {
@@ -54,7 +55,7 @@ export class FoldingController implements IFoldingController {
 		this.computeToken = 0;
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
-		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: editorCommon.IConfigurationChangedEvent) => {
+		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			let oldIsEnabled = this._isEnabled;
 			this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
 			if (oldIsEnabled !== this._isEnabled) {

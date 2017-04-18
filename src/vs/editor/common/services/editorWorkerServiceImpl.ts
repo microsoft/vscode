@@ -18,6 +18,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -89,7 +90,7 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
 
-		const { wordBasedSuggestions } = this._configurationService.getConfiguration<editorCommon.IEditorOptions>('editor');
+		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>('editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
 		}

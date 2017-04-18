@@ -17,7 +17,6 @@ import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IMessage as InputBoxMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/common/findState';
@@ -27,6 +26,7 @@ import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findC
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, highContrastOutline, highContrastBorder, inputBackground as findInputBackground, editorWidgetBackground, inputActiveOptionBorder, editorWidgetShadow } from "vs/platform/theme/common/colorRegistry";
+import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 
 export interface IFindController {
 	replace(): void;

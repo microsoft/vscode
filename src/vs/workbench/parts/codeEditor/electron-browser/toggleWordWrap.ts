@@ -7,7 +7,7 @@
 import 'vs/css!./media/codeEditor';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICommonCodeEditor, IEditorContribution, InternalEditorOptions, IModel } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -18,6 +18,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
+import { InternalEditorOptions } from "vs/editor/common/config/editorOptions";
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';

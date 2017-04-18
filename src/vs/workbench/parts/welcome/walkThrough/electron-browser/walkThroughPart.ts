@@ -12,7 +12,7 @@ import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { IEditorOptions, IEditorViewState } from 'vs/editor/common/editorCommon';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
@@ -39,6 +39,7 @@ import { isObject } from 'vs/base/common/types';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Parts, IPartService } from "vs/workbench/services/part/common/partService";
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 

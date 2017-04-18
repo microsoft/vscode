@@ -43,6 +43,7 @@ import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/t
 import { attachListStyler } from "vs/platform/theme/common/styler";
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 class DecorationsManager implements IDisposable {
 
@@ -594,7 +595,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		// editor
 		container.div({ 'class': 'preview inline' }, (div: Builder) => {
 
-			var options: editorCommon.IEditorOptions = {
+			var options: IEditorOptions = {
 				scrollBeyondLastLine: false,
 				scrollbar: DefaultConfig.editor.scrollbar,
 				overviewRulerLanes: 2,

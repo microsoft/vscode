@@ -7,12 +7,12 @@
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import { IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 export class CodeEditor extends CodeEditorWidget {
 

@@ -20,7 +20,7 @@ import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IReadOnlyModel, EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
@@ -41,6 +41,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { attachListStyler } from "vs/platform/theme/common/styler";
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 const $ = dom.$;
 

@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import {
-	EndOfLinePreference, Handler, IEditorOptions,
+	EndOfLinePreference, Handler,
 	DefaultEndOfLine, ITextModelCreationOptions, ICommand,
 	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData,
 	ICursorPositionChangedEvent, ICursorSelectionChangedEvent
@@ -23,6 +23,7 @@ import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 let H = Handler;
 

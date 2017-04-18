@@ -13,17 +13,18 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
+import { TextEditorCursorStyle, cursorStyleToString } from "vs/editor/common/config/editorOptions";
 
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | 'auto';
 	insertSpaces?: boolean | 'auto';
-	cursorStyle?: EditorCommon.TextEditorCursorStyle;
+	cursorStyle?: TextEditorCursorStyle;
 	lineNumbers?: TextEditorLineNumbersStyle;
 }
 export interface IResolvedTextEditorConfiguration {
 	tabSize: number;
 	insertSpaces: boolean;
-	cursorStyle: EditorCommon.TextEditorCursorStyle;
+	cursorStyle: TextEditorCursorStyle;
 	lineNumbers: TextEditorLineNumbersStyle;
 }
 
@@ -244,7 +245,7 @@ export class MainThreadTextEditor {
 		}
 
 		if (newConfiguration.cursorStyle) {
-			let newCursorStyle = EditorCommon.cursorStyleToString(newConfiguration.cursorStyle);
+			let newCursorStyle = cursorStyleToString(newConfiguration.cursorStyle);
 			this._codeEditor.updateOptions({
 				cursorStyle: newCursorStyle
 			});
@@ -303,7 +304,7 @@ export class MainThreadTextEditor {
 			// shutdown time
 			return this._configuration;
 		}
-		let cursorStyle = this._configuration ? this._configuration.cursorStyle : EditorCommon.TextEditorCursorStyle.Line;
+		let cursorStyle = this._configuration ? this._configuration.cursorStyle : TextEditorCursorStyle.Line;
 		let lineNumbers: TextEditorLineNumbersStyle = this._configuration ? this._configuration.lineNumbers : TextEditorLineNumbersStyle.On;
 		if (codeEditor) {
 			let codeEditorOpts = codeEditor.getConfiguration();

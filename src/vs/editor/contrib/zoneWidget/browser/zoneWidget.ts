@@ -11,10 +11,11 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
-import { EditorLayoutInfo, IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { Color, RGBA } from "vs/base/common/color";
+import { EditorLayoutInfo } from "vs/editor/common/config/editorOptions";
 
 export interface IOptions {
 	showFrame?: boolean;

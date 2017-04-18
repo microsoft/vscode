@@ -13,6 +13,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
+import * as editorOptions from "vs/editor/common/config/editorOptions";
 
 /**
  * @internal
@@ -399,7 +400,7 @@ export interface IOverviewRuler {
 	getDomNode(): HTMLElement;
 	dispose(): void;
 	setZones(zones: editorCommon.OverviewRulerZone[]): void;
-	setLayout(position: editorCommon.OverviewRulerPosition): void;
+	setLayout(position: editorOptions.OverviewRulerPosition): void;
 }
 /**
  * A rich code editor.
@@ -456,7 +457,7 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * An event emitted when the layout of the editor has changed.
 	 * @event
 	 */
-	onDidLayoutChange(listener: (e: editorCommon.EditorLayoutInfo) => void): IDisposable;
+	onDidLayoutChange(listener: (e: editorOptions.EditorLayoutInfo) => void): IDisposable;
 	/**
 	 * An event emitted when the scroll in the editor has changed.
 	 * @event

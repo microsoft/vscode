@@ -30,6 +30,7 @@ import {
 	IModelContentChangedEvent, IModelDecorationsChangedEvent,
 	IModelLanguageChangedEvent, IModelOptionsChangedEvent, TextModelEventType
 } from 'vs/editor/common/model/textModelEvents';
+import * as editorOptions from "vs/editor/common/config/editorOptions";
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -52,8 +53,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	private readonly _onDidChangeModelDecorations: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>());
 	public readonly onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeModelDecorations.event;
 
-	private readonly _onDidChangeConfiguration: Emitter<editorCommon.IConfigurationChangedEvent> = this._register(new Emitter<editorCommon.IConfigurationChangedEvent>());
-	public readonly onDidChangeConfiguration: Event<editorCommon.IConfigurationChangedEvent> = this._onDidChangeConfiguration.event;
+	private readonly _onDidChangeConfiguration: Emitter<editorOptions.IConfigurationChangedEvent> = this._register(new Emitter<editorOptions.IConfigurationChangedEvent>());
+	public readonly onDidChangeConfiguration: Event<editorOptions.IConfigurationChangedEvent> = this._onDidChangeConfiguration.event;
 
 	protected readonly _onDidChangeModel: Emitter<editorCommon.IModelChangedEvent> = this._register(new Emitter<editorCommon.IModelChangedEvent>());
 	public readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent> = this._onDidChangeModel.event;
@@ -64,8 +65,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	private readonly _onDidChangeCursorSelection: Emitter<editorCommon.ICursorSelectionChangedEvent> = this._register(new Emitter<editorCommon.ICursorSelectionChangedEvent>());
 	public readonly onDidChangeCursorSelection: Event<editorCommon.ICursorSelectionChangedEvent> = this._onDidChangeCursorSelection.event;
 
-	private readonly _onDidLayoutChange: Emitter<editorCommon.EditorLayoutInfo> = this._register(new Emitter<editorCommon.EditorLayoutInfo>());
-	public readonly onDidLayoutChange: Event<editorCommon.EditorLayoutInfo> = this._onDidLayoutChange.event;
+	private readonly _onDidLayoutChange: Emitter<editorOptions.EditorLayoutInfo> = this._register(new Emitter<editorOptions.EditorLayoutInfo>());
+	public readonly onDidLayoutChange: Event<editorOptions.EditorLayoutInfo> = this._onDidLayoutChange.event;
 
 	protected readonly _onDidFocusEditorText: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidFocusEditorText: Event<void> = this._onDidFocusEditorText.event;
@@ -118,7 +119,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 	constructor(
 		domElement: IContextKeyServiceTarget,
-		options: editorCommon.IEditorOptions,
+		options: editorOptions.IEditorOptions,
 		instantiationService: IInstantiationService,
 		contextKeyService: IContextKeyService
 	) {
@@ -204,15 +205,15 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		return this._instantiationService.invokeFunction(fn);
 	}
 
-	public updateOptions(newOptions: editorCommon.IEditorOptions): void {
+	public updateOptions(newOptions: editorOptions.IEditorOptions): void {
 		this._configuration.updateOptions(newOptions);
 	}
 
-	public getConfiguration(): editorCommon.InternalEditorOptions {
+	public getConfiguration(): editorOptions.InternalEditorOptions {
 		return this._configuration.editorClone;
 	}
 
-	public getRawConfiguration(): editorCommon.IEditorOptions {
+	public getRawConfiguration(): editorOptions.IEditorOptions {
 		return this._configuration.getRawOptions();
 	}
 
@@ -759,7 +760,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 	}
 
-	public getLayoutInfo(): editorCommon.EditorLayoutInfo {
+	public getLayoutInfo(): editorOptions.EditorLayoutInfo {
 		return this._configuration.editor.layoutInfo;
 	}
 

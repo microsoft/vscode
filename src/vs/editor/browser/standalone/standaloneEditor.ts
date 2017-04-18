@@ -34,6 +34,7 @@ import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import * as editorOptions from "vs/editor/common/config/editorOptions";
 
 /**
  * @internal
@@ -336,7 +337,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// enums
 		ScrollbarVisibility: ScrollbarVisibility,
-		WrappingIndent: editorCommon.WrappingIndent,
+		WrappingIndent: editorOptions.WrappingIndent,
 		OverviewRulerLane: editorCommon.OverviewRulerLane,
 		EndOfLinePreference: editorCommon.EndOfLinePreference,
 		DefaultEndOfLine: editorCommon.DefaultEndOfLine,
@@ -344,21 +345,21 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		TrackedRangeStickiness: editorCommon.TrackedRangeStickiness,
 		CursorChangeReason: editorCommon.CursorChangeReason,
 		MouseTargetType: editorCommon.MouseTargetType,
-		TextEditorCursorStyle: editorCommon.TextEditorCursorStyle,
-		TextEditorCursorBlinkingStyle: editorCommon.TextEditorCursorBlinkingStyle,
+		TextEditorCursorStyle: editorOptions.TextEditorCursorStyle,
+		TextEditorCursorBlinkingStyle: editorOptions.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
-		RenderMinimap: editorCommon.RenderMinimap,
+		RenderMinimap: editorOptions.RenderMinimap,
 
 		// classes
-		InternalEditorScrollbarOptions: <any>editorCommon.InternalEditorScrollbarOptions,
-		InternalEditorMinimapOptions: <any>editorCommon.InternalEditorMinimapOptions,
-		EditorWrappingInfo: <any>editorCommon.EditorWrappingInfo,
-		InternalEditorViewOptions: <any>editorCommon.InternalEditorViewOptions,
-		EditorContribOptions: <any>editorCommon.EditorContribOptions,
-		InternalEditorOptions: <any>editorCommon.InternalEditorOptions,
-		OverviewRulerPosition: <any>editorCommon.OverviewRulerPosition,
-		EditorLayoutInfo: <any>editorCommon.EditorLayoutInfo,
+		InternalEditorScrollbarOptions: <any>editorOptions.InternalEditorScrollbarOptions,
+		InternalEditorMinimapOptions: <any>editorOptions.InternalEditorMinimapOptions,
+		EditorWrappingInfo: <any>editorOptions.EditorWrappingInfo,
+		InternalEditorViewOptions: <any>editorOptions.InternalEditorViewOptions,
+		EditorContribOptions: <any>editorOptions.EditorContribOptions,
+		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,
+		OverviewRulerPosition: <any>editorOptions.OverviewRulerPosition,
+		EditorLayoutInfo: <any>editorOptions.EditorLayoutInfo,
 		BareFontInfo: <any>BareFontInfo,
 		FontInfo: <any>FontInfo,
 		TextModelResolvedOptions: <any>editorCommon.TextModelResolvedOptions,

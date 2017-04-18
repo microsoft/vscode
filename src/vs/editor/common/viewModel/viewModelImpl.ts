@@ -22,6 +22,7 @@ import * as errors from 'vs/base/common/errors';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { CursorEventType } from 'vs/editor/common/controller/cursor';
+import { WrappingIndent, IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 
 const ConfigurationChanged = 'configurationChanged';
 
@@ -195,7 +196,7 @@ export class ViewModel implements IViewModel {
 		return lineMappingChanged;
 	}
 
-	private _onWrappingIndentChange(eventsCollector: ViewEventsCollector, newWrappingIndent: editorCommon.WrappingIndent): boolean {
+	private _onWrappingIndentChange(eventsCollector: ViewEventsCollector, newWrappingIndent: WrappingIndent): boolean {
 		var lineMappingChanged = this.lines.setWrappingIndent(eventsCollector, newWrappingIndent);
 		if (lineMappingChanged) {
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
@@ -406,7 +407,7 @@ export class ViewModel implements IViewModel {
 					break;
 				}
 				case ConfigurationChanged: {
-					const e = <editorCommon.IConfigurationChangedEvent>data;
+					const e = <IConfigurationChangedEvent>data;
 					revealPreviousCenteredModelRange = this._onWrappingIndentChange(eventsCollector, this.configuration.editor.wrappingInfo.wrappingIndent) || revealPreviousCenteredModelRange;
 					revealPreviousCenteredModelRange = this._onWrappingColumnChange(eventsCollector, this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
 
