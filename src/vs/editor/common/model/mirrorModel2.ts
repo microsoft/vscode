@@ -5,9 +5,10 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { IRange } from 'vs/editor/common/editorCommon';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
+import { IPosition } from "vs/editor/common/core/position";
 
 export interface IModelChangedEvent {
 	readonly changes: IModelContentChange[];

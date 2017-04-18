@@ -13,7 +13,7 @@ import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiat
 import { LanguageId, LanguageIdentifier, StandardTokenType } from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IndentRange } from 'vs/editor/common/model/indentRanges';
@@ -34,20 +34,6 @@ export interface Event<T> {
 }
 
 // --- position & range
-
-/**
- * A position in the editor. This interface is suitable for serialization.
- */
-export interface IPosition {
-	/**
-	 * line number (starts at 1)
-	 */
-	readonly lineNumber: number;
-	/**
-	 * column (the first character in a line is between column 1 and column 2)
-	 */
-	readonly column: number;
-}
 
 /**
  * A range in the editor. This interface is suitable for serialization.

@@ -7,7 +7,7 @@
 import { EmitterEvent, IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -562,7 +562,7 @@ export class ViewModel implements IViewModel {
 		return this.model.getLineMaxColumn(modelLineNumber);
 	}
 
-	public validateModelPosition(position: editorCommon.IPosition): Position {
+	public validateModelPosition(position: IPosition): Position {
 		return this.model.validatePosition(position);
 	}
 

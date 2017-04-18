@@ -17,7 +17,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
-import { ICommonCodeEditor, IPosition } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IFileService, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
@@ -34,7 +34,7 @@ import { KeybindingsEditorInput } from 'vs/workbench/parts/preferences/browser/k
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 

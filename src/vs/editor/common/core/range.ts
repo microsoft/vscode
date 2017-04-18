@@ -5,8 +5,8 @@
 
 'use strict';
 
-import { Position } from 'vs/editor/common/core/position';
-import { IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { Position, IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/editorCommon';
 
 /**
  * A range in the editor. (startLineNumber,startColumn) is <= (endLineNumber,endColumn)

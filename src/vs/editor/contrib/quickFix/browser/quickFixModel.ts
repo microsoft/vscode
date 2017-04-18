@@ -11,9 +11,10 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommonCodeEditor, IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IRange } from 'vs/editor/common/editorCommon';
 import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
+import { IPosition } from "vs/editor/common/core/position";
 
 
 export class QuickFixOracle {

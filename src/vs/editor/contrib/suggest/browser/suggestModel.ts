@@ -10,9 +10,9 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition, IWordAtPosition } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IWordAtPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, SuggestRegistry, StandardTokenType } from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
 

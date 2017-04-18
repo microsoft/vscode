@@ -12,7 +12,7 @@ import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/work
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
@@ -361,7 +361,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<modes.ISuggestResult> {
+	public textualSuggest(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {

@@ -8,8 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { Position } from 'vs/editor/common/core/position';
-import { IPosition } from 'vs/editor/common/editorCommon';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeAction } from 'vs/editor/common/modes';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';

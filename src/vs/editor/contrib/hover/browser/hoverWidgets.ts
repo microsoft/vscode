@@ -7,8 +7,7 @@
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { toggleClass } from 'vs/base/browser/dom';
-import { Position } from 'vs/editor/common/core/position';
-import { IPosition } from 'vs/editor/common/editorCommon';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';

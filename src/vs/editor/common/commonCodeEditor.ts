@@ -17,7 +17,7 @@ import { Cursor, CursorEventType } from 'vs/editor/common/controller/cursor';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
 import { EditorState } from 'vs/editor/common/core/editorState';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -263,7 +263,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 	protected abstract _getCompletelyVisibleViewRange(): Range;
 
-	public getVisibleColumnFromPosition(rawPosition: editorCommon.IPosition): number {
+	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
 		if (!this.model) {
 			return rawPosition.column;
 		}
@@ -281,7 +281,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		return this.cursor.getPosition().clone();
 	}
 
-	public setPosition(position: editorCommon.IPosition, reveal: boolean = false, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
+	public setPosition(position: IPosition, reveal: boolean = false, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
 		if (!this.cursor) {
 			return;
 		}
@@ -342,7 +342,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		);
 	}
 
-	public revealPosition(position: editorCommon.IPosition, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
+	public revealPosition(position: IPosition, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
 		this._revealPosition(
 			position,
 			revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple,
@@ -350,7 +350,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		);
 	}
 
-	public revealPositionInCenter(position: editorCommon.IPosition): void {
+	public revealPositionInCenter(position: IPosition): void {
 		this._revealPosition(
 			position,
 			editorCommon.VerticalRevealType.Center,
@@ -358,7 +358,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		);
 	}
 
-	public revealPositionInCenterIfOutsideViewport(position: editorCommon.IPosition): void {
+	public revealPositionInCenterIfOutsideViewport(position: IPosition): void {
 		this._revealPosition(
 			position,
 			editorCommon.VerticalRevealType.CenterIfOutsideViewport,
@@ -366,7 +366,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		);
 	}
 
-	private _revealPosition(position: editorCommon.IPosition, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+	private _revealPosition(position: IPosition, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
 		if (!Position.isIPosition(position)) {
 			throw new Error('Invalid arguments');
 		}

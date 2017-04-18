@@ -16,7 +16,7 @@ import { ITokenizationSupport, IState, TokenizationRegistry, LanguageId, Languag
 import { NULL_LANGUAGE_IDENTIFIER, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBrackets, RichEditBracket } from 'vs/editor/common/modes/supports/richEditBrackets';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
@@ -401,7 +401,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	// Having tokens allows implementing additional helper methods
 
-	public getWordAtPosition(_position: editorCommon.IPosition): editorCommon.IWordAtPosition {
+	public getWordAtPosition(_position: IPosition): editorCommon.IWordAtPosition {
 		this._assertNotDisposed();
 		let position = this.validatePosition(_position);
 		let lineContent = this.getLineContent(position.lineNumber);
@@ -442,7 +442,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return result;
 	}
 
-	public getWordUntilPosition(position: editorCommon.IPosition): editorCommon.IWordAtPosition {
+	public getWordUntilPosition(position: IPosition): editorCommon.IWordAtPosition {
 		var wordAtPosition = this.getWordAtPosition(position);
 		if (!wordAtPosition) {
 			return {
@@ -458,14 +458,14 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		};
 	}
 
-	public tokenIterator(position: editorCommon.IPosition, callback: (it: TokenIterator) => any): any {
+	public tokenIterator(position: IPosition, callback: (it: TokenIterator) => any): any {
 		var iter = new TokenIterator(this, this.validatePosition(position));
 		var result = callback(iter);
 		iter._invalidate();
 		return result;
 	}
 
-	public findMatchingBracketUp(_bracket: string, _position: editorCommon.IPosition): Range {
+	public findMatchingBracketUp(_bracket: string, _position: IPosition): Range {
 		let bracket = _bracket.toLowerCase();
 		let position = this.validatePosition(_position);
 
@@ -486,7 +486,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return this._findMatchingBracketUp(data, position);
 	}
 
-	public matchBracket(position: editorCommon.IPosition): [Range, Range] {
+	public matchBracket(position: IPosition): [Range, Range] {
 		return this._matchBracket(this.validatePosition(position));
 	}
 
@@ -710,7 +710,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	public findPrevBracket(_position: editorCommon.IPosition): editorCommon.IFoundBracket {
+	public findPrevBracket(_position: IPosition): editorCommon.IFoundBracket {
 		const position = this.validatePosition(_position);
 
 		let languageId: LanguageId = -1;
@@ -753,7 +753,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		return null;
 	}
 
-	public findNextBracket(_position: editorCommon.IPosition): editorCommon.IFoundBracket {
+	public findNextBracket(_position: IPosition): editorCommon.IFoundBracket {
 		const position = this.validatePosition(_position);
 
 		let languageId: LanguageId = -1;

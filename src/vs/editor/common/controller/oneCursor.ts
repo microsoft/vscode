@@ -5,7 +5,7 @@
 'use strict';
 
 import { SingleCursorState, CursorConfiguration, ICursorSimpleModel, CursorState } from 'vs/editor/common/controller/cursorCommon';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -45,7 +45,7 @@ export class CursorContext {
 		this._coordinatesConverter = viewModelHelper.coordinatesConverter;
 	}
 
-	public validateModelPosition(position: editorCommon.IPosition): Position {
+	public validateModelPosition(position: IPosition): Position {
 		return this.model.validatePosition(position);
 	}
 
@@ -316,7 +316,7 @@ export class OneCursorOp {
 
 	// -------------------- START handlers that simply change cursor state
 
-	public static moveTo(context: CursorContext, cursor: OneCursor, inSelectionMode: boolean, _position: editorCommon.IPosition, _viewPosition: editorCommon.IPosition): CursorState {
+	public static moveTo(context: CursorContext, cursor: OneCursor, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): CursorState {
 		const position = context.validateModelPosition(_position);
 		const viewPosition = (
 			_viewPosition
@@ -742,7 +742,7 @@ export class OneCursorOp {
 		));
 	}
 
-	public static line(context: CursorContext, cursor: OneCursor, inSelectionMode: boolean, _position: editorCommon.IPosition, _viewPosition: editorCommon.IPosition): CursorState {
+	public static line(context: CursorContext, cursor: OneCursor, inSelectionMode: boolean, _position: IPosition, _viewPosition: IPosition): CursorState {
 		const position = context.validateModelPosition(_position);
 		const viewPosition = (
 			_viewPosition
@@ -801,7 +801,7 @@ export class OneCursorOp {
 		}
 	}
 
-	public static word(context: CursorContext, cursor: OneCursor, inSelectionMode: boolean, _position: editorCommon.IPosition): CursorState {
+	public static word(context: CursorContext, cursor: OneCursor, inSelectionMode: boolean, _position: IPosition): CursorState {
 		const position = context.validateModelPosition(_position);
 		return this._fromModelCursorState(context, cursor, WordOperations.word(context.config, context.model, cursor.modelState, inSelectionMode, position));
 	}

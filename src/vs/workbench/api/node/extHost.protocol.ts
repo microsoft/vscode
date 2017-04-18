@@ -39,6 +39,7 @@ import { IApplyEditsOptions, IUndoStopOptions, TextEditorRevealType, ITextEditor
 import { InternalTreeExplorerNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel2';
+import { IPosition } from "vs/editor/common/core/position";
 
 export interface IEnvironment {
 	enableProposedApi: boolean;
@@ -392,22 +393,22 @@ export abstract class ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]> { throw ni(); }
 	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]> { throw ni(); }
 	$resolveCodeLens(handle: number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol> { throw ni(); }
-	$provideDefinition(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
-	$provideImplementation(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
-	$provideTypeDefinition(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Definition> { throw ni(); }
-	$provideHover(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.Hover> { throw ni(); }
-	$provideDocumentHighlights(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.DocumentHighlight[]> { throw ni(); }
-	$provideReferences(handle: number, resource: URI, position: editorCommon.IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> { throw ni(); }
+	$provideDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> { throw ni(); }
+	$provideImplementation(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> { throw ni(); }
+	$provideTypeDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> { throw ni(); }
+	$provideHover(handle: number, resource: URI, position: IPosition): TPromise<modes.Hover> { throw ni(); }
+	$provideDocumentHighlights(handle: number, resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]> { throw ni(); }
+	$provideReferences(handle: number, resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> { throw ni(); }
 	$provideCodeActions(handle: number, resource: URI, range: editorCommon.IRange): TPromise<modes.CodeAction[]> { throw ni(); }
 	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: editorCommon.IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
-	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: editorCommon.IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
+	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]> { throw ni(); }
 	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]> { throw ni(); }
 	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation> { throw ni(); }
-	$provideRenameEdits(handle: number, resource: URI, position: editorCommon.IPosition, newName: string): TPromise<modes.WorkspaceEdit> { throw ni(); }
-	$provideCompletionItems(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.ISuggestResult> { throw ni(); }
-	$resolveCompletionItem(handle: number, resource: URI, position: editorCommon.IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> { throw ni(); }
-	$provideSignatureHelp(handle: number, resource: URI, position: editorCommon.IPosition): TPromise<modes.SignatureHelp> { throw ni(); }
+	$provideRenameEdits(handle: number, resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit> { throw ni(); }
+	$provideCompletionItems(handle: number, resource: URI, position: IPosition): TPromise<modes.ISuggestResult> { throw ni(); }
+	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion> { throw ni(); }
+	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp> { throw ni(); }
 	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]> { throw ni(); }
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink> { throw ni(); }
 }

@@ -8,10 +8,11 @@ import Severity from 'vs/base/common/severity';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { IPosition, ISelection, IRange, IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { ISelection, IRange, IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { IPosition } from "vs/editor/common/core/position";
 
 export interface PositionLike {
 	line: number;

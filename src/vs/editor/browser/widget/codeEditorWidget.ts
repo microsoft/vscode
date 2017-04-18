@@ -30,6 +30,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IPosition } from "vs/editor/common/core/position";
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -452,7 +453,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		return this._view.getCodeEditorHelper().getTargetAtClientPoint(clientX, clientY);
 	}
 
-	public getScrolledVisiblePosition(rawPosition: editorCommon.IPosition): { top: number; left: number; height: number; } {
+	public getScrolledVisiblePosition(rawPosition: IPosition): { top: number; left: number; height: number; } {
 		if (!this.hasView) {
 			return null;
 		}

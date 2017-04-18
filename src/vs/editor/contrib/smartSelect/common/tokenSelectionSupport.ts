@@ -7,9 +7,10 @@
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { IModel, IRange } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Node, build, find } from './tokenTree';
+import { IPosition } from "vs/editor/common/core/position";
 
 /**
  * Interface used to compute a hierachry of logical ranges.

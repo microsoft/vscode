@@ -25,7 +25,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Configuration } from 'vs/editor/browser/config/configuration';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -578,7 +578,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._domElement;
 	}
 
-	public getVisibleColumnFromPosition(position: editorCommon.IPosition): number {
+	public getVisibleColumnFromPosition(position: IPosition): number {
 		return this.modifiedEditor.getVisibleColumnFromPosition(position);
 	}
 
@@ -586,7 +586,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this.modifiedEditor.getPosition();
 	}
 
-	public setPosition(position: editorCommon.IPosition, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void {
+	public setPosition(position: IPosition, reveal?: boolean, revealVerticalInCenter?: boolean, revealHorizontal?: boolean): void {
 		this.modifiedEditor.setPosition(position, reveal, revealVerticalInCenter, revealHorizontal);
 	}
 
@@ -602,15 +602,15 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.modifiedEditor.revealLineInCenterIfOutsideViewport(lineNumber);
 	}
 
-	public revealPosition(position: editorCommon.IPosition, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
+	public revealPosition(position: IPosition, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
 		this.modifiedEditor.revealPosition(position, revealVerticalInCenter, revealHorizontal);
 	}
 
-	public revealPositionInCenter(position: editorCommon.IPosition): void {
+	public revealPositionInCenter(position: IPosition): void {
 		this.modifiedEditor.revealPositionInCenter(position);
 	}
 
-	public revealPositionInCenterIfOutsideViewport(position: editorCommon.IPosition): void {
+	public revealPositionInCenterIfOutsideViewport(position: IPosition): void {
 		this.modifiedEditor.revealPositionInCenterIfOutsideViewport(position);
 	}
 

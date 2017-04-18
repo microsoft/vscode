@@ -19,7 +19,7 @@ import { StandardTokenType } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition, Handler } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, Handler } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,6 +36,7 @@ import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidge
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from "vs/platform/theme/common/themeService";
+import { IPosition } from "vs/editor/common/core/position";
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;

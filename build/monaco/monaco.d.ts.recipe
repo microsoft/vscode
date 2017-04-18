@@ -43,8 +43,8 @@ declare module monaco {
 #include(vs/base/common/htmlContent): MarkedString
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent
 #include(vs/base/browser/mouseEvent): IMouseEvent
-#include(vs/editor/common/editorCommon): IScrollEvent, IPosition, IRange, ISelection
-#include(vs/editor/common/core/position): Position
+#include(vs/editor/common/editorCommon): IScrollEvent, IRange, ISelection
+#include(vs/editor/common/core/position): IPosition, Position
 #include(vs/editor/common/core/range): Range
 #include(vs/editor/common/core/selection): Selection, SelectionDirection
 #include(vs/editor/common/core/token): Token

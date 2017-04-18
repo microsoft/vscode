@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IPosition, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import { Range } from 'vs/editor/common/core/range';
@@ -14,6 +14,7 @@ import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
 
 import emmet = require('emmet');
+import { IPosition } from "vs/editor/common/core/position";
 
 export interface IGrammarContributions {
 	getGrammar(mode: string): string;

@@ -6,7 +6,7 @@
 
 import { OrderGuaranteeEventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import * as strings from 'vs/base/common/strings';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ModelLine } from 'vs/editor/common/model/modelLine';
@@ -257,7 +257,7 @@ export class TextModel implements editorCommon.ITextModel {
 		}
 	}
 
-	public getOffsetAt(rawPosition: editorCommon.IPosition): number {
+	public getOffsetAt(rawPosition: IPosition): number {
 		this._assertNotDisposed();
 		let position = this._validatePosition(rawPosition.lineNumber, rawPosition.column, false);
 		this._ensureLineStarts();
@@ -721,7 +721,7 @@ export class TextModel implements editorCommon.ITextModel {
 		return new Position(lineNumber, column);
 	}
 
-	public validatePosition(position: editorCommon.IPosition): Position {
+	public validatePosition(position: IPosition): Position {
 		this._assertNotDisposed();
 		return this._validatePosition(position.lineNumber, position.column, true);
 	}
@@ -768,7 +768,7 @@ export class TextModel implements editorCommon.ITextModel {
 		return new Range(startLineNumber, startColumn, endLineNumber, endColumn + 1);
 	}
 
-	public modifyPosition(rawPosition: editorCommon.IPosition, offset: number): Position {
+	public modifyPosition(rawPosition: IPosition, offset: number): Position {
 		this._assertNotDisposed();
 		return this.getPositionAt(this.getOffsetAt(rawPosition) + offset);
 	}
@@ -829,13 +829,13 @@ export class TextModel implements editorCommon.ITextModel {
 		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchRange, captureMatches, limitResultCount);
 	}
 
-	public findNextMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): editorCommon.FindMatch {
+	public findNextMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): editorCommon.FindMatch {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
 		return TextModelSearch.findNextMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchStart, captureMatches);
 	}
 
-	public findPreviousMatch(searchString: string, rawSearchStart: editorCommon.IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): editorCommon.FindMatch {
+	public findPreviousMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wholeWord: boolean, captureMatches: boolean): editorCommon.FindMatch {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
 		return TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wholeWord), searchStart, captureMatches);

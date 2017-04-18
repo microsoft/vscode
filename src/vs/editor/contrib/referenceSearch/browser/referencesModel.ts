@@ -13,9 +13,10 @@ import URI from 'vs/base/common/uri';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
-import { IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { IRange } from 'vs/editor/common/editorCommon';
 import { Location } from 'vs/editor/common/modes';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
+import { IPosition } from "vs/editor/common/core/position";
 
 export class OneReference {
 

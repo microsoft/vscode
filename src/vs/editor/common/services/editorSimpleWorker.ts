@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { stringDiff } from 'vs/base/common/diff/diff';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { MirrorModel2, IModelChangedEvent } from 'vs/editor/common/model/mirrorModel2';
 import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit } from 'vs/editor/common/modes';
 import { computeLinks } from 'vs/editor/common/modes/linkComputer';
@@ -56,12 +56,12 @@ export interface ICommonModel {
 	getLinesContent(): string[];
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
-	getWordUntilPosition(position: editorCommon.IPosition, wordDefinition: RegExp): editorCommon.IWordAtPosition;
+	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): editorCommon.IWordAtPosition;
 	getAllUniqueWords(wordDefinition: RegExp, skipWordOnce?: string): string[];
 	getValueInRange(range: editorCommon.IRange): string;
-	getWordAtPosition(position: editorCommon.IPosition, wordDefinition: RegExp): Range;
-	offsetAt(position: editorCommon.IPosition): number;
-	positionAt(offset: number): editorCommon.IPosition;
+	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range;
+	offsetAt(position: IPosition): number;
+	positionAt(offset: number): IPosition;
 }
 
 /**
@@ -97,7 +97,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		return this._lines[lineNumber - 1];
 	}
 
-	public getWordAtPosition(position: editorCommon.IPosition, wordDefinition: RegExp): Range {
+	public getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range {
 
 		let wordAtText = getWordAtText(
 			position.column,
@@ -113,7 +113,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		return null;
 	}
 
-	public getWordUntilPosition(position: editorCommon.IPosition, wordDefinition: RegExp): editorCommon.IWordAtPosition {
+	public getWordUntilPosition(position: IPosition, wordDefinition: RegExp): editorCommon.IWordAtPosition {
 		var wordAtPosition = this.getWordAtPosition(position, wordDefinition);
 		if (!wordAtPosition) {
 			return {
@@ -193,13 +193,13 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		return resultLines.join(lineEnding);
 	}
 
-	public offsetAt(position: editorCommon.IPosition): number {
+	public offsetAt(position: IPosition): number {
 		position = this._validatePosition(position);
 		this._ensureLineStarts();
 		return this._lineStarts.getAccumulatedValue(position.lineNumber - 2) + (position.column - 1);
 	}
 
-	public positionAt(offset: number): editorCommon.IPosition {
+	public positionAt(offset: number): IPosition {
 		offset = Math.floor(offset);
 		offset = Math.max(0, offset);
 
@@ -235,7 +235,7 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		return range;
 	}
 
-	private _validatePosition(position: editorCommon.IPosition): editorCommon.IPosition {
+	private _validatePosition(position: IPosition): IPosition {
 		if (!Position.isIPosition(position)) {
 			throw new Error('bad position');
 		}
@@ -400,7 +400,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN suggest --------------------------------------------------------------------------
 
-	public textualSuggest(modelUrl: string, position: editorCommon.IPosition, wordDef: string, wordDefFlags: string): TPromise<ISuggestResult> {
+	public textualSuggest(modelUrl: string, position: IPosition, wordDef: string, wordDefFlags: string): TPromise<ISuggestResult> {
 		const model = this._getModel(modelUrl);
 		if (model) {
 			const suggestions: ISuggestion[] = [];

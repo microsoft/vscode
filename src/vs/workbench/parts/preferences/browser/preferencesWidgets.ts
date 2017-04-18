@@ -25,6 +25,7 @@ import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/acti
 import { Action } from 'vs/base/common/actions';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IPosition } from "vs/editor/common/core/position";
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -39,7 +40,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private _onToggled = this._register(new Emitter<boolean>());
 	public onToggled: Event<boolean> = this._onToggled.event;
 
-	private previousPosition: editorCommon.IPosition;
+	private previousPosition: IPosition;
 
 	constructor(private editor: ICodeEditor, public settingsGroup: ISettingsGroup) {
 		super();
@@ -159,7 +160,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		}
 	}
 
-	private focusTitle(currentPosition: editorCommon.IPosition): boolean {
+	private focusTitle(currentPosition: IPosition): boolean {
 		const previousPosition = this.previousPosition;
 		this.previousPosition = currentPosition;
 		if (!previousPosition) {

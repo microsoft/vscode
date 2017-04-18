@@ -18,6 +18,7 @@ import { ISnippetVariableResolver, ICodeSnippet, CodeSnippet } from './snippet';
 import { SnippetVariablesResolver } from './snippetVariables';
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
+import { IPosition } from "vs/editor/common/core/position";
 
 
 export class InsertSnippetController {
@@ -668,7 +669,7 @@ export class SnippetController {
 		return snippet.bind(model.getLineContent(typeRange.startLineNumber), typeRange.startLineNumber - 1, typeRange.startColumn - 1, model);
 	}
 
-	private static _getSnippetCursorOnly(snippet: ICodeSnippet): editorCommon.IPosition {
+	private static _getSnippetCursorOnly(snippet: ICodeSnippet): IPosition {
 
 		if (snippet.placeHolders.length !== 1) {
 			return null;

@@ -415,20 +415,6 @@ declare module monaco {
     }
 
     /**
-     * A position in the editor. This interface is suitable for serialization.
-     */
-    export interface IPosition {
-        /**
-         * line number (starts at 1)
-         */
-        readonly lineNumber: number;
-        /**
-         * column (the first character in a line is between column 1 and column 2)
-         */
-        readonly column: number;
-    }
-
-    /**
      * A range in the editor. This interface is suitable for serialization.
      */
     export interface IRange {
@@ -471,6 +457,19 @@ declare module monaco {
          * The column on `positionLineNumber` where the selection has ended.
          */
         readonly positionColumn: number;
+    }
+    /**
+     * A position in the editor. This interface is suitable for serialization.
+     */
+    export interface IPosition {
+        /**
+         * line number (starts at 1)
+         */
+        readonly lineNumber: number;
+        /**
+         * column (the first character in a line is between column 1 and column 2)
+         */
+        readonly column: number;
     }
 
     /**

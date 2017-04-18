@@ -27,6 +27,7 @@ import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IThemeService } from "vs/platform/theme/common/themeService";
+import { IPosition } from "vs/editor/common/core/position";
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 
@@ -86,7 +87,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 	public toggleWidget(range: Range, modelPromise: TPromise<ReferencesModel>, options: RequestOptions): void {
 
 		// close current widget and return early is position didn't change
-		let widgetPosition: editorCommon.IPosition;
+		let widgetPosition: IPosition;
 		if (this._widget) {
 			widgetPosition = this._widget.position;
 		}
