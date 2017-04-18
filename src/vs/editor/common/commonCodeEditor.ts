@@ -6,7 +6,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, { fromEventEmitter } from 'vs/base/common/event';
-import { EventEmitter, IEventEmitter } from 'vs/base/common/eventEmitter';
+import { EventEmitter, IEventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -32,24 +32,30 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 
 let EDITOR_ID = 0;
 
-export abstract class CommonCodeEditor extends EventEmitter implements editorCommon.ICommonCodeEditor {
+export abstract class CommonCodeEditor implements editorCommon.ICommonCodeEditor {
 
-	public readonly onDidChangeModelContent: Event<editorCommon.IModelContentChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelContentChanged);
-	public readonly onDidChangeModelLanguage: Event<editorCommon.IModelLanguageChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelLanguageChanged);
-	public readonly onDidChangeModelOptions: Event<editorCommon.IModelOptionsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelOptionsChanged);
-	public readonly onDidChangeModelDecorations: Event<editorCommon.IModelDecorationsChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelDecorationsChanged);
-	public readonly onDidChangeConfiguration: Event<editorCommon.IConfigurationChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ConfigurationChanged);
-	public readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent> = fromEventEmitter(this, editorCommon.EventType.ModelChanged);
-	public readonly onDidChangeCursorPosition: Event<editorCommon.ICursorPositionChangedEvent> = fromEventEmitter(this, editorCommon.EventType.CursorPositionChanged);
-	public readonly onDidChangeCursorSelection: Event<editorCommon.ICursorSelectionChangedEvent> = fromEventEmitter(this, editorCommon.EventType.CursorSelectionChanged);
-	public readonly onDidFocusEditorText: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorTextFocus);
-	public readonly onDidBlurEditorText: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorTextBlur);
-	public readonly onDidFocusEditor: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorFocus);
-	public readonly onDidBlurEditor: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.EditorBlur);
-	public readonly onDidDispose: Event<void> = fromEventEmitter<void>(this, editorCommon.EventType.Disposed);
-	public readonly onWillType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.WillType);
-	public readonly onDidType: Event<string> = fromEventEmitter<string>(this, editorCommon.EventType.DidType);
-	public readonly onDidPaste: Event<Range> = fromEventEmitter<Range>(this, editorCommon.EventType.DidPaste);
+	protected readonly _eventEmitter = new EventEmitter();
+
+	public readonly onDidChangeModelContent: Event<editorCommon.IModelContentChangedEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.ModelContentChanged);
+	public readonly onDidChangeModelLanguage: Event<editorCommon.IModelLanguageChangedEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.ModelLanguageChanged);
+	public readonly onDidChangeModelOptions: Event<editorCommon.IModelOptionsChangedEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.ModelOptionsChanged);
+	public readonly onDidChangeModelDecorations: Event<editorCommon.IModelDecorationsChangedEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.ModelDecorationsChanged);
+	public readonly onDidChangeConfiguration: Event<editorCommon.IConfigurationChangedEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.ConfigurationChanged);
+	public readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.ModelChanged);
+	public readonly onDidChangeCursorPosition: Event<editorCommon.ICursorPositionChangedEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.CursorPositionChanged);
+	public readonly onDidChangeCursorSelection: Event<editorCommon.ICursorSelectionChangedEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.CursorSelectionChanged);
+	public readonly onDidFocusEditorText: Event<void> = fromEventEmitter<void>(this._eventEmitter, editorCommon.EventType.EditorTextFocus);
+	public readonly onDidBlurEditorText: Event<void> = fromEventEmitter<void>(this._eventEmitter, editorCommon.EventType.EditorTextBlur);
+	public readonly onDidFocusEditor: Event<void> = fromEventEmitter<void>(this._eventEmitter, editorCommon.EventType.EditorFocus);
+	public readonly onDidBlurEditor: Event<void> = fromEventEmitter<void>(this._eventEmitter, editorCommon.EventType.EditorBlur);
+	public readonly onDidDispose: Event<void> = fromEventEmitter<void>(this._eventEmitter, editorCommon.EventType.Disposed);
+	public readonly onWillType: Event<string> = fromEventEmitter<string>(this._eventEmitter, editorCommon.EventType.WillType);
+	public readonly onDidType: Event<string> = fromEventEmitter<string>(this._eventEmitter, editorCommon.EventType.DidType);
+	public readonly onDidPaste: Event<Range> = fromEventEmitter<Range>(this._eventEmitter, editorCommon.EventType.DidPaste);
+
+	public addBulkListener(listener: BulkListenerCallback): IDisposable {
+		return this._eventEmitter.addBulkListener(listener);
+	}
 
 	protected domElement: IContextKeyServiceTarget;
 
@@ -85,8 +91,6 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		instantiationService: IInstantiationService,
 		contextKeyService: IContextKeyService
 	) {
-		super();
-
 		this.domElement = domElement;
 
 		this.id = (++EDITOR_ID);
@@ -105,10 +109,10 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 		this._configuration = this._createConfiguration(options);
 		this._lifetimeDispose.push(this._configuration.onDidChange((e) => {
-			this.emit(editorCommon.EventType.ConfigurationChanged, e);
+			this._eventEmitter.emit(editorCommon.EventType.ConfigurationChanged, e);
 
 			if (e.layoutInfo) {
-				this.emit(editorCommon.EventType.EditorLayout, this._configuration.editor.layoutInfo);
+				this._eventEmitter.emit(editorCommon.EventType.EditorLayout, this._configuration.editor.layoutInfo);
 			}
 		}));
 
@@ -154,8 +158,8 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 		this._postDetachModelCleanup(this._detachModel());
 		this._configuration.dispose();
 		this._contextKeyService.dispose();
-		this.emit(editorCommon.EventType.Disposed);
-		super.dispose();
+		this._eventEmitter.emit(editorCommon.EventType.Disposed);
+		this._eventEmitter.dispose();
 	}
 
 	public captureState(...flags: editorCommon.CodeEditorStateFlag[]): editorCommon.ICodeEditorState {
@@ -216,7 +220,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			newModelUrl: model ? model.uri : null
 		};
 
-		this.emit(editorCommon.EventType.ModelChanged, e);
+		this._eventEmitter.emit(editorCommon.EventType.ModelChanged, e);
 		this._postDetachModelCleanup(detachedModel);
 	}
 
@@ -553,11 +557,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 				return;
 			}
 			if (source === 'keyboard') {
-				this.emit(editorCommon.EventType.WillType, payload.text);
+				this._eventEmitter.emit(editorCommon.EventType.WillType, payload.text);
 			}
 			this.cursor.trigger(source, handlerId, payload);
 			if (source === 'keyboard') {
-				this.emit(editorCommon.EventType.DidType, payload.text);
+				this._eventEmitter.emit(editorCommon.EventType.DidType, payload.text);
 			}
 			return;
 		}
@@ -571,7 +575,7 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 			this.cursor.trigger(source, handlerId, payload);
 			const endPosition = this.cursor.getSelection().getStartPosition();
 			if (source === 'keyboard') {
-				this.emit(editorCommon.EventType.DidPaste, new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column));
+				this._eventEmitter.emit(editorCommon.EventType.DidPaste, new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column));
 			}
 			return;
 		}
@@ -772,24 +776,24 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 					switch (eventType) {
 						case editorCommon.EventType.ModelDecorationsChanged:
-							this.emit(editorCommon.EventType.ModelDecorationsChanged, e);
+							this._eventEmitter.emit(editorCommon.EventType.ModelDecorationsChanged, e);
 							break;
 
 						case editorCommon.EventType.ModelLanguageChanged:
 							this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
-							this.emit(editorCommon.EventType.ModelLanguageChanged, e);
+							this._eventEmitter.emit(editorCommon.EventType.ModelLanguageChanged, e);
 							break;
 
 						case editorCommon.EventType.ModelRawContentChanged2:
-							this.emit(editorCommon.EventType.ModelRawContentChanged2, e);
+							this._eventEmitter.emit(editorCommon.EventType.ModelRawContentChanged2, e);
 							break;
 
 						case editorCommon.EventType.ModelContentChanged:
-							this.emit(editorCommon.EventType.ModelContentChanged, e);
+							this._eventEmitter.emit(editorCommon.EventType.ModelContentChanged, e);
 							break;
 
 						case editorCommon.EventType.ModelOptionsChanged:
-							this.emit(editorCommon.EventType.ModelOptionsChanged, e);
+							this._eventEmitter.emit(editorCommon.EventType.ModelOptionsChanged, e);
 							break;
 
 						case editorCommon.EventType.ModelDispose:
@@ -821,53 +825,53 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 					switch (eventType) {
 						case editorCommon.EventType.ViewFocusGained:
-							this.emit(editorCommon.EventType.EditorTextFocus);
+							this._eventEmitter.emit(editorCommon.EventType.EditorTextFocus);
 							// In IE, the focus is not synchronous, so we give it a little help
-							this.emit(editorCommon.EventType.EditorFocus, {});
+							this._eventEmitter.emit(editorCommon.EventType.EditorFocus, {});
 							break;
 
-						case 'scroll':
-							this.emit('scroll', e);
+						case editorCommon.EventType.EditorScroll:
+							this._eventEmitter.emit(editorCommon.EventType.EditorScroll, e);
 							break;
 
 						case editorCommon.EventType.ViewFocusLost:
-							this.emit(editorCommon.EventType.EditorTextBlur);
+							this._eventEmitter.emit(editorCommon.EventType.EditorTextBlur);
 							break;
 
 						case editorCommon.EventType.ContextMenu:
-							this.emit(editorCommon.EventType.ContextMenu, e);
+							this._eventEmitter.emit(editorCommon.EventType.ContextMenu, e);
 							break;
 
 						case editorCommon.EventType.MouseDown:
-							this.emit(editorCommon.EventType.MouseDown, e);
+							this._eventEmitter.emit(editorCommon.EventType.MouseDown, e);
 							break;
 
 						case editorCommon.EventType.MouseUp:
-							this.emit(editorCommon.EventType.MouseUp, e);
+							this._eventEmitter.emit(editorCommon.EventType.MouseUp, e);
 							break;
 
 						case editorCommon.EventType.MouseDrag:
-							this.emit(editorCommon.EventType.MouseDrag, e);
+							this._eventEmitter.emit(editorCommon.EventType.MouseDrag, e);
 							break;
 
 						case editorCommon.EventType.MouseDrop:
-							this.emit(editorCommon.EventType.MouseDrop, e);
+							this._eventEmitter.emit(editorCommon.EventType.MouseDrop, e);
 							break;
 
 						case editorCommon.EventType.KeyUp:
-							this.emit(editorCommon.EventType.KeyUp, e);
+							this._eventEmitter.emit(editorCommon.EventType.KeyUp, e);
 							break;
 
 						case editorCommon.EventType.MouseMove:
-							this.emit(editorCommon.EventType.MouseMove, e);
+							this._eventEmitter.emit(editorCommon.EventType.MouseMove, e);
 							break;
 
 						case editorCommon.EventType.MouseLeave:
-							this.emit(editorCommon.EventType.MouseLeave, e);
+							this._eventEmitter.emit(editorCommon.EventType.MouseLeave, e);
 							break;
 
 						case editorCommon.EventType.KeyDown:
-							this.emit(editorCommon.EventType.KeyDown, e);
+							this._eventEmitter.emit(editorCommon.EventType.KeyDown, e);
 							break;
 
 						default:
@@ -883,11 +887,11 @@ export abstract class CommonCodeEditor extends EventEmitter implements editorCom
 
 					switch (eventType) {
 						case editorCommon.EventType.CursorPositionChanged:
-							this.emit(editorCommon.EventType.CursorPositionChanged, e);
+							this._eventEmitter.emit(editorCommon.EventType.CursorPositionChanged, e);
 							break;
 
 						case editorCommon.EventType.CursorSelectionChanged:
-							this.emit(editorCommon.EventType.CursorSelectionChanged, e);
+							this._eventEmitter.emit(editorCommon.EventType.CursorSelectionChanged, e);
 							break;
 
 						default:

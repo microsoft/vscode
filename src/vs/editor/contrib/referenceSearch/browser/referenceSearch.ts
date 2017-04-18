@@ -102,8 +102,8 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
 
-		let control = <editorCommon.ICommonCodeEditor>editor.getControl();
-		if (!control || typeof control.getEditorType !== 'function') {
+		let control = editor.getControl();
+		if (!editorCommon.isCommonCodeEditor(control)) {
 			return undefined;
 		}
 
@@ -125,8 +125,8 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 
 	return accessor.get(IEditorService).openEditor({ resource: resource }).then(editor => {
 
-		let control = <editorCommon.ICommonCodeEditor>editor.getControl();
-		if (!control || typeof control.getEditorType !== 'function') {
+		let control = editor.getControl();
+		if (!editorCommon.isCommonCodeEditor(control)) {
 			return undefined;
 		}
 

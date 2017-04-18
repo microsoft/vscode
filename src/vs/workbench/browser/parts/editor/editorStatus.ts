@@ -24,8 +24,7 @@ import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecyc
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IEditorAction, ICommonCodeEditor, IModelOptionsChangedEvent, IModelLanguageChangedEvent, ICursorPositionChangedEvent, EndOfLineSequence, EditorType, IModel, IDiffEditorModel, IEditor } from 'vs/editor/common/editorCommon';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorAction, ICommonCodeEditor, IModelOptionsChangedEvent, IModelLanguageChangedEvent, ICursorPositionChangedEvent, EndOfLineSequence, IModel } from 'vs/editor/common/editorCommon';
 import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
 import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/common/indentation';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
@@ -46,26 +45,6 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
-
-function getCodeEditor(editorWidget: IEditor): ICommonCodeEditor {
-	if (editorWidget) {
-		if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
-			return (<IDiffEditor>editorWidget).getModifiedEditor();
-		}
-		if (editorWidget.getEditorType() === EditorType.ICodeEditor) {
-			return (<ICodeEditor>editorWidget);
-		}
-	}
-	return null;
-}
-
-function getTextModel(editorWidget: IEditor): IModel {
-
-	// make sure to resolve any possible diff editors to their modified side
-	editorWidget = getCodeEditor(editorWidget);
-
-	return editorWidget ? <IModel>editorWidget.getModel() : null;
-}
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {
@@ -477,7 +456,7 @@ export class EditorStatus implements IStatusbarItem {
 
 	private onEditorsChanged(): void {
 		const activeEditor = this.editorService.getActiveEditor();
-		let control: IEditor = getEditorWidget(activeEditor);
+		const control = getEditorWidget(activeEditor);
 
 		// Update all states
 		this.onSelectionChange(control);
@@ -539,12 +518,12 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private onModeChange(editorWidget?: IEditor): void {
+	private onModeChange(editorWidget: ICommonCodeEditor): void {
 		let info: StateDelta = { mode: null };
 
 		// We only support text based editors
 		if (editorWidget) {
-			const textModel = getTextModel(editorWidget);
+			const textModel = editorWidget.getModel();
 			if (textModel) {
 				// Compute mode
 				const modeId = textModel.getLanguageIdentifier().language;
@@ -555,15 +534,11 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onIndentationChange(editorWidget?: IEditor): void {
+	private onIndentationChange(editorWidget: ICommonCodeEditor): void {
 		const update: StateDelta = { indentation: null };
 
 		if (editorWidget) {
-			if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
-				editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
-			}
-
-			const model = (<ICommonCodeEditor>editorWidget).getModel();
+			const model = editorWidget.getModel();
 			if (model) {
 				const modelOpts = model.getOptions();
 				update.indentation = (
@@ -587,7 +562,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(update);
 	}
 
-	private onSelectionChange(editorWidget?: IEditor): void {
+	private onSelectionChange(editorWidget: ICommonCodeEditor): void {
 		const info: IEditorSelectionStatus = {};
 
 		// We only support text based editors
@@ -598,7 +573,7 @@ export class EditorStatus implements IStatusbarItem {
 
 			// Compute selection length
 			info.charactersSelected = 0;
-			const textModel = getTextModel(editorWidget);
+			const textModel = editorWidget.getModel();
 			if (textModel) {
 				info.selections.forEach(selection => {
 					info.charactersSelected += textModel.getValueLengthInRange(selection);
@@ -624,12 +599,11 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState({ selectionStatus: this.getSelectionLabel(info) });
 	}
 
-	private onEOLChange(editorWidget?: IEditor): void {
+	private onEOLChange(editorWidget: ICommonCodeEditor): void {
 		const info: StateDelta = { EOL: null };
 
-		const codeEditor = getCodeEditor(editorWidget);
-		if (codeEditor && !codeEditor.getConfiguration().readOnly) {
-			const codeEditorModel = codeEditor.getModel();
+		if (editorWidget && !editorWidget.getConfiguration().readOnly) {
+			const codeEditorModel = editorWidget.getModel();
 			if (codeEditorModel) {
 				info.EOL = codeEditorModel.getEOL();
 			}
@@ -685,18 +659,16 @@ export class EditorStatus implements IStatusbarItem {
 	}
 }
 
-function isWritableCodeEditor(e: IBaseEditor): boolean {
-	let editorWidget: IEditor = getEditorWidget(e);
-	if (!editorWidget) {
+function isWritableCodeEditor(codeEditor: ICommonCodeEditor): boolean {
+	if (!codeEditor) {
 		return false;
 	}
+	const config = codeEditor.getConfiguration();
+	return (!config.readOnly);
+}
 
-	if (editorWidget.getEditorType() === EditorType.IDiffEditor) {
-		editorWidget = (<IDiffEditor>editorWidget).getModifiedEditor();
-	}
-
-	return (editorWidget.getEditorType() === EditorType.ICodeEditor &&
-		!(<ICodeEditor>editorWidget).getConfiguration().readOnly);
+function isWritableBaseEditor(e: IBaseEditor): boolean {
+	return isWritableCodeEditor(getEditorWidget(e));
 }
 
 export class ShowLanguageExtensionsAction extends Action {
@@ -750,7 +722,7 @@ export class ChangeModeAction extends Action {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		const textModel = getTextModel(editorWidget);
+		const textModel = editorWidget.getModel();
 		const fileResource = toResource(activeEditor.input, { supportSideBySide: true, filter: 'file' });
 
 		// Compute mode
@@ -844,19 +816,13 @@ export class ChangeModeAction extends Action {
 
 			// Change mode for active editor
 			activeEditor = this.editorService.getActiveEditor();
-			const editorWidget: IEditor = getEditorWidget(activeEditor);
+			const editorWidget = getEditorWidget(activeEditor);
 			if (editorWidget) {
 				const models: IModel[] = [];
 
-				const textModel = getTextModel(editorWidget);
+				const textModel = editorWidget.getModel();
 				if (textModel) {
 					models.push(textModel);
-				}
-
-				// Support for original side of diff
-				const model = editorWidget.getModel();
-				if (model && !!(<IDiffEditorModel>model).original) {
-					models.push((<IDiffEditorModel>model).original);
 				}
 
 				// Find mode
@@ -949,7 +915,7 @@ class ChangeIndentationAction extends Action {
 		if (!control) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
-		if (!isWritableCodeEditor(activeEditor)) {
+		if (!isWritableCodeEditor(control)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
@@ -1000,11 +966,11 @@ export class ChangeEOLAction extends Action {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		if (!isWritableCodeEditor(activeEditor)) {
+		if (!isWritableCodeEditor(editorWidget)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
-		const textModel = getTextModel(editorWidget);
+		const textModel = editorWidget.getModel();
 
 		const EOLOptions: IChangeEOLEntry[] = [
 			{ label: nlsEOLLF, eol: EndOfLineSequence.LF },
@@ -1017,8 +983,8 @@ export class ChangeEOLAction extends Action {
 			if (eol) {
 				activeEditor = this.editorService.getActiveEditor();
 				const editorWidget = getEditorWidget(activeEditor);
-				if (editorWidget && isWritableCodeEditor(activeEditor)) {
-					const textModel = getTextModel(editorWidget);
+				if (editorWidget && isWritableCodeEditor(editorWidget)) {
+					const textModel = editorWidget.getModel();
 					textModel.setEOL(eol.eol);
 				}
 			}
@@ -1067,7 +1033,7 @@ export class ChangeEncodingAction extends Action {
 
 		if (encodingSupport instanceof UntitledEditorInput) {
 			pickActionPromise = TPromise.as(saveWithEncodingPick);
-		} else if (!isWritableCodeEditor(activeEditor)) {
+		} else if (!isWritableBaseEditor(activeEditor)) {
 			pickActionPromise = TPromise.as(reopenWithEncodingPick);
 		} else {
 			pickActionPromise = this.quickOpenService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: nls.localize('pickAction', "Select Action"), matchOnDetail: true });

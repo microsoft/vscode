@@ -385,7 +385,7 @@ export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction
 		this.editorService = editorService;
 		this.gitService = gitService;
 		this.editor = editor.getControl();
-		this.editor.onDidChangeCursorSelection(() => this.updateEnablement());
+		this.editor.getModifiedEditor().onDidChangeCursorSelection(() => this.updateEnablement());
 		this.editor.onDidUpdateDiff(() => this.updateEnablement());
 		this.class = 'git-action stage-ranges';
 	}
@@ -492,7 +492,7 @@ export class RevertRangesAction extends baseeditor.EditorInputAction {
 		super(RevertRangesAction.ID, RevertRangesAction.LABEL);
 
 		this.editor = editor.getControl();
-		this.editor.onDidChangeCursorSelection(() => this.updateEnablement());
+		this.editor.getModifiedEditor().onDidChangeCursorSelection(() => this.updateEnablement());
 		this.editor.onDidUpdateDiff(() => this.updateEnablement());
 		this.class = 'git-action revert-ranges';
 	}

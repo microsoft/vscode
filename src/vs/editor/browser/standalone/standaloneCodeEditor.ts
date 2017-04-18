@@ -228,7 +228,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 				oldModelUrl: null,
 				newModelUrl: model.uri
 			};
-			this.emit(EventType.ModelChanged, e);
+			this._eventEmitter.emit(EventType.ModelChanged, e);
 		}
 	}
 

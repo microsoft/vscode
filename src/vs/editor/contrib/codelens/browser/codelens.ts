@@ -445,41 +445,31 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		}, 250);
 		this._localToDispose.push(scheduler);
 		this._localToDispose.push(this._detectVisibleLenses);
-		this._localToDispose.push(model.addBulkListener((events) => {
-			let hadChange = false;
-			for (let i = 0; i < events.length; i++) {
-				const eventType = events[i].type;
-				if (eventType === editorCommon.EventType.ModelRawContentChanged2) {
-					hadChange = true;
-					break;
-				}
-			}
-			if (hadChange) {
-				this._editor.changeDecorations((changeAccessor) => {
-					this._editor.changeViewZones((viewAccessor) => {
-						const toDispose: CodeLens[] = [];
-						this._lenses.forEach((lens) => {
-							if (lens.isValid()) {
-								lens.update(viewAccessor);
-							} else {
-								toDispose.push(lens);
-							}
-						});
-
-						let helper = new CodeLensHelper();
-						toDispose.forEach((l) => {
-							l.dispose(helper, viewAccessor);
-							this._lenses.splice(this._lenses.indexOf(l), 1);
-						});
-						helper.commit(changeAccessor);
+		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
+			this._editor.changeDecorations((changeAccessor) => {
+				this._editor.changeViewZones((viewAccessor) => {
+					const toDispose: CodeLens[] = [];
+					this._lenses.forEach((lens) => {
+						if (lens.isValid()) {
+							lens.update(viewAccessor);
+						} else {
+							toDispose.push(lens);
+						}
 					});
-				});
 
-				// Compute new `visible` code lenses
-				this._detectVisibleLenses.schedule();
-				// Ask for all references again
-				scheduler.schedule();
-			}
+					let helper = new CodeLensHelper();
+					toDispose.forEach((l) => {
+						l.dispose(helper, viewAccessor);
+						this._lenses.splice(this._lenses.indexOf(l), 1);
+					});
+					helper.commit(changeAccessor);
+				});
+			});
+
+			// Compute new `visible` code lenses
+			this._detectVisibleLenses.schedule();
+			// Ask for all references again
+			scheduler.schedule();
 		}));
 		this._localToDispose.push(this._editor.onDidScrollChange((e) => {
 			if (e.scrollTopChanged) {

@@ -7,7 +7,7 @@
 
 import 'vs/css!./media/diffEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { EventEmitter, EmitterEvent } from 'vs/base/common/eventEmitter';
+import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
@@ -376,13 +376,71 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	private _createLeftHandSideEditor(options: editorCommon.IDiffEditorOptions, instantiationService: IInstantiationService): void {
 		this.originalEditor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
-		this._toDispose.push(this.originalEditor.addBulkListener((events) => this._onOriginalEditorEvents(events)));
+
+		this._toDispose.push(this.originalEditor.onDidScrollChange((e) => {
+			if (this._isHandlingScrollEvent) {
+				return;
+			}
+			if (!e.scrollTopChanged && !e.scrollLeftChanged) {
+				return;
+			}
+			this._isHandlingScrollEvent = true;
+			this.modifiedEditor.setScrollPosition({
+				scrollLeft: e.scrollLeft,
+				scrollTop: e.scrollTop
+			});
+			this._isHandlingScrollEvent = false;
+		}));
+
+		this._toDispose.push(this.originalEditor.onDidChangeViewZones(() => {
+			this._onViewZonesChanged();
+		}));
+
+		this._toDispose.push(this.originalEditor.onDidChangeModelContent(() => {
+			if (this._isVisible) {
+				this._beginUpdateDecorationsSoon();
+			}
+		}));
+
 		this._toDispose.push(this.addEmitter(this.originalEditor));
 	}
 
 	private _createRightHandSideEditor(options: editorCommon.IDiffEditorOptions, instantiationService: IInstantiationService): void {
 		this.modifiedEditor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
-		this._toDispose.push(this.modifiedEditor.addBulkListener((events) => this._onModifiedEditorEvents(events)));
+
+		this._toDispose.push(this.modifiedEditor.onDidScrollChange((e) => {
+			if (this._isHandlingScrollEvent) {
+				return;
+			}
+			if (!e.scrollTopChanged && !e.scrollLeftChanged) {
+				return;
+			}
+			this._isHandlingScrollEvent = true;
+			this.originalEditor.setScrollPosition({
+				scrollLeft: e.scrollLeft,
+				scrollTop: e.scrollTop
+			});
+			this._isHandlingScrollEvent = false;
+
+			this._layoutOverviewViewport();
+		}));
+
+		this._toDispose.push(this.modifiedEditor.onDidChangeViewZones(() => {
+			this._onViewZonesChanged();
+		}));
+
+		this._toDispose.push(this.modifiedEditor.onDidChangeConfiguration((e) => {
+			if (e.fontInfo && this.modifiedEditor.getModel()) {
+				this._onViewZonesChanged();
+			}
+		}));
+
+		this._toDispose.push(this.modifiedEditor.onDidChangeModelContent(() => {
+			if (this._isVisible) {
+				this._beginUpdateDecorationsSoon();
+			}
+		}));
+
 		this._toDispose.push(this.addEmitter(this.modifiedEditor));
 	}
 
@@ -747,67 +805,20 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 
 	//------------ end layouting methods
 
-	private _recomputeIfNecessary(events: EmitterEvent[]): void {
-		let changed = false;
-		for (let i = 0; !changed && i < events.length; i++) {
-			let type = events[i].type;
-			changed = changed || type === editorCommon.EventType.ModelRawContentChanged2;
-		}
-		if (changed && this._isVisible) {
-			// Clear previous timeout if necessary
-			if (this._beginUpdateDecorationsTimeout !== -1) {
-				window.clearTimeout(this._beginUpdateDecorationsTimeout);
-				this._beginUpdateDecorationsTimeout = -1;
-			}
-			this._beginUpdateDecorationsTimeout = window.setTimeout(() => this._beginUpdateDecorations(), DiffEditorWidget.UPDATE_DIFF_DECORATIONS_DELAY);
-		}
-	}
-
-	private _onOriginalEditorEvents(events: EmitterEvent[]): void {
-		for (let i = 0; i < events.length; i++) {
-			let type = events[i].type;
-			let data = events[i].data;
-
-			if (type === 'scroll') {
-				this._onOriginalEditorScroll(data);
-			}
-			if (type === editorCommon.EventType.ViewZonesChanged) {
-				this._onViewZonesChanged();
-			}
-		}
-		this._recomputeIfNecessary(events);
-	}
-
-	private _onModifiedEditorEvents(events: EmitterEvent[]): void {
-		for (let i = 0; i < events.length; i++) {
-			let type = events[i].type;
-			let data = events[i].data;
-
-			if (type === 'scroll') {
-				this._onModifiedEditorScroll(data);
-				this._layoutOverviewViewport();
-			}
-			if (type === 'viewLayoutChanged') {
-				this._layoutOverviewViewport();
-			}
-			if (type === editorCommon.EventType.ViewZonesChanged) {
-				this._onViewZonesChanged();
-			}
-			if (type === editorCommon.EventType.ConfigurationChanged) {
-				let e = <editorCommon.IConfigurationChangedEvent>data;
-				if (e.fontInfo && this.modifiedEditor.getModel()) {
-					this._onViewZonesChanged();
-				}
-			}
-		}
-		this._recomputeIfNecessary(events);
-	}
-
 	private _onViewZonesChanged(): void {
 		if (this._currentlyChangingViewZones) {
 			return;
 		}
 		this._updateDecorationsRunner.schedule();
+	}
+
+	private _beginUpdateDecorationsSoon(): void {
+		// Clear previous timeout if necessary
+		if (this._beginUpdateDecorationsTimeout !== -1) {
+			window.clearTimeout(this._beginUpdateDecorationsTimeout);
+			this._beginUpdateDecorationsTimeout = -1;
+		}
+		this._beginUpdateDecorationsTimeout = window.setTimeout(() => this._beginUpdateDecorations(), DiffEditorWidget.UPDATE_DIFF_DECORATIONS_DELAY);
 	}
 
 	private _beginUpdateDecorations(): void {
@@ -902,36 +913,6 @@ export class DiffEditorWidget extends EventEmitter implements editorBrowser.IDif
 		result.scrollbar.verticalHasArrows = false;
 		result.theme = this._theme + ' modified-in-monaco-diff-editor';
 		return result;
-	}
-
-	private _onOriginalEditorScroll(e: editorCommon.IScrollEvent): void {
-		if (!e.scrollTopChanged && !e.scrollLeftChanged) {
-			return;
-		}
-		if (this._isHandlingScrollEvent) {
-			return;
-		}
-		this._isHandlingScrollEvent = true;
-		this.modifiedEditor.setScrollPosition({
-			scrollLeft: e.scrollLeft,
-			scrollTop: e.scrollTop
-		});
-		this._isHandlingScrollEvent = false;
-	}
-
-	private _onModifiedEditorScroll(e: editorCommon.IScrollEvent): void {
-		if (!e.scrollTopChanged && !e.scrollLeftChanged) {
-			return;
-		}
-		if (this._isHandlingScrollEvent) {
-			return;
-		}
-		this._isHandlingScrollEvent = true;
-		this.originalEditor.setScrollPosition({
-			scrollLeft: e.scrollLeft,
-			scrollTop: e.scrollTop
-		});
-		this._isHandlingScrollEvent = false;
 	}
 
 	private _doLayout(): void {

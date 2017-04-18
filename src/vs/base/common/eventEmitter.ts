@@ -26,10 +26,13 @@ export interface BulkListenerCallback {
 	(value: EmitterEvent[]): void;
 }
 
-export interface IEventEmitter extends IDisposable {
+export interface IBaseEventEmitter {
+	addBulkListener(listener: BulkListenerCallback): IDisposable;
+}
+
+export interface IEventEmitter extends IBaseEventEmitter, IDisposable {
 	addListener(eventType: string, listener: ListenerCallback): IDisposable;
 	addOneTimeListener(eventType: string, listener: ListenerCallback): IDisposable;
-	addBulkListener(listener: BulkListenerCallback): IDisposable;
 	addEmitter(eventEmitter: IEventEmitter): IDisposable;
 }
 
@@ -120,7 +123,7 @@ export class EventEmitter implements IEventEmitter {
 		};
 	}
 
-	public addEmitter(eventEmitter: IEventEmitter): IDisposable {
+	public addEmitter(eventEmitter: IBaseEventEmitter): IDisposable {
 		return eventEmitter.addBulkListener((events: EmitterEvent[]): void => {
 			if (this._deferredCnt === 0) {
 				this._emitEvents(events);

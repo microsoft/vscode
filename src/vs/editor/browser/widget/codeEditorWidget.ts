@@ -33,17 +33,18 @@ import { InternalEditorAction } from 'vs/editor/common/editorAction';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
-	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseUp);
-	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDown);
-	public readonly onMouseDrag: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDrag);
-	public readonly onMouseDrop: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseDrop);
-	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.ContextMenu);
-	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseMove);
-	public readonly onMouseLeave: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this, editorCommon.EventType.MouseLeave);
-	public readonly onKeyUp: Event<IKeyboardEvent> = fromEventEmitter(this, editorCommon.EventType.KeyUp);
-	public readonly onKeyDown: Event<IKeyboardEvent> = fromEventEmitter(this, editorCommon.EventType.KeyDown);
-	public readonly onDidLayoutChange: Event<editorCommon.EditorLayoutInfo> = fromEventEmitter(this, editorCommon.EventType.EditorLayout);
-	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = fromEventEmitter(this, 'scroll');
+	public readonly onMouseUp: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseUp);
+	public readonly onMouseDown: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseDown);
+	public readonly onMouseDrag: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseDrag);
+	public readonly onMouseDrop: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseDrop);
+	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.ContextMenu);
+	public readonly onMouseMove: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseMove);
+	public readonly onMouseLeave: Event<editorBrowser.IEditorMouseEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.MouseLeave);
+	public readonly onKeyUp: Event<IKeyboardEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.KeyUp);
+	public readonly onKeyDown: Event<IKeyboardEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.KeyDown);
+	public readonly onDidLayoutChange: Event<editorCommon.EditorLayoutInfo> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.EditorLayout);
+	public readonly onDidScrollChange: Event<editorCommon.IScrollEvent> = fromEventEmitter(this._eventEmitter, editorCommon.EventType.EditorScroll);
+	public readonly onDidChangeViewZones: Event<void> = fromEventEmitter<void>(this._eventEmitter, editorCommon.EventType.ViewZonesChanged);
 
 	private _codeEditorService: ICodeEditorService;
 	private _commandService: ICommandService;
@@ -75,9 +76,9 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			let hasFocus = this._focusTracker.hasFocus();
 
 			if (hasFocus) {
-				this.emit(editorCommon.EventType.EditorFocus, {});
+				this._eventEmitter.emit(editorCommon.EventType.EditorFocus, {});
 			} else {
-				this.emit(editorCommon.EventType.EditorBlur, {});
+				this._eventEmitter.emit(editorCommon.EventType.EditorBlur, {});
 			}
 		});
 
@@ -399,7 +400,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 		let hasChanges = this._view.change(callback);
 		if (hasChanges) {
-			this.emit(editorCommon.EventType.ViewZonesChanged);
+			this._eventEmitter.emit(editorCommon.EventType.ViewZonesChanged);
 		}
 	}
 

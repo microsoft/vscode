@@ -9,13 +9,12 @@ import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
-import { EditorType, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
 import { IExpression } from 'vs/base/common/glob';
 import env = require('vs/base/common/platform');
-import { isFunction } from 'vs/base/common/types';
 import { Delayer } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
@@ -803,7 +802,7 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		let editorControl: any = this.editorService.getActiveEditor().getControl();
-		if (!editorControl || !isFunction(editorControl.getEditorType) || editorControl.getEditorType() !== EditorType.ICodeEditor) { // Substitute for (editor instanceof ICodeEditor)
+		if (!isCommonCodeEditor(editorControl)) {
 			return null;
 		}
 
