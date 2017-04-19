@@ -26,6 +26,7 @@ export interface IKeyboardEventWrapper {
 	_actual: any;
 	equals(keybinding: number): boolean;
 	preventDefault(): void;
+	stopPropagation(): void;
 	isDefaultPrevented(): boolean;
 }
 

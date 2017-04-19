@@ -128,6 +128,8 @@ let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = {};
 
 	KEY_CODE_MAP[226] = KeyCode.OEM_102;
 
+	KEY_CODE_MAP[229] = KeyCode.KEY_IN_COMPOSITION;
+
 	if (browser.isIE) {
 		KEY_CODE_MAP[91] = KeyCode.Meta;
 	} else if (browser.isFirefox) {

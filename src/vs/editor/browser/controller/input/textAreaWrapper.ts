@@ -80,6 +80,10 @@ class KeyboardEventWrapper implements IKeyboardEventWrapper {
 		this._actual.preventDefault();
 	}
 
+	public stopPropagation(): void {
+		this._actual.stopPropagation();
+	}
+
 	public isDefaultPrevented(): boolean {
 		if (this._actual.browserEvent) {
 			return this._actual.browserEvent.defaultPrevented;

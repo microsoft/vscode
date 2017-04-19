@@ -186,6 +186,12 @@ export const enum KeyCode {
 	NUMPAD_DIVIDE = 108,	// VK_DIVIDE, 0x6F,
 
 	/**
+	 * https://lists.w3.org/Archives/Public/www-dom/2010JulSep/att-0182/keyCode-spec.html
+	 * If an Input Method Editor is processing key input and the event is keydown, return 229.
+	 */
+	KEY_IN_COMPOSITION = 229,
+
+	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */

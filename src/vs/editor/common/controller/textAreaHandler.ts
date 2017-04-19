@@ -309,6 +309,11 @@ export class TextAreaHandler extends Disposable {
 	}
 
 	private _onKeyDownHandler(e: IKeyboardEventWrapper): void {
+		if (this.textareaIsShownAtCursor && e.equals(KeyCode.KEY_IN_COMPOSITION)) {
+			// Stop propagation for keyDown events if the IME is processing key input
+			e.stopPropagation();
+		}
+
 		if (e.equals(KeyCode.Escape)) {
 			// Prevent default always for `Esc`, otherwise it will generate a keypress
 			// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
