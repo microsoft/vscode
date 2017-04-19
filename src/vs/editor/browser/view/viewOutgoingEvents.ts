@@ -81,19 +81,19 @@ export class ViewOutgoingEvents extends Disposable {
 	}
 
 	public emitContextMenu(e: IEditorMouseEvent): void {
-		this._onContextMenu.fire(e);
+		this._onContextMenu.fire(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseMove(e: IEditorMouseEvent): void {
-		this._onMouseMove.fire(e);
+		this._onMouseMove.fire(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseLeave(e: IEditorMouseEvent): void {
-		this._onMouseLeave.fire(e);
+		this._onMouseLeave.fire(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseUp(e: IEditorMouseEvent): void {
-		this._onMouseUp.fire(e);
+		this._onMouseUp.fire(this._convertViewToModelMouseEvent(e));
 	}
 
 	public emitMouseDown(e: IEditorMouseEvent): void {
