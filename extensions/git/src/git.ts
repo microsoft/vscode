@@ -781,23 +781,35 @@ export class Repository {
 		}
 	}
 
-	getStatus(): Promise<IFileStatus[]> {
-		return new Promise((c, e) => {
+	getStatus(limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
+		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
 			const child = this.stream(['status', '-z', '-u']);
-			child.stdout.setEncoding('utf8');
-			child.stdout.on('data', (raw: string) => {
-				parser.update(raw);
-				console.log('got', parser.status.length);
-			});
-			child.on('error', e);
-			child.on('exit', exitCode => {
+
+			const onExit = exitCode => {
 				if (exitCode !== 0) {
 					e(new GitError({ message: 'Could not get git status.', exitCode }));
 				}
 
-				c(parser.status);
-			});
+				c({ status: parser.status, didHitLimit: false });
+			};
+
+			const onData = (raw: string) => {
+				parser.update(raw);
+
+				if (parser.status.length > 5000) {
+					child.removeListener('exit', onExit);
+					child.stdout.removeListener('data', onData);
+					child.kill();
+
+					c({ status: parser.status.slice(0, 5000), didHitLimit: true });
+				}
+			};
+
+			child.stdout.setEncoding('utf8');
+			child.stdout.on('data', onData);
+			child.on('error', e);
+			child.on('exit', onExit);
 		});
 	}
 

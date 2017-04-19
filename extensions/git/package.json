@@ -618,6 +618,11 @@
           "type": "boolean",
           "description": "%config.ignoreLegacyWarning%",
           "default": false
+        },
+        "git.ignoreLimitWarning": {
+          "type": "boolean",
+          "description": "%config.ignoreLimitWarning%",
+          "default": false
         }
       }
     }

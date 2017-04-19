@@ -351,6 +351,8 @@ export class Model implements Disposable {
 	}
 
 	private onWorkspaceChange: Event<Uri>;
+	private isRepositoryHuge = false;
+	private didWarnAboutLimit = false;
 	private repositoryDisposable: Disposable = EmptyDisposable;
 	private disposables: Disposable[] = [];
 
@@ -454,10 +456,10 @@ export class Model implements Disposable {
 	@throttle
 	async fetch(): Promise<void> {
 		try {
-		await this.run(Operation.Fetch, () => this.repository.fetch());
+			await this.run(Operation.Fetch, () => this.repository.fetch());
 		} catch (err) {
 			// noop
-	}
+		}
 	}
 
 	async pull(rebase?: boolean): Promise<void> {
@@ -586,12 +588,32 @@ export class Model implements Disposable {
 		onNonGitChange(this.onFSChange, this, disposables);
 
 		this.repositoryDisposable = combinedDisposable(disposables);
+		this.isRepositoryHuge = false;
+		this.didWarnAboutLimit = false;
 		this.state = State.Idle;
 	}
 
 	@throttle
 	private async updateModelState(): Promise<void> {
-		const status = await this.repository.getStatus();
+		const { status, didHitLimit } = await this.repository.getStatus();
+		const config = workspace.getConfiguration('git');
+		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
+
+		this.isRepositoryHuge = didHitLimit;
+
+		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
+			const ok = { title: localize('ok', "OK"), isCloseAffordance: true };
+			const neverAgain = { title: localize('neveragain', "Never Show Again") };
+
+			window.showWarningMessage(localize('huge', "The git repository at '{0}' has too many active changes, only a subset of Git features will be enabled.", this.repository.root), ok, neverAgain).then(result => {
+				if (result === neverAgain) {
+					config.update('ignoreLimitWarning', true, false);
+				}
+			});
+
+			this.didWarnAboutLimit = true;
+		}
+
 		let HEAD: Branch | undefined;
 
 		try {
@@ -661,6 +683,10 @@ export class Model implements Disposable {
 		const autorefresh = config.get<boolean>('autorefresh');
 
 		if (!autorefresh) {
+			return;
+		}
+
+		if (this.isRepositoryHuge) {
 			return;
 		}
 
