@@ -48,15 +48,15 @@
 
 .task-statusbar-item-label > .task-statusbar-item-label-error {
 	-webkit-mask: url('status-error.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 12px;
+	-webkit-mask-size: 11px;
 }
 
 .task-statusbar-item-label > .task-statusbar-item-label-warning {
 	-webkit-mask: url('status-warning.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 12px;
+	-webkit-mask-size: 11px;
 }
 
 .task-statusbar-item-label > .task-statusbar-item-label-info {
 	-webkit-mask: url('status-info.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 12px;
+	-webkit-mask-size: 11px;
 }
