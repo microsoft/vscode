@@ -618,6 +618,11 @@
           "type": "boolean",
           "description": "%config.ignoreLegacyWarning%",
           "default": false
+        },
+        "git.ignoreLimitWarning": {
+          "type": "boolean",
+          "description": "%config.ignoreLimitWarning%",
+          "default": false
         }
       }
     }
@@ -627,6 +632,8 @@
     "vscode-nls": "^2.0.1"
   },
   "devDependencies": {
-    "@types/node": "^7.0.4"
+    "@types/mocha": "^2.2.41",
+    "@types/node": "^7.0.4",
+    "mocha": "^3.2.0"
   }
 }
