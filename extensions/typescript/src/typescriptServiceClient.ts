@@ -814,7 +814,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				for (const plugin of pack.contributes.typescriptServerPlugins) {
 					plugins.push({
 						name: plugin.name,
-						path: path.join(extension.extensionPath, 'node_modules', plugin.name)
+						path: extension.extensionPath
 					});
 				}
 			}
