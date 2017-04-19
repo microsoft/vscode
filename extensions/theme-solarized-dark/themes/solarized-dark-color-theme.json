@@ -325,6 +325,8 @@
 		"debugToolBarBackground": "#00212B",
 		"dropdownBackground": "#00212B",
 		"dropdownBorder": "#2AA19899",
+		"pickerGroupForeground": "#2AA19899",
+		"pickerGroupBorder": "#2AA19899",
 
 		"peekViewResultsBackground": "#00212B",
 		"peekViewTitleBackground": "#00212B",
