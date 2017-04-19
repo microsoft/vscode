@@ -14,10 +14,5 @@
 	"win32ShellNameShort": "C&ode - OSS",
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
 	"reportIssueUrl": "https://github.com/Microsoft/vscode/issues/new",
-	"urlProtocol": "code-oss",
-	"sendASmile": {
-		"reportIssueUrl": "https://go.microsoft.com/fwlink/?LinkId=534872",
-		"requestFeatureUrl": "https://go.microsoft.com/fwlink/?LinkID=533482"
-	},
-	"requestFeatureUrl": "https://go.microsoft.com/fwlink/?LinkID=533482"
+	"urlProtocol": "code-oss"
 }
