@@ -51,6 +51,7 @@ import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/edi
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { CursorMovePosition } from "vs/editor/common/controller/oneCursor";
+import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -762,7 +763,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return zonesHaveChanged;
 	}
 
-	public getWhitespaces(): editorCommon.IEditorWhitespace[] {
+	public getWhitespaces(): IEditorWhitespace[] {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.getWhitespaces: View is disposed');
 		}

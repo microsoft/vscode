@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IEditorWhitespace } from 'vs/editor/common/editorCommon';
-import { WhitespaceComputer } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { WhitespaceComputer, IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewWhitespaceViewportData } from "vs/editor/common/viewModel/viewModel";
 

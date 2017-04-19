@@ -16,7 +16,6 @@ import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
-import { EditorState } from 'vs/editor/common/core/editorState';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
@@ -196,10 +195,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._onDidDispose.fire();
 
 		super.dispose();
-	}
-
-	public captureState(...flags: editorCommon.CodeEditorStateFlag[]): editorCommon.ICodeEditorState {
-		return new EditorState(this, flags);
 	}
 
 	public invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {

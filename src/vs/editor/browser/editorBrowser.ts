@@ -15,6 +15,7 @@ import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import * as editorOptions from "vs/editor/common/config/editorOptions";
 import { OverviewRulerZone } from "vs/editor/common/view/overviewZoneManager";
+import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
 
 /**
  * @internal
@@ -68,7 +69,7 @@ export interface IView extends IDisposable {
 	getCodeEditorHelper(): ICodeEditorHelper;
 
 	change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean;
-	getWhitespaces(): editorCommon.IEditorWhitespace[];
+	getWhitespaces(): IEditorWhitespace[];
 
 	render(now: boolean, everything: boolean): void;
 	setAriaActiveDescendant(id: string): void;
@@ -473,6 +474,7 @@ export interface IOverviewRuler {
 	setZones(zones: OverviewRulerZone[]): void;
 	setLayout(position: editorOptions.OverviewRulerPosition): void;
 }
+
 /**
  * A rich code editor.
  */
@@ -582,7 +584,7 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * Get the view zones.
 	 * @internal
 	 */
-	getWhitespaces(): editorCommon.IEditorWhitespace[];
+	getWhitespaces(): IEditorWhitespace[];
 
 	/**
 	 * Get the horizontal position (left offset) for the column w.r.t to the beginning of the line.

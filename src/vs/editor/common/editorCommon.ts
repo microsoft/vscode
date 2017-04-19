@@ -8,7 +8,7 @@ import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { MarkedString } from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -1170,7 +1170,6 @@ export interface IDiffEditorModel {
 	modified: IModel;
 }
 
-
 /**
  * An event describing that an editor has had its model reset (i.e. `editor.setModel()`).
  */
@@ -1252,26 +1251,6 @@ export interface INewScrollPosition {
 }
 
 /**
- * @internal
- * TODO@editorCommon: MOVE
- */
-export class Viewport {
-	readonly _viewportBrand: void;
-
-	readonly top: number;
-	readonly left: number;
-	readonly width: number;
-	readonly height: number;
-
-	constructor(top: number, left: number, width: number, height: number) {
-		this.top = top | 0;
-		this.left = left | 0;
-		this.width = width | 0;
-		this.height = height | 0;
-	}
-}
-
-/**
  * Description of an action contribution
  */
 export interface IActionDescriptor {
@@ -1315,11 +1294,6 @@ export interface IActionDescriptor {
 	 */
 	run(editor: ICommonCodeEditor): void | TPromise<void>;
 }
-
-/**
- * @internal
- */
-export type ICommonEditorContributionCtor = IConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
 
 export interface IEditorAction {
 	readonly id: string;
@@ -1604,23 +1578,6 @@ export interface IEditor {
 }
 
 /**
- * @internal
- */
-export interface ICodeEditorState {
-	validate(editor: ICommonCodeEditor): boolean;
-}
-
-/**
- * @internal
- */
-export enum CodeEditorStateFlag {
-	Value,
-	Selection,
-	Position,
-	Scroll
-}
-
-/**
  * An editor contribution that gets created every time a new editor gets created and gets disposed when the editor gets disposed.
  */
 export interface IEditorContribution {
@@ -1828,11 +1785,6 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @return The contribution or null if contribution not found.
 	 */
 	getContribution<T extends IEditorContribution>(id: string): T;
-
-	/**
-	 * @internal
-	 */
-	captureState(...flags: CodeEditorStateFlag[]): ICodeEditorState;
 
 	/**
 	 * Execute `fn` with the editor's services.
@@ -2068,15 +2020,6 @@ export function isCommonDiffEditor(thing: any): thing is ICommonDiffEditor {
 }
 
 /**
- * @internal
- * TODO@editorCommon: MOVE
- */
-export var ClassName = {
-	EditorWarningDecoration: 'greensquiggly',
-	EditorErrorDecoration: 'redsquiggly'
-};
-
-/**
  * Built-in commands.
  */
 export var Handler = {
@@ -2300,17 +2243,6 @@ export namespace ModeContextKeys {
 
 /**
  * @internal
- * TODO@editorCommon: MOVE
- */
-export interface IEditorWhitespace {
-	readonly id: number;
-	readonly afterLineNumber: number;
-	readonly heightInLines: number;
-}
-
-/**
- * @internal
- * TODO@editorCommon: MOVE
  */
 export const enum ThemeType {
 	Light = 1,

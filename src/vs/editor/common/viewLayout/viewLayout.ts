@@ -8,10 +8,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Scrollable, ScrollState, ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
-import { IViewLayout, IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
+import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
 
 export class LayoutProvider extends Disposable implements IViewLayout {
 
@@ -115,9 +116,9 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 
 	// ---- Layouting logic
 
-	public getCurrentViewport(): editorCommon.Viewport {
+	public getCurrentViewport(): Viewport {
 		const scrollState = this._scrollable.getState();
-		return new editorCommon.Viewport(
+		return new Viewport(
 			scrollState.scrollTop,
 			scrollState.scrollLeft,
 			scrollState.width,
@@ -200,7 +201,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 		const visibleBox = this.getCurrentViewport();
 		return this._linesLayout.getWhitespaceViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
 	}
-	public getWhitespaces(): editorCommon.IEditorWhitespace[] {
+	public getWhitespaces(): IEditorWhitespace[] {
 		return this._linesLayout.getWhitespaces();
 	}
 

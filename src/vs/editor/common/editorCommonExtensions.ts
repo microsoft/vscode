@@ -7,7 +7,7 @@
 import { illegalArgument } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/platform';
@@ -22,6 +22,7 @@ export type ServicesAccessor = ServicesAccessor;
 export const Command = ConfigBasicCommand;
 export const EditorCommand = ConfigEditorCommand;
 export type ICommandOptions = ICommandOptions;
+export type ICommonEditorContributionCtor = IConstructorSignature1<editorCommon.ICommonCodeEditor, editorCommon.IEditorContribution>;
 
 export interface IEditorCommandMenuOptions {
 	group?: string;
@@ -99,7 +100,7 @@ export function editorCommand(ctor: { new (): ConfigEditorCommand }): void {
 	CommonEditorRegistry.registerEditorCommand(new ctor());
 }
 
-export function commonEditorContribution(ctor: editorCommon.ICommonEditorContributionCtor): void {
+export function commonEditorContribution(ctor: ICommonEditorContributionCtor): void {
 	EditorContributionRegistry.INSTANCE.registerEditorContribution(ctor);
 }
 
@@ -116,7 +117,7 @@ export module CommonEditorRegistry {
 
 	// --- Editor Contributions
 
-	export function getEditorContributions(): editorCommon.ICommonEditorContributionCtor[] {
+	export function getEditorContributions(): ICommonEditorContributionCtor[] {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
 	}
 
@@ -166,7 +167,7 @@ class EditorContributionRegistry {
 
 	public static INSTANCE = new EditorContributionRegistry();
 
-	private editorContributions: editorCommon.ICommonEditorContributionCtor[];
+	private editorContributions: ICommonEditorContributionCtor[];
 	private editorActions: EditorAction[];
 
 	constructor() {
@@ -174,7 +175,7 @@ class EditorContributionRegistry {
 		this.editorActions = [];
 	}
 
-	public registerEditorContribution(ctor: editorCommon.ICommonEditorContributionCtor): void {
+	public registerEditorContribution(ctor: ICommonEditorContributionCtor): void {
 		this.editorContributions.push(ctor);
 	}
 
@@ -190,7 +191,7 @@ class EditorContributionRegistry {
 		this.editorActions.push(action);
 	}
 
-	public getEditorContributions(): editorCommon.ICommonEditorContributionCtor[] {
+	public getEditorContributions(): ICommonEditorContributionCtor[] {
 		return this.editorContributions.slice(0);
 	}
 

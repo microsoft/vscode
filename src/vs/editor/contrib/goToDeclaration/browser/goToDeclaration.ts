@@ -40,6 +40,7 @@ import EditorContextKeys = editorCommon.EditorContextKeys;
 import { ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { EditorState, CodeEditorStateFlag } from "vs/editor/common/core/editorState";
 
 
 export class DefinitionActionConfig {
@@ -447,7 +448,8 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.currentWordUnderMouse = word;
 
 		// Find definition and decorate word if found
-		let state = this.editor.captureState(editorCommon.CodeEditorStateFlag.Position, editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Selection, editorCommon.CodeEditorStateFlag.Scroll);
+		let state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
+
 		this.throttler.queue(() => {
 			return state.validate(this.editor)
 				? this.findDefinition(mouseEvent.target)
