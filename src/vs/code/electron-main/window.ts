@@ -253,7 +253,7 @@ export class VSCodeWindow {
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 
 		// respect configured menu bar visibility
-		this.onConfigurationUpdated(this.configurationService.getConfiguration<IConfiguration>());
+		this.onConfigurationUpdated();
 
 		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
 		// a request that needs them. chances are low
@@ -353,7 +353,7 @@ export class VSCodeWindow {
 		return this._readyState;
 	}
 
-	private registerNavigationListenerOn(command: string, back: string, forward: string) {
+	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward') {
 		this._win.on(command, (e, cmd) => {
 			if (this.readyState !== ReadyState.READY) {
 				return; // window must be ready
@@ -365,8 +365,8 @@ export class VSCodeWindow {
 				this.send('vscode:runAction', 'workbench.action.navigateForward');
 			}
 		});
-
 	}
+
 	private registerListeners(): void {
 
 		// Remember that we loaded
@@ -443,10 +443,10 @@ export class VSCodeWindow {
 		}
 
 		// Handle configuration changes
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
 	}
 
-	private onConfigurationUpdated(config: IConfiguration): void {
+	private onConfigurationUpdated(): void {
 		const newMenuBarVisibility = this.getMenuBarVisibility();
 		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
@@ -454,14 +454,14 @@ export class VSCodeWindow {
 		}
 
 		// Swipe command support (macOS)
-		const workbenchConfig = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
-
-		if (workbenchConfig && workbenchConfig.workbench && workbenchConfig.workbench.editor && workbenchConfig.workbench.editor.swipeToNavigate) {
-			this.registerNavigationListenerOn('swipe', 'left', 'right');
-		} else {
-			this._win.removeAllListeners('swipe');
+		if (platform.isMacintosh) {
+			const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+			if (config && config.workbench && config.workbench.editor && config.workbench.editor.swipeToNavigate) {
+				this.registerNavigationListenerOn('swipe', 'left', 'right');
+			} else {
+				this._win.removeAllListeners('swipe');
+			}
 		}
-
 	};
 
 	public load(config: IWindowConfiguration): void {
@@ -746,7 +746,6 @@ export class VSCodeWindow {
 
 	private getMenuBarVisibility(): MenuBarVisibility {
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
 			return 'default';
 		}
