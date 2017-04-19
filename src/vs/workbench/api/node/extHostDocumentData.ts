@@ -6,7 +6,7 @@
 
 import { ok } from 'vs/base/common/assert';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
+import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import URI from 'vs/base/common/uri';
 import { Range, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
@@ -23,7 +23,7 @@ export function getWordDefinitionFor(modeId: string): RegExp {
 	return _modeId2WordDefinition.get(modeId);
 }
 
-export class ExtHostDocumentData extends MirrorModel2 {
+export class ExtHostDocumentData extends MirrorModel {
 
 	private _proxy: MainThreadDocumentsShape;
 	private _languageId: string;

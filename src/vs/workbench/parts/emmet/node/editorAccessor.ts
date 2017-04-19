@@ -5,13 +5,13 @@
 
 'use strict';
 
-import { IPosition, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import { Range } from 'vs/editor/common/core/range';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-
+import { Position } from "vs/editor/common/core/position";
 
 import emmet = require('emmet');
 
@@ -60,8 +60,8 @@ export class EditorAccessor implements emmet.Editor {
 	public getCurrentLineRange(): emmet.Range {
 		let currentLine = this._editor.getSelection().startLineNumber;
 		return {
-			start: this.getOffsetFromPosition({ lineNumber: currentLine, column: 1 }),
-			end: this.getOffsetFromPosition({ lineNumber: currentLine + 1, column: 1 })
+			start: this.getOffsetFromPosition(new Position(currentLine, 1)),
+			end: this.getOffsetFromPosition(new Position(currentLine + 1, 1))
 		};
 	}
 
@@ -93,7 +93,7 @@ export class EditorAccessor implements emmet.Editor {
 		var match = currentLine.match(/<[/]?$/);
 		if (match) {
 			if (strings.startsWith(value, match[0])) {
-				startPosition = { lineNumber: startPosition.lineNumber, column: startPosition.column - match[0].length };
+				startPosition = new Position(startPosition.lineNumber, startPosition.column - match[0].length);
 			} else {
 				return; // ignore
 			}
@@ -102,7 +102,7 @@ export class EditorAccessor implements emmet.Editor {
 		// test if > is located after the replace range. Either replace these too, or block the expansion
 		if (this._editor.getModel().getLineContent(endPosition.lineNumber).substr(endPosition.column - 1, endPosition.column) === '>') {
 			if (strings.endsWith(value, '>')) {
-				endPosition = { lineNumber: endPosition.lineNumber, column: endPosition.column + 1 };
+				endPosition = new Position(endPosition.lineNumber, endPosition.column + 1);
 			} else {
 				return; // ignore
 			}
@@ -235,11 +235,11 @@ export class EditorAccessor implements emmet.Editor {
 		return this._editor.getModel().uri.fsPath;
 	}
 
-	private getPositionFromOffset(offset: number): IPosition {
+	private getPositionFromOffset(offset: number): Position {
 		return this._editor.getModel().getPositionAt(offset);
 	}
 
-	private getOffsetFromPosition(position: IPosition): number {
+	private getOffsetFromPosition(position: Position): number {
 		return this._editor.getModel().getOffsetAt(position);
 	}
 }

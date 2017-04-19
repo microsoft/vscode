@@ -19,12 +19,13 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { LinkProviderRegistry } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { IEditorMouseEvent, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorMouseEvent, ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { getLinks, Link } from 'vs/editor/contrib/links/common/links';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorLinkForeground, editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Position } from "vs/editor/common/core/position";
 
 class LinkOccurence {
 
@@ -278,7 +279,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		}).done(null, onUnexpectedError);
 	}
 
-	public getLinkOccurence(position: editorCommon.IPosition): LinkOccurence {
+	public getLinkOccurence(position: Position): LinkOccurence {
 		var decorations = this.editor.getModel().getDecorationsInRange({
 			startLineNumber: position.lineNumber,
 			startColumn: position.column,
@@ -298,7 +299,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	private isEnabled(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): boolean {
-		return mouseEvent.target.type === editorCommon.MouseTargetType.CONTENT_TEXT &&
+		return mouseEvent.target.type === MouseTargetType.CONTENT_TEXT &&
 			(mouseEvent.event[LinkDetector.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === LinkDetector.TRIGGER_KEY_VALUE));
 	}
 

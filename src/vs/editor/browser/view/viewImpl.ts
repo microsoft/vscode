@@ -5,7 +5,6 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IEventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
@@ -51,6 +50,8 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { CursorMovePosition } from "vs/editor/common/controller/oneCursor";
+import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
 
 export class View extends ViewEventHandler implements editorBrowser.IView, IDisposable {
 
@@ -525,7 +526,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return e.revealCursor ? this.revealCursor() : false;
 	}
 	private revealCursor(): boolean {
-		this.triggerCursorHandler('revealCursor', editorCommon.Handler.CursorMove, { to: editorCommon.CursorMovePosition.ViewPortIfOutside });
+		this.triggerCursorHandler('revealCursor', editorCommon.Handler.CursorMove, { to: CursorMovePosition.ViewPortIfOutside });
 		return false;
 	}
 
@@ -669,11 +670,11 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return this.codeEditorHelper;
 	}
 
-	public getInternalEventBus(): IEventEmitter {
+	public getInternalEventBus(): ViewOutgoingEvents {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.getInternalEventBus: View is disposed');
 		}
-		return this.outgoingEvents.getInternalEventBus();
+		return this.outgoingEvents;
 	}
 
 	public saveState(): editorCommon.IViewState {
@@ -762,7 +763,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		return zonesHaveChanged;
 	}
 
-	public getWhitespaces(): editorCommon.IEditorWhitespace[] {
+	public getWhitespaces(): IEditorWhitespace[] {
 		if (this._isDisposed) {
 			throw new Error('ViewImpl.getWhitespaces: View is disposed');
 		}
@@ -851,11 +852,9 @@ export class View extends ViewEventHandler implements editorBrowser.IView, IDisp
 		if (this._isDisposed) {
 			throw new Error('ViewImpl._renderOnce: View is disposed');
 		}
-		return this.outgoingEvents.deferredEmit(() => {
-			let r = safeInvokeNoArg(callback);
-			this._scheduleRender();
-			return r;
-		});
+		let r = safeInvokeNoArg(callback);
+		this._scheduleRender();
+		return r;
 	}
 
 	private _scheduleRender(): void {

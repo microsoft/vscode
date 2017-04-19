@@ -35,6 +35,7 @@ import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/pla
 import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
+import { IRange } from "vs/editor/common/core/range";
 
 export class SimpleEditor implements IEditor {
 
@@ -143,7 +144,7 @@ export class SimpleEditorService implements IEditorService {
 			return null;
 		}
 
-		let selection = <editorCommon.IRange>data.options.selection;
+		let selection = <IRange>data.options.selection;
 		if (selection) {
 			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
 				editor.setSelection(selection);

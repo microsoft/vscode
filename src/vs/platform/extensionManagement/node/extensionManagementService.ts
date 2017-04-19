@@ -350,7 +350,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 		const message = nls.localize('uninstallConfirmation', "Are you sure you want to uninstall '{0}'?", extension.manifest.displayName || extension.manifest.name);
 		const options = [
-			nls.localize('ok', "Ok"),
+			nls.localize('ok', "OK"),
 			nls.localize('cancel', "Cancel")
 		];
 		return this.choiceService.choose(Severity.Info, message, options, true)

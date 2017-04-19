@@ -7,10 +7,11 @@
 
 import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation, IModelContentChangedEvent } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditableTextModel, IValidatedEditOperation } from 'vs/editor/common/model/editableTextModel';
-import { MirrorModel2 } from 'vs/editor/common/model/mirrorModel2';
+import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
+import { IModelContentChangedEvent } from "vs/editor/common/model/textModelEvents";
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 
@@ -1553,7 +1554,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		let model = EditableTextModel.createFromString('Hello\nWorld!');
 		assert.equal(model.getEOL(), '\n');
 
-		let mirrorModel2 = new MirrorModel2(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
+		let mirrorModel2 = new MirrorModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
 		model.onDidChangeContent((e: IModelContentChangedEvent) => {

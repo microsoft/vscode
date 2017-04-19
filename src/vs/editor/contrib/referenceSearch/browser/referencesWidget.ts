@@ -30,7 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -42,6 +42,8 @@ import { registerColor, highContrastOutline } from 'vs/platform/theme/common/col
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler } from "vs/platform/theme/common/styler";
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 class DecorationsManager implements IDisposable {
 
@@ -106,7 +108,7 @@ class DecorationsManager implements IDisposable {
 		});
 	}
 
-	private _onDecorationChanged(event: editorCommon.IModelDecorationsChangedEvent): void {
+	private _onDecorationChanged(event: IModelDecorationsChangedEvent): void {
 		const changedDecorations = event.changedDecorations,
 			toRemove: string[] = [];
 
@@ -561,7 +563,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		return this._onDidSelectReference.event;
 	}
 
-	show(where: editorCommon.IRange) {
+	show(where: IRange) {
 		this.editor.revealRangeInCenterIfOutsideViewport(where);
 		super.show(where, this.layoutData.heightInLines || 18);
 	}
@@ -593,7 +595,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		// editor
 		container.div({ 'class': 'preview inline' }, (div: Builder) => {
 
-			var options: editorCommon.IEditorOptions = {
+			var options: IEditorOptions = {
 				scrollBeyondLastLine: false,
 				scrollbar: DefaultConfig.editor.scrollbar,
 				overviewRulerLanes: 2,

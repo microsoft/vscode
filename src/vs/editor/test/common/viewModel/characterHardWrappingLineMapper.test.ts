@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { WrappingIndent } from 'vs/editor/common/editorCommon';
+import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
 import { ILineMapperFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 

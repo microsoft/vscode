@@ -10,9 +10,10 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommonCodeEditor, ICursorPositionChangedEvent, EditorContextKeys, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, EditorContextKeys, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { TokenSelectionSupport, ILogicalSelectionEntry } from './tokenSelectionSupport';
+import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 // --- selection state machine
 

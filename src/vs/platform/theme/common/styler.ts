@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, listHoverOutline, listSelectionOutline, listFocusOutline, listInactiveFocusOutline } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, listHoverOutline, listSelectionOutline, listFocusOutline, listInactiveFocusOutline, pickerGroupBorder, pickerGroupForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from "vs/base/common/lifecycle";
 
 export interface IThemable {
@@ -30,7 +30,7 @@ export function attachStyler(themeService: IThemeService, widget: IThemable, opt
 
 export function attachCheckboxStyler(widget: IThemable, themeService: IThemeService, style?: { inputActiveOptionBorderColor?: ColorIdentifier }): IDisposable {
 	return attachStyler(themeService, widget, {
-		inputActiveOptionBorderColor: (style && style.inputActiveOptionBorderColor) || inputActiveOptionBorder
+		inputActiveOptionBorder: (style && style.inputActiveOptionBorderColor) || inputActiveOptionBorder
 	});
 }
 
@@ -66,6 +66,8 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 	inputBackground?: ColorIdentifier,
 	inputForeground?: ColorIdentifier,
 	inputBorder?: ColorIdentifier,
+	pickerGroupForeground?: ColorIdentifier,
+	pickerGroupBorder?: ColorIdentifier,
 	listFocusBackground?: ColorIdentifier,
 	listActiveSelectionBackground?: ColorIdentifier,
 	listActiveSelectionForeground?: ColorIdentifier,
@@ -82,6 +84,8 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		foreground: (style && style.foreground) || foreground,
 		background: (style && style.background) || editorBackground,
 		borderColor: style && style.borderColor || highContrastBorder,
+		pickerGroupForeground: style && style.pickerGroupForeground || pickerGroupForeground,
+		pickerGroupBorder: style && style.pickerGroupBorder || pickerGroupBorder,
 		inputBackground: (style && style.inputBackground) || inputBackground,
 		inputForeground: (style && style.inputForeground) || inputForeground,
 		inputBorder: (style && style.inputBorder) || inputBorder,

@@ -10,10 +10,10 @@ import { compareIgnoreCase } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel, IPosition } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry } from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 

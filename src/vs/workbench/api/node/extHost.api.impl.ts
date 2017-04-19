@@ -49,6 +49,7 @@ import * as paths from 'vs/base/common/paths';
 import { realpath } from 'fs';
 import { MainContext, ExtHostContext, InstanceCollection, IInitData } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
+import { TextEditorCursorStyle } from "vs/editor/common/config/editorOptions";
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -518,7 +519,7 @@ export function createApiFactory(
 			SymbolKind: extHostTypes.SymbolKind,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
-			TextEditorCursorStyle: EditorCommon.TextEditorCursorStyle,
+			TextEditorCursorStyle: TextEditorCursorStyle,
 			TextEditorLineNumbersStyle: extHostTypes.TextEditorLineNumbersStyle,
 			TextEditorRevealType: extHostTypes.TextEditorRevealType,
 			TextEditorSelectionChangeKind: extHostTypes.TextEditorSelectionChangeKind,

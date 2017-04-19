@@ -20,6 +20,7 @@ import { compareAnything, compareByScore as doCompareByScore } from 'vs/base/com
 import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import DOM = require('vs/base/browser/dom');
+import { IQuickOpenStyles } from "vs/base/parts/quickopen/browser/quickOpenWidget";
 
 export interface IContext {
 	event: any;
@@ -424,7 +425,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		return templateEntry;
 	}
 
-	public renderTemplate(templateId: string, container: HTMLElement): IQuickOpenEntryGroupTemplateData {
+	public renderTemplate(templateId: string, container: HTMLElement, styles: IQuickOpenStyles): IQuickOpenEntryGroupTemplateData {
 		const entryContainer = document.createElement('div');
 		DOM.addClass(entryContainer, 'sub-content');
 		container.appendChild(entryContainer);
@@ -485,7 +486,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		};
 	}
 
-	public renderElement(entry: QuickOpenEntry, templateId: string, templateData: any): void {
+	public renderElement(entry: QuickOpenEntry, templateId: string, templateData: any, styles: IQuickOpenStyles): void {
 		const data: IQuickOpenEntryTemplateData = templateData;
 
 		// Action Bar
@@ -510,17 +511,21 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		// Entry group
 		if (entry instanceof QuickOpenEntryGroup) {
 			const group = <QuickOpenEntryGroup>entry;
+			const groupData = <IQuickOpenEntryGroupTemplateData>templateData;
 
 			// Border
 			if (group.showBorder()) {
-				DOM.addClass(data.container, 'results-group-separator');
+				DOM.addClass(groupData.container, 'results-group-separator');
+				groupData.container.style.borderTopColor = styles.pickerGroupBorder.toString();
 			} else {
-				DOM.removeClass(data.container, 'results-group-separator');
+				DOM.removeClass(groupData.container, 'results-group-separator');
+				groupData.container.style.borderTopColor = null;
 			}
 
 			// Group Label
 			const groupLabel = group.getGroupLabel() || '';
-			(<IQuickOpenEntryGroupTemplateData>templateData).group.textContent = groupLabel;
+			groupData.group.textContent = groupLabel;
+			groupData.group.style.color = styles.pickerGroupForeground.toString();
 		}
 
 		// Normal Entry

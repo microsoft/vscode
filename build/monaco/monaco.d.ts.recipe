@@ -43,10 +43,10 @@ declare module monaco {
 #include(vs/base/common/htmlContent): MarkedString
 #include(vs/base/browser/keyboardEvent): IKeyboardEvent
 #include(vs/base/browser/mouseEvent): IMouseEvent
-#include(vs/editor/common/editorCommon): IScrollEvent, IPosition, IRange, ISelection
-#include(vs/editor/common/core/position): Position
-#include(vs/editor/common/core/range): Range
-#include(vs/editor/common/core/selection): Selection, SelectionDirection
+#include(vs/editor/common/editorCommon): IScrollEvent
+#include(vs/editor/common/core/position): IPosition, Position
+#include(vs/editor/common/core/range): IRange, Range
+#include(vs/editor/common/core/selection): ISelection, Selection, SelectionDirection
 #include(vs/editor/common/core/token): Token
 }
 
@@ -65,8 +65,11 @@ export interface ICommandHandler {
 #include(vs/platform/markers/common/markers): IMarkerData
 #include(vs/editor/browser/standalone/colorizer): IColorizerOptions, IColorizerElementOptions
 #include(vs/base/common/scrollable): ScrollbarVisibility
-#includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode;LanguageIdentifier=>languages.LanguageIdentifier): IPosition, IRange, ISelection, SelectionDirection, IScrollEvent
-#includeAll(vs/editor/browser/editorBrowser;editorCommon.=>):
+#includeAll(vs/editor/common/editorCommon;IMode=>languages.IMode;LanguageIdentifier=>languages.LanguageIdentifier;editorOptions.=>): ISelection, IScrollEvent
+#includeAll(vs/editor/common/model/textModelEvents):
+#includeAll(vs/editor/common/controller/cursorEvents):
+#includeAll(vs/editor/common/config/editorOptions):
+#includeAll(vs/editor/browser/editorBrowser;editorCommon.=>;editorOptions.=>):
 #include(vs/editor/common/config/fontInfo): FontInfo, BareFontInfo
 }
 

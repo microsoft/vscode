@@ -41,3 +41,6 @@
 .monaco-list-row.scrolling {
 	display: none !important;
 }
+
+/* Focus */
+.monaco-list.element-focused { outline: 0 !important; }

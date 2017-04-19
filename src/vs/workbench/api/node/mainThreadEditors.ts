@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ISingleEditOperation, ISelection, IRange, IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -18,6 +18,8 @@ import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData } from './extHost.protocol';
+import { IRange } from "vs/editor/common/core/range";
+import { ISelection } from "vs/editor/common/core/selection";
 
 export class MainThreadEditors extends MainThreadEditorsShape {
 

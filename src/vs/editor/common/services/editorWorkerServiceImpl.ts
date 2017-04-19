@@ -12,12 +12,14 @@ import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/work
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IRange } from "vs/editor/common/core/range";
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -64,7 +66,7 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: editorCommon.IRange[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: IRange[]): TPromise<modes.TextEdit[]> {
 		if (!Array.isArray(edits) || edits.length === 0) {
 			return TPromise.as(edits);
 		} else {
@@ -72,7 +74,7 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 		}
 	}
 
-	public navigateValueSet(resource: URI, range: editorCommon.IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
 	}
 }
@@ -89,7 +91,7 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
 
-		const { wordBasedSuggestions } = this._configurationService.getConfiguration<editorCommon.IEditorOptions>('editor');
+		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>('editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
 		}
@@ -348,7 +350,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: editorCommon.IRange[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: IRange[]): TPromise<modes.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeMoreMinimalEdits(resource.toString(), edits, ranges);
 		});
@@ -360,7 +362,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<modes.ISuggestResult> {
+	public textualSuggest(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {
@@ -373,7 +375,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public navigateValueSet(resource: URI, range: editorCommon.IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {

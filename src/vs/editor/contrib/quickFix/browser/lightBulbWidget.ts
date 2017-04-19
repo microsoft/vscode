@@ -9,8 +9,8 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
-import { TrackedRangeStickiness, MouseTargetType } from 'vs/editor/common/editorCommon';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { QuickFixComputeEvent } from './quickFixModel';
 
 export class LightBulbWidget implements IDisposable {

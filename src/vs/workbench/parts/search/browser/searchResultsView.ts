@@ -97,7 +97,7 @@ interface IMatchTemplate {
 	parent: HTMLElement;
 	before: HTMLElement;
 	match: HTMLElement;
-	replace?: HTMLElement;
+	replace: HTMLElement;
 	after: HTMLElement;
 	actions: ActionBar;
 }
@@ -201,7 +201,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		DOM.toggleClass(templateData.match, 'replace', replace);
 		templateData.replace.textContent = replace ? match.replaceString : '';
 		templateData.after.textContent = preview.after;
-		templateData.parent.title = (preview.before + (templateData.replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
+		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 
 		templateData.actions.clear();
 		if (searchModel.isReplaceActive()) {

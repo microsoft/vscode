@@ -5,10 +5,15 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { IPosition, IRange, IModelContentChange } from 'vs/editor/common/editorCommon';
+import { IRange } from 'vs/editor/common/core/range';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
+import { IPosition } from "vs/editor/common/core/position";
 
 export interface IModelChangedEvent {
+	/**
+	 * The actual changes.
+	 */
 	readonly changes: IModelContentChange[];
 	/**
 	 * The (new) end-of-line character.
@@ -20,7 +25,7 @@ export interface IModelChangedEvent {
 	readonly versionId: number;
 }
 
-export class MirrorModel2 {
+export class MirrorModel {
 
 	protected _uri: URI;
 	protected _lines: string[];

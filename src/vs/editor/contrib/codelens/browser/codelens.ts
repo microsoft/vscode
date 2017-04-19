@@ -21,6 +21,7 @@ import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol, Command } 
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeLensData, getCodeLensData } from '../common/codelens';
+import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
@@ -227,7 +228,7 @@ class CodeLens {
 		this._data = data;
 		this._decorationIds = new Array<string>(this._data.length);
 
-		let range: editorCommon.IRange;
+		let range: Range;
 		this._data.forEach((codeLensData, i) => {
 
 			helper.addDecoration({
@@ -237,13 +238,13 @@ class CodeLens {
 
 			// the range contains all lenses on this line
 			if (!range) {
-				range = codeLensData.symbol.range;
+				range = Range.lift(codeLensData.symbol.range);
 			} else {
 				range = Range.plusRange(range, codeLensData.symbol.range);
 			}
 		});
 
-		this._contentWidget = new CodeLensContentWidget(editor, Range.lift(range), commandService, messageService);
+		this._contentWidget = new CodeLensContentWidget(editor, range, commandService, messageService);
 		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallabck);
 
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
@@ -352,7 +353,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 		this._globalToDispose.push(this._editor.onDidChangeModel(() => this.onModelChange()));
 		this._globalToDispose.push(this._editor.onDidChangeModelLanguage(() => this.onModelChange()));
-		this._globalToDispose.push(this._editor.onDidChangeConfiguration((e: editorCommon.IConfigurationChangedEvent) => {
+		this._globalToDispose.push(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 			if (prevIsEnabled !== this._isEnabled) {

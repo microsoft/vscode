@@ -13,9 +13,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IFileService, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Range, IRange } from 'vs/editor/common/core/range';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, IModel, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export interface IResourceEdit {
@@ -92,13 +92,13 @@ class EditTask implements IDisposable {
 
 		if (edit.range || edit.newText) {
 			// create edit operation
-			let range: IRange;
+			let range: Range;
 			if (!edit.range) {
 				range = this._model.getFullModelRange();
 			} else {
-				range = edit.range;
+				range = Range.lift(edit.range);
 			}
-			this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
+			this._edits.push(EditOperation.replaceMove(range, edit.newText));
 		}
 	}
 

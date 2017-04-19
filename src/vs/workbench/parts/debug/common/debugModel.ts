@@ -13,8 +13,7 @@ import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
 import { distinct } from 'vs/base/common/arrays';
-import { IRange } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {

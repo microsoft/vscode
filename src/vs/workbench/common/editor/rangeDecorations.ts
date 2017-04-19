@@ -10,10 +10,12 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/platform/files/common/files';
+import { IRange } from "vs/editor/common/core/range";
+import { CursorChangeReason, ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
-	range: editorCommon.IRange;
+	range: IRange;
 	isWholeLine?: boolean;
 }
 
@@ -66,12 +68,12 @@ export class RangeHighlightDecorations implements IDisposable {
 		if (this.editor !== editor) {
 			this.disposeEditorListeners();
 			this.editor = editor;
-			this.editorDisposables.push(this.editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
+			this.editorDisposables.push(this.editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 				if (
-					e.reason === editorCommon.CursorChangeReason.NotSet
-					|| e.reason === editorCommon.CursorChangeReason.Explicit
-					|| e.reason === editorCommon.CursorChangeReason.Undo
-					|| e.reason === editorCommon.CursorChangeReason.Redo
+					e.reason === CursorChangeReason.NotSet
+					|| e.reason === CursorChangeReason.Explicit
+					|| e.reason === CursorChangeReason.Undo
+					|| e.reason === CursorChangeReason.Redo
 				) {
 					this.removeHighlightRange();
 				}

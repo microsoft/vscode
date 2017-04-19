@@ -10,6 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
 export interface IDecorationsViewportData {
 	/**
@@ -59,7 +60,7 @@ export class ViewModelDecorations implements IDisposable {
 		this._clearCachedModelDecorationsResolver();
 	}
 
-	public onModelDecorationsChanged(eventsCollector: ViewEventsCollector, e: editorCommon.IModelDecorationsChangedEvent): void {
+	public onModelDecorationsChanged(eventsCollector: ViewEventsCollector, e: IModelDecorationsChangedEvent): void {
 		let changedDecorations = e.changedDecorations;
 		for (let i = 0, len = changedDecorations.length; i < len; i++) {
 			let changedDecoration = changedDecorations[i];

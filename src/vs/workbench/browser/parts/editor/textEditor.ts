@@ -15,7 +15,7 @@ import DOM = require('vs/base/browser/dom');
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { EditorInput, EditorOptions, toResource } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorViewState, IEditor, IEditorOptions, EventType as EditorEventType } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, IEditor, isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -26,8 +26,8 @@ import { Scope } from 'vs/workbench/common/memento';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -146,9 +146,13 @@ export abstract class BaseTextEditor extends BaseEditor {
 		}
 
 		// Application & Editor focus change to respect auto save settings
-		if (this.editorControl instanceof EventEmitter) {
-			this.toUnbind.push(this.editorControl.addListener(EditorEventType.EditorBlur, () => this.onEditorFocusLost()));
+		if (isCommonCodeEditor(this.editorControl)) {
+			this.toUnbind.push(this.editorControl.onDidBlurEditor(() => this.onEditorFocusLost()));
+		} else if (isCommonDiffEditor(this.editorControl)) {
+			this.toUnbind.push(this.editorControl.getOriginalEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
+			this.toUnbind.push(this.editorControl.getModifiedEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
 		}
+
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusLost()));
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
 	}

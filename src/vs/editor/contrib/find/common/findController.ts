@@ -18,6 +18,7 @@ import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, T
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
+import { CursorChangeReason, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -840,9 +841,9 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.lastWordUnderCursor = null;
 
-		this._register(editor.onDidChangeCursorSelection((e: editorCommon.ICursorSelectionChangedEvent) => {
+		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 			if (e.selection.isEmpty()) {
-				if (e.reason === editorCommon.CursorChangeReason.Explicit) {
+				if (e.reason === CursorChangeReason.Explicit) {
 					if (!this.lastWordUnderCursor || !this.lastWordUnderCursor.containsPosition(e.selection.getStartPosition())) {
 						// no longer valid
 						this.removeDecorations();

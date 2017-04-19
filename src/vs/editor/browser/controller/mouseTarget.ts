@@ -6,8 +6,7 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { EditorLayoutInfo, MouseTargetType } from 'vs/editor/common/editorCommon';
-import { ClassNames, IMouseTarget, IViewZoneData } from 'vs/editor/browser/editorBrowser';
+import { MouseTargetType, ClassNames, IMouseTarget, IViewZoneData } from 'vs/editor/browser/editorBrowser';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { EditorMouseEvent, PageCoordinates, ClientCoordinates, EditorPagePosition } from 'vs/editor/browser/editorDom';
@@ -15,6 +14,7 @@ import * as browser from 'vs/base/browser/browser';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { EditorLayoutInfo } from "vs/editor/common/config/editorOptions";
 
 interface IETextRange {
 	boundingHeight: number;

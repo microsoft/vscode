@@ -24,6 +24,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/textSource';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+import { ClassName } from "vs/editor/common/model/textModelWithDecorations";
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -120,14 +122,14 @@ class ModelMarkerHandler {
 				break;
 			case Severity.Warning:
 			case Severity.Info:
-				className = editorCommon.ClassName.EditorWarningDecoration;
+				className = ClassName.EditorWarningDecoration;
 				color = 'rgba(18,136,18,0.7)';
 				darkColor = 'rgba(18,136,18,0.7)';
 				hcColor = 'rgba(50,255,50,1)';
 				break;
 			case Severity.Error:
 			default:
-				className = editorCommon.ClassName.EditorErrorDecoration;
+				className = ClassName.EditorErrorDecoration;
 				color = 'rgba(255,18,18,0.7)';
 				darkColor = 'rgba(255,18,18,0.7)';
 				hcColor = 'rgba(255,50,50,1)';
@@ -468,7 +470,7 @@ export class ModelServiceImpl implements IModelService {
 		// First look for dispose
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.type === editorCommon.EventType.ModelDispose) {
+			if (e.type === textModelEvents.TextModelEventType.ModelDispose) {
 				this._onModelDisposing(modelData.model);
 				// no more processing since model got disposed
 				return;
@@ -478,9 +480,9 @@ export class ModelServiceImpl implements IModelService {
 		// Second, look for mode change
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.type === editorCommon.EventType.ModelLanguageChanged) {
+			if (e.type === textModelEvents.TextModelEventType.ModelLanguageChanged) {
 				const model = modelData.model;
-				const oldModeId = (<editorCommon.IModelLanguageChangedEvent>e.data).oldLanguage;
+				const oldModeId = (<textModelEvents.IModelLanguageChangedEvent>e.data).oldLanguage;
 				const newModeId = model.getLanguageIdentifier().language;
 				const oldOptions = this.getCreationOptions(oldModeId);
 				const newOptions = this.getCreationOptions(newModeId);

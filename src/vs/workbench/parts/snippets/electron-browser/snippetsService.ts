@@ -6,12 +6,13 @@
 
 import { localize } from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { IModel, IPosition } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { ISuggestion, LanguageId } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { Position } from "vs/editor/common/core/position";
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
@@ -74,7 +75,7 @@ class SnippetsService implements ISnippetsService {
 		}
 	}
 
-	private _getLanguageIdAtPosition(model: IModel, position: IPosition): LanguageId {
+	private _getLanguageIdAtPosition(model: IModel, position: Position): LanguageId {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
@@ -87,7 +88,7 @@ class SnippetsService implements ISnippetsService {
 		return languageId;
 	}
 
-	private _getSnippetCompletions(model: IModel, position: IPosition): ISuggestion[] {
+	private _getSnippetCompletions(model: IModel, position: Position): ISuggestion[] {
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		if (!this._snippets.has(languageId)) {
 			return undefined;
@@ -158,7 +159,7 @@ export interface ISimpleModel {
 	getLineContent(lineNumber): string;
 }
 
-export function getNonWhitespacePrefix(model: ISimpleModel, position: IPosition): string {
+export function getNonWhitespacePrefix(model: ISimpleModel, position: Position): string {
 	/**
 	 * Do not analyze more characters
 	 */

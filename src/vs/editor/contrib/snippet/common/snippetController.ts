@@ -16,9 +16,9 @@ import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'v
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISnippetVariableResolver, ICodeSnippet, CodeSnippet } from './snippet';
 import { SnippetVariablesResolver } from './snippetVariables';
-
 import EditorContextKeys = editorCommon.EditorContextKeys;
-
+import { Position } from "vs/editor/common/core/position";
+import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 export class InsertSnippetController {
 
@@ -60,7 +60,7 @@ export class InsertSnippetController {
 	private initialize(adaptedSnippet: ICodeSnippet, startLineNumber: number): void {
 
 		// sorted list of all placeholder occurences for subsequent lockups
-		const sortedOccurrences: editorCommon.IRange[] = [];
+		const sortedOccurrences: Range[] = [];
 		for (const { occurences } of adaptedSnippet.placeHolders) {
 			for (const range of occurences) {
 				sortedOccurrences.push(range);
@@ -178,7 +178,7 @@ export class InsertSnippetController {
 			_highlightRange = this.model.getDecorationRange(this.highlightDecorationId);
 		}));
 
-		this.listenersToRemove.push(this.editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
+		this.listenersToRemove.push(this.editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			if (this.isFinished) {
 				return;
 			}
@@ -335,15 +335,15 @@ export class InsertSnippetController {
 	}
 
 	private doLinkEditing(): void {
-		const selections: editorCommon.ISelection[] = [];
+		const selections: Selection[] = [];
 		for (let i = 0, len = this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges.length; i < len; i++) {
 			const range = this.model.getDecorationRange(this.trackedPlaceHolders[this.currentPlaceHolderIndex].ranges[i]);
-			selections.push({
-				selectionStartLineNumber: range.startLineNumber,
-				selectionStartColumn: range.startColumn,
-				positionLineNumber: range.endLineNumber,
-				positionColumn: range.endColumn
-			});
+			selections.push(new Selection(
+				range.startLineNumber,
+				range.startColumn,
+				range.endLineNumber,
+				range.endColumn
+			));
 		}
 		this.editor.setSelections(selections);
 		this.editor.revealRangeInCenterIfOutsideViewport(this.editor.getSelection());
@@ -668,7 +668,7 @@ export class SnippetController {
 		return snippet.bind(model.getLineContent(typeRange.startLineNumber), typeRange.startLineNumber - 1, typeRange.startColumn - 1, model);
 	}
 
-	private static _getSnippetCursorOnly(snippet: ICodeSnippet): editorCommon.IPosition {
+	private static _getSnippetCursorOnly(snippet: ICodeSnippet): Position {
 
 		if (snippet.placeHolders.length !== 1) {
 			return null;
@@ -684,10 +684,10 @@ export class SnippetController {
 			return null;
 		}
 
-		return {
-			lineNumber: placeHolderRange.startLineNumber,
-			column: placeHolderRange.startColumn
-		};
+		return new Position(
+			placeHolderRange.startLineNumber,
+			placeHolderRange.startColumn
+		);
 	}
 
 	public jumpToNextPlaceholder(): void {

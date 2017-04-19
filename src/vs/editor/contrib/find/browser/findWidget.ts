@@ -13,11 +13,10 @@ import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
+import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { IMessage as InputBoxMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/common/findState';
@@ -26,7 +25,8 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, highContrastOutline, highContrastBorder, inputBackground as findInputBackground, editorWidgetBackground, inputActiveOptionBorder, editorWidgetShadow } from "vs/platform/theme/common/colorRegistry";
+import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, highContrastOutline, highContrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, editorWidgetShadow, inputForeground, inputBorder } from "vs/platform/theme/common/colorRegistry";
 
 export interface IFindController {
 	replace(): void;
@@ -348,8 +348,14 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	}
 
 	private _applyTheme(theme: ITheme) {
-		let inputStyles = { inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder) };
+		let inputStyles: IFindInputStyles = {
+			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputBackground: theme.getColor(inputBackground),
+			inputForeground: theme.getColor(inputForeground),
+			inputBorder: theme.getColor(inputBorder)
+		};
 		this._findInput.style(inputStyles);
+		this._replaceInputBox.style(inputStyles);
 	}
 
 	// ----- Public
@@ -798,10 +804,6 @@ registerThemingParticipant((theme, collector) => {
 	addBackgroundColorRule('.findMatch', theme.getColor(editorFindMatchHighlight));
 	addBackgroundColorRule('.currentFindMatch', theme.getColor(editorFindMatch));
 	addBackgroundColorRule('.findScope', theme.getColor(editorFindRangeHighlight));
-
-	let inputBackground = theme.getColor(findInputBackground);
-	addBackgroundColorRule('.find-widget .monaco-findInput', inputBackground);
-	addBackgroundColorRule('.find-widget .replace-input', inputBackground);
 
 	let widgetBackground = theme.getColor(editorWidgetBackground);
 	addBackgroundColorRule('.find-widget', widgetBackground);

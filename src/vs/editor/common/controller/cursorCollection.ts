@@ -5,8 +5,7 @@
 'use strict';
 
 import { IOneCursorState, OneCursor, CursorContext } from 'vs/editor/common/controller/oneCursor';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ISelection } from 'vs/editor/common/editorCommon';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { CursorState } from 'vs/editor/common/controller/cursorCommon';
 

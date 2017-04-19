@@ -14,12 +14,12 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/platform';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IPreferencesService, ISettingsGroup, ISetting, IPreferencesEditorModel, IFilterResult, ISettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/browser/contextView';
 import { SettingsGroupTitleWidget, EditPreferenceWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -31,6 +31,7 @@ import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers'
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;
@@ -285,7 +286,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 }
 
 export interface HiddenAreasProvider {
-	hiddenAreas: editorCommon.IRange[];
+	hiddenAreas: IRange[];
 }
 
 export class StaticContentHidingRenderer extends Disposable implements HiddenAreasProvider {
@@ -295,7 +296,7 @@ export class StaticContentHidingRenderer extends Disposable implements HiddenAre
 		super();
 	}
 
-	get hiddenAreas(): editorCommon.IRange[] {
+	get hiddenAreas(): IRange[] {
 		const model = this.editor.getModel();
 		return [
 			{
@@ -337,8 +338,8 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 		super();
 	}
 
-	public get hiddenAreas(): editorCommon.IRange[] {
-		const hiddenAreas: editorCommon.IRange[] = [];
+	public get hiddenAreas(): IRange[] {
+		const hiddenAreas: IRange[] = [];
 		for (const group of this.hiddenGroups) {
 			hiddenAreas.push(group.range);
 		}
@@ -419,7 +420,7 @@ export class HiddenAreasRenderer extends Disposable {
 	}
 
 	public render() {
-		const ranges: editorCommon.IRange[] = [];
+		const ranges: IRange[] = [];
 		for (const hiddenAreaProvider of this.hiddenAreasProviders) {
 			ranges.push(...hiddenAreaProvider.hiddenAreas);
 		}
@@ -435,7 +436,7 @@ export class HiddenAreasRenderer extends Disposable {
 export class FilteredMatchesRenderer extends Disposable implements HiddenAreasProvider {
 
 	private decorationIds: string[] = [];
-	public hiddenAreas: editorCommon.IRange[] = [];
+	public hiddenAreas: IRange[] = [];
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService
@@ -457,7 +458,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		}
 	}
 
-	private createDecoration(range: editorCommon.IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
+	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
 		return {
 			range,
 			options: {
@@ -467,8 +468,8 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		};
 	}
 
-	private computeHiddenRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], model: editorCommon.IModel): editorCommon.IRange[] {
-		const notMatchesRanges: editorCommon.IRange[] = [];
+	private computeHiddenRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], model: editorCommon.IModel): IRange[] {
+		const notMatchesRanges: IRange[] = [];
 		for (const group of allSettingsGroups) {
 			const filteredGroup = filteredGroups.filter(g => g.title === group.title)[0];
 			if (!filteredGroup) {
@@ -515,7 +516,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		return false;
 	}
 
-	private createCompleteRange(range: editorCommon.IRange, model: editorCommon.IModel): editorCommon.IRange {
+	private createCompleteRange(range: IRange, model: editorCommon.IModel): IRange {
 		return {
 			startLineNumber: range.startLineNumber,
 			startColumn: model.getLineMinColumn(range.startLineNumber),
@@ -556,7 +557,7 @@ export class HighlightPreferencesRenderer extends Disposable {
 		}
 	}
 
-	private createDecoration(range: editorCommon.IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
+	private createDecoration(range: IRange, model: editorCommon.IModel): editorCommon.IModelDeltaDecoration {
 		return {
 			range,
 			options: {
@@ -675,7 +676,7 @@ class EditSettingRenderer extends Disposable {
 		}
 	}
 
-	private onPositionChanged(positionChangeEvent: editorCommon.ICursorPositionChangedEvent) {
+	private onPositionChanged(positionChangeEvent: ICursorPositionChangedEvent) {
 		this.editPreferenceWidgetForMouseMove.hide();
 		const settings = this.getSettings(positionChangeEvent.position.lineNumber);
 		if (settings.length) {
@@ -696,7 +697,7 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private getEditPreferenceWidgetUnderMouse(mouseMoveEvent: IEditorMouseEvent): EditPreferenceWidget<ISetting> {
-		if (mouseMoveEvent.target.type === editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN) {
+		if (mouseMoveEvent.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			const line = mouseMoveEvent.target.position.lineNumber;
 			if (this.editPreferenceWidgetForMouseMove.getLine() === line && this.editPreferenceWidgetForMouseMove.isVisible()) {
 				return this.editPreferenceWidgetForMouseMove;

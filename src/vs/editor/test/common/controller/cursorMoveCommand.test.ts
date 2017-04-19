@@ -7,13 +7,15 @@
 import * as assert from 'assert';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
-import { Handler, IEditorOptions, ITextModelCreationOptions, CursorMovePosition, CursorMoveByUnit, ISelection } from 'vs/editor/common/editorCommon';
+import { Handler, ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IMode } from 'vs/editor/common/modes';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { viewModelHelper as aViewModelHelper } from 'vs/editor/test/common/editorTestUtils';
-import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
+import { IViewModelHelper, CursorMoveByUnit, CursorMovePosition } from 'vs/editor/common/controller/oneCursor';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 let H = Handler;
 
@@ -543,7 +545,7 @@ function positionEqual(position: Position, lineNumber: number, column: number) {
 	assert.deepEqual(position, new Position(lineNumber, column), 'position equal');
 }
 
-function selectionEqual(selection: ISelection, posLineNumber: number, posColumn: number, selLineNumber: number, selColumn: number) {
+function selectionEqual(selection: Selection, posLineNumber: number, posColumn: number, selLineNumber: number, selColumn: number) {
 	assert.deepEqual({
 		selectionStartLineNumber: selection.selectionStartLineNumber,
 		selectionStartColumn: selection.selectionStartColumn,

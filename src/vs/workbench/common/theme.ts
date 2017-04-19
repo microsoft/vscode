@@ -176,9 +176,10 @@ export const STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND = registerColor('statusBarInf
 
 // < --- Activity Bar --- >
 
+export const ACTIVITY_BAR_BACKGROUND_LIGHT_DEFAULT = '#2C2C2C';
 export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBarBackground', {
 	dark: '#333333',
-	light: '#2C2C2C',
+	light: ACTIVITY_BAR_BACKGROUND_LIGHT_DEFAULT,
 	hc: '#000000'
 }, nls.localize('activityBarBackground', "Activity bar background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
@@ -265,6 +266,10 @@ export class Themable extends Disposable {
 
 	protected get isHighContrastTheme(): boolean {
 		return this.theme.type === 'hc';
+	}
+
+	protected get isLightTheme(): boolean {
+		return this.theme.type === 'light';
 	}
 
 	protected get toUnbind() {

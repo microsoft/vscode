@@ -9,11 +9,13 @@ import { clipboard } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { EndOfLinePreference, IEditorContribution, ICursorSelectionChangedEvent, IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
+import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+import { ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 @editorContribution
 export class SelectionClipboard extends Disposable implements IEditorContribution {

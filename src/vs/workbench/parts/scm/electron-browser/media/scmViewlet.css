@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.scm {
-	background-image: url('icon.svg');
+	background-image: url('icon-dark.svg');
 	background-size: 19px;
 	background-position: center;
+}
+
+.monaco-workbench > .activitybar.light > .content .monaco-action-bar .action-label.scm {
+	background-image: url('icon-light.svg');
 }
 
 .scm-viewlet .monaco-list-row {

@@ -158,7 +158,7 @@
 }
 
 .monaco-shell .statusbar-item > .dropdown.send-feedback > .dropdown-label.send-feedback {
-	background: url('smiley.svg') center center no-repeat;
+	-webkit-mask: url('smiley.svg') no-repeat 50% 50%; /* use mask to be able to change color dynamically */
 	width: 26px;
 }
 

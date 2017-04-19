@@ -39,6 +39,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
 import { debounceEvent } from 'vs/base/common/event';
+import { attachListStyler } from "vs/platform/theme/common/styler";
 
 export class MarkersPanel extends Panel {
 
@@ -216,6 +217,8 @@ export class MarkersPanel extends Panel {
 				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE,
 				keyboardSupport: false
 			});
+
+		this._register(attachListStyler(this.tree, this.themeService));
 
 		this._register(this.tree.addListener('focus', (e: { focus: any }) => {
 			this.markerFocusContextKey.set(e.focus instanceof Marker);

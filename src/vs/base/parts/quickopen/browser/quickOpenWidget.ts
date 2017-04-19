@@ -50,6 +50,8 @@ export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
 	background?: Color;
 	foreground?: Color;
 	borderColor?: Color;
+	pickerGroupForeground?: Color;
+	pickerGroupBorder?: Color;
 }
 
 export interface IShowOptions {
@@ -80,7 +82,9 @@ export enum HideReason {
 
 const defaultStyles = {
 	background: Color.fromHex('#1E1E1E'),
-	foreground: Color.fromHex('#CCCCCC')
+	foreground: Color.fromHex('#CCCCCC'),
+	pickerGroupForeground: Color.fromHex('#0097FB'),
+	pickerGroupBorder: Color.fromHex('#3F3F46')
 };
 
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
@@ -111,6 +115,7 @@ export class QuickOpenWidget implements IModelProvider {
 	private model: IModel<any>;
 	private inputChangingTimeoutHandle: number;
 	private styles: IQuickOpenStyles;
+	private renderer: Renderer;
 
 	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions, usageLogger?: IQuickOpenUsageLogger) {
 		this.toUnbind = [];
@@ -214,7 +219,7 @@ export class QuickOpenWidget implements IModelProvider {
 				this.tree = new Tree(div.getHTMLElement(), {
 					dataSource: new DataSource(this),
 					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: this.options.keyboardSupport }),
-					renderer: new Renderer(this),
+					renderer: (this.renderer = new Renderer(this, this.styles)),
 					filter: new Filter(this),
 					accessibilityProvider: new AccessibilityProvider(this)
 				}, {
@@ -346,6 +351,10 @@ export class QuickOpenWidget implements IModelProvider {
 
 		if (this.tree) {
 			this.tree.style(this.styles);
+		}
+
+		if (this.renderer) {
+			this.renderer.updateStyles(this.styles);
 		}
 	}
 

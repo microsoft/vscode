@@ -12,7 +12,6 @@ import { GlobalScreenReaderNVDA } from 'vs/editor/common/config/commonEditorConf
 import { TextAreaHandler } from 'vs/editor/common/controller/textAreaHandler';
 import { TextAreaStrategy } from 'vs/editor/common/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { IViewController } from 'vs/editor/browser/editorBrowser';
 import { Configuration } from 'vs/editor/browser/config/configuration';
@@ -21,6 +20,7 @@ import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
+import { VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
 
 export interface IKeyboardHandlerHelper {
 	viewDomNode: FastDomNode<HTMLElement>;
@@ -92,7 +92,7 @@ export class KeyboardHandler extends ViewEventHandler implements IDisposable {
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, column, lineNumber, column),
-				editorCommon.VerticalRevealType.Simple,
+				VerticalRevealType.Simple,
 				true,
 				false
 			));

@@ -19,6 +19,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Constants } from 'vs/editor/common/core/uint';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CursorChangeReason, ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
@@ -86,11 +87,11 @@ export class FindModelBoundToEditorModel {
 		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
 		this._toDispose.push(this._updateDecorationsScheduler);
 
-		this._toDispose.push(this._editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			if (
-				e.reason === editorCommon.CursorChangeReason.Explicit
-				|| e.reason === editorCommon.CursorChangeReason.Undo
-				|| e.reason === editorCommon.CursorChangeReason.Redo
+				e.reason === CursorChangeReason.Explicit
+				|| e.reason === CursorChangeReason.Undo
+				|| e.reason === CursorChangeReason.Redo
 			) {
 				this._decorations.setStartPosition(this._editor.getPosition());
 			}
