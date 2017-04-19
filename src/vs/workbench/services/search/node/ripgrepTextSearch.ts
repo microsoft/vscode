@@ -56,9 +56,16 @@ export class RipgrepEngine {
 		}
 
 		process.nextTick(() => {
+			const escapedArgs = rgArgs.args
+				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+				.join(' ');
+
 			// Allow caller to register progress callback
-			const rgCmd = `rg ${rgArgs.args.join(' ')}\ncwd: ${rootFolder}\n`;
+			const rgCmd = `rg ${escapedArgs}\n - cwd: ${rootFolder}\n`;
 			onMessage({ message: rgCmd });
+			if (rgArgs.siblingClauses) {
+				onMessage({ message: ` - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}\n` });
+			}
 		});
 		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: rootFolder });
 
