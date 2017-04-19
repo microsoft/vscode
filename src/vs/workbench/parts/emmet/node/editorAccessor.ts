@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import { Range } from 'vs/editor/common/core/range';
@@ -30,18 +30,19 @@ export class EditorAccessor implements emmet.Editor {
 	private _syntaxProfiles: any;
 	private _excludedLanguages: any;
 	private _grammars: IGrammarContributions;
-
+	private _emmetActionName: string;
 	private _hasMadeEdits: boolean;
 
 	private emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
 
-	constructor(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions) {
+	constructor(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions, emmetActionName?: string) {
 		this._languageIdentifierResolver = languageIdentifierResolver;
 		this._editor = editor;
 		this._syntaxProfiles = syntaxProfiles;
 		this._excludedLanguages = excludedLanguages;
 		this._hasMadeEdits = false;
 		this._grammars = grammars;
+		this._emmetActionName = emmetActionName;
 	}
 
 	public isEmmetEnabledMode(): boolean {
@@ -84,6 +85,15 @@ export class EditorAccessor implements emmet.Editor {
 	}
 
 	public replaceContent(value: string, start: number, end: number, no_indent: boolean): void {
+		let range = this.getRangeToReplace(value, start, end);
+		if (!range) {
+			return;
+		}
+		let codeSnippet = snippets.CodeSnippet.fromEmmet(value);
+		SnippetController.get(this._editor).runWithReplaceRange(codeSnippet, range);
+	}
+
+	public getRangeToReplace(value: string, start: number, end: number): Range {
 		//console.log('value', value);
 		let startPosition = this.getPositionFromOffset(start);
 		let endPosition = this.getPositionFromOffset(end);
@@ -95,7 +105,7 @@ export class EditorAccessor implements emmet.Editor {
 			if (strings.startsWith(value, match[0])) {
 				startPosition = new Position(startPosition.lineNumber, startPosition.column - match[0].length);
 			} else {
-				return; // ignore
+				return null; // ignore
 			}
 		}
 
@@ -104,7 +114,7 @@ export class EditorAccessor implements emmet.Editor {
 			if (strings.endsWith(value, '>')) {
 				endPosition = new Position(endPosition.lineNumber, endPosition.column + 1);
 			} else {
-				return; // ignore
+				return null; // ignore
 			}
 		}
 
@@ -115,8 +125,16 @@ export class EditorAccessor implements emmet.Editor {
 		}
 
 		let range = new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column);
-		let codeSnippet = snippets.CodeSnippet.fromEmmet(value);
-		SnippetController.get(this._editor).runWithReplaceRange(codeSnippet, range);
+		let textToReplace = this._editor.getModel().getValueInRange(range);
+
+		// During Expand Abbreviation action, if the expanded abbr is the same as the text it intends to replace,
+		// then treat it as a no-op and return TAB to the editor
+		if (this._emmetActionName === 'expand_abbreviation' && (value === textToReplace || value === textToReplace + '${0}')) {
+			this._editor.trigger('emmet', Handler.Tab, {});
+			return null;
+		}
+
+		return range;
 	}
 
 	public onAfterEmmetAction(): void {
