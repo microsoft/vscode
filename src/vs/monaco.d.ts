@@ -349,10 +349,14 @@ declare module monaco {
         NUMPAD_DECIMAL = 107,
         NUMPAD_DIVIDE = 108,
         /**
+         * Cover all key codes when IME is processing input.
+         */
+        KEY_IN_COMPOSITION = 109,
+        /**
          * Placed last to cover the length of the enum.
          * Please do not depend on this value!
          */
-        MAX_VALUE = 109,
+        MAX_VALUE = 110,
     }
 
     export class KeyMod {

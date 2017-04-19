@@ -186,6 +186,11 @@ export const enum KeyCode {
 	NUMPAD_DIVIDE = 108,	// VK_DIVIDE, 0x6F,
 
 	/**
+	 * Cover all key codes when IME is processing input.
+	 */
+	KEY_IN_COMPOSITION = 109,
+
+	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
