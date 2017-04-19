@@ -39,34 +39,12 @@ export interface IOverlayWidgetData {
  * @internal
  * TODO@editorBrowser: MOVE
  */
-export interface ICodeEditorHelper {
-	getScrollWidth(): number;
-	getScrollLeft(): number;
-
-	getScrollHeight(): number;
-	getScrollTop(): number;
-
-	setScrollPosition(position: editorCommon.INewScrollPosition): void;
-
-	getVerticalOffsetForPosition(lineNumber: number, column: number): number;
-	delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void;
-	getOffsetForColumn(lineNumber: number, column: number): number;
-	getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget;
-
-	getCompletelyVisibleViewRange(): Range;
-}
-
-/**
- * @internal
- * TODO@editorBrowser: MOVE
- */
 export interface IView extends IDisposable {
 	domNode: FastDomNode<HTMLElement>;
 
 	getInternalEventBus(): ViewOutgoingEvents;
 
 	createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): IOverviewRuler;
-	getCodeEditorHelper(): ICodeEditorHelper;
 
 	change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean;
 	getWhitespaces(): IEditorWhitespace[];

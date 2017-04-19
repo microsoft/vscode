@@ -5,12 +5,14 @@
 'use strict';
 
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { Disposable } from "vs/base/common/lifecycle";
 
-export class ViewEventHandler {
+export class ViewEventHandler extends Disposable {
 
 	private _shouldRender: boolean;
 
 	constructor() {
+		super();
 		this._shouldRender = true;
 	}
 

@@ -82,7 +82,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
 		this._viewLineOptions = new ViewLineOptions(this._context.configuration);
 
-		PartFingerprints.write(this.domNode.domNode, PartFingerprint.ViewLines);
+		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
 		this.domNode.setClassName(ClassNames.VIEW_LINES);
 		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 
@@ -102,8 +102,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		super.dispose();
 	}
 
-	public getDomNode(): HTMLElement {
-		return this.domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this.domNode;
 	}
 
 	// ---- begin IVisibleLinesHost

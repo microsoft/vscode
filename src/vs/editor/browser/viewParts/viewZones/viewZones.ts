@@ -202,14 +202,14 @@ export class ViewZones extends ViewPart {
 		myZone.domNode.domNode.style.width = '100%';
 		myZone.domNode.setDisplay('none');
 		myZone.domNode.setAttribute('monaco-view-zone', myZone.whitespaceId.toString());
-		this.domNode.domNode.appendChild(myZone.domNode.domNode);
+		this.domNode.appendChild(myZone.domNode);
 
 		if (myZone.marginDomNode) {
 			myZone.marginDomNode.setPosition('absolute');
 			myZone.marginDomNode.domNode.style.width = '100%';
 			myZone.marginDomNode.setDisplay('none');
 			myZone.marginDomNode.setAttribute('monaco-view-zone', myZone.whitespaceId.toString());
-			this.marginDomNode.domNode.appendChild(myZone.marginDomNode.domNode);
+			this.marginDomNode.appendChild(myZone.marginDomNode);
 		}
 
 		this._zones[myZone.whitespaceId.toString()] = myZone;

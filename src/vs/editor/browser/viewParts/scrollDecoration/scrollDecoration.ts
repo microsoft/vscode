@@ -32,6 +32,10 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._domNode = createFastDomNode(document.createElement('div'));
 	}
 
+	public dispose(): void {
+		super.dispose();
+	}
+
 	private _updateShouldShow(): boolean {
 		let newShouldShow = (this._useShadows && this._scrollTop > 0);
 		if (this._shouldShow !== newShouldShow) {
@@ -41,8 +45,8 @@ export class ScrollDecorationViewPart extends ViewPart {
 		return false;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
 	}
 
 	private _updateWidth(): boolean {
