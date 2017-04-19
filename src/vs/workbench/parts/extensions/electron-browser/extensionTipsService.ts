@@ -255,13 +255,13 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				case 0:	// If the user ignores the current message and selects different file type
 					// we should hide all the stacked up messages as he has selected Yes, Ignore All
 					this.messageService.hideAll();
-					return this.setIgnoreRecmmendations(true);
-				case 1: return this.setIgnoreRecmmendations(false);
+					return this.setIgnoreRecommendationsConfig(true);
+				case 1: return this.setIgnoreRecommendationsConfig(false);
 			}
 		});
 	}
 
-	private setIgnoreRecmmendations(configVal: boolean) {
+	private setIgnoreRecommendationsConfig(configVal: boolean) {
 		let target = ConfigurationTarget.USER;
 		const configKey = 'extensions.ignoreRecommendations';
 		this.configurationEditingService.writeConfiguration(target, { key: configKey, value: configVal }).then(null, error => {
