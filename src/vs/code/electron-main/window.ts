@@ -16,6 +16,7 @@ import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
@@ -352,6 +353,20 @@ export class VSCodeWindow {
 		return this._readyState;
 	}
 
+	private registerNavigationListenerOn(command: string, back: string, forward: string) {
+		this._win.on(command, (e, cmd) => {
+			if (this.readyState !== ReadyState.READY) {
+				return; // window must be ready
+			}
+
+			if (cmd === back) {
+				this.send('vscode:runAction', 'workbench.action.navigateBack');
+			} else if (cmd === forward) {
+				this.send('vscode:runAction', 'workbench.action.navigateForward');
+			}
+		});
+
+	}
 	private registerListeners(): void {
 
 		// Remember that we loaded
@@ -378,18 +393,7 @@ export class VSCodeWindow {
 		});
 
 		// App commands support
-		this._win.on('app-command', (e, cmd) => {
-			if (this.readyState !== ReadyState.READY) {
-				return; // window must be ready
-			}
-
-			// Support navigation via mouse buttons 4/5
-			if (cmd === 'browser-backward') {
-				this.send('vscode:runAction', 'workbench.action.navigateBack');
-			} else if (cmd === 'browser-forward') {
-				this.send('vscode:runAction', 'workbench.action.navigateForward');
-			}
-		});
+		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward');
 
 		// Handle code that wants to open links
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
@@ -443,11 +447,21 @@ export class VSCodeWindow {
 	}
 
 	private onConfigurationUpdated(config: IConfiguration): void {
-		const newMenuBarVisibility = this.getMenuBarVisibility(config);
+		const newMenuBarVisibility = this.getMenuBarVisibility();
 		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
 		}
+
+		// Swipe command support (macOS)
+		const workbenchConfig = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+
+		if (workbenchConfig && workbenchConfig.workbench && workbenchConfig.workbench.editor && workbenchConfig.workbench.editor.swipeToNavigate) {
+			this.registerNavigationListenerOn('swipe', 'left', 'right');
+		} else {
+			this._win.removeAllListeners('swipe');
+		}
+
 	};
 
 	public load(config: IWindowConfiguration): void {
@@ -730,7 +744,7 @@ export class VSCodeWindow {
 		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
 	}
 
-	private getMenuBarVisibility(configuration: IConfiguration): MenuBarVisibility {
+	private getMenuBarVisibility(): MenuBarVisibility {
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
