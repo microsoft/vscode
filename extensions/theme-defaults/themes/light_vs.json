@@ -303,7 +303,8 @@
 				"keyword.operator.new",
 				"keyword.operator.expression",
 				"keyword.operator.cast",
-				"keyword.operator.sizeof"
+				"keyword.operator.sizeof",
+				"keyword.operator.logical.python"
 			],
 			"settings": {
 				"foreground": "#0000ff"
