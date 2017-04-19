@@ -73,6 +73,7 @@ export class FeedbackDropdown extends Dropdown {
 			contextViewProvider: options.contextViewProvider,
 			labelRenderer: (container: HTMLElement): IDisposable => {
 				$(container).addClass('send-feedback');
+
 				return null;
 			}
 		});
@@ -84,8 +85,8 @@ export class FeedbackDropdown extends Dropdown {
 			}
 		});
 
-		this.$el.addClass('send-feedback');
-		this.$el.title(nls.localize('sendFeedback', "Tweet Feedback"));
+		this.element.addClass('send-feedback');
+		this.element.title(nls.localize('sendFeedback', "Tweet Feedback"));
 
 		this.feedbackService = options.feedbackService;
 
@@ -105,7 +106,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.requestFeatureLink = product.requestFeatureUrl;
 	}
 
-	public renderContents(container: HTMLElement): IDisposable {
+	protected renderContents(container: HTMLElement): IDisposable {
 		const $form = $('form.feedback-form').attr({
 			action: 'javascript:void(0);',
 			tabIndex: '-1'
