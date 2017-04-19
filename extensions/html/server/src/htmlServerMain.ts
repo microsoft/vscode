@@ -254,12 +254,16 @@ connection.onDocumentRangeFormatting(formatParams => {
 connection.onDocumentLinks(documentLinkParam => {
 	let document = documents.get(documentLinkParam.textDocument.uri);
 	let documentContext: DocumentContext = {
-		resolveReference: ref => {
+		resolveReference: (ref, base) => {
+			if (base) {
+				ref = url.resolve(base, ref);
+			}
 			if (workspacePath && ref[0] === '/') {
 				return uri.file(path.join(workspacePath, ref)).toString();
 			}
 			return url.resolve(document.uri, ref);
-		}
+		},
+
 	};
 	let links: DocumentLink[] = [];
 	languageModes.getAllModesInDocument(document).forEach(m => {
