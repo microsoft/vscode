@@ -24,6 +24,7 @@ import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThe
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 import { IDiffEditorOptions, IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 /**
  * The options to create an editor.
@@ -282,14 +283,15 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IContextViewService contextViewService: IContextViewService,
 		@IStandaloneThemeService standaloneColorService: IStandaloneThemeService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IThemeService themeService: IThemeService
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = standaloneColorService.setTheme(options.theme);
 		}
 
-		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService);
+		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;

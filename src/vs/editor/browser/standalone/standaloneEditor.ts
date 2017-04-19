@@ -126,7 +126,8 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IContextViewService),
 			services.get(IStandaloneThemeService),
 			services.get(IEditorWorkerService),
-			services.get(ICodeEditorService)
+			services.get(ICodeEditorService),
+			services.get(IStandaloneThemeService)
 		);
 	});
 }
