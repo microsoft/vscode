@@ -137,7 +137,7 @@ after_success:
   - if [[ "${LABEL}" == "amd64_linux" ]]; then
       node_modules/.bin/coveralls < .build/coverage/lcov.info;
     fi
-  - if [[ "${TRAVIS_OS_TYPE}" == "linux" ]]; then
+  - if [[ "${TRAVIS_OS_NAME}" == "linux" ]]; then
       gulp "vscode-linux-${VSCODE_ELECTRON_PLATFORM}-build-deb" --max_old_space_size=4096;
       gulp "vscode-linux-${VSCODE_ELECTRON_PLATFORM}-build-rpm" --max_old_space_size=4096;
     fi
