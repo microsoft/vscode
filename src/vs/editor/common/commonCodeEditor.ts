@@ -290,7 +290,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 		let validatedRange = this.model.validateRange(range);
 
-		this.cursor.emitCursorRevealRange(validatedRange, null, verticalType, revealHorizontal, false);
+		this.cursor.emitCursorRevealRange(validatedRange, null, verticalType, revealHorizontal);
 	}
 
 	public revealLine(lineNumber: number): void {

@@ -89,63 +89,6 @@ const isCursorMoveArgs = function (arg): boolean {
 };
 
 /**
- * Directions in the view for editor scroll command.
- */
-export const EditorScrollDirection = {
-	Up: 'up',
-	Down: 'down',
-};
-
-/**
- * Units for editor scroll 'by' argument
- */
-export const EditorScrollByUnit = {
-	Line: 'line',
-	WrappedLine: 'wrappedLine',
-	Page: 'page',
-	HalfPage: 'halfPage'
-};
-
-/**
- * Arguments for editor scroll command
- */
-export interface EditorScrollArguments {
-	to: string;
-	by?: string;
-	value?: number;
-	revealCursor?: boolean;
-};
-
-/**
- * @internal
- */
-const isEditorScrollArgs = function (arg): boolean {
-	if (!types.isObject(arg)) {
-		return false;
-	}
-
-	let scrollArg: EditorScrollArguments = arg;
-
-	if (!types.isString(scrollArg.to)) {
-		return false;
-	}
-
-	if (!types.isUndefined(scrollArg.by) && !types.isString(scrollArg.by)) {
-		return false;
-	}
-
-	if (!types.isUndefined(scrollArg.value) && !types.isNumber(scrollArg.value)) {
-		return false;
-	}
-
-	if (!types.isUndefined(scrollArg.revealCursor) && !types.isBoolean(scrollArg.revealCursor)) {
-		return false;
-	}
-
-	return true;
-};
-
-/**
  * Arguments for reveal line command
  */
 export interface RevealLineArguments {
@@ -208,27 +151,6 @@ export var CommandDescription = {
 					* 'select': If 'true' makes the selection. Default is 'false'.
 				`,
 				constraint: isCursorMoveArgs
-			}
-		]
-	},
-	EditorScroll: <ICommandHandlerDescription>{
-		description: 'Scroll editor in the given direction',
-		args: [
-			{
-				name: 'Editor scroll argument object',
-				description: `Property-value pairs that can be passed through this argument:
-					* 'to': A mandatory direction value.
-						\`\`\`
-						'up', 'down'
-						\`\`\`
-					* 'by': Unit to move. Default is computed based on 'to' value.
-						\`\`\`
-						'line', 'wrappedLine', 'page', 'halfPage'
-						\`\`\`
-					* 'value': Number of units to move. Default is '1'.
-					* 'revealCursor': If 'true' reveals the cursor if it is outside view port.
-				`,
-				constraint: isEditorScrollArgs
 			}
 		]
 	},

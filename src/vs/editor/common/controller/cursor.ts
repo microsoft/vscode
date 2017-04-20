@@ -13,8 +13,7 @@ import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/controller/cursorCollection';
 import {
 	IViewModelHelper, OneCursor, OneCursorOp, CursorContext, CursorMovePosition,
-	CursorMoveByUnit, RevealLineArguments, RevealLineAtArgument, EditorScrollArguments,
-	EditorScrollDirection, EditorScrollByUnit
+	CursorMoveByUnit, RevealLineArguments, RevealLineAtArgument
 } from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -27,6 +26,8 @@ import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperat
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, ICursorScrollRequestEvent } from "vs/editor/common/controller/cursorEvents";
+import { ICommandHandlerDescription } from "vs/platform/commands/common/commands";
+import * as types from 'vs/base/common/types';
 
 const enum RevealTarget {
 	Primary = 0,
@@ -862,14 +863,6 @@ export class Cursor extends Disposable {
 		this._eventEmitter.emit(CursorEventType.CursorSelectionChanged, e);
 	}
 
-	private emitCursorScrollRequest(deltaLines: number, revealCursor: boolean): void {
-		var e: ICursorScrollRequestEvent = {
-			deltaLines,
-			revealCursor
-		};
-		this._eventEmitter.emit(CursorEventType.CursorScrollRequest, e);
-	}
-
 	private revealRange(revealTarget: RevealTarget, verticalType: VerticalRevealType, revealHorizontal: boolean): void {
 		var positions = this.cursors.getPositions();
 		var viewPositions = this.cursors.getViewPositions();
@@ -900,16 +893,27 @@ export class Cursor extends Disposable {
 
 		var range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		var viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this.emitCursorRevealRange(range, viewRange, verticalType, revealHorizontal, false);
+		this.emitCursorRevealRange(range, viewRange, verticalType, revealHorizontal);
 	}
 
-	public emitCursorRevealRange(range: Range, viewRange: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, revealCursor: boolean) {
+	public emitCursorRevealRange(range: Range, viewRange: Range, verticalType: VerticalRevealType, revealHorizontal: boolean) {
 		var e: ICursorRevealRangeEvent = {
 			range: range,
 			viewRange: viewRange,
 			verticalType: verticalType,
 			revealHorizontal: revealHorizontal,
-			revealCursor: revealCursor
+			revealCursor: false
+		};
+		this._eventEmitter.emit(CursorEventType.CursorRevealRange, e);
+	}
+
+	public emitBadCursorRevealRange(range: Range, viewRange: Range, verticalType: VerticalRevealType, revealHorizontal: boolean) {
+		var e: ICursorRevealRangeEvent = {
+			range: range,
+			viewRange: viewRange,
+			verticalType: verticalType,
+			revealHorizontal: revealHorizontal,
+			revealCursor: true
 		};
 		this._eventEmitter.emit(CursorEventType.CursorRevealRange, e);
 	}
@@ -1585,8 +1589,26 @@ export class Cursor extends Disposable {
 			}
 		}
 
-		this.emitCursorRevealRange(range, null, revealAt, false, false);
+		this.emitCursorRevealRange(range, null, revealAt, false);
 		return true;
+	}
+
+	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		return this._doEditorScroll({
+			direction: EditorScroll.Direction.Up,
+			unit: (isPaged ? EditorScroll.Unit.Page : EditorScroll.Unit.WrappedLine),
+			value: 1,
+			revealCursor: false
+		}, ctx);
+	}
+
+	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
+		return this._doEditorScroll({
+			direction: EditorScroll.Direction.Down,
+			unit: (isPaged ? EditorScroll.Unit.Page : EditorScroll.Unit.WrappedLine),
+			value: 1,
+			revealCursor: false
+		}, ctx);
 	}
 
 	private _editorScroll(ctx: IMultipleCursorOperationContext): boolean {
@@ -1595,19 +1617,14 @@ export class Cursor extends Disposable {
 			// illegal arguments
 			return true;
 		}
-
-		switch (args.direction) {
-			case EditorScroll.Direction.Up:
-			case EditorScroll.Direction.Down:
-				return this._scrollUpOrDown(args);
-		}
-		return true;
+		return this._doEditorScroll(args, ctx);
 	}
 
-	private _scrollUpOrDown(args: EditorScroll.ParsedArguments): boolean {
+	private _doEditorScroll(args: EditorScroll.ParsedArguments, ctx: IMultipleCursorOperationContext): boolean {
 		if (this._scrollByReveal(args)) {
 			return true;
 		}
+
 		let up = args.direction === EditorScroll.Direction.Up;
 		let noOfLines = args.value;
 		switch (args.unit) {
@@ -1633,20 +1650,16 @@ export class Cursor extends Disposable {
 			return false;
 		}
 		let range = up ? this.context.getRangeToRevealModelLinesBeforeViewPortTop(args.value) : this.context.getRangeToRevealModelLinesAfterViewPortBottom(args.value);
-		this.emitCursorRevealRange(range, null, up ? VerticalRevealType.Top : VerticalRevealType.Bottom, false, true);
+		this.emitBadCursorRevealRange(range, null, up ? VerticalRevealType.Top : VerticalRevealType.Bottom, false);
 		return true;
 	}
 
-	private _scrollUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.eventData = <EditorScrollArguments>{ to: EditorScrollDirection.Up, value: 1 };
-		ctx.eventData.by = isPaged ? EditorScrollByUnit.Page : EditorScrollByUnit.WrappedLine;
-		return this._editorScroll(ctx);
-	}
-
-	private _scrollDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): boolean {
-		ctx.eventData = <EditorScrollArguments>{ to: EditorScrollDirection.Down, value: 1 };
-		ctx.eventData.by = isPaged ? EditorScrollByUnit.Page : EditorScrollByUnit.WrappedLine;
-		return this._editorScroll(ctx);
+	private emitCursorScrollRequest(deltaLines: number, revealCursor: boolean): void {
+		var e: ICursorScrollRequestEvent = {
+			deltaLines,
+			revealCursor
+		};
+		this._eventEmitter.emit(CursorEventType.CursorScrollRequest, e);
 	}
 
 	private _undo(ctx: IMultipleCursorOperationContext): boolean {
@@ -1697,15 +1710,91 @@ export class Cursor extends Disposable {
 	}
 }
 
-namespace EditorScroll {
+export namespace EditorScroll {
 
-	export function parse(args: EditorScrollArguments): ParsedArguments {
+	const isEditorScrollArgs = function (arg): boolean {
+		if (!types.isObject(arg)) {
+			return false;
+		}
+
+		let scrollArg: RawArguments = arg;
+
+		if (!types.isString(scrollArg.to)) {
+			return false;
+		}
+
+		if (!types.isUndefined(scrollArg.by) && !types.isString(scrollArg.by)) {
+			return false;
+		}
+
+		if (!types.isUndefined(scrollArg.value) && !types.isNumber(scrollArg.value)) {
+			return false;
+		}
+
+		if (!types.isUndefined(scrollArg.revealCursor) && !types.isBoolean(scrollArg.revealCursor)) {
+			return false;
+		}
+
+		return true;
+	};
+
+	export const description = <ICommandHandlerDescription>{
+		description: 'Scroll editor in the given direction',
+		args: [
+			{
+				name: 'Editor scroll argument object',
+				description: `Property-value pairs that can be passed through this argument:
+					* 'to': A mandatory direction value.
+						\`\`\`
+						'up', 'down'
+						\`\`\`
+					* 'by': Unit to move. Default is computed based on 'to' value.
+						\`\`\`
+						'line', 'wrappedLine', 'page', 'halfPage'
+						\`\`\`
+					* 'value': Number of units to move. Default is '1'.
+					* 'revealCursor': If 'true' reveals the cursor if it is outside view port.
+				`,
+				constraint: isEditorScrollArgs
+			}
+		]
+	};
+
+	/**
+	 * Directions in the view for editor scroll command.
+	 */
+	const RawDirection = {
+		Up: 'up',
+		Down: 'down',
+	};
+
+	/**
+	 * Units for editor scroll 'by' argument
+	 */
+	const RawUnit = {
+		Line: 'line',
+		WrappedLine: 'wrappedLine',
+		Page: 'page',
+		HalfPage: 'halfPage'
+	};
+
+	/**
+	 * Arguments for editor scroll command
+	 */
+	export interface RawArguments {
+		to: string;
+		by?: string;
+		value?: number;
+		revealCursor?: boolean;
+	};
+
+	export function parse(args: RawArguments): ParsedArguments {
 		let direction: Direction;
 		switch (args.to) {
-			case EditorScrollDirection.Up:
+			case RawDirection.Up:
 				direction = Direction.Up;
 				break;
-			case EditorScrollDirection.Down:
+			case RawDirection.Down:
 				direction = Direction.Down;
 				break;
 			default:
@@ -1715,16 +1804,16 @@ namespace EditorScroll {
 
 		let unit: Unit;
 		switch (args.by) {
-			case EditorScrollByUnit.Line:
+			case RawUnit.Line:
 				unit = Unit.Line;
 				break;
-			case EditorScrollByUnit.WrappedLine:
+			case RawUnit.WrappedLine:
 				unit = Unit.WrappedLine;
 				break;
-			case EditorScrollByUnit.Page:
+			case RawUnit.Page:
 				unit = Unit.Page;
 				break;
-			case EditorScrollByUnit.HalfPage:
+			case RawUnit.HalfPage:
 				unit = Unit.HalfPage;
 				break;
 			default:

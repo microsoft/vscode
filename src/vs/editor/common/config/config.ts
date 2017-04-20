@@ -15,6 +15,7 @@ import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/cod
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { CommandDescription } from "vs/editor/common/controller/oneCursor";
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { EditorScroll } from "vs/editor/common/controller/cursor";
 
 import H = editorCommon.Handler;
 
@@ -446,7 +447,7 @@ registerCommand(new CoreCommand({
 	}
 }));
 
-registerCoreAPICommand(H.EditorScroll, CommandDescription.EditorScroll);
+registerCoreAPICommand(H.EditorScroll, EditorScroll.description);
 
 registerCommand(new CoreCommand({
 	id: H.ScrollLineUp,
