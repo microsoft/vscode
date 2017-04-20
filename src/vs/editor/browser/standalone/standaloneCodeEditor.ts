@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IActionDescriptor, ICodeEditorWidgetCreationOptions, IModel, IModelChangedEvent } from 'vs/editor/common/editorCommon';
+import { IActionDescriptor, IModel, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { StandaloneKeybindingService } from 'vs/editor/browser/standalone/simpleServices';
@@ -24,11 +24,16 @@ import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThe
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 import { IDiffEditorOptions, IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 /**
  * The options to create an editor.
  */
-export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
+export interface IEditorConstructionOptions extends IEditorOptions {
+	/**
+	 * The initial model associated with this code editor.
+	 */
+	model?: IModel;
 	/**
 	 * The initial value of the auto created model in the editor.
 	 * To not create automatically a model, use `model: null`.
@@ -282,14 +287,15 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IContextViewService contextViewService: IContextViewService,
 		@IStandaloneThemeService standaloneColorService: IStandaloneThemeService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IThemeService themeService: IThemeService
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = standaloneColorService.setTheme(options.theme);
 		}
 
-		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService);
+		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;

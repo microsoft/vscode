@@ -14,7 +14,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class Rulers extends ViewPart {
 
-	public domNode: HTMLElement;
+	public domNode: FastDomNode<HTMLElement>;
 	private _renderedRulers: FastDomNode<HTMLElement>[];
 	private _rulers: number[];
 	private _height: number;
@@ -22,8 +22,8 @@ export class Rulers extends ViewPart {
 
 	constructor(context: ViewContext) {
 		super(context);
-		this.domNode = document.createElement('div');
-		this.domNode.className = 'view-rulers';
+		this.domNode = createFastDomNode<HTMLElement>(document.createElement('div'));
+		this.domNode.setClassName('view-rulers');
 		this._renderedRulers = [];
 		this._rulers = this._context.configuration.editor.viewInfo.rulers;
 		this._height = this._context.configuration.editor.layoutInfo.contentHeight;
@@ -70,7 +70,7 @@ export class Rulers extends ViewPart {
 			while (addCount > 0) {
 				let node = createFastDomNode(document.createElement('div'));
 				node.setClassName('view-ruler');
-				this.domNode.appendChild(node.domNode);
+				this.domNode.appendChild(node);
 				this._renderedRulers.push(node);
 				addCount--;
 			}
@@ -80,7 +80,7 @@ export class Rulers extends ViewPart {
 		let removeCount = currentCount - desiredCount;
 		while (removeCount > 0) {
 			let node = this._renderedRulers.pop();
-			this.domNode.removeChild(node.domNode);
+			this.domNode.removeChild(node);
 			removeCount--;
 		}
 	}

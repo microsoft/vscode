@@ -57,7 +57,7 @@ export class ViewCursors extends ViewPart {
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._updateDomClassName();
 
-		this._domNode.domNode.appendChild(this._primaryCursor.getDomNode());
+		this._domNode.appendChild(this._primaryCursor.getDomNode());
 
 		this._startCursorBlinkAnimation = new TimeoutTimer();
 		this._cursorFlatBlinkInterval = new IntervalTimer();
@@ -74,8 +74,8 @@ export class ViewCursors extends ViewPart {
 		this._cursorFlatBlinkInterval.dispose();
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
 	}
 
 	// --- begin event handlers
@@ -111,14 +111,14 @@ export class ViewCursors extends ViewPart {
 			let addCnt = e.secondaryPositions.length - this._secondaryCursors.length;
 			for (let i = 0; i < addCnt; i++) {
 				let newCursor = new ViewCursor(this._context, true);
-				this._primaryCursor.getDomNode().parentNode.insertBefore(newCursor.getDomNode(), this._primaryCursor.getDomNode().nextSibling);
+				this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
 				this._secondaryCursors.push(newCursor);
 			}
 		} else if (this._secondaryCursors.length > e.secondaryPositions.length) {
 			// Remove some cursors
 			let removeCnt = this._secondaryCursors.length - e.secondaryPositions.length;
 			for (let i = 0; i < removeCnt; i++) {
-				this._secondaryCursors[0].getDomNode().parentNode.removeChild(this._secondaryCursors[0].getDomNode());
+				this._domNode.removeChild(this._secondaryCursors[0].getDomNode());
 				this._secondaryCursors.splice(0, 1);
 			}
 		}
@@ -144,8 +144,7 @@ export class ViewCursors extends ViewPart {
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		this._primaryCursor.onFlushed();
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			let domNode = this._secondaryCursors[i].getDomNode();
-			domNode.parentNode.removeChild(domNode);
+			this._domNode.removeChild(this._secondaryCursors[i].getDomNode());
 		}
 		this._secondaryCursors = [];
 		return true;

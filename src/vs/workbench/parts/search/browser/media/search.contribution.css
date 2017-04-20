@@ -7,3 +7,7 @@
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.search {
 	background-image: url('search-dark.svg');
 }
+
+.monaco-workbench > .activitybar.light .monaco-action-bar .action-label.search {
+	background-image: url('search-light.svg');
+}

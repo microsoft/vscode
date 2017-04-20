@@ -96,6 +96,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		this._context = null;
 		this._selections = null;
 		this._renderResult = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers

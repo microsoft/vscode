@@ -75,7 +75,6 @@ export class TextAreaHandler extends Disposable {
 	private Browser: IBrowser;
 	private textArea: ITextAreaWrapper;
 	private model: ISimpleModel;
-	private flushAnyAccumulatedEvents: () => void;
 
 	private selection: Range;
 	private selections: Range[];
@@ -93,12 +92,11 @@ export class TextAreaHandler extends Disposable {
 
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(Browser: IBrowser, strategy: TextAreaStrategy, textArea: ITextAreaWrapper, model: ISimpleModel, flushAnyAccumulatedEvents: () => void) {
+	constructor(Browser: IBrowser, strategy: TextAreaStrategy, textArea: ITextAreaWrapper, model: ISimpleModel) {
 		super();
 		this.Browser = Browser;
 		this.textArea = textArea;
 		this.model = model;
-		this.flushAnyAccumulatedEvents = flushAnyAccumulatedEvents;
 		this.selection = new Range(1, 1, 1, 1);
 		this.selections = [new Range(1, 1, 1, 1)];
 		this._nextCommand = ReadFromTextArea.Type;
@@ -242,15 +240,11 @@ export class TextAreaHandler extends Disposable {
 		// --- Clipboard operations
 
 		this._register(this.textArea.onCut((e) => {
-			// Ensure we have the latest selection => ask all pending events to be sent
-			this.flushAnyAccumulatedEvents();
 			this._ensureClipboardGetsEditorSelection(e);
 			this.asyncTriggerCut.schedule();
 		}));
 
 		this._register(this.textArea.onCopy((e) => {
-			// Ensure we have the latest selection => ask all pending events to be sent
-			this.flushAnyAccumulatedEvents();
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
@@ -309,6 +303,11 @@ export class TextAreaHandler extends Disposable {
 	}
 
 	private _onKeyDownHandler(e: IKeyboardEventWrapper): void {
+		if (this.textareaIsShownAtCursor && e.equals(KeyCode.KEY_IN_COMPOSITION)) {
+			// Stop propagation for keyDown events if the IME is processing key input
+			e.stopPropagation();
+		}
+
 		if (e.equals(KeyCode.Escape)) {
 			// Prevent default always for `Esc`, otherwise it will generate a keypress
 			// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx

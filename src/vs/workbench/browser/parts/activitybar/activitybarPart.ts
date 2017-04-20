@@ -31,7 +31,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BACKGROUND_LIGHT_DEFAULT } from 'vs/workbench/common/theme';
 import { highContrastBorder, highContrastOutline, focus } from 'vs/platform/theme/common/colorRegistry';
 
 interface IViewletActivity {
@@ -219,7 +219,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Part container
 		const container = this.getContainer();
-		container.style('background-color', this.getColor(ACTIVITY_BAR_BACKGROUND));
+		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
+		container.style('background-color', background);
 
 		const useBorder = this.isHighContrastTheme;
 		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
@@ -230,6 +231,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		container.style('border-left-width', useBorder && !isPositionLeft ? '1px' : null);
 		container.style('border-left-style', useBorder && !isPositionLeft ? 'solid' : null);
 		container.style('border-left-color', useBorder && !isPositionLeft ? this.getColor(highContrastBorder) : null);
+
+		// Toggle 'light' class if we are in light theme and the background color does not match our default
+		// so that viewlet icons can provide a light version of the view icon. We do this because our default
+		// light activity bar background is actually dark. If we have the default color, we do not want light icons.
+		if (this.isLightTheme && background && background.toLowerCase() !== ACTIVITY_BAR_BACKGROUND_LIGHT_DEFAULT.toLowerCase()) {
+			container.addClass('light');
+		} else {
+			container.removeClass('light');
+		}
 	}
 
 	private showContextMenu(e: MouseEvent): void {

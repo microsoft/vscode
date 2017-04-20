@@ -64,8 +64,8 @@ export class ViewContentWidgets extends ViewPart {
 	private _lineHeight: number;
 	private _renderData: IMyRenderData;
 
-	public domNode: HTMLElement;
-	public overflowingContentWidgetsDomNode: HTMLElement;
+	public domNode: FastDomNode<HTMLElement>;
+	public overflowingContentWidgetsDomNode: FastDomNode<HTMLElement>;
 	private _viewDomNode: FastDomNode<HTMLElement>;
 
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>) {
@@ -78,15 +78,15 @@ export class ViewContentWidgets extends ViewPart {
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderData = {};
 
-		this.domNode = document.createElement('div');
+		this.domNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.domNode, PartFingerprint.ContentWidgets);
-		this.domNode.className = ClassNames.CONTENT_WIDGETS;
-		this.domNode.style.position = 'absolute';
-		this.domNode.style.top = '0';
+		this.domNode.setClassName(ClassNames.CONTENT_WIDGETS);
+		this.domNode.setPosition('absolute');
+		this.domNode.setTop(0);
 
-		this.overflowingContentWidgetsDomNode = document.createElement('div');
+		this.overflowingContentWidgetsDomNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.overflowingContentWidgetsDomNode, PartFingerprint.OverflowingContentWidgets);
-		this.overflowingContentWidgetsDomNode.className = ClassNames.OVERFLOWING_CONTENT_WIDGETS;
+		this.overflowingContentWidgetsDomNode.setClassName(ClassNames.OVERFLOWING_CONTENT_WIDGETS);
 	}
 
 	public dispose(): void {
@@ -175,9 +175,9 @@ export class ViewContentWidgets extends ViewPart {
 		domNode.setAttribute('widgetId', widget.getId());
 
 		if (widgetData.allowEditorOverflow) {
-			this.overflowingContentWidgetsDomNode.appendChild(domNode.domNode);
+			this.overflowingContentWidgetsDomNode.appendChild(domNode);
 		} else {
-			this.domNode.appendChild(domNode.domNode);
+			this.domNode.appendChild(domNode);
 		}
 
 		this.setShouldRender();

@@ -17,6 +17,11 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
+export const ClassName = {
+	EditorWarningDecoration: 'greensquiggly',
+	EditorErrorDecoration: 'redsquiggly'
+};
+
 class DecorationsTracker {
 
 	public addedDecorations: string[];
@@ -79,8 +84,8 @@ export class InternalDecoration implements editorCommon.IModelDecoration {
 	public setOptions(options: ModelDecorationOptions) {
 		this.options = options;
 		this.isForValidation = (
-			this.options.className === editorCommon.ClassName.EditorErrorDecoration
-			|| this.options.className === editorCommon.ClassName.EditorWarningDecoration
+			this.options.className === ClassName.EditorErrorDecoration
+			|| this.options.className === ClassName.EditorWarningDecoration
 		);
 	}
 

@@ -15,7 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/modes';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IPosition } from "vs/editor/common/core/position";
+import { Position } from "vs/editor/common/core/position";
 
 export class OneReference {
 
@@ -238,7 +238,7 @@ export class ReferencesModel implements IDisposable {
 		return reference.parent.parent.groups[idx].children[0];
 	}
 
-	public nearestReference(resource: URI, position: IPosition): OneReference {
+	public nearestReference(resource: URI, position: Position): OneReference {
 
 		const nearest = this._references.map((ref, idx) => {
 			return {

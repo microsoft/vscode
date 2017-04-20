@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
-import { EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/common/editorCommonExtensions';
 import { ICommandKeybindingsOptions } from 'vs/editor/common/config/config';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
@@ -199,7 +199,18 @@ export class EmmetActionContext {
 	}
 }
 
+export interface IEmmetActionOptions extends IActionOptions {
+	actionName: string;
+}
+
 export abstract class EmmetEditorAction extends EditorAction {
+
+	protected emmetActionName: string;
+
+	constructor(opts: IEmmetActionOptions) {
+		super(opts);
+		this.emmetActionName = opts.actionName;
+	}
 
 	abstract runEmmetAction(accessor: ServicesAccessor, ctx: EmmetActionContext);
 
@@ -227,6 +238,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const messageService = accessor.get(IMessageService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const workspaceRoot = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : '';
+		const telemetryService = accessor.get(ITelemetryService);
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
@@ -235,7 +247,8 @@ export abstract class EmmetEditorAction extends EditorAction {
 				editor,
 				configurationService.getConfiguration<IEmmetConfiguration>().emmet.syntaxProfiles,
 				configurationService.getConfiguration<IEmmetConfiguration>().emmet.excludeLanguages,
-				grammarContributions
+				grammarContributions,
+				this.emmetActionName
 			);
 
 			if (!editorAccessor.isEmmetEnabledMode()) {
@@ -253,6 +266,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 					this.runEmmetAction(accessor, new EmmetActionContext(editor, _emmet, editorAccessor));
 				});
 				editorAccessor.onAfterEmmetAction();
+				telemetryService.publicLog('emmetActionCompleted', { action: this.emmetActionName });
 			});
 		});
 
@@ -261,17 +275,15 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 export class BasicEmmetEditorAction extends EmmetEditorAction {
 
-	private emmetActionName: string;
-
 	constructor(id: string, label: string, alias: string, actionName: string, kbOpts?: ICommandKeybindingsOptions) {
 		super({
-			id: id,
-			label: label,
-			alias: alias,
+			id,
+			label,
+			alias,
 			precondition: EditorContextKeys.Writable,
-			kbOpts: kbOpts
+			kbOpts,
+			actionName
 		});
-		this.emmetActionName = actionName;
 	}
 
 	public runEmmetAction(accessor: ServicesAccessor, ctx: EmmetActionContext) {

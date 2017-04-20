@@ -128,6 +128,12 @@ let KEY_CODE_MAP: { [keyCode: number]: KeyCode } = {};
 
 	KEY_CODE_MAP[226] = KeyCode.OEM_102;
 
+	/**
+	 * https://lists.w3.org/Archives/Public/www-dom/2010JulSep/att-0182/keyCode-spec.html
+	 * If an Input Method Editor is processing key input and the event is keydown, return 229.
+	 */
+	KEY_CODE_MAP[229] = KeyCode.KEY_IN_COMPOSITION;
+
 	if (browser.isIE) {
 		KEY_CODE_MAP[91] = KeyCode.Meta;
 	} else if (browser.isFirefox) {

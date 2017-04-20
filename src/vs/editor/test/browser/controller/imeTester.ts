@@ -105,7 +105,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let model = new SingleLineTestModel('some  text');
 
-	let handler = new TextAreaHandler(browser, strategy, textAreaWrapper, model, () => { });
+	let handler = new TextAreaHandler(browser, strategy, textAreaWrapper, model);
 
 	input.onfocus = () => {
 		handler.setHasFocus(true);

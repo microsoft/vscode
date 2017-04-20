@@ -21,8 +21,8 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import * as errors from 'vs/base/common/errors';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { CursorEventType } from 'vs/editor/common/controller/cursor';
 import { WrappingIndent, IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, ICursorScrollRequestEvent } from "vs/editor/common/controller/cursorEvents";
 
 const ConfigurationChanged = 'configurationChanged';
 
@@ -213,7 +213,7 @@ export class ViewModel implements IViewModel {
 		// Send a reveal event to restore the centered content
 		eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
 			newCenteredViewRange,
-			editorCommon.VerticalRevealType.Center,
+			VerticalRevealType.Center,
 			false,
 			false
 		));
@@ -386,23 +386,23 @@ export class ViewModel implements IViewModel {
 					break;
 				}
 				case CursorEventType.CursorPositionChanged: {
-					const e = <editorCommon.ICursorPositionChangedEvent>data;
+					const e = <ICursorPositionChangedEvent>data;
 					this.cursors.onCursorPositionChanged(eventsCollector, e);
 					this._lastCursorPosition = e.position;
 					break;
 				}
 				case CursorEventType.CursorSelectionChanged: {
-					const e = <editorCommon.ICursorSelectionChangedEvent>data;
+					const e = <ICursorSelectionChangedEvent>data;
 					this.cursors.onCursorSelectionChanged(eventsCollector, e);
 					break;
 				}
 				case CursorEventType.CursorRevealRange: {
-					const e = <editorCommon.ICursorRevealRangeEvent>data;
+					const e = <ICursorRevealRangeEvent>data;
 					this.cursors.onCursorRevealRange(eventsCollector, e);
 					break;
 				}
 				case CursorEventType.CursorScrollRequest: {
-					const e = <editorCommon.ICursorScrollRequestEvent>data;
+					const e = <ICursorScrollRequestEvent>data;
 					this.cursors.onCursorScrollRequest(eventsCollector, e);
 					break;
 				}

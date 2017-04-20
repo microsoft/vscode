@@ -9,11 +9,12 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { EditorContextKeys, IEditorContribution, CodeEditorStateFlag, ICommonCodeEditor, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys, IEditorContribution, ICommonCodeEditor, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
+import { EditorState, CodeEditorStateFlag } from "vs/editor/common/core/editorState";
 
 @commonEditorContribution
 class InPlaceReplaceController implements IEditorContribution {
@@ -68,7 +69,7 @@ class InPlaceReplaceController implements IEditorContribution {
 			return null;
 		}
 
-		var state = this.editor.captureState(CodeEditorStateFlag.Value, CodeEditorStateFlag.Position);
+		var state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
 		this.currentRequest = this.editorWorkerService.navigateValueSet(modelURI, selection, up);
 		this.currentRequest = this.currentRequest.then((basicResult) => {

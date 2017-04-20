@@ -10,6 +10,7 @@ import * as path from 'path';
 import { MarkdownEngine } from './markdownEngine';
 
 import * as nls from 'vscode-nls';
+import { Logger } from "./logger";
 const localize = nls.loadMessageBundle();
 
 export interface ContentSecurityPolicyArbiter {
@@ -109,7 +110,8 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	constructor(
 		private engine: MarkdownEngine,
 		private context: vscode.ExtensionContext,
-		private cspArbiter: ContentSecurityPolicyArbiter
+		private cspArbiter: ContentSecurityPolicyArbiter,
+		private logger: Logger
 	) {
 		this.config = MarkdownPreviewConfig.getCurrentConfig();
 	}
@@ -191,6 +193,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
 		const sourceUri = vscode.Uri.parse(uri.query);
+
 		return vscode.workspace.openTextDocument(sourceUri).then(document => {
 			this.config = MarkdownPreviewConfig.getCurrentConfig();
 
@@ -208,6 +211,8 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 				scrollEditorWithPreview: this.config.scrollEditorWithPreview,
 				doubleClickToSwitchToEditor: this.config.doubleClickToSwitchToEditor
 			};
+
+			this.logger.log('provideTextDocumentContent', initialData);
 
 			// Content Security Policy
 			const nonce = new Date().getTime() + '' + new Date().getMilliseconds();

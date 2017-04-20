@@ -31,6 +31,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 import { IPosition } from "vs/editor/common/core/position";
+import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -78,7 +79,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	private contentWidgets: { [key: string]: editorBrowser.IContentWidgetData; };
 	private overlayWidgets: { [key: string]: editorBrowser.IOverlayWidgetData; };
 
-	_view: editorBrowser.IView;
+	_view: View;
 
 	constructor(
 		domElement: HTMLElement,
@@ -139,7 +140,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	protected abstract _getContributions(): editorBrowser.IEditorContributionCtor[];
 	protected abstract _getActions(): EditorAction[];
 
-	protected _createConfiguration(options: editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration {
+	protected _createConfiguration(options: IEditorOptions): CommonEditorConfiguration {
 		return new Configuration(options, this.domElement);
 	}
 
@@ -196,7 +197,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.getCodeEditorHelper().getCompletelyVisibleViewRange();
+		return this._view.getCompletelyVisibleViewRange();
 	}
 
 	public getCompletelyVisibleLinesRangeInViewport(): Range {
@@ -208,26 +209,26 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.hasView) {
 			return -1;
 		}
-		return this._view.getCodeEditorHelper().getScrollWidth();
+		return this._view.getScrollWidth();
 	}
 	public getScrollLeft(): number {
 		if (!this.hasView) {
 			return -1;
 		}
-		return this._view.getCodeEditorHelper().getScrollLeft();
+		return this._view.getScrollLeft();
 	}
 
 	public getScrollHeight(): number {
 		if (!this.hasView) {
 			return -1;
 		}
-		return this._view.getCodeEditorHelper().getScrollHeight();
+		return this._view.getScrollHeight();
 	}
 	public getScrollTop(): number {
 		if (!this.hasView) {
 			return -1;
 		}
-		return this._view.getCodeEditorHelper().getScrollTop();
+		return this._view.getScrollTop();
 	}
 
 	public setScrollLeft(newScrollLeft: number): void {
@@ -237,7 +238,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (typeof newScrollLeft !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._view.getCodeEditorHelper().setScrollPosition({
+		this._view.setScrollPosition({
 			scrollLeft: newScrollLeft
 		});
 	}
@@ -248,7 +249,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (typeof newScrollTop !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._view.getCodeEditorHelper().setScrollPosition({
+		this._view.setScrollPosition({
 			scrollTop: newScrollTop
 		});
 	}
@@ -256,14 +257,14 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.hasView) {
 			return;
 		}
-		this._view.getCodeEditorHelper().setScrollPosition(position);
+		this._view.setScrollPosition(position);
 	}
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
 		if (!this.hasView) {
 			return;
 		}
-		this._view.getCodeEditorHelper().delegateVerticalScrollbarMouseDown(browserEvent);
+		this._view.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState {
@@ -425,7 +426,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 	}
 
-	public getWhitespaces(): editorCommon.IEditorWhitespace[] {
+	public getWhitespaces(): IEditorWhitespace[] {
 		if (!this.hasView) {
 			return [];
 		}
@@ -436,21 +437,21 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.hasView) {
 			return -1;
 		}
-		return this._view.getCodeEditorHelper().getVerticalOffsetForPosition(lineNumber, 1);
+		return this._view.getVerticalOffsetForPosition(lineNumber, 1);
 	}
 
 	public getTopForPosition(lineNumber: number, column: number): number {
 		if (!this.hasView) {
 			return -1;
 		}
-		return this._view.getCodeEditorHelper().getVerticalOffsetForPosition(lineNumber, column);
+		return this._view.getVerticalOffsetForPosition(lineNumber, column);
 	}
 
 	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
 		if (!this.hasView) {
 			return null;
 		}
-		return this._view.getCodeEditorHelper().getTargetAtClientPoint(clientX, clientY);
+		return this._view.getTargetAtClientPoint(clientX, clientY);
 	}
 
 	public getScrolledVisiblePosition(rawPosition: IPosition): { top: number; left: number; height: number; } {
@@ -459,11 +460,10 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 
 		let position = this.model.validatePosition(rawPosition);
-		let helper = this._view.getCodeEditorHelper();
 		let layoutInfo = this._configuration.editor.layoutInfo;
 
-		let top = helper.getVerticalOffsetForPosition(position.lineNumber, position.column) - helper.getScrollTop();
-		let left = helper.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - helper.getScrollLeft();
+		let top = this._view.getVerticalOffsetForPosition(position.lineNumber, position.column) - this._view.getScrollTop();
+		let left = this._view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - this._view.getScrollLeft();
 
 		return {
 			top: top,
@@ -476,7 +476,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		if (!this.hasView) {
 			return -1;
 		}
-		return this._view.getCodeEditorHelper().getOffsetForColumn(lineNumber, column);
+		return this._view.getOffsetForColumn(lineNumber, column);
 	}
 
 	public render(): void {

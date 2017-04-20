@@ -41,8 +41,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.12.4' },
-	{ name: 'ms-vscode.node-debug2', version: '1.12.0' }
+	{ name: 'ms-vscode.node-debug', version: '1.12.5' },
+	{ name: 'ms-vscode.node-debug2', version: '1.12.1' }
 ];
 
 const vscodeEntryPoints = _.flatten([

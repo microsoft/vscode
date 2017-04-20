@@ -15,11 +15,11 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IPosition } from "vs/editor/common/core/position";
+import { Position } from "vs/editor/common/core/position";
 import { Range } from "vs/editor/common/core/range";
 
 interface ParseResult {
-	position: IPosition;
+	position: Position;
 	isValid: boolean;
 	label: string;
 }
@@ -42,14 +42,14 @@ export class GotoLineEntry extends QuickOpenEntry {
 	private _parseInput(line: string): ParseResult {
 
 		let numbers = line.split(',').map(part => parseInt(part, 10)).filter(part => !isNaN(part)),
-			position: IPosition;
+			position: Position;
 
 		if (numbers.length === 0) {
-			position = { lineNumber: -1, column: -1 };
+			position = new Position(-1, -1);
 		} else if (numbers.length === 1) {
-			position = { lineNumber: numbers[0], column: 1 };
+			position = new Position(numbers[0], 1);
 		} else {
-			position = { lineNumber: numbers[0], column: numbers[1] };
+			position = new Position(numbers[0], numbers[1]);
 		}
 
 		let model: editorCommon.IModel;

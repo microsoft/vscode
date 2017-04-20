@@ -21,6 +21,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { EditorState, CodeEditorStateFlag } from "vs/editor/common/core/editorState";
 
 import ModeContextKeys = editorCommon.ModeContextKeys;
 import EditorContextKeys = editorCommon.EditorContextKeys;
@@ -236,7 +237,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 
 		const model = this.editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
-		const state = this.editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
+		const state = new EditorState(this.editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
 		getDocumentRangeFormattingEdits(model, range, { tabSize, insertSpaces }).then(edits => {
 			return this.workerService.computeMoreMinimalEdits(model.uri, edits, []);
@@ -271,7 +272,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 		}
 
 		// Capture the state of the editor
-		const state = editor.captureState(editorCommon.CodeEditorStateFlag.Value, editorCommon.CodeEditorStateFlag.Position);
+		const state = new EditorState(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Position);
 
 		// Receive formatted value from worker
 		return formattingPromise.then(edits => workerService.computeMoreMinimalEdits(editor.getModel().uri, edits, editor.getSelections())).then(edits => {

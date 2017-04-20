@@ -6,18 +6,16 @@
 
 import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { MarkedString } from 'vs/base/common/htmlContent';
-import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { LanguageId, LanguageIdentifier, StandardTokenType } from 'vs/editor/common/modes';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { IndentRange } from 'vs/editor/common/model/indentRanges';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import {
@@ -25,16 +23,7 @@ import {
 	IModelLanguageChangedEvent, IModelOptionsChangedEvent
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from "vs/editor/common/config/editorOptions";
-
-/**
- * @internal
- */
-export interface Event<T> {
-	(listener: (e: T) => any, thisArg?: any): IDisposable;
-}
-
-// --- position & range
-
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -229,41 +218,6 @@ export interface IWordAtPosition {
 	 * The column where the word ends.
 	 */
 	readonly endColumn: number;
-}
-
-/**
- * Range of a word inside a model.
- * @internal
- */
-export interface IWordRange {
-	/**
-	 * The index where the word starts.
-	 */
-	readonly start: number;
-	/**
-	 * The index where the word ends.
-	 */
-	readonly end: number;
-}
-
-/**
- * @internal
- */
-export interface ITokenInfo {
-	readonly type: StandardTokenType;
-	readonly lineNumber: number;
-	readonly startColumn: number;
-	readonly endColumn: number;
-}
-
-/**
- * @internal
- */
-export interface ITokenIterator {
-	hasNext(): boolean;
-	next(): ITokenInfo;
-	hasPrev(): boolean;
-	prev(): ITokenInfo;
 }
 
 /**
@@ -512,15 +466,22 @@ export interface ITextModelUpdateOptions {
 export interface ITextModel {
 
 	/**
+	 * If true, the text model might contain RTL.
+	 * If false, the text model **contains only** contain LTR.
 	 * @internal
 	 */
 	mightContainRTL(): boolean;
 
 	/**
+	 * If true, the text model might contain non basic ASCII.
+	 * If false, the text model **contains only** basic ASCII.
 	 * @internal
 	 */
 	mightContainNonBasicASCII(): boolean;
 
+	/**
+	 * Get the resolved options for this model.
+	 */
 	getOptions(): TextModelResolvedOptions;
 
 	/**
@@ -884,15 +845,6 @@ export interface ITokenizedModel extends ITextModel {
 	getWordUntilPosition(position: IPosition): IWordAtPosition;
 
 	/**
-	 * Returns an iterator that can be used to read
-	 * next and previous tokens from the provided position.
-	 * The iterator is made available through the callback
-	 * function and can't be used afterwards.
-	 * @internal
-	 */
-	tokenIterator(position: IPosition, callback: (it: ITokenIterator) => any): any;
-
-	/**
 	 * Find the matching bracket of `request` up, counting brackets.
 	 * @param request The bracket we're searching for
 	 * @param position The position at which to start the search.
@@ -1130,7 +1082,7 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 /**
  * A model.
  */
-export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations, IEditorModel {
+export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations {
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
@@ -1204,144 +1156,18 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	isAttachedToEditor(): boolean;
 }
 
-
 /**
- * Describes the reason the cursor has changed its position.
+ * A model for the diff editor.
  */
-export enum CursorChangeReason {
+export interface IDiffEditorModel {
 	/**
-	 * Unknown or not set.
+	 * Original model.
 	 */
-	NotSet = 0,
+	original: IModel;
 	/**
-	 * A `model.setValue()` was called.
+	 * Modified model.
 	 */
-	ContentFlush = 1,
-	/**
-	 * The `model` has been changed outside of this cursor and the cursor recovers its position from associated markers.
-	 */
-	RecoverFromMarkers = 2,
-	/**
-	 * There was an explicit user gesture.
-	 */
-	Explicit = 3,
-	/**
-	 * There was a Paste.
-	 */
-	Paste = 4,
-	/**
-	 * There was an Undo.
-	 */
-	Undo = 5,
-	/**
-	 * There was a Redo.
-	 */
-	Redo = 6,
-}
-/**
- * An event describing that the cursor position has changed.
- */
-export interface ICursorPositionChangedEvent {
-	/**
-	 * Primary cursor's position.
-	 */
-	readonly position: Position;
-	/**
-	 * Primary cursor's view position
-	 */
-	readonly viewPosition: Position;
-	/**
-	 * Secondary cursors' position.
-	 */
-	readonly secondaryPositions: Position[];
-	/**
-	 * Secondary cursors' view position.
-	 */
-	readonly secondaryViewPositions: Position[];
-	/**
-	 * Reason.
-	 */
-	readonly reason: CursorChangeReason;
-	/**
-	 * Source of the call that caused the event.
-	 */
-	readonly source: string;
-	/**
-	 * Is the primary cursor in the editable range?
-	 */
-	readonly isInEditableRange: boolean;
-}
-/**
- * An event describing that the cursor selection has changed.
- */
-export interface ICursorSelectionChangedEvent {
-	/**
-	 * The primary selection.
-	 */
-	readonly selection: Selection;
-	/**
-	 * The primary selection in view coordinates.
-	 */
-	readonly viewSelection: Selection;
-	/**
-	 * The secondary selections.
-	 */
-	readonly secondarySelections: Selection[];
-	/**
-	 * The secondary selections in view coordinates.
-	 */
-	readonly secondaryViewSelections: Selection[];
-	/**
-	 * Source of the call that caused the event.
-	 */
-	readonly source: string;
-	/**
-	 * Reason.
-	 */
-	readonly reason: CursorChangeReason;
-}
-/**
- * @internal
- */
-export const enum VerticalRevealType {
-	Simple = 0,
-	Center = 1,
-	CenterIfOutsideViewport = 2,
-	Top = 3,
-	Bottom = 4
-}
-/**
- * An event describing a request to reveal a specific range in the view of the editor.
- * @internal
- */
-export interface ICursorRevealRangeEvent {
-	/**
-	 * Range to be reavealed.
-	 */
-	readonly range: Range;
-	/**
-	 * View range to be reavealed.
-	 */
-	readonly viewRange: Range;
-
-	readonly verticalType: VerticalRevealType;
-	/**
-	 * If true: there should be a horizontal & vertical revealing
-	 * If false: there should be just a vertical revealing
-	 */
-	readonly revealHorizontal: boolean;
-	/**
-	 * If true: cursor is revealed if outside viewport
-	 */
-	readonly revealCursor: boolean;
-}
-
-/**
- * @internal
- */
-export interface ICursorScrollRequestEvent {
-	readonly deltaLines: number;
-	readonly revealCursor: boolean;
+	modified: IModel;
 }
 
 /**
@@ -1358,149 +1184,11 @@ export interface IModelChangedEvent {
 	readonly newModelUrl: URI;
 }
 
-/**
- * @internal
- */
-export interface IEditorWhitespace {
-	readonly id: number;
-	readonly afterLineNumber: number;
-	readonly heightInLines: number;
-}
-
-
-
-/**
- * Options for creating the editor.
- */
-export interface ICodeEditorWidgetCreationOptions extends editorOptions.IEditorOptions {
-	/**
-	 * The initial model associated with this code editor.
-	 */
-	model?: IModel;
-}
-
-/**
- * An editor model.
- */
-export interface IEditorModel {
-}
-/**
- * An editor view state.
- */
-export interface IEditorViewState {
-}
 export interface IDimension {
 	width: number;
 	height: number;
 }
 
-/**
- * A (serializable) state of the cursors.
- */
-export interface ICursorState {
-	inSelectionMode: boolean;
-	selectionStart: IPosition;
-	position: IPosition;
-}
-/**
- * A (serializable) state of the view.
- */
-export interface IViewState {
-	scrollTop: number;
-	scrollTopWithoutViewZones: number;
-	scrollLeft: number;
-}
-/**
- * A (serializable) state of the code editor.
- */
-export interface ICodeEditorViewState extends IEditorViewState {
-	cursorState: ICursorState[];
-	viewState: IViewState;
-	contributionsState: { [id: string]: any };
-}
-
-/**
- * Type of hit element with the mouse in the editor.
- */
-export enum MouseTargetType {
-	/**
-	 * Mouse is on top of an unknown element.
-	 */
-	UNKNOWN,
-	/**
-	 * Mouse is on top of the textarea used for input.
-	 */
-	TEXTAREA,
-	/**
-	 * Mouse is on top of the glyph margin
-	 */
-	GUTTER_GLYPH_MARGIN,
-	/**
-	 * Mouse is on top of the line numbers
-	 */
-	GUTTER_LINE_NUMBERS,
-	/**
-	 * Mouse is on top of the line decorations
-	 */
-	GUTTER_LINE_DECORATIONS,
-	/**
-	 * Mouse is on top of the whitespace left in the gutter by a view zone.
-	 */
-	GUTTER_VIEW_ZONE,
-	/**
-	 * Mouse is on top of text in the content.
-	 */
-	CONTENT_TEXT,
-	/**
-	 * Mouse is on top of empty space in the content (e.g. after line text or below last line)
-	 */
-	CONTENT_EMPTY,
-	/**
-	 * Mouse is on top of a view zone in the content.
-	 */
-	CONTENT_VIEW_ZONE,
-	/**
-	 * Mouse is on top of a content widget.
-	 */
-	CONTENT_WIDGET,
-	/**
-	 * Mouse is on top of the decorations overview ruler.
-	 */
-	OVERVIEW_RULER,
-	/**
-	 * Mouse is on top of a scrollbar.
-	 */
-	SCROLLBAR,
-	/**
-	 * Mouse is on top of an overlay widget.
-	 */
-	OVERLAY_WIDGET,
-	/**
-	 * Mouse is outside of the editor.
-	 */
-	OUTSIDE_EDITOR,
-}
-
-/**
- * A model for the diff editor.
- */
-export interface IDiffEditorModel extends IEditorModel {
-	/**
-	 * Original model.
-	 */
-	original: IModel;
-	/**
-	 * Modified model.
-	 */
-	modified: IModel;
-}
-/**
- * (Serializable) View state for the diff editor.
- */
-export interface IDiffEditorViewState extends IEditorViewState {
-	original: ICodeEditorViewState;
-	modified: ICodeEditorViewState;
-}
 /**
  * A change
  */
@@ -1535,140 +1223,8 @@ export interface IDiffLineInformation {
 /**
  * @internal
  */
-export namespace EditorContextKeys {
-	/**
-	 * A context key that is set when the editor's text has focus (cursor is blinking).
-	 * @internal
-	 */
-	export const TextFocus = new RawContextKey<boolean>('editorTextFocus', false);
-	/**
-	 * A context key that is set when the editor's text or an editor's widget has focus.
-	 * @internal
-	 */
-	export const Focus = new RawContextKey<boolean>('editorFocus', false);
-
-	/**
-	 * A context key that is set when the editor's text is readonly.
-	 * @internal
-	 */
-	export const ReadOnly = new RawContextKey<boolean>('editorReadonly', false);
-
-	/**
-	 * @internal
-	 */
-	export const Writable: ContextKeyExpr = ReadOnly.toNegated();
-
-	/**
-	 * A context key that is set when the editor has a non-collapsed selection.
-	 * @internal
-	 */
-	export const HasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
-	/**
-	 * @internal
-	 */
-	export const HasOnlyEmptySelection: ContextKeyExpr = HasNonEmptySelection.toNegated();
-
-	/**
-	 * A context key that is set when the editor has multiple selections (multiple cursors).
-	 * @internal
-	 */
-	export const HasMultipleSelections = new RawContextKey<boolean>('editorHasMultipleSelections', false);
-	/**
-	 * @internal
-	 */
-	export const HasSingleSelection: ContextKeyExpr = HasMultipleSelections.toNegated();
-
-	/**
-	 * @internal
-	 */
-	export const TabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
-	/**
-	 * @internal
-	 */
-	export const TabDoesNotMoveFocus: ContextKeyExpr = TabMovesFocus.toNegated();
-
-	/**
-	 * A context key that is set to the language associated with the model associated with the editor.
-	 * @internal
-	 */
-	export const LanguageId = new RawContextKey<string>('editorLangId', undefined);
-
-};
-
-
-/**
- * @internal
- */
-export namespace ModeContextKeys {
-	/**
-	 * @internal
-	 */
-	export const hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCompletionItemProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDefinitionProvider = new RawContextKey<boolean>('editorHasDefinitionProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentHighlightProvider = new RawContextKey<boolean>('editorHasDocumentHighlightProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentSymbolProvider = new RawContextKey<boolean>('editorHasDocumentSymbolProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
-}
-
-
-
-/**
- * @internal
- */
 export interface IConfiguration {
-	readonly onDidChange: Event<editorOptions.IConfigurationChangedEvent>;
+	onDidChange(listener: (e: editorOptions.IConfigurationChangedEvent) => void): IDisposable;
 
 	readonly editor: editorOptions.InternalEditorOptions;
 
@@ -1692,35 +1248,6 @@ export interface IScrollEvent {
 export interface INewScrollPosition {
 	scrollLeft?: number;
 	scrollTop?: number;
-}
-
-/**
- * @internal
- */
-export interface IViewWhitespaceViewportData {
-	readonly id: number;
-	readonly afterLineNumber: number;
-	readonly verticalOffset: number;
-	readonly height: number;
-}
-
-/**
- * @internal
- */
-export class Viewport {
-	readonly _viewportBrand: void;
-
-	readonly top: number;
-	readonly left: number;
-	readonly width: number;
-	readonly height: number;
-
-	constructor(top: number, left: number, width: number, height: number) {
-		this.top = top | 0;
-		this.left = left | 0;
-		this.width = width | 0;
-		this.height = height | 0;
-	}
 }
 
 /**
@@ -1768,11 +1295,6 @@ export interface IActionDescriptor {
 	run(editor: ICommonCodeEditor): void | TPromise<void>;
 }
 
-/**
- * @internal
- */
-export type ICommonEditorContributionCtor = IConstructorSignature1<ICommonCodeEditor, IEditorContribution>;
-
 export interface IEditorAction {
 	readonly id: string;
 	readonly label: string;
@@ -1780,6 +1302,44 @@ export interface IEditorAction {
 	isSupported(): boolean;
 	run(): TPromise<void>;
 }
+
+export type IEditorModel = IModel | IDiffEditorModel;
+
+/**
+ * A (serializable) state of the cursors.
+ */
+export interface ICursorState {
+	inSelectionMode: boolean;
+	selectionStart: IPosition;
+	position: IPosition;
+}
+/**
+ * A (serializable) state of the view.
+ */
+export interface IViewState {
+	scrollTop: number;
+	scrollTopWithoutViewZones: number;
+	scrollLeft: number;
+}
+/**
+ * A (serializable) state of the code editor.
+ */
+export interface ICodeEditorViewState {
+	cursorState: ICursorState[];
+	viewState: IViewState;
+	contributionsState: { [id: string]: any };
+}
+/**
+ * (Serializable) View state for the diff editor.
+ */
+export interface IDiffEditorViewState {
+	original: ICodeEditorViewState;
+	modified: ICodeEditorViewState;
+}
+/**
+ * An editor view state.
+ */
+export type IEditorViewState = ICodeEditorViewState | IDiffEditorViewState;
 
 /**
  * An editor.
@@ -1984,7 +1544,6 @@ export interface IEditor {
 	 */
 	revealRangeInCenterIfOutsideViewport(range: IRange): void;
 
-
 	/**
 	 * Directly trigger a handler or an editor action.
 	 * @param source The source of the call.
@@ -2016,23 +1575,6 @@ export interface IEditor {
 	 * @internal
 	 */
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
-}
-
-/**
- * @internal
- */
-export interface ICodeEditorState {
-	validate(editor: ICommonCodeEditor): boolean;
-}
-
-/**
- * @internal
- */
-export enum CodeEditorStateFlag {
-	Value,
-	Selection,
-	Position,
-	Scroll
 }
 
 /**
@@ -2142,7 +1684,6 @@ export interface IDecorationOptions {
 	renderOptions?: IDecorationInstanceRenderOptions;
 }
 
-
 export interface ICommonCodeEditor extends IEditor {
 	/**
 	 * An event emitted when the content of the current model has changed.
@@ -2204,27 +1745,34 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @event
 	 */
 	onDidBlurEditor(listener: () => void): IDisposable;
-
 	/**
 	 * An event emitted before interpreting typed characters (on the keyboard).
 	 * @event
 	 * @internal
 	 */
 	onWillType(listener: (text: string) => void): IDisposable;
-
 	/**
 	 * An event emitted before interpreting typed characters (on the keyboard).
 	 * @event
 	 * @internal
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
-
 	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
 	 * @internal
 	 */
 	onDidPaste(listener: (range: Range) => void): IDisposable;
+
+	/**
+	 * Saves current view state of the editor in a serializable object.
+	 */
+	saveViewState(): ICodeEditorViewState;
+
+	/**
+	 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
+	 */
+	restoreViewState(state: ICodeEditorViewState): void;
 
 	/**
 	 * Returns true if this editor or one of its widgets has keyboard focus.
@@ -2237,11 +1785,6 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @return The contribution or null if contribution not found.
 	 */
 	getContribution<T extends IEditorContribution>(id: string): T;
-
-	/**
-	 * @internal
-	 */
-	captureState(...flags: CodeEditorStateFlag[]): ICodeEditorState;
 
 	/**
 	 * Execute `fn` with the editor's services.
@@ -2382,6 +1925,16 @@ export interface ICommonDiffEditor extends IEditor {
 	onDidUpdateDiff(listener: () => void): IDisposable;
 
 	/**
+	 * Saves current view state of the editor in a serializable object.
+	 */
+	saveViewState(): IDiffEditorViewState;
+
+	/**
+	 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
+	 */
+	restoreViewState(state: IDiffEditorViewState): void;
+
+	/**
 	 * Type the getModel() of IEditor.
 	 */
 	getModel(): IDiffEditorModel;
@@ -2465,247 +2018,6 @@ export function isCommonDiffEditor(thing: any): thing is ICommonDiffEditor {
 		return false;
 	}
 }
-
-/**
- * @internal
- */
-export var ClassName = {
-	EditorWarningDecoration: 'greensquiggly',
-	EditorErrorDecoration: 'redsquiggly'
-};
-
-/**
- * Positions in the view for cursor move command.
- */
-export const CursorMovePosition = {
-	Left: 'left',
-	Right: 'right',
-	Up: 'up',
-	Down: 'down',
-
-	WrappedLineStart: 'wrappedLineStart',
-	WrappedLineFirstNonWhitespaceCharacter: 'wrappedLineFirstNonWhitespaceCharacter',
-	WrappedLineColumnCenter: 'wrappedLineColumnCenter',
-	WrappedLineEnd: 'wrappedLineEnd',
-	WrappedLineLastNonWhitespaceCharacter: 'wrappedLineLastNonWhitespaceCharacter',
-
-	ViewPortTop: 'viewPortTop',
-	ViewPortCenter: 'viewPortCenter',
-	ViewPortBottom: 'viewPortBottom',
-
-	ViewPortIfOutside: 'viewPortIfOutside'
-};
-
-/**
- * Units for Cursor move 'by' argument
- */
-export const CursorMoveByUnit = {
-	Line: 'line',
-	WrappedLine: 'wrappedLine',
-	Character: 'character',
-	HalfLine: 'halfLine'
-};
-
-/**
- * Arguments for Cursor move command
- */
-export interface CursorMoveArguments {
-	to: string;
-	select?: boolean;
-	by?: string;
-	value?: number;
-};
-
-/**
- * @internal
- */
-const isCursorMoveArgs = function (arg): boolean {
-	if (!types.isObject(arg)) {
-		return false;
-	}
-
-	let cursorMoveArg: CursorMoveArguments = arg;
-
-	if (!types.isString(cursorMoveArg.to)) {
-		return false;
-	}
-
-	if (!types.isUndefined(cursorMoveArg.select) && !types.isBoolean(cursorMoveArg.select)) {
-		return false;
-	}
-
-	if (!types.isUndefined(cursorMoveArg.by) && !types.isString(cursorMoveArg.by)) {
-		return false;
-	}
-
-	if (!types.isUndefined(cursorMoveArg.value) && !types.isNumber(cursorMoveArg.value)) {
-		return false;
-	}
-
-	return true;
-};
-
-/**
- * Directions in the view for editor scroll command.
- */
-export const EditorScrollDirection = {
-	Up: 'up',
-	Down: 'down',
-};
-
-/**
- * Units for editor scroll 'by' argument
- */
-export const EditorScrollByUnit = {
-	Line: 'line',
-	WrappedLine: 'wrappedLine',
-	Page: 'page',
-	HalfPage: 'halfPage'
-};
-
-/**
- * Arguments for editor scroll command
- */
-export interface EditorScrollArguments {
-	to: string;
-	by?: string;
-	value?: number;
-	revealCursor?: boolean;
-};
-
-/**
- * @internal
- */
-const isEditorScrollArgs = function (arg): boolean {
-	if (!types.isObject(arg)) {
-		return false;
-	}
-
-	let scrollArg: EditorScrollArguments = arg;
-
-	if (!types.isString(scrollArg.to)) {
-		return false;
-	}
-
-	if (!types.isUndefined(scrollArg.by) && !types.isString(scrollArg.by)) {
-		return false;
-	}
-
-	if (!types.isUndefined(scrollArg.value) && !types.isNumber(scrollArg.value)) {
-		return false;
-	}
-
-	if (!types.isUndefined(scrollArg.revealCursor) && !types.isBoolean(scrollArg.revealCursor)) {
-		return false;
-	}
-
-	return true;
-};
-
-/**
- * Arguments for reveal line command
- */
-export interface RevealLineArguments {
-	lineNumber?: number;
-	at?: string;
-};
-
-/**
- * Values for reveal line 'at' argument
- */
-export const RevealLineAtArgument = {
-	Top: 'top',
-	Center: 'center',
-	Bottom: 'bottom'
-};
-
-/**
- * @internal
- */
-const isRevealLineArgs = function (arg): boolean {
-	if (!types.isObject(arg)) {
-		return false;
-	}
-
-	let reveaLineArg: RevealLineArguments = arg;
-
-	if (!types.isNumber(reveaLineArg.lineNumber)) {
-		return false;
-	}
-
-	if (!types.isUndefined(reveaLineArg.at) && !types.isString(reveaLineArg.at)) {
-		return false;
-	}
-
-	return true;
-};
-
-/**
- * @internal
- */
-export var CommandDescription = {
-	CursorMove: <ICommandHandlerDescription>{
-		description: 'Move cursor to a logical position in the view',
-		args: [
-			{
-				name: 'Cursor move argument object',
-				description: `Property-value pairs that can be passed through this argument:
-					* 'to': A mandatory logical position value providing where to move the cursor.
-						\`\`\`
-						'left', 'right', 'up', 'down'
-						'wrappedLineStart', 'wrappedLineEnd', 'wrappedLineColumnCenter'
-						'wrappedLineFirstNonWhitespaceCharacter', 'wrappedLineLastNonWhitespaceCharacter',
-						'viewPortTop', 'viewPortCenter', 'viewPortBottom', 'viewPortIfOutside'
-						\`\`\`
-					* 'by': Unit to move. Default is computed based on 'to' value.
-						\`\`\`
-						'line', 'wrappedLine', 'character', 'halfLine'
-						\`\`\`
-					* 'value': Number of units to move. Default is '1'.
-					* 'select': If 'true' makes the selection. Default is 'false'.
-				`,
-				constraint: isCursorMoveArgs
-			}
-		]
-	},
-	EditorScroll: <ICommandHandlerDescription>{
-		description: 'Scroll editor in the given direction',
-		args: [
-			{
-				name: 'Editor scroll argument object',
-				description: `Property-value pairs that can be passed through this argument:
-					* 'to': A mandatory direction value.
-						\`\`\`
-						'up', 'down'
-						\`\`\`
-					* 'by': Unit to move. Default is computed based on 'to' value.
-						\`\`\`
-						'line', 'wrappedLine', 'page', 'halfPage'
-						\`\`\`
-					* 'value': Number of units to move. Default is '1'.
-					* 'revealCursor': If 'true' reveals the cursor if it is outside view port.
-				`,
-				constraint: isEditorScrollArgs
-			}
-		]
-	},
-	RevealLine: <ICommandHandlerDescription>{
-		description: 'Reveal the given line at the given logical position',
-		args: [
-			{
-				name: 'Reveal line argument object',
-				description: `Property-value pairs that can be passed through this argument:
-					* 'lineNumber': A mandatory line number value.
-					* 'at': Logical position at which line has to be revealed .
-						\`\`\`
-						'top', 'center', 'bottom'
-						\`\`\`
-				`,
-				constraint: isRevealLineArgs
-			}
-		]
-	}
-};
 
 /**
  * Built-in commands.
@@ -2807,25 +2119,126 @@ export var Handler = {
 	RevealLine: 'revealLine'
 };
 
-
+/**
+ * @internal
+ */
+export namespace EditorContextKeys {
+	/**
+	 * A context key that is set when the editor's text has focus (cursor is blinking).
+	 * @internal
+	 */
+	export const TextFocus = new RawContextKey<boolean>('editorTextFocus', false);
+	/**
+	 * A context key that is set when the editor's text or an editor's widget has focus.
+	 * @internal
+	 */
+	export const Focus = new RawContextKey<boolean>('editorFocus', false);
+	/**
+	 * A context key that is set when the editor's text is readonly.
+	 * @internal
+	 */
+	export const ReadOnly = new RawContextKey<boolean>('editorReadonly', false);
+	/**
+	 * @internal
+	 */
+	export const Writable: ContextKeyExpr = ReadOnly.toNegated();
+	/**
+	 * A context key that is set when the editor has a non-collapsed selection.
+	 * @internal
+	 */
+	export const HasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
+	/**
+	 * @internal
+	 */
+	export const HasOnlyEmptySelection: ContextKeyExpr = HasNonEmptySelection.toNegated();
+	/**
+	 * A context key that is set when the editor has multiple selections (multiple cursors).
+	 * @internal
+	 */
+	export const HasMultipleSelections = new RawContextKey<boolean>('editorHasMultipleSelections', false);
+	/**
+	 * @internal
+	 */
+	export const HasSingleSelection: ContextKeyExpr = HasMultipleSelections.toNegated();
+	/**
+	 * @internal
+	 */
+	export const TabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
+	/**
+	 * @internal
+	 */
+	export const TabDoesNotMoveFocus: ContextKeyExpr = TabMovesFocus.toNegated();
+	/**
+	 * A context key that is set to the language associated with the model associated with the editor.
+	 * @internal
+	 */
+	export const LanguageId = new RawContextKey<string>('editorLangId', undefined);
+};
 
 /**
  * @internal
  */
-export class ColorZone {
-	_colorZoneBrand: void;
-
-	from: number;
-	to: number;
-	colorId: number;
-	position: OverviewRulerLane;
-
-	constructor(from: number, to: number, colorId: number, position: OverviewRulerLane) {
-		this.from = from | 0;
-		this.to = to | 0;
-		this.colorId = colorId | 0;
-		this.position = position | 0;
-	}
+export namespace ModeContextKeys {
+	/**
+	 * @internal
+	 */
+	export const hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCompletionItemProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasDefinitionProvider = new RawContextKey<boolean>('editorHasDefinitionProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasDocumentHighlightProvider = new RawContextKey<boolean>('editorHasDocumentHighlightProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasDocumentSymbolProvider = new RawContextKey<boolean>('editorHasDocumentSymbolProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
+	/**
+	 * @internal
+	 */
+	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
 }
 
 /**
@@ -2836,94 +2249,3 @@ export const enum ThemeType {
 	Dark = 2,
 	HighContrast = 3
 }
-
-/**
- * A zone in the overview ruler
- * @internal
- */
-export class OverviewRulerZone {
-	_overviewRulerZoneBrand: void;
-
-	startLineNumber: number;
-	endLineNumber: number;
-	position: OverviewRulerLane;
-	forceHeight: number;
-
-	private _color: string;
-	private _darkColor: string;
-	private _hcColor: string;
-
-	private _colorZones: ColorZone[];
-
-	constructor(
-		startLineNumber: number, endLineNumber: number,
-		position: OverviewRulerLane,
-		forceHeight: number,
-		color: string, darkColor: string, hcColor: string
-	) {
-		this.startLineNumber = startLineNumber;
-		this.endLineNumber = endLineNumber;
-		this.position = position;
-		this.forceHeight = forceHeight;
-		this._color = color;
-		this._darkColor = darkColor;
-		this._hcColor = hcColor;
-		this._colorZones = null;
-	}
-
-	public getColor(themeType: ThemeType): string {
-		switch (themeType) {
-			case ThemeType.HighContrast:
-				return this._hcColor;
-			case ThemeType.Dark:
-				return this._darkColor;
-		}
-		return this._color;
-	}
-
-	public equals(other: OverviewRulerZone): boolean {
-		return (
-			this.startLineNumber === other.startLineNumber
-			&& this.endLineNumber === other.endLineNumber
-			&& this.position === other.position
-			&& this.forceHeight === other.forceHeight
-			&& this._color === other._color
-			&& this._darkColor === other._darkColor
-			&& this._hcColor === other._hcColor
-		);
-	}
-
-	public compareTo(other: OverviewRulerZone): number {
-		if (this.startLineNumber === other.startLineNumber) {
-			if (this.endLineNumber === other.endLineNumber) {
-				if (this.forceHeight === other.forceHeight) {
-					if (this.position === other.position) {
-						if (this._darkColor === other._darkColor) {
-							if (this._color === other._color) {
-								if (this._hcColor === other._hcColor) {
-									return 0;
-								}
-								return this._hcColor < other._hcColor ? -1 : 1;
-							}
-							return this._color < other._color ? -1 : 1;
-						}
-						return this._darkColor < other._darkColor ? -1 : 1;
-					}
-					return this.position - other.position;
-				}
-				return this.forceHeight - other.forceHeight;
-			}
-			return this.endLineNumber - other.endLineNumber;
-		}
-		return this.startLineNumber - other.startLineNumber;
-	}
-
-	public setColorZones(colorZones: ColorZone[]): void {
-		this._colorZones = colorZones;
-	}
-
-	public getColorZones(): ColorZone[] {
-		return this._colorZones;
-	}
-}
-

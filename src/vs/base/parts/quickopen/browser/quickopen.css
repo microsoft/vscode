@@ -69,12 +69,6 @@
 	flex-shrink: 0;
 }
 
-.quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	float: left;
-	min-width: 16px;
-	text-align: center;
-}
-
 .quick-open-widget .quick-open-tree .quick-open-entry .monaco-highlighted-label span {
 	opacity: 1;
 }
@@ -101,11 +95,6 @@
 .quick-open-widget .quick-open-tree .monaco-tree-row:hover:not(.highlighted) > .content.has-actions > .results-group,
 .quick-open-widget .quick-open-tree .focused .monaco-tree-row.focused > .content.has-actions > .results-group {
 	margin-right: 0px;
-}
-
-.vs .quick-open-widget .quick-open-tree .results-group,
-.vs-dark .quick-open-widget .quick-open-tree .results-group {
-	opacity: 0.6;
 }
 
 .quick-open-widget .quick-open-tree .results-group-separator {
@@ -172,32 +161,6 @@
 
 .hc-black .quick-open-widget {
 	box-shadow: none;
-}
-
-.quick-open-widget .quick-open-tree .results-group,
-.quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	color: #007ACC;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .results-group,
-.vs-dark .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-help-entry-label {
-	color: #0097FB;
-}
-
-.hc-black .quick-open-widget .quick-open-tree .results-group {
-	color: white;
-}
-
-.quick-open-widget .quick-open-tree .results-group-separator {
-	border-top-color: #CCCEDB;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .results-group-separator {
-	border-top-color: #3F3F46;
-}
-
-.hc-black .quick-open-widget .quick-open-tree .results-group-separator {
-	border-top-color: white;
 }
 
 .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {

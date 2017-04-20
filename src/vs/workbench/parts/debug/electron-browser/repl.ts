@@ -286,7 +286,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 
 	public dispose(): void {
-		this.replInput.destroy();
+		this.replInput.dispose();
 		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}

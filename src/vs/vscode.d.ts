@@ -1877,7 +1877,8 @@ declare module 'vscode' {
 		EnumMember = 21,
 		Struct = 22,
 		Event = 23,
-		Operator = 24
+		Operator = 24,
+		TypeParameter = 25
 	}
 
 	/**
@@ -2442,7 +2443,8 @@ declare module 'vscode' {
 		Constant = 20,
 		Struct = 21,
 		Event = 22,
-		Operator = 23
+		Operator = 23,
+		TypeParameter = 24
 	}
 
 	/**

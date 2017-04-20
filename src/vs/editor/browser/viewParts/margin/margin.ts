@@ -34,8 +34,8 @@ export class Margin extends ViewPart {
 		super.dispose();
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
 	}
 
 	private _createDomNode(): FastDomNode<HTMLElement> {
@@ -48,7 +48,7 @@ export class Margin extends ViewPart {
 		this._glyphMarginBackgroundDomNode = createFastDomNode(document.createElement('div'));
 		this._glyphMarginBackgroundDomNode.setClassName(ClassNames.GLYPH_MARGIN);
 
-		domNode.domNode.appendChild(this._glyphMarginBackgroundDomNode.domNode);
+		domNode.appendChild(this._glyphMarginBackgroundDomNode);
 		return domNode;
 	}
 

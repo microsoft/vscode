@@ -15,7 +15,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { Color, RGBA } from "vs/base/common/color";
 import { EditorLayoutInfo } from "vs/editor/common/config/editorOptions";
-import { IPosition } from "vs/editor/common/core/position";
+import { Position, IPosition } from "vs/editor/common/core/position";
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -210,7 +210,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this._resizeSash.layout();
 	}
 
-	public get position(): IPosition {
+	public get position(): Position {
 		const [id] = this._positionMarkerId;
 		if (id) {
 			return this.editor.getModel().getDecorationRange(id).getStartPosition();

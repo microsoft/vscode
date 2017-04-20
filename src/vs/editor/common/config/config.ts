@@ -13,9 +13,9 @@ import { ICommandAndKeybindingRule, KeybindingsRegistry, IKeybindings } from 'vs
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { CommandDescription } from "vs/editor/common/controller/oneCursor";
 
 import H = editorCommon.Handler;
-import D = editorCommon.CommandDescription;
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
@@ -275,7 +275,7 @@ class WordCommand extends CoreCommand {
 // Control+Command+shift+d => noop
 
 // Register cursor commands
-registerCoreAPICommand(H.CursorMove, D.CursorMove);
+registerCoreAPICommand(H.CursorMove, CommandDescription.CursorMove);
 
 registerCommand(new CoreCommand({
 	id: H.CursorLeft,
@@ -446,7 +446,7 @@ registerCommand(new CoreCommand({
 	}
 }));
 
-registerCoreAPICommand(H.EditorScroll, D.EditorScroll);
+registerCoreAPICommand(H.EditorScroll, CommandDescription.EditorScroll);
 
 registerCommand(new CoreCommand({
 	id: H.ScrollLineUp,
@@ -492,7 +492,7 @@ registerCommand(new CoreCommand({
 	}
 }));
 
-registerCoreAPICommand(H.RevealLine, D.RevealLine);
+registerCoreAPICommand(H.RevealLine, CommandDescription.RevealLine);
 
 registerCommand(new CoreCommand({
 	id: H.CursorColumnSelectLeft,

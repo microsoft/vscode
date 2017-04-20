@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Position, IPosition } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { LineToken } from 'vs/editor/common/core/lineTokens';
@@ -399,7 +399,7 @@ export function build(model: IModel): Node {
 	return node;
 }
 
-export function find(node: Node, position: IPosition): Node {
+export function find(node: Node, position: Position): Node {
 	if (node instanceof NodeList && node.isEmpty) {
 		return null;
 	}

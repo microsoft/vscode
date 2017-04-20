@@ -349,10 +349,14 @@ declare module monaco {
         NUMPAD_DECIMAL = 107,
         NUMPAD_DIVIDE = 108,
         /**
+         * Cover all key codes when IME is processing input.
+         */
+        KEY_IN_COMPOSITION = 109,
+        /**
          * Placed last to cover the length of the enum.
          * Please do not depend on this value!
          */
-        MAX_VALUE = 109,
+        MAX_VALUE = 110,
     }
 
     export class KeyMod {
@@ -934,7 +938,11 @@ declare module monaco.editor {
     /**
      * The options to create an editor.
      */
-    export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
+    export interface IEditorConstructionOptions extends IEditorOptions {
+        /**
+         * The initial model associated with this code editor.
+         */
+        model?: IModel;
         /**
          * The initial value of the auto created model in the editor.
          * To not create automatically a model, use `model: null`.
@@ -1356,6 +1364,9 @@ declare module monaco.editor {
      * A textual read-only model.
      */
     export interface ITextModel {
+        /**
+         * Get the resolved options for this model.
+         */
         getOptions(): TextModelResolvedOptions;
         /**
          * Get the current version id of the model.
@@ -1706,7 +1717,7 @@ declare module monaco.editor {
     /**
      * A model.
      */
-    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations, IEditorModel {
+    export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations {
         /**
          * An event emitted when the contents of the model have changed.
          * @event
@@ -1744,101 +1755,17 @@ declare module monaco.editor {
     }
 
     /**
-     * Describes the reason the cursor has changed its position.
+     * A model for the diff editor.
      */
-    export enum CursorChangeReason {
+    export interface IDiffEditorModel {
         /**
-         * Unknown or not set.
+         * Original model.
          */
-        NotSet = 0,
+        original: IModel;
         /**
-         * A `model.setValue()` was called.
+         * Modified model.
          */
-        ContentFlush = 1,
-        /**
-         * The `model` has been changed outside of this cursor and the cursor recovers its position from associated markers.
-         */
-        RecoverFromMarkers = 2,
-        /**
-         * There was an explicit user gesture.
-         */
-        Explicit = 3,
-        /**
-         * There was a Paste.
-         */
-        Paste = 4,
-        /**
-         * There was an Undo.
-         */
-        Undo = 5,
-        /**
-         * There was a Redo.
-         */
-        Redo = 6,
-    }
-
-    /**
-     * An event describing that the cursor position has changed.
-     */
-    export interface ICursorPositionChangedEvent {
-        /**
-         * Primary cursor's position.
-         */
-        readonly position: Position;
-        /**
-         * Primary cursor's view position
-         */
-        readonly viewPosition: Position;
-        /**
-         * Secondary cursors' position.
-         */
-        readonly secondaryPositions: Position[];
-        /**
-         * Secondary cursors' view position.
-         */
-        readonly secondaryViewPositions: Position[];
-        /**
-         * Reason.
-         */
-        readonly reason: CursorChangeReason;
-        /**
-         * Source of the call that caused the event.
-         */
-        readonly source: string;
-        /**
-         * Is the primary cursor in the editable range?
-         */
-        readonly isInEditableRange: boolean;
-    }
-
-    /**
-     * An event describing that the cursor selection has changed.
-     */
-    export interface ICursorSelectionChangedEvent {
-        /**
-         * The primary selection.
-         */
-        readonly selection: Selection;
-        /**
-         * The primary selection in view coordinates.
-         */
-        readonly viewSelection: Selection;
-        /**
-         * The secondary selections.
-         */
-        readonly secondarySelections: Selection[];
-        /**
-         * The secondary selections in view coordinates.
-         */
-        readonly secondaryViewSelections: Selection[];
-        /**
-         * Source of the call that caused the event.
-         */
-        readonly source: string;
-        /**
-         * Reason.
-         */
-        readonly reason: CursorChangeReason;
+        modified: IModel;
     }
 
     /**
@@ -1855,144 +1782,9 @@ declare module monaco.editor {
         readonly newModelUrl: Uri;
     }
 
-    /**
-     * Options for creating the editor.
-     */
-    export interface ICodeEditorWidgetCreationOptions extends IEditorOptions {
-        /**
-         * The initial model associated with this code editor.
-         */
-        model?: IModel;
-    }
-
-    /**
-     * An editor model.
-     */
-    export interface IEditorModel {
-    }
-
-    /**
-     * An editor view state.
-     */
-    export interface IEditorViewState {
-    }
-
     export interface IDimension {
         width: number;
         height: number;
-    }
-
-    /**
-     * A (serializable) state of the cursors.
-     */
-    export interface ICursorState {
-        inSelectionMode: boolean;
-        selectionStart: IPosition;
-        position: IPosition;
-    }
-
-    /**
-     * A (serializable) state of the view.
-     */
-    export interface IViewState {
-        scrollTop: number;
-        scrollTopWithoutViewZones: number;
-        scrollLeft: number;
-    }
-
-    /**
-     * A (serializable) state of the code editor.
-     */
-    export interface ICodeEditorViewState extends IEditorViewState {
-        cursorState: ICursorState[];
-        viewState: IViewState;
-        contributionsState: {
-            [id: string]: any;
-        };
-    }
-
-    /**
-     * Type of hit element with the mouse in the editor.
-     */
-    export enum MouseTargetType {
-        /**
-         * Mouse is on top of an unknown element.
-         */
-        UNKNOWN = 0,
-        /**
-         * Mouse is on top of the textarea used for input.
-         */
-        TEXTAREA = 1,
-        /**
-         * Mouse is on top of the glyph margin
-         */
-        GUTTER_GLYPH_MARGIN = 2,
-        /**
-         * Mouse is on top of the line numbers
-         */
-        GUTTER_LINE_NUMBERS = 3,
-        /**
-         * Mouse is on top of the line decorations
-         */
-        GUTTER_LINE_DECORATIONS = 4,
-        /**
-         * Mouse is on top of the whitespace left in the gutter by a view zone.
-         */
-        GUTTER_VIEW_ZONE = 5,
-        /**
-         * Mouse is on top of text in the content.
-         */
-        CONTENT_TEXT = 6,
-        /**
-         * Mouse is on top of empty space in the content (e.g. after line text or below last line)
-         */
-        CONTENT_EMPTY = 7,
-        /**
-         * Mouse is on top of a view zone in the content.
-         */
-        CONTENT_VIEW_ZONE = 8,
-        /**
-         * Mouse is on top of a content widget.
-         */
-        CONTENT_WIDGET = 9,
-        /**
-         * Mouse is on top of the decorations overview ruler.
-         */
-        OVERVIEW_RULER = 10,
-        /**
-         * Mouse is on top of a scrollbar.
-         */
-        SCROLLBAR = 11,
-        /**
-         * Mouse is on top of an overlay widget.
-         */
-        OVERLAY_WIDGET = 12,
-        /**
-         * Mouse is outside of the editor.
-         */
-        OUTSIDE_EDITOR = 13,
-    }
-
-    /**
-     * A model for the diff editor.
-     */
-    export interface IDiffEditorModel extends IEditorModel {
-        /**
-         * Original model.
-         */
-        original: IModel;
-        /**
-         * Modified model.
-         */
-        modified: IModel;
-    }
-
-    /**
-     * (Serializable) View state for the diff editor.
-     */
-    export interface IDiffEditorViewState extends IEditorViewState {
-        original: ICodeEditorViewState;
-        modified: ICodeEditorViewState;
     }
 
     /**
@@ -2086,6 +1878,50 @@ declare module monaco.editor {
         isSupported(): boolean;
         run(): Promise<void>;
     }
+
+    export type IEditorModel = IModel | IDiffEditorModel;
+
+    /**
+     * A (serializable) state of the cursors.
+     */
+    export interface ICursorState {
+        inSelectionMode: boolean;
+        selectionStart: IPosition;
+        position: IPosition;
+    }
+
+    /**
+     * A (serializable) state of the view.
+     */
+    export interface IViewState {
+        scrollTop: number;
+        scrollTopWithoutViewZones: number;
+        scrollLeft: number;
+    }
+
+    /**
+     * A (serializable) state of the code editor.
+     */
+    export interface ICodeEditorViewState {
+        cursorState: ICursorState[];
+        viewState: IViewState;
+        contributionsState: {
+            [id: string]: any;
+        };
+    }
+
+    /**
+     * (Serializable) View state for the diff editor.
+     */
+    export interface IDiffEditorViewState {
+        original: ICodeEditorViewState;
+        modified: ICodeEditorViewState;
+    }
+
+    /**
+     * An editor view state.
+     */
+    export type IEditorViewState = ICodeEditorViewState | IDiffEditorViewState;
 
     /**
      * An editor.
@@ -2346,6 +2182,14 @@ declare module monaco.editor {
          */
         onDidBlurEditor(listener: () => void): IDisposable;
         /**
+         * Saves current view state of the editor in a serializable object.
+         */
+        saveViewState(): ICodeEditorViewState;
+        /**
+         * Restores the view state of the editor from a serializable object generated by `saveViewState`.
+         */
+        restoreViewState(state: ICodeEditorViewState): void;
+        /**
          * Returns true if this editor or one of its widgets has keyboard focus.
          */
         hasWidgetFocus(): boolean;
@@ -2455,6 +2299,14 @@ declare module monaco.editor {
          */
         onDidUpdateDiff(listener: () => void): IDisposable;
         /**
+         * Saves current view state of the editor in a serializable object.
+         */
+        saveViewState(): IDiffEditorViewState;
+        /**
+         * Restores the view state of the editor from a serializable object generated by `saveViewState`.
+         */
+        restoreViewState(state: IDiffEditorViewState): void;
+        /**
          * Type the getModel() of IEditor.
          */
         getModel(): IDiffEditorModel;
@@ -2495,90 +2347,6 @@ declare module monaco.editor {
     export var EditorType: {
         ICodeEditor: string;
         IDiffEditor: string;
-    };
-
-    /**
-     * Positions in the view for cursor move command.
-     */
-    export const CursorMovePosition: {
-        Left: string;
-        Right: string;
-        Up: string;
-        Down: string;
-        WrappedLineStart: string;
-        WrappedLineFirstNonWhitespaceCharacter: string;
-        WrappedLineColumnCenter: string;
-        WrappedLineEnd: string;
-        WrappedLineLastNonWhitespaceCharacter: string;
-        ViewPortTop: string;
-        ViewPortCenter: string;
-        ViewPortBottom: string;
-        ViewPortIfOutside: string;
-    };
-
-    /**
-     * Units for Cursor move 'by' argument
-     */
-    export const CursorMoveByUnit: {
-        Line: string;
-        WrappedLine: string;
-        Character: string;
-        HalfLine: string;
-    };
-
-    /**
-     * Arguments for Cursor move command
-     */
-    export interface CursorMoveArguments {
-        to: string;
-        select?: boolean;
-        by?: string;
-        value?: number;
-    }
-
-    /**
-     * Directions in the view for editor scroll command.
-     */
-    export const EditorScrollDirection: {
-        Up: string;
-        Down: string;
-    };
-
-    /**
-     * Units for editor scroll 'by' argument
-     */
-    export const EditorScrollByUnit: {
-        Line: string;
-        WrappedLine: string;
-        Page: string;
-        HalfPage: string;
-    };
-
-    /**
-     * Arguments for editor scroll command
-     */
-    export interface EditorScrollArguments {
-        to: string;
-        by?: string;
-        value?: number;
-        revealCursor?: boolean;
-    }
-
-    /**
-     * Arguments for reveal line command
-     */
-    export interface RevealLineArguments {
-        lineNumber?: number;
-        at?: string;
-    }
-
-    /**
-     * Values for reveal line 'at' argument
-     */
-    export const RevealLineAtArgument: {
-        Top: string;
-        Center: string;
-        Bottom: string;
     };
 
     /**
@@ -2752,6 +2520,104 @@ declare module monaco.editor {
         readonly tabSize: boolean;
         readonly insertSpaces: boolean;
         readonly trimAutoWhitespace: boolean;
+    }
+
+    /**
+     * Describes the reason the cursor has changed its position.
+     */
+    export enum CursorChangeReason {
+        /**
+         * Unknown or not set.
+         */
+        NotSet = 0,
+        /**
+         * A `model.setValue()` was called.
+         */
+        ContentFlush = 1,
+        /**
+         * The `model` has been changed outside of this cursor and the cursor recovers its position from associated markers.
+         */
+        RecoverFromMarkers = 2,
+        /**
+         * There was an explicit user gesture.
+         */
+        Explicit = 3,
+        /**
+         * There was a Paste.
+         */
+        Paste = 4,
+        /**
+         * There was an Undo.
+         */
+        Undo = 5,
+        /**
+         * There was a Redo.
+         */
+        Redo = 6,
+    }
+
+    /**
+     * An event describing that the cursor position has changed.
+     */
+    export interface ICursorPositionChangedEvent {
+        /**
+         * Primary cursor's position.
+         */
+        readonly position: Position;
+        /**
+         * Primary cursor's view position
+         */
+        readonly viewPosition: Position;
+        /**
+         * Secondary cursors' position.
+         */
+        readonly secondaryPositions: Position[];
+        /**
+         * Secondary cursors' view position.
+         */
+        readonly secondaryViewPositions: Position[];
+        /**
+         * Reason.
+         */
+        readonly reason: CursorChangeReason;
+        /**
+         * Source of the call that caused the event.
+         */
+        readonly source: string;
+        /**
+         * Is the primary cursor in the editable range?
+         */
+        readonly isInEditableRange: boolean;
+    }
+
+    /**
+     * An event describing that the cursor selection has changed.
+     */
+    export interface ICursorSelectionChangedEvent {
+        /**
+         * The primary selection.
+         */
+        readonly selection: Selection;
+        /**
+         * The primary selection in view coordinates.
+         */
+        readonly viewSelection: Selection;
+        /**
+         * The secondary selections.
+         */
+        readonly secondarySelections: Selection[];
+        /**
+         * The secondary selections in view coordinates.
+         */
+        readonly secondaryViewSelections: Selection[];
+        /**
+         * Source of the call that caused the event.
+         */
+        readonly source: string;
+        /**
+         * Reason.
+         */
+        readonly reason: CursorChangeReason;
     }
 
     /**
@@ -3774,6 +3640,68 @@ declare module monaco.editor {
     }
 
     /**
+     * Type of hit element with the mouse in the editor.
+     */
+    export enum MouseTargetType {
+        /**
+         * Mouse is on top of an unknown element.
+         */
+        UNKNOWN = 0,
+        /**
+         * Mouse is on top of the textarea used for input.
+         */
+        TEXTAREA = 1,
+        /**
+         * Mouse is on top of the glyph margin
+         */
+        GUTTER_GLYPH_MARGIN = 2,
+        /**
+         * Mouse is on top of the line numbers
+         */
+        GUTTER_LINE_NUMBERS = 3,
+        /**
+         * Mouse is on top of the line decorations
+         */
+        GUTTER_LINE_DECORATIONS = 4,
+        /**
+         * Mouse is on top of the whitespace left in the gutter by a view zone.
+         */
+        GUTTER_VIEW_ZONE = 5,
+        /**
+         * Mouse is on top of text in the content.
+         */
+        CONTENT_TEXT = 6,
+        /**
+         * Mouse is on top of empty space in the content (e.g. after line text or below last line)
+         */
+        CONTENT_EMPTY = 7,
+        /**
+         * Mouse is on top of a view zone in the content.
+         */
+        CONTENT_VIEW_ZONE = 8,
+        /**
+         * Mouse is on top of a content widget.
+         */
+        CONTENT_WIDGET = 9,
+        /**
+         * Mouse is on top of the decorations overview ruler.
+         */
+        OVERVIEW_RULER = 10,
+        /**
+         * Mouse is on top of a scrollbar.
+         */
+        SCROLLBAR = 11,
+        /**
+         * Mouse is on top of an overlay widget.
+         */
+        OVERLAY_WIDGET = 12,
+        /**
+         * Mouse is outside of the editor.
+         */
+        OUTSIDE_EDITOR = 13,
+    }
+
+    /**
      * Target hit with the mouse in the editor.
      */
     export interface IMouseTarget {
@@ -4749,6 +4677,7 @@ declare module monaco.languages {
         Struct = 22,
         Event = 23,
         Operator = 24,
+        TypeParameter = 25,
     }
 
     /**

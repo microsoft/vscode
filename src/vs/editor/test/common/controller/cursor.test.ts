@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Cursor, CursorEventType } from 'vs/editor/common/controller/cursor';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -13,8 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import {
 	EndOfLinePreference, Handler,
 	DefaultEndOfLine, ITextModelCreationOptions, ICommand,
-	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData,
-	ICursorPositionChangedEvent, ICursorSelectionChangedEvent
+	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData
 } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
@@ -24,6 +23,7 @@ import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { CursorEventType, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 let H = Handler;
 

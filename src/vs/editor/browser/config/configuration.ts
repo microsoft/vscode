@@ -15,6 +15,7 @@ import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserve
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 class CSSBasedConfigurationCache {
 
@@ -308,7 +309,7 @@ export class Configuration extends CommonEditorConfiguration {
 		domNode.setLineHeight(fontInfo.lineHeight);
 	}
 
-	constructor(options: any, referenceDomElement: HTMLElement = null) {
+	constructor(options: IEditorOptions, referenceDomElement: HTMLElement = null) {
 		super(options, new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));
 
 		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
