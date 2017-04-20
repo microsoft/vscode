@@ -1590,37 +1590,41 @@ export class Cursor extends Disposable {
 	}
 
 	private _editorScroll(ctx: IMultipleCursorOperationContext): boolean {
-		let editorScrollArg: EditorScrollArguments = ctx.eventData;
-		editorScrollArg.value = editorScrollArg.value || 1;
-		switch (editorScrollArg.to) {
-			case EditorScrollDirection.Up:
-			case EditorScrollDirection.Down:
-				return this._scrollUpOrDown(editorScrollArg, ctx);
+		const args = EditorScroll.parse(ctx.eventData);
+		if (!args) {
+			// illegal arguments
+			return true;
+		}
+
+		switch (args.direction) {
+			case EditorScroll.Direction.Up:
+			case EditorScroll.Direction.Down:
+				return this._scrollUpOrDown(args);
 		}
 		return true;
 	}
 
-	private _scrollUpOrDown(editorScrollArg: EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
-		if (this._scrollByReveal(editorScrollArg, ctx)) {
+	private _scrollUpOrDown(args: EditorScroll.ParsedArguments): boolean {
+		if (this._scrollByReveal(args)) {
 			return true;
 		}
-		let up = editorScrollArg.to === EditorScrollDirection.Up;
-		let noOfLines = editorScrollArg.value || 1;
-		switch (editorScrollArg.by) {
-			case EditorScrollByUnit.Page:
+		let up = args.direction === EditorScroll.Direction.Up;
+		let noOfLines = args.value;
+		switch (args.unit) {
+			case EditorScroll.Unit.Page:
 				noOfLines = this.context.config.pageSize * noOfLines;
 				break;
-			case EditorScrollByUnit.HalfPage:
+			case EditorScroll.Unit.HalfPage:
 				noOfLines = Math.round(this.context.config.pageSize / 2) * noOfLines;
 				break;
 		}
-		this.emitCursorScrollRequest((up ? -1 : 1) * noOfLines, !!editorScrollArg.revealCursor);
+		this.emitCursorScrollRequest((up ? -1 : 1) * noOfLines, args.revealCursor);
 		return true;
 	}
 
-	private _scrollByReveal(editorScrollArg: EditorScrollArguments, ctx: IMultipleCursorOperationContext): boolean {
-		let up = editorScrollArg.to === EditorScrollDirection.Up;
-		if (EditorScrollByUnit.Line !== editorScrollArg.by) {
+	private _scrollByReveal(args: EditorScroll.ParsedArguments): boolean {
+		let up = args.direction === EditorScroll.Direction.Up;
+		if (EditorScroll.Unit.Line !== args.unit) {
 			// Scroll by reveal is done only when unit is line.
 			return false;
 		}
@@ -1628,7 +1632,7 @@ export class Cursor extends Disposable {
 			// Scroll by reveal is not done if last line is visible and scrolling down.
 			return false;
 		}
-		let range = up ? this.context.getRangeToRevealModelLinesBeforeViewPortTop(editorScrollArg.value) : this.context.getRangeToRevealModelLinesAfterViewPortBottom(editorScrollArg.value);
+		let range = up ? this.context.getRangeToRevealModelLinesBeforeViewPortTop(args.value) : this.context.getRangeToRevealModelLinesAfterViewPortBottom(args.value);
 		this.emitCursorRevealRange(range, null, up ? VerticalRevealType.Top : VerticalRevealType.Bottom, false, true);
 		return true;
 	}
@@ -1690,5 +1694,70 @@ export class Cursor extends Disposable {
 			oneCtx.executeCommand = ctx.eventData[cursorIndex];
 			return false;
 		});
+	}
+}
+
+namespace EditorScroll {
+
+	export function parse(args: EditorScrollArguments): ParsedArguments {
+		let direction: Direction;
+		switch (args.to) {
+			case EditorScrollDirection.Up:
+				direction = Direction.Up;
+				break;
+			case EditorScrollDirection.Down:
+				direction = Direction.Down;
+				break;
+			default:
+				// Illegal arguments
+				return null;
+		}
+
+		let unit: Unit;
+		switch (args.by) {
+			case EditorScrollByUnit.Line:
+				unit = Unit.Line;
+				break;
+			case EditorScrollByUnit.WrappedLine:
+				unit = Unit.WrappedLine;
+				break;
+			case EditorScrollByUnit.Page:
+				unit = Unit.Page;
+				break;
+			case EditorScrollByUnit.HalfPage:
+				unit = Unit.HalfPage;
+				break;
+			default:
+				unit = Unit.WrappedLine;
+		}
+
+		const value = Math.floor(args.value || 1);
+		const revealCursor = !!args.revealCursor;
+
+		return {
+			direction: direction,
+			unit: unit,
+			value: value,
+			revealCursor: revealCursor
+		};
+	}
+
+	export interface ParsedArguments {
+		direction: Direction;
+		unit: Unit;
+		value: number;
+		revealCursor: boolean;
+	}
+
+	export const enum Direction {
+		Up = 1,
+		Down = 2
+	}
+
+	export const enum Unit {
+		Line = 1,
+		WrappedLine = 2,
+		Page = 3,
+		HalfPage = 4
 	}
 }
