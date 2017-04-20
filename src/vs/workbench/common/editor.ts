@@ -906,7 +906,8 @@ export interface IWorkbenchEditorConfiguration {
 			closeOnFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
-			swipeToNavigate: boolean
+			swipeToNavigate: boolean;
+			showParentInTab: boolean;
 		}
 	};
 }

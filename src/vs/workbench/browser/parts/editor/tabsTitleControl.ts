@@ -22,7 +22,7 @@ import { EditorLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, ITabOptions } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -253,7 +253,8 @@ export class TabsTitleControl extends TitleControl {
 
 		// Compute labels and protect against duplicates
 		const editorsOfGroup = this.context.getEditors();
-		const labels = this.getUniqueTabLabels(editorsOfGroup);
+		const tabOptions = this.editorGroupService.getTabOptions();
+		const labels = this.getUniqueTabLabels(editorsOfGroup, tabOptions);
 
 		// Tab label and styles
 		editorsOfGroup.forEach((editor, index) => {
@@ -275,7 +276,6 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? this.getColor(TAB_BORDER) : null;
 				tabContainer.style.outlineColor = this.isHighContrastTheme ? this.getColor(highContrastOutline) : null;
 
-				const tabOptions = this.editorGroupService.getTabOptions();
 				['off', 'left'].forEach(option => {
 					const domAction = tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
 					domAction(tabContainer, `close-button-${option}`);
@@ -316,7 +316,7 @@ export class TabsTitleControl extends TitleControl {
 		this.layout();
 	}
 
-	private getUniqueTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
+	private getUniqueTabLabels(editors: IEditorInput[], tabOptions: ITabOptions): IEditorInputLabel[] {
 		const labels: IEditorInputLabel[] = [];
 
 		const mapLabelToDuplicates = new LinkedMap<string, IEditorInputLabel[]>();
@@ -359,6 +359,17 @@ export class TabsTitleControl extends TitleControl {
 				}
 			}
 		});
+
+		if (tabOptions.showParentInTab) {
+			labelDuplicates.forEach(duplicates => {
+				if (duplicates.length > 1) {
+					duplicates.forEach((duplicate, i) => {
+						duplicate.name = `${duplicate.description}\\${duplicate.name}`;
+						duplicate.hasAmbiguousName = false;
+					});
+				}
+			});
+		}
 
 		return labels;
 	}

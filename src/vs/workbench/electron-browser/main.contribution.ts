@@ -90,6 +90,11 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'default': 'right',
 		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
 	},
+	'workbench.editor.showParentInTab': {
+		'type': 'boolean',
+		'description': nls.localize('showParentInTab', "Controls if editor tabs disambiguate by showing parent folder"),
+		'default': true
+	},
 	'workbench.editor.showIcons': {
 		'type': 'boolean',
 		'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
