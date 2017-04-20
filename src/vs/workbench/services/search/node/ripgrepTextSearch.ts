@@ -409,7 +409,11 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 		args.push(searchPatternAfterDoubleDashes);
 	}
 
-	args.push('./');
+	if (config.searchPaths && config.searchPaths.length) {
+		args.push(...config.searchPaths);
+	} else {
+		args.push('./');
+	}
 
 	return { args, siblingClauses };
 }

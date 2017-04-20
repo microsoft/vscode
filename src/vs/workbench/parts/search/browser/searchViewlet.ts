@@ -13,7 +13,6 @@ import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCo
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
-import { IExpression } from 'vs/base/common/glob';
 import env = require('vs/base/common/platform');
 import { Delayer } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
@@ -953,17 +952,18 @@ export class SearchViewlet extends Viewlet {
 			isWordMatch: isWholeWords
 		};
 
-		const excludes: IExpression = this.inputPatternExclusions.getGlob();
-		const includes: IExpression = this.inputPatternIncludes.getGlob();
+		const { expression: excludePattern } = this.inputPatternExclusions.getGlob();
+		const { expression: includePattern, searchPaths } = this.inputPatternIncludes.getGlob();
 
 		const options: IQueryOptions = {
 			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
-			excludePattern: excludes,
+			excludePattern,
+			includePattern,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
-			includePattern: includes,
 			disregardIgnoreFiles: !useIgnoreFiles,
-			disregardExcludeSettings: !useExcludeSettings
+			disregardExcludeSettings: !useExcludeSettings,
+			searchPaths
 		};
 
 		this.onQueryTriggered(this.queryBuilder.text(content, options), patternExcludes, patternIncludes);
