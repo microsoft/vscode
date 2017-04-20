@@ -6,7 +6,7 @@
 {
 	"hintExclude": "Pour activer les fonctionnalités de langage JavaScript/TypeScript à l'échelle du projet, excluez les dossiers contenant de nombreux fichiers, par exemple : {0}",
 	"hintExclude.generic": "Pour activer les fonctionnalités de langage JavaScript/TypeScript à l'échelle du projet, excluez les dossiers volumineux contenant des fichiers sources inutilisés.",
-	"hintExclude.tooltip": "Pour activer les fonctionnalités de langage JavaScript/TypeScript à l'échelle du projet, excluez les dossiers volumineux contenant des fichiers sources inutilisés.",
+	"open": "Configurer les exclusions",
 	"large.label": "Configurer les exclusions",
-	"open": "Configurer les exclusions"
+	"hintExclude.tooltip": "Pour activer les fonctionnalités de langage JavaScript/TypeScript à l'échelle du projet, excluez les dossiers volumineux contenant des fichiers sources inutilisés."
 }

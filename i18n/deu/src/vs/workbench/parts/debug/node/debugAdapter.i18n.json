@@ -6,15 +6,15 @@
 {
 	"debugAdapterBinNotFound": "Die ausführbare Datei \"{0}\" des Debugadapters ist nicht vorhanden.",
 	"debugAdapterCannotDetermineExecutable": "Die ausführbare Datei \"{0}\" des Debugadapters kann nicht bestimmt werden.",
-	"debugLinuxConfiguration": "Linux-spezifische Startkonfigurationsattribute.",
+	"debugType": "Der Typ der Konfiguration.",
+	"node2NotSupported": "node2\" wird nicht mehr unterstützt, verwenden Sie stattdessen \"node\", und legen Sie das Attribut \"protocol\" auf \"inspector\" fest.",
 	"debugName": "Der Name der Konfiguration. Er wird im Dropdownmenü der Startkonfiguration angezeigt.",
-	"debugOSXConfiguration": "OS X-spezifische Startkonfigurationsattribute.",
-	"debugPrelaunchTask": "Ein Task, der ausgeführt werden soll, bevor die Debugsitzung beginnt.",
 	"debugRequest": "Der Anforderungstyp der Konfiguration. Der Wert kann \"launch\" oder \"attach\" sein.",
 	"debugServer": "Nur für die Entwicklung von Debugerweiterungen: Wenn ein Port angegeben ist, versucht der VS-Code, eine Verbindung mit einem Debugadapter herzustellen, der im Servermodus ausgeführt wird.",
-	"debugType": "Der Typ der Konfiguration.",
-	"debugWindowsConfiguration": "Windows-spezifische Startkonfigurationsattribute.",
-	"deprecatedVariables": "\"env.\", \"config.\" und \"command.\" sind veraltet, verwenden Sie stattdessen \"env:\", \"config:\" und \"command:\".",
+	"debugPrelaunchTask": "Ein Task, der ausgeführt werden soll, bevor die Debugsitzung beginnt.",
 	"internalConsoleOptions": "Steuert das Verhalten der internen Debugging-Konsole.",
-	"node2NotSupported": "\"node2\" wird nicht mehr unterstützt, verwenden Sie stattdessen \"node\", und legen Sie das Attribut \"protocol\" auf \"inspector\" fest."
+	"debugWindowsConfiguration": "Windows-spezifische Startkonfigurationsattribute.",
+	"debugOSXConfiguration": "OS X-spezifische Startkonfigurationsattribute.",
+	"debugLinuxConfiguration": "Linux-spezifische Startkonfigurationsattribute.",
+	"deprecatedVariables": "\"env.\", \"config.\" und \"command.\" sind veraltet, verwenden Sie stattdessen \"env:\", \"config:\" und \"command:\"."
 }
