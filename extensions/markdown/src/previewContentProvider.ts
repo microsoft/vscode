@@ -14,7 +14,7 @@ import { Logger } from "./logger";
 const localize = nls.loadMessageBundle();
 
 export interface ContentSecurityPolicyArbiter {
-	isEnhancedSecurityDisableForWorkspace(): boolean;
+	isEnhancedSecurityDisableForWorkspace(rootPath: string): boolean;
 
 	addTrustedWorkspace(rootPath: string): Thenable<void>;
 
@@ -33,7 +33,15 @@ export function isMarkdownFile(document: vscode.TextDocument) {
 }
 
 export function getMarkdownUri(uri: vscode.Uri) {
-	return uri.with({ scheme: 'markdown', path: uri.fsPath + '.rendered', query: uri.toString() });
+	if (uri.scheme === 'markdown') {
+		return uri;
+	}
+
+	return uri.with({
+		scheme: 'markdown',
+		path: uri.fsPath + '.rendered',
+		query: uri.toString()
+	});
 }
 
 class MarkdownPreviewConfig {
@@ -217,7 +225,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 			// Content Security Policy
 			const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 			let csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; child-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:; font-src 'self' http: https: data:;">`;
-			if (this.cspArbiter.isEnhancedSecurityDisableForWorkspace()) {
+			if (this.cspArbiter.isEnhancedSecurityDisableForWorkspace(vscode.workspace.rootPath || sourceUri.toString())) {
 				csp = '';
 			}
 
