@@ -21,8 +21,7 @@ import { CollapsibleRegion, getCollapsibleRegionsToFoldAtLine, getCollapsibleReg
 import { computeRanges, limitByIndent } from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 import { IFoldingController, ID } from 'vs/editor/contrib/folding/common/folding';
 import { Selection } from 'vs/editor/common/core/selection';
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 
 @editorContribution

@@ -9,7 +9,8 @@ import nls = require('vs/nls');
 import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/node/emmetActions';
 
 import { editorAction } from 'vs/editor/common/editorCommonExtensions';
-import { Handler, ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { Handler, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

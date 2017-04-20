@@ -14,9 +14,9 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { CommandDescription } from "vs/editor/common/controller/oneCursor";
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 import H = editorCommon.Handler;
-import EditorContextKeys = editorCommon.EditorContextKeys;
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 

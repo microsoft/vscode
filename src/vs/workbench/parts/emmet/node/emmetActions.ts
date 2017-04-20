@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/common/editorCommonExtensions';
 import { ICommandKeybindingsOptions } from 'vs/editor/common/config/config';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -22,6 +22,7 @@ import * as path from 'path';
 import * as pfs from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 interface IEmmetConfiguration {
 	emmet: {

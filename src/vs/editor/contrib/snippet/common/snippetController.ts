@@ -16,7 +16,7 @@ import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'v
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISnippetVariableResolver, ICodeSnippet, CodeSnippet } from './snippet';
 import { SnippetVariablesResolver } from './snippetVariables';
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Position } from "vs/editor/common/core/position";
 import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 

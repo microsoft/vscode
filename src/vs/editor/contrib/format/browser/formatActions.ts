@@ -22,9 +22,7 @@ import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { EditorState, CodeEditorStateFlag } from "vs/editor/common/core/editorState";
-
-import ModeContextKeys = editorCommon.ModeContextKeys;
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorContextKeys';
 
 
 function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void {

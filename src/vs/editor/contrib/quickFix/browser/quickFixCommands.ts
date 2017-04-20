@@ -12,7 +12,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Range } from 'vs/editor/common/core/range';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';

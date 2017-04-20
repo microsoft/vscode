@@ -6,7 +6,8 @@
 'use strict';
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { EditorContextKeys, ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Selection } from 'vs/editor/common/core/selection';
 import { editorCommand, ServicesAccessor, EditorCommand, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
 import { Position } from 'vs/editor/common/core/position';

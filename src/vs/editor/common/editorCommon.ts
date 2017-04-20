@@ -16,7 +16,6 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { IndentRange } from 'vs/editor/common/model/indentRanges';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import {
 	ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent,
@@ -2118,128 +2117,6 @@ export var Handler = {
 
 	RevealLine: 'revealLine'
 };
-
-/**
- * @internal
- */
-export namespace EditorContextKeys {
-	/**
-	 * A context key that is set when the editor's text has focus (cursor is blinking).
-	 * @internal
-	 */
-	export const TextFocus = new RawContextKey<boolean>('editorTextFocus', false);
-	/**
-	 * A context key that is set when the editor's text or an editor's widget has focus.
-	 * @internal
-	 */
-	export const Focus = new RawContextKey<boolean>('editorFocus', false);
-	/**
-	 * A context key that is set when the editor's text is readonly.
-	 * @internal
-	 */
-	export const ReadOnly = new RawContextKey<boolean>('editorReadonly', false);
-	/**
-	 * @internal
-	 */
-	export const Writable: ContextKeyExpr = ReadOnly.toNegated();
-	/**
-	 * A context key that is set when the editor has a non-collapsed selection.
-	 * @internal
-	 */
-	export const HasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
-	/**
-	 * @internal
-	 */
-	export const HasOnlyEmptySelection: ContextKeyExpr = HasNonEmptySelection.toNegated();
-	/**
-	 * A context key that is set when the editor has multiple selections (multiple cursors).
-	 * @internal
-	 */
-	export const HasMultipleSelections = new RawContextKey<boolean>('editorHasMultipleSelections', false);
-	/**
-	 * @internal
-	 */
-	export const HasSingleSelection: ContextKeyExpr = HasMultipleSelections.toNegated();
-	/**
-	 * @internal
-	 */
-	export const TabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
-	/**
-	 * @internal
-	 */
-	export const TabDoesNotMoveFocus: ContextKeyExpr = TabMovesFocus.toNegated();
-	/**
-	 * A context key that is set to the language associated with the model associated with the editor.
-	 * @internal
-	 */
-	export const LanguageId = new RawContextKey<string>('editorLangId', undefined);
-};
-
-/**
- * @internal
- */
-export namespace ModeContextKeys {
-	/**
-	 * @internal
-	 */
-	export const hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCompletionItemProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDefinitionProvider = new RawContextKey<boolean>('editorHasDefinitionProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentHighlightProvider = new RawContextKey<boolean>('editorHasDocumentHighlightProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentSymbolProvider = new RawContextKey<boolean>('editorHasDocumentSymbolProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
-}
 
 /**
  * @internal

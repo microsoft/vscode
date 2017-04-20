@@ -19,8 +19,7 @@ import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } 
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export const enum FindStartFocusAction {
 	NoFocusChange,

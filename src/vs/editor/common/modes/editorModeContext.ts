@@ -7,7 +7,8 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as modes from 'vs/editor/common/modes';
-import { ICommonCodeEditor, ModeContextKeys, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Schemas } from 'vs/base/common/network';
 
 export class EditorModeContext extends Disposable {

@@ -31,8 +31,7 @@ import {
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from "vs/editor/common/config/editorOptions";
 import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 let EDITOR_ID = 0;
 

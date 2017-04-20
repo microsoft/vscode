@@ -15,7 +15,7 @@ import { EmmetEditorAction, EmmetActionContext } from 'vs/workbench/parts/emmet/
 import { Action } from 'vs/base/common/actions';
 
 import { ServicesAccessor, editorAction } from 'vs/editor/common/editorCommonExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IQuickOpenService, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
