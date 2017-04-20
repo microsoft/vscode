@@ -150,5 +150,3 @@ deploy:
     - ./.build/linux/deb/${TARGET}/deb/*.deb
     - ./.build/linux/rpm/${RPMARCH}/*.rpm
   skip_cleanup: true
-  on:
-    tags: true
