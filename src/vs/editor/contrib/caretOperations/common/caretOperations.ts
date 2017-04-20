@@ -40,7 +40,7 @@ class MoveCaretLeftAction extends MoveCaretAction {
 			id: 'editor.action.moveCarretLeftAction',
 			label: nls.localize('caret.moveLeft', "Move Caret Left"),
 			alias: 'Move Caret Left',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 }
@@ -52,7 +52,7 @@ class MoveCaretRightAction extends MoveCaretAction {
 			id: 'editor.action.moveCarretRightAction',
 			label: nls.localize('caret.moveRight', "Move Caret Right"),
 			alias: 'Move Caret Right',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 }

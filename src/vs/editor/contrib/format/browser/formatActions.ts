@@ -22,7 +22,7 @@ import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { EditorState, CodeEditorStateFlag } from "vs/editor/common/core/editorState";
-import { EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorContextKeys';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 
 function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void {
@@ -296,9 +296,9 @@ export class FormatDocumentAction extends AbstractFormatAction {
 			id: 'editor.action.formatDocument',
 			label: nls.localize('formatDocument.label', "Format Document"),
 			alias: 'Format Document',
-			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasDocumentFormattingProvider),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				// secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)],
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I }
@@ -325,9 +325,9 @@ export class FormatSelectionAction extends AbstractFormatAction {
 			id: 'editor.action.formatSelection',
 			label: nls.localize('formatSelection.label', "Format Selection"),
 			alias: 'Format Code',
-			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.HasNonEmptySelection),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentSelectionFormattingProvider, EditorContextKeys.hasNonEmptySelection),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_F)
 			},
 			menuOpts: {

@@ -59,7 +59,7 @@ class InsertSnippetAction extends EditorAction {
 			id: 'editor.action.insertSnippet',
 			label: nls.localize('snippet.suggestions.label', "Insert Snippet"),
 			alias: 'Insert Snippet',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 

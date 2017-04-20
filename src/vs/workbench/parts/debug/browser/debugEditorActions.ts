@@ -24,7 +24,7 @@ class ToggleBreakpointAction extends EditorAction {
 			alias: 'Debug: Toggle Breakpoint',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyCode.F9
 			}
 		});
@@ -76,7 +76,7 @@ class ToggleColumnBreakpointAction extends EditorAction {
 			alias: 'Debug: Column Breakpoint',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyCode.F9
 			}
 		});
@@ -95,7 +95,7 @@ class ToggleColumnBreakpointContextMenuAction extends EditorAction {
 			id: 'editor.debug.action.toggleColumnBreakpointContextMenu',
 			label: nls.localize('columnBreakpoint', "Add Column Breakpoint"),
 			alias: 'Toggle Column Breakpoint',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.Writable),
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.writable),
 			menuOpts: {
 				group: 'debug',
 				order: 1
@@ -139,7 +139,7 @@ class RunToCursorAction extends EditorAction {
 			id: 'editor.debug.action.runToCursor',
 			label: nls.localize('runToCursor', "Run to Cursor"),
 			alias: 'Debug: Run to Cursor',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.Writable, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, EditorContextKeys.writable, CONTEXT_DEBUG_STATE.isEqualTo('stopped')),
 			menuOpts: {
 				group: 'debug',
 				order: 2
@@ -182,7 +182,7 @@ class SelectionToReplAction extends EditorAction {
 			id: 'editor.debug.action.selectionToRepl',
 			label: nls.localize('debugEvaluate', "Debug: Evaluate"),
 			alias: 'Debug: Evaluate',
-			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL),
+			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL),
 			menuOpts: {
 				group: 'debug',
 				order: 0
@@ -209,7 +209,7 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 			id: 'editor.debug.action.selectionToWatch',
 			label: nls.localize('debugAddToWatch', "Debug: Add to Watch"),
 			alias: 'Debug: Add to Watch',
-			precondition: ContextKeyExpr.and(EditorContextKeys.HasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL),
+			precondition: ContextKeyExpr.and(EditorContextKeys.hasNonEmptySelection, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL),
 			menuOpts: {
 				group: 'debug',
 				order: 1
@@ -236,7 +236,7 @@ class ShowDebugHoverAction extends EditorAction {
 			alias: 'Debug: Show Hover',
 			precondition: CONTEXT_IN_DEBUG_MODE,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 			}
 		});
@@ -262,7 +262,7 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
 			kbOpts: {
 				weight: CommonEditorRegistry.commandWeight(8),
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.Escape,
 				secondary: [KeyMod.Shift | KeyCode.Escape]
 			}

@@ -96,8 +96,8 @@ CommonEditorRegistry.registerEditorCommand(new TabCompletionCommand({
 	kbOpts: {
 		weight: KeybindingsRegistry.WEIGHT.editorContrib(),
 		kbExpr: ContextKeyExpr.and(
-			EditorContextKeys.TextFocus,
-			EditorContextKeys.TabDoesNotMoveFocus,
+			EditorContextKeys.textFocus,
+			EditorContextKeys.tabDoesNotMoveFocus,
 			CONTEXT_SNIPPET_MODE.toNegated(),
 			ContextKeyExpr.has('config.editor.tabCompletion')
 		),

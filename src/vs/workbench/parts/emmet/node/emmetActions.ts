@@ -281,7 +281,7 @@ export class BasicEmmetEditorAction extends EmmetEditorAction {
 			id,
 			label,
 			alias,
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts,
 			actionName
 		});

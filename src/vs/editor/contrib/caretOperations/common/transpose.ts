@@ -20,9 +20,9 @@ class TransposeLettersAction extends EditorAction {
 			id: 'editor.action.transposeLetters',
 			label: nls.localize('transposeLetters.label', "Transpose Letters"),
 			alias: 'Transpose Letters',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: 0,
 				mac: {
 					primary: KeyMod.WinCtrl | KeyCode.KEY_T

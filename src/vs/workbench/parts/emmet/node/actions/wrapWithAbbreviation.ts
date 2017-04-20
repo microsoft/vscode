@@ -20,7 +20,7 @@ class WrapWithAbbreviationAction extends EmmetEditorAction {
 			id: 'editor.emmet.action.wrapWithAbbreviation',
 			label: nls.localize('wrapWithAbbreviationAction', "Emmet: Wrap with Abbreviation"),
 			alias: 'Emmet: Wrap with Abbreviation',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			actionName: 'wrap_with_abbreviation'
 		});
 	}

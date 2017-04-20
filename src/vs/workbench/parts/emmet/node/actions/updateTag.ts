@@ -20,7 +20,7 @@ class UpdateTagAction extends EmmetEditorAction {
 			id: 'editor.emmet.action.updateTag',
 			label: nls.localize('updateTag', "Emmet: Update Tag"),
 			alias: 'Emmet: Update Tag',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			actionName: 'update_tag'
 		});
 	}

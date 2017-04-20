@@ -207,7 +207,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			alias: 'Show Accessibility Help',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Alt | KeyCode.F1
 			}
 		});
@@ -229,7 +229,7 @@ CommonEditorRegistry.registerEditorCommand(new AccessibilityHelpCommand({
 	handler: x => x.hide(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(100),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));

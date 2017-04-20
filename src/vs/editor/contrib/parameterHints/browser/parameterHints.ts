@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorContextKeys';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -67,9 +67,9 @@ export class TriggerParameterHintsAction extends EditorAction {
 			id: 'editor.action.triggerParameterHints',
 			label: nls.localize('parameterHints.trigger.label', "Trigger Parameter Hints"),
 			alias: 'Trigger Parameter Hints',
-			precondition: ModeContextKeys.hasSignatureHelpProvider,
+			precondition: EditorContextKeys.hasSignatureHelpProvider,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Space
 			}
 		});
@@ -93,7 +93,7 @@ CommonEditorRegistry.registerEditorCommand(new ParameterHintsCommand({
 	handler: x => x.cancel(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
@@ -104,7 +104,7 @@ CommonEditorRegistry.registerEditorCommand(new ParameterHintsCommand({
 	handler: x => x.previous(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.UpArrow,
 		secondary: [KeyMod.Alt | KeyCode.UpArrow],
 		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
@@ -116,7 +116,7 @@ CommonEditorRegistry.registerEditorCommand(new ParameterHintsCommand({
 	handler: x => x.next(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.DownArrow,
 		secondary: [KeyMod.Alt | KeyCode.DownArrow],
 		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }

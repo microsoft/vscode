@@ -227,7 +227,7 @@ class ShowContextMenu extends EditorAction {
 			alias: 'Show Editor Context Menu',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyCode.F10
 			}
 		});

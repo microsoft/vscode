@@ -927,12 +927,12 @@ class EditorContextKeysManager extends Disposable {
 		this._editor = editor;
 
 		this._editorId = contextKeyService.createKey('editorId', editor.getId());
-		this._editorFocus = EditorContextKeys.Focus.bindTo(contextKeyService);
-		this._editorTextFocus = EditorContextKeys.TextFocus.bindTo(contextKeyService);
-		this._editorTabMovesFocus = EditorContextKeys.TabMovesFocus.bindTo(contextKeyService);
-		this._editorReadonly = EditorContextKeys.ReadOnly.bindTo(contextKeyService);
-		this._hasMultipleSelections = EditorContextKeys.HasMultipleSelections.bindTo(contextKeyService);
-		this._hasNonEmptySelection = EditorContextKeys.HasNonEmptySelection.bindTo(contextKeyService);
+		this._editorFocus = EditorContextKeys.focus.bindTo(contextKeyService);
+		this._editorTextFocus = EditorContextKeys.textFocus.bindTo(contextKeyService);
+		this._editorTabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
+		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
+		this._hasMultipleSelections = EditorContextKeys.hasMultipleSelections.bindTo(contextKeyService);
+		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
 
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
 		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));

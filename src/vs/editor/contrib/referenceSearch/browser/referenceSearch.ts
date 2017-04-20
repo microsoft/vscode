@@ -23,7 +23,7 @@ import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from 
 import { ReferencesModel } from './referencesModel';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorContextKeys';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -63,11 +63,11 @@ export class ReferenceAction extends EditorAction {
 			label: nls.localize('references.action.label', "Find All References"),
 			alias: 'Find All References',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasReferenceProvider,
+				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
-				ModeContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyCode.F12
 			},
 			menuOpts: {

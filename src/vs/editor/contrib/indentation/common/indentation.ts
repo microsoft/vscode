@@ -153,7 +153,7 @@ export class IndentationToSpacesAction extends EditorAction {
 			id: IndentationToSpacesAction.ID,
 			label: nls.localize('indentationToSpaces', "Convert Indentation to Spaces"),
 			alias: 'Convert Indentation to Spaces',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 
@@ -180,7 +180,7 @@ export class IndentationToTabsAction extends EditorAction {
 			id: IndentationToTabsAction.ID,
 			label: nls.localize('indentationToTabs', "Convert Indentation to Tabs"),
 			alias: 'Convert Indentation to Tabs',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 
@@ -301,7 +301,7 @@ export class ReindentLinesAction extends EditorAction {
 			id: 'editor.action.reindentlines',
 			label: nls.localize('editor.reindentlines', "Reindent Lines"),
 			alias: 'Reindent Lines',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 

@@ -434,9 +434,9 @@ class NextMarkerAction extends MarkerNavigationAction {
 			id: 'editor.action.marker.next',
 			label: nls.localize('markerAction.next.label', "Go to Next Error or Warning"),
 			alias: 'Go to Next Error or Warning',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.F8
 			}
 		});
@@ -450,9 +450,9 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			id: 'editor.action.marker.prev',
 			label: nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"),
 			alias: 'Go to Previous Error or Warning',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyCode.F8
 			}
 		});
@@ -469,7 +469,7 @@ CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
 	handler: x => x.closeMarkersNavigation(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(50),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}

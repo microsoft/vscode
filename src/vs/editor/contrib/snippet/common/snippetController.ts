@@ -725,7 +725,7 @@ CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	handler: x => x.jumpToNextPlaceholder(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(30),
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Tab
 	}
 }));
@@ -735,7 +735,7 @@ CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	handler: x => x.jumpToPrevPlaceholder(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(30),
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
 }));
@@ -745,7 +745,7 @@ CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	handler: x => x.acceptSnippet(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(30),
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Enter
 	}
 }));
@@ -755,7 +755,7 @@ CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	handler: x => x.leaveSnippet(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(30),
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}

@@ -21,7 +21,7 @@ class InsertCursorAbove extends HandlerEditorAction {
 			precondition: null,
 			handlerId: Handler.AddCursorUp,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
@@ -42,7 +42,7 @@ class InsertCursorBelow extends HandlerEditorAction {
 			precondition: null,
 			handlerId: Handler.AddCursorDown,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
@@ -63,7 +63,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			alias: 'Add Cursors to Line Ends',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
 			}
 		});

@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorContextKeys';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { SymbolInformation, DocumentSymbolProviderRegistry, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { getDocumentSymbols, IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
@@ -117,9 +117,9 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 			id: 'editor.action.quickOutline',
 			label: nls.localize('QuickOutlineAction.label', "Go to Symbol..."),
 			alias: 'Go to Symbol...',
-			precondition: ModeContextKeys.hasDocumentSymbolProvider,
+			precondition: EditorContextKeys.hasDocumentSymbolProvider,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
 			},
 			menuOpts: {

@@ -138,9 +138,9 @@ class InPlaceReplaceUp extends EditorAction {
 			id: 'editor.action.inPlaceReplace.up',
 			label: nls.localize('InPlaceReplaceAction.previous.label', "Replace with Previous Value"),
 			alias: 'Replace with Previous Value',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
 			}
 		});
@@ -163,9 +163,9 @@ class InPlaceReplaceDown extends EditorAction {
 			id: 'editor.action.inPlaceReplace.down',
 			label: nls.localize('InPlaceReplaceAction.next.label', "Replace with Next Value"),
 			alias: 'Replace with Next Value',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
 			}
 		});

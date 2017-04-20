@@ -310,9 +310,9 @@ export class DefineKeybindingAction extends EditorAction {
 			id: DefineKeybindingAction.ID,
 			label: nls.localize('DefineKeybindingAction', "Define Keybinding"),
 			alias: 'Define Keybinding',
-			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, EditorContextKeys.LanguageId.isEqualTo('json')),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.languageId.isEqualTo('json')),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
 			}
 		});

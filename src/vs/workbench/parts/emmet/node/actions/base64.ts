@@ -30,7 +30,7 @@ class EncodeDecodeDataUrlAction extends EmmetEditorAction {
 			id: 'editor.emmet.action.encodeDecodeDataUrl',
 			label: nls.localize('encodeDecodeDataUrl', "Emmet: Encode\\Decode data:URL image"),
 			alias: 'Emmet: Encode\\Decode data:URL image',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			actionName: 'encode_decode_data_url'
 		});
 	}

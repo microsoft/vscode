@@ -52,7 +52,7 @@ function registerActiveEditorMoveCommand(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: EditorCommands.MoveActiveEditor,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: EditorContextKeys.TextFocus,
+		when: EditorContextKeys.textFocus,
 		primary: null,
 		handler: (accessor, args: any) => moveActiveEditor(args, accessor),
 		description: {

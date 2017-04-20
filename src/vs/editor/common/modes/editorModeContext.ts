@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as modes from 'vs/editor/common/modes';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys, ModeContextKeys } from 'vs/editor/common/editorContextKeys';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Schemas } from 'vs/base/common/network';
 
 export class EditorModeContext extends Disposable {
@@ -39,22 +39,22 @@ export class EditorModeContext extends Disposable {
 		super();
 		this._editor = editor;
 
-		this._langId = EditorContextKeys.LanguageId.bindTo(contextKeyService);
-		this._hasCompletionItemProvider = ModeContextKeys.hasCompletionItemProvider.bindTo(contextKeyService);
-		this._hasCodeActionsProvider = ModeContextKeys.hasCodeActionsProvider.bindTo(contextKeyService);
-		this._hasCodeLensProvider = ModeContextKeys.hasCodeLensProvider.bindTo(contextKeyService);
-		this._hasDefinitionProvider = ModeContextKeys.hasDefinitionProvider.bindTo(contextKeyService);
-		this._hasImplementationProvider = ModeContextKeys.hasImplementationProvider.bindTo(contextKeyService);
-		this._hasTypeDefinitionProvider = ModeContextKeys.hasTypeDefinitionProvider.bindTo(contextKeyService);
-		this._hasHoverProvider = ModeContextKeys.hasHoverProvider.bindTo(contextKeyService);
-		this._hasDocumentHighlightProvider = ModeContextKeys.hasDocumentHighlightProvider.bindTo(contextKeyService);
-		this._hasDocumentSymbolProvider = ModeContextKeys.hasDocumentSymbolProvider.bindTo(contextKeyService);
-		this._hasReferenceProvider = ModeContextKeys.hasReferenceProvider.bindTo(contextKeyService);
-		this._hasRenameProvider = ModeContextKeys.hasRenameProvider.bindTo(contextKeyService);
-		this._hasDocumentFormattingProvider = ModeContextKeys.hasDocumentFormattingProvider.bindTo(contextKeyService);
-		this._hasDocumentSelectionFormattingProvider = ModeContextKeys.hasDocumentSelectionFormattingProvider.bindTo(contextKeyService);
-		this._hasSignatureHelpProvider = ModeContextKeys.hasSignatureHelpProvider.bindTo(contextKeyService);
-		this._isInWalkThrough = ModeContextKeys.isInEmbeddedEditor.bindTo(contextKeyService);
+		this._langId = EditorContextKeys.languageId.bindTo(contextKeyService);
+		this._hasCompletionItemProvider = EditorContextKeys.hasCompletionItemProvider.bindTo(contextKeyService);
+		this._hasCodeActionsProvider = EditorContextKeys.hasCodeActionsProvider.bindTo(contextKeyService);
+		this._hasCodeLensProvider = EditorContextKeys.hasCodeLensProvider.bindTo(contextKeyService);
+		this._hasDefinitionProvider = EditorContextKeys.hasDefinitionProvider.bindTo(contextKeyService);
+		this._hasImplementationProvider = EditorContextKeys.hasImplementationProvider.bindTo(contextKeyService);
+		this._hasTypeDefinitionProvider = EditorContextKeys.hasTypeDefinitionProvider.bindTo(contextKeyService);
+		this._hasHoverProvider = EditorContextKeys.hasHoverProvider.bindTo(contextKeyService);
+		this._hasDocumentHighlightProvider = EditorContextKeys.hasDocumentHighlightProvider.bindTo(contextKeyService);
+		this._hasDocumentSymbolProvider = EditorContextKeys.hasDocumentSymbolProvider.bindTo(contextKeyService);
+		this._hasReferenceProvider = EditorContextKeys.hasReferenceProvider.bindTo(contextKeyService);
+		this._hasRenameProvider = EditorContextKeys.hasRenameProvider.bindTo(contextKeyService);
+		this._hasDocumentFormattingProvider = EditorContextKeys.hasDocumentFormattingProvider.bindTo(contextKeyService);
+		this._hasDocumentSelectionFormattingProvider = EditorContextKeys.hasDocumentSelectionFormattingProvider.bindTo(contextKeyService);
+		this._hasSignatureHelpProvider = EditorContextKeys.hasSignatureHelpProvider.bindTo(contextKeyService);
+		this._isInWalkThrough = EditorContextKeys.isInEmbeddedEditor.bindTo(contextKeyService);
 
 		const update = () => this._update();
 

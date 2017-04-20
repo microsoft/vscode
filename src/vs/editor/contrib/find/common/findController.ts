@@ -339,7 +339,7 @@ export class NextMatchFindAction extends MatchFindAction {
 			alias: 'Find Next',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.F3,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] }
 			}
@@ -361,7 +361,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 			alias: 'Find Previous',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyCode.F3,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] }
 			}
@@ -407,7 +407,7 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 			alias: 'Find Next Selection',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.F3
 			}
 		});
@@ -428,7 +428,7 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 			alias: 'Find Previous Selection',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F3
 			}
 		});
@@ -608,7 +608,7 @@ export class AddSelectionToNextFindMatchAction extends SelectNextFindMatchAction
 			alias: 'Add Selection To Next Find Match',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_D
 			}
 		});
@@ -714,7 +714,7 @@ export class MoveSelectionToNextFindMatchAction extends SelectNextFindMatchActio
 			alias: 'Move Last Selection To Next Find Match',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_D)
 			}
 		});
@@ -797,7 +797,7 @@ export class SelectHighlightsAction extends AbstractSelectHighlightsAction {
 			alias: 'Select All Occurrences of Find Match',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_L
 			}
 		});
@@ -811,9 +811,9 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 			id: 'editor.action.changeAll',
 			label: nls.localize('changeAll.label', "Change All Occurrences"),
 			alias: 'Change All Occurrences',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F2
 			},
 			menuOpts: {
@@ -1016,7 +1016,7 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	handler: x => x.closeFindWidget(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
@@ -1028,7 +1028,7 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	handler: x => x.toggleCaseSensitive(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: ToggleCaseSensitiveKeybinding.primary,
 		mac: ToggleCaseSensitiveKeybinding.mac,
 		win: ToggleCaseSensitiveKeybinding.win,
@@ -1042,7 +1042,7 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	handler: x => x.toggleWholeWords(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: ToggleWholeWordKeybinding.primary,
 		mac: ToggleWholeWordKeybinding.mac,
 		win: ToggleWholeWordKeybinding.win,
@@ -1056,7 +1056,7 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	handler: x => x.toggleRegex(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: ToggleRegexKeybinding.primary,
 		mac: ToggleRegexKeybinding.mac,
 		win: ToggleRegexKeybinding.win,
@@ -1070,7 +1070,7 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	handler: x => x.replace(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_1
 	}
 }));
@@ -1081,7 +1081,7 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	handler: x => x.replaceAll(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
 	}
 }));
@@ -1092,7 +1092,7 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	handler: x => x.selectAllMatches(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.Alt | KeyCode.Enter
 	}
 }));
@@ -1103,7 +1103,7 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	handler: x => x.showPreviousFindTerm(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.Focus),
+		kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
 		primary: ShowPreviousFindTermKeybinding.primary,
 		mac: ShowPreviousFindTermKeybinding.mac,
 		win: ShowPreviousFindTermKeybinding.win,
@@ -1117,7 +1117,7 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	handler: x => x.showNextFindTerm(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(5),
-		kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.Focus),
+		kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSSED, EditorContextKeys.focus),
 		primary: ShowNextFindTermKeybinding.primary,
 		mac: ShowNextFindTermKeybinding.mac,
 		win: ShowNextFindTermKeybinding.win,

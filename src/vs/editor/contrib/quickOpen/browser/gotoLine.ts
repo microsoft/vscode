@@ -151,7 +151,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 			alias: 'Go to Line...',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
 			}

@@ -10,35 +10,24 @@ export namespace EditorContextKeys {
 	/**
 	 * A context key that is set when the editor's text has focus (cursor is blinking).
 	 */
-	export const TextFocus = new RawContextKey<boolean>('editorTextFocus', false);
+	export const textFocus = new RawContextKey<boolean>('editorTextFocus', false);
 	/**
 	 * A context key that is set when the editor's text or an editor's widget has focus.
 	 */
-	export const Focus = new RawContextKey<boolean>('editorFocus', false);
-	/**
-	 * A context key that is set when the editor's text is readonly.
-	 */
-	export const ReadOnly = new RawContextKey<boolean>('editorReadonly', false);
-	export const Writable: ContextKeyExpr = ReadOnly.toNegated();
-	/**
-	 * A context key that is set when the editor has a non-collapsed selection.
-	 */
-	export const HasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
-	export const HasOnlyEmptySelection: ContextKeyExpr = HasNonEmptySelection.toNegated();
-	/**
-	 * A context key that is set when the editor has multiple selections (multiple cursors).
-	 */
-	export const HasMultipleSelections = new RawContextKey<boolean>('editorHasMultipleSelections', false);
-	export const HasSingleSelection: ContextKeyExpr = HasMultipleSelections.toNegated();
-	export const TabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
-	export const TabDoesNotMoveFocus: ContextKeyExpr = TabMovesFocus.toNegated();
-	/**
-	 * A context key that is set to the language associated with the model associated with the editor.
-	 */
-	export const LanguageId = new RawContextKey<string>('editorLangId', undefined);
-};
+	export const focus = new RawContextKey<boolean>('editorFocus', false);
 
-export namespace ModeContextKeys {
+	export const readOnly = new RawContextKey<boolean>('editorReadonly', false);
+	export const writable: ContextKeyExpr = readOnly.toNegated();
+	export const hasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
+	export const hasOnlyEmptySelection: ContextKeyExpr = hasNonEmptySelection.toNegated();
+	export const hasMultipleSelections = new RawContextKey<boolean>('editorHasMultipleSelections', false);
+	export const hasSingleSelection: ContextKeyExpr = hasMultipleSelections.toNegated();
+	export const tabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
+	export const tabDoesNotMoveFocus: ContextKeyExpr = tabMovesFocus.toNegated();
+	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
+
+	// -- mode context keys
+	export const languageId = new RawContextKey<string>('editorLangId', undefined);
 	export const hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCompletionItemProvider', undefined);
 	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', undefined);
 	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', undefined);
@@ -53,5 +42,4 @@ export namespace ModeContextKeys {
 	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', undefined);
 	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', undefined);
 	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
-	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
-}
+};

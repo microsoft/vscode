@@ -25,7 +25,7 @@ class SelectBracketAction extends EditorAction {
 			alias: 'Go to Bracket',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH
 			}
 		});
