@@ -178,6 +178,8 @@ export interface IViewModelHelper {
 
 	viewModel: ICursorSimpleModel;
 
+	getScrollTop(): number;
+
 	getCompletelyVisibleViewRange(): Range;
 
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
@@ -231,6 +233,10 @@ export class CursorContext {
 		return this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
 	}
 
+	public getScrollTop(): number {
+		return this._viewModelHelper.getScrollTop();
+	}
+
 	public getCompletelyVisibleViewRange(): Range {
 		return this._viewModelHelper.getCompletelyVisibleViewRange();
 	}
@@ -251,43 +257,6 @@ export class CursorContext {
 
 	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
 		return this._viewModelHelper.getVerticalOffsetForViewLineNumber(viewLineNumber);
-	}
-
-	public getRangeToRevealModelLinesBeforeViewPortTop(noOfLinesBeforeTop: number): Range {
-		let visibleModelRange = this.getCompletelyVisibleModelRange();
-
-		let startLineNumber: number;
-		if (this.model.getLineMinColumn(visibleModelRange.startLineNumber) !== visibleModelRange.startColumn) {
-			// Start line is partially visible by wrapping so reveal start line
-			startLineNumber = visibleModelRange.startLineNumber;
-		} else {
-			// Reveal previous line
-			startLineNumber = visibleModelRange.startLineNumber - 1;
-		}
-
-		startLineNumber -= (noOfLinesBeforeTop - 1);
-		startLineNumber = this.model.validateRange({ startLineNumber, startColumn: 1, endLineNumber: startLineNumber, endColumn: 1 }).startLineNumber;
-		let startColumn = this.model.getLineMinColumn(startLineNumber);
-		let endColumn = this.model.getLineMaxColumn(visibleModelRange.startLineNumber);
-
-		return new Range(startLineNumber, startColumn, startLineNumber, endColumn);
-	}
-
-	public getRangeToRevealModelLinesAfterViewPortBottom(noOfLinesAfterBottom: number): Range {
-		let visibleModelRange = this.getCompletelyVisibleModelRange();
-
-		// Last line in the view port is not considered revealed because scroll bar would cover it
-		// Hence consider last line to reveal in the range
-		let startLineNumber = visibleModelRange.endLineNumber + (noOfLinesAfterBottom - 1);
-		startLineNumber = this.model.validateRange({ startLineNumber, startColumn: 1, endLineNumber: startLineNumber, endColumn: 1 }).startLineNumber;
-		let startColumn = this.model.getLineMinColumn(startLineNumber);
-		let endColumn = this.model.getLineMaxColumn(startLineNumber);
-
-		return new Range(startLineNumber, startColumn, startLineNumber, endColumn);
-	}
-
-	public isLastLineVisibleInViewPort(): boolean {
-		return this.viewModel.getLineCount() <= this.getCompletelyVisibleViewRange().getEndPosition().lineNumber;
 	}
 }
 

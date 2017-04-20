@@ -778,6 +778,9 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			let viewModelHelper: IViewModelHelper = {
 				viewModel: this.viewModel,
 				coordinatesConverter: this.viewModel.coordinatesConverter,
+				getScrollTop: (): number => {
+					return this.getScrollTop();
+				},
 				getCompletelyVisibleViewRange: (): Range => {
 					return this._getCompletelyVisibleViewRange();
 				},

@@ -25,7 +25,7 @@ import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controlle
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
-import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, ICursorScrollRequestEvent, CursorScrollTopRequest } from "vs/editor/common/controller/cursorEvents";
+import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
 import { ICommandHandlerDescription } from "vs/platform/commands/common/commands";
 import * as types from 'vs/base/common/types';
 
@@ -1610,6 +1610,25 @@ export class Cursor extends Disposable {
 
 	private _doEditorScroll(args: EditorScroll.ParsedArguments, ctx: IMultipleCursorOperationContext): boolean {
 
+		const desiredScrollTop = this._computeDesiredScrollTop(args);
+
+		if (args.revealCursor) {
+			// must ensure cursor is in new visible range
+			const desiredVisibleViewRange = this.context.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
+			const r = OneCursorOp.findPositionInViewportIfOutside(this.context, this.cursors.getPrimaryCursor(), desiredVisibleViewRange, false);
+			this.cursors.setStates([r], false);
+		}
+
+		this._eventEmitter.emit(CursorEventType.CursorScrollRequest, new CursorScrollRequest(
+			desiredScrollTop
+		));
+
+		ctx.shouldReveal = false;
+		return true;
+	}
+
+	private _computeDesiredScrollTop(args: EditorScroll.ParsedArguments): number {
+
 		if (args.unit === EditorScroll.Unit.Line) {
 			// scrolling by model lines
 			const visibleModelRange = this.context.getCompletelyVisibleModelRange();
@@ -1624,43 +1643,19 @@ export class Cursor extends Disposable {
 			}
 
 			const desiredTopViewPosition = this.context.convertModelPositionToViewPosition(new Position(desiredTopModelLineNumber, 1));
-			const desiredScrollTop = this.context.getVerticalOffsetForViewLine(desiredTopViewPosition.lineNumber);
-
-			if (args.revealCursor) {
-				// must ensure cursor is in new visible range
-				const desiredVisibleViewRange = this.context.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
-				const r = OneCursorOp.findPositionInViewportIfOutside(this.context, this.cursors.getPrimaryCursor(), desiredVisibleViewRange, false);
-				this.cursors.setStates([r], false);
-			}
-
-			this._eventEmitter.emit(CursorEventType.CursorScrollRequest2, new CursorScrollTopRequest(
-				desiredScrollTop
-			));
-
-			ctx.shouldReveal = false;
-			return true;
+			return this.context.getVerticalOffsetForViewLine(desiredTopViewPosition.lineNumber);
 		}
 
-		let up = args.direction === EditorScroll.Direction.Up;
-		let noOfLines = args.value;
-		switch (args.unit) {
-			case EditorScroll.Unit.Page:
-				noOfLines = this.context.config.pageSize * noOfLines;
-				break;
-			case EditorScroll.Unit.HalfPage:
-				noOfLines = Math.round(this.context.config.pageSize / 2) * noOfLines;
-				break;
+		let noOfLines: number;
+		if (args.unit === EditorScroll.Unit.Page) {
+			noOfLines = this.context.config.pageSize * args.value;
+		} else if (args.unit === EditorScroll.Unit.HalfPage) {
+			noOfLines = Math.round(this.context.config.pageSize / 2) * args.value;
+		} else {
+			noOfLines = args.value;
 		}
-		this.emitCursorScrollRequest((up ? -1 : 1) * noOfLines, args.revealCursor);
-		return true;
-	}
-
-	private emitCursorScrollRequest(deltaLines: number, revealCursor: boolean): void {
-		var e: ICursorScrollRequestEvent = {
-			deltaLines,
-			revealCursor
-		};
-		this._eventEmitter.emit(CursorEventType.CursorScrollRequest, e);
+		const deltaLines = (args.direction === EditorScroll.Direction.Up ? -1 : 1) * noOfLines;
+		return this.context.getScrollTop() + deltaLines * this.context.config.lineHeight;
 	}
 
 	private _undo(ctx: IMultipleCursorOperationContext): boolean {

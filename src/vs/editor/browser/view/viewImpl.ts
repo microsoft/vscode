@@ -50,7 +50,6 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { CursorMovePosition } from "vs/editor/common/controller/oneCursor";
 import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
 
 export interface IContentWidgetData {
@@ -427,21 +426,9 @@ export class View extends ViewEventHandler {
 		return false;
 	}
 	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
-		let currentScrollTop = this.layoutProvider.getScrollTop();
-		let newScrollTop = currentScrollTop + e.deltaLines * this._context.configuration.editor.lineHeight;
 		this.layoutProvider.setScrollPosition({
-			scrollTop: newScrollTop
+			scrollTop: e.desiredScrollTop
 		});
-		return e.revealCursor ? this.revealCursor() : false;
-	}
-	public onScrollRequest2(e: viewEvents.ViewScrollRequestEvent2): boolean {
-		this.layoutProvider.setScrollPosition({
-			scrollTop: e.request.desiredScrollTop
-		});
-		return false;
-	}
-	private revealCursor(): boolean {
-		this.triggerCursorHandler('revealCursor', editorCommon.Handler.CursorMove, { to: CursorMovePosition.ViewPortIfOutside });
 		return false;
 	}
 

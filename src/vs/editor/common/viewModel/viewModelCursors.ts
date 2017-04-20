@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ICursorRevealRangeEvent, ICursorScrollRequestEvent, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
+import { ICursorRevealRangeEvent, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
 
 export interface ICursorPositionChangedEvent {
 	readonly position: Position;
@@ -111,11 +111,7 @@ export class ViewModelCursors {
 		}
 	}
 
-	public onCursorScrollRequest(eventsCollector: ViewEventsCollector, e: ICursorScrollRequestEvent): void {
-		eventsCollector.emit(new viewEvents.ViewScrollRequestEvent(e.deltaLines, e.revealCursor));
-	}
-
-	public onCursorScrollRequest2(eventsCollector: ViewEventsCollector, e: CursorScrollRequest): void {
-		eventsCollector.emit(new viewEvents.ViewScrollRequestEvent2(e));
+	public onCursorScrollRequest(eventsCollector: ViewEventsCollector, e: CursorScrollRequest): void {
+		eventsCollector.emit(new viewEvents.ViewScrollRequestEvent(e.desiredScrollTop));
 	}
 }

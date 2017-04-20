@@ -28,6 +28,7 @@ export class CursorConfiguration {
 	public readonly insertSpaces: boolean;
 	public readonly oneIndent: string;
 	public readonly pageSize: number;
+	public readonly lineHeight: number;
 	public readonly useTabStops: boolean;
 	public readonly wordSeparators: string;
 	public readonly autoClosingBrackets: boolean;
@@ -42,6 +43,7 @@ export class CursorConfiguration {
 			|| e.wordSeparators
 			|| e.autoClosingBrackets
 			|| e.useTabStops
+			|| e.lineHeight
 		);
 	}
 
@@ -57,6 +59,7 @@ export class CursorConfiguration {
 		this.insertSpaces = modelOptions.insertSpaces;
 		this.oneIndent = oneIndent;
 		this.pageSize = Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2;
+		this.lineHeight = c.lineHeight;
 		this.useTabStops = c.useTabStops;
 		this.wordSeparators = c.wordSeparators;
 		this.autoClosingBrackets = c.autoClosingBrackets;

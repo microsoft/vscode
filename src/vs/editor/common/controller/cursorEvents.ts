@@ -17,7 +17,6 @@ export const CursorEventType = {
 	CursorSelectionChanged: 'selectionChanged',
 	CursorRevealRange: 'revealRange',
 	CursorScrollRequest: 'scrollRequest',
-	CursorScrollRequest2: 'scrollRequest2',
 };
 
 /**
@@ -150,23 +149,7 @@ export interface ICursorRevealRangeEvent {
 /**
  * @internal
  */
-export interface ICursorScrollRequestEvent {
-	readonly deltaLines: number;
-	readonly revealCursor: boolean;
-}
-
-/**
- * @internal
- */
-export const enum CursorScrollRequestType {
-	Absolute = 1
-}
-
-/**
- * @internal
- */
-export class CursorScrollTopRequest {
-	public readonly type = CursorScrollRequestType.Absolute;
+export class CursorScrollRequest {
 
 	public readonly desiredScrollTop: number;
 
@@ -174,8 +157,3 @@ export class CursorScrollTopRequest {
 		this.desiredScrollTop = desiredScrollTop;
 	}
 }
-
-/**
- * @internal
- */
-export type CursorScrollRequest = CursorScrollTopRequest;

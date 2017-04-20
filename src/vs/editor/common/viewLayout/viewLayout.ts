@@ -198,8 +198,15 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 		return this._linesLayout.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
 	}
 	public getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData {
-		const visibleBox = this.getCurrentViewport();
-		return this._linesLayout.getLinesViewportData(scrollTop, scrollTop + visibleBox.height);
+		// do some minimal validations on scrollTop
+		const scrollState = this._scrollable.getState();
+		if (scrollTop + scrollState.height > scrollState.scrollHeight) {
+			scrollTop = scrollState.scrollHeight - scrollState.height;
+		}
+		if (scrollTop < 0) {
+			scrollTop = 0;
+		}
+		return this._linesLayout.getLinesViewportData(scrollTop, scrollTop + scrollState.height);
 	}
 	public getWhitespaceViewportData(): IViewWhitespaceViewportData[] {
 		const visibleBox = this.getCurrentViewport();

@@ -51,6 +51,8 @@ export function viewModelHelper(model: IModel): IViewModelHelper {
 			},
 		},
 
+		getScrollTop: (): number => 0,
+
 		getCompletelyVisibleViewRange: () => null,
 
 		getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number) => null,

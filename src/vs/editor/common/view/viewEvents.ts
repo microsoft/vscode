@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IViewConfigurationChangedEvent, IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
-import { VerticalRevealType, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
+import { VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,
@@ -25,10 +25,9 @@ export const enum ViewEventType {
 	ViewRevealRangeRequest = 11,
 	ViewScrollChanged = 12,
 	ViewScrollRequest = 13,
-	ViewScrollRequest2 = 14,
-	ViewTokensChanged = 15,
-	ViewTokensColorsChanged = 16,
-	ViewZonesChanged = 17,
+	ViewTokensChanged = 14,
+	ViewTokensColorsChanged = 15,
+	ViewZonesChanged = 16,
 }
 
 export class ViewConfigurationChangedEvent {
@@ -244,23 +243,10 @@ export class ViewScrollRequestEvent {
 
 	public readonly type = ViewEventType.ViewScrollRequest;
 
-	public readonly deltaLines: number;
-	public readonly revealCursor: boolean;
+	public readonly desiredScrollTop: number;
 
-	constructor(deltaLines: number, revealCursor: boolean) {
-		this.deltaLines = deltaLines;
-		this.revealCursor = revealCursor;
-	}
-}
-
-export class ViewScrollRequestEvent2 {
-
-	public readonly type = ViewEventType.ViewScrollRequest2;
-
-	public readonly request: CursorScrollRequest;
-
-	constructor(request: CursorScrollRequest) {
-		this.request = request;
+	constructor(desiredScrollTop: number) {
+		this.desiredScrollTop = desiredScrollTop;
 	}
 }
 
@@ -316,7 +302,6 @@ export type ViewEvent = (
 	| ViewRevealRangeRequestEvent
 	| ViewScrollChangedEvent
 	| ViewScrollRequestEvent
-	| ViewScrollRequestEvent2
 	| ViewTokensChangedEvent
 	| ViewTokensColorsChangedEvent
 	| ViewZonesChangedEvent
