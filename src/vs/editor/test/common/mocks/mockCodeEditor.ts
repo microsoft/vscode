@@ -23,6 +23,8 @@ export class MockCodeEditor extends CommonCodeEditor {
 	}
 	public getCenteredRangeInViewport(): Range { return null; }
 	protected _getCompletelyVisibleViewRange(): Range { return null; }
+	protected _getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range { return null; }
+	protected _getVerticalOffsetForViewLineNumber(viewLineNumber: number): number { return 0; }
 
 	public getScrollWidth(): number { return 0; }
 	public getScrollLeft(): number { return 0; }

@@ -179,6 +179,10 @@ export interface IViewModelHelper {
 	viewModel: ICursorSimpleModel;
 
 	getCompletelyVisibleViewRange(): Range;
+
+	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+
+	getVerticalOffsetForViewLineNumber(viewLineNumber: number): number;
 }
 
 export class CursorContext {
@@ -234,6 +238,19 @@ export class CursorContext {
 	public getCompletelyVisibleModelRange(): Range {
 		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRange();
 		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+	}
+
+	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
+		return this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+	}
+
+	public getCompletelyVisibleModelRangeAtScrollTop(scrollTop: number): Range {
+		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+	}
+
+	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
+		return this._viewModelHelper.getVerticalOffsetForViewLineNumber(viewLineNumber);
 	}
 
 	public getRangeToRevealModelLinesBeforeViewPortTop(noOfLinesBeforeTop: number): Range {
@@ -577,28 +594,32 @@ export class OneCursorOp {
 				let result: CursorState[] = [];
 				for (let i = 0, len = cursors.length; i < len; i++) {
 					const cursor = cursors[i];
-					let viewLineNumber = cursor.viewState.position.lineNumber;
-
-					if (visibleViewRange.startLineNumber <= viewLineNumber && viewLineNumber <= visibleViewRange.endLineNumber) {
-						// Nothing to do, cursor is in viewport
-						result[i] = new CursorState(cursor.modelState, cursor.viewState);
-
-					} else {
-						if (viewLineNumber > visibleViewRange.endLineNumber) {
-							viewLineNumber = visibleViewRange.endLineNumber - 1;
-						}
-						if (viewLineNumber < visibleViewRange.startLineNumber) {
-							viewLineNumber = visibleViewRange.startLineNumber;
-						}
-						const viewColumn = context.viewModel.getLineFirstNonWhitespaceColumn(viewLineNumber);
-						result[i] = this._moveToViewPosition(context, cursor, inSelectionMode, viewLineNumber, viewColumn);
-					}
+					result[i] = this.findPositionInViewportIfOutside(context, cursor, visibleViewRange, inSelectionMode);
 				}
 				return result;
 			}
 		}
 
 		return null;
+	}
+
+	public static findPositionInViewportIfOutside(context: CursorContext, cursor: OneCursor, visibleViewRange: Range, inSelectionMode: boolean): CursorState {
+		let viewLineNumber = cursor.viewState.position.lineNumber;
+
+		if (visibleViewRange.startLineNumber <= viewLineNumber && viewLineNumber <= visibleViewRange.endLineNumber - 1) {
+			// Nothing to do, cursor is in viewport
+			return new CursorState(cursor.modelState, cursor.viewState);
+
+		} else {
+			if (viewLineNumber > visibleViewRange.endLineNumber - 1) {
+				viewLineNumber = visibleViewRange.endLineNumber - 1;
+			}
+			if (viewLineNumber < visibleViewRange.startLineNumber) {
+				viewLineNumber = visibleViewRange.startLineNumber;
+			}
+			const viewColumn = context.viewModel.getLineFirstNonWhitespaceColumn(viewLineNumber);
+			return this._moveToViewPosition(context, cursor, inSelectionMode, viewLineNumber, viewColumn);
+		}
 	}
 
 	/**

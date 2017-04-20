@@ -422,9 +422,6 @@ export class View extends ViewEventHandler {
 		this.layoutProvider.onLinesInserted(e);
 		return false;
 	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		return e.revealCursor ? this.revealCursor() : false;
-	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this.outgoingEvents.emitScrollChanged(e);
 		return false;
@@ -436,6 +433,12 @@ export class View extends ViewEventHandler {
 			scrollTop: newScrollTop
 		});
 		return e.revealCursor ? this.revealCursor() : false;
+	}
+	public onScrollRequest2(e: viewEvents.ViewScrollRequestEvent2): boolean {
+		this.layoutProvider.setScrollPosition({
+			scrollTop: e.request.desiredScrollTop
+		});
+		return false;
 	}
 	private revealCursor(): boolean {
 		this.triggerCursorHandler('revealCursor', editorCommon.Handler.CursorMove, { to: CursorMovePosition.ViewPortIfOutside });
@@ -576,13 +579,8 @@ export class View extends ViewEventHandler {
 		this.layoutProvider.setScrollPosition(scrollPosition);
 	}
 
-	public getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
-		let modelPosition = this._context.model.validateModelPosition({
-			lineNumber: modelLineNumber,
-			column: modelColumn
-		});
-		let viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		return this.layoutProvider.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+	public getVerticalOffsetForViewLineNumber(viewLineNumber: number): number {
+		return this.layoutProvider.getVerticalOffsetForLineNumber(viewLineNumber);
 	}
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
@@ -608,8 +606,18 @@ export class View extends ViewEventHandler {
 	}
 
 	public getCompletelyVisibleViewRange(): Range {
-
 		const partialData = this.layoutProvider.getLinesViewportData();
+		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
+		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
+
+		return new Range(
+			startViewLineNumber, this._context.model.getLineMinColumn(startViewLineNumber),
+			endViewLineNumber, this._context.model.getLineMaxColumn(endViewLineNumber)
+		);
+	}
+
+	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
+		const partialData = this.layoutProvider.getLinesViewportDataAtScrollTop(scrollTop);
 		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
 		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
 

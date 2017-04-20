@@ -25,7 +25,7 @@ import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controlle
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
-import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, ICursorScrollRequestEvent } from "vs/editor/common/controller/cursorEvents";
+import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, ICursorScrollRequestEvent, CursorScrollTopRequest } from "vs/editor/common/controller/cursorEvents";
 import { ICommandHandlerDescription } from "vs/platform/commands/common/commands";
 import * as types from 'vs/base/common/types';
 
@@ -901,19 +901,7 @@ export class Cursor extends Disposable {
 			range: range,
 			viewRange: viewRange,
 			verticalType: verticalType,
-			revealHorizontal: revealHorizontal,
-			revealCursor: false
-		};
-		this._eventEmitter.emit(CursorEventType.CursorRevealRange, e);
-	}
-
-	public emitBadCursorRevealRange(range: Range, viewRange: Range, verticalType: VerticalRevealType, revealHorizontal: boolean) {
-		var e: ICursorRevealRangeEvent = {
-			range: range,
-			viewRange: viewRange,
-			verticalType: verticalType,
-			revealHorizontal: revealHorizontal,
-			revealCursor: true
+			revealHorizontal: revealHorizontal
 		};
 		this._eventEmitter.emit(CursorEventType.CursorRevealRange, e);
 	}
@@ -1621,7 +1609,35 @@ export class Cursor extends Disposable {
 	}
 
 	private _doEditorScroll(args: EditorScroll.ParsedArguments, ctx: IMultipleCursorOperationContext): boolean {
-		if (this._scrollByReveal(args)) {
+
+		if (args.unit === EditorScroll.Unit.Line) {
+			// scrolling by model lines
+			const visibleModelRange = this.context.getCompletelyVisibleModelRange();
+
+			let desiredTopModelLineNumber: number;
+			if (args.direction === EditorScroll.Direction.Up) {
+				// must go x model lines up
+				desiredTopModelLineNumber = Math.max(1, visibleModelRange.startLineNumber - args.value);
+			} else {
+				// must go x model lines down
+				desiredTopModelLineNumber = Math.min(this.context.model.getLineCount(), visibleModelRange.startLineNumber + args.value);
+			}
+
+			const desiredTopViewPosition = this.context.convertModelPositionToViewPosition(new Position(desiredTopModelLineNumber, 1));
+			const desiredScrollTop = this.context.getVerticalOffsetForViewLine(desiredTopViewPosition.lineNumber);
+
+			if (args.revealCursor) {
+				// must ensure cursor is in new visible range
+				const desiredVisibleViewRange = this.context.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
+				const r = OneCursorOp.findPositionInViewportIfOutside(this.context, this.cursors.getPrimaryCursor(), desiredVisibleViewRange, false);
+				this.cursors.setStates([r], false);
+			}
+
+			this._eventEmitter.emit(CursorEventType.CursorScrollRequest2, new CursorScrollTopRequest(
+				desiredScrollTop
+			));
+
+			ctx.shouldReveal = false;
 			return true;
 		}
 
@@ -1636,21 +1652,6 @@ export class Cursor extends Disposable {
 				break;
 		}
 		this.emitCursorScrollRequest((up ? -1 : 1) * noOfLines, args.revealCursor);
-		return true;
-	}
-
-	private _scrollByReveal(args: EditorScroll.ParsedArguments): boolean {
-		let up = args.direction === EditorScroll.Direction.Up;
-		if (EditorScroll.Unit.Line !== args.unit) {
-			// Scroll by reveal is done only when unit is line.
-			return false;
-		}
-		if (!up && this.context.isLastLineVisibleInViewPort()) {
-			// Scroll by reveal is not done if last line is visible and scrolling down.
-			return false;
-		}
-		let range = up ? this.context.getRangeToRevealModelLinesBeforeViewPortTop(args.value) : this.context.getRangeToRevealModelLinesAfterViewPortBottom(args.value);
-		this.emitBadCursorRevealRange(range, null, up ? VerticalRevealType.Top : VerticalRevealType.Bottom, false);
 		return true;
 	}
 

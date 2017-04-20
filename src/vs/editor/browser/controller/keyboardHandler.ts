@@ -89,8 +89,7 @@ export class KeyboardHandler extends ViewEventHandler {
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, column, lineNumber, column),
 				VerticalRevealType.Simple,
-				true,
-				false
+				true
 			));
 
 			// Find range pixel position

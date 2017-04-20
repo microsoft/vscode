@@ -17,6 +17,7 @@ export const CursorEventType = {
 	CursorSelectionChanged: 'selectionChanged',
 	CursorRevealRange: 'revealRange',
 	CursorScrollRequest: 'scrollRequest',
+	CursorScrollRequest2: 'scrollRequest2',
 };
 
 /**
@@ -144,10 +145,6 @@ export interface ICursorRevealRangeEvent {
 	 * If false: there should be just a vertical revealing
 	 */
 	readonly revealHorizontal: boolean;
-	/**
-	 * If true: cursor is revealed if outside viewport
-	 */
-	readonly revealCursor: boolean;
 }
 
 /**
@@ -157,3 +154,28 @@ export interface ICursorScrollRequestEvent {
 	readonly deltaLines: number;
 	readonly revealCursor: boolean;
 }
+
+/**
+ * @internal
+ */
+export const enum CursorScrollRequestType {
+	Absolute = 1
+}
+
+/**
+ * @internal
+ */
+export class CursorScrollTopRequest {
+	public readonly type = CursorScrollRequestType.Absolute;
+
+	public readonly desiredScrollTop: number;
+
+	constructor(desiredScrollTop: number) {
+		this.desiredScrollTop = desiredScrollTop;
+	}
+}
+
+/**
+ * @internal
+ */
+export type CursorScrollRequest = CursorScrollTopRequest;

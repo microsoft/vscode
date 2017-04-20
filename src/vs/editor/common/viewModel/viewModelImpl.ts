@@ -22,7 +22,7 @@ import * as errors from 'vs/base/common/errors';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { WrappingIndent, IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
-import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, ICursorScrollRequestEvent } from "vs/editor/common/controller/cursorEvents";
+import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, ICursorScrollRequestEvent, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
 import { Cursor } from "vs/editor/common/controller/cursor";
 
 const ConfigurationChanged = 'configurationChanged';
@@ -211,7 +211,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
 			newCenteredViewRange,
 			VerticalRevealType.Center,
-			false,
 			false
 		));
 	}
@@ -401,6 +400,11 @@ export class ViewModel extends Disposable implements IViewModel {
 				case CursorEventType.CursorScrollRequest: {
 					const e = <ICursorScrollRequestEvent>data;
 					this.cursors.onCursorScrollRequest(eventsCollector, e);
+					break;
+				}
+				case CursorEventType.CursorScrollRequest2: {
+					const e = <CursorScrollRequest>data;
+					this.cursors.onCursorScrollRequest2(eventsCollector, e);
 					break;
 				}
 				case ConfigurationChanged: {

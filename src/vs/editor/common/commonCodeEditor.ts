@@ -244,6 +244,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	public abstract getCenteredRangeInViewport(): Range;
 
 	protected abstract _getCompletelyVisibleViewRange(): Range;
+	protected abstract _getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+	protected abstract _getVerticalOffsetForViewLineNumber(viewLineNumber: number): number;
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
 		if (!this.model) {
@@ -778,6 +780,12 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 				coordinatesConverter: this.viewModel.coordinatesConverter,
 				getCompletelyVisibleViewRange: (): Range => {
 					return this._getCompletelyVisibleViewRange();
+				},
+				getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number): Range => {
+					return this._getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+				},
+				getVerticalOffsetForViewLineNumber: (viewLineNumber: number): number => {
+					return this._getVerticalOffsetForViewLineNumber(viewLineNumber);
 				}
 			};
 

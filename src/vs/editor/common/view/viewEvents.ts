@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IViewConfigurationChangedEvent, IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
-import { VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
+import { VerticalRevealType, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,
@@ -25,9 +25,10 @@ export const enum ViewEventType {
 	ViewRevealRangeRequest = 11,
 	ViewScrollChanged = 12,
 	ViewScrollRequest = 13,
-	ViewTokensChanged = 14,
-	ViewTokensColorsChanged = 15,
-	ViewZonesChanged = 16,
+	ViewScrollRequest2 = 14,
+	ViewTokensChanged = 15,
+	ViewTokensColorsChanged = 16,
+	ViewZonesChanged = 17,
 }
 
 export class ViewConfigurationChangedEvent {
@@ -204,16 +205,11 @@ export class ViewRevealRangeRequestEvent {
 	 * If false: there should be just a vertical revealing
 	 */
 	public readonly revealHorizontal: boolean;
-	/**
-	 * If true: cursor is revealed if outside viewport
-	 */
-	public readonly revealCursor: boolean;
 
-	constructor(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, revealCursor: boolean) {
+	constructor(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean) {
 		this.range = range;
 		this.verticalType = verticalType;
 		this.revealHorizontal = revealHorizontal;
-		this.revealCursor = revealCursor;
 	}
 }
 
@@ -254,6 +250,17 @@ export class ViewScrollRequestEvent {
 	constructor(deltaLines: number, revealCursor: boolean) {
 		this.deltaLines = deltaLines;
 		this.revealCursor = revealCursor;
+	}
+}
+
+export class ViewScrollRequestEvent2 {
+
+	public readonly type = ViewEventType.ViewScrollRequest2;
+
+	public readonly request: CursorScrollRequest;
+
+	constructor(request: CursorScrollRequest) {
+		this.request = request;
 	}
 }
 
@@ -309,6 +316,7 @@ export type ViewEvent = (
 	| ViewRevealRangeRequestEvent
 	| ViewScrollChangedEvent
 	| ViewScrollRequestEvent
+	| ViewScrollRequestEvent2
 	| ViewTokensChangedEvent
 	| ViewTokensColorsChangedEvent
 	| ViewZonesChangedEvent

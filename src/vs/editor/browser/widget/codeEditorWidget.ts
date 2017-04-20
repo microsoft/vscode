@@ -201,6 +201,20 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		return this._view.getCompletelyVisibleViewRange();
 	}
 
+	protected _getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
+		if (!this.hasView) {
+			return null;
+		}
+		return this._view.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+	}
+
+	protected _getVerticalOffsetForViewLineNumber(viewLineNumber: number): number {
+		if (!this.hasView) {
+			return 0;
+		}
+		return this._view.getVerticalOffsetForViewLineNumber(viewLineNumber);
+	}
+
 	public getCompletelyVisibleLinesRangeInViewport(): Range {
 		const viewRange = this._getCompletelyVisibleViewRange();
 		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
@@ -434,18 +448,27 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		return this._view.getWhitespaces();
 	}
 
+	private _getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
+		let modelPosition = this.model.validatePosition({
+			lineNumber: modelLineNumber,
+			column: modelColumn
+		});
+		let viewPosition = this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		return this._view.getVerticalOffsetForViewLineNumber(viewPosition.lineNumber);
+	}
+
 	public getTopForLineNumber(lineNumber: number): number {
 		if (!this.hasView) {
 			return -1;
 		}
-		return this._view.getVerticalOffsetForPosition(lineNumber, 1);
+		return this._getVerticalOffsetForPosition(lineNumber, 1);
 	}
 
 	public getTopForPosition(lineNumber: number, column: number): number {
 		if (!this.hasView) {
 			return -1;
 		}
-		return this._view.getVerticalOffsetForPosition(lineNumber, column);
+		return this._getVerticalOffsetForPosition(lineNumber, column);
 	}
 
 	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
@@ -463,7 +486,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		let position = this.model.validatePosition(rawPosition);
 		let layoutInfo = this._configuration.editor.layoutInfo;
 
-		let top = this._view.getVerticalOffsetForPosition(position.lineNumber, position.column) - this._view.getScrollTop();
+		let top = this._getVerticalOffsetForPosition(position.lineNumber, position.column) - this._view.getScrollTop();
 		let left = this._view.getOffsetForColumn(position.lineNumber, position.column) + layoutInfo.glyphMarginWidth + layoutInfo.lineNumbersWidth + layoutInfo.decorationsWidth - this._view.getScrollLeft();
 
 		return {

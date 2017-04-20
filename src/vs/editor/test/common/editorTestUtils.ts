@@ -52,5 +52,10 @@ export function viewModelHelper(model: IModel): IViewModelHelper {
 		},
 
 		getCompletelyVisibleViewRange: () => null,
+
+		getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number) => null,
+
+		getVerticalOffsetForViewLineNumber: (viewLineNumber: number) => 0
+
 	};
 }
