@@ -339,14 +339,14 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._overviewDomElement.removeChild(this._originalOverviewRuler.getDomNode());
 			this._originalOverviewRuler.dispose();
 		}
-		this._originalOverviewRuler = this.originalEditor.getView().createOverviewRuler('original diffOverviewRuler', 4, Number.MAX_VALUE);
+		this._originalOverviewRuler = this.originalEditor.createOverviewRuler('original diffOverviewRuler', 4, Number.MAX_VALUE);
 		this._overviewDomElement.appendChild(this._originalOverviewRuler.getDomNode());
 
 		if (this._modifiedOverviewRuler) {
 			this._overviewDomElement.removeChild(this._modifiedOverviewRuler.getDomNode());
 			this._modifiedOverviewRuler.dispose();
 		}
-		this._modifiedOverviewRuler = this.modifiedEditor.getView().createOverviewRuler('modified diffOverviewRuler', 4, Number.MAX_VALUE);
+		this._modifiedOverviewRuler = this.modifiedEditor.createOverviewRuler('modified diffOverviewRuler', 4, Number.MAX_VALUE);
 		this._overviewDomElement.appendChild(this._modifiedOverviewRuler.getDomNode());
 
 		this._layoutOverviewRulers();

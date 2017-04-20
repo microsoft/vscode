@@ -7,8 +7,8 @@
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { EventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/controller/cursorCollection';
 import {
@@ -77,13 +77,23 @@ interface ICommandsData {
 	anyoneHadTrackedRange: boolean;
 }
 
-export class Cursor extends EventEmitter {
+export class Cursor extends Disposable {
+
+	public onDidChangePosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable {
+		return this._eventEmitter.addListener(CursorEventType.CursorPositionChanged, listener);
+	}
+	public onDidChangeSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable {
+		return this._eventEmitter.addListener(CursorEventType.CursorSelectionChanged, listener);
+	}
 
 	private configuration: editorCommon.IConfiguration;
 	private context: CursorContext;
 	private model: editorCommon.IModel;
+	private _eventEmitter: EventEmitter;
 
-	private modelUnbinds: IDisposable[];
+	public addBulkListener(listener: BulkListenerCallback): IDisposable {
+		return this._eventEmitter.addBulkListener(listener);
+	}
 
 	private cursors: CursorCollection;
 	private cursorUndoStack: ICursorCollectionState[];
@@ -99,12 +109,8 @@ export class Cursor extends EventEmitter {
 	};
 
 	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModelHelper: IViewModelHelper, enableEmptySelectionClipboard: boolean) {
-		super([
-			CursorEventType.CursorPositionChanged,
-			CursorEventType.CursorSelectionChanged,
-			CursorEventType.CursorRevealRange,
-			CursorEventType.CursorScrollRequest
-		]);
+		super();
+		this._eventEmitter = this._register(new EventEmitter());
 		this.configuration = configuration;
 		this.model = model;
 		this.viewModelHelper = viewModelHelper;
@@ -134,9 +140,7 @@ export class Cursor extends EventEmitter {
 		this._isHandling = false;
 		this._isDoingComposition = false;
 
-		this.modelUnbinds = [];
-
-		this.modelUnbinds.push(this.model.addBulkListener((events) => {
+		this._register(this.model.addBulkListener((events) => {
 			if (this._isHandling) {
 				return;
 			}
@@ -167,17 +171,17 @@ export class Cursor extends EventEmitter {
 			this._onModelContentChanged(hadFlushEvent);
 		}));
 
-		this.modelUnbinds.push(this.model.onDidChangeLanguage((e) => {
+		this._register(this.model.onDidChangeLanguage((e) => {
 			createCursorContext();
 		}));
-		this.modelUnbinds.push(LanguageConfigurationRegistry.onDidChange(() => {
+		this._register(LanguageConfigurationRegistry.onDidChange(() => {
 			// TODO@Alex: react only if certain supports changed? (and if my model's mode changed)
 			createCursorContext();
 		}));
-		this.modelUnbinds.push(model.onDidChangeOptions(() => {
+		this._register(model.onDidChangeOptions(() => {
 			createCursorContext();
 		}));
-		this.modelUnbinds.push(this.configuration.onDidChange((e) => {
+		this._register(this.configuration.onDidChange((e) => {
 			if (CursorConfiguration.shouldRecreate(e)) {
 				createCursorContext();
 			}
@@ -188,7 +192,6 @@ export class Cursor extends EventEmitter {
 	}
 
 	public dispose(): void {
-		this.modelUnbinds = dispose(this.modelUnbinds);
 		this.model = null;
 		this.cursors.dispose();
 		this.cursors = null;
@@ -836,7 +839,7 @@ export class Cursor extends EventEmitter {
 			source: source,
 			isInEditableRange: isInEditableRange
 		};
-		this.emit(CursorEventType.CursorPositionChanged, e);
+		this._eventEmitter.emit(CursorEventType.CursorPositionChanged, e);
 	}
 
 	private emitCursorSelectionChanged(source: string, reason: CursorChangeReason): void {
@@ -856,7 +859,7 @@ export class Cursor extends EventEmitter {
 			source: source,
 			reason: reason
 		};
-		this.emit(CursorEventType.CursorSelectionChanged, e);
+		this._eventEmitter.emit(CursorEventType.CursorSelectionChanged, e);
 	}
 
 	private emitCursorScrollRequest(deltaLines: number, revealCursor: boolean): void {
@@ -864,7 +867,7 @@ export class Cursor extends EventEmitter {
 			deltaLines,
 			revealCursor
 		};
-		this.emit(CursorEventType.CursorScrollRequest, e);
+		this._eventEmitter.emit(CursorEventType.CursorScrollRequest, e);
 	}
 
 	private revealRange(revealTarget: RevealTarget, verticalType: VerticalRevealType, revealHorizontal: boolean): void {
@@ -900,7 +903,7 @@ export class Cursor extends EventEmitter {
 		this.emitCursorRevealRange(range, viewRange, verticalType, revealHorizontal, false);
 	}
 
-	private emitCursorRevealRange(range: Range, viewRange: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, revealCursor: boolean) {
+	public emitCursorRevealRange(range: Range, viewRange: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, revealCursor: boolean) {
 		var e: ICursorRevealRangeEvent = {
 			range: range,
 			viewRange: viewRange,
@@ -908,7 +911,7 @@ export class Cursor extends EventEmitter {
 			revealHorizontal: revealHorizontal,
 			revealCursor: revealCursor
 		};
-		this.emit(CursorEventType.CursorRevealRange, e);
+		this._eventEmitter.emit(CursorEventType.CursorRevealRange, e);
 	}
 
 	// -----------------------------------------------------------------------------------------------------------

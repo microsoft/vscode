@@ -8,7 +8,6 @@ import * as dom from 'vs/base/browser/dom';
 import { ScrollableElementCreationOptions, ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { IOverviewRulerLayoutInfo, ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { Scrollable } from 'vs/base/common/scrollable';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -39,7 +38,7 @@ export class EditorScrollbar extends ViewPart {
 		let scrollbarOptions: ScrollableElementCreationOptions = {
 			canUseTranslate3d: viewInfo.canUseTranslate3d,
 			listenOnDomNode: viewDomNode.domNode,
-			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + viewInfo.theme,
+			className: 'editor-scrollable' + ' ' + viewInfo.theme,
 			useShadows: false,
 			lazyRender: true,
 
@@ -129,7 +128,7 @@ export class EditorScrollbar extends ViewPart {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const viewInfo = this._context.configuration.editor.viewInfo;
 
-		this.scrollbar.updateClassName(ClassNames.SCROLLABLE_ELEMENT + ' ' + viewInfo.theme);
+		this.scrollbar.updateClassName('editor-scrollable' + ' ' + viewInfo.theme);
 		if (e.viewInfo.scrollbar || e.viewInfo.canUseTranslate3d) {
 			let newOpts: ScrollableElementChangeOptions = {
 				canUseTranslate3d: viewInfo.canUseTranslate3d,

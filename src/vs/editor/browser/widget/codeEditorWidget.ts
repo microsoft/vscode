@@ -24,7 +24,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Colorizer } from 'vs/editor/browser/standalone/colorizer';
-import { View } from 'vs/editor/browser/view/viewImpl';
+import { View, IOverlayWidgetData, IContentWidgetData } from 'vs/editor/browser/view/viewImpl';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -76,8 +76,8 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	_configuration: Configuration;
 
-	private contentWidgets: { [key: string]: editorBrowser.IContentWidgetData; };
-	private overlayWidgets: { [key: string]: editorBrowser.IOverlayWidgetData; };
+	private contentWidgets: { [key: string]: IContentWidgetData; };
+	private overlayWidgets: { [key: string]: IOverlayWidgetData; };
 
 	_view: View;
 
@@ -175,8 +175,9 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		let tabSize = model.getOptions().tabSize;
 		return Colorizer.colorizeLine(content, model.mightContainRTL(), inflatedTokens, tabSize);
 	}
-	public getView(): editorBrowser.IView {
-		return this._view;
+
+	public createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): editorBrowser.IOverviewRuler {
+		return this._view.createOverviewRuler(cssClassName, minimumHeight, maximumHeight);
 	}
 
 	public getDomNode(): HTMLElement {
@@ -339,7 +340,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	public addContentWidget(widget: editorBrowser.IContentWidget): void {
-		let widgetData: editorBrowser.IContentWidgetData = {
+		let widgetData: IContentWidgetData = {
 			widget: widget,
 			position: widget.getPosition()
 		};
@@ -378,7 +379,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	public addOverlayWidget(widget: editorBrowser.IOverlayWidget): void {
-		let widgetData: editorBrowser.IOverlayWidgetData = {
+		let widgetData: IOverlayWidgetData = {
 			widget: widget,
 			position: widget.getPosition()
 		};

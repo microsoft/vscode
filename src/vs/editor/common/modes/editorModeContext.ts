@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as modes from 'vs/editor/common/modes';
 import { ICommonCodeEditor, ModeContextKeys, EditorContextKeys } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
 
-export class EditorModeContext {
+export class EditorModeContext extends Disposable {
 
-	private _disposables: IDisposable[] = [];
 	private _editor: ICommonCodeEditor;
 
 	private _langId: IContextKey<string>;
@@ -36,6 +35,7 @@ export class EditorModeContext {
 		editor: ICommonCodeEditor,
 		contextKeyService: IContextKeyService
 	) {
+		super();
 		this._editor = editor;
 
 		this._langId = EditorContextKeys.LanguageId.bindTo(contextKeyService);
@@ -55,31 +55,33 @@ export class EditorModeContext {
 		this._hasSignatureHelpProvider = ModeContextKeys.hasSignatureHelpProvider.bindTo(contextKeyService);
 		this._isInWalkThrough = ModeContextKeys.isInEmbeddedEditor.bindTo(contextKeyService);
 
+		const update = () => this._update();
+
 		// update when model/mode changes
-		this._disposables.push(editor.onDidChangeModel(() => this._update()));
-		this._disposables.push(editor.onDidChangeModelLanguage(() => this._update()));
+		this._register(editor.onDidChangeModel(update));
+		this._register(editor.onDidChangeModelLanguage(update));
 
 		// update when registries change
-		modes.SuggestRegistry.onDidChange(this._update, this, this._disposables);
-		modes.CodeActionProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.CodeLensProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.DefinitionProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.ImplementationProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.TypeDefinitionProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.HoverProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.DocumentHighlightProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.DocumentSymbolProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.ReferenceProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.RenameProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.DocumentFormattingEditProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.DocumentRangeFormattingEditProviderRegistry.onDidChange(this._update, this, this._disposables);
-		modes.SignatureHelpProviderRegistry.onDidChange(this._update, this, this._disposables);
+		this._register(modes.SuggestRegistry.onDidChange(update));
+		this._register(modes.CodeActionProviderRegistry.onDidChange(update));
+		this._register(modes.CodeLensProviderRegistry.onDidChange(update));
+		this._register(modes.DefinitionProviderRegistry.onDidChange(update));
+		this._register(modes.ImplementationProviderRegistry.onDidChange(update));
+		this._register(modes.TypeDefinitionProviderRegistry.onDidChange(update));
+		this._register(modes.HoverProviderRegistry.onDidChange(update));
+		this._register(modes.DocumentHighlightProviderRegistry.onDidChange(update));
+		this._register(modes.DocumentSymbolProviderRegistry.onDidChange(update));
+		this._register(modes.ReferenceProviderRegistry.onDidChange(update));
+		this._register(modes.RenameProviderRegistry.onDidChange(update));
+		this._register(modes.DocumentFormattingEditProviderRegistry.onDidChange(update));
+		this._register(modes.DocumentRangeFormattingEditProviderRegistry.onDidChange(update));
+		this._register(modes.SignatureHelpProviderRegistry.onDidChange(update));
 
-		this._update();
+		update();
 	}
 
 	dispose() {
-		this._disposables = dispose(this._disposables);
+		super.dispose();
 	}
 
 	reset() {

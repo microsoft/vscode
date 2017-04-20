@@ -7,7 +7,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ClassNames, ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -80,13 +80,13 @@ export class ViewContentWidgets extends ViewPart {
 
 		this.domNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.domNode, PartFingerprint.ContentWidgets);
-		this.domNode.setClassName(ClassNames.CONTENT_WIDGETS);
+		this.domNode.setClassName('contentWidgets');
 		this.domNode.setPosition('absolute');
 		this.domNode.setTop(0);
 
 		this.overflowingContentWidgetsDomNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.overflowingContentWidgetsDomNode, PartFingerprint.OverflowingContentWidgets);
-		this.overflowingContentWidgetsDomNode.setClassName(ClassNames.OVERFLOWING_CONTENT_WIDGETS);
+		this.overflowingContentWidgetsDomNode.setClassName('overflowingContentWidgets');
 	}
 
 	public dispose(): void {

@@ -12,7 +12,6 @@ import { TextAreaHandler } from 'vs/editor/common/controller/textAreaHandler';
 import { TextAreaStrategy } from 'vs/editor/common/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { IViewController } from 'vs/editor/browser/editorBrowser';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
@@ -20,6 +19,7 @@ import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrap
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
+import { ViewController } from "vs/editor/browser/view/viewController";
 
 export interface IKeyboardHandlerHelper {
 	viewDomNode: FastDomNode<HTMLElement>;
@@ -42,7 +42,7 @@ class TextAreaVisiblePosition {
 export class KeyboardHandler extends ViewEventHandler {
 
 	private _context: ViewContext;
-	private viewController: IViewController;
+	private viewController: ViewController;
 	private viewHelper: IKeyboardHandlerHelper;
 	private textArea: TextAreaWrapper;
 	private textAreaHandler: TextAreaHandler;
@@ -54,7 +54,7 @@ export class KeyboardHandler extends ViewEventHandler {
 
 	private visiblePosition: TextAreaVisiblePosition;
 
-	constructor(context: ViewContext, viewController: IViewController, viewHelper: IKeyboardHandlerHelper) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IKeyboardHandlerHelper) {
 		super();
 
 		this._context = context;

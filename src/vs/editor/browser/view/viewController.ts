@@ -7,7 +7,7 @@
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IEditorMouseEvent, IViewController, IMouseDispatchData } from 'vs/editor/browser/editorBrowser';
+import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
@@ -16,7 +16,23 @@ export interface TriggerCursorHandler {
 	(source: string, handlerId: string, payload: any): void;
 }
 
-export class ViewController implements IViewController {
+export interface IMouseDispatchData {
+	position: Position;
+	/**
+	 * Desired mouse column (e.g. when position.column gets clamped to text length -- clicking after text on a line).
+	 */
+	mouseColumn: number;
+	startedOnLineNumbers: boolean;
+
+	inSelectionMode: boolean;
+	mouseDownCount: number;
+	altKey: boolean;
+	ctrlKey: boolean;
+	metaKey: boolean;
+	shiftKey: boolean;
+}
+
+export class ViewController {
 
 	private viewModel: IViewModel;
 	private triggerCursorHandler: TriggerCursorHandler;

@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { MouseTarget, MouseTargetFactory } from 'vs/editor/browser/controller/mouseTarget';
+import { MouseTarget, MouseTargetFactory, IViewZoneData } from 'vs/editor/browser/controller/mouseTarget';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { TimeoutTimer, RunOnceScheduler } from 'vs/base/common/async';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -23,6 +23,7 @@ import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IViewWhitespaceViewportData } from "vs/editor/common/viewModel/viewModel";
+import { ViewController } from "vs/editor/browser/view/viewController";
 
 /**
  * Merges mouse events when mouse move events are throttled
@@ -78,7 +79,7 @@ export class MouseHandler extends ViewEventHandler {
 	static MOUSE_MOVE_MINIMUM_TIME = 100; // ms
 
 	protected _context: ViewContext;
-	protected viewController: editorBrowser.IViewController;
+	protected viewController: ViewController;
 	protected viewHelper: IPointerHandlerHelper;
 	protected mouseTargetFactory: MouseTargetFactory;
 	private _asyncFocus: RunOnceScheduler;
@@ -86,7 +87,7 @@ export class MouseHandler extends ViewEventHandler {
 	private _mouseDownOperation: MouseDownOperation;
 	private lastMouseLeaveTime: number;
 
-	constructor(context: ViewContext, viewController: editorBrowser.IViewController, viewHelper: IPointerHandlerHelper) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
 
 		this._context = context;
@@ -256,7 +257,7 @@ export class MouseHandler extends ViewEventHandler {
 			// Do not steal focus
 			e.preventDefault();
 		} else if (targetIsViewZone) {
-			let viewZoneData = <editorBrowser.IViewZoneData>t.detail;
+			let viewZoneData = <IViewZoneData>t.detail;
 			if (this.viewHelper.shouldSuppressMouseDownOnViewZone(viewZoneData.viewZoneId)) {
 				focus();
 				this._mouseDownOperation.start(t.type, e);
@@ -277,7 +278,7 @@ export class MouseHandler extends ViewEventHandler {
 class MouseDownOperation extends Disposable {
 
 	private _context: ViewContext;
-	private _viewController: editorBrowser.IViewController;
+	private _viewController: ViewController;
 	private _viewHelper: IPointerHandlerHelper;
 	private _createMouseTarget: (e: EditorMouseEvent, testEventTarget: boolean) => editorBrowser.IMouseTarget;
 	private _getMouseColumn: (e: EditorMouseEvent) => number;
@@ -294,7 +295,7 @@ class MouseDownOperation extends Disposable {
 
 	constructor(
 		context: ViewContext,
-		viewController: editorBrowser.IViewController,
+		viewController: ViewController,
 		viewHelper: IPointerHandlerHelper,
 		createMouseTarget: (e: EditorMouseEvent, testEventTarget: boolean) => editorBrowser.IMouseTarget,
 		getMouseColumn: (e: EditorMouseEvent) => number
@@ -473,7 +474,7 @@ class MouseDownOperation extends Disposable {
 		if (t.type === editorBrowser.MouseTargetType.CONTENT_VIEW_ZONE || t.type === editorBrowser.MouseTargetType.GUTTER_VIEW_ZONE) {
 			// Force position on view zones to go above or below depending on where selection started from
 			let selectionStart = new Position(this._currentSelection.selectionStartLineNumber, this._currentSelection.selectionStartColumn);
-			let viewZoneData = <editorBrowser.IViewZoneData>t.detail;
+			let viewZoneData = <IViewZoneData>t.detail;
 			let positionBefore = viewZoneData.positionBefore;
 			let positionAfter = viewZoneData.positionAfter;
 

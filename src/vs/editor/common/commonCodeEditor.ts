@@ -30,7 +30,7 @@ import {
 	IModelLanguageChangedEvent, IModelOptionsChangedEvent, TextModelEventType
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from "vs/editor/common/config/editorOptions";
-import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent } from "vs/editor/common/controller/cursorEvents";
+import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 import EditorContextKeys = editorCommon.EditorContextKeys;
 
@@ -89,12 +89,10 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	private readonly _onDidPaste: Emitter<Range> = this._register(new Emitter<Range>());
 	public readonly onDidPaste = this._onDidPaste.event;
 
-	protected domElement: IContextKeyServiceTarget;
 
-	protected id: number;
-
-	protected _lifetimeDispose: IDisposable[];
-	protected _configuration: CommonEditorConfiguration;
+	protected readonly domElement: IContextKeyServiceTarget;
+	protected readonly id: number;
+	protected readonly _configuration: CommonEditorConfiguration;
 
 	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
 	protected _actions: { [key: string]: editorCommon.IEditorAction; };
@@ -107,8 +105,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	protected viewModel: ViewModel;
 	protected cursor: Cursor;
 
-	protected _instantiationService: IInstantiationService;
-	protected _contextKeyService: IContextKeyService;
+	protected readonly _instantiationService: IInstantiationService;
+	protected readonly _contextKeyService: IContextKeyService;
 
 	/**
 	 * map from "parent" decoration type to live decoration ids.
@@ -125,13 +123,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	) {
 		super();
 		this.domElement = domElement;
-
 		this.id = (++EDITOR_ID);
-
-		// listeners that are kept during the whole editor lifetime
-		this._lifetimeDispose = [];
-
-
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
 
@@ -139,9 +131,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (typeof options.ariaLabel === 'undefined') {
 			options.ariaLabel = DefaultConfig.editor.ariaLabel;
 		}
-
-		this._configuration = this._createConfiguration(options);
-		this._lifetimeDispose.push(this._configuration.onDidChange((e) => {
+		this._configuration = this._register(this._createConfiguration(options));
+		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
 
 			if (e.layoutInfo) {
@@ -149,9 +140,9 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			}
 		}));
 
-		this._contextKeyService = contextKeyService.createScoped(this.domElement);
-		this._lifetimeDispose.push(new EditorContextKeysManager(this, this._contextKeyService));
-		this._lifetimeDispose.push(new EditorModeContext(this, this._contextKeyService));
+		this._contextKeyService = this._register(contextKeyService.createScoped(this.domElement));
+		this._register(new EditorContextKeysManager(this, this._contextKeyService));
+		this._register(new EditorModeContext(this, this._contextKeyService));
 
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
 
@@ -176,8 +167,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	}
 
 	public dispose(): void {
-		this._lifetimeDispose = dispose(this._lifetimeDispose);
-
 		let keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let contributionId = keys[i];
@@ -189,8 +178,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._actions = {};
 
 		this._postDetachModelCleanup(this._detachModel());
-		this._configuration.dispose();
-		this._contextKeyService.dispose();
 
 		this._onDidDispose.fire();
 
@@ -304,14 +291,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 		let validatedRange = this.model.validateRange(range);
 
-		let revealRangeEvent: ICursorRevealRangeEvent = {
-			range: validatedRange,
-			viewRange: null,
-			verticalType: verticalType,
-			revealHorizontal: revealHorizontal,
-			revealCursor: false
-		};
-		this.cursor.emit(CursorEventType.CursorRevealRange, revealRangeEvent);
+		this.cursor.emitCursorRevealRange(validatedRange, null, verticalType, revealHorizontal, false);
 	}
 
 	public revealLine(lineNumber: number): void {

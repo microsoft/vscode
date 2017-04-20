@@ -7,7 +7,7 @@
 
 import 'vs/css!./overlayWidgets';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ClassNames, IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -46,7 +46,7 @@ export class ViewOverlayWidgets extends ViewPart {
 
 		this._domNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._domNode, PartFingerprint.OverlayWidgets);
-		this._domNode.setClassName(ClassNames.OVERLAY_WIDGETS);
+		this._domNode.setClassName('overlayWidgets');
 	}
 
 	public dispose(): void {

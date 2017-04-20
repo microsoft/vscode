@@ -6,7 +6,6 @@
 'use strict';
 
 import 'vs/css!./viewCursors';
-import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
 import { IViewCursorRenderData, ViewCursor } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
@@ -251,7 +250,7 @@ export class ViewCursors extends ViewPart {
 	}
 
 	private _getClassName(): string {
-		let result = ClassNames.VIEW_CURSORS_LAYER;
+		let result = 'cursors-layer';
 		if (!this._selectionIsEmpty) {
 			result += ' has-selection';
 		}

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { empty as emptyDisposable, IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { empty as emptyDisposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -193,7 +193,6 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	private _contextViewService: IEditorContextViewService;
 	private _standaloneThemeService: IStandaloneThemeService;
 	private _ownsModel: boolean;
-	private _toDispose2: IDisposable[];
 
 	constructor(
 		domElement: HTMLElement,
@@ -216,7 +215,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 		this._standaloneThemeService = standaloneThemeService;
-		this._toDispose2 = [toDispose];
+		this._register(toDispose);
 
 		let model: IModel = null;
 		if (typeof options.model === 'undefined') {
@@ -240,7 +239,6 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 	public dispose(): void {
 		super.dispose();
-		this._toDispose2 = dispose(this._toDispose2);
 	}
 
 	public destroy(): void {
@@ -275,7 +273,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 	private _contextViewService: IEditorContextViewService;
 	private _standaloneThemeService: IStandaloneThemeService;
 	private _standaloneKeybindingService: StandaloneKeybindingService;
-	private _toDispose2: IDisposable[];
 
 	constructor(
 		domElement: HTMLElement,
@@ -304,14 +301,13 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 		this._standaloneThemeService = standaloneColorService;
 
-		this._toDispose2 = [toDispose];
+		this._register(toDispose);
 
 		this._contextViewService.setContainer(this._containerDomElement);
 	}
 
 	public dispose(): void {
 		super.dispose();
-		this._toDispose2 = dispose(this._toDispose2);
 	}
 
 	public destroy(): void {

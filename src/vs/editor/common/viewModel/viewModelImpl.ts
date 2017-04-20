@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { EmitterEvent, IEventEmitter } from 'vs/base/common/eventEmitter';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { EmitterEvent } from 'vs/base/common/eventEmitter';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -23,6 +23,7 @@ import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRend
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { WrappingIndent, IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, ICursorScrollRequestEvent } from "vs/editor/common/controller/cursorEvents";
+import { Cursor } from "vs/editor/common/controller/cursor";
 
 const ConfigurationChanged = 'configurationChanged';
 
@@ -86,7 +87,7 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 
 }
 
-export class ViewModel implements IViewModel {
+export class ViewModel extends Disposable implements IViewModel {
 
 	private readonly lines: SplitLinesCollection;
 	private readonly editorId: number;
@@ -94,8 +95,6 @@ export class ViewModel implements IViewModel {
 	private readonly model: editorCommon.IModel;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 
-	private listenersToRemove: IDisposable[];
-	private _toDispose: IDisposable[];
 	private readonly decorations: ViewModelDecorations;
 	private readonly cursors: ViewModelCursors;
 
@@ -108,6 +107,7 @@ export class ViewModel implements IViewModel {
 	private _listeners: IViewModelListener[];
 
 	constructor(lines: SplitLinesCollection, editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel) {
+		super();
 		this.lines = lines;
 
 		this.editorId = editorId;
@@ -128,13 +128,11 @@ export class ViewModel implements IViewModel {
 
 		this.cursors = new ViewModelCursors(this.configuration, this.coordinatesConverter);
 
-		this.listenersToRemove = [];
-		this._toDispose = [];
-		this.listenersToRemove.push(this.model.addBulkListener((events: EmitterEvent[]) => this.onEvents(events)));
-		this._toDispose.push(this.configuration.onDidChange((e) => {
+		this._register(this.model.addBulkListener((events: EmitterEvent[]) => this.onEvents(events)));
+		this._register(this.configuration.onDidChange((e) => {
 			this.onEvents([new EmitterEvent(ConfigurationChanged, e)]);
 		}));
-		this._toDispose.push(MinimapTokensColorTracker.getInstance().onDidChange(() => {
+		this._register(MinimapTokensColorTracker.getInstance().onDidChange(() => {
 			this._emit([new viewEvents.ViewTokensColorsChangedEvent()]);
 		}));
 
@@ -157,11 +155,10 @@ export class ViewModel implements IViewModel {
 	}
 
 	public dispose(): void {
-		this.listenersToRemove = dispose(this.listenersToRemove);
-		this._toDispose = dispose(this._toDispose);
 		this.decorations.dispose();
 		this.lines.dispose();
 		this._listeners = [];
+		super.dispose();
 	}
 
 	public addEventListener(listener: (events: viewEvents.ViewEvent[]) => void): IDisposable {
@@ -229,8 +226,8 @@ export class ViewModel implements IViewModel {
 		return lineMappingChanged;
 	}
 
-	public addEventSource(eventSource: IEventEmitter): void {
-		this.listenersToRemove.push(eventSource.addBulkListener((events: EmitterEvent[]) => this.onEvents(events)));
+	public addEventSource(eventSource: Cursor): void {
+		this._register(eventSource.addBulkListener((events: EmitterEvent[]) => this.onEvents(events)));
 	}
 
 	private onEvents(events: EmitterEvent[]): void {

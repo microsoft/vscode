@@ -53,7 +53,17 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { CursorMovePosition } from "vs/editor/common/controller/oneCursor";
 import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
 
-export class View extends ViewEventHandler implements editorBrowser.IView {
+export interface IContentWidgetData {
+	widget: editorBrowser.IContentWidget;
+	position: editorBrowser.IContentWidgetPosition;
+}
+
+export interface IOverlayWidgetData {
+	widget: editorBrowser.IOverlayWidget;
+	position: editorBrowser.IOverlayWidgetPosition;
+}
+
+export class View extends ViewEventHandler {
 
 	private eventDispatcher: ViewEventDispatcher;
 
@@ -138,7 +148,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView {
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
-		this.textArea.setClassName(editorBrowser.ClassNames.TEXTAREA);
+		this.textArea.setClassName('inputarea');
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
@@ -160,12 +170,12 @@ export class View extends ViewEventHandler implements editorBrowser.IView {
 		// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		if (this._context.configuration.editor.viewInfo.glyphMargin) {
-			this.textAreaCover.setClassName('monaco-editor-background ' + editorBrowser.ClassNames.GLYPH_MARGIN + ' ' + editorBrowser.ClassNames.TEXTAREA_COVER);
+			this.textAreaCover.setClassName('monaco-editor-background ' + Margin.CLASS_NAME + ' ' + 'textAreaCover');
 		} else {
 			if (this._context.configuration.editor.viewInfo.renderLineNumbers) {
-				this.textAreaCover.setClassName('monaco-editor-background ' + editorBrowser.ClassNames.LINE_NUMBERS + ' ' + editorBrowser.ClassNames.TEXTAREA_COVER);
+				this.textAreaCover.setClassName('monaco-editor-background ' + LineNumbersOverlay.CLASS_NAME + ' ' + 'textAreaCover');
 			} else {
-				this.textAreaCover.setClassName('monaco-editor-background ' + editorBrowser.ClassNames.TEXTAREA_COVER);
+				this.textAreaCover.setClassName('monaco-editor-background ' + 'textAreaCover');
 			}
 		}
 		this.textAreaCover.setPosition('absolute');
@@ -178,7 +188,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView {
 	private createViewParts(): void {
 		// These two dom nodes must be constructed up front, since references are needed in the layout provider (scrolling & co.)
 		this.linesContent = createFastDomNode(document.createElement('div'));
-		this.linesContent.setClassName(editorBrowser.ClassNames.LINES_CONTENT + ' monaco-editor-background');
+		this.linesContent.setClassName('lines-content' + ' monaco-editor-background');
 		this.linesContent.setPosition('absolute');
 
 		this.domNode = createFastDomNode(document.createElement('div'));
@@ -186,7 +196,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView {
 
 		this.overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.overflowGuardContainer, PartFingerprint.OverflowGuard);
-		this.overflowGuardContainer.setClassName(editorBrowser.ClassNames.OVERFLOW_GUARD);
+		this.overflowGuardContainer.setClassName('overflow-guard');
 
 		this.viewParts = [];
 
@@ -712,31 +722,31 @@ export class View extends ViewEventHandler implements editorBrowser.IView {
 		return this.hasFocus;
 	}
 
-	public addContentWidget(widgetData: editorBrowser.IContentWidgetData): void {
+	public addContentWidget(widgetData: IContentWidgetData): void {
 		this.contentWidgets.addWidget(widgetData.widget);
 		this.layoutContentWidget(widgetData);
 		this._scheduleRender();
 	}
 
-	public layoutContentWidget(widgetData: editorBrowser.IContentWidgetData): void {
+	public layoutContentWidget(widgetData: IContentWidgetData): void {
 		let newPosition = widgetData.position ? widgetData.position.position : null;
 		let newPreference = widgetData.position ? widgetData.position.preference : null;
 		this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newPreference);
 		this._scheduleRender();
 	}
 
-	public removeContentWidget(widgetData: editorBrowser.IContentWidgetData): void {
+	public removeContentWidget(widgetData: IContentWidgetData): void {
 		this.contentWidgets.removeWidget(widgetData.widget);
 		this._scheduleRender();
 	}
 
-	public addOverlayWidget(widgetData: editorBrowser.IOverlayWidgetData): void {
+	public addOverlayWidget(widgetData: IOverlayWidgetData): void {
 		this.overlayWidgets.addWidget(widgetData.widget);
 		this.layoutOverlayWidget(widgetData);
 		this._scheduleRender();
 	}
 
-	public layoutOverlayWidget(widgetData: editorBrowser.IOverlayWidgetData): void {
+	public layoutOverlayWidget(widgetData: IOverlayWidgetData): void {
 		let newPreference = widgetData.position ? widgetData.position.preference : null;
 		let shouldRender = this.overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
 		if (shouldRender) {
@@ -744,7 +754,7 @@ export class View extends ViewEventHandler implements editorBrowser.IView {
 		}
 	}
 
-	public removeOverlayWidget(widgetData: editorBrowser.IOverlayWidgetData): void {
+	public removeOverlayWidget(widgetData: IOverlayWidgetData): void {
 		this.overlayWidgets.removeWidget(widgetData.widget);
 		this._scheduleRender();
 	}

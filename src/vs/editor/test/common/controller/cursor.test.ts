@@ -23,7 +23,7 @@ import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 import { IEditorOptions } from "vs/editor/common/config/editorOptions";
-import { CursorEventType, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 let H = Handler;
 
@@ -597,10 +597,10 @@ suite('Editor Controller - Cursor', () => {
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {
-		thisCursor.addListener(CursorEventType.CursorPositionChanged, (e) => {
+		thisCursor.onDidChangePosition((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
-		thisCursor.addListener(CursorEventType.CursorSelectionChanged, (e) => {
+		thisCursor.onDidChangeSelection((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		moveTo(thisCursor, 1, 1);
@@ -608,11 +608,11 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move eventing', () => {
 		let events = 0;
-		thisCursor.addListener(CursorEventType.CursorPositionChanged, (e: ICursorPositionChangedEvent) => {
+		thisCursor.onDidChangePosition((e: ICursorPositionChangedEvent) => {
 			events++;
 			assert.deepEqual(e.position, new Position(1, 2));
 		});
-		thisCursor.addListener(CursorEventType.CursorSelectionChanged, (e: ICursorSelectionChangedEvent) => {
+		thisCursor.onDidChangeSelection((e: ICursorSelectionChangedEvent) => {
 			events++;
 			assert.deepEqual(e.selection, new Selection(1, 2, 1, 2));
 		});
@@ -622,11 +622,11 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move in selection mode eventing', () => {
 		let events = 0;
-		thisCursor.addListener(CursorEventType.CursorPositionChanged, (e: ICursorPositionChangedEvent) => {
+		thisCursor.onDidChangePosition((e: ICursorPositionChangedEvent) => {
 			events++;
 			assert.deepEqual(e.position, new Position(1, 2));
 		});
-		thisCursor.addListener(CursorEventType.CursorSelectionChanged, (e: ICursorSelectionChangedEvent) => {
+		thisCursor.onDidChangeSelection((e: ICursorSelectionChangedEvent) => {
 			events++;
 			assert.deepEqual(e.selection, new Selection(1, 1, 1, 2));
 		});

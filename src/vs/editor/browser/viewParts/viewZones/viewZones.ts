@@ -6,7 +6,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ClassNames, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { Position } from 'vs/editor/common/core/position';
@@ -51,7 +51,7 @@ export class ViewZones extends ViewPart {
 		this._viewLayout = viewLayout;
 
 		this.domNode = createFastDomNode(document.createElement('div'));
-		this.domNode.setClassName(ClassNames.VIEW_ZONES);
+		this.domNode.setClassName('view-zones');
 		this.domNode.setPosition('absolute');
 		this.domNode.setAttribute('role', 'presentation');
 		this.domNode.setAttribute('aria-hidden', 'true');
