@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/controller/cursorCollection';
+import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
 import {
 	IViewModelHelper, OneCursor, OneCursorOp, CursorContext, CursorMovePosition,
 	CursorMoveByUnit, RevealLineArguments, RevealLineAtArgument
@@ -53,7 +53,6 @@ interface IMultipleCursorOperationContext {
 	shouldPushStackElementAfter: boolean;
 	eventSource: string;
 	eventData: any;
-	hasExecutedCommands: boolean;
 	isCursorUndo: boolean;
 	executeCommands: editorCommon.ICommand[];
 	isAutoWhitespaceCommand: boolean[];
@@ -96,7 +95,6 @@ export class Cursor extends Disposable {
 	}
 
 	private cursors: CursorCollection;
-	private cursorUndoStack: ICursorCollectionState[];
 	private viewModelHelper: IViewModelHelper;
 
 	private _isHandling: boolean;
@@ -135,7 +133,6 @@ export class Cursor extends Disposable {
 		createCursorContext();
 
 		this.cursors = new CursorCollection(this.context);
-		this.cursorUndoStack = [];
 
 		this._isHandling = false;
 		this._isDoingComposition = false;
@@ -327,7 +324,7 @@ export class Cursor extends Disposable {
 
 	// ------ auxiliary handling logic
 
-	private _createAndInterpretHandlerCtx(eventSource: string, eventData: any, callback: (currentHandlerCtx: IMultipleCursorOperationContext) => void): boolean {
+	private _createAndInterpretHandlerCtx(eventSource: string, eventData: any, callback: (currentHandlerCtx: IMultipleCursorOperationContext) => void): void {
 
 		var currentHandlerCtx: IMultipleCursorOperationContext = {
 			cursorPositionChangeReason: CursorChangeReason.NotSet,
@@ -339,7 +336,6 @@ export class Cursor extends Disposable {
 			eventData: eventData,
 			executeCommands: [],
 			isAutoWhitespaceCommand: [],
-			hasExecutedCommands: false,
 			isCursorUndo: false,
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false,
@@ -351,8 +347,6 @@ export class Cursor extends Disposable {
 
 		this._interpretHandlerContext(currentHandlerCtx);
 		this.cursors.normalize();
-
-		return currentHandlerCtx.hasExecutedCommands;
 	}
 
 	private _onHandler(command: string, handler: (ctx: IMultipleCursorOperationContext) => boolean, source: string, data: any): boolean {
@@ -368,8 +362,6 @@ export class Cursor extends Disposable {
 			// ensure valid state on all cursors
 			this.cursors.ensureValidState();
 
-			var prevCursorsState = this.cursors.saveState();
-
 			var eventSource = source;
 			var cursorPositionChangeReason: CursorChangeReason;
 			var shouldReveal: boolean;
@@ -378,7 +370,7 @@ export class Cursor extends Disposable {
 			var shouldRevealTarget: RevealTarget;
 			var isCursorUndo: boolean;
 
-			var hasExecutedCommands = this._createAndInterpretHandlerCtx(eventSource, data, (currentHandlerCtx: IMultipleCursorOperationContext) => {
+			this._createAndInterpretHandlerCtx(eventSource, data, (currentHandlerCtx: IMultipleCursorOperationContext) => {
 				handled = handler(currentHandlerCtx);
 
 				cursorPositionChangeReason = currentHandlerCtx.cursorPositionChangeReason;
@@ -388,10 +380,6 @@ export class Cursor extends Disposable {
 				shouldRevealHorizontal = currentHandlerCtx.shouldRevealHorizontal;
 				isCursorUndo = currentHandlerCtx.isCursorUndo;
 			});
-
-			if (hasExecutedCommands) {
-				this.cursorUndoStack = [];
-			}
 
 			var newSelections = this.cursors.getSelections();
 			var newViewSelections = this.cursors.getViewSelections();
@@ -414,12 +402,6 @@ export class Cursor extends Disposable {
 
 
 			if (somethingChanged) {
-				if (!hasExecutedCommands && !isCursorUndo) {
-					this.cursorUndoStack.push(prevCursorsState);
-				}
-				if (this.cursorUndoStack.length > 50) {
-					this.cursorUndoStack = this.cursorUndoStack.splice(0, this.cursorUndoStack.length - 50);
-				}
 				this.emitCursorPositionChanged(eventSource, cursorPositionChangeReason);
 
 				if (shouldReveal) {
@@ -446,7 +428,7 @@ export class Cursor extends Disposable {
 		this._columnSelectToLineNumber = ctx.setColumnSelectToLineNumber;
 		this._columnSelectToVisualColumn = ctx.setColumnSelectToVisualColumn;
 
-		ctx.hasExecutedCommands = this._internalExecuteCommands(ctx.executeCommands, ctx.isAutoWhitespaceCommand) || ctx.hasExecutedCommands;
+		this._internalExecuteCommands(ctx.executeCommands, ctx.isAutoWhitespaceCommand);
 		ctx.executeCommands = [];
 
 		if (ctx.shouldPushStackElementAfter) {
@@ -455,13 +437,12 @@ export class Cursor extends Disposable {
 		}
 	}
 
-	private _interpretCommandResult(cursorState: Selection[]): boolean {
+	private _interpretCommandResult(cursorState: Selection[]): void {
 		if (!cursorState || cursorState.length === 0) {
-			return false;
+			return;
 		}
 
 		this.cursors.setSelections(cursorState);
-		return true;
 	}
 
 	private _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand, isAutoWhitespaceCommand: boolean): ICommandData {
@@ -619,7 +600,7 @@ export class Cursor extends Disposable {
 		return loserCursorsMap;
 	}
 
-	private _internalExecuteCommands(commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
+	private _internalExecuteCommands(commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): void {
 		var ctx: IExecContext = {
 			selectionStartMarkers: [],
 			positionMarkers: []
@@ -646,21 +627,21 @@ export class Cursor extends Disposable {
 		return true;
 	}
 
-	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
+	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): void {
 
 		if (this.configuration.editor.readOnly) {
-			return false;
+			return;
 		}
 
 		if (this._arrayIsEmpty(commands)) {
-			return false;
+			return;
 		}
 
 		var selectionsBefore = this.cursors.getSelections();
 
 		var commandsData = this._getEditOperations(ctx, commands, isAutoWhitespaceCommand);
 		if (commandsData.operations.length === 0 && !commandsData.anyoneHadTrackedRange) {
-			return false;
+			return;
 		}
 
 		var rawOperations = commandsData.operations;
@@ -672,7 +653,7 @@ export class Cursor extends Disposable {
 			var operationRange = rawOperations[i].range;
 			if (!editableRangeStart.isBeforeOrEqual(operationRange.getStartPosition()) || !operationRange.getEndPosition().isBeforeOrEqual(editableRangeEnd)) {
 				// These commands are outside of the editable range
-				return false;
+				return;
 			}
 		}
 
@@ -680,7 +661,7 @@ export class Cursor extends Disposable {
 		if (loserCursorsMap.hasOwnProperty('0')) {
 			// These commands are very messed up
 			console.warn('Ignoring commands');
-			return false;
+			return;
 		}
 
 		// Remove operations belonging to losing cursors
@@ -749,7 +730,7 @@ export class Cursor extends Disposable {
 			selectionsAfter.splice(losingCursors[i], 1);
 		}
 
-		return this._interpretCommandResult(selectionsAfter);
+		this._interpretCommandResult(selectionsAfter);
 	}
 
 
@@ -946,7 +927,6 @@ export class Cursor extends Disposable {
 		this._handlers[H.ExpandLineSelection] = (ctx) => this._expandLineSelection(ctx);
 
 		this._handlers[H.Undo] = (ctx) => this._undo(ctx);
-		this._handlers[H.CursorUndo] = (ctx) => this._cursorUndo(ctx);
 		this._handlers[H.Redo] = (ctx) => this._redo(ctx);
 
 		this._handlers[H.ExecuteCommand] = (ctx) => this._externalExecuteCommand(ctx);
@@ -1387,7 +1367,7 @@ export class Cursor extends Disposable {
 				}
 
 				// Here we must interpret each typed character individually, that's why we create a new context
-				ctx.hasExecutedCommands = this._createAndInterpretHandlerCtx(ctx.eventSource, ctx.eventData, (charHandlerCtx: IMultipleCursorOperationContext) => {
+				this._createAndInterpretHandlerCtx(ctx.eventSource, ctx.eventData, (charHandlerCtx: IMultipleCursorOperationContext) => {
 
 					// Decide what all cursors will do up-front
 					const cursors = this.cursors.getAll();
@@ -1400,7 +1380,7 @@ export class Cursor extends Disposable {
 					ctx.shouldReveal = charHandlerCtx.shouldReveal;
 					ctx.shouldRevealVerticalInCenter = charHandlerCtx.shouldRevealVerticalInCenter;
 					ctx.shouldRevealHorizontal = charHandlerCtx.shouldRevealHorizontal;
-				}) || ctx.hasExecutedCommands;
+				});
 
 			}
 		} else {
@@ -1601,24 +1581,12 @@ export class Cursor extends Disposable {
 
 	private _undo(ctx: IMultipleCursorOperationContext): boolean {
 		ctx.cursorPositionChangeReason = CursorChangeReason.Undo;
-		ctx.hasExecutedCommands = true;
 		this._interpretCommandResult(this.model.undo());
-		return true;
-	}
-
-	private _cursorUndo(ctx: IMultipleCursorOperationContext): boolean {
-		if (this.cursorUndoStack.length === 0) {
-			return false;
-		}
-		ctx.cursorPositionChangeReason = CursorChangeReason.Undo;
-		ctx.isCursorUndo = true;
-		this.cursors.restoreState(this.cursorUndoStack.pop());
 		return true;
 	}
 
 	private _redo(ctx: IMultipleCursorOperationContext): boolean {
 		ctx.cursorPositionChangeReason = CursorChangeReason.Redo;
-		ctx.hasExecutedCommands = true;
 		this._interpretCommandResult(this.model.redo());
 		return true;
 	}

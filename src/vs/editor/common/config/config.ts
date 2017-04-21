@@ -676,16 +676,6 @@ registerCommand(new CoreCommand({
 	}
 }));
 
-registerCommand(new CoreCommand({
-	id: H.CursorUndo,
-	precondition: null,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.textFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_U
-	}
-}));
-
 abstract class BaseTextInputAwareCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {

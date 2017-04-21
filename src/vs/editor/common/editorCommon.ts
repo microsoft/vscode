@@ -2065,7 +2065,6 @@ export var Handler = {
 
 	AddCursorDown: 'addCursorDown',
 	AddCursorUp: 'addCursorUp',
-	CursorUndo: 'cursorUndo',
 	MoveTo: 'moveTo',
 	MoveToSelect: 'moveToSelect',
 	ColumnSelect: 'columnSelect',
