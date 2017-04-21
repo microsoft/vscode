@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as path from 'path'
-import * as fs from 'fs'
+import * as path from 'path';
+import * as fs from 'fs';
 
 import * as assert from 'assert';
 import { getLanguageModes } from '../modes/languageModes';
@@ -72,7 +72,7 @@ suite('HTML Embedded Formatting', () => {
 		assertFormatWithFixture('19813.html', '19813-4spaces.html', void 0, FormattingOptions.create(4, true));
 		assertFormatWithFixture('19813.html', '19813-tab.html', void 0, FormattingOptions.create(1, false));
 		assertFormatWithFixture('21634.html', '21634.html');
-	})
+	});
 
 	test('Script end tag', function (): any {
 		assertFormat('<html>\n<head>\n  <script>\nvar x  =  0;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 0;\n\n  </script>\n</head>\n\n</html>');
@@ -100,14 +100,6 @@ suite('HTML Embedded Formatting', () => {
 	});
 
 });
-
-function pushAll<T>(to: T[], from: T[]) {
-	if (from) {
-		for (var i = 0; i < from.length; i++) {
-			to.push(from[i]);
-		}
-	}
-}
 
 function applyEdits(document: TextDocument, edits: TextEdit[]): string {
 	let text = document.getText();
