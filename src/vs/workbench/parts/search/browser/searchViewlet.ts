@@ -178,9 +178,7 @@ export class SearchViewlet extends Viewlet {
 		const useIgnoreFiles = typeof this.viewletSettings['query.useIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useIgnoreFiles'] :
 			this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault;
-		const useExcludeSettings = typeof this.viewletSettings['query.useExcludeSettings'] === 'boolean' ?
-			this.viewletSettings['query.useExcludeSettings'] :
-			true;
+		const useExcludeSettings = true;
 
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
@@ -921,7 +919,6 @@ export class SearchViewlet extends Viewlet {
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
 		this.viewletSettings['query.includesUsePattern'] = includesUsePattern;
 		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
-		this.viewletSettings['query.useExcludeSettings'] = useExcludeSettings;
 
 		if (!rerunQuery) {
 			return;
