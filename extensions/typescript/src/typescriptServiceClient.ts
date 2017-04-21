@@ -13,7 +13,7 @@ import * as os from 'os';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, Disposable, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
+import { workspace, window, extensions, Uri, CancellationToken, Disposable, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
@@ -119,6 +119,11 @@ interface MyQuickPickItem extends QuickPickItem {
 
 interface MyMessageItem extends MessageItem {
 	id: MessageAction;
+}
+
+interface TypeScriptServerPlugin {
+	path: string;
+	name: string;
 }
 
 
@@ -578,6 +583,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						}
 					}
 
+					if (this.apiVersion.has230Features()) {
+						const plugins = this.getContributedTypeScriptServerPlugins();
+						if (plugins.length) {
+							args.push('--globalPlugins', plugins.map(x => x.name).join(','));
+							args.push('--pluginProbeLocations', plugins.map(x => x.path).join(','));
+						}
+					}
+
 					electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
 						if (err) {
 							this.lastError = err;
@@ -814,6 +827,22 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return undefined;
 		}
 		return desc.version;
+	}
+
+	private getContributedTypeScriptServerPlugins(): TypeScriptServerPlugin[] {
+		const plugins: TypeScriptServerPlugin[] = [];
+		for (const extension of extensions.all) {
+			const pack = extension.packageJSON;
+			if (pack.contributes && pack.contributes.typescriptServerPlugins && Array.isArray(pack.contributes.typescriptServerPlugins)) {
+				for (const plugin of pack.contributes.typescriptServerPlugins) {
+					plugins.push({
+						name: plugin.name,
+						path: extension.extensionPath
+					});
+				}
+			}
+		}
+		return plugins;
 	}
 
 	private serviceExited(restart: boolean): void {
