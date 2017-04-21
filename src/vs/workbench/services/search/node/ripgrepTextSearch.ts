@@ -114,8 +114,9 @@ export class RipgrepEngine {
 				this.rgProc = null;
 				if (!this.isDone) {
 					this.isDone = true;
-					if (stderr && this.shouldReturnErrorMsg(stderr) && !gotData) {
-						done(new Error(stderr), {
+					let displayMsg: string;
+					if (stderr && !gotData && (displayMsg = this.rgErrorMsgForDisplay(stderr))) {
+						done(new Error(displayMsg), {
 							limitHit: false,
 							stats: null
 						});
@@ -130,8 +131,23 @@ export class RipgrepEngine {
 		});
 	}
 
-	private shouldReturnErrorMsg(msg: string): boolean {
-		return strings.startsWith(msg, 'Error parsing regex');
+	private rgErrorMsgForDisplay(msg: string): string {
+		const firstLine = msg.split('\n')[0];
+		if (firstLine.match(/^No files were searched, which means ripgrep/)) {
+			// Not really a useful message to show in the UI
+			return undefined;
+		}
+
+		// The error "No such file or directory" is returned for broken symlinks and also for bad search paths.
+		// Only show it if it's from a search path.
+		const reg = /^(\.\/.*): No such file or directory \(os error 2\)/;
+		const noSuchFileMatch = firstLine.match(reg);
+		if (noSuchFileMatch) {
+			const errorPath = noSuchFileMatch[1];
+			return this.config.searchPaths && this.config.searchPaths.indexOf(errorPath) >= 0 ? firstLine : undefined;
+		}
+
+		return firstLine;
 	}
 }
 
