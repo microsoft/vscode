@@ -9,7 +9,6 @@ import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { CursorCollection, ICursorCollectionState } from 'vs/editor/common/controller/cursorCollection';
 import {
 	IViewModelHelper, OneCursor, OneCursorOp, CursorContext, CursorMovePosition,
@@ -620,69 +619,11 @@ export class Cursor extends Disposable {
 		return loserCursorsMap;
 	}
 
-	private _collapseDeleteCommands(rawCmds: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
-		if (rawCmds.length === 1) {
-			return false;
-		}
-
-		// Merge adjacent delete commands
-		var allAreDeleteCommands = rawCmds.every((command) => {
-			if (!(command instanceof ReplaceCommand)) {
-				return false;
-			}
-			var replCmd = (<ReplaceCommand>command);
-			if (replCmd.getText().length > 0) {
-				return false;
-			}
-			return true;
-		});
-
-		if (!allAreDeleteCommands) {
-			return false;
-		}
-
-		var commands = <ReplaceCommand[]>rawCmds;
-		var cursors = commands.map((cmd, i) => {
-			return {
-				range: commands[i].getRange(),
-				order: i
-			};
-		});
-
-		cursors.sort((a, b) => {
-			return Range.compareRangesUsingStarts(a.range, b.range);
-		});
-
-		var previousCursor = cursors[0];
-		for (var i = 1; i < cursors.length; i++) {
-			if (previousCursor.range.endLineNumber === cursors[i].range.startLineNumber && previousCursor.range.endColumn === cursors[i].range.startColumn) {
-				// Merge ranges
-				var mergedRange = new Range(
-					previousCursor.range.startLineNumber,
-					previousCursor.range.startColumn,
-					cursors[i].range.endLineNumber,
-					cursors[i].range.endColumn
-				);
-
-				previousCursor.range = mergedRange;
-
-				commands[cursors[i].order].setRange(mergedRange);
-				commands[previousCursor.order].setRange(mergedRange);
-			} else {
-				// Push previous cursor
-				previousCursor = cursors[i];
-			}
-		}
-		return false;
-	}
-
 	private _internalExecuteCommands(commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): boolean {
 		var ctx: IExecContext = {
 			selectionStartMarkers: [],
 			positionMarkers: []
 		};
-
-		this._collapseDeleteCommands(commands, isAutoWhitespaceCommand);
 
 		var r = this._innerExecuteCommands(ctx, commands, isAutoWhitespaceCommand);
 		for (var i = 0; i < ctx.selectionStartMarkers.length; i++) {
@@ -1759,7 +1700,7 @@ export namespace EditorScroll {
 	/**
 	 * Directions in the view for editor scroll command.
 	 */
-	const RawDirection = {
+	export const RawDirection = {
 		Up: 'up',
 		Down: 'down',
 	};
@@ -1767,7 +1708,7 @@ export namespace EditorScroll {
 	/**
 	 * Units for editor scroll 'by' argument
 	 */
-	const RawUnit = {
+	export const RawUnit = {
 		Line: 'line',
 		WrappedLine: 'wrappedLine',
 		Page: 'page',
