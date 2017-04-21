@@ -236,32 +236,35 @@ export class CursorState {
 	}
 }
 
-export class EditOperationResult {
-	_editOperationBrand: void;
+export class CommandResult {
+	_commandResultBrand: void;
 
 	readonly command: ICommand;
+	readonly isAutoWhitespaceCommand: boolean;
+
+	constructor(command: ICommand, isAutoWhitespaceCommand: boolean) {
+		this.command = command;
+		this.isAutoWhitespaceCommand = isAutoWhitespaceCommand;
+	}
+}
+
+export class EditOperationResult {
+	_editOperationResultBrand: void;
+
+	readonly commands: CommandResult[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
-	readonly isAutoWhitespaceCommand: boolean;
-	readonly shouldRevealHorizontal: boolean;
 
 	constructor(
-		command: ICommand,
+		commands: CommandResult[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
-			isAutoWhitespaceCommand?: boolean;
 		}
 	) {
-		this.command = command;
+		this.commands = commands;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
-		this.isAutoWhitespaceCommand = false;
-		this.shouldRevealHorizontal = true;
-
-		if (typeof opts.isAutoWhitespaceCommand !== 'undefined') {
-			this.isAutoWhitespaceCommand = opts.isAutoWhitespaceCommand;
-		}
 	}
 }
 

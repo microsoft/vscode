@@ -18,7 +18,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorColumns, EditOperationResult, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, EditOperationResult, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
@@ -931,27 +931,15 @@ export class Cursor extends Disposable {
 		this._handlers[H.RevealLine] = (ctx) => this._revealLine(ctx);
 	}
 
-	private _invokeForAllSorted(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => void): void {
-		this._doInvokeForAll(ctx, true, callable);
-	}
-
 	private _invokeForAll(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => void): void {
-		this._doInvokeForAll(ctx, false, callable);
+		this._doInvokeForAll(ctx, callable);
 	}
 
-	private _doInvokeForAll(ctx: IMultipleCursorOperationContext, sorted: boolean, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => void): void {
+	private _doInvokeForAll(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => void): void {
 		let cursors = this.cursors.getAll();
 
-		if (sorted) {
-			cursors = cursors.sort((a, b) => {
-				return Range.compareRangesUsingStarts(a.modelState.selection, b.modelState.selection);
-			});
-		}
-
-		let context: IOneCursorOperationContext;
-
 		for (let i = 0; i < cursors.length; i++) {
-			context = {
+			let context = {
 				shouldReveal: true,
 				shouldRevealHorizontal: true,
 				executeCommand: null,
@@ -1284,39 +1272,46 @@ export class Cursor extends Disposable {
 
 	// -------------------- START editing operations
 
-	private _doApplyEdit(cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext, callable: (oneCursor: OneCursor, cursorIndex: number) => EditOperationResult): void {
-		let r = callable(oneCursor, cursorIndex);
-		if (r) {
-			oneCtx.executeCommand = r.command;
-			oneCtx.shouldPushStackElementBefore = r.shouldPushStackElementBefore;
-			oneCtx.shouldPushStackElementAfter = r.shouldPushStackElementAfter;
-			oneCtx.isAutoWhitespaceCommand = r.isAutoWhitespaceCommand;
-			oneCtx.shouldRevealHorizontal = r.shouldRevealHorizontal;
+	private _applyEdits(ctx: IMultipleCursorOperationContext, edits: EditOperationResult): void {
+		ctx.shouldRevealHorizontal = true;
+		ctx.shouldReveal = true;
+		ctx.shouldPushStackElementBefore = edits.shouldPushStackElementBefore;
+		ctx.shouldPushStackElementAfter = edits.shouldPushStackElementAfter;
+
+		const commands = edits.commands;
+		for (let i = 0, len = commands.length; i < len; i++) {
+			const command = commands[i];
+			ctx.executeCommands[i] = command ? command.command : null;
+			ctx.isAutoWhitespaceCommand[i] = command ? command.isAutoWhitespaceCommand : false;
 		}
 	}
 
-	private _applyEditForAll(ctx: IMultipleCursorOperationContext, callable: (oneCursor: OneCursor, cursorIndex: number) => EditOperationResult): void {
-		ctx.shouldPushStackElementBefore = false;
-		ctx.shouldPushStackElementAfter = false;
-		this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => this._doApplyEdit(cursorIndex, oneCursor, oneCtx, callable));
-	}
+	private _getAllCursorsModelState(sorted: boolean = false): SingleCursorState[] {
+		let cursors = this.cursors.getAll();
 
-	private _applyEditForAllSorted(ctx: IMultipleCursorOperationContext, callable: (oneCursor: OneCursor, cursorIndex: number) => EditOperationResult): void {
-		ctx.shouldPushStackElementBefore = false;
-		ctx.shouldPushStackElementAfter = false;
-		this._invokeForAllSorted(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => this._doApplyEdit(cursorIndex, oneCursor, oneCtx, callable));
+		if (sorted) {
+			cursors = cursors.sort((a, b) => {
+				return Range.compareRangesUsingStarts(a.modelState.selection, b.modelState.selection);
+			});
+		}
+
+		let r: SingleCursorState[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			r[i] = cursors[i].modelState;
+		}
+		return r;
 	}
 
 	private _lineInsertBefore(ctx: IMultipleCursorOperationContext): void {
-		this._applyEditForAll(ctx, (cursor) => TypeOperations.lineInsertBefore(this.context.config, this.context.model, cursor.modelState));
+		this._applyEdits(ctx, TypeOperations.lineInsertBefore(this.context.config, this.context.model, this._getAllCursorsModelState()));
 	}
 
 	private _lineInsertAfter(ctx: IMultipleCursorOperationContext): void {
-		this._applyEditForAll(ctx, (cursor) => TypeOperations.lineInsertAfter(this.context.config, this.context.model, cursor.modelState));
+		this._applyEdits(ctx, TypeOperations.lineInsertAfter(this.context.config, this.context.model, this._getAllCursorsModelState()));
 	}
 
 	private _lineBreakInsert(ctx: IMultipleCursorOperationContext): void {
-		this._applyEditForAll(ctx, (cursor) => TypeOperations.lineBreakInsert(this.context.config, this.context.model, cursor.modelState));
+		this._applyEdits(ctx, TypeOperations.lineBreakInsert(this.context.config, this.context.model, this._getAllCursorsModelState()));
 	}
 
 	private _type(ctx: IMultipleCursorOperationContext): void {
@@ -1339,10 +1334,7 @@ export class Cursor extends Disposable {
 				this._createAndInterpretHandlerCtx(ctx.eventSource, ctx.eventData, (charHandlerCtx: IMultipleCursorOperationContext) => {
 
 					// Decide what all cursors will do up-front
-					const cursors = this.cursors.getAll();
-					const states = cursors.map(cursor => cursor.modelState);
-					const editOperations = TypeOperations.typeWithInterceptors(this.context.config, this.context.model, states, chr);
-					this._applyEditForAll(charHandlerCtx, (cursor, cursorIndex) => editOperations[cursorIndex]);
+					this._applyEdits(charHandlerCtx, TypeOperations.typeWithInterceptors(this.context.config, this.context.model, this._getAllCursorsModelState(), chr));
 
 					// The last typed character gets to win
 					ctx.cursorPositionChangeReason = charHandlerCtx.cursorPositionChangeReason;
@@ -1353,14 +1345,14 @@ export class Cursor extends Disposable {
 
 			}
 		} else {
-			this._applyEditForAll(ctx, (cursor) => TypeOperations.typeWithoutInterceptors(this.context.config, this.context.model, cursor.modelState, text));
+			this._applyEdits(ctx, TypeOperations.typeWithoutInterceptors(this.context.config, this.context.model, this._getAllCursorsModelState(), text));
 		}
 	}
 
 	private _replacePreviousChar(ctx: IMultipleCursorOperationContext): void {
 		let text = ctx.eventData.text;
 		let replaceCharCnt = ctx.eventData.replaceCharCnt;
-		this._applyEditForAll(ctx, (cursor) => TypeOperations.replacePreviousChar(this.context.config, this.context.model, cursor.modelState, text, replaceCharCnt));
+		this._applyEdits(ctx, TypeOperations.replacePreviousChar(this.context.config, this.context.model, this._getAllCursorsModelState(), text, replaceCharCnt));
 	}
 
 	private _compositionStart(ctx: IMultipleCursorOperationContext): void {
@@ -1372,15 +1364,15 @@ export class Cursor extends Disposable {
 	}
 
 	private _tab(ctx: IMultipleCursorOperationContext): void {
-		this._applyEditForAll(ctx, (cursor) => TypeOperations.tab(this.context.config, this.context.model, cursor.modelState));
+		this._applyEdits(ctx, TypeOperations.tab(this.context.config, this.context.model, this._getAllCursorsModelState()));
 	}
 
 	private _indent(ctx: IMultipleCursorOperationContext): void {
-		this._applyEditForAll(ctx, (cursor) => TypeOperations.indent(this.context.config, this.context.model, cursor.modelState));
+		this._applyEdits(ctx, TypeOperations.indent(this.context.config, this.context.model, this._getAllCursorsModelState()));
 	}
 
 	private _outdent(ctx: IMultipleCursorOperationContext): void {
-		this._applyEditForAll(ctx, (cursor) => TypeOperations.outdent(this.context.config, this.context.model, cursor.modelState));
+		this._applyEdits(ctx, TypeOperations.outdent(this.context.config, this.context.model, this._getAllCursorsModelState()));
 	}
 
 	private _distributePasteToCursors(ctx: IMultipleCursorOperationContext): string[] {
@@ -1412,22 +1404,22 @@ export class Cursor extends Disposable {
 
 		ctx.cursorPositionChangeReason = CursorChangeReason.Paste;
 		if (distributedPaste) {
-			this._applyEditForAllSorted(ctx, (cursor, cursorIndex) => TypeOperations.paste(this.context.config, this.context.model, cursor.modelState, distributedPaste[cursorIndex], false));
+			this._applyEdits(ctx, TypeOperations.distributedPaste(this.context.config, this.context.model, this._getAllCursorsModelState(true), distributedPaste));
 		} else {
-			this._applyEditForAll(ctx, (cursor) => TypeOperations.paste(this.context.config, this.context.model, cursor.modelState, ctx.eventData.text, ctx.eventData.pasteOnNewLine));
+			this._applyEdits(ctx, TypeOperations.paste(this.context.config, this.context.model, this._getAllCursorsModelState(), ctx.eventData.text, ctx.eventData.pasteOnNewLine));
 		}
 	}
 
 	private _deleteLeft(ctx: IMultipleCursorOperationContext): void {
-		this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteLeft(this.context.config, this.context.model, cursor.modelState));
+		this._applyEdits(ctx, DeleteOperations.deleteLeft(this.context.config, this.context.model, this._getAllCursorsModelState()));
 	}
 
 	private _deleteRight(ctx: IMultipleCursorOperationContext): void {
-		this._applyEditForAll(ctx, (cursor) => DeleteOperations.deleteRight(this.context.config, this.context.model, cursor.modelState));
+		this._applyEdits(ctx, DeleteOperations.deleteRight(this.context.config, this.context.model, this._getAllCursorsModelState()));
 	}
 
 	private _cut(ctx: IMultipleCursorOperationContext): void {
-		this._applyEditForAll(ctx, (cursor) => DeleteOperations.cut(this.context.config, this.context.model, cursor.modelState, this.enableEmptySelectionClipboard));
+		this._applyEdits(ctx, DeleteOperations.cut(this.context.config, this.context.model, this._getAllCursorsModelState(), this.enableEmptySelectionClipboard));
 	}
 
 	// -------------------- END editing operations
@@ -1551,14 +1543,18 @@ export class Cursor extends Disposable {
 	}
 
 	private _externalExecuteCommand(ctx: IMultipleCursorOperationContext): void {
+		const command = <editorCommon.ICommand>ctx.eventData;
+
 		this.cursors.killSecondaryCursors();
+
+		ctx.shouldRevealHorizontal = true;
+		ctx.shouldReveal = true;
+
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
-		this._invokeForAll(ctx, (cursorIndex: number, oneCursor: OneCursor, oneCtx: IOneCursorOperationContext) => {
-			oneCtx.shouldPushStackElementBefore = true;
-			oneCtx.shouldPushStackElementAfter = true;
-			oneCtx.executeCommand = ctx.eventData;
-		});
+
+		ctx.executeCommands[0] = command;
+		ctx.isAutoWhitespaceCommand[0] = false;
 	}
 
 	private _externalExecuteCommands(ctx: IMultipleCursorOperationContext): void {
