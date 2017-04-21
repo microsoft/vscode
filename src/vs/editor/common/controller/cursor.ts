@@ -11,14 +11,14 @@ import { EventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter'
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
 import {
-	IViewModelHelper, OneCursor, OneCursorOp, CursorContext,
+	OneCursor, OneCursorOp,
 	RevealLineArguments, RevealLineAtArgument, CursorMove
 } from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorColumns, CursorConfiguration, EditOperationResult, SingleCursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, EditOperationResult, SingleCursorState, IViewModelHelper, CursorContext } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';

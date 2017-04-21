@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { ICommand, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
+import { ICommand, TextModelResolvedOptions, IConfiguration, IModel } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
@@ -16,6 +16,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+import { ICoordinatesConverter } from "vs/editor/common/viewModel/viewModel";
 
 export interface CharacterMap {
 	[char: string]: string;
@@ -221,6 +222,94 @@ export class SingleCursorState {
 			endLineNumber,
 			endColumn
 		);
+	}
+}
+
+export interface IViewModelHelper {
+
+	coordinatesConverter: ICoordinatesConverter;
+
+	viewModel: ICursorSimpleModel;
+
+	getScrollTop(): number;
+
+	getCompletelyVisibleViewRange(): Range;
+
+	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+
+	getVerticalOffsetForViewLineNumber(viewLineNumber: number): number;
+}
+
+export class CursorContext {
+	_cursorContextBrand: void;
+
+	public readonly model: IModel;
+	public readonly viewModel: ICursorSimpleModel;
+	public readonly config: CursorConfiguration;
+
+	private readonly _viewModelHelper: IViewModelHelper;
+	private readonly _coordinatesConverter: ICoordinatesConverter;
+
+	constructor(model: IModel, viewModelHelper: IViewModelHelper, config: CursorConfiguration) {
+		this.model = model;
+		this.viewModel = viewModelHelper.viewModel;
+		this.config = config;
+		this._viewModelHelper = viewModelHelper;
+		this._coordinatesConverter = viewModelHelper.coordinatesConverter;
+	}
+
+	public validateModelPosition(position: IPosition): Position {
+		return this.model.validatePosition(position);
+	}
+
+	public validateViewPosition(viewPosition: Position, modelPosition: Position): Position {
+		return this._coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
+	}
+
+	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
+		return this._coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
+	}
+
+	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
+		return this._coordinatesConverter.convertViewSelectionToModelSelection(viewSelection);
+	}
+
+	public convertViewPositionToModelPosition(lineNumber: number, column: number): Position {
+		return this._coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, column));
+	}
+
+	public convertModelPositionToViewPosition(modelPosition: Position): Position {
+		return this._coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+	}
+
+	public convertModelRangeToViewRange(modelRange: Range): Range {
+		return this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
+	}
+
+	public getScrollTop(): number {
+		return this._viewModelHelper.getScrollTop();
+	}
+
+	public getCompletelyVisibleViewRange(): Range {
+		return this._viewModelHelper.getCompletelyVisibleViewRange();
+	}
+
+	public getCompletelyVisibleModelRange(): Range {
+		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRange();
+		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+	}
+
+	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
+		return this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+	}
+
+	public getCompletelyVisibleModelRangeAtScrollTop(scrollTop: number): Range {
+		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+	}
+
+	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
+		return this._viewModelHelper.getVerticalOffsetForViewLineNumber(viewLineNumber);
 	}
 }
 

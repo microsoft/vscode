@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IOneCursorState, OneCursor, CursorContext } from 'vs/editor/common/controller/oneCursor';
+import { IOneCursorState, OneCursor } from 'vs/editor/common/controller/oneCursor';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { CursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorState, CursorContext } from 'vs/editor/common/controller/cursorCommon';
 
 export interface ICursorCollectionState {
 	primary: IOneCursorState;

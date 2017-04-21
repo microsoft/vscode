@@ -12,10 +12,11 @@ import { Model } from 'vs/editor/common/model/model';
 import { IMode } from 'vs/editor/common/modes';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { viewModelHelper as aViewModelHelper } from 'vs/editor/test/common/editorTestUtils';
-import { IViewModelHelper, CursorMove } from 'vs/editor/common/controller/oneCursor';
+import { CursorMove } from 'vs/editor/common/controller/oneCursor';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IViewModelHelper } from "vs/editor/common/controller/cursorCommon";
 
 let H = Handler;
 

@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { SingleCursorState, CursorConfiguration, ICursorSimpleModel, CursorState } from 'vs/editor/common/controller/cursorCommon';
+import { SingleCursorState, ICursorSimpleModel, CursorState, CursorContext } from 'vs/editor/common/controller/cursorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
 import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 
@@ -75,94 +73,6 @@ export var CommandDescription = {
 		]
 	}
 };
-
-export interface IViewModelHelper {
-
-	coordinatesConverter: ICoordinatesConverter;
-
-	viewModel: ICursorSimpleModel;
-
-	getScrollTop(): number;
-
-	getCompletelyVisibleViewRange(): Range;
-
-	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
-
-	getVerticalOffsetForViewLineNumber(viewLineNumber: number): number;
-}
-
-export class CursorContext {
-	_cursorContextBrand: void;
-
-	public readonly model: editorCommon.IModel;
-	public readonly viewModel: ICursorSimpleModel;
-	public readonly config: CursorConfiguration;
-
-	private readonly _viewModelHelper: IViewModelHelper;
-	private readonly _coordinatesConverter: ICoordinatesConverter;
-
-	constructor(model: editorCommon.IModel, viewModelHelper: IViewModelHelper, config: CursorConfiguration) {
-		this.model = model;
-		this.viewModel = viewModelHelper.viewModel;
-		this.config = config;
-		this._viewModelHelper = viewModelHelper;
-		this._coordinatesConverter = viewModelHelper.coordinatesConverter;
-	}
-
-	public validateModelPosition(position: IPosition): Position {
-		return this.model.validatePosition(position);
-	}
-
-	public validateViewPosition(viewPosition: Position, modelPosition: Position): Position {
-		return this._coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
-	}
-
-	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		return this._coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
-	}
-
-	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
-		return this._coordinatesConverter.convertViewSelectionToModelSelection(viewSelection);
-	}
-
-	public convertViewPositionToModelPosition(lineNumber: number, column: number): Position {
-		return this._coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, column));
-	}
-
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this._coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-	}
-
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
-	}
-
-	public getScrollTop(): number {
-		return this._viewModelHelper.getScrollTop();
-	}
-
-	public getCompletelyVisibleViewRange(): Range {
-		return this._viewModelHelper.getCompletelyVisibleViewRange();
-	}
-
-	public getCompletelyVisibleModelRange(): Range {
-		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRange();
-		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
-	}
-
-	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
-		return this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-	}
-
-	public getCompletelyVisibleModelRangeAtScrollTop(scrollTop: number): Range {
-		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
-	}
-
-	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
-		return this._viewModelHelper.getVerticalOffsetForViewLineNumber(viewLineNumber);
-	}
-}
 
 export interface IOneCursorState {
 	selectionStart: Range;
