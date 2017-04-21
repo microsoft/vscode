@@ -213,7 +213,12 @@ global.getOpenUrls = function () {
 // node/v8 cached data.
 var nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
 	if (value) {
+		// store the data directory
 		process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = value;
+
+		// tell v8 to not be lazy when parsing JavaScript. Generally this makes startup slower
+		// but because we generate cached data it makes subsequent startups much faster
+		app.commandLine.appendSwitch('--js-flags', '--nolazy');
 	}
 });
 
