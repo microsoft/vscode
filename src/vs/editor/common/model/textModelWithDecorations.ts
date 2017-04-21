@@ -8,13 +8,19 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkedString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { MarkersTracker, LineMarker } from 'vs/editor/common/model/modelLine';
 import { Position } from 'vs/editor/common/core/position';
 import { INewMarker, TextModelWithMarkers } from 'vs/editor/common/model/textModelWithMarkers';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+
+export const ClassName = {
+	EditorWarningDecoration: 'greensquiggly',
+	EditorErrorDecoration: 'redsquiggly'
+};
 
 class DecorationsTracker {
 
@@ -78,8 +84,8 @@ export class InternalDecoration implements editorCommon.IModelDecoration {
 	public setOptions(options: ModelDecorationOptions) {
 		this.options = options;
 		this.isForValidation = (
-			this.options.className === editorCommon.ClassName.EditorErrorDecoration
-			|| this.options.className === editorCommon.ClassName.EditorWarningDecoration
+			this.options.className === ClassName.EditorErrorDecoration
+			|| this.options.className === ClassName.EditorWarningDecoration
 		);
 	}
 
@@ -140,9 +146,8 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 	private _internalDecorations: { [internalDecorationId: number]: InternalDecoration; };
 	private _multiLineDecorationsMap: { [key: string]: InternalDecoration; };
 
-	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
-		allowedEventTypes.push(editorCommon.EventType.ModelDecorationsChanged);
-		super(allowedEventTypes, rawTextSource, creationOptions, languageIdentifier);
+	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
+		super(rawTextSource, creationOptions, languageIdentifier);
 
 		this._instanceId = nextInstanceId();
 		this._lastDecorationId = 0;
@@ -199,21 +204,21 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		this._assertNotDisposed();
 
 		try {
-			this._beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
 			let decorationsTracker = this._acquireDecorationsTracker();
 			return this._changeDecorations(decorationsTracker, ownerId, callback);
 		} finally {
 			this._releaseDecorationsTracker();
-			this._endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
 		}
 	}
 
 	private _changeDecorations<T>(decorationsTracker: DecorationsTracker, ownerId: number, callback: (changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => T): T {
 		let changeAccessor: editorCommon.IModelDecorationsChangeAccessor = {
-			addDecoration: (range: editorCommon.IRange, options: editorCommon.IModelDecorationOptions): string => {
+			addDecoration: (range: IRange, options: editorCommon.IModelDecorationOptions): string => {
 				return this._addDecorationImpl(decorationsTracker, ownerId, this.validateRange(range), _normalizeOptions(options));
 			},
-			changeDecoration: (id: string, newRange: editorCommon.IRange): void => {
+			changeDecoration: (id: string, newRange: IRange): void => {
 				this._changeDecorationImpl(decorationsTracker, id, this.validateRange(newRange));
 			},
 			changeDecorationOptions: (id: string, options: editorCommon.IModelDecorationOptions) => {
@@ -407,7 +412,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		return this._getDecorationsInRange(new Range(startLineNumber, 1, endLineNumber, endColumn), ownerId, filterOutValidation);
 	}
 
-	public getDecorationsInRange(range: editorCommon.IRange, ownerId?: number, filterOutValidation?: boolean): editorCommon.IModelDecoration[] {
+	public getDecorationsInRange(range: IRange, ownerId?: number, filterOutValidation?: boolean): editorCommon.IModelDecoration[] {
 		let validatedRange = this.validateRange(range);
 		return this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation);
 	}
@@ -485,7 +490,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		}
 
 		if (uniqueChangedDecorations.length > 0) {
-			let e: editorCommon.IModelDecorationsChangedEvent = {
+			let e: textModelEvents.IModelDecorationsChangedEvent = {
 				addedDecorations: [],
 				changedDecorations: uniqueChangedDecorations,
 				removedDecorations: []
@@ -531,7 +536,7 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 			return;
 		}
 
-		let e: editorCommon.IModelDecorationsChangedEvent = {
+		let e: textModelEvents.IModelDecorationsChangedEvent = {
 			addedDecorations: decorationsTracker.addedDecorations,
 			changedDecorations: decorationsTracker.changedDecorations,
 			removedDecorations: decorationsTracker.removedDecorations
@@ -539,9 +544,9 @@ export class TextModelWithDecorations extends TextModelWithMarkers implements ed
 		this.emitModelDecorationsChangedEvent(e);
 	}
 
-	private emitModelDecorationsChangedEvent(e: editorCommon.IModelDecorationsChangedEvent): void {
+	private emitModelDecorationsChangedEvent(e: textModelEvents.IModelDecorationsChangedEvent): void {
 		if (!this._isDisposing) {
-			this.emit(editorCommon.EventType.ModelDecorationsChanged, e);
+			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelDecorationsChanged, e);
 		}
 	}
 

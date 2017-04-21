@@ -10,13 +10,14 @@ import * as objects from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions, IModel } from 'vs/editor/common/editorCommon';
+import { IEditor, ICommonCodeEditor, IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import * as editorOptions from "vs/editor/common/config/editorOptions";
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -208,7 +209,7 @@ export abstract class EditorInput implements IEditorInput {
 	 *
 	 * Subclasses should extend if they can contribute.
 	 */
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		return { typeId: this.getTypeId() };
 	}
 
@@ -377,7 +378,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.revert();
 	}
 
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		const descriptor = this.master.getTelemetryDescriptor();
 		return objects.assign(descriptor, super.getTelemetryDescriptor());
 	}
@@ -580,7 +581,7 @@ export class TextEditorOptions extends EditorOptions {
 
 	private revealInCenterIfOutsideViewport: boolean;
 	private editorViewState: IEditorViewState;
-	private editorOptions: ICodeEditorOptions;
+	private editorOptions: editorOptions.IEditorOptions;
 
 	public static from(input: IBaseResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
@@ -905,6 +906,7 @@ export interface IWorkbenchEditorConfiguration {
 			closeOnFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
+			swipeToNavigate: boolean
 		}
 	};
 }

@@ -13,6 +13,7 @@ import { Model } from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { TokenIterator } from "vs/editor/common/model/tokenIterator";
 
 // --------- utils
 
@@ -331,6 +332,13 @@ suite('Editor Model - Token Iterator', () => {
 		languageRegistration = null;
 	});
 
+	function tokenIterator(model: Model, position: Position, callback: (it: TokenIterator) => any): any {
+		let iter = new TokenIterator(model, model.validatePosition(position));
+		let result = callback(iter);
+		iter._invalidate();
+		return result;
+	}
+
 	test('all tokens with ranges', () => {
 		var calls = 0;
 		var ranges = [
@@ -338,7 +346,7 @@ suite('Editor Model - Token Iterator', () => {
 			[1, 4, 4, 7, 7, 10, 10, 13],
 			[1, 4, 4, 7, 7, 10, 10, 13],
 		];
-		thisModel.tokenIterator(new Position(1, 1), (iter) => {
+		tokenIterator(thisModel, new Position(1, 1), (iter) => {
 			var a = [], line = 0;
 			while (iter.hasNext()) {
 				calls++;
@@ -357,7 +365,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('all tokens from beginning with next', () => {
 		var n = 0;
-		thisModel.tokenIterator(new Position(1, 1), (iter) => {
+		tokenIterator(thisModel, new Position(1, 1), (iter) => {
 			while (iter.hasNext()) {
 				iter.next();
 				n++;
@@ -368,7 +376,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('all tokens from beginning with prev', () => {
 		var n = 0;
-		thisModel.tokenIterator(new Position(1, 1), (iter) => {
+		tokenIterator(thisModel, new Position(1, 1), (iter) => {
 			while (iter.hasPrev()) {
 				iter.prev();
 				n++;
@@ -379,7 +387,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('all tokens from end with prev', () => {
 		var n = 0;
-		thisModel.tokenIterator(new Position(3, 12), (iter) => {
+		tokenIterator(thisModel, new Position(3, 12), (iter) => {
 			while (iter.hasPrev()) {
 				iter.prev();
 				n++;
@@ -390,7 +398,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('all tokens from end with next', () => {
 		var n = 0;
-		thisModel.tokenIterator(new Position(3, 12), (iter) => {
+		tokenIterator(thisModel, new Position(3, 12), (iter) => {
 			while (iter.hasNext()) {
 				iter.next();
 				n++;
@@ -401,7 +409,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('prev and next are assert.equal at start', () => {
 		var calls = 0;
-		thisModel.tokenIterator(new Position(1, 2), (iter) => {
+		tokenIterator(thisModel, new Position(1, 2), (iter) => {
 			calls++;
 			var next = iter.next();
 			var prev = iter.prev();
@@ -413,7 +421,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('position variance within token', () => {
 		var calls = 0;
 
-		thisModel.tokenIterator(new Position(1, 4), (iter) => {
+		tokenIterator(thisModel, new Position(1, 4), (iter) => {
 			calls++;
 			var next = iter.next();
 			assert.equal(next.lineNumber, 1);
@@ -421,7 +429,7 @@ suite('Editor Model - Token Iterator', () => {
 			assert.equal(next.endColumn, 7);
 		});
 
-		thisModel.tokenIterator(new Position(1, 5), (iter) => {
+		tokenIterator(thisModel, new Position(1, 5), (iter) => {
 			calls++;
 			var next = iter.next();
 			assert.equal(next.lineNumber, 1);
@@ -429,7 +437,7 @@ suite('Editor Model - Token Iterator', () => {
 			assert.equal(next.endColumn, 7);
 		});
 
-		thisModel.tokenIterator(new Position(1, 6), (iter) => {
+		tokenIterator(thisModel, new Position(1, 6), (iter) => {
 			calls++;
 			var next = iter.next();
 			assert.equal(next.lineNumber, 1);
@@ -443,7 +451,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('iterator allows next/prev', () => {
 		var n = 0;
 		var up = [], down = [];
-		thisModel.tokenIterator(new Position(1, 1), (iter) => {
+		tokenIterator(thisModel, new Position(1, 1), (iter) => {
 			while (iter.hasNext()) {
 				var next = iter.next();
 				up.push(next);
@@ -466,7 +474,7 @@ suite('Editor Model - Token Iterator', () => {
 	test('iterator allows prev/next', () => {
 		var n = 0;
 		var up = [], down = [];
-		thisModel.tokenIterator(new Position(3, 12), (iter) => {
+		tokenIterator(thisModel, new Position(3, 12), (iter) => {
 			while (iter.hasPrev()) {
 				var prev = iter.prev();
 				down.push(prev);
@@ -489,7 +497,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('iterator can not be used outside of callback', () => {
 		var illegalIterReference;
-		thisModel.tokenIterator(new Position(3, 12), (iter) => {
+		tokenIterator(thisModel, new Position(3, 12), (iter) => {
 			illegalIterReference = iter;
 		});
 

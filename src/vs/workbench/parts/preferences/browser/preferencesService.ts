@@ -17,7 +17,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
-import { ICommonCodeEditor, IPosition } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IFileService, IFileOperationResult, FileOperationResult } from 'vs/platform/files/common/files';
@@ -34,7 +34,7 @@ import { KeybindingsEditorInput } from 'vs/workbench/parts/preferences/browser/k
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
@@ -309,7 +309,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				let setting = settingsModel.getPreference(languageKey);
 				const model = codeEditor.getModel();
 				const configuration = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-				const {eol} = this.configurationService.getConfiguration<{ eol: string }>('files');
+				const { eol } = this.configurationService.getConfiguration<{ eol: string }>('files');
 				if (setting) {
 					if (setting.overrides.length) {
 						const lastSetting = setting.overrides[setting.overrides.length - 1];
@@ -338,7 +338,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private spaces(count: number, {tabSize, insertSpaces}: { tabSize: number; insertSpaces: boolean }): string {
+	private spaces(count: number, { tabSize, insertSpaces }: { tabSize: number; insertSpaces: boolean }): string {
 		return insertSpaces ? strings.repeat(' ', tabSize * count) : strings.repeat('\t', count);
 	}
 

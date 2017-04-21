@@ -45,7 +45,7 @@ class MergeDecoratorBoundToModel extends Disposable {
 
 		const gitModel = gitService.getModel();
 		this._register(model.onDidChangeContent(() => delayer.trigger(() => this.redecorate())));
-		this._register(gitModel.addListener2(ModelEvents.STATUS_MODEL_UPDATED, () => delayer.trigger(() => this.redecorate())));
+		this._register(gitModel.addListener(ModelEvents.STATUS_MODEL_UPDATED, () => delayer.trigger(() => this.redecorate())));
 	}
 
 	private _setDecorations(newDecorations: IModelDeltaDecoration[]): void {

@@ -11,7 +11,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import { IRange, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import {
 	CommonFindController, FindStartFocusAction, IFindStartOptions,
 	NextMatchFindAction, StartFindAction, SelectHighlightsAction,
@@ -68,7 +68,7 @@ class TestFindController extends CommonFindController {
 
 suite('FindController', () => {
 
-	function fromRange(rng: IRange): number[] {
+	function fromRange(rng: Range): number[] {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 

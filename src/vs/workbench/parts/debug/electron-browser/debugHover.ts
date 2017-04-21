@@ -12,7 +12,7 @@ import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DefaultController, ICancelableEvent, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
@@ -91,10 +91,10 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.tree.addListener2('item:expanded', () => {
+		this.toDispose.push(this.tree.addListener('item:expanded', () => {
 			this.layoutTree();
 		}));
-		this.toDispose.push(this.tree.addListener2('item:collapsed', () => {
+		this.toDispose.push(this.tree.addListener('item:collapsed', () => {
 			this.layoutTree();
 		}));
 

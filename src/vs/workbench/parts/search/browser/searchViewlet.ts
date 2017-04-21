@@ -9,13 +9,11 @@ import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
-import { EditorType, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
-import { IExpression } from 'vs/base/common/glob';
 import env = require('vs/base/common/platform');
-import { isFunction } from 'vs/base/common/types';
 import { Delayer } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
@@ -62,6 +60,8 @@ import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant }
 import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
 import { attachListStyler } from "vs/platform/theme/common/styler";
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { Color } from "vs/base/common/color";
 
 export class SearchViewlet extends Viewlet {
 
@@ -122,7 +122,8 @@ export class SearchViewlet extends Viewlet {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IListService private listService: IListService,
-		@IThemeService protected themeService: IThemeService
+		@IThemeService protected themeService: IThemeService,
+		@IOutputService private outputService: IOutputService
 	) {
 		super(Constants.VIEWLET_ID, telemetryService, themeService);
 
@@ -240,17 +241,19 @@ export class SearchViewlet extends Viewlet {
 			});
 
 			// add hint if we have global exclusion
-			this.inputPatternGlobalExclusionsContainer = builder.div({ 'class': 'file-types global-exclude disabled' }, (builder) => {
+			this.inputPatternGlobalExclusionsContainer = builder.div({ 'class': 'file-types global-exclude' }, (builder) => {
 				let title = nls.localize('global.searchScope.folders', "files excluded through settings");
 				builder.element('h4', { text: title });
 
 				this.inputPatternGlobalExclusions = new InputBox(builder.getContainer(), this.contextViewService, {
 					actions: [this.instantiationService.createInstance(ConfigureGlobalExclusionsAction)],
-					ariaLabel: nls.localize('label.global.excludes', 'Configured Search Exclude Patterns')
+					ariaLabel: nls.localize('label.global.excludes', 'Configured Search Exclude Patterns'),
+					// override some styles because this input is disabled
+					inputBackground: Color.transparent,
+					inputForeground: null
 				});
 				this.inputPatternGlobalExclusions.inputElement.readOnly = true;
 				$(this.inputPatternGlobalExclusions.inputElement).attr('aria-readonly', 'true');
-				$(this.inputPatternGlobalExclusions.inputElement).addClass('disabled');
 			}).hide();
 		}).getHTMLElement();
 
@@ -493,12 +496,12 @@ export class SearchViewlet extends Viewlet {
 					this.currentSelectedFileMatch = selectedMatch.parent();
 					this.currentSelectedFileMatch.setSelectedMatch(selectedMatch);
 					if (!(options.payload && options.payload.preventEditorOpen)) {
-						this.onFocus(selectedMatch, options.editorOptions.preserveFocus, options.editorOptions.pinned, options.sideBySide);
+						this.onFocus(selectedMatch, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 					}
 				}
 			}));
 
-			this.toUnbind.push(this.tree.addListener2('focus', (event: any) => {
+			this.toUnbind.push(this.tree.addListener('focus', (event: any) => {
 				const focus = this.tree.getFocus();
 				this.firstMatchFocussed.set(this.tree.getNavigator().first() === this.tree.getFocus());
 				this.fileMatchOrMatchFocussed.set(true);
@@ -798,12 +801,24 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		let editorControl: any = this.editorService.getActiveEditor().getControl();
-		if (!editorControl || !isFunction(editorControl.getEditorType) || editorControl.getEditorType() !== EditorType.ICodeEditor) { // Substitute for (editor instanceof ICodeEditor)
+		if (!isCommonCodeEditor(editorControl)) {
 			return null;
 		}
 
-		let range = editorControl.getSelection();
-		if (range && !range.isEmpty() && range.startLineNumber === range.endLineNumber) {
+		const codeEditor: ICommonCodeEditor = <ICommonCodeEditor>editorControl;
+		const range = codeEditor.getSelection();
+		if (!range) {
+			return null;
+		}
+
+		if (range.isEmpty() && !this.searchWidget.searchInput.getValue()) {
+			const wordAtPosition = codeEditor.getModel().getWordAtPosition(range.getStartPosition());
+			if (wordAtPosition) {
+				return wordAtPosition.word;
+			}
+		}
+
+		if (!range.isEmpty() && range.startLineNumber === range.endLineNumber) {
 			let searchText = editorControl.getModel().getLineContent(range.startLineNumber);
 			searchText = searchText.substring(range.startColumn - 1, range.endColumn - 1);
 			return searchText;
@@ -937,17 +952,18 @@ export class SearchViewlet extends Viewlet {
 			isWordMatch: isWholeWords
 		};
 
-		const excludes: IExpression = this.inputPatternExclusions.getGlob();
-		const includes: IExpression = this.inputPatternIncludes.getGlob();
+		const { expression: excludePattern } = this.inputPatternExclusions.getGlob();
+		const { expression: includePattern, searchPaths } = this.inputPatternIncludes.getGlob();
 
 		const options: IQueryOptions = {
 			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
-			excludePattern: excludes,
+			excludePattern,
+			includePattern,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
-			includePattern: includes,
 			disregardIgnoreFiles: !useIgnoreFiles,
-			disregardExcludeSettings: !useExcludeSettings
+			disregardExcludeSettings: !useExcludeSettings,
+			searchPaths
 		};
 
 		this.onQueryTriggered(this.queryBuilder.text(content, options), patternExcludes, patternIncludes);
@@ -973,7 +989,9 @@ export class SearchViewlet extends Viewlet {
 		this.showEmptyStage();
 
 		let isDone = false;
+		const outputChannel = this.outputService.getChannel('search');
 		let onComplete = (completed?: ISearchComplete) => {
+			outputChannel.append('\n');
 			isDone = true;
 
 			// Complete up to 100% as needed
@@ -1087,6 +1105,7 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		let onError = (e: any) => {
+			outputChannel.append('\n');
 			if (errors.isPromiseCanceledError(e)) {
 				onComplete(null);
 			} else {
@@ -1107,6 +1126,10 @@ export class SearchViewlet extends Viewlet {
 			}
 			if (p.worked) {
 				worked = p.worked;
+			}
+
+			if (p.message) {
+				outputChannel.append(p.message);
 			}
 		};
 
@@ -1158,8 +1181,8 @@ export class SearchViewlet extends Viewlet {
 		}, 100);
 
 		this.searchWidget.setReplaceAllActionState(false);
-		// this.replaceService.disposeAllReplacePreviews();
-		this.viewModel.search(query).done(onComplete, onError, query.useRipgrep ? undefined : onProgress);
+
+		this.viewModel.search(query).done(onComplete, onError, onProgress);
 	}
 
 	private updateSearchResultCount(): void {

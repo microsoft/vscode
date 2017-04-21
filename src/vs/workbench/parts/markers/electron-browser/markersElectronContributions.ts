@@ -73,7 +73,7 @@ interface IActionDescriptor {
 
 function registerAction(desc: IActionDescriptor) {
 
-	const {id, handler, title, category, iconClass, menu, keybinding} = desc;
+	const { id, handler, title, category, iconClass, menu, keybinding } = desc;
 
 	// 1) register as command
 	CommandsRegistry.registerCommand(id, handler);
@@ -81,7 +81,7 @@ function registerAction(desc: IActionDescriptor) {
 	// 2) menus
 	let command = { id, title, iconClass, category };
 	if (menu) {
-		let {menuId, when, group} = menu;
+		let { menuId, when, group } = menu;
 		MenuRegistry.appendMenuItem(menuId, {
 			command,
 			when,
@@ -91,7 +91,7 @@ function registerAction(desc: IActionDescriptor) {
 
 	// 3) keybindings
 	if (keybinding) {
-		let {when, weight, keys} = keybinding;
+		let { when, weight, keys } = keybinding;
 		KeybindingsRegistry.registerKeybindingRule({
 			id,
 			when,

@@ -113,7 +113,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private updateUserKeybinding(newKey: string, keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
-		const {tabSize, insertSpaces} = model.getOptions();
+		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
 		const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
@@ -123,7 +123,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private updateDefaultKeybinding(newKey: string, keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
-		const {tabSize, insertSpaces} = model.getOptions();
+		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
 		const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
@@ -141,7 +141,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private removeUserKeybinding(keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
-		const {tabSize, insertSpaces} = model.getOptions();
+		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
 		const userKeybindingEntryIndex = this.findUserKeybindingEntryIndex(keybindingItem, userKeybindingEntries);
@@ -151,13 +151,13 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 	}
 
 	private removeDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
-		const {tabSize, insertSpaces} = model.getOptions();
+		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(keybindingItem.resolvedKeybinding.getUserSettingsLabel(), keybindingItem.command, keybindingItem.when, true), { tabSize, insertSpaces, eol })[0], model);
 	}
 
 	private removeUnassignedDefaultKeybinding(keybindingItem: ResolvedKeybindingItem, model: editorCommon.IModel): void {
-		const {tabSize, insertSpaces} = model.getOptions();
+		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
 		const userKeybindingEntries = <IUserFriendlyKeybinding[]>json.parse(model.getValue());
 		const index = this.findUnassignedDefaultKeybindingEntryIndex(keybindingItem, userKeybindingEntries);

@@ -19,7 +19,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { GlobalScreenReaderNVDA } from 'vs/editor/common/config/commonEditorConfig';
-import { ICommonCodeEditor, IEditorContribution, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, CommonEditorRegistry, EditorAction, EditorCommand, Command } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
@@ -206,7 +207,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			alias: 'Show Accessibility Help',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Alt | KeyCode.F1
 			}
 		});
@@ -228,7 +229,7 @@ CommonEditorRegistry.registerEditorCommand(new AccessibilityHelpCommand({
 	handler: x => x.hide(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(100),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));

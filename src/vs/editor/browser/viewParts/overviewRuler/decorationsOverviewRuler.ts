@@ -14,6 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { OverviewRulerZone } from "vs/editor/common/view/overviewZoneManager";
 
 function getThemeType(themeId: string): editorCommon.ThemeType {
 	if (themes.isHighContrastTheme(themeId)) {
@@ -47,8 +48,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private _hideCursor: boolean;
 	private _cursorPositions: Position[];
 
-	private _zonesFromDecorations: editorCommon.OverviewRulerZone[];
-	private _zonesFromCursors: editorCommon.OverviewRulerZone[];
+	private _zonesFromDecorations: OverviewRulerZone[];
+	private _zonesFromCursors: OverviewRulerZone[];
 
 	constructor(context: ViewContext, scrollHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
 		super(context);
@@ -183,14 +184,14 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return this._overviewRuler.getDomNode();
 	}
 
-	private _createZonesFromDecorations(): editorCommon.OverviewRulerZone[] {
+	private _createZonesFromDecorations(): OverviewRulerZone[] {
 		let decorations = this._context.model.getAllOverviewRulerDecorations();
-		let zones: editorCommon.OverviewRulerZone[] = [];
+		let zones: OverviewRulerZone[] = [];
 
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let dec = decorations[i];
 			let overviewRuler = dec.source.options.overviewRuler;
-			zones.push(new editorCommon.OverviewRulerZone(
+			zones.push(new OverviewRulerZone(
 				dec.range.startLineNumber,
 				dec.range.endLineNumber,
 				overviewRuler.position,
@@ -204,13 +205,13 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return zones;
 	}
 
-	private _createZonesFromCursors(): editorCommon.OverviewRulerZone[] {
-		let zones: editorCommon.OverviewRulerZone[] = [];
+	private _createZonesFromCursors(): OverviewRulerZone[] {
+		let zones: OverviewRulerZone[] = [];
 
 		for (let i = 0, len = this._cursorPositions.length; i < len; i++) {
 			let cursor = this._cursorPositions[i];
 
-			zones.push(new editorCommon.OverviewRulerZone(
+			zones.push(new OverviewRulerZone(
 				cursor.lineNumber,
 				cursor.lineNumber,
 				editorCommon.OverviewRulerLane.Full,
@@ -245,7 +246,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 				}
 			}
 
-			let allZones: editorCommon.OverviewRulerZone[] = [];
+			let allZones: OverviewRulerZone[] = [];
 			allZones = allZones.concat(this._zonesFromCursors);
 			allZones = allZones.concat(this._zonesFromDecorations);
 

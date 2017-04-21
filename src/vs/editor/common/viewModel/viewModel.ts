@@ -4,13 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IViewWhitespaceViewportData, Viewport, IModelDecoration, EndOfLinePreference, IPosition } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, IModelDecoration, EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ViewEvent } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
+
+export interface IViewWhitespaceViewportData {
+	readonly id: number;
+	readonly afterLineNumber: number;
+	readonly verticalOffset: number;
+	readonly height: number;
+}
+
+export class Viewport {
+	readonly _viewportBrand: void;
+
+	readonly top: number;
+	readonly left: number;
+	readonly width: number;
+	readonly height: number;
+
+	constructor(top: number, left: number, width: number, height: number) {
+		this.top = top | 0;
+		this.left = left | 0;
+		this.width = width | 0;
+		this.height = height | 0;
+	}
+}
 
 export interface IViewLayout {
 

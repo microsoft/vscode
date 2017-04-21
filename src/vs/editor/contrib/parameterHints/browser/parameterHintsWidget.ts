@@ -17,11 +17,13 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
-import { ICommonCodeEditor, ICursorSelectionChangedEvent, IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
+import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+import { ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 const $ = dom.$;
 

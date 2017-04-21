@@ -114,7 +114,7 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 				if (!res.body) {
 					return;
 				}
-				let {configFileName, fileNames} = res.body;
+				let { configFileName, fileNames } = res.body;
 
 				if (projectHinted[configFileName] === true || !fileNames) {
 					return;
@@ -159,7 +159,7 @@ export function create(client: ITypescriptServiceClient, isOpen: (path: string) 
 
 	let item = new ExcludeHintItem(client);
 	toDispose.push(vscode.commands.registerCommand('js.projectStatus.command', () => {
-		let {message, options} = item.getCurrentHint();
+		let { message, options } = item.getCurrentHint();
 		return vscode.window.showInformationMessage(message, ...options).then(selection => {
 			if (selection) {
 				return selection.execute();

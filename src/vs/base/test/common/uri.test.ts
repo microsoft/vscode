@@ -399,6 +399,10 @@ suite('URI', () => {
 		uri2 = URI.parse(uri.toString());
 		assert.equal(uri2.query, 'LinkId=518008&foö&ké¥=üü');
 		assert.equal(uri2.query, uri.query);
+
+		// #24849
+		uri = URI.parse('https://twitter.com/search?src=typd&q=%23tag');
+		assert.equal(uri.toString(true), 'https://twitter.com/search?src=typd&q=%23tag');
 	});
 
 

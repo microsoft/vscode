@@ -10,11 +10,12 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor, ICursorSelectionChangedEvent, CursorChangeReason, IModel, IPosition, IWordAtPosition } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IModel, IWordAtPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, SuggestRegistry, StandardTokenType } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
+import { CursorChangeReason, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 export interface ICancelEvent {
 	retrigger: boolean;
@@ -69,7 +70,7 @@ export class LineContext {
 	readonly leadingWord: IWordAtPosition;
 	readonly auto;
 
-	constructor(model: IModel, position: IPosition, auto: boolean) {
+	constructor(model: IModel, position: Position, auto: boolean) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
 		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;

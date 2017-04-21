@@ -11,15 +11,15 @@ import { canceled } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
-import { IPosition, IRange } from 'vs/editor/common/editorCommon';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
 import { inputBackground, inputBorder, inputForeground, editorWidgetShadow, focus } from "vs/platform/theme/common/colorRegistry";
+import { Position } from "vs/editor/common/core/position";
 
 export default class RenameInputField implements IContentWidget, IDisposable {
 
 	private _editor: ICodeEditor;
-	private _position: IPosition;
+	private _position: Position;
 	private _domNode: HTMLElement;
 	private _inputField: HTMLInputElement;
 	private _visible: boolean;
@@ -123,9 +123,9 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		}
 	}
 
-	public getInput(where: IRange, value: string, selectionStart: number, selectionEnd: number): TPromise<string> {
+	public getInput(where: Range, value: string, selectionStart: number, selectionEnd: number): TPromise<string> {
 
-		this._position = { lineNumber: where.startLineNumber, column: where.startColumn };
+		this._position = new Position(where.startLineNumber, where.startColumn);
 		this._inputField.value = value;
 		this._inputField.setAttribute('selectionStart', selectionStart.toString());
 		this._inputField.setAttribute('selectionEnd', selectionEnd.toString());

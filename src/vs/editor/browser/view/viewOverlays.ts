@@ -6,7 +6,6 @@
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { IVisibleLine, VisibleLinesCollection, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Configuration } from 'vs/editor/browser/config/configuration';
@@ -60,8 +59,8 @@ export class ViewOverlays extends ViewPart implements IVisibleLinesHost<ViewOver
 		this._dynamicOverlays = null;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this.domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this.domNode;
 	}
 
 	// ---- begin IVisibleLinesHost
@@ -246,7 +245,7 @@ export class MarginViewOverlays extends ViewOverlays {
 
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 
-		this.domNode.setClassName(editorBrowser.ClassNames.MARGIN_VIEW_OVERLAYS);
+		this.domNode.setClassName('margin-view-overlays');
 		this.domNode.setWidth(1);
 
 		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);

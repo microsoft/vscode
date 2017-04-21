@@ -193,7 +193,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 		this.tree.refresh(stat, false).then(() => {
 			this.tree.setHighlight(stat);
 
-			const unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+			const unbind = this.tree.addListener(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 				if (!e.highlight) {
 					viewletState.clearEditable(stat);
 					this.tree.refresh(stat).done(null, errors.onUnexpectedError);
@@ -407,7 +407,7 @@ export class BaseNewAction extends BaseFileAction {
 						return this.tree.reveal(stat, 0.5).then(() => {
 							this.tree.setHighlight(stat);
 
-							const unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+							const unbind = this.tree.addListener(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 								if (!e.highlight) {
 									stat.destroy();
 									this.tree.refresh(folder).done(null, errors.onUnexpectedError);

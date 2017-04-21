@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions } from 'vs/editor/common/editorCommon';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TextEditorOptions, EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';

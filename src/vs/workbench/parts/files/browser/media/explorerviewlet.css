@@ -8,6 +8,10 @@
 	background-image: url('files-dark.svg');
 }
 
+.monaco-workbench > .activitybar.light .monaco-action-bar .action-label.explore {
+	background-image: url('files-light.svg');
+}
+
 /* --- Explorer viewlet --- */
 .explorer-viewlet {
 	height: 100%;

@@ -5,7 +5,11 @@
 
 /* Activity Bar */
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.debug {
-	background-image: url('debug.svg');
+	background-image: url('debug-dark.svg');
+}
+
+.monaco-workbench > .activitybar.light .monaco-action-bar .action-label.debug {
+	background-image: url('debug-light.svg');
 }
 
 .monaco-editor .debug-top-stack-frame-line,

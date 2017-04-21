@@ -4,16 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IOneCursorState, OneCursor, CursorContext } from 'vs/editor/common/controller/oneCursor';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ISelection } from 'vs/editor/common/editorCommon';
+import { OneCursor } from 'vs/editor/common/controller/oneCursor';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { CursorState } from 'vs/editor/common/controller/cursorCommon';
-
-export interface ICursorCollectionState {
-	primary: IOneCursorState;
-	secondary: IOneCursorState[];
-}
+import { CursorState, CursorContext } from 'vs/editor/common/controller/cursorCommon';
 
 export class CursorCollection {
 
@@ -48,43 +42,11 @@ export class CursorCollection {
 		}
 	}
 
-	public saveState(): ICursorCollectionState {
-		return {
-			primary: this.primaryCursor.saveState(),
-			secondary: this.secondaryCursors.map(c => c.saveState())
-		};
-	}
-
-	public restoreState(state: ICursorCollectionState): void {
-		this.primaryCursor.restoreState(this.context, state.primary);
-		this.killSecondaryCursors();
-		for (var i = 0; i < state.secondary.length; i++) {
-			this.addSecondaryCursor(null);
-			this.secondaryCursors[i].restoreState(this.context, state.secondary[i]);
-		}
-	}
-
 	public getAll(): OneCursor[] {
 		var result: OneCursor[] = [];
 		result.push(this.primaryCursor);
 		result = result.concat(this.secondaryCursors);
 		return result;
-	}
-
-	public getPosition(index: number): Position {
-		if (index === 0) {
-			return this.primaryCursor.modelState.position;
-		} else {
-			return this.secondaryCursors[index - 1].modelState.position;
-		}
-	}
-
-	public getViewPosition(index: number): Position {
-		if (index === 0) {
-			return this.primaryCursor.viewState.position;
-		} else {
-			return this.secondaryCursors[index - 1].viewState.position;
-		}
 	}
 
 	public getPositions(): Position[] {
@@ -105,14 +67,6 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getSelection(index: number): Selection {
-		if (index === 0) {
-			return this.primaryCursor.modelState.selection;
-		} else {
-			return this.secondaryCursors[index - 1].modelState.selection;
-		}
-	}
-
 	public getSelections(): Selection[] {
 		var result: Selection[] = [];
 		result.push(this.primaryCursor.modelState.selection);
@@ -131,9 +85,9 @@ export class CursorCollection {
 		return result;
 	}
 
-	public setSelections(selections: ISelection[], viewSelections?: ISelection[]): void {
-		this.primaryCursor.setSelection(this.context, selections[0], viewSelections ? viewSelections[0] : null);
-		this._setSecondarySelections(selections.slice(1), viewSelections ? viewSelections.slice(1) : null);
+	public setSelections(selections: ISelection[]): void {
+		this.primaryCursor.setSelection(this.context, selections[0]);
+		this._setSecondarySelections(selections.slice(1));
 	}
 
 	public getPrimaryCursor(): OneCursor {
@@ -173,7 +127,7 @@ export class CursorCollection {
 	}
 
 	public killSecondaryCursors(): boolean {
-		return (this._setSecondarySelections([], []) > 0);
+		return (this._setSecondarySelections([]) > 0);
 	}
 
 	public normalize(): void {
@@ -203,7 +157,7 @@ export class CursorCollection {
 	 * 		- a negative number indicates the number of secondary cursors removed
 	 * 		- 0 indicates that no changes have been done to the secondary cursors list
 	 */
-	private _setSecondarySelections(secondarySelections: ISelection[], viewSelections: ISelection[]): number {
+	private _setSecondarySelections(secondarySelections: ISelection[]): number {
 		var secondaryCursorsLength = this.secondaryCursors.length;
 		var secondarySelectionsLength = secondarySelections.length;
 		var returnValue = secondarySelectionsLength - secondaryCursorsLength;
@@ -222,7 +176,7 @@ export class CursorCollection {
 
 		for (var i = 0; i < secondarySelectionsLength; i++) {
 			if (secondarySelections[i]) {
-				this.secondaryCursors[i].setSelection(this.context, secondarySelections[i], viewSelections ? viewSelections[i] : null);
+				this.secondaryCursors[i].setSelection(this.context, secondarySelections[i]);
 			}
 		}
 

@@ -14,19 +14,19 @@ import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
 import * as glob from 'vs/base/common/glob';
-import { ILineMatch, IProgress } from 'vs/platform/search/common/search';
+import { ILineMatch, ISearchLog } from 'vs/platform/search/common/search';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine } from './search';
+import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch } from './search';
 
-export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
+export class RipgrepEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
 	private postProcessExclusions: glob.ParsedExpression;
 
 	private ripgrepParser: RipgrepParser;
 
-	private handleResultP: TPromise<any> = TPromise.wrap(null);
+	private resultsHandledP: TPromise<any> = TPromise.wrap(null);
 
 	constructor(private config: IRawSearch) {
 	}
@@ -38,9 +38,9 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 	}
 
 	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
-	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		if (this.config.rootFolders.length) {
-			this.searchFolder(this.config.rootFolders[0], onResult, onProgress, done);
+			this.searchFolder(this.config.rootFolders[0], onResult, onMessage, done);
 		} else {
 			done(null, {
 				limitHit: false,
@@ -49,26 +49,38 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		}
 	}
 
-	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	private searchFolder(rootFolder: string, onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		const rgArgs = getRgArgs(this.config);
 		if (rgArgs.siblingClauses) {
 			this.postProcessExclusions = glob.parseToAsync(rgArgs.siblingClauses, { trimForExclusions: true });
 		}
 
-		// console.log(`rg ${rgArgs.args.join(' ')}, cwd: ${rootFolder}`);
+		process.nextTick(() => {
+			const escapedArgs = rgArgs.args
+				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+				.join(' ');
+
+			// Allow caller to register progress callback
+			const rgCmd = `rg ${escapedArgs}\n - cwd: ${rootFolder}\n`;
+			onMessage({ message: rgCmd });
+			if (rgArgs.siblingClauses) {
+				onMessage({ message: ` - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}\n` });
+			}
+		});
 		this.rgProc = cp.spawn(rgPath, rgArgs.args, { cwd: rootFolder });
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, rootFolder);
 		this.ripgrepParser.on('result', (match: ISerializedFileMatch) => {
 			if (this.postProcessExclusions) {
 				const relativePath = path.relative(rootFolder, match.path);
-				this.handleResultP = this.handleResultP
-					.then(() => (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path))))
+				const handleResultP = (<TPromise<string>>this.postProcessExclusions(relativePath, undefined, () => getSiblings(match.path)))
 					.then(globMatch => {
 						if (!globMatch) {
 							onResult(match);
 						}
 					});
+
+				this.resultsHandledP = TPromise.join([this.resultsHandledP, handleResultP]);
 			} else {
 				onResult(match);
 			}
@@ -90,18 +102,21 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 
 		let stderr = '';
 		this.rgProc.stderr.on('data', data => {
-			stderr += data.toString();
+			const message = data.toString();
+			onMessage({ message });
+			stderr += message;
 		});
 
 		this.rgProc.on('close', code => {
 			// Trigger last result, then wait on async result handling
 			this.ripgrepParser.flush();
-			this.handleResultP.then(() => {
+			this.resultsHandledP.then(() => {
 				this.rgProc = null;
 				if (!this.isDone) {
 					this.isDone = true;
-					if (stderr && this.shouldReturnErrorMsg(stderr) && !gotData) {
-						done(new Error(stderr), {
+					let displayMsg: string;
+					if (stderr && !gotData && (displayMsg = this.rgErrorMsgForDisplay(stderr))) {
+						done(new Error(displayMsg), {
 							limitHit: false,
 							stats: null
 						});
@@ -116,8 +131,23 @@ export class RipgrepEngine implements ISearchEngine<ISerializedFileMatch> {
 		});
 	}
 
-	private shouldReturnErrorMsg(msg: string): boolean {
-		return strings.startsWith(msg, 'Error parsing regex');
+	private rgErrorMsgForDisplay(msg: string): string {
+		const firstLine = msg.split('\n')[0];
+		if (firstLine.match(/^No files were searched, which means ripgrep/)) {
+			// Not really a useful message to show in the UI
+			return undefined;
+		}
+
+		// The error "No such file or directory" is returned for broken symlinks and also for bad search paths.
+		// Only show it if it's from a search path.
+		const reg = /^(\.\/.*): No such file or directory \(os error 2\)/;
+		const noSuchFileMatch = firstLine.match(reg);
+		if (noSuchFileMatch) {
+			const errorPath = noSuchFileMatch[1];
+			return this.config.searchPaths && this.config.searchPaths.indexOf(errorPath) >= 0 ? firstLine : undefined;
+		}
+
+		return firstLine;
 	}
 }
 
@@ -395,7 +425,11 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 		args.push(searchPatternAfterDoubleDashes);
 	}
 
-	args.push('./');
+	if (config.searchPaths && config.searchPaths.length) {
+		args.push(...config.searchPaths);
+	} else {
+		args.push('./');
+	}
 
 	return { args, siblingClauses };
 }

@@ -77,7 +77,6 @@ export class HtmlPreviewPart extends BaseEditor {
 	protected createEditor(parent: Builder): void {
 		this._container = document.createElement('div');
 		this._container.style.position = 'absolute';
-		this._container.style.zIndex = '300';
 		parent.getHTMLElement().appendChild(this._container);
 	}
 
@@ -131,7 +130,7 @@ export class HtmlPreviewPart extends BaseEditor {
 	}
 
 	public layout(dimension: Dimension): void {
-		const {width, height} = dimension;
+		const { width, height } = dimension;
 		this._container.style.width = `${width}px`;
 		this._container.style.height = `${height}px`;
 		if (this._webview) {

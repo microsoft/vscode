@@ -8,9 +8,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { MouseHandler, IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
-import { IViewController, IMouseTarget } from 'vs/editor/browser/editorBrowser';
+import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
+import { ViewController } from "vs/editor/browser/view/viewController";
 
 interface IThrottledGestureEvent {
 	translationX: number;
@@ -37,7 +38,7 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 	private _lastPointerType: string;
 	private _installGestureHandlerTimeout: number;
 
-	constructor(context: ViewContext, viewController: IViewController, viewHelper: IPointerHandlerHelper) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.viewHelper.linesContentDomNode.style.msTouchAction = 'none';
@@ -66,8 +67,8 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 						penGesture.addPointer(e.pointerId);
 					}
 				});
-				this.listenersToRemove.push(dom.addDisposableThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
-				this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
+				this._register(dom.addDisposableThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
+				this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
 			}
 		}, 100);
 		this._lastPointerType = 'mouse';
@@ -118,7 +119,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 	private _lastPointerType: string;
 	private _installGestureHandlerTimeout: number;
 
-	constructor(context: ViewContext, viewController: IViewController, viewHelper: IPointerHandlerHelper) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.viewHelper.linesContentDomNode.style.touchAction = 'none';
@@ -147,8 +148,8 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 						penGesture.addPointer(e.pointerId);
 					}
 				});
-				this.listenersToRemove.push(dom.addDisposableThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
-				this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
+				this._register(dom.addDisposableThrottledListener<IThrottledGestureEvent>(this.viewHelper.linesContentDomNode, 'MSGestureChange', (e) => this._onGestureChange(e), gestureChangeEventMerger));
+				this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, 'MSGestureTap', (e) => this._onCaptureGestureTap(e), true));
 			}
 		}, 100);
 		this._lastPointerType = 'mouse';
@@ -195,14 +196,14 @@ class TouchHandler extends MouseHandler {
 
 	private gesture: Gesture;
 
-	constructor(context: ViewContext, viewController: IViewController, viewHelper: IPointerHandlerHelper) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.gesture = new Gesture(this.viewHelper.linesContentDomNode);
 
-		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
-		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));
-		this.listenersToRemove.push(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditorMouseEvent(e, this.viewHelper.viewDomNode), false)));
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditorMouseEvent(e, this.viewHelper.viewDomNode), false)));
 
 	}
 
@@ -234,7 +235,7 @@ class TouchHandler extends MouseHandler {
 export class PointerHandler implements IDisposable {
 	private handler: MouseHandler;
 
-	constructor(context: ViewContext, viewController: IViewController, viewHelper: IPointerHandlerHelper) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		if (window.navigator.msPointerEnabled) {
 			this.handler = new MsPointerHandler(context, viewController, viewHelper);
 		} else if ((<any>window).TouchEvent) {

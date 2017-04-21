@@ -17,7 +17,7 @@ function encodeURIComponent2(str: string): string {
 }
 
 function encodeNoop(str: string): string {
-	return str;
+	return str.replace(/[#?]/, _encode);
 }
 
 
@@ -364,10 +364,10 @@ export default class URI {
 			while (true) {
 				let idx = path.indexOf(URI._slash, lastIdx);
 				if (idx === -1) {
-					parts.push(encoder(path.substring(lastIdx)).replace(/[#?]/, _encode));
+					parts.push(encoder(path.substring(lastIdx)));
 					break;
 				}
-				parts.push(encoder(path.substring(lastIdx, idx)).replace(/[#?]/, _encode), URI._slash);
+				parts.push(encoder(path.substring(lastIdx, idx)), URI._slash);
 				lastIdx = idx + 1;
 			};
 		}

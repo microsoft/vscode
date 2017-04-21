@@ -979,11 +979,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					if (response.success) {
 						p.c(response);
 					} else {
-						this.logTelemetry('requestFailed', {
-							id: response.request_seq.toString(),
-							command: response.command,
-							message: response.message ? response.message : 'No detailed message provided'
-						});
 						p.e(response);
 					}
 				}

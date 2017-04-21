@@ -10,15 +10,16 @@ import * as nls from 'vs/nls';
 import { IContext, QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { Position } from "vs/editor/common/core/position";
+import { Range } from "vs/editor/common/core/range";
 
 interface ParseResult {
-	position: editorCommon.IPosition;
+	position: Position;
 	isValid: boolean;
 	label: string;
 }
@@ -41,30 +42,21 @@ export class GotoLineEntry extends QuickOpenEntry {
 	private _parseInput(line: string): ParseResult {
 
 		let numbers = line.split(',').map(part => parseInt(part, 10)).filter(part => !isNaN(part)),
-			position: editorCommon.IPosition;
+			position: Position;
 
 		if (numbers.length === 0) {
-			position = { lineNumber: -1, column: -1 };
+			position = new Position(-1, -1);
 		} else if (numbers.length === 1) {
-			position = { lineNumber: numbers[0], column: 1 };
+			position = new Position(numbers[0], 1);
 		} else {
-			position = { lineNumber: numbers[0], column: numbers[1] };
+			position = new Position(numbers[0], numbers[1]);
 		}
 
-		let editorType = (<ICodeEditor>this.editor).getEditorType(),
-			model: editorCommon.IModel;
-
-		switch (editorType) {
-			case editorCommon.EditorType.IDiffEditor:
-				model = (<IDiffEditor>this.editor).getModel().modified;
-				break;
-
-			case editorCommon.EditorType.ICodeEditor:
-				model = (<ICodeEditor>this.editor).getModel();
-				break;
-
-			default:
-				throw new Error();
+		let model: editorCommon.IModel;
+		if (editorCommon.isCommonCodeEditor(this.editor)) {
+			model = this.editor.getModel();
+		} else {
+			model = (<IDiffEditor>this.editor).getModel().modified;
 		}
 
 		let isValid = model.validatePosition(position).equals(position),
@@ -139,13 +131,13 @@ export class GotoLineEntry extends QuickOpenEntry {
 		return false;
 	}
 
-	private toSelection(): editorCommon.IRange {
-		return {
-			startLineNumber: this._parseResult.position.lineNumber,
-			startColumn: this._parseResult.position.column,
-			endLineNumber: this._parseResult.position.lineNumber,
-			endColumn: this._parseResult.position.column
-		};
+	private toSelection(): Range {
+		return new Range(
+			this._parseResult.position.lineNumber,
+			this._parseResult.position.column,
+			this._parseResult.position.lineNumber,
+			this._parseResult.position.column
+		);
 	}
 }
 
@@ -159,7 +151,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 			alias: 'Go to Line...',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
 			}

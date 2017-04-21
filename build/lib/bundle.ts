@@ -226,7 +226,8 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 	});
 
 	return {
-		files: extractStrings(removeDuplicateTSBoilerplate(result)),
+		// TODO@TS 2.1.2
+		files: extractStrings(/*removeDuplicateTSBoilerplate(*/result/*)*/),
 		bundleData: bundleData
 	};
 }

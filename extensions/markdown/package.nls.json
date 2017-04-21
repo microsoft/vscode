@@ -12,5 +12,6 @@
 	"markdown.showSource.title" : "Show Source",
 	"markdown.styles.dec": "A list of URLs or local paths to CSS style sheets to use from the markdown preview. Relative paths are interpreted relative to the folder open in the explorer. If there is no open folder, they are interpreted relative to the location of the markdown file. All '\\' need to be written as '\\\\'.",
 	"markdown.showPreviewSecuritySelector.title": "Change Markdown Preview Security Settings",
-	"markdown.preview.enableExperimentalExtensionApi.desc": "[Experimental] Allow extensions to extend the markdown preview."
+	"markdown.preview.enableExperimentalExtensionApi.desc": "[Experimental] Allow extensions to extend the markdown preview.",
+	"markdown.trace.desc": "Enable debug logging for the markdown extension."
 }

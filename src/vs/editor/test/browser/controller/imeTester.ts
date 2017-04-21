@@ -7,7 +7,7 @@
 import { TextAreaHandler } from 'vs/editor/common/controller/textAreaHandler';
 import * as browser from 'vs/base/browser/browser';
 import { TextAreaStrategy, ISimpleModel } from 'vs/editor/common/controller/textAreaState';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import { Position } from 'vs/editor/common/core/position';
@@ -43,7 +43,7 @@ class SingleLineTestModel implements ISimpleModel {
 		return this._eol;
 	}
 
-	getValueInRange(range: editorCommon.IRange, eol: editorCommon.EndOfLinePreference): string {
+	getValueInRange(range: IRange, eol: editorCommon.EndOfLinePreference): string {
 		return this._line.substring(range.startColumn - 1, range.endColumn - 1);
 	}
 
@@ -105,7 +105,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let model = new SingleLineTestModel('some  text');
 
-	let handler = new TextAreaHandler(browser, strategy, textAreaWrapper, model, () => { });
+	let handler = new TextAreaHandler(browser, strategy, textAreaWrapper, model);
 
 	input.onfocus = () => {
 		handler.setHasFocus(true);

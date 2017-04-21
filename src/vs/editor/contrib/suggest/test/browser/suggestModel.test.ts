@@ -324,7 +324,6 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					const [first, second] = event.completionModel.items;
 					assert.equal(first.suggestion.label, 'foo.bar');
 					assert.equal(second.suggestion.label, 'boom');
-					assert.equal(event.completionModel.topScoreIdx, 0);
 				});
 			});
 		});

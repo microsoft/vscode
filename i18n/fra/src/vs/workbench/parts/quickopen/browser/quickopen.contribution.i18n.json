@@ -10,5 +10,5 @@
 	"gotoSymbolDescription": "Atteindre le symbole dans le fichier",
 	"gotoSymbolDescriptionScoped": "Atteindre le symbole dans le fichier par catégorie",
 	"helpDescription": "Afficher l'aide",
-	"viewPickerDescription": "Ouvrir l'affichage"
+	"viewPickerDescription": "Ouvrir la vue"
 }

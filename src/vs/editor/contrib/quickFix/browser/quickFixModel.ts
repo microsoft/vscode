@@ -11,15 +11,16 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommonCodeEditor, IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
+import { Position } from "vs/editor/common/core/position";
 
 
 export class QuickFixOracle {
 
 	private _disposables: IDisposable[] = [];
-	private _currentRange: IRange;
+	private _currentRange: Range;
 
 	constructor(
 		private _editor: ICommonCodeEditor,
@@ -75,7 +76,7 @@ export class QuickFixOracle {
 		}
 	}
 
-	private _rangeAtPosition(): IRange {
+	private _rangeAtPosition(): Range {
 
 		// (1) check with non empty selection
 		const selection = this._editor.getSelection();
@@ -110,17 +111,12 @@ export class QuickFixOracle {
 		return undefined;
 	}
 
-	private _wordAtPosition(): IRange {
+	private _wordAtPosition(): Range {
 		const pos = this._editor.getPosition();
 		const model = this._editor.getModel();
 		const info = model.getWordAtPosition(pos);
 		if (info) {
-			return {
-				startLineNumber: pos.lineNumber,
-				startColumn: info.startColumn,
-				endLineNumber: pos.lineNumber,
-				endColumn: info.endColumn
-			};
+			return new Range(pos.lineNumber, info.startColumn, pos.lineNumber, info.endColumn);
 		}
 		return undefined;
 	}
@@ -128,8 +124,8 @@ export class QuickFixOracle {
 
 export interface QuickFixComputeEvent {
 	type: 'auto' | 'manual';
-	range: IRange;
-	position: IPosition;
+	range: Range;
+	position: Position;
 	fixes: TPromise<CodeAction[]>;
 }
 

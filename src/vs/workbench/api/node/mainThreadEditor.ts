@@ -9,21 +9,23 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Range, IRange } from 'vs/editor/common/core/range';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
+import { TextEditorCursorStyle, cursorStyleToString } from "vs/editor/common/config/editorOptions";
+import { ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | 'auto';
 	insertSpaces?: boolean | 'auto';
-	cursorStyle?: EditorCommon.TextEditorCursorStyle;
+	cursorStyle?: TextEditorCursorStyle;
 	lineNumbers?: TextEditorLineNumbersStyle;
 }
 export interface IResolvedTextEditorConfiguration {
 	tabSize: number;
 	insertSpaces: boolean;
-	cursorStyle: EditorCommon.TextEditorCursorStyle;
+	cursorStyle: TextEditorCursorStyle;
 	lineNumbers: TextEditorLineNumbersStyle;
 }
 
@@ -151,7 +153,7 @@ export class MainThreadTextEditor {
 				this.setCodeEditor(null);
 			}));
 
-			let forwardSelection = (event?: EditorCommon.ICursorSelectionChangedEvent) => {
+			let forwardSelection = (event?: ICursorSelectionChangedEvent) => {
 				this._lastSelection = this._codeEditor.getSelections();
 				this._onSelectionChanged.fire({
 					selections: this._lastSelection,
@@ -194,7 +196,7 @@ export class MainThreadTextEditor {
 		return this._lastSelection;
 	}
 
-	public setSelections(selections: EditorCommon.ISelection[]): void {
+	public setSelections(selections: ISelection[]): void {
 		if (this._codeEditor) {
 			this._codeEditor.setSelections(selections);
 			return;
@@ -244,7 +246,7 @@ export class MainThreadTextEditor {
 		}
 
 		if (newConfiguration.cursorStyle) {
-			let newCursorStyle = EditorCommon.cursorStyleToString(newConfiguration.cursorStyle);
+			let newCursorStyle = cursorStyleToString(newConfiguration.cursorStyle);
 			this._codeEditor.updateOptions({
 				cursorStyle: newCursorStyle
 			});
@@ -275,7 +277,7 @@ export class MainThreadTextEditor {
 		this._codeEditor.setDecorations(key, ranges);
 	}
 
-	public revealRange(range: EditorCommon.IRange, revealType: TextEditorRevealType): void {
+	public revealRange(range: IRange, revealType: TextEditorRevealType): void {
 		if (!this._codeEditor) {
 			return;
 		}
@@ -303,7 +305,7 @@ export class MainThreadTextEditor {
 			// shutdown time
 			return this._configuration;
 		}
-		let cursorStyle = this._configuration ? this._configuration.cursorStyle : EditorCommon.TextEditorCursorStyle.Line;
+		let cursorStyle = this._configuration ? this._configuration.cursorStyle : TextEditorCursorStyle.Line;
 		let lineNumbers: TextEditorLineNumbersStyle = this._configuration ? this._configuration.lineNumbers : TextEditorLineNumbersStyle.On;
 		if (codeEditor) {
 			let codeEditorOpts = codeEditor.getConfiguration();
@@ -386,7 +388,7 @@ export class MainThreadTextEditor {
 		return true;
 	}
 
-	insertSnippet(template: string, ranges: EditorCommon.IRange[], opts: IUndoStopOptions) {
+	insertSnippet(template: string, ranges: IRange[], opts: IUndoStopOptions) {
 
 		if (!this._codeEditor) {
 			return false;

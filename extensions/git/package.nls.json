@@ -36,5 +36,6 @@
 	"config.confirmSync": "Confirm before synchronizing git repositories",
 	"config.countBadge": "Controls the git badge counter",
 	"config.checkoutType": "Controls what type of branches are listed",
-	"config.ignoreLegacyWarning": "Ignores the legacy Git warning"
+	"config.ignoreLegacyWarning": "Ignores the legacy Git warning",
+	"config.ignoreLimitWarning": "Ignores the warning when there are too many changes in a repository"
 }

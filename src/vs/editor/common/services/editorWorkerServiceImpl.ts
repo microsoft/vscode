@@ -12,12 +12,14 @@ import { SimpleWorkerClient, logOnceWebWorkerWarning } from 'vs/base/common/work
 import { DefaultWorkerFactory } from 'vs/base/worker/defaultWorkerFactory';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IRange } from "vs/editor/common/core/range";
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -29,31 +31,29 @@ const STOP_SYNC_MODEL_DELTA_TIME_MS = 60 * 1000;
  */
 const STOP_WORKER_DELTA_TIME_MS = 5 * 60 * 1000;
 
-export class EditorWorkerServiceImpl implements IEditorWorkerService {
+export class EditorWorkerServiceImpl extends Disposable implements IEditorWorkerService {
 	public _serviceBrand: any;
 
 	private readonly _workerManager: WorkerManager;
-	private readonly _registrations: IDisposable[];
 
 	constructor(
 		@IModelService modelService: IModelService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		this._workerManager = new WorkerManager(modelService);
+		super();
+		this._workerManager = this._register(new WorkerManager(modelService));
 
 		// todo@joh make sure this happens only once
-		const linkProvider = modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
+		this._register(modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
 			provideLinks: (model, token) => {
 				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
 			}
-		});
-		const completionProvider = modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService));
-		this._registrations = [linkProvider, completionProvider];
+		}));
+		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService)));
 	}
 
 	public dispose(): void {
-		this._workerManager.dispose();
-		dispose(this._registrations);
+		super.dispose();
 	}
 
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.ILineChange[]> {
@@ -64,7 +64,7 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: editorCommon.IRange[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: IRange[]): TPromise<modes.TextEdit[]> {
 		if (!Array.isArray(edits) || edits.length === 0) {
 			return TPromise.as(edits);
 		} else {
@@ -72,7 +72,7 @@ export class EditorWorkerServiceImpl implements IEditorWorkerService {
 		}
 	}
 
-	public navigateValueSet(resource: URI, range: editorCommon.IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
 	}
 }
@@ -89,7 +89,7 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
 
-		const { wordBasedSuggestions } = this._configurationService.getConfiguration<editorCommon.IEditorOptions>('editor');
+		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>('editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
 		}
@@ -236,22 +236,11 @@ class EditorModelManager extends Disposable {
 		});
 
 		let toDispose: IDisposable[] = [];
-		toDispose.push(model.addBulkListener((events) => {
-			let changedEvents: editorCommon.IModelContentChangedEvent2[] = [];
-			for (let i = 0, len = events.length; i < len; i++) {
-				let e = events[i];
-				switch (e.getType()) {
-					case editorCommon.EventType.ModelContentChanged2:
-						changedEvents.push(<editorCommon.IModelContentChangedEvent2>e.getData());
-						break;
-					case editorCommon.EventType.ModelDispose:
-						this._stopModelSync(modelUrl);
-						return;
-				}
-			}
-			if (changedEvents.length > 0) {
-				this._proxy.acceptModelChanged(modelUrl.toString(), changedEvents);
-			}
+		toDispose.push(model.onDidChangeContent((e) => {
+			this._proxy.acceptModelChanged(modelUrl.toString(), e);
+		}));
+		toDispose.push(model.onWillDispose(() => {
+			this._stopModelSync(modelUrl);
 		}));
 		toDispose.push({
 			dispose: () => {
@@ -359,7 +348,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: editorCommon.IRange[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: IRange[]): TPromise<modes.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeMoreMinimalEdits(resource.toString(), edits, ranges);
 		});
@@ -371,7 +360,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public textualSuggest(resource: URI, position: editorCommon.IPosition): TPromise<modes.ISuggestResult> {
+	public textualSuggest(resource: URI, position: IPosition): TPromise<modes.ISuggestResult> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {
@@ -384,7 +373,7 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public navigateValueSet(resource: URI, range: editorCommon.IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
+	public navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			let model = this._modelService.getModel(resource);
 			if (!model) {

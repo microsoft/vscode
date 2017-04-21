@@ -6,13 +6,12 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ClassNames, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { Position } from 'vs/editor/common/core/position';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { IViewLayout } from 'vs/editor/common/viewModel/viewModel';
+import { IViewLayout, IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export interface IMyViewZone {
@@ -24,7 +23,7 @@ export interface IMyViewZone {
 }
 
 export interface IMyRenderData {
-	data: editorCommon.IViewWhitespaceViewportData[];
+	data: IViewWhitespaceViewportData[];
 }
 
 interface IComputedViewZoneProps {
@@ -52,7 +51,7 @@ export class ViewZones extends ViewPart {
 		this._viewLayout = viewLayout;
 
 		this.domNode = createFastDomNode(document.createElement('div'));
-		this.domNode.setClassName(ClassNames.VIEW_ZONES);
+		this.domNode.setClassName('view-zones');
 		this.domNode.setPosition('absolute');
 		this.domNode.setAttribute('role', 'presentation');
 		this.domNode.setAttribute('aria-hidden', 'true');
@@ -203,14 +202,14 @@ export class ViewZones extends ViewPart {
 		myZone.domNode.domNode.style.width = '100%';
 		myZone.domNode.setDisplay('none');
 		myZone.domNode.setAttribute('monaco-view-zone', myZone.whitespaceId.toString());
-		this.domNode.domNode.appendChild(myZone.domNode.domNode);
+		this.domNode.appendChild(myZone.domNode);
 
 		if (myZone.marginDomNode) {
 			myZone.marginDomNode.setPosition('absolute');
 			myZone.marginDomNode.domNode.style.width = '100%';
 			myZone.marginDomNode.setDisplay('none');
 			myZone.marginDomNode.setAttribute('monaco-view-zone', myZone.whitespaceId.toString());
-			this.marginDomNode.domNode.appendChild(myZone.marginDomNode.domNode);
+			this.marginDomNode.appendChild(myZone.marginDomNode);
 		}
 
 		this._zones[myZone.whitespaceId.toString()] = myZone;
@@ -305,7 +304,7 @@ export class ViewZones extends ViewPart {
 
 	public render(ctx: RestrictedRenderingContext): void {
 		let visibleWhitespaces = this._viewLayout.getWhitespaceViewportData();
-		let visibleZones: { [id: string]: editorCommon.IViewWhitespaceViewportData; } = {};
+		let visibleZones: { [id: string]: IViewWhitespaceViewportData; } = {};
 
 		let hasVisibleZone = false;
 		for (let i = 0, len = visibleWhitespaces.length; i < len; i++) {

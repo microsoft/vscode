@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -98,7 +97,7 @@ interface IMatchTemplate {
 	parent: HTMLElement;
 	before: HTMLElement;
 	match: HTMLElement;
-	replace?: HTMLElement;
+	replace: HTMLElement;
 	after: HTMLElement;
 	actions: ActionBar;
 }
@@ -197,12 +196,12 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const searchModel: SearchModel = (<SearchResult>tree.getInput()).searchModel;
 		const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
 
-		templateData.before.textContent = strings.escape(preview.before);
-		templateData.match.textContent = strings.escape(preview.inside);
+		templateData.before.textContent = preview.before;
+		templateData.match.textContent = preview.inside;
 		DOM.toggleClass(templateData.match, 'replace', replace);
-		templateData.replace.textContent = replace ? strings.escape(match.replaceString) : '';
-		templateData.after.textContent = strings.escape(preview.after);
-		templateData.parent.title = (preview.before + (templateData.replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
+		templateData.replace.textContent = replace ? match.replaceString : '';
+		templateData.after.textContent = preview.after;
+		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 
 		templateData.actions.clear();
 		if (searchModel.isReplaceActive()) {

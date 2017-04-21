@@ -20,7 +20,8 @@ import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IEditorOptions, IReadOnlyModel, EditorContextKeys, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IReadOnlyModel, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
@@ -41,6 +42,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { attachListStyler } from "vs/platform/theme/common/styler";
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
 const $ = dom.$;
 
@@ -285,7 +287,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 
 	public dispose(): void {
-		this.replInput.destroy();
+		this.replInput.dispose();
 		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
@@ -301,7 +303,7 @@ class ReplHistoryPreviousAction extends EditorAction {
 			alias: 'History Previous',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.TextFocus, debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE),
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE),
 				primary: KeyCode.UpArrow,
 				weight: 50
 			},
@@ -326,7 +328,7 @@ class ReplHistoryNextAction extends EditorAction {
 			alias: 'History Next',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.TextFocus, debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE),
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, debug.CONTEXT_ON_LAST_DEBUG_REPL_LINE),
 				primary: KeyCode.DownArrow,
 				weight: 50
 			},
@@ -351,7 +353,7 @@ class AcceptReplInputAction extends EditorAction {
 			alias: 'REPL Accept Input',
 			precondition: debug.CONTEXT_IN_DEBUG_REPL,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyCode.Enter
 			}
 		});
@@ -370,7 +372,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: 50,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.RightArrow
 	}
 }));

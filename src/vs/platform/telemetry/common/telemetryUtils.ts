@@ -260,6 +260,7 @@ const configurationValueWhitelist = [
 	'editor.folding',
 	'editor.matchBrackets',
 	'workbench.editor.enablePreviewFromQuickOpen',
+	'workbench.editor.swipeToNavigate',
 	'php.builtInCompletions.enable',
 	'php.validate.enable',
 	'php.validate.run',

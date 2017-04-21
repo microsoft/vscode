@@ -16,6 +16,7 @@ import 'vs/editor/contrib/clipboard/browser/clipboard';
 import 'vs/editor/contrib/codelens/browser/codelens';
 import 'vs/editor/contrib/comment/common/comment';
 import 'vs/editor/contrib/contextmenu/browser/contextmenu';
+import 'vs/editor/contrib/cursorUndo/browser/cursorUndo';
 import 'vs/editor/contrib/diffNavigator/common/diffNavigator';
 import 'vs/editor/contrib/dnd/browser/dnd';
 import 'vs/editor/contrib/find/browser/find';

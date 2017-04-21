@@ -125,15 +125,15 @@ export class DebugService implements debug.IDebugService {
 		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		if (this.taskService) {
-			this.toDispose.push(this.taskService.addListener2(TaskServiceEvents.Active, (e: TaskEvent) => {
+			this.toDispose.push(this.taskService.addListener(TaskServiceEvents.Active, (e: TaskEvent) => {
 				this.lastTaskEvent = e;
 			}));
-			this.toDispose.push(this.taskService.addListener2(TaskServiceEvents.Inactive, (e: TaskEvent) => {
+			this.toDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (e: TaskEvent) => {
 				if (e.type === TaskType.SingleRun) {
 					this.lastTaskEvent = null;
 				}
 			}));
-			this.toDispose.push(this.taskService.addListener2(TaskServiceEvents.Terminated, (e: TaskEvent) => {
+			this.toDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, (e: TaskEvent) => {
 				this.lastTaskEvent = null;
 			}));
 		}
@@ -845,7 +845,7 @@ export class DebugService implements debug.IDebugService {
 			});
 
 			if (filteredTasks[0].isBackground) {
-				return new TPromise((c, e) => this.taskService.addOneTimeDisposableListener(TaskServiceEvents.Inactive, () => c(null)));
+				return new TPromise((c, e) => this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null)));
 			}
 
 			return taskPromise;

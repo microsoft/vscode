@@ -24,7 +24,15 @@
 }
 
 /* Activity Bar */
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.git,
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.git {
+	background-image: url('git-dark.svg');
+}
+
+.monaco-workbench > .activitybar.light .monaco-action-bar .action-label.git {
+	background-image: url('git-light.svg');
+}
+
+/* Status / Quick Open */
 .monaco-shell .git-statusbar-group > .git-statusbar-branch-item,
 .vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.git {
 	background-image: url('git-dark.svg');

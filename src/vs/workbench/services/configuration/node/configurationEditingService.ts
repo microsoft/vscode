@@ -127,9 +127,9 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	}
 
 	private getEdits(model: editorCommon.IModel, edit: IConfigurationEditOperation): Edit[] {
-		const {tabSize, insertSpaces} = model.getOptions();
+		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
-		const {key, value, overrideIdentifier} = edit;
+		const { key, value, overrideIdentifier } = edit;
 
 		// Without key, the entire settings file is being replaced, so we just use JSON.stringify
 		if (!key) {

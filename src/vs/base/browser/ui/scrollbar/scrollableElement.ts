@@ -398,7 +398,7 @@ export class DomScrollableElement extends ScrollableElement {
 
 function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
 	let result: ScrollableElementResolvedOptions = {
-		canUseTranslate3d: opts.canUseTranslate3d && Browser.canUseTranslate3d,
+		canUseTranslate3d: opts.canUseTranslate3d && Browser.supportsTranslate3d,
 		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
 		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),

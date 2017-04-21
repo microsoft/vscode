@@ -5,8 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import { OverviewRulerLane, OverviewRulerZone, ColorZone, ThemeType } from 'vs/editor/common/editorCommon';
-import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
+import { OverviewRulerLane, ThemeType } from 'vs/editor/common/editorCommon';
+import { OverviewZoneManager, ColorZone, OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 
 suite('Editor View - OverviewZoneManager', () => {
 

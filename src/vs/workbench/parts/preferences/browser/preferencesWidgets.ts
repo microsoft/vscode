@@ -12,7 +12,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,6 +25,8 @@ import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/acti
 import { Action } from 'vs/base/common/actions';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Position } from "vs/editor/common/core/position";
+import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -39,7 +41,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private _onToggled = this._register(new Emitter<boolean>());
 	public onToggled: Event<boolean> = this._onToggled.event;
 
-	private previousPosition: editorCommon.IPosition;
+	private previousPosition: Position;
 
 	constructor(private editor: ICodeEditor, public settingsGroup: ISettingsGroup) {
 		super();
@@ -153,13 +155,13 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		}
 	}
 
-	private onCursorChange(e: editorCommon.ICursorPositionChangedEvent): void {
+	private onCursorChange(e: ICursorPositionChangedEvent): void {
 		if (e.source !== 'mouse' && this.focusTitle(e.position)) {
 			this.titleContainer.focus();
 		}
 	}
 
-	private focusTitle(currentPosition: editorCommon.IPosition): boolean {
+	private focusTitle(currentPosition: Position): boolean {
 		const previousPosition = this.previousPosition;
 		this.previousPosition = currentPosition;
 		if (!previousPosition) {
@@ -414,7 +416,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 		super();
 		this._editPreferenceDecoration = [];
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
-			if (e.target.type !== editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.isVisible()) {
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.isVisible()) {
 				return;
 			}
 			this._onClick.fire(e);

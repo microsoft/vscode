@@ -45,7 +45,7 @@ export class EmptyView extends CollapsibleView {
 
 		this.openFolderButton = new Button(section);
 		this.openFolderButton.label = nls.localize('openFolder', "Open Folder");
-		this.openFolderButton.addListener2('click', () => {
+		this.openFolderButton.addListener('click', () => {
 			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
 			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
 			this.actionRunner.run(action).done(() => {

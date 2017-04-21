@@ -13,7 +13,6 @@ import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import URI from 'vs/base/common/uri';
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { IRange } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -31,6 +30,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { IRange } from "vs/editor/common/core/range";
 
 export class FileQuickOpenModel extends QuickOpenModel {
 

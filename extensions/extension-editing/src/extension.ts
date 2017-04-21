@@ -23,7 +23,7 @@ const _linkProvider = new class implements vscode.DocumentLinkProvider {
 	private _linkPattern = /[^!]\[.*?\]\(#(.*?)\)/g;
 
 	provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentLink[] {
-		const {version} = document;
+		const { version } = document;
 		if (!this._cachedResult || this._cachedResult.version !== version) {
 			const links = this._computeDocumentLinks(document);
 			this._cachedResult = { version, links };

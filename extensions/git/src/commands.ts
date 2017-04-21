@@ -244,6 +244,11 @@ export class CommandCenter {
 
 	@command('git.openFile')
 	async openFile(resource?: Resource): Promise<void> {
+		if (!(resource instanceof Resource)) {
+			// can happen when called from a keybinding
+			resource = this.getSCMResource();
+		}
+
 		if (!resource) {
 			return;
 		}
@@ -253,6 +258,11 @@ export class CommandCenter {
 
 	@command('git.openChange')
 	async openChange(resource?: Resource): Promise<void> {
+		if (!(resource instanceof Resource)) {
+			// can happen when called from a keybinding
+			resource = this.getSCMResource();
+		}
+
 		if (!resource) {
 			return;
 		}
@@ -263,12 +273,22 @@ export class CommandCenter {
 	@command('git.openFileFromUri')
 	async openFileFromUri(uri?: Uri): Promise<void> {
 		const resource = this.getSCMResource(uri);
+		let uriToOpen: Uri | undefined;
 
-		if (!resource) {
+		if (resource) {
+			uriToOpen = resource.resourceUri;
+		} else if (uri && uri.scheme === 'git') {
+			const { path } = fromGitUri(uri);
+			uriToOpen = Uri.file(path);
+		} else if (uri && uri.scheme === 'file') {
+			uriToOpen = uri;
+		}
+
+		if (!uriToOpen) {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', resource.resourceUri);
+		return await commands.executeCommand<void>('vscode.open', uriToOpen);
 	}
 
 	@command('git.openChangeFromUri')

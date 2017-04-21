@@ -6,7 +6,8 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Handler, ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { Handler, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Selection } from 'vs/editor/common/core/selection';
 
@@ -20,7 +21,7 @@ class InsertCursorAbove extends HandlerEditorAction {
 			precondition: null,
 			handlerId: Handler.AddCursorUp,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
@@ -41,7 +42,7 @@ class InsertCursorBelow extends HandlerEditorAction {
 			precondition: null,
 			handlerId: Handler.AddCursorDown,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
 				linux: {
 					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
@@ -62,7 +63,7 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 			alias: 'Add Cursors to Line Ends',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_I
 			}
 		});

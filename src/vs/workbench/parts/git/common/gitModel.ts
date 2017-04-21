@@ -199,9 +199,9 @@ export class StatusModel extends EventEmitter implements IStatusModel {
 		this.mergeStatus = new StatusGroup(StatusType.MERGE);
 
 		this.toDispose = [
-			this.addEmitter2(this.indexStatus),
-			this.addEmitter2(this.workingTreeStatus),
-			this.addEmitter2(this.mergeStatus)
+			this.addEmitter(this.indexStatus),
+			this.addEmitter(this.workingTreeStatus),
+			this.addEmitter(this.mergeStatus)
 		];
 	}
 
@@ -323,7 +323,7 @@ export class Model extends EventEmitter implements IModel {
 
 		this.repositoryRoot = null;
 		this.status = new StatusModel();
-		this.toDispose.push(this.addEmitter2(this.status));
+		this.toDispose.push(this.addEmitter(this.status));
 
 		this.HEAD = null;
 		this.refs = [];

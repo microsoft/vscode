@@ -11,10 +11,9 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import {
-	EndOfLinePreference, EventType, Handler, IEditorOptions,
+	EndOfLinePreference, Handler,
 	DefaultEndOfLine, ITextModelCreationOptions, ICommand,
-	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData,
-	ICursorPositionChangedEvent, ICursorSelectionChangedEvent
+	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData
 } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
@@ -23,6 +22,8 @@ import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
+import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
 
 let H = Handler;
 
@@ -44,20 +45,12 @@ function moveRight(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorRightSelect : H.CursorRight);
 }
 
-function moveDown(cursor: Cursor, linesCount: number, inSelectionMode: boolean = false) {
-	if (linesCount === 1) {
-		cursorCommand(cursor, inSelectionMode ? H.CursorDownSelect : H.CursorDown);
-	} else {
-		cursorCommand(cursor, inSelectionMode ? H.CursorPageDownSelect : H.CursorPageDown, { pageSize: linesCount });
-	}
+function moveDown(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorDownSelect : H.CursorDown);
 }
 
-function moveUp(cursor: Cursor, linesCount: number, inSelectionMode: boolean = false) {
-	if (linesCount === 1) {
-		cursorCommand(cursor, inSelectionMode ? H.CursorUpSelect : H.CursorUp);
-	} else {
-		cursorCommand(cursor, inSelectionMode ? H.CursorPageUpSelect : H.CursorPageUp, { pageSize: linesCount });
-	}
+function moveUp(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorUpSelect : H.CursorUp);
 }
 
 function moveToBeginningOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
@@ -248,41 +241,41 @@ suite('Editor Controller - Cursor', () => {
 	// --------- move down
 
 	test('move down', () => {
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(2, 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(3, 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(4, 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(5, 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(5, 2));
 	});
 
 	test('move down with selection', () => {
-		moveDown(thisCursor, 1, true);
+		moveDown(thisCursor, true);
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
-		moveDown(thisCursor, 1, true);
+		moveDown(thisCursor, true);
 		assertCursor(thisCursor, new Selection(1, 1, 3, 1));
-		moveDown(thisCursor, 1, true);
+		moveDown(thisCursor, true);
 		assertCursor(thisCursor, new Selection(1, 1, 4, 1));
-		moveDown(thisCursor, 1, true);
+		moveDown(thisCursor, true);
 		assertCursor(thisCursor, new Selection(1, 1, 5, 1));
-		moveDown(thisCursor, 1, true);
+		moveDown(thisCursor, true);
 		assertCursor(thisCursor, new Selection(1, 1, 5, 2));
 	});
 
 	test('move down with tabs', () => {
 		moveTo(thisCursor, 1, 5);
 		assertCursor(thisCursor, new Position(1, 5));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(2, 2));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(3, 5));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(4, 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(5, 2));
 	});
 
@@ -292,10 +285,10 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(thisCursor, 3, 5);
 		assertCursor(thisCursor, new Position(3, 5));
 
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(2, 2));
 
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(1, 5));
 	});
 
@@ -303,25 +296,28 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(thisCursor, 3, 5);
 		assertCursor(thisCursor, new Position(3, 5));
 
-		moveUp(thisCursor, 1, true);
+		moveUp(thisCursor, true);
 		assertCursor(thisCursor, new Selection(3, 5, 2, 2));
 
-		moveUp(thisCursor, 1, true);
+		moveUp(thisCursor, true);
 		assertCursor(thisCursor, new Selection(3, 5, 1, 5));
 	});
 
 	test('move up and down with tabs', () => {
 		moveTo(thisCursor, 1, 5);
 		assertCursor(thisCursor, new Position(1, 5));
-		moveDown(thisCursor, 4);
+		moveDown(thisCursor);
+		moveDown(thisCursor);
+		moveDown(thisCursor);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(5, 2));
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(4, 1));
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(3, 5));
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(2, 2));
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(1, 5));
 	});
 
@@ -330,15 +326,18 @@ suite('Editor Controller - Cursor', () => {
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 		moveToEndOfLine(thisCursor);
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(2, LINE2.length + 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(3, LINE3.length + 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(4, LINE4.length + 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(5, LINE5.length + 1));
-		moveUp(thisCursor, 4);
+		moveUp(thisCursor);
+		moveUp(thisCursor);
+		moveUp(thisCursor);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 	});
 
@@ -596,10 +595,10 @@ suite('Editor Controller - Cursor', () => {
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {
-		thisCursor.addListener2(EventType.CursorPositionChanged, (e) => {
+		thisCursor.onDidChangePosition((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
-		thisCursor.addListener2(EventType.CursorSelectionChanged, (e) => {
+		thisCursor.onDidChangeSelection((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		moveTo(thisCursor, 1, 1);
@@ -607,11 +606,11 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move eventing', () => {
 		let events = 0;
-		thisCursor.addListener2(EventType.CursorPositionChanged, (e: ICursorPositionChangedEvent) => {
+		thisCursor.onDidChangePosition((e: ICursorPositionChangedEvent) => {
 			events++;
 			assert.deepEqual(e.position, new Position(1, 2));
 		});
-		thisCursor.addListener2(EventType.CursorSelectionChanged, (e: ICursorSelectionChangedEvent) => {
+		thisCursor.onDidChangeSelection((e: ICursorSelectionChangedEvent) => {
 			events++;
 			assert.deepEqual(e.selection, new Selection(1, 2, 1, 2));
 		});
@@ -621,11 +620,11 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move in selection mode eventing', () => {
 		let events = 0;
-		thisCursor.addListener2(EventType.CursorPositionChanged, (e: ICursorPositionChangedEvent) => {
+		thisCursor.onDidChangePosition((e: ICursorPositionChangedEvent) => {
 			events++;
 			assert.deepEqual(e.position, new Position(1, 2));
 		});
-		thisCursor.addListener2(EventType.CursorSelectionChanged, (e: ICursorSelectionChangedEvent) => {
+		thisCursor.onDidChangeSelection((e: ICursorSelectionChangedEvent) => {
 			events++;
 			assert.deepEqual(e.selection, new Selection(1, 1, 1, 2));
 		});
@@ -2863,7 +2862,7 @@ suite('ElectricCharacter', () => {
 			moveTo(cursor, 1, 5);
 			let changeText: string = null;
 			model.onDidChangeContent(e => {
-				changeText = e.text;
+				changeText = e.changes[0].text;
 			});
 			cursorCommand(cursor, H.Type, { text: ')' }, 'keyboard');
 			assert.deepEqual(model.getLineContent(1), '(div)');

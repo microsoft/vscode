@@ -1502,7 +1502,7 @@ declare module 'vscode' {
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
 	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕project.json' }`
+	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕package.json' }`
 	 */
 	export interface DocumentFilter {
 
@@ -1863,8 +1863,6 @@ declare module 'vscode' {
 		Field = 7,
 		Constructor = 8,
 		Enum = 9,
-		EnumMember = 21,
-		Struct = 22,
 		Interface = 10,
 		Function = 11,
 		Variable = 12,
@@ -1875,7 +1873,12 @@ declare module 'vscode' {
 		Array = 17,
 		Object = 18,
 		Key = 19,
-		Null = 20
+		Null = 20,
+		EnumMember = 21,
+		Struct = 22,
+		Event = 23,
+		Operator = 24,
+		TypeParameter = 25
 	}
 
 	/**
@@ -2425,20 +2428,23 @@ declare module 'vscode' {
 		Variable = 5,
 		Class = 6,
 		Interface = 7,
-		Struct = 21,
 		Module = 8,
 		Property = 9,
 		Unit = 10,
 		Value = 11,
-		Constant = 20,
 		Enum = 12,
-		EnumMember = 19,
 		Keyword = 13,
 		Snippet = 14,
 		Color = 15,
 		Reference = 17,
 		File = 16,
-		Folder = 18
+		Folder = 18,
+		EnumMember = 19,
+		Constant = 20,
+		Struct = 21,
+		Event = 22,
+		Operator = 23,
+		TypeParameter = 24
 	}
 
 	/**

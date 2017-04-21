@@ -9,7 +9,7 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import { Handler, ICommonCodeEditor, IRange } from 'vs/editor/common/editorCommon';
+import { Handler, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
@@ -35,14 +35,14 @@ suite('FindModel', () => {
 		});
 	}
 
-	function fromRange(rng: IRange): number[] {
+	function fromRange(rng: Range): number[] {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 
 	function _getFindState(editor: ICommonCodeEditor) {
 		let model = editor.getModel();
-		let currentFindMatches: IRange[] = [];
-		let allFindMatches: IRange[] = [];
+		let currentFindMatches: Range[] = [];
+		let allFindMatches: Range[] = [];
 
 		for (let dec of model.getAllDecorations()) {
 			if (dec.options.className === 'currentFindMatch') {

@@ -74,7 +74,7 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 		this.partService = partService;
 		this.contextService = contextService;
 
-		this.toDispose = [this.gitService.addBulkListener2(() => this.onGitStateChanged())];
+		this.toDispose = [this.gitService.addBulkListener(() => this.onGitStateChanged())];
 
 		this.enabled = this.isEnabled();
 	}
@@ -128,9 +128,13 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 
 				return this.editorService.openEditor(input, options, sideBySide).then((editor) => {
 					if (viewState) {
-						var codeEditor = <editorbrowser.ICodeEditor>this.editorService.getActiveEditor().getControl();
+						var codeEditor = <editorbrowser.IDiffEditor>this.editorService.getActiveEditor().getControl();
 						codeEditor.restoreViewState({
-							original: {},
+							original: {
+								cursorState: undefined,
+								viewState: undefined,
+								contributionsState: undefined
+							},
 							modified: viewState
 						});
 					}
@@ -213,7 +217,7 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 		});
 	}
 
-	private saveTextViewState(): editorcommon.IEditorViewState {
+	private saveTextViewState(): editorcommon.ICodeEditorViewState {
 		var textEditor = this.getTextEditor();
 		if (textEditor) {
 			return textEditor.saveViewState();
@@ -222,7 +226,7 @@ class OpenInEditorAction extends baseeditor.EditorInputAction {
 		return null;
 	}
 
-	private restoreTextViewState(state: editorcommon.IEditorViewState): void {
+	private restoreTextViewState(state: editorcommon.ICodeEditorViewState): void {
 		var textEditor = this.getTextEditor();
 		if (textEditor) {
 			return textEditor.restoreViewState(state);
@@ -385,7 +389,7 @@ export abstract class BaseStageRangesAction extends baseeditor.EditorInputAction
 		this.editorService = editorService;
 		this.gitService = gitService;
 		this.editor = editor.getControl();
-		this.editor.onDidChangeCursorSelection(() => this.updateEnablement());
+		this.editor.getModifiedEditor().onDidChangeCursorSelection(() => this.updateEnablement());
 		this.editor.onDidUpdateDiff(() => this.updateEnablement());
 		this.class = 'git-action stage-ranges';
 	}
@@ -492,7 +496,7 @@ export class RevertRangesAction extends baseeditor.EditorInputAction {
 		super(RevertRangesAction.ID, RevertRangesAction.LABEL);
 
 		this.editor = editor.getControl();
-		this.editor.onDidChangeCursorSelection(() => this.updateEnablement());
+		this.editor.getModifiedEditor().onDidChangeCursorSelection(() => this.updateEnablement());
 		this.editor.onDidUpdateDiff(() => this.updateEnablement());
 		this.class = 'git-action revert-ranges';
 	}
@@ -519,7 +523,7 @@ export class RevertRangesAction extends baseeditor.EditorInputAction {
 	public run(): TPromise<any> {
 		const selections = this.editor.getSelections();
 		const changes = getSelectedChanges(this.editor.getLineChanges(), selections);
-		const {original, modified} = this.editor.getModel();
+		const { original, modified } = this.editor.getModel();
 
 		const revertEdits = getChangeRevertEdits(original, modified, changes);
 
@@ -665,9 +669,13 @@ class GlobalOpenChangeAction extends OpenChangeAction {
 
 				return this.editorService.openEditor(input, options, sideBySide).then((editor) => {
 					if (viewState) {
-						var codeEditor = <editorbrowser.ICodeEditor>this.editorService.getActiveEditor().getControl();
+						var codeEditor = <editorbrowser.IDiffEditor>this.editorService.getActiveEditor().getControl();
 						codeEditor.restoreViewState({
-							original: {},
+							original: {
+								cursorState: undefined,
+								viewState: undefined,
+								contributionsState: undefined
+							},
 							modified: viewState
 						});
 					}
