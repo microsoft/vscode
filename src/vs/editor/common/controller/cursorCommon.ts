@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Position, IPosition } from 'vs/editor/common/core/position';
+import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { ICommand, TextModelResolvedOptions, IConfiguration, IModel } from 'vs/editor/common/editorCommon';
@@ -258,10 +258,6 @@ export class CursorContext {
 		this._coordinatesConverter = viewModelHelper.coordinatesConverter;
 	}
 
-	public validateModelPosition(position: IPosition): Position {
-		return this.model.validatePosition(position);
-	}
-
 	public validateViewPosition(viewPosition: Position, modelPosition: Position): Position {
 		return this._coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
 	}
@@ -272,6 +268,10 @@ export class CursorContext {
 
 	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
 		return this._coordinatesConverter.convertViewSelectionToModelSelection(viewSelection);
+	}
+
+	public convertViewRangeToModelRange(viewRange: Range): Range {
+		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public convertViewPositionToModelPosition(lineNumber: number, column: number): Position {
@@ -315,6 +315,14 @@ export class CursorContext {
 
 export class CursorState {
 	_cursorStateBrand: void;
+
+	public static fromModelState(modelState: SingleCursorState): CursorState {
+		return new CursorState(modelState, null);
+	}
+
+	public static fromViewState(viewState: SingleCursorState): CursorState {
+		return new CursorState(null, viewState);
+	}
 
 	readonly modelState: SingleCursorState;
 	readonly viewState: SingleCursorState;

@@ -13,9 +13,9 @@ import { ICommandAndKeybindingRule, KeybindingsRegistry, IKeybindings } from 'vs
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { CommandDescription, CursorMove } from "vs/editor/common/controller/oneCursor";
+import { CursorMove } from "vs/editor/common/controller/cursorMoveCommands";
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EditorScroll } from "vs/editor/common/controller/cursor";
+import { EditorScroll, RevealLine } from "vs/editor/common/controller/cursor";
 
 import H = editorCommon.Handler;
 
@@ -493,7 +493,7 @@ registerCommand(new CoreCommand({
 	}
 }));
 
-registerCoreAPICommand(H.RevealLine, CommandDescription.RevealLine);
+registerCoreAPICommand(H.RevealLine, RevealLine.description);
 
 registerCommand(new CoreCommand({
 	id: H.CursorColumnSelectLeft,
