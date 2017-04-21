@@ -135,7 +135,13 @@ export class UpdateService implements IUpdateService {
 
 	checkForUpdates(explicit = false): TPromise<IUpdate> {
 		return this.throttler.queue(() => this._checkForUpdates(explicit))
-			.then(null, err => this._onError.fire(err));
+			.then(null, err => {
+				if (explicit) {
+					this._onError.fire(err);
+				}
+
+				return null;
+			});
 	}
 
 	private _checkForUpdates(explicit: boolean): TPromise<IUpdate> {
