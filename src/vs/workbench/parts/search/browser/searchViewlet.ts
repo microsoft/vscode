@@ -892,7 +892,7 @@ export class SearchViewlet extends Viewlet {
 		const workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
 		if (workspaceRelativePath) {
 			this.inputPatternIncludes.setIsGlobPattern(false);
-			this.inputPatternIncludes.setValue(workspaceRelativePath);
+			this.inputPatternIncludes.setValue('./' + workspaceRelativePath);
 			this.searchWidget.focus(false);
 		}
 	}
