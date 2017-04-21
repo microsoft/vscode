@@ -32,6 +32,9 @@
 	"javascript.validate.enable": "Habilita o deshabilita la validación de JavaScript.",
 	"typescript.goToProjectConfig.title": "Ir a configuración del proyecto",
 	"javascript.goToProjectConfig.title": "Ir a configuración del proyecto",
+	"typescript.referencesCodeLens.enabled": "Habilita o deshabilita referencias de CodeLens. Requiere TypeScript >= 2.0.6.",
+	"typescript.implementationsCodeLens.enabled": "Habilita o deshabilita implementaciones de CodeLens. Requiere TypeScript >= 2.2.0.",
 	"typescript.openTsServerLog.title": "Abrir archivo de registro del servidor de TS",
-	"typescript.selectTypeScriptVersion.title": "Seleccionar versión de TypeScript"
+	"typescript.selectTypeScriptVersion.title": "Seleccionar versión de TypeScript",
+	"jsDocCompletion.enabled": "Habilita o deshabilita comentarios automaticos de JSDoc"
 }

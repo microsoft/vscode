@@ -8,6 +8,7 @@
 	"extensions": "Estensioni",
 	"sort by installs": "Ordina per: conteggio installazioni",
 	"sort by rating": "Ordina per: classificazione",
+	"sort by name": "Ordina per: Nome",
 	"no extensions found": "Non sono state trovate estensioni.",
 	"suggestProxyError": "Marketplace ha restituito 'ECONNREFUSED'. Controllare l'impostazione 'http.proxy'.",
 	"outdatedExtensions": "{0} estensioni obsolete"

@@ -48,10 +48,12 @@
 	"menuBarVisibility": "Controlla la visibilità della barra dei menu. L'impostazione 'toggle' indica che la barra dei menu è nascosta e che per visualizzarla è necessario premere una sola volta il tasto ALT. Per impostazione predefinita, la barra dei menu è visibile a meno che la finestra non sia a schermo intero.",
 	"autoDetectHighContrast": "Se è abilitata, passa automaticamente a un tema a contrasto elevato se Windows usa un tema di questo tipo e al tipo scuro quando non si usa più un tema a contrasto elevato Windows.",
 	"titleBarStyle": "Consente di modificare l'aspetto della barra del titolo della finestra. Per applicare le modifiche, è necessario un riavvio completo.",
+	"window.nativeTabs": "Abilita le finestre di tab per macOS Sierra. La modifica richiede un riavvio. Eventuali personalizzazioni della barra del titolo verranno disabilitate",
 	"windowConfigurationTitle": "Finestra",
 	"zenModeConfigurationTitle": "Modalità Zen",
 	"zenMode.fullScreen": "Consente di controllare se attivando la modalità Zen anche l'area di lavoro passa alla modalità schermo intero.",
 	"zenMode.hideTabs": "Controlla se attivando la modalità Zen vengono nascoste anche le schede del workbench.",
 	"zenMode.hideStatusBar": "Controlla se attivando la modalità Zen viene nascosta anche la barra di stato nella parte inferiore del workbench.",
+	"zenMode.hideActivityBar": "Controlla se attivando la modalità Zen viene nascosta anche la barra di stato alla sinistra del workbench",
 	"zenMode.restore": "Controlla se una finestra deve essere ripristinata nella modalità Zen se è stata chiusa in questa modalità."
 }

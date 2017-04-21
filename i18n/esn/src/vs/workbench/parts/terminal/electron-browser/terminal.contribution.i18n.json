@@ -16,6 +16,7 @@
 	"terminal.integrated.fontLigatures": "Controla si las ligaduras tipográficas están habilitadas en el terminal.",
 	"terminal.integrated.fontSize": "Controla el tamaño de la fuente en píxeles del terminal.",
 	"terminal.integrated.lineHeight": "Controla el alto de línea del terminal. Este número se multiplica por el tamaño de fuente del terminal para obtener el alto de línea real en píxeles.",
+	"terminal.integrated.enableBold": "Indica si debe habilitarse el texto en negrita en el terminal. Requiere soporte del terminal Shell.",
 	"terminal.integrated.cursorBlinking": "Controla si el cursor del terminal parpadea.",
 	"terminal.integrated.cursorStyle": "Controla el estilo de cursor del terminal.",
 	"terminal.integrated.scrollback": "Controla la cantidad máxima de líneas que mantiene el terminal en su búfer.",

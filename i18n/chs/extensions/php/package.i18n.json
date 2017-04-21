@@ -9,5 +9,6 @@
 	"configuration.validate.executablePath": "指向 PHP 可执行文件。",
 	"configuration.validate.run": "不管 linter 是在 save 还是在 type 上运行。",
 	"configuration.title": "PHP",
-	"commands.categroy.php": "PHP"
+	"commands.categroy.php": "PHP",
+	"command.untrustValidationExecutable": "禁止 PHP 验证程序(定义为工作区设置)"
 }
