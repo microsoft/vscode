@@ -102,7 +102,7 @@ export class View extends ViewEventHandler {
 		commandService: ICommandService,
 		configuration: Configuration,
 		model: IViewModel,
-		private triggerCursorHandler: TriggerCursorHandler
+		triggerCursorHandler: TriggerCursorHandler
 	) {
 		super();
 		this._isDisposed = false;

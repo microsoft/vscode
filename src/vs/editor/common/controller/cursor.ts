@@ -11,8 +11,8 @@ import { EventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter'
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
 import {
-	IViewModelHelper, OneCursor, OneCursorOp, CursorContext, CursorMovePosition,
-	CursorMoveByUnit, RevealLineArguments, RevealLineAtArgument
+	IViewModelHelper, OneCursor, OneCursorOp, CursorContext,
+	RevealLineArguments, RevealLineAtArgument, CursorMove
 } from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -46,14 +46,12 @@ interface IOneCursorOperationContext {
 interface IMultipleCursorOperationContext {
 	cursorPositionChangeReason: CursorChangeReason;
 	shouldReveal: boolean;
-	shouldRevealVerticalInCenter: boolean;
 	shouldRevealHorizontal: boolean;
 	shouldRevealTarget: RevealTarget;
 	shouldPushStackElementBefore: boolean;
 	shouldPushStackElementAfter: boolean;
 	eventSource: string;
 	eventData: any;
-	isCursorUndo: boolean;
 	executeCommands: editorCommon.ICommand[];
 	isAutoWhitespaceCommand: boolean[];
 	setColumnSelectToLineNumber: number;
@@ -288,7 +286,6 @@ export class Cursor extends Disposable {
 						ctx.shouldPushStackElementBefore = true;
 						ctx.shouldPushStackElementAfter = true;
 						ctx.shouldReveal = false;
-						ctx.shouldRevealHorizontal = false;
 
 						return oneCursor.endRecoverSelectionFromMarkers(this.context, selections[cursorIndex]);
 					});
@@ -329,14 +326,12 @@ export class Cursor extends Disposable {
 		var currentHandlerCtx: IMultipleCursorOperationContext = {
 			cursorPositionChangeReason: CursorChangeReason.NotSet,
 			shouldReveal: true,
-			shouldRevealVerticalInCenter: false,
 			shouldRevealHorizontal: true,
 			shouldRevealTarget: RevealTarget.Primary,
 			eventSource: eventSource,
 			eventData: eventData,
 			executeCommands: [],
 			isAutoWhitespaceCommand: [],
-			isCursorUndo: false,
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false,
 			setColumnSelectToLineNumber: 0,
@@ -363,10 +358,8 @@ export class Cursor extends Disposable {
 			var eventSource = source;
 			var cursorPositionChangeReason: CursorChangeReason;
 			var shouldReveal: boolean;
-			var shouldRevealVerticalInCenter: boolean;
 			var shouldRevealHorizontal: boolean;
 			var shouldRevealTarget: RevealTarget;
-			var isCursorUndo: boolean;
 
 			this._createAndInterpretHandlerCtx(eventSource, data, (currentHandlerCtx: IMultipleCursorOperationContext) => {
 				handler(currentHandlerCtx);
@@ -374,9 +367,7 @@ export class Cursor extends Disposable {
 				cursorPositionChangeReason = currentHandlerCtx.cursorPositionChangeReason;
 				shouldReveal = currentHandlerCtx.shouldReveal;
 				shouldRevealTarget = currentHandlerCtx.shouldRevealTarget;
-				shouldRevealVerticalInCenter = currentHandlerCtx.shouldRevealVerticalInCenter;
 				shouldRevealHorizontal = currentHandlerCtx.shouldRevealHorizontal;
-				isCursorUndo = currentHandlerCtx.isCursorUndo;
 			});
 
 			var newSelections = this.cursors.getSelections();
@@ -403,7 +394,7 @@ export class Cursor extends Disposable {
 				this.emitCursorPositionChanged(eventSource, cursorPositionChangeReason);
 
 				if (shouldReveal) {
-					this.revealRange(shouldRevealTarget, shouldRevealVerticalInCenter ? VerticalRevealType.Center : VerticalRevealType.Simple, shouldRevealHorizontal);
+					this.revealRange(shouldRevealTarget, VerticalRevealType.Simple, shouldRevealHorizontal);
 				}
 				this.emitCursorSelectionChanged(eventSource, cursorPositionChangeReason);
 			}
@@ -932,10 +923,6 @@ export class Cursor extends Disposable {
 	}
 
 	private _invokeForAll(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => void): void {
-		this._doInvokeForAll(ctx, callable);
-	}
-
-	private _doInvokeForAll(ctx: IMultipleCursorOperationContext, callable: (cursorIndex: number, cursor: OneCursor, ctx: IOneCursorOperationContext) => void): void {
 		let cursors = this.cursors.getAll();
 
 		for (let i = 0; i < cursors.length; i++) {
@@ -966,9 +953,6 @@ export class Cursor extends Disposable {
 	private _moveTo(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
-		if (ctx.eventSource === 'api') {
-			ctx.shouldRevealVerticalInCenter = true;
-		}
 		if (ctx.eventSource === 'mouse') {
 			ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
 		}
@@ -977,12 +961,21 @@ export class Cursor extends Disposable {
 	}
 
 	private _cursorMove(ctx: IMultipleCursorOperationContext): void {
+		const args = CursorMove.parse(ctx.eventData);
+		if (!args) {
+			// illegal arguments
+			return;
+		}
+		return this._doCursorMove(ctx, args);
+	}
+
+	private _doCursorMove(ctx: IMultipleCursorOperationContext, args: CursorMove.ParsedArguments): void {
 		ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
 		ctx.shouldReveal = true;
 		ctx.shouldRevealHorizontal = true;
-		this.cursors.setStates(OneCursorOp.move(this.context, this.cursors.getAll(), ctx.eventData), true);
+		this.cursors.setStates(OneCursorOp.move(this.context, this.cursors.getAll(), args), true);
 	}
 
 	private _columnSelectToLineNumber: number = 0;
@@ -1082,7 +1075,6 @@ export class Cursor extends Disposable {
 		ctx.shouldPushStackElementAfter = true;
 		ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
 		ctx.shouldReveal = false;
-		ctx.shouldRevealHorizontal = false;
 	}
 
 	private _lastCursorMoveTo(ctx: IMultipleCursorOperationContext): void {
@@ -1096,7 +1088,6 @@ export class Cursor extends Disposable {
 			ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
 		}
 		ctx.shouldReveal = false;
-		ctx.shouldRevealHorizontal = false;
 
 		const lastAddedCursor = this.cursors.getLastAddedCursor();
 		const result = OneCursorOp.moveTo(this.context, lastAddedCursor, true, ctx.eventData.position, ctx.eventData.viewPosition);
@@ -1128,39 +1119,39 @@ export class Cursor extends Disposable {
 	}
 
 	private _moveLeft(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
-		ctx.eventData = ctx.eventData || {};
-		ctx.eventData.to = CursorMovePosition.Left;
-		ctx.eventData.select = inSelectionMode;
-
-		this._cursorMove(ctx);
+		this._doCursorMove(ctx, {
+			direction: CursorMove.Direction.Left,
+			unit: CursorMove.Unit.None,
+			select: inSelectionMode,
+			value: 1
+		});
 	}
 
 	private _moveRight(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
-		ctx.eventData = ctx.eventData || {};
-		ctx.eventData.to = CursorMovePosition.Right;
-		ctx.eventData.select = inSelectionMode;
-
-		this._cursorMove(ctx);
+		this._doCursorMove(ctx, {
+			direction: CursorMove.Direction.Right,
+			unit: CursorMove.Unit.None,
+			select: inSelectionMode,
+			value: 1
+		});
 	}
 
 	private _moveDown(inSelectionMode: boolean, isPaged: boolean, ctx: IMultipleCursorOperationContext): void {
-		ctx.eventData = ctx.eventData || {};
-		ctx.eventData.to = CursorMovePosition.Down;
-		ctx.eventData.select = inSelectionMode;
-		ctx.eventData.by = CursorMoveByUnit.WrappedLine;
-		ctx.eventData.isPaged = isPaged;
-
-		this._cursorMove(ctx);
+		this._doCursorMove(ctx, {
+			direction: CursorMove.Direction.Down,
+			unit: CursorMove.Unit.WrappedLine,
+			select: inSelectionMode,
+			value: (isPaged ? this.context.config.pageSize : 1)
+		});
 	}
 
 	private _moveUp(inSelectionMode: boolean, isPaged: boolean, ctx: IMultipleCursorOperationContext): void {
-		ctx.eventData = ctx.eventData || {};
-		ctx.eventData.to = CursorMovePosition.Up;
-		ctx.eventData.select = inSelectionMode;
-		ctx.eventData.by = CursorMoveByUnit.WrappedLine;
-		ctx.eventData.isPaged = isPaged;
-
-		this._cursorMove(ctx);
+		this._doCursorMove(ctx, {
+			direction: CursorMove.Direction.Up,
+			unit: CursorMove.Unit.WrappedLine,
+			select: inSelectionMode,
+			value: (isPaged ? this.context.config.pageSize : 1)
+		});
 	}
 
 	private _moveToBeginningOfLine(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
@@ -1195,7 +1186,6 @@ export class Cursor extends Disposable {
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
 		ctx.shouldReveal = false;
-		ctx.shouldRevealHorizontal = false;
 		const result = OneCursorOp.selectAll(this.context, this.cursors.getPrimaryCursor());
 		this.cursors.setStates([result], false);
 	}
@@ -1219,7 +1209,6 @@ export class Cursor extends Disposable {
 		ctx.shouldPushStackElementAfter = true;
 		ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
 		ctx.shouldReveal = false;
-		ctx.shouldRevealHorizontal = false;
 
 		const lastAddedCursor = this.cursors.getLastAddedCursor();
 		const result = OneCursorOp.line(this.context, lastAddedCursor, inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
@@ -1252,7 +1241,6 @@ export class Cursor extends Disposable {
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
 		ctx.shouldReveal = false;
-		ctx.shouldRevealHorizontal = false;
 
 		const lastAddedCursor = this.cursors.getLastAddedCursor();
 		const r = OneCursorOp.word(this.context, lastAddedCursor, true, ctx.eventData.position);
@@ -1273,8 +1261,8 @@ export class Cursor extends Disposable {
 	// -------------------- START editing operations
 
 	private _applyEdits(ctx: IMultipleCursorOperationContext, edits: EditOperationResult): void {
-		ctx.shouldRevealHorizontal = true;
 		ctx.shouldReveal = true;
+		ctx.shouldRevealHorizontal = true;
 		ctx.shouldPushStackElementBefore = edits.shouldPushStackElementBefore;
 		ctx.shouldPushStackElementAfter = edits.shouldPushStackElementAfter;
 
@@ -1339,7 +1327,6 @@ export class Cursor extends Disposable {
 					// The last typed character gets to win
 					ctx.cursorPositionChangeReason = charHandlerCtx.cursorPositionChangeReason;
 					ctx.shouldReveal = charHandlerCtx.shouldReveal;
-					ctx.shouldRevealVerticalInCenter = charHandlerCtx.shouldRevealVerticalInCenter;
 					ctx.shouldRevealHorizontal = charHandlerCtx.shouldRevealHorizontal;
 				});
 
@@ -1547,8 +1534,8 @@ export class Cursor extends Disposable {
 
 		this.cursors.killSecondaryCursors();
 
-		ctx.shouldRevealHorizontal = true;
 		ctx.shouldReveal = true;
+		ctx.shouldRevealHorizontal = true;
 
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;

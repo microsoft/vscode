@@ -13,7 +13,7 @@ import { ICommandAndKeybindingRule, KeybindingsRegistry, IKeybindings } from 'vs
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { CommandDescription } from "vs/editor/common/controller/oneCursor";
+import { CommandDescription, CursorMove } from "vs/editor/common/controller/oneCursor";
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EditorScroll } from "vs/editor/common/controller/cursor";
 
@@ -276,7 +276,7 @@ class WordCommand extends CoreCommand {
 // Control+Command+shift+d => noop
 
 // Register cursor commands
-registerCoreAPICommand(H.CursorMove, CommandDescription.CursorMove);
+registerCoreAPICommand(H.CursorMove, CursorMove.description);
 
 registerCommand(new CoreCommand({
 	id: H.CursorLeft,
