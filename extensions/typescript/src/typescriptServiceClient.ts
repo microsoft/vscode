@@ -743,26 +743,36 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			// configureOptions.autoDiagnostics = true;
 		}
 		this.execute('configure', configureOptions);
-		if (this.apiVersion.has206Features()) {
-			let compilerOptions: Proto.ExternalProjectCompilerOptions = {
-				module: 'CommonJS',
-				target: 'ES6',
-				allowSyntheticDefaultImports: true,
-				allowNonTsExtensions: true,
-				allowJs: true,
-				jsx: 'Preserve'
-			};
-			let args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
-				options: compilerOptions
-			};
-			this.execute('compilerOptionsForInferredProjects', args, true).catch((err) => {
-				this.error(`'compilerOptionsForInferredProjects' request failed with error.`, err);
-			});
-		}
-
+		this.setCompilerOptionsForInferredProjects();
 		if (resendModels) {
 			this.host.populateService();
 		}
+	}
+
+	private setCompilerOptionsForInferredProjects(): void {
+		if (!this.apiVersion.has206Features()) {
+			return;
+		}
+
+		const compilerOptions: Proto.ExternalProjectCompilerOptions = {
+			module: 'CommonJS',
+			target: 'ES6',
+			allowSyntheticDefaultImports: true,
+			allowNonTsExtensions: true,
+			allowJs: true,
+			jsx: 'Preserve'
+		};
+
+		if (this.apiVersion.has230Features()) {
+			compilerOptions.checkJs = workspace.getConfiguration('javascript').get<boolean>('implicitProjectConfig.checkJs', false);
+		}
+
+		const args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
+			options: compilerOptions
+		};
+		this.execute('compilerOptionsForInferredProjects', args, true).catch((err) => {
+			this.error(`'compilerOptionsForInferredProjects' request failed with error.`, err);
+		});
 	}
 
 	private getTypeScriptVersion(serverPath: string): string | undefined {

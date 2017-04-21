@@ -32,5 +32,6 @@
 	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens. Requires TypeScript >= 2.2.0.",
 	"typescript.openTsServerLog.title": "Open TS Server log file",
 	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version",
-	"jsDocCompletion.enabled": "Enable/disable auto JSDoc comments"
+	"jsDocCompletion.enabled": "Enable/disable auto JSDoc comments",
+	"javascript.implicitProjectConfig.checkJs": "Enable/disable type checking in loose JavaScript files that are not included in any jsconfig or tsconfig projects. Requires TypeScript >= 2.3.1."
 }

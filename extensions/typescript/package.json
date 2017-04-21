@@ -295,6 +295,11 @@
           "type": "boolean",
           "default": true,
           "description": "%jsDocCompletion.enabled%"
+        },
+        "javascript.implicitProjectConfig.checkJs": {
+          "type": "boolean",
+          "default": false,
+          "description": "%javascript.implicitProjectConfig.checkJs%"
         }
       }
     },
