@@ -24,22 +24,13 @@ interface Source {
 export default class TypeScriptCodeActionProvider implements CodeActionProvider {
 	private commandId: string;
 
-	private supportedCodeActions: Promise<NumberSet>;
+	private _supportedCodeActions?: Thenable<NumberSet>;
 
 	constructor(
 		private readonly client: ITypescriptServiceClient,
 		mode: string
 	) {
 		this.commandId = `_typescript.applyCodeAction.${mode}`;
-		this.supportedCodeActions = client.execute('getSupportedCodeFixes', null, undefined)
-			.then(response => response.body || [])
-			.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
-			.then(codes =>
-				codes.reduce((obj, code) => {
-					obj[code] = true;
-					return obj;
-				}, Object.create(null)));
-
 		commands.registerCommand(this.commandId, this.onCodeAction, this);
 	}
 
@@ -65,7 +56,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			range: range,
 			formattingOptions: formattingOptions
 		};
-		return this.getSupportedCodeActions(context)
+		return this.getSupportedActionsForContext(context)
 			.then(supportedActions => {
 				if (!supportedActions.length) {
 					return [];
@@ -82,12 +73,25 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			.then(codeActions => codeActions.map(action => this.actionToEdit(source, action)));
 	}
 
-	private getSupportedCodeActions(context: CodeActionContext): Thenable<number[]> {
-		return this.supportedCodeActions
-			.then(supportedActions =>
-				context.diagnostics
-					.map(diagnostic => +diagnostic.code)
-					.filter(code => supportedActions[code]));
+	private get supportedCodeActions(): Thenable<NumberSet> {
+		if (!this._supportedCodeActions) {
+			this._supportedCodeActions = this.client.execute('getSupportedCodeFixes', null, undefined)
+				.then(response => response.body || [])
+				.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
+				.then(codes =>
+					codes.reduce((obj, code) => {
+						obj[code] = true;
+						return obj;
+					}, Object.create(null)));
+		}
+		return this._supportedCodeActions;
+	}
+
+	private getSupportedActionsForContext(context: CodeActionContext) {
+		return this.supportedCodeActions.then(supportedActions =>
+			context.diagnostics
+				.map(diagnostic => +diagnostic.code)
+				.filter(code => supportedActions[code]));
 	}
 
 	private actionToEdit(source: Source, action: Proto.CodeAction): Command {
