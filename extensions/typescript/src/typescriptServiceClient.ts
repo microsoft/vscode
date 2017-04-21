@@ -165,6 +165,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
+	private checkJs: boolean;
 
 	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento, private workspaceState: Memento, disposables: Disposable[]) {
 		this.host = host;
@@ -197,10 +198,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this._checkGlobalTSCVersion = true;
 		this.trace = this.readTrace();
 		this.tsServerLogLevel = this.readTsServerLogLevel();
+		this.checkJs = this.readCheckJs();
+
 		disposables.push(workspace.onDidChangeConfiguration(() => {
 			let oldLoggingLevel = this.tsServerLogLevel;
 			let oldglobalTsdk = this.globalTsdk;
 			let oldLocalTsdk = this.localTsdk;
+			let oldCheckJs = this.checkJs;
 
 			this.trace = this.readTrace();
 			this.tsServerLogLevel = this.readTsServerLogLevel();
@@ -208,6 +212,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			const configuration = workspace.getConfiguration();
 			this.globalTsdk = this.extractGlobalTsdk(configuration);
 			this.localTsdk = this.extractLocalTsdk(configuration);
+			this.checkJs = this.readCheckJs();
+
+			if (this.servicePromise && oldCheckJs !== this.checkJs) {
+				this.setCompilerOptionsForInferredProjects();
+			}
 
 			if (this.servicePromise === null && (oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk)) {
 				this.startService();
@@ -310,6 +319,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private readTsServerLogLevel(): TsServerLogLevel {
 		const setting = workspace.getConfiguration().get<string>('typescript.tsserver.log', 'off');
 		return TsServerLogLevel.fromString(setting);
+	}
+
+	private readCheckJs(): boolean {
+		return workspace.getConfiguration().get<boolean>('javascript.implicitProjectConfig.checkJs', false);
 	}
 
 	public get experimentalAutoBuild(): boolean {
@@ -743,26 +756,36 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			// configureOptions.autoDiagnostics = true;
 		}
 		this.execute('configure', configureOptions);
-		if (this.apiVersion.has206Features()) {
-			let compilerOptions: Proto.ExternalProjectCompilerOptions = {
-				module: 'CommonJS',
-				target: 'ES6',
-				allowSyntheticDefaultImports: true,
-				allowNonTsExtensions: true,
-				allowJs: true,
-				jsx: 'Preserve'
-			};
-			let args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
-				options: compilerOptions
-			};
-			this.execute('compilerOptionsForInferredProjects', args, true).catch((err) => {
-				this.error(`'compilerOptionsForInferredProjects' request failed with error.`, err);
-			});
-		}
-
+		this.setCompilerOptionsForInferredProjects();
 		if (resendModels) {
 			this.host.populateService();
 		}
+	}
+
+	private setCompilerOptionsForInferredProjects(): void {
+		if (!this.apiVersion.has206Features()) {
+			return;
+		}
+
+		const compilerOptions: Proto.ExternalProjectCompilerOptions = {
+			module: 'CommonJS',
+			target: 'ES6',
+			allowSyntheticDefaultImports: true,
+			allowNonTsExtensions: true,
+			allowJs: true,
+			jsx: 'Preserve'
+		};
+
+		if (this.apiVersion.has230Features()) {
+			compilerOptions.checkJs = workspace.getConfiguration('javascript').get<boolean>('implicitProjectConfig.checkJs', false);
+		}
+
+		const args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
+			options: compilerOptions
+		};
+		this.execute('compilerOptionsForInferredProjects', args, true).catch((err) => {
+			this.error(`'compilerOptionsForInferredProjects' request failed with error.`, err);
+		});
 	}
 
 	private getTypeScriptVersion(serverPath: string): string | undefined {
