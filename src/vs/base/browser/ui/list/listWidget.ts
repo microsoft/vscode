@@ -18,24 +18,12 @@ import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, any } fro
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
+import { ISpliceable, CombinedSpliceable } from './splice';
 import { Color } from "vs/base/common/color";
 import { mixin } from "vs/base/common/objects";
 
 export interface IIdentityProvider<T> {
 	(element: T): string;
-}
-
-export interface ISpliceable<T> {
-	splice(start: number, deleteCount: number, elements: T[]): void;
-}
-
-class CombinedSpliceable<T> implements ISpliceable<T> {
-
-	constructor(private spliceables: ISpliceable<T>[]) { }
-
-	splice(start: number, deleteCount: number, elements: T[]): void {
-		this.spliceables.forEach(s => s.splice(start, deleteCount, elements));
-	}
 }
 
 interface ITraitChangeEvent {
