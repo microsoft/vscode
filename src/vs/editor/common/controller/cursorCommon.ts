@@ -266,10 +266,6 @@ export class CursorContext {
 		return this._coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
 	}
 
-	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
-		return this._coordinatesConverter.convertViewSelectionToModelSelection(viewSelection);
-	}
-
 	public convertViewRangeToModelRange(viewRange: Range): Range {
 		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}

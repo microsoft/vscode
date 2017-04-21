@@ -6,10 +6,11 @@
 
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { SingleCursorState, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 
 export interface IColumnSelectResult {
-	viewSelections: Selection[];
+	viewStates: SingleCursorState[];
 	reversed: boolean;
 	toLineNumber: number;
 	toVisualColumn: number;
@@ -23,7 +24,7 @@ export class ColumnSelection {
 		let isRTL = (fromVisibleColumn > toVisibleColumn);
 		let isLTR = (fromVisibleColumn < toVisibleColumn);
 
-		let result: Selection[] = [];
+		let result: SingleCursorState[] = [];
 
 		// console.log(`fromVisibleColumn: ${fromVisibleColumn}, toVisibleColumn: ${toVisibleColumn}`);
 
@@ -55,11 +56,14 @@ export class ColumnSelection {
 				}
 			}
 
-			result.push(new Selection(lineNumber, startColumn, lineNumber, endColumn));
+			result.push(new SingleCursorState(
+				new Range(lineNumber, startColumn, lineNumber, startColumn), 0,
+				new Position(lineNumber, endColumn), 0
+			));
 		}
 
 		return {
-			viewSelections: result,
+			viewStates: result,
 			reversed: reversed,
 			toLineNumber: toLineNumber,
 			toVisualColumn: toVisibleColumn
