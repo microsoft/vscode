@@ -244,6 +244,11 @@ export class CommandCenter {
 
 	@command('git.openFile')
 	async openFile(resource?: Resource): Promise<void> {
+		if (!(resource instanceof Resource)) {
+			// can happen when called from a keybinding
+			resource = this.getSCMResource();
+		}
+
 		if (!resource) {
 			return;
 		}
@@ -253,6 +258,11 @@ export class CommandCenter {
 
 	@command('git.openChange')
 	async openChange(resource?: Resource): Promise<void> {
+		if (!(resource instanceof Resource)) {
+			// can happen when called from a keybinding
+			resource = this.getSCMResource();
+		}
+
 		if (!resource) {
 			return;
 		}
