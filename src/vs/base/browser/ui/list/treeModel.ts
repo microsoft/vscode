@@ -5,96 +5,102 @@
 
 'use strict';
 
+import { ISpliceable } from './splice';
+
 export interface ITreeElement<T> {
 	element: T;
 	children: ITreeElement<T>[];
 }
 
-export interface ITreeNode<T> {
-	readonly element: T;
-	readonly children: ITreeNode<T>[];
-	readonly depth: number;
-	count: number;
-}
-
 export type TreeLocation = number[];
-
-function createNode<T>(depth: number, element: ITreeElement<T>, list: ITreeNode<T>[]): ITreeNode<T> {
-	const node = {
-		element: element.element,
-		children: null,
-		depth,
-		count: 0
-	};
-
-	list.push(node);
-
-	const children = element.children
-		.map(e => createNode(depth + 1, element, list));
-
-	node.children = children;
-	node.count = children.reduce((r, n) => r + n.count, 0);
-	return node;
-}
-
-function createNodes<T>(depth: number, elements: ITreeElement<T>[]): { nodes: ITreeNode<T>[]; list: ITreeNode<T>[] } {
-	const list: ITreeNode<T>[] = [];
-	const nodes = elements.map(e => createNode(depth, e, list));
-
-	return { nodes, list };
-}
 
 export class TreeNode<T> {
 
-	constructor() {
-
+	static createRoot<T>(): TreeNode<T> {
+		return new TreeNode<T>({ children: [], element: null }, 0);
 	}
 
-	splice(childIndex: number, deleteCount: number, elements: ITreeElement<T>[]) {
-		// TODO?
+	private _element: T;
+	public get element(): T { return this._element; }
+
+	private _children: TreeNode<T>[];
+	public get children(): TreeNode<T>[] { return this._children; }
+
+	private _count = 1;
+	public get count(): number { return this._count; }
+
+	private _depth: number;
+	public get depth(): number { return this._depth; }
+
+	constructor(
+		treeElement: ITreeElement<T>,
+		depth: number
+	) {
+		const {children, count} = treeElement.children.reduce((r, e) => {
+			const child = new TreeNode<T>(e, depth + 1);
+			r.children.push(child);
+			r.count += child.count;
+			return r;
+		}, { children: [] as TreeNode<T>[], count: 1 });
+
+		this._element = treeElement.element;
+		this._children = children;
+		this._count = count;
+		this._depth = depth;
+	}
+
+	splice(index: number, deleteCount: number, elements: ITreeElement<T>[]): { listDeleteCount: number, listElements: TreeNode<T>[] } {
+		const {added, listElements} = elements.reduce((r, e) => {
+			const node = new TreeNode<T>(e, this.depth + 1);
+			r.added.push(node);
+			r.listElements = [...r.listElements, ...node.iterate()];
+			return r;
+		}, { added: [], listElements: [] });
+
+		const listAddCount = added.reduce((r, n) => r + n.count, 0);
+
+		const deleted = this.children.splice(index, deleteCount, ...added);
+		const listDeleteCount = deleted.reduce((r, n) => r + n.count, 0);
+
+		this._count += listAddCount - listDeleteCount;
+		return { listDeleteCount, listElements };
+	}
+
+	private iterate(list: TreeNode<T>[] = []): TreeNode<T>[] {
+		list.push(this);
+		this.children.forEach(c => c.iterate(list));
+		return list;
 	}
 }
 
 export class TreeModel<T> {
 
-	private list: ITreeNode<T>[] = [];
-	private root: ITreeNode<T> = {
-		element: null as T,
-		children: [],
-		depth: 0,
-		count: 0
-	};
+	private root = TreeNode.createRoot<T>();
 
-	splice(start: TreeLocation, deleteCount: number, elements: ITreeElement<T>[]) {
+	constructor(private spliceable: ISpliceable<TreeNode<T>>) { }
+
+	splice(start: TreeLocation, deleteCount: number, elements: ITreeElement<T>[]): void {
 		if (start.length === 0) {
 			throw new Error('Invalid tree location');
 		}
 
-		return this.spliceRecursive(this.root, 0, start, deleteCount, elements);
+		const {node, listIndex} = this.findNode(start, this.root, 0);
+		const {listDeleteCount, listElements} = node.splice(start[start.length - 1], deleteCount, elements);
+
+		this.spliceable.splice(listIndex, listDeleteCount, listElements);
 	}
 
-	private spliceRecursive(node: ITreeNode<T>, listIndex: number, location: TreeLocation, deleteCount: number, elements: ITreeElement<T>[]) {
+	private findNode(location: TreeLocation, node: TreeNode<T>, listIndex: number): { node: TreeNode<T>; listIndex: number } {
 		const [i, ...rest] = location;
 
-		if (rest.length > 0) {
-			for (let j = 0; j < i; j++) {
-				listIndex += node.children[j].count;
-			}
-
-			return this.spliceRecursive(node.children[i], listIndex, rest, deleteCount, elements);
-		} else {
-			return this.spliceNode(node, listIndex, i, deleteCount, elements);
+		if (rest.length === 0) {
+			return { node, listIndex };
 		}
-	}
 
-	private spliceNode(node: ITreeNode<T>, listIndex: number, childIndex: number, deleteCount: number, elements: ITreeElement<T>[]) {
-		const depth = node.depth;
-		const { nodes, list } = createNodes(depth, elements);
-		const countAdd = nodes.reduce((r, n) => r + n.count, 0);
-		const deleted = node.children.splice(childIndex, deleteCount, ...nodes);
-		const countSubtract = deleted.reduce((r, n) => r + n.count, 0);
+		for (let j = 0; j < i; j++) {
+			listIndex += node.children[j].count;
+		}
 
-		node.count += countAdd - countSubtract;
-		this.list.splice(listIndex, countSubtract, ...list);
+		return this.findNode(rest, node.children[i], listIndex);
 	}
 }
