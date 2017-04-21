@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { ISpliceable } from './splice';
+import { ISpreadSpliceable } from './splice';
 
 export interface ITreeElement<T> {
 	element: T;
@@ -14,7 +14,13 @@ export interface ITreeElement<T> {
 
 export type TreeLocation = number[];
 
-export class TreeNode<T> {
+export interface ITreeNode<T> {
+	readonly element: T;
+	readonly children: ITreeNode<T>[];
+	readonly depth: number;
+}
+
+export class TreeNode<T> implements ITreeNode<T> {
 
 	static createRoot<T>(): TreeNode<T> {
 		return new TreeNode<T>({ children: [], element: null }, 0);
@@ -77,7 +83,7 @@ export class TreeModel<T> {
 
 	private root = TreeNode.createRoot<T>();
 
-	constructor(private spliceable: ISpliceable<TreeNode<T>>) { }
+	constructor(private spliceable: ISpreadSpliceable<ITreeNode<T>>) { }
 
 	splice(start: TreeLocation, deleteCount: number, elements: ITreeElement<T>[]): void {
 		if (start.length === 0) {
@@ -87,7 +93,7 @@ export class TreeModel<T> {
 		const {node, listIndex} = this.findNode(start, this.root, 0);
 		const {listDeleteCount, listElements} = node.splice(start[start.length - 1], deleteCount, elements);
 
-		this.spliceable.splice(listIndex, listDeleteCount, listElements);
+		this.spliceable.splice(listIndex, listDeleteCount, ...listElements);
 	}
 
 	private findNode(location: TreeLocation, node: TreeNode<T>, listIndex: number): { node: TreeNode<T>; listIndex: number } {
