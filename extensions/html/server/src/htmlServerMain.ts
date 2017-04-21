@@ -10,6 +10,7 @@ import { TextDocument, Diagnostic, DocumentLink, Range, SymbolInformation } from
 import { getLanguageModes, LanguageModes } from './modes/languageModes';
 
 import { format } from './modes/formatting';
+import { pushAll } from './utils/arrays';
 
 import * as url from 'url';
 import * as path from 'path';
@@ -163,14 +164,6 @@ function validateTextDocument(textDocument: TextDocument): void {
 		});
 	}
 	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-}
-
-function pushAll<T>(to: T[], from: T[]) {
-	if (from) {
-		for (var i = 0; i < from.length; i++) {
-			to.push(from[i]);
-		}
-	}
 }
 
 connection.onCompletion(textDocumentPosition => {
