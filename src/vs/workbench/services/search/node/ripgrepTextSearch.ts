@@ -152,7 +152,7 @@ export class RipgrepEngine {
 }
 
 export class RipgrepParser extends EventEmitter {
-	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)$/;
+	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)(\r?)/;
 	private static FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
 
 	public static MATCH_START_MARKER = '\u001b[m\u001b[31m';
@@ -195,8 +195,17 @@ export class RipgrepParser extends EventEmitter {
 
 			let r: RegExpMatchArray;
 			if (r = outputLine.match(RipgrepParser.RESULT_REGEX)) {
+				const lineNum = parseInt(r[1]) - 1;
+				let matchText = r[2];
+
+				// workaround https://github.com/BurntSushi/ripgrep/issues/416
+				// If the match line ended with \r, append a match end marker so the match isn't lost
+				if (r[3]) {
+					matchText += RipgrepParser.MATCH_END_MARKER;
+				}
+
 				// Line is a result - add to collected results for the current file path
-				this.handleMatchLine(outputLine, parseInt(r[1]) - 1, r[2]);
+				this.handleMatchLine(outputLine, lineNum, matchText);
 			} else if (r = outputLine.match(RipgrepParser.FILE_REGEX)) {
 				// Line is a file path - send all collected results for the previous file path
 				if (this.fileMatch) {
