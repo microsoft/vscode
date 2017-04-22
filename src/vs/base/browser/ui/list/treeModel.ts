@@ -23,7 +23,34 @@ export interface ITreeNode<T> {
 export class TreeNode<T> implements ITreeNode<T> {
 
 	static createRoot<T>(): TreeNode<T> {
-		return new TreeNode<T>({ children: [], element: null }, 0);
+		const node = new TreeNode<T>();
+		node._children = [];
+		node._count = 1;
+		node._depth = 0;
+		return node;
+	}
+
+	static createNode<T>(
+		treeElement: ITreeElement<T>,
+		depth: number,
+		list: ITreeNode<T>[]
+	): TreeNode<T> {
+		const node = new TreeNode<T>();
+		list.push(node);
+
+		const {children, count} = treeElement.children.reduce((r, e) => {
+			const child = TreeNode.createNode<T>(e, depth + 1, list);
+			r.children.push(child);
+			r.count += child.count;
+			return r;
+		}, { children: [] as TreeNode<T>[], count: 1 });
+
+		node._element = treeElement.element;
+		node._children = children;
+		node._count = count;
+		node._depth = depth;
+
+		return node;
 	}
 
 	private _element: T;
@@ -38,31 +65,12 @@ export class TreeNode<T> implements ITreeNode<T> {
 	private _depth: number;
 	public get depth(): number { return this._depth; }
 
-	constructor(
-		treeElement: ITreeElement<T>,
-		depth: number
-	) {
-		const {children, count} = treeElement.children.reduce((r, e) => {
-			const child = new TreeNode<T>(e, depth + 1);
-			r.children.push(child);
-			r.count += child.count;
-			return r;
-		}, { children: [] as TreeNode<T>[], count: 1 });
+	constructor() { }
 
-		this._element = treeElement.element;
-		this._children = children;
-		this._count = count;
-		this._depth = depth;
-	}
+	splice(index: number, deleteCount: number, elements: ITreeElement<T>[]): { listDeleteCount: number, listElements: ITreeNode<T>[] } {
+		const listElements = [] as ITreeNode<T>[];
 
-	splice(index: number, deleteCount: number, elements: ITreeElement<T>[]): { listDeleteCount: number, listElements: TreeNode<T>[] } {
-		const {added, listElements} = elements.reduce((r, e) => {
-			const node = new TreeNode<T>(e, this.depth + 1);
-			r.added.push(node);
-			r.listElements = [...r.listElements, ...node.iterate()];
-			return r;
-		}, { added: [], listElements: [] });
-
+		const added = elements.map(e => TreeNode.createNode<T>(e, this.depth + 1, listElements));
 		const listAddCount = added.reduce((r, n) => r + n.count, 0);
 
 		const deleted = this.children.splice(index, deleteCount, ...added);
@@ -70,12 +78,6 @@ export class TreeNode<T> implements ITreeNode<T> {
 
 		this._count += listAddCount - listDeleteCount;
 		return { listDeleteCount, listElements };
-	}
-
-	private iterate(list: TreeNode<T>[] = []): TreeNode<T>[] {
-		list.push(this);
-		this.children.forEach(c => c.iterate(list));
-		return list;
 	}
 }
 
