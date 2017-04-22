@@ -22,6 +22,9 @@
 	"listActiveSelectionForeground": "List/Tree enfoca en primer plano cuando está activo",
 	"listFocusAndSelectionBackground": "List/Tree enfocar y seleccionar fondo",
 	"listFocusAndSelectionForeground": "List/Tree enfocar y seleccionar primer plano",
+	"listInactiveSelectionBackground": "List/Tree selección de fondo cuando está inactivo",
+	"listHoverBackground": "List/Tree mantener fondo",
+	"listDropBackground": "List/Tree arrastrar y colocar fondo",
 	"editorBackground": "Color de fondo del editor.",
 	"editorForeground": "Color de primer plano predeterminado del editor.",
 	"editorSelection": "Color de la selección del editor.",
@@ -31,5 +34,7 @@
 	"findMatchHighlight": "Color de las demás coincidencias de búsqueda.",
 	"findRangeHighlight": "Color del intervalo que limita la búsqueda.",
 	"activeLinkForeground": "Color de los vínculos activos.",
-	"linkForeground": "Color de los vínculos."
+	"linkForeground": "Color de los vínculos.",
+	"editorWidgetBackground": "Color de fondo del editor de widgets como buscar/reemplazar",
+	"editorWidgetShadow": "Color de sombra del editor de widgets como buscar/reemplazar"
 }

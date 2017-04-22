@@ -17,6 +17,7 @@
 	"dropdownBackground": "Hintergrund für Dropdown.",
 	"dropdownForeground": "Vordergrund für Dropdown.",
 	"dropdownBorder": "Rahmen für Dropdown.",
+	"listDropBackground": "Drag & Drop Hintergrund von Listen/Bäumen",
 	"editorBackground": "Hintergrundfarbe des Editors.",
 	"editorForeground": "Standardvordergrundfarbe des Editors.",
 	"editorSelection": "Farbe der Editor-Auswahl.",

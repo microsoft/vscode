@@ -12,10 +12,12 @@
 	"actions.previewDecl.label": "查看定义",
 	"goToImplementation.noResultWord": "未找到“{0}”的实现",
 	"goToImplementation.generic.noResults": "未找到实现",
+	"meta.implementations.title": "– {0} 个实现",
 	"actions.goToImplementation.label": "转到实现",
 	"actions.peekImplementation.label": "速览实现",
 	"goToTypeDefinition.noResultWord": "未找到“{0}”的类型定义",
 	"goToTypeDefinition.generic.noResults": "未找到类型定义",
+	"meta.typeDefinitions.title": " – {0} 个类型定义",
 	"actions.goToTypeDefinition.label": "转到类型定义",
 	"actions.peekTypeDefinition.label": "快速查看类型定义",
 	"multipleResults": "单击显示 {0} 个定义。"

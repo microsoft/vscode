@@ -48,10 +48,12 @@
 	"menuBarVisibility": "控制菜单栏的可见性。“切换”设置表示隐藏菜单栏，按一次 Alt 键则将显示此菜单栏。默认情况下，除非窗口为全屏，否则菜单栏可见。",
 	"autoDetectHighContrast": "如果已启用，将自动更改为高对比度主题；如果 Windows 正在使用高对比度主题，则当离开 Windows 高对比度主题时会更改为深色主题。",
 	"titleBarStyle": "调整窗口标题栏的外观。更改需要在完全重启后才能应用。",
+	"window.nativeTabs": "\n启用macOS Sierra窗口选项卡。请注意，更改需要完全重新启动程序才能生效。如果配置此选项，本机选项卡将禁用自定义标题栏样式。",
 	"windowConfigurationTitle": "窗口",
 	"zenModeConfigurationTitle": "Zen 模式",
 	"zenMode.fullScreen": "控制打开 Zen Mode 是否也会将工作台置于全屏模式。",
 	"zenMode.hideTabs": "控制打开 Zen 模式是否也会隐藏工作台选项卡。",
 	"zenMode.hideStatusBar": "控制打开 Zen 模式是否也会隐藏工作台底部的状态栏。",
+	"zenMode.hideActivityBar": "控制打开 Zen 模式是否也会隐藏工作台左侧的活动栏。",
 	"zenMode.restore": "控制如果某窗口已退出 zen 模式，是否应还原到 zen 模式。"
 }

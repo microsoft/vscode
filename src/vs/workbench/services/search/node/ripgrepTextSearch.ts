@@ -131,7 +131,12 @@ export class RipgrepEngine {
 		});
 	}
 
-	private rgErrorMsgForDisplay(msg: string): string {
+	/**
+	 * Read the first line of stderr and return an error for display or undefined, based on a whitelist.
+	 * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
+	 * "failed" when a fatal error was produced.
+	 */
+	private rgErrorMsgForDisplay(msg: string): string | undefined {
 		const firstLine = msg.split('\n')[0];
 		if (firstLine.match(/^No files were searched, which means ripgrep/)) {
 			// Not really a useful message to show in the UI
@@ -147,12 +152,12 @@ export class RipgrepEngine {
 			return this.config.searchPaths && this.config.searchPaths.indexOf(errorPath) >= 0 ? firstLine : undefined;
 		}
 
-		return firstLine;
+		return strings.startsWith(firstLine, 'Error parsing regex') ? firstLine : undefined;
 	}
 }
 
 export class RipgrepParser extends EventEmitter {
-	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)$/;
+	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)(\r?)/;
 	private static FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
 
 	public static MATCH_START_MARKER = '\u001b[m\u001b[31m';
@@ -195,8 +200,17 @@ export class RipgrepParser extends EventEmitter {
 
 			let r: RegExpMatchArray;
 			if (r = outputLine.match(RipgrepParser.RESULT_REGEX)) {
+				const lineNum = parseInt(r[1]) - 1;
+				let matchText = r[2];
+
+				// workaround https://github.com/BurntSushi/ripgrep/issues/416
+				// If the match line ended with \r, append a match end marker so the match isn't lost
+				if (r[3]) {
+					matchText += RipgrepParser.MATCH_END_MARKER;
+				}
+
 				// Line is a result - add to collected results for the current file path
-				this.handleMatchLine(outputLine, parseInt(r[1]) - 1, r[2]);
+				this.handleMatchLine(outputLine, lineNum, matchText);
 			} else if (r = outputLine.match(RipgrepParser.FILE_REGEX)) {
 				// Line is a file path - send all collected results for the previous file path
 				if (this.fileMatch) {

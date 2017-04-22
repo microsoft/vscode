@@ -6,6 +6,7 @@
 {
 	"mFile": "ファイル(&&F)",
 	"mEdit": "編集(&&E)",
+	"mSelection": "選択(&C)",
 	"mView": "表示(&&V)",
 	"mDebug": "デバッグ(&&D)",
 	"mWindow": "ウィンドウ",
@@ -37,6 +38,7 @@
 	"miSelectIconTheme": "ファイル アイコンのテーマ(&&I)",
 	"miPreferences": "基本設定(&&P)",
 	"miReopenClosedEditor": "閉じたエディターを再度開く(&&R)",
+	"miClearRecentOpen": "最近使用したファイルのクリア(&&C)",
 	"miUndo": "元に戻す(&&U)",
 	"miRedo": "やり直し(&&R)",
 	"miCopy": "コピー (&&C)",
@@ -126,6 +128,7 @@
 	"miNewBreakpoint": "新しいブレークポイント(&&N)",
 	"miDisableAllBreakpoints": "すべてのブレークポイントを無効にする(&&L)",
 	"miRemoveAllBreakpoints": "すべてのブレークポイントを削除する(&&R)",
+	"miInstallAdditionalDebuggers": "その他のデバッガーをインストールします(&&I)...",
 	"mMinimize": "最小化",
 	"mClose": "閉じる",
 	"mBringToFront": "すべてを前面に配置",

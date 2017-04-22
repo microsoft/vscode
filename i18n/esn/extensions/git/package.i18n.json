@@ -40,5 +40,6 @@
 	"config.enableLongCommitWarning": "Si se debe advertir sobre los mensajes de confirmación largos",
 	"config.confirmSync": "Confirmar antes de sincronizar repositorios GIT",
 	"config.countBadge": "Controla el contador de señales GIT",
-	"config.checkoutType": "Controla qué tipo de ramas figuran en la lista"
+	"config.checkoutType": "Controla qué tipo de ramas figuran en la lista",
+	"config.ignoreLegacyWarning": "Ignora las advertencias hereradas de Git"
 }

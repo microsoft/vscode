@@ -16,6 +16,7 @@
 	"terminal.integrated.fontLigatures": "Controlla se i caratteri legatura sono abilitati nel terminale.",
 	"terminal.integrated.fontSize": "Consente di controllare le dimensioni del carattere in pixel del terminale.",
 	"terminal.integrated.lineHeight": "Controlla l'altezza della riga del terminale. Questo numero è moltiplicato dalle dimensioni del carattere del terminale per ottenere l'altezza di riga effettiva in pixel.",
+	"terminal.integrated.enableBold": "Indica se abilitare il testo in grassetto nella console del terminale. Richiede il supporto da parte della console",
 	"terminal.integrated.cursorBlinking": "Controlla se il cursore del terminale è intermittente o meno.",
 	"terminal.integrated.cursorStyle": "Controlla lo stile del cursore del terminale.",
 	"terminal.integrated.scrollback": "Consente di controllare il numero massimo di righe che il terminale mantiene nel buffer.",

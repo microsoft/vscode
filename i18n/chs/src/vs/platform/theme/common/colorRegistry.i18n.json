@@ -17,6 +17,13 @@
 	"dropdownBackground": "下拉列表背景色。",
 	"dropdownForeground": "下拉列表前景色。",
 	"dropdownBorder": "下拉列表边框。",
+	"listFocusBackground": "活动状态下列表或树聚焦时的背景颜色",
+	"listActiveSelectionBackground": "活动状态下列表或树选择项的背景颜色",
+	"listFocusAndSelectionBackground": "列表或树选择项聚焦时的背景颜色",
+	"listFocusAndSelectionForeground": "列表或树选择项聚焦时的前景颜色",
+	"listInactiveSelectionBackground": "非活动状态下列表或树选择项的背景颜色",
+	"listHoverBackground": "列表或树悬停时的背景颜色",
+	"listDropBackground": "列表或树拖放时的背景颜色",
 	"editorBackground": "编辑器背景颜色。",
 	"editorForeground": "编辑器默认前景色。",
 	"editorSelection": "编辑器所选内容的颜色。",
@@ -26,5 +33,7 @@
 	"findMatchHighlight": "其他搜索匹配项的颜色。",
 	"findRangeHighlight": "限制搜索的范围的颜色。",
 	"activeLinkForeground": "活动链接颜色。",
-	"linkForeground": "链接颜色。"
+	"linkForeground": "链接颜色。",
+	"editorWidgetBackground": "编辑器组件(如查找/替换)背景颜色。",
+	"editorWidgetShadow": "编辑器组件(如查找/替换)阴影颜色。"
 }
