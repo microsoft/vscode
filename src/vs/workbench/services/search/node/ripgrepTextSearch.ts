@@ -131,7 +131,12 @@ export class RipgrepEngine {
 		});
 	}
 
-	private rgErrorMsgForDisplay(msg: string): string {
+	/**
+	 * Read the first line of stderr and return an error for display or undefined, based on a whitelist.
+	 * Ripgrep produces stderr output which is not from a fatal error, and we only want the search to be
+	 * "failed" when a fatal error was produced.
+	 */
+	private rgErrorMsgForDisplay(msg: string): string | undefined {
 		const firstLine = msg.split('\n')[0];
 		if (firstLine.match(/^No files were searched, which means ripgrep/)) {
 			// Not really a useful message to show in the UI
@@ -147,7 +152,7 @@ export class RipgrepEngine {
 			return this.config.searchPaths && this.config.searchPaths.indexOf(errorPath) >= 0 ? firstLine : undefined;
 		}
 
-		return firstLine;
+		return strings.startsWith(firstLine, 'Error parsing regex') ? firstLine : undefined;
 	}
 }
 
