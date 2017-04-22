@@ -27,14 +27,42 @@ suite('TreeModel2', () => {
 
 		assert.deepEqual(list.length, 3);
 		assert.deepEqual(list[0].element, 0);
-		assert.deepEqual(list[0].children, []);
 		assert.deepEqual(list[0].depth, 1);
 		assert.deepEqual(list[1].element, 1);
-		assert.deepEqual(list[1].children, []);
 		assert.deepEqual(list[1].depth, 1);
 		assert.deepEqual(list[2].element, 2);
-		assert.deepEqual(list[2].children, []);
 		assert.deepEqual(list[2].depth, 1);
+	});
+
+	test('deep insert', () => {
+		const list = [] as ITreeNode<number>[];
+		const model = new TreeModel<number>(list);
+
+		model.splice([0], 0, [
+			{
+				element: 0, children: [
+					{ element: 10, children: [] },
+					{ element: 11, children: [] },
+					{ element: 12, children: [] },
+				]
+			},
+			{ element: 1, children: [] },
+			{ element: 2, children: [] }
+		]);
+
+		assert.deepEqual(list.length, 6);
+		assert.deepEqual(list[0].element, 0);
+		assert.deepEqual(list[0].depth, 1);
+		assert.deepEqual(list[1].element, 10);
+		assert.deepEqual(list[1].depth, 2);
+		assert.deepEqual(list[2].element, 11);
+		assert.deepEqual(list[2].depth, 2);
+		assert.deepEqual(list[3].element, 12);
+		assert.deepEqual(list[3].depth, 2);
+		assert.deepEqual(list[4].element, 1);
+		assert.deepEqual(list[4].depth, 1);
+		assert.deepEqual(list[5].element, 2);
+		assert.deepEqual(list[5].depth, 1);
 	});
 
 	test('delete', () => {

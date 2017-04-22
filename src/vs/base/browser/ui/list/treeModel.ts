@@ -16,7 +16,6 @@ export type TreeLocation = number[];
 
 export interface ITreeNode<T> {
 	readonly element: T;
-	readonly children: ITreeNode<T>[];
 	readonly depth: number;
 }
 
