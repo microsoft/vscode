@@ -631,17 +631,17 @@ export class FileService implements IFileService {
 					}
 
 					let mode = stat.mode;
-					const readonly = !(mode & 128);
+					const readOnly = !(mode & 128);
 
 					// Throw if file is readonly and we are not instructed to overwrite
-					if (readonly && !options.overwriteReadonly) {
+					if (readOnly && !options.overwriteReadonly) {
 						return TPromise.wrapError(<IFileOperationResult>{
 							message: nls.localize('fileReadOnlyError', "File is Read Only"),
 							fileOperationResult: FileOperationResult.FILE_READ_ONLY
 						});
 					}
 
-					if (readonly) {
+					if (readOnly) {
 						mode = mode | 128;
 						return pfs.chmod(absolutePath, mode).then(() => exists);
 					}
