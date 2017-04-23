@@ -32,7 +32,7 @@
     "jschardet": "^1.4.2",
     "minimist": "1.2.0",
     "native-keymap": "1.2.2",
-    "node-pty": "0.6.2",
+    "node-pty": "0.6.4",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
     "vscode-debugprotocol": "1.18.0",
