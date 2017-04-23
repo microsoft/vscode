@@ -134,7 +134,7 @@
 		},
 		{
 			"comment": "Integers",
-			"match": "\\b((0x[0-9a-fA-F]+)|(0[0-7]+i?)|(\\d+([Ee]\\d+)?i?)|(\\d+[Ee][-+]\\d+i?))\\b",
+			"match": "\\b((0[xX][0-9a-fA-F]+)|(0[0-7]+i?)|(\\d+([Ee]\\d+)?i?)|(\\d+[Ee][-+]\\d+i?))\\b",
 			"name": "constant.numeric.integer.go"
 		},
 		{
