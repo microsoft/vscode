@@ -68,23 +68,7 @@ export class ExceptionWidget extends ZoneWidget {
 		this.container.style.lineHeight = `${fontInfo.lineHeight}px`;
 
 		let title = $('.title');
-		switch (this.exceptionInfo.breakMode) {
-			case 'never':
-				title.textContent = nls.localize('neverException', 'User-handled exception has occurred: {0}', this.exceptionInfo.id);
-				break;
-			case 'always':
-				title.textContent = nls.localize('alwaysException', 'Always-breaking exception has occurred: {0}', this.exceptionInfo.id);
-				break;
-			case 'unhandled':
-				title.textContent = nls.localize('unhandledException', 'Unhandled exception has occurred: {0}', this.exceptionInfo.id);
-				break;
-			case 'userUnhandled':
-				title.textContent = nls.localize('userUnhandledException', 'User-unhandled exception has occurred: {0}', this.exceptionInfo.id);
-				break;
-			default:
-				title.textContent = this.exceptionInfo.id ? nls.localize('exceptionThrownWithId', 'Exception has occurred: {0}', this.exceptionInfo.id) : nls.localize('exceptionThrown', 'Exception has occurred.');
-				break;
-		}
+		title.textContent = this.exceptionInfo.id ? nls.localize('exceptionThrownWithId', 'Exception has occurred: {0}', this.exceptionInfo.id) : nls.localize('exceptionThrown', 'Exception has occurred.');
 		dom.append(container, title);
 
 		if (this.exceptionInfo.description) {
