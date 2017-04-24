@@ -10,8 +10,8 @@ import * as DOM from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IAction, IActionRunner, IActionItem } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -21,13 +21,16 @@ import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeEx
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeExplorerViewletState, TreeDataSource, TreeRenderer, TreeController } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
+import { TreeExplorerMenus } from 'vs/workbench/parts/explorers/browser/treeExplorerMenus';
 import { RefreshViewExplorerAction } from 'vs/workbench/parts/explorers/browser/treeExplorerActions';
 import { attachListStyler } from "vs/platform/theme/common/styler";
 import { IThemeService } from "vs/platform/theme/common/themeService";
+import { createActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class TreeExplorerView extends CollapsibleViewletView {
 
-	private providerDisposables = IDisposable[];
+	private providerDisposables: IDisposable[];
+	private menus: TreeExplorerMenus;
 
 	constructor(
 		private viewletState: TreeExplorerViewletState,
@@ -44,7 +47,8 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		@IThemeService private themeService: IThemeService
 	) {
 		super(actionRunner, false, nls.localize('treeExplorerViewlet.tree', "Tree Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
-
+		this.treeExplorerService.activeProvider = treeNodeProviderId;
+		this.menus = this.instantiationService.createInstance(TreeExplorerMenus);
 		this.create();
 	}
 
@@ -74,10 +78,16 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		return tree;
 	}
 
-	public getActions(): IAction[] {
-		const refresh = this.instantiationService.createInstance(RefreshViewExplorerAction, this);
+	getActions(): IAction[] {
+		return [...this.menus.getTitleActions(), new RefreshViewExplorerAction(this)];
+	}
 
-		return [refresh];
+	getSecondaryActions(): IAction[] {
+		return this.menus.getTitleSecondaryActions();
+	}
+
+	getActionItem(action: IAction): IActionItem {
+		return createActionItem(action, this.keybindingService, this.messageService);
 	}
 
 	public create(): TPromise<void> {
