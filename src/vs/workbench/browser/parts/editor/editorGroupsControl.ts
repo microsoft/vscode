@@ -1016,11 +1016,12 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		// Title control
 		POSITIONS.forEach(position => {
 			const container = this.getTitleAreaControl(position).getContainer();
+			const hcBorder = this.getColor(highContrastBorder);
 
 			container.style.backgroundColor = this.getColor(this.tabOptions.showTabs ? TABS_CONTAINER_BACKGROUND : EDITOR_HEADER_BACKGROUND);
-			container.style.borderBottomWidth = (this.isHighContrastTheme && this.tabOptions.showTabs) ? '1px' : null;
-			container.style.borderBottomStyle = (this.isHighContrastTheme && this.tabOptions.showTabs) ? 'solid' : null;
-			container.style.borderBottomColor = (this.isHighContrastTheme && this.tabOptions.showTabs) ? this.getColor(highContrastBorder) : null;
+			container.style.borderBottomWidth = (hcBorder && this.tabOptions.showTabs) ? '1px' : null;
+			container.style.borderBottomStyle = (hcBorder && this.tabOptions.showTabs) ? 'solid' : null;
+			container.style.borderBottomColor = this.tabOptions.showTabs ? hcBorder : null;
 		});
 	}
 
@@ -1225,15 +1226,15 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				const containers = $this.visibleEditors.filter(e => !!e).map(e => e.getContainer());
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
-						const useOutline = $this.isHighContrastTheme;
+						const hcOutline = $this.getColor(highContrastOutline);
 						overlay = $('div').style({
 							top: $this.tabOptions.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0,
 							height: $this.tabOptions.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%',
 							backgroundColor: $this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
-							outlineColor: useOutline ? $this.getColor(highContrastOutline) : null,
-							outlineOffset: useOutline ? '-2px' : null,
-							outlineStyle: useOutline ? 'dashed' : null,
-							outlineWidth: useOutline ? '2px' : null
+							outlineColor: hcOutline,
+							outlineOffset: hcOutline ? '-2px' : null,
+							outlineStyle: hcOutline ? 'dashed' : null,
+							outlineWidth: hcOutline ? '2px' : null
 						}).id(overlayId);
 
 						overlay.appendTo(container);
@@ -1568,11 +1569,11 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		const background = this.getColor(isDropping ? EDITOR_DRAG_AND_DROP_BACKGROUND : groupCount > 0 ? EDITOR_GROUP_BACKGROUND : null);
 		element.style.backgroundColor = background;
 
-		const useOutline = this.isHighContrastTheme && isDropping;
-		element.style.outlineColor = useOutline ? this.getColor(highContrastOutline) : null;
-		element.style.outlineStyle = useOutline ? 'dashed' : null;
-		element.style.outlineWidth = useOutline ? '2px' : null;
-		element.style.outlineOffset = useOutline ? '-2px' : null;
+		const hcOutline = this.getColor(highContrastOutline);
+		element.style.outlineColor = isDropping ? hcOutline : null;
+		element.style.outlineStyle = isDropping && hcOutline ? 'dashed' : null;
+		element.style.outlineWidth = isDropping && hcOutline ? '2px' : null;
+		element.style.outlineOffset = isDropping && hcOutline ? '-2px' : null;
 	}
 
 	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number, borderLeftTopWidth?: string | number): void {

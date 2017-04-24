@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, window, workspace } from 'vscode';
-import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes, GitError } from './git';
+import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
 import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
@@ -486,16 +486,10 @@ export class Model implements Disposable {
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`]);
+			const configFiles = workspace.getConfiguration('files');
+			const encoding = configFiles.get<string>('encoding');
 
-			if (result.exitCode !== 0) {
-				throw new GitError({
-					message: localize('cantshow', "Could not show object"),
-					exitCode: result.exitCode
-				});
-			}
-
-			return result.stdout;
+			return await this.repository.buffer(`${ref}:${relativePath}`, encoding);
 		});
 	}
 

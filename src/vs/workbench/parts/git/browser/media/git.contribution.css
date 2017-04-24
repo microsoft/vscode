@@ -25,11 +25,7 @@
 
 /* Activity Bar */
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.git {
-	background-image: url('git-dark.svg');
-}
-
-.monaco-workbench > .activitybar.light .monaco-action-bar .action-label.git {
-	background-image: url('git-light.svg');
+	-webkit-mask: url('git-dark.svg') no-repeat 50% 50%;
 }
 
 /* Status / Quick Open */

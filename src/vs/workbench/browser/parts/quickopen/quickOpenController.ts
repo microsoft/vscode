@@ -65,7 +65,7 @@ interface IWorkbenchQuickOpenConfiguration {
 
 interface IInternalPickOptions {
 	value?: string;
-	valueSelect?: boolean;
+	valueSelection?: [number, number];
 	placeHolder?: string;
 	inputDecoration?: Severity;
 	password?: boolean;
@@ -184,7 +184,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				password: options.password,
 				placeHolder: options.placeHolder,
 				value: lastValue === void 0 ? options.value : lastValue,
-				valueSelect: lastValue === void 0,
+				valueSelection: options.valueSelection,
 				inputDecoration: currentDecoration,
 				onDidType: (value) => {
 					lastValue = value;
@@ -306,7 +306,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 		// Respect input value
 		if (options.value) {
-			this.pickOpenWidget.setValue(options.value, options.valueSelect);
+			this.pickOpenWidget.setValue(options.value, options.valueSelection);
 		}
 
 		// Respect password

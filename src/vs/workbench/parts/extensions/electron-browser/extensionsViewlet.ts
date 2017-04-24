@@ -146,7 +146,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	public updateStyles(): void {
 		super.updateStyles();
 
-		const hcBorder = this.isHighContrastTheme ? this.getColor(highContrastBorder) : null;
+		const hcBorder = this.getColor(highContrastBorder);
 
 		this.searchBox.style.backgroundColor = this.getColor(inputBackground);
 		this.searchBox.style.color = this.getColor(inputForeground);

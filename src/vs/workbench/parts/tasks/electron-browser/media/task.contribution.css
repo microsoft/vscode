@@ -22,6 +22,7 @@
 	padding: 0px 2px 0px 2px;
 	display: inline-block;
 	text-align: center;
+	vertical-align: top;
 }
 
 .task-statusbar-item-label {
