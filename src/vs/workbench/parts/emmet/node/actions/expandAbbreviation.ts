@@ -31,7 +31,8 @@ class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 					EditorContextKeys.hasOnlyEmptySelection,
 					EditorContextKeys.hasSingleSelection,
 					EditorContextKeys.tabDoesNotMoveFocus,
-					ContextKeyExpr.has('config.emmet.triggerExpansionOnTab')
+					ContextKeyExpr.has('config.emmet.triggerExpansionOnTab'),
+					ContextKeyExpr.not('config.emmet.autocomplete')
 				)
 			}
 		);
