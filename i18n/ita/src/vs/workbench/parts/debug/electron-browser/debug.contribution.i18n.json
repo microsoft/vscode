@@ -15,5 +15,6 @@
 	"allowBreakpointsEverywhere": "Consente l'impostazione del punto di interruzione in qualsiasi file",
 	"openExplorerOnEnd": "Apre automaticamente la visualizzazione di esplorazione al termine di una sessione di debug",
 	"inlineValues": "Mostra i valori delle variabili inline nell'editor durante il debug",
-	"hideActionBar": "Controlla se nascondere la barra delle azioni mobile di debug"
+	"hideActionBar": "Controlla se nascondere la barra delle azioni mobile di debug",
+	"launch": "Configurazione globale per l'esecuzione del debug. Può essere usata come un'alternativa a \"launch.json\" "
 }

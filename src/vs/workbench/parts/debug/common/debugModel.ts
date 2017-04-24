@@ -857,7 +857,7 @@ export class Model implements IModel {
 			const bpData = data[bp.getId()];
 			if (bpData) {
 				bp.lineNumber = bpData.line ? bpData.line : bp.lineNumber;
-				bp.column = bpData.column ? bpData.column : bp.column;
+				bp.column = bpData.column;
 				bp.verified = bpData.verified;
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;

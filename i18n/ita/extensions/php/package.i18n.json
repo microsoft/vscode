@@ -9,5 +9,6 @@
 	"configuration.validate.executablePath": "Punta all'eseguibile di PHP.",
 	"configuration.validate.run": "Indica se il linter viene eseguito durante il salvataggio o la digitazione.",
 	"configuration.title": "PHP",
-	"commands.categroy.php": "PHP"
+	"commands.categroy.php": "PHP",
+	"command.untrustValidationExecutable": "Non consentire la convalida di PHP eseguibile (definito come impostazione dell'area di lavoro)"
 }

@@ -7,14 +7,36 @@
 import { applyEdits } from '../utils/edits';
 import { TextDocument, Range, TextEdit, FormattingOptions } from 'vscode-languageserver-types';
 import { LanguageModes } from './languageModes';
+import { pushAll } from '../utils/arrays';
 
 export function format(languageModes: LanguageModes, document: TextDocument, formatRange: Range, formattingOptions: FormattingOptions, enabledModes: { [mode: string]: boolean }) {
+	let result: TextEdit[] = [];
+
 	// run the html formatter on the full range and pass the result content to the embedded formatters.
 	// from the final content create a single edit
 	// advantages of this approach are
 	//  - correct indents in the html document
 	//  - correct initial indent for embedded formatters
 	//  - no worrying of overlapping edits
+
+	// make sure we start in html
+	let allRanges = languageModes.getModesInRange(document, formatRange);
+	let i = 0;
+	let startPos = formatRange.start;
+	while (i < allRanges.length && allRanges[i].mode.getId() !== 'html') {
+		let range = allRanges[i];
+		if (!range.attributeValue && range.mode.format) {
+			let edits = range.mode.format(document, Range.create(startPos, range.end), formattingOptions);
+			pushAll(result, edits);
+		}
+		startPos = range.end;
+		i++;
+	}
+	if (i === allRanges.length) {
+		return result;
+	}
+	// modify the range
+	formatRange = Range.create(startPos, formatRange.end);
 
 	// perform a html format and apply changes to a new document
 	let htmlMode = languageModes.getMode('html');
@@ -40,14 +62,16 @@ export function format(languageModes: LanguageModes, document: TextDocument, for
 		};
 
 		if (embeddedEdits.length === 0) {
-			return htmlEdits;
+			pushAll(result, htmlEdits);
+			return result;
 		}
 
 		// apply all embedded format edits and create a single edit for all changes
 		let resultContent = applyEdits(newDocument, embeddedEdits);
 		let resultReplaceText = resultContent.substring(document.offsetAt(formatRange.start), resultContent.length - afterFormatRangeLength);
 
-		return [TextEdit.replace(formatRange, resultReplaceText)];
+		result.push(TextEdit.replace(formatRange, resultReplaceText));
+		return result;
 	} finally {
 		languageModes.onDocumentRemoved(newDocument);
 	}

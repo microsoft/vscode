@@ -162,6 +162,9 @@ export const listHoverOutline = registerColor('listHoverOutline', { dark: null, 
 export const pickerGroupForeground = registerColor('pickerGroupForeground', { dark: Color.fromHex('#0097FB').transparent(0.6), light: Color.fromHex('#007ACC').transparent(0.6), hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
 export const pickerGroupBorder = registerColor('pickerGroupBorder', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
 
+export const buttonBackground = registerColor('buttonBackground', { dark: '#0E639C', light: '#007ACC', hc: null }, nls.localize('buttonBackground', "Button background color."));
+export const buttonHoverBackground = registerColor('buttonHoverBackground', { dark: '#007ACC', light: '#006BB3', hc: null }, nls.localize('buttonHoverBackground', "Button background color when hovering."));
+
 /**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254

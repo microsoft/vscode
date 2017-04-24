@@ -16,6 +16,7 @@
 	"terminal.integrated.fontLigatures": "控制是否在终端中启用字体连字。",
 	"terminal.integrated.fontSize": "控制终端的字号(以像素为单位)。",
 	"terminal.integrated.lineHeight": "控制终端的行高，此数字乘以终端字号得到实际行高(以像素表示)。",
+	"terminal.integrated.enableBold": "是否在终端内启用粗体文本，这需要终端 shell 的支持。",
 	"terminal.integrated.cursorBlinking": "控制终端游标是否闪烁。",
 	"terminal.integrated.cursorStyle": "控制终端游标的样式。",
 	"terminal.integrated.scrollback": "控制终端保持在缓冲区的最大行数。",

@@ -45,20 +45,12 @@ function moveRight(cursor: Cursor, inSelectionMode: boolean = false) {
 	cursorCommand(cursor, inSelectionMode ? H.CursorRightSelect : H.CursorRight);
 }
 
-function moveDown(cursor: Cursor, linesCount: number, inSelectionMode: boolean = false) {
-	if (linesCount === 1) {
-		cursorCommand(cursor, inSelectionMode ? H.CursorDownSelect : H.CursorDown);
-	} else {
-		cursorCommand(cursor, inSelectionMode ? H.CursorPageDownSelect : H.CursorPageDown, { pageSize: linesCount });
-	}
+function moveDown(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorDownSelect : H.CursorDown);
 }
 
-function moveUp(cursor: Cursor, linesCount: number, inSelectionMode: boolean = false) {
-	if (linesCount === 1) {
-		cursorCommand(cursor, inSelectionMode ? H.CursorUpSelect : H.CursorUp);
-	} else {
-		cursorCommand(cursor, inSelectionMode ? H.CursorPageUpSelect : H.CursorPageUp, { pageSize: linesCount });
-	}
+function moveUp(cursor: Cursor, inSelectionMode: boolean = false) {
+	cursorCommand(cursor, inSelectionMode ? H.CursorUpSelect : H.CursorUp);
 }
 
 function moveToBeginningOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
@@ -249,41 +241,41 @@ suite('Editor Controller - Cursor', () => {
 	// --------- move down
 
 	test('move down', () => {
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(2, 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(3, 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(4, 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(5, 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(5, 2));
 	});
 
 	test('move down with selection', () => {
-		moveDown(thisCursor, 1, true);
+		moveDown(thisCursor, true);
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
-		moveDown(thisCursor, 1, true);
+		moveDown(thisCursor, true);
 		assertCursor(thisCursor, new Selection(1, 1, 3, 1));
-		moveDown(thisCursor, 1, true);
+		moveDown(thisCursor, true);
 		assertCursor(thisCursor, new Selection(1, 1, 4, 1));
-		moveDown(thisCursor, 1, true);
+		moveDown(thisCursor, true);
 		assertCursor(thisCursor, new Selection(1, 1, 5, 1));
-		moveDown(thisCursor, 1, true);
+		moveDown(thisCursor, true);
 		assertCursor(thisCursor, new Selection(1, 1, 5, 2));
 	});
 
 	test('move down with tabs', () => {
 		moveTo(thisCursor, 1, 5);
 		assertCursor(thisCursor, new Position(1, 5));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(2, 2));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(3, 5));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(4, 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(5, 2));
 	});
 
@@ -293,10 +285,10 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(thisCursor, 3, 5);
 		assertCursor(thisCursor, new Position(3, 5));
 
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(2, 2));
 
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(1, 5));
 	});
 
@@ -304,25 +296,28 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(thisCursor, 3, 5);
 		assertCursor(thisCursor, new Position(3, 5));
 
-		moveUp(thisCursor, 1, true);
+		moveUp(thisCursor, true);
 		assertCursor(thisCursor, new Selection(3, 5, 2, 2));
 
-		moveUp(thisCursor, 1, true);
+		moveUp(thisCursor, true);
 		assertCursor(thisCursor, new Selection(3, 5, 1, 5));
 	});
 
 	test('move up and down with tabs', () => {
 		moveTo(thisCursor, 1, 5);
 		assertCursor(thisCursor, new Position(1, 5));
-		moveDown(thisCursor, 4);
+		moveDown(thisCursor);
+		moveDown(thisCursor);
+		moveDown(thisCursor);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(5, 2));
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(4, 1));
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(3, 5));
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(2, 2));
-		moveUp(thisCursor, 1);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(1, 5));
 	});
 
@@ -331,15 +326,18 @@ suite('Editor Controller - Cursor', () => {
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 		moveToEndOfLine(thisCursor);
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(2, LINE2.length + 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(3, LINE3.length + 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(4, LINE4.length + 1));
-		moveDown(thisCursor, 1);
+		moveDown(thisCursor);
 		assertCursor(thisCursor, new Position(5, LINE5.length + 1));
-		moveUp(thisCursor, 4);
+		moveUp(thisCursor);
+		moveUp(thisCursor);
+		moveUp(thisCursor);
+		moveUp(thisCursor);
 		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
 	});
 

@@ -98,6 +98,10 @@ class MainThreadSCMProvider implements ISCMProvider {
 	) { }
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
+		if ('count' in features) {
+			this._count = features.count;
+		}
+
 		this.features = assign(this.features, features);
 		this._onDidChange.fire();
 

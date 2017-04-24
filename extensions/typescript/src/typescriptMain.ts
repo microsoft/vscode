@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, FileSystemWatcher } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, FileSystemWatcher, DiagnosticSeverity } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -20,6 +20,7 @@ const localize = nls.loadMessageBundle();
 import * as path from 'path';
 
 import * as Proto from './protocol';
+import * as PConst from './protocol.const';
 
 import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypescriptServiceClientHost } from './typescriptService';
@@ -628,13 +629,27 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private createMarkerDatas(diagnostics: Proto.Diagnostic[], source: string): Diagnostic[] {
 		const result: Diagnostic[] = [];
 		for (let diagnostic of diagnostics) {
-			let { start, end, text } = diagnostic;
-			let range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);
-			let converted = new Diagnostic(range, text);
-			converted.source = source;
+			const { start, end, text } = diagnostic;
+			const range = new Range(start.line - 1, start.offset - 1, end.line - 1, end.offset - 1);
+			const converted = new Diagnostic(range, text);
+			converted.severity = this.getDiagnosticSeverity(diagnostic);
+			converted.source = diagnostic.source || source;
 			converted.code = '' + diagnostic.code;
 			result.push(converted);
 		}
 		return result;
+	}
+
+	private getDiagnosticSeverity(diagnostic: Proto.Diagnostic): DiagnosticSeverity {
+		switch (diagnostic.category) {
+			case PConst.DiagnosticCategory.error:
+				return DiagnosticSeverity.Error;
+
+			case PConst.DiagnosticCategory.warning:
+				return DiagnosticSeverity.Warning;
+
+			default:
+				return DiagnosticSeverity.Error;
+		}
 	}
 }

@@ -32,6 +32,9 @@
 	"javascript.validate.enable": "启用/禁用 JavaScript 验证。",
 	"typescript.goToProjectConfig.title": "转到项目配置",
 	"javascript.goToProjectConfig.title": "转到项目配置",
+	"typescript.referencesCodeLens.enabled": "启用/禁用引用 CodeLens。要求 TypeScript >= 2.0.6。",
+	"typescript.implementationsCodeLens.enabled": "启用/禁用实现 CodeLens。要求 TypeScript >= 2.2.0。",
 	"typescript.openTsServerLog.title": "打开 TS 服务器日志文件",
-	"typescript.selectTypeScriptVersion.title": "选择 TypeScript 版本"
+	"typescript.selectTypeScriptVersion.title": "选择 TypeScript 版本",
+	"jsDocCompletion.enabled": "启用/禁用自动 JSDoc 注释"
 }

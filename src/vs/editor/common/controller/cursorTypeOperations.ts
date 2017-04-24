@@ -6,7 +6,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ReplaceCommand, ReplaceCommandWithoutChangingPosition, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
-import { SingleCursorState, EditOperationResult, CursorColumns, CursorConfiguration, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { SingleCursorState, CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult, CommandResult } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommand, ITokenizedModel } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
@@ -19,32 +19,44 @@ import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharact
 
 export class TypeOperations {
 
-	public static indent(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
-		return new EditOperationResult(
-			new ShiftCommand(cursor.selection, {
-				isUnshift: false,
-				tabSize: config.tabSize,
-				oneIndent: config.oneIndent,
-				useTabStops: config.useTabStops
-			}), {
-				shouldPushStackElementBefore: true,
-				shouldPushStackElementAfter: true
-			}
-		);
+	public static indent(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			commands[i] = new CommandResult(
+				new ShiftCommand(cursor.selection, {
+					isUnshift: false,
+					tabSize: config.tabSize,
+					oneIndent: config.oneIndent,
+					useTabStops: config.useTabStops
+				}),
+				false
+			);
+		}
+		return new EditOperationResult(commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: true
+		});
 	}
 
-	public static outdent(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): EditOperationResult {
-		return new EditOperationResult(
-			new ShiftCommand(cursor.selection, {
-				isUnshift: true,
-				tabSize: config.tabSize,
-				oneIndent: config.oneIndent,
-				useTabStops: config.useTabStops
-			}), {
-				shouldPushStackElementBefore: true,
-				shouldPushStackElementAfter: true
-			}
-		);
+	public static outdent(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			commands[i] = new CommandResult(
+				new ShiftCommand(cursor.selection, {
+					isUnshift: true,
+					tabSize: config.tabSize,
+					oneIndent: config.oneIndent,
+					useTabStops: config.useTabStops
+				}),
+				false
+			);
+		}
+		return new EditOperationResult(commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: true
+		});
 	}
 
 	public static shiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
@@ -69,31 +81,45 @@ export class TypeOperations {
 		return newIndentation;
 	}
 
-	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, text: string, pasteOnNewLine: boolean): EditOperationResult {
-		let position = cursor.position;
-		let selection = cursor.selection;
-
-		if (pasteOnNewLine && text.indexOf('\n') !== text.length - 1) {
-			pasteOnNewLine = false;
+	public static distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[], text: string[]): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			let selection = cursor.selection;
+			commands[i] = new CommandResult(new ReplaceCommand(selection, text[i]), false);
 		}
-		if (pasteOnNewLine && selection.startLineNumber !== selection.endLineNumber) {
-			pasteOnNewLine = false;
-		}
-		if (pasteOnNewLine && selection.startColumn === model.getLineMinColumn(selection.startLineNumber) && selection.endColumn === model.getLineMaxColumn(selection.startLineNumber)) {
-			pasteOnNewLine = false;
-		}
+		return new EditOperationResult(commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: true
+		});
+	}
 
-		if (pasteOnNewLine) {
-			// Paste entire line at the beginning of line
+	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[], text: string, pasteOnNewLine: boolean): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			let position = cursor.position;
+			let selection = cursor.selection;
 
-			let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
-			return new EditOperationResult(new ReplaceCommand(typeSelection, text), {
-				shouldPushStackElementBefore: true,
-				shouldPushStackElementAfter: true
-			});
+			if (pasteOnNewLine && text.indexOf('\n') !== text.length - 1) {
+				pasteOnNewLine = false;
+			}
+			if (pasteOnNewLine && selection.startLineNumber !== selection.endLineNumber) {
+				pasteOnNewLine = false;
+			}
+			if (pasteOnNewLine && selection.startColumn === model.getLineMinColumn(selection.startLineNumber) && selection.endColumn === model.getLineMaxColumn(selection.startLineNumber)) {
+				pasteOnNewLine = false;
+			}
+
+			if (pasteOnNewLine) {
+				// Paste entire line at the beginning of line
+				let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
+				commands[i] = new CommandResult(new ReplaceCommand(typeSelection, text), false);
+			} else {
+				commands[i] = new CommandResult(new ReplaceCommand(selection, text), false);
+			}
 		}
-
-		return new EditOperationResult(new ReplaceCommand(selection, text), {
+		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: true
 		});
@@ -148,53 +174,65 @@ export class TypeOperations {
 		return new ReplaceCommand(selection, typeText);
 	}
 
-	public static tab(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState): EditOperationResult {
-		let selection = cursor.selection;
+	public static tab(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[]): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			let selection = cursor.selection;
 
-		if (selection.isEmpty()) {
+			if (selection.isEmpty()) {
 
-			let lineText = model.getLineContent(selection.startLineNumber);
+				let lineText = model.getLineContent(selection.startLineNumber);
 
-			if (/^\s*$/.test(lineText)) {
-				let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
-				goodIndent = goodIndent || '\t';
-				let possibleTypeText = config.normalizeIndentation(goodIndent);
-				if (!strings.startsWith(lineText, possibleTypeText)) {
-					let command = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText);
-					return new EditOperationResult(command, {
-						shouldPushStackElementBefore: false,
-						shouldPushStackElementAfter: false,
-						isAutoWhitespaceCommand: true
-					});
+				if (/^\s*$/.test(lineText)) {
+					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
+					goodIndent = goodIndent || '\t';
+					let possibleTypeText = config.normalizeIndentation(goodIndent);
+					if (!strings.startsWith(lineText, possibleTypeText)) {
+						let command = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText);
+						commands[i] = new CommandResult(command, true);
+						continue;
+					}
 				}
-			}
 
-			return new EditOperationResult(this._replaceJumpToNextIndent(config, model, selection), {
-				shouldPushStackElementBefore: false,
-				shouldPushStackElementAfter: false,
-				isAutoWhitespaceCommand: true
-			});
-		} else {
-			if (selection.startLineNumber === selection.endLineNumber) {
-				let lineMaxColumn = model.getLineMaxColumn(selection.startLineNumber);
-				if (selection.startColumn !== 1 || selection.endColumn !== lineMaxColumn) {
-					// This is a single line selection that is not the entire line
-					return new EditOperationResult(this._replaceJumpToNextIndent(config, model, selection), {
-						shouldPushStackElementBefore: false,
-						shouldPushStackElementAfter: false
-					});
+				commands[i] = new CommandResult(this._replaceJumpToNextIndent(config, model, selection), true);
+			} else {
+				if (selection.startLineNumber === selection.endLineNumber) {
+					let lineMaxColumn = model.getLineMaxColumn(selection.startLineNumber);
+					if (selection.startColumn !== 1 || selection.endColumn !== lineMaxColumn) {
+						// This is a single line selection that is not the entire line
+						commands[i] = new CommandResult(this._replaceJumpToNextIndent(config, model, selection), false);
+						continue;
+					}
 				}
-			}
 
-			return this.indent(config, model, cursor);
+				commands[i] = new CommandResult(
+					new ShiftCommand(selection, {
+						isUnshift: false,
+						tabSize: config.tabSize,
+						oneIndent: config.oneIndent,
+						useTabStops: config.useTabStops
+					}),
+					false
+				);
+			}
 		}
+		return new EditOperationResult(commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: true
+		});
 	}
 
-	public static replacePreviousChar(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, txt: string, replaceCharCnt: number): EditOperationResult {
-		let pos = cursor.position;
-		let startColumn = Math.max(1, pos.column - replaceCharCnt);
-		let range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
-		return new EditOperationResult(new ReplaceCommand(range, txt), {
+	public static replacePreviousChar(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], txt: string, replaceCharCnt: number): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			let pos = cursor.position;
+			let startColumn = Math.max(1, pos.column - replaceCharCnt);
+			let range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
+			commands[i] = new CommandResult(new ReplaceCommand(range, txt), false);
+		}
+		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false
 		});
@@ -208,8 +246,7 @@ export class TypeOperations {
 		}
 	}
 
-
-	private static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): EditOperationResult {
+	private static _enter(config: CursorConfiguration, model: ITokenizedModel, keepPosition: boolean, range: Range): CommandResult {
 		let r = LanguageConfigurationRegistry.getEnterAction(model, range);
 		let enterAction = r.enterAction;
 		let indentation = r.indentation;
@@ -264,11 +301,7 @@ export class TypeOperations {
 			executeCommand = TypeOperations.typeCommand(range, beforeText + '\n' + config.normalizeIndentation(actualIndentation + enterAction.appendText), keepPosition);
 		}
 
-		return new EditOperationResult(executeCommand, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: false,
-			isAutoWhitespaceCommand: true
-		});
+		return new CommandResult(executeCommand, true);
 	}
 
 	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): boolean {
@@ -296,10 +329,15 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
-		const position = cursor.position;
-		const typeSelection = new Range(position.lineNumber, position.column, position.lineNumber, position.column + 1);
-		return new EditOperationResult(new ReplaceCommand(typeSelection, ch), {
+	private static _runAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			const position = cursor.position;
+			const typeSelection = new Range(position.lineNumber, position.column, position.lineNumber, position.column + 1);
+			commands[i] = new CommandResult(new ReplaceCommand(typeSelection, ch), false);
+		}
+		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false
 		});
@@ -359,10 +397,18 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runAutoClosingOpenCharType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
-		const selection = cursor.selection;
-		const closeCharacter = config.autoClosingPairsOpen[ch];
-		return new EditOperationResult(new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length), {
+	private static _runAutoClosingOpenCharType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			const selection = cursor.selection;
+			const closeCharacter = config.autoClosingPairsOpen[ch];
+			commands[i] = new CommandResult(
+				new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length),
+				false
+			);
+		}
+		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: false
 		});
@@ -403,11 +449,15 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runSurroundSelectionType(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
-		const selection = cursor.selection;
-		const closeCharacter = config.surroundingPairs[ch];
-
-		return new EditOperationResult(new SurroundSelectionCommand(selection, ch, closeCharacter), {
+	private static _runSurroundSelectionType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			const selection = cursor.selection;
+			const closeCharacter = config.surroundingPairs[ch];
+			commands[i] = new CommandResult(new SurroundSelectionCommand(selection, ch, closeCharacter), false);
+		}
+		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: true
 		});
@@ -434,7 +484,8 @@ export class TypeOperations {
 		}
 
 		if (electricAction.appendText) {
-			return new EditOperationResult(new ReplaceCommandWithOffsetCursorState(cursor.selection, ch + electricAction.appendText, 0, -electricAction.appendText.length), {
+			const command = new CommandResult(new ReplaceCommandWithOffsetCursorState(cursor.selection, ch + electricAction.appendText, 0, -electricAction.appendText.length), false);
+			return new EditOperationResult([command], {
 				shouldPushStackElementBefore: false,
 				shouldPushStackElementAfter: true
 			});
@@ -464,7 +515,8 @@ export class TypeOperations {
 
 				let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, position.column);
 
-				return new EditOperationResult(new ReplaceCommand(typeSelection, typeText), {
+				const command = new CommandResult(new ReplaceCommand(typeSelection, typeText), false);
+				return new EditOperationResult([command], {
 					shouldPushStackElementBefore: false,
 					shouldPushStackElementAfter: true
 				});
@@ -474,35 +526,29 @@ export class TypeOperations {
 		return null;
 	}
 
-	public static typeWithInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): EditOperationResult[] {
-		let r2: EditOperationResult[] = [];
+	public static typeWithInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): EditOperationResult {
 
 		if (ch === '\n') {
+			let commands: CommandResult[] = [];
 			for (let i = 0, len = cursors.length; i < len; i++) {
-				r2[i] = TypeOperations._enter(config, model, false, cursors[i].selection);
+				commands[i] = TypeOperations._enter(config, model, false, cursors[i].selection);
 			}
-			return r2;
+			return new EditOperationResult(commands, {
+				shouldPushStackElementBefore: true,
+				shouldPushStackElementAfter: false,
+			});
 		}
 
 		if (this._isAutoClosingCloseCharType(config, model, cursors, ch)) {
-			for (let i = 0, len = cursors.length; i < len; i++) {
-				r2[i] = this._runAutoClosingCloseCharType(config, model, cursors[i], ch);
-			}
-			return r2;
+			return this._runAutoClosingCloseCharType(config, model, cursors, ch);
 		}
 
 		if (this._isAutoClosingOpenCharType(config, model, cursors, ch)) {
-			for (let i = 0, len = cursors.length; i < len; i++) {
-				r2[i] = this._runAutoClosingOpenCharType(config, model, cursors[i], ch);
-			}
-			return r2;
+			return this._runAutoClosingOpenCharType(config, model, cursors, ch);
 		}
 
 		if (this._isSurroundSelectionType(config, model, cursors, ch)) {
-			for (let i = 0, len = cursors.length; i < len; i++) {
-				r2[i] = this._runSurroundSelectionType(config, model, cursors[i], ch);
-			}
-			return r2;
+			return this._runSurroundSelectionType(config, model, cursors, ch);
 		}
 
 		// Electric characters make sense only when dealing with a single cursor,
@@ -510,47 +556,69 @@ export class TypeOperations {
 		if (cursors.length === 1) {
 			const r = this._typeInterceptorElectricChar(config, model, cursors[0], ch);
 			if (r) {
-				r2[0] = r;
-				return r2;
+				return r;
 			}
 		}
 
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			r2[i] = this.typeWithoutInterceptors(config, model, cursors[i], ch);
-		}
-		return r2;
+		return this.typeWithoutInterceptors(config, model, cursors, ch);
 	}
 
-	public static typeWithoutInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, str: string): EditOperationResult {
-		return new EditOperationResult(TypeOperations.typeCommand(cursor.selection, str, false), {
+	public static typeWithoutInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], str: string): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			commands[i] = new CommandResult(new ReplaceCommand(cursor.selection, str), false);
+		}
+		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false
 		});
 	}
 
-	public static lineInsertBefore(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState): EditOperationResult {
-		let lineNumber = cursor.position.lineNumber;
+	public static lineInsertBefore(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[]): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			let lineNumber = cursor.position.lineNumber;
 
-		if (lineNumber === 1) {
-			return new EditOperationResult(new ReplaceCommandWithoutChangingPosition(new Range(1, 1, 1, 1), '\n'), {
-				shouldPushStackElementBefore: true,
-				shouldPushStackElementAfter: true
-			});
+			if (lineNumber === 1) {
+				commands[i] = new CommandResult(new ReplaceCommandWithoutChangingPosition(new Range(1, 1, 1, 1), '\n'), false);
+			} else {
+				lineNumber--;
+				let column = model.getLineMaxColumn(lineNumber);
+
+				commands[i] = this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
+			}
 		}
-
-		lineNumber--;
-		let column = model.getLineMaxColumn(lineNumber);
-
-		return this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
+		return new EditOperationResult(commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: false,
+		});
 	}
 
-	public static lineInsertAfter(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState): EditOperationResult {
-		let position = cursor.position;
-		let column = model.getLineMaxColumn(position.lineNumber);
-		return this._enter(config, model, false, new Range(position.lineNumber, column, position.lineNumber, column));
+	public static lineInsertAfter(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[]): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			let position = cursor.position;
+			let column = model.getLineMaxColumn(position.lineNumber);
+			commands[i] = this._enter(config, model, false, new Range(position.lineNumber, column, position.lineNumber, column));
+		}
+		return new EditOperationResult(commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: false,
+		});
 	}
 
-	public static lineBreakInsert(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState): EditOperationResult {
-		return this._enter(config, model, true, cursor.selection);
+	public static lineBreakInsert(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[]): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			commands[i] = this._enter(config, model, true, cursor.selection);
+		}
+		return new EditOperationResult(commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: false,
+		});
 	}
 }

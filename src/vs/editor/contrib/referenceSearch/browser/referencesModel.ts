@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { localize } from 'vs/nls';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import Event, { fromEventEmitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/paths';
@@ -220,6 +221,18 @@ export class ReferencesModel implements IDisposable {
 
 	public get groups(): FileReferences[] {
 		return this._groups;
+	}
+
+	getAriaMessage(): string {
+		if (this.empty) {
+			return localize('aria.result.0', "No results found");
+		} else if (this.references.length === 1) {
+			return localize('aria.result.1', "Found 1 symbol in {0}", this.references[0].uri.fsPath);
+		} else if (this.groups.length === 1) {
+			return localize('aria.result.n1', "Found {0} symbols in {1}", this.references.length, this.groups[0].uri.fsPath);
+		} else {
+			return localize('aria.result.nm', "Found {0} symbols in {1} files", this.references.length, this.groups.length);
+		}
 	}
 
 	public nextReference(reference: OneReference): OneReference {

@@ -90,7 +90,16 @@ class MarkerModel {
 		let found = false;
 		const position = this._editor.getPosition();
 		for (let i = 0; i < this._markers.length; i++) {
-			if (Range.containsPosition(this._markers[i], position)) {
+			let range = Range.lift(this._markers[i]);
+
+			if (range.isEmpty()) {
+				const word = this._editor.getModel().getWordAtPosition(range.getStartPosition());
+				if (word) {
+					range = new Range(range.startLineNumber, word.startColumn, range.startLineNumber, word.endColumn);
+				}
+			}
+
+			if (range.containsPosition(position) || position.isBeforeOrEqual(range.getStartPosition())) {
 				this._nextIdx = i + (fwd ? 0 : -1);
 				found = true;
 				break;

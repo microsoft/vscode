@@ -2385,7 +2385,6 @@ declare module monaco.editor {
         CursorMove: string;
         AddCursorDown: string;
         AddCursorUp: string;
-        CursorUndo: string;
         MoveTo: string;
         MoveToSelect: string;
         ColumnSelect: string;

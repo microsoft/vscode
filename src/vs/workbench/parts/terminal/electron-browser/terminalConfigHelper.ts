@@ -130,15 +130,13 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			} else { // if (shellArgsConfigValue.workspace !== undefined)
 				changeString = `shellArgs: ${argsString}`;
 			}
-			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "This workspace wants to customize the terminal shell, do you want to allow it? ({0})", changeString);
-			const options = [nls.localize('allow', "Allow"), nls.localize('cancel', "Cancel"), nls.localize('disallow', "Disallow")];
-			this._choiceService.choose(Severity.Warning, message, options).then(choice => {
+			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString);
+			const options = [nls.localize('allow', "Allow"), nls.localize('disallow', "Disallow")];
+			this._choiceService.choose(Severity.Info, message, options).then(choice => {
 				switch (choice) {
 					case 0:
 						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
 					case 1:
-						return TPromise.as(null);
-					case 2:
 						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
 					default:
 						return TPromise.as(null);

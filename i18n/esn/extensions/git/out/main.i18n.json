@@ -6,5 +6,6 @@
 {
 	"using git": "Usando GIT {0} desde {1}",
 	"updateGit": "Actualizar GIT",
-	"neverShowAgain": "No volver a mostrar"
+	"neverShowAgain": "No volver a mostrar",
+	"git20": "Parece que tiene instalado GIT {0}. El código funciona mejor con GIT >= 2"
 }

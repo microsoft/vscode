@@ -13,9 +13,9 @@ import { ICommandAndKeybindingRule, KeybindingsRegistry, IKeybindings } from 'vs
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { CommandDescription } from "vs/editor/common/controller/oneCursor";
+import { CursorMove } from "vs/editor/common/controller/cursorMoveCommands";
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EditorScroll } from "vs/editor/common/controller/cursor";
+import { EditorScroll, RevealLine } from "vs/editor/common/controller/cursor";
 
 import H = editorCommon.Handler;
 
@@ -276,7 +276,7 @@ class WordCommand extends CoreCommand {
 // Control+Command+shift+d => noop
 
 // Register cursor commands
-registerCoreAPICommand(H.CursorMove, CommandDescription.CursorMove);
+registerCoreAPICommand(H.CursorMove, CursorMove.description);
 
 registerCommand(new CoreCommand({
 	id: H.CursorLeft,
@@ -493,7 +493,7 @@ registerCommand(new CoreCommand({
 	}
 }));
 
-registerCoreAPICommand(H.RevealLine, CommandDescription.RevealLine);
+registerCoreAPICommand(H.RevealLine, RevealLine.description);
 
 registerCommand(new CoreCommand({
 	id: H.CursorColumnSelectLeft,
@@ -673,16 +673,6 @@ registerCommand(new CoreCommand({
 		kbExpr: EditorContextKeys.textFocus,
 		primary: null,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_O }
-	}
-}));
-
-registerCommand(new CoreCommand({
-	id: H.CursorUndo,
-	precondition: null,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.textFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_U
 	}
 }));
 

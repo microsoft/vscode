@@ -17,6 +17,7 @@
 	"dropdownBackground": "Фон раскрывающегося списка.",
 	"dropdownForeground": "Передний план раскрывающегося списка.",
 	"dropdownBorder": "Граница раскрывающегося списка.",
+	"listFocusBackground": "Фон фокуса активного списка",
 	"editorBackground": "Цвет фона редактора.",
 	"editorForeground": "Цвет переднего плана редактора по умолчанию.",
 	"editorSelection": "Цвет выделения редактора.",
@@ -26,5 +27,7 @@
 	"findMatchHighlight": "Цвет других совпадений поиска.",
 	"findRangeHighlight": "Цвет диапазона, ограничивающего поиск.",
 	"activeLinkForeground": "Цвет активных ссылок.",
-	"linkForeground": "Цвет ссылок."
+	"linkForeground": "Цвет ссылок.",
+	"editorWidgetBackground": "Цвет фона виджетов редактора, таких как найти/заменить.",
+	"editorWidgetShadow": "Цвет тени виджетов редактора, таких как найти/заменить."
 }

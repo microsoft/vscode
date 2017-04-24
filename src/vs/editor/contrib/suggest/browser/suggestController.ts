@@ -361,12 +361,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectLastSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectLastSuggestion(),
-	kbOpts: {
-		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
-		primary: KeyCode.End
-	}
+	handler: c => c.selectLastSuggestion()
 }));
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
@@ -397,12 +392,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'selectFirstSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectFirstSuggestion(),
-	kbOpts: {
-		weight: weight,
-		kbExpr: EditorContextKeys.textFocus,
-		primary: KeyCode.Home
-	}
+	handler: c => c.selectFirstSuggestion()
 }));
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
