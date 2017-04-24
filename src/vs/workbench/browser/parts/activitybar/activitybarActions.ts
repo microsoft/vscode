@@ -149,7 +149,6 @@ export class ActivityActionItem extends BaseActionItem {
 
 	private updateStyles(): void {
 		const theme = this.themeService.getTheme();
-		const isHighContrastTheme = theme.type === 'hc';
 
 		// Label
 		if (this.$e) {
@@ -167,9 +166,9 @@ export class ActivityActionItem extends BaseActionItem {
 			this.$badgeContent.style('color', badgeForeground ? badgeForeground.toString() : null);
 			this.$badgeContent.style('background-color', badgeBackground ? badgeBackground.toString() : null);
 
-			this.$badgeContent.style('border-style', isHighContrastTheme ? 'solid' : null);
-			this.$badgeContent.style('border-width', isHighContrastTheme ? '1px' : null);
-			this.$badgeContent.style('border-color', isHighContrastTheme && hcBorder ? hcBorder.toString() : null);
+			this.$badgeContent.style('border-style', hcBorder ? 'solid' : null);
+			this.$badgeContent.style('border-width', hcBorder ? '1px' : null);
+			this.$badgeContent.style('border-color', hcBorder ? hcBorder.toString() : null);
 		}
 	}
 

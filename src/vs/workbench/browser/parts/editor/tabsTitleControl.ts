@@ -219,15 +219,16 @@ export class TabsTitleControl extends TitleControl {
 		element.style.backgroundColor = isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor;
 
 		// Outline
-		if (this.isHighContrastTheme && isDND) {
+		const hcOutline = this.getColor(highContrastOutline);
+		if (hcOutline && isDND) {
 			element.style.outlineWidth = '2px';
 			element.style.outlineStyle = 'dashed';
-			element.style.outlineColor = this.getColor(highContrastOutline);
+			element.style.outlineColor = hcOutline;
 			element.style.outlineOffset = isTab ? '-5px' : '-3px';
 		} else {
 			element.style.outlineWidth = null;
 			element.style.outlineStyle = null;
-			element.style.outlineColor = this.isHighContrastTheme ? this.getColor(highContrastOutline) : null;
+			element.style.outlineColor = hcOutline;
 			element.style.outlineOffset = null;
 		}
 	}
@@ -273,7 +274,7 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.title = title;
 				tabContainer.style.borderLeftColor = (index !== 0) ? this.getColor(TAB_BORDER) : null;
 				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? this.getColor(TAB_BORDER) : null;
-				tabContainer.style.outlineColor = this.isHighContrastTheme ? this.getColor(highContrastOutline) : null;
+				tabContainer.style.outlineColor = this.getColor(highContrastOutline);
 
 				const tabOptions = this.editorGroupService.getTabOptions();
 				['off', 'left'].forEach(option => {

@@ -301,14 +301,6 @@ export class Themable extends Disposable {
 		this._toUnbind.push(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
 	}
 
-	protected get isHighContrastTheme(): boolean {
-		return this.theme.type === 'hc';
-	}
-
-	protected get isLightTheme(): boolean {
-		return this.theme.type === 'light';
-	}
-
 	protected get toUnbind() {
 		return this._toUnbind;
 	}
