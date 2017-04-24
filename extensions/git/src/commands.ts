@@ -631,7 +631,11 @@ export class CommandCenter {
 	}
 
 	@command('git.checkout')
-	async checkout(): Promise<void> {
+	async checkout(treeish: string): Promise<void> {
+		if (typeof treeish === 'string') {
+			return await this.model.checkout(treeish);
+		}
+
 		const config = workspace.getConfiguration('git');
 		const checkoutType = config.get<string>('checkoutType') || 'all';
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
