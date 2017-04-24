@@ -32,12 +32,12 @@ const winLocalLinkClause = '((' + winPathPrefix + '|(' + winExcludedPathCharacte
 
 /** As xterm reads from DOM, space in that case is nonbreaking char ASCII code - 160,
 replacing space with nonBreakningSpace or space ASCII code - 32. */
-const lineAndColumnClauses = [
+const lineAndColumnClause = [
 	'((\\S*) on line ((\\d+)(, column (\\d+))?))', // (file path) on line 8, column 13
 	'((\\S*):line ((\\d+)(, column (\\d+))?))', // (file path):line 8, column 13
 	'(([^\\s\\(\\)]*)(\\s?\\((\\d+)(,(\\d+))?)\\))', // (file path)(45), (file path) (45), (file path)(45,18), (file path) (45,18)
 	'(([^:\\s\\(\\)<>\'\"\\[\\]]*)(:(\\d+))?(:(\\d+))?)' // (file path):336, (file path):336:9
-].map(clause => clause.replace(/ /g, `[${'\u00A0'} ]`));
+].join('|').replace(/ /g, `[${'\u00A0'} ]`);
 
 // Changing any regex may effect this value, hence changes this as well if required.
 const winLineAndColumnMatchIndex = 12;
@@ -69,7 +69,7 @@ export class TerminalLinkHandler {
 	) {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
-		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClauses.join('|')})`);
+		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
 
 		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(() => true));
 		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
@@ -256,7 +256,7 @@ export class TerminalLinkHandler {
 	public extractLineColumnInfo(link: string): LineColumnInfo {
 		const matches: string[] = this._localLinkRegex.exec(link);
 
-		let lineColumnClauseLength = lineAndColumnClauses.length;
+		let lineColumnClauseLength = lineAndColumnClause.length;
 		let lineColumnInfo: LineColumnInfo = {};
 
 		let lineAndColumnMatchIndex = winLineAndColumnMatchIndex;
