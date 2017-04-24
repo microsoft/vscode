@@ -243,23 +243,44 @@ export class CommandCenter {
 	}
 
 	@command('git.openFile')
-	async openFile(resource?: Resource): Promise<void> {
-		if (!(resource instanceof Resource)) {
-			// can happen when called from a keybinding
-			resource = this.getSCMResource();
+	async openFile(arg?: Resource | Uri): Promise<void> {
+		let uri: Uri | undefined;
+
+		if (arg instanceof Uri) {
+			if (arg.scheme === 'git') {
+				uri = Uri.file(fromGitUri(arg).path);
+			} else if (arg.scheme === 'file') {
+				uri = arg;
+			}
+		} else {
+			let resource = arg;
+
+			if (!(resource instanceof Resource)) {
+				// can happen when called from a keybinding
+				resource = this.getSCMResource();
+			}
+
+			if (resource) {
+				uri = resource.resourceUri;
+			}
 		}
 
-		if (!resource) {
+		if (!uri) {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', resource.resourceUri);
+		return await commands.executeCommand<void>('vscode.open', uri);
 	}
 
 	@command('git.openChange')
-	async openChange(resource?: Resource): Promise<void> {
-		if (!(resource instanceof Resource)) {
-			// can happen when called from a keybinding
+	async openChange(arg?: Resource | Uri): Promise<void> {
+		let resource: Resource | undefined = undefined;
+
+		if (arg instanceof Resource) {
+			resource = arg;
+		} else if (arg instanceof Uri) {
+			resource = this.getSCMResource(arg);
+		} else {
 			resource = this.getSCMResource();
 		}
 
@@ -289,17 +310,6 @@ export class CommandCenter {
 		}
 
 		return await commands.executeCommand<void>('vscode.open', uriToOpen);
-	}
-
-	@command('git.openChangeFromUri')
-	async openChangeFromUri(uri?: Uri): Promise<void> {
-		const resource = this.getSCMResource(uri);
-
-		if (!resource) {
-			return;
-		}
-
-		return await this._openResource(resource);
 	}
 
 	@command('git.stage')
