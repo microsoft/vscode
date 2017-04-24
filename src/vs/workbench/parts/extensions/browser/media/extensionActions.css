@@ -53,12 +53,6 @@
 	background-color: #6DA770;
 }
 
-.monaco-action-bar .action-item:not(.disabled) .action-label:focus.extension-action.install,
-.monaco-action-bar .action-item:not(.disabled) .action-label:focus.extension-action.enable,
-.monaco-action-bar .action-item:not(.disabled) .action-label:focus.extension-action.update {
-	outline: 1px solid rgb(14, 99, 156) !important;
-}
-
 .monaco-action-bar .action-item .action-label.extension-action.reload {
 	color: white;
 	background-color: #007ACC;

@@ -13,10 +13,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKey, IContextKeyServiceTarget, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { Cursor, CursorEventType } from 'vs/editor/common/controller/cursor';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
-import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
-import { EditorState } from 'vs/editor/common/core/editorState';
+import { Cursor } from 'vs/editor/common/controller/cursor';
+import { CursorColumns, IViewModelHelper } from 'vs/editor/common/controller/cursorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
@@ -31,8 +29,8 @@ import {
 	IModelLanguageChangedEvent, IModelOptionsChangedEvent, TextModelEventType
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from "vs/editor/common/config/editorOptions";
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 let EDITOR_ID = 0;
 
@@ -59,11 +57,11 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	protected readonly _onDidChangeModel: Emitter<editorCommon.IModelChangedEvent> = this._register(new Emitter<editorCommon.IModelChangedEvent>());
 	public readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent> = this._onDidChangeModel.event;
 
-	private readonly _onDidChangeCursorPosition: Emitter<editorCommon.ICursorPositionChangedEvent> = this._register(new Emitter<editorCommon.ICursorPositionChangedEvent>());
-	public readonly onDidChangeCursorPosition: Event<editorCommon.ICursorPositionChangedEvent> = this._onDidChangeCursorPosition.event;
+	private readonly _onDidChangeCursorPosition: Emitter<ICursorPositionChangedEvent> = this._register(new Emitter<ICursorPositionChangedEvent>());
+	public readonly onDidChangeCursorPosition: Event<ICursorPositionChangedEvent> = this._onDidChangeCursorPosition.event;
 
-	private readonly _onDidChangeCursorSelection: Emitter<editorCommon.ICursorSelectionChangedEvent> = this._register(new Emitter<editorCommon.ICursorSelectionChangedEvent>());
-	public readonly onDidChangeCursorSelection: Event<editorCommon.ICursorSelectionChangedEvent> = this._onDidChangeCursorSelection.event;
+	private readonly _onDidChangeCursorSelection: Emitter<ICursorSelectionChangedEvent> = this._register(new Emitter<ICursorSelectionChangedEvent>());
+	public readonly onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent> = this._onDidChangeCursorSelection.event;
 
 	private readonly _onDidLayoutChange: Emitter<editorOptions.EditorLayoutInfo> = this._register(new Emitter<editorOptions.EditorLayoutInfo>());
 	public readonly onDidLayoutChange: Event<editorOptions.EditorLayoutInfo> = this._onDidLayoutChange.event;
@@ -89,12 +87,10 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	private readonly _onDidPaste: Emitter<Range> = this._register(new Emitter<Range>());
 	public readonly onDidPaste = this._onDidPaste.event;
 
-	protected domElement: IContextKeyServiceTarget;
 
-	protected id: number;
-
-	protected _lifetimeDispose: IDisposable[];
-	protected _configuration: CommonEditorConfiguration;
+	protected readonly domElement: IContextKeyServiceTarget;
+	protected readonly id: number;
+	protected readonly _configuration: CommonEditorConfiguration;
 
 	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
 	protected _actions: { [key: string]: editorCommon.IEditorAction; };
@@ -107,8 +103,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	protected viewModel: ViewModel;
 	protected cursor: Cursor;
 
-	protected _instantiationService: IInstantiationService;
-	protected _contextKeyService: IContextKeyService;
+	protected readonly _instantiationService: IInstantiationService;
+	protected readonly _contextKeyService: IContextKeyService;
 
 	/**
 	 * map from "parent" decoration type to live decoration ids.
@@ -125,13 +121,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	) {
 		super();
 		this.domElement = domElement;
-
 		this.id = (++EDITOR_ID);
-
-		// listeners that are kept during the whole editor lifetime
-		this._lifetimeDispose = [];
-
-
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
 
@@ -139,9 +129,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (typeof options.ariaLabel === 'undefined') {
 			options.ariaLabel = DefaultConfig.editor.ariaLabel;
 		}
-
-		this._configuration = this._createConfiguration(options);
-		this._lifetimeDispose.push(this._configuration.onDidChange((e) => {
+		this._configuration = this._register(this._createConfiguration(options));
+		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
 
 			if (e.layoutInfo) {
@@ -149,9 +138,9 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			}
 		}));
 
-		this._contextKeyService = contextKeyService.createScoped(this.domElement);
-		this._lifetimeDispose.push(new EditorContextKeysManager(this, this._contextKeyService));
-		this._lifetimeDispose.push(new EditorModeContext(this, this._contextKeyService));
+		this._contextKeyService = this._register(contextKeyService.createScoped(this.domElement));
+		this._register(new EditorContextKeysManager(this, this._contextKeyService));
+		this._register(new EditorModeContext(this, this._contextKeyService));
 
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
 
@@ -161,7 +150,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._actions = {};
 	}
 
-	protected abstract _createConfiguration(options: editorCommon.ICodeEditorWidgetCreationOptions): CommonEditorConfiguration;
+	protected abstract _createConfiguration(options: editorOptions.IEditorOptions): CommonEditorConfiguration;
 
 	public getId(): string {
 		return this.getEditorType() + ':' + this.id;
@@ -176,8 +165,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	}
 
 	public dispose(): void {
-		this._lifetimeDispose = dispose(this._lifetimeDispose);
-
 		let keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let contributionId = keys[i];
@@ -189,16 +176,10 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._actions = {};
 
 		this._postDetachModelCleanup(this._detachModel());
-		this._configuration.dispose();
-		this._contextKeyService.dispose();
 
 		this._onDidDispose.fire();
 
 		super.dispose();
-	}
-
-	public captureState(...flags: editorCommon.CodeEditorStateFlag[]): editorCommon.ICodeEditorState {
-		return new EditorState(this, flags);
 	}
 
 	public invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {
@@ -262,6 +243,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	public abstract getCenteredRangeInViewport(): Range;
 
 	protected abstract _getCompletelyVisibleViewRange(): Range;
+	protected abstract _getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+	protected abstract _getVerticalOffsetForViewLineNumber(viewLineNumber: number): number;
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
 		if (!this.model) {
@@ -299,7 +282,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 	}
 
-	private _sendRevealRange(range: Range, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+	private _sendRevealRange(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean): void {
 		if (!this.model || !this.cursor) {
 			return;
 		}
@@ -308,29 +291,22 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 		let validatedRange = this.model.validateRange(range);
 
-		let revealRangeEvent: editorCommon.ICursorRevealRangeEvent = {
-			range: validatedRange,
-			viewRange: null,
-			verticalType: verticalType,
-			revealHorizontal: revealHorizontal,
-			revealCursor: false
-		};
-		this.cursor.emit(CursorEventType.CursorRevealRange, revealRangeEvent);
+		this.cursor.emitCursorRevealRange(validatedRange, null, verticalType, revealHorizontal);
 	}
 
 	public revealLine(lineNumber: number): void {
-		this._revealLine(lineNumber, editorCommon.VerticalRevealType.Simple);
+		this._revealLine(lineNumber, VerticalRevealType.Simple);
 	}
 
 	public revealLineInCenter(lineNumber: number): void {
-		this._revealLine(lineNumber, editorCommon.VerticalRevealType.Center);
+		this._revealLine(lineNumber, VerticalRevealType.Center);
 	}
 
 	public revealLineInCenterIfOutsideViewport(lineNumber: number): void {
-		this._revealLine(lineNumber, editorCommon.VerticalRevealType.CenterIfOutsideViewport);
+		this._revealLine(lineNumber, VerticalRevealType.CenterIfOutsideViewport);
 	}
 
-	private _revealLine(lineNumber: number, revealType: editorCommon.VerticalRevealType): void {
+	private _revealLine(lineNumber: number, revealType: VerticalRevealType): void {
 		if (typeof lineNumber !== 'number') {
 			throw new Error('Invalid arguments');
 		}
@@ -345,7 +321,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	public revealPosition(position: IPosition, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = false): void {
 		this._revealPosition(
 			position,
-			revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple,
+			revealVerticalInCenter ? VerticalRevealType.Center : VerticalRevealType.Simple,
 			revealHorizontal
 		);
 	}
@@ -353,7 +329,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	public revealPositionInCenter(position: IPosition): void {
 		this._revealPosition(
 			position,
-			editorCommon.VerticalRevealType.Center,
+			VerticalRevealType.Center,
 			true
 		);
 	}
@@ -361,12 +337,12 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	public revealPositionInCenterIfOutsideViewport(position: IPosition): void {
 		this._revealPosition(
 			position,
-			editorCommon.VerticalRevealType.CenterIfOutsideViewport,
+			VerticalRevealType.CenterIfOutsideViewport,
 			true
 		);
 	}
 
-	private _revealPosition(position: IPosition, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+	private _revealPosition(position: IPosition, verticalType: VerticalRevealType, revealHorizontal: boolean): void {
 		if (!Position.isIPosition(position)) {
 			throw new Error('Invalid arguments');
 		}
@@ -438,7 +414,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._revealLines(
 			startLineNumber,
 			endLineNumber,
-			editorCommon.VerticalRevealType.Simple
+			VerticalRevealType.Simple
 		);
 	}
 
@@ -446,7 +422,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._revealLines(
 			startLineNumber,
 			endLineNumber,
-			editorCommon.VerticalRevealType.Center
+			VerticalRevealType.Center
 		);
 	}
 
@@ -454,11 +430,11 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._revealLines(
 			startLineNumber,
 			endLineNumber,
-			editorCommon.VerticalRevealType.CenterIfOutsideViewport
+			VerticalRevealType.CenterIfOutsideViewport
 		);
 	}
 
-	private _revealLines(startLineNumber: number, endLineNumber: number, verticalType: editorCommon.VerticalRevealType): void {
+	private _revealLines(startLineNumber: number, endLineNumber: number, verticalType: VerticalRevealType): void {
 		if (typeof startLineNumber !== 'number' || typeof endLineNumber !== 'number') {
 			throw new Error('Invalid arguments');
 		}
@@ -473,7 +449,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	public revealRange(range: IRange, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = true): void {
 		this._revealRange(
 			range,
-			revealVerticalInCenter ? editorCommon.VerticalRevealType.Center : editorCommon.VerticalRevealType.Simple,
+			revealVerticalInCenter ? VerticalRevealType.Center : VerticalRevealType.Simple,
 			revealHorizontal
 		);
 	}
@@ -481,7 +457,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	public revealRangeInCenter(range: IRange): void {
 		this._revealRange(
 			range,
-			editorCommon.VerticalRevealType.Center,
+			VerticalRevealType.Center,
 			true
 		);
 	}
@@ -489,7 +465,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	public revealRangeInCenterIfOutsideViewport(range: IRange): void {
 		this._revealRange(
 			range,
-			editorCommon.VerticalRevealType.CenterIfOutsideViewport,
+			VerticalRevealType.CenterIfOutsideViewport,
 			true
 		);
 	}
@@ -497,12 +473,12 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	public revealRangeAtTop(range: IRange): void {
 		this._revealRange(
 			range,
-			editorCommon.VerticalRevealType.Top,
+			VerticalRevealType.Top,
 			true
 		);
 	}
 
-	private _revealRange(range: IRange, verticalType: editorCommon.VerticalRevealType, revealHorizontal: boolean): void {
+	private _revealRange(range: IRange, verticalType: VerticalRevealType, revealHorizontal: boolean): void {
 		if (!Range.isIRange(range)) {
 			throw new Error('Invalid arguments');
 		}
@@ -801,8 +777,17 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			let viewModelHelper: IViewModelHelper = {
 				viewModel: this.viewModel,
 				coordinatesConverter: this.viewModel.coordinatesConverter,
+				getScrollTop: (): number => {
+					return this.getScrollTop();
+				},
 				getCompletelyVisibleViewRange: (): Range => {
 					return this._getCompletelyVisibleViewRange();
+				},
+				getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number): Range => {
+					return this._getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+				},
+				getVerticalOffsetForViewLineNumber: (viewLineNumber: number): number => {
+					return this._getVerticalOffsetForViewLineNumber(viewLineNumber);
 				}
 			};
 
@@ -952,12 +937,12 @@ class EditorContextKeysManager extends Disposable {
 		this._editor = editor;
 
 		this._editorId = contextKeyService.createKey('editorId', editor.getId());
-		this._editorFocus = EditorContextKeys.Focus.bindTo(contextKeyService);
-		this._editorTextFocus = EditorContextKeys.TextFocus.bindTo(contextKeyService);
-		this._editorTabMovesFocus = EditorContextKeys.TabMovesFocus.bindTo(contextKeyService);
-		this._editorReadonly = EditorContextKeys.ReadOnly.bindTo(contextKeyService);
-		this._hasMultipleSelections = EditorContextKeys.HasMultipleSelections.bindTo(contextKeyService);
-		this._hasNonEmptySelection = EditorContextKeys.HasNonEmptySelection.bindTo(contextKeyService);
+		this._editorFocus = EditorContextKeys.focus.bindTo(contextKeyService);
+		this._editorTextFocus = EditorContextKeys.textFocus.bindTo(contextKeyService);
+		this._editorTabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
+		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
+		this._hasMultipleSelections = EditorContextKeys.hasMultipleSelections.bindTo(contextKeyService);
+		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
 
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
 		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));

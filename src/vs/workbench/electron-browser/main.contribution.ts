@@ -77,82 +77,95 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(Decrea
 
 // Configuration: Workbench
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+let workbenchProperties: { [path: string]: IJSONSchema; } = {
+	'workbench.editor.showTabs': {
+		'type': 'boolean',
+		'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
+		'default': true
+	},
+	'workbench.editor.tabCloseButton': {
+		'type': 'string',
+		'enum': ['left', 'right', 'off'],
+		'default': 'right',
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
+	},
+	'workbench.editor.showIcons': {
+		'type': 'boolean',
+		'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
+		'default': true
+	},
+	'workbench.editor.enablePreview': {
+		'type': 'boolean',
+		'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+		'default': true
+	},
+	'workbench.editor.enablePreviewFromQuickOpen': {
+		'type': 'boolean',
+		'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
+		'default': true
+	},
+	'workbench.editor.openPositioning': {
+		'type': 'string',
+		'enum': ['left', 'right', 'first', 'last'],
+		'default': 'right',
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
+	},
+	'workbench.editor.revealIfOpen': {
+		'type': 'boolean',
+		'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
+		'default': false
+	},
+	'workbench.quickOpen.closeOnFocusLost': {
+		'type': 'boolean',
+		'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
+		'default': true
+	},
+	'workbench.settings.openDefaultSettings': {
+		'type': 'boolean',
+		'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
+		'default': true
+	},
+	'workbench.sideBar.location': {
+		'type': 'string',
+		'enum': ['left', 'right'],
+		'default': 'left',
+		'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
+	},
+	'workbench.statusBar.visible': {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
+	},
+	'workbench.activityBar.visible': {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
+	},
+	'workbench.editor.closeOnFileDelete': {
+		'type': 'boolean',
+		'description': nls.localize('closeOnFileDelete', "Controls if editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
+		'default': true
+	}
+};
+
+if (isMacintosh) {
+	workbenchProperties['workbench.editor.swipeToNavigate'] = {
+		'type': 'boolean',
+		'description': nls.localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally."),
+		'default': false
+	};
+}
+
+
 configurationRegistry.registerConfiguration({
 	'id': 'workbench',
 	'order': 7,
 	'title': nls.localize('workbenchConfigurationTitle', "Workbench"),
 	'type': 'object',
-	'properties': {
-		'workbench.editor.showTabs': {
-			'type': 'boolean',
-			'description': nls.localize('showEditorTabs', "Controls if opened editors should show in tabs or not."),
-			'default': true
-		},
-		'workbench.editor.tabCloseButton': {
-			'type': 'string',
-			'enum': ['left', 'right', 'off'],
-			'default': 'right',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
-		},
-		'workbench.editor.showIcons': {
-			'type': 'boolean',
-			'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),
-			'default': true
-		},
-		'workbench.editor.enablePreview': {
-			'type': 'boolean',
-			'description': nls.localize('enablePreview', "Controls if opened editors show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
-			'default': true
-		},
-		'workbench.editor.enablePreviewFromQuickOpen': {
-			'type': 'boolean',
-			'description': nls.localize('enablePreviewFromQuickOpen', "Controls if opened editors from Quick Open show as preview. Preview editors are reused until they are kept (e.g. via double click or editing)."),
-			'default': true
-		},
-		'workbench.editor.openPositioning': {
-			'type': 'string',
-			'enum': ['left', 'right', 'first', 'last'],
-			'default': 'right',
-			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the current active one. Select 'first' or 'last' to open editors independently from the currently active one.")
-		},
-		'workbench.editor.revealIfOpen': {
-			'type': 'boolean',
-			'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
-			'default': false
-		},
-		'workbench.quickOpen.closeOnFocusLost': {
-			'type': 'boolean',
-			'description': nls.localize('closeOnFocusLost', "Controls if Quick Open should close automatically once it loses focus."),
-			'default': true
-		},
-		'workbench.settings.openDefaultSettings': {
-			'type': 'boolean',
-			'description': nls.localize('openDefaultSettings', "Controls if opening settings also opens an editor showing all default settings."),
-			'default': true
-		},
-		'workbench.sideBar.location': {
-			'type': 'string',
-			'enum': ['left', 'right'],
-			'default': 'left',
-			'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
-		},
-		'workbench.statusBar.visible': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
-		},
-		'workbench.activityBar.visible': {
-			'type': 'boolean',
-			'default': true,
-			'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
-		},
-		'workbench.editor.closeOnFileDelete': {
-			'type': 'boolean',
-			'description': nls.localize('closeOnFileDelete', "Controls if editors showing a file should close automatically when the file is deleted or renamed by some other process. Disabling this will keep the editor open as dirty on such an event. Note that deleting from within the application will always close the editor and that dirty files will never close to preserve your data."),
-			'default': true
-		}
-	}
+	'properties': workbenchProperties
 });
+
 
 // Configuration: Window
 let properties: { [path: string]: IJSONSchema; } = {
@@ -271,8 +284,8 @@ if (isMacintosh) {
 		'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 	};
 
-	// macOS Sierra (10.12.x = darwin 16.x) only
-	if (os.release().indexOf('16.') === 0) {
+	// macOS Sierra (10.12.x = darwin 16.x) and electron > 1.4.6 only
+	if (os.release().indexOf('16.') === 0 && process.versions.electron !== '1.4.6') {
 		properties['window.nativeTabs'] = {
 			'type': 'boolean',
 			'default': false,

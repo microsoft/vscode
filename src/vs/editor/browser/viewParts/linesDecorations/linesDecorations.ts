@@ -32,6 +32,7 @@ export class LinesDecorationsOverlay extends DedupOverlay {
 		this._context.removeEventHandler(this);
 		this._context = null;
 		this._renderResult = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers

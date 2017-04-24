@@ -5,6 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -23,9 +24,7 @@ import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from 
 import { ReferencesModel } from './referencesModel';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-
-import ModeContextKeys = editorCommon.ModeContextKeys;
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -65,11 +64,11 @@ export class ReferenceAction extends EditorAction {
 			label: nls.localize('references.action.label', "Find All References"),
 			alias: 'Find All References',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasReferenceProvider,
+				EditorContextKeys.hasReferenceProvider,
 				PeekContext.notInPeekEditor,
-				ModeContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyCode.F12
 			},
 			menuOpts: {
@@ -86,7 +85,11 @@ export class ReferenceAction extends EditorAction {
 		}
 		let range = editor.getSelection();
 		let model = editor.getModel();
-		let references = provideReferences(model, range.getStartPosition()).then(references => new ReferencesModel(references));
+		let references = provideReferences(model, range.getStartPosition()).then(references => {
+			const model = new ReferencesModel(references);
+			alert(model.getAriaMessage());
+			return model;
+		});
 		controller.toggleWidget(range, references, defaultReferenceSearchOptions);
 	}
 }

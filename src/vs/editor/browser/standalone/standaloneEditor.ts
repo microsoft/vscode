@@ -6,7 +6,7 @@
 
 import 'vs/css!./media/standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions } from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/browser/standalone/standaloneServices';
@@ -35,6 +35,7 @@ import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/common/
 import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from "vs/editor/common/config/editorOptions";
+import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
 
 /**
  * @internal
@@ -126,7 +127,8 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IContextViewService),
 			services.get(IStandaloneThemeService),
 			services.get(IEditorWorkerService),
-			services.get(ICodeEditorService)
+			services.get(ICodeEditorService),
+			services.get(IStandaloneThemeService)
 		);
 	});
 }
@@ -343,8 +345,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		DefaultEndOfLine: editorCommon.DefaultEndOfLine,
 		EndOfLineSequence: editorCommon.EndOfLineSequence,
 		TrackedRangeStickiness: editorCommon.TrackedRangeStickiness,
-		CursorChangeReason: editorCommon.CursorChangeReason,
-		MouseTargetType: editorCommon.MouseTargetType,
+		CursorChangeReason: CursorChangeReason,
+		MouseTargetType: MouseTargetType,
 		TextEditorCursorStyle: editorOptions.TextEditorCursorStyle,
 		TextEditorCursorBlinkingStyle: editorOptions.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
@@ -367,11 +369,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// vars
 		EditorType: editorCommon.EditorType,
-		CursorMoveByUnit: editorCommon.CursorMoveByUnit,
-		CursorMovePosition: editorCommon.CursorMovePosition,
-		EditorScrollDirection: editorCommon.EditorScrollDirection,
-		EditorScrollByUnit: editorCommon.EditorScrollByUnit,
-		RevealLineAtArgument: editorCommon.RevealLineAtArgument,
 		Handler: editorCommon.Handler,
 	};
 }

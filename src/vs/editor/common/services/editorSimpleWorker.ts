@@ -14,7 +14,7 @@ import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { stringDiff } from 'vs/base/common/diff/diff';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { MirrorModel2, IModelChangedEvent } from 'vs/editor/common/model/mirrorModel2';
+import { MirrorModel as BaseMirrorModel, IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
 import { IInplaceReplaceSupportResult, ILink, ISuggestResult, ISuggestion, TextEdit } from 'vs/editor/common/modes';
 import { computeLinks } from 'vs/editor/common/modes/linkComputer';
 import { BasicInplaceReplace } from 'vs/editor/common/modes/supports/inplaceReplaceSupport';
@@ -65,9 +65,24 @@ export interface ICommonModel {
 }
 
 /**
+ * Range of a word inside a model.
  * @internal
  */
-class MirrorModel extends MirrorModel2 implements ICommonModel {
+interface IWordRange {
+	/**
+	 * The index where the word starts.
+	 */
+	readonly start: number;
+	/**
+	 * The index where the word ends.
+	 */
+	readonly end: number;
+}
+
+/**
+ * @internal
+ */
+class MirrorModel extends BaseMirrorModel implements ICommonModel {
 
 	public get uri(): URI {
 		return this._uri;
@@ -155,9 +170,8 @@ class MirrorModel extends MirrorModel2 implements ICommonModel {
 		});
 	}
 
-	// TODO@Joh, TODO@Alex - remove these and make sure the super-things work
-	private _wordenize(content: string, wordDefinition: RegExp): editorCommon.IWordRange[] {
-		const result: editorCommon.IWordRange[] = [];
+	private _wordenize(content: string, wordDefinition: RegExp): IWordRange[] {
+		const result: IWordRange[] = [];
 		let match: RegExpExecArray;
 
 		wordDefinition.lastIndex = 0; // reset lastIndex just to be sure

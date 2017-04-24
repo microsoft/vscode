@@ -182,6 +182,12 @@ export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBarBackground', {
 	hc: '#000000'
 }, nls.localize('activityBarBackground', "Activity bar background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBarForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: Color.white
+}, nls.localize('activityBarForeground', "Activity bar foreground color (e.g. used for the icons). The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBarDragAndDropBackground', {
 	dark: '#403F3F',
 	light: '#403F3F',
@@ -244,6 +250,38 @@ export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBarInactiveBack
 	hc: null
 }, nls.localize('titleBarInactiveBackground', "Title bar background when the window is inactive. Note that this color is currently only supported on macOS."));
 
+// < --- Notifications --- >
+
+export const NOTIFICATIONS_FOREGROUND = registerColor('notificationsForeground', {
+	dark: '#EEEEEE',
+	light: '#EEEEEE',
+	hc: '#FFFFFF'
+}, nls.localize('notificationsForeground', "Notifications foreground color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_BACKGROUND = registerColor('notificationsBackground', {
+	dark: '#333333',
+	light: '#2C2C2C',
+	hc: '#000000'
+}, nls.localize('notificationsBackground', "Notifications background color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_ERROR_BACKGROUND = registerColor('notificationsErrorBackground', {
+	dark: '#BE1100',
+	light: '#BE1100',
+	hc: null
+}, nls.localize('notificationsErrorBackground', "Notifications error background color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_WARNING_BACKGROUND = registerColor('notificationsWarningBackground', {
+	dark: '#B89500',
+	light: '#B89500',
+	hc: null
+}, nls.localize('notificationsWarningBackground', "Notifications background color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_INFO_BACKGROUND = registerColor('notificationsInfoBackground', {
+	dark: '#007ACC',
+	light: '#007ACC',
+	hc: null
+}, nls.localize('notificationsInfoBackground', "Notifications background color. Notifications slide in from the top of the window."));
+
 /**
  * Base class for all themable workbench components.
  */
@@ -261,10 +299,6 @@ export class Themable extends Disposable {
 
 		// Hook up to theme changes
 		this._toUnbind.push(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
-	}
-
-	protected get isHighContrastTheme(): boolean {
-		return this.theme.type === 'hc';
 	}
 
 	protected get toUnbind() {

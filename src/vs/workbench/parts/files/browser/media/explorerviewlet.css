@@ -5,7 +5,7 @@
 
 /* Activity Bar */
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.explore {
-	background-image: url('files-dark.svg');
+	-webkit-mask: url('files-dark.svg') no-repeat 50% 50%;
 }
 
 /* --- Explorer viewlet --- */

@@ -205,6 +205,7 @@ export namespace SymbolKind {
 	_fromMapping[types.SymbolKind.Struct] = modes.SymbolKind.Struct;
 	_fromMapping[types.SymbolKind.Event] = modes.SymbolKind.Event;
 	_fromMapping[types.SymbolKind.Operator] = modes.SymbolKind.Operator;
+	_fromMapping[types.SymbolKind.TypeParameter] = modes.SymbolKind.TypeParameter;
 
 	export function from(kind: vscode.SymbolKind): modes.SymbolKind {
 		return _fromMapping[kind] || modes.SymbolKind.Property;
@@ -294,6 +295,7 @@ export const CompletionItemKind = {
 			case types.CompletionItemKind.Folder: return 'folder';
 			case types.CompletionItemKind.Event: return 'event';
 			case types.CompletionItemKind.Operator: return 'operator';
+			case types.CompletionItemKind.TypeParameter: return 'type-parameter';
 		}
 		return 'property';
 	},

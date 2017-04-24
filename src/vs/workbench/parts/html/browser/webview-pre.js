@@ -65,7 +65,7 @@ document.addEventListener("DOMContentLoaded", function (event) {
 		styleBody(body[0]);
 
 		// iframe
-		defaultStyles = target.contentDocument.getElementById('_defaultStyles');
+		var defaultStyles = target.contentDocument.getElementById('_defaultStyles');
 		if (defaultStyles) {
 			defaultStyles.innerHTML = initData.styles;
 		}

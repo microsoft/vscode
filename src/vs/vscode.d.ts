@@ -1466,6 +1466,14 @@ declare module 'vscode' {
 		value?: string;
 
 		/**
+		 * Selection of the prefilled [`value`](#InputBoxOptions.value). Defined as tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
+		 * word will be selected, when empty (start equals end) only the cursor will be set,
+		 * otherwise the defined range will be selected.
+		 */
+		valueSelection?: [number, number];
+
+		/**
 		 * The text to display underneath the input box.
 		 */
 		prompt?: string;
@@ -1502,7 +1510,7 @@ declare module 'vscode' {
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
 	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕project.json' }`
+	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕package.json' }`
 	 */
 	export interface DocumentFilter {
 
@@ -1877,7 +1885,8 @@ declare module 'vscode' {
 		EnumMember = 21,
 		Struct = 22,
 		Event = 23,
-		Operator = 24
+		Operator = 24,
+		TypeParameter = 25
 	}
 
 	/**
@@ -2442,7 +2451,8 @@ declare module 'vscode' {
 		Constant = 20,
 		Struct = 21,
 		Event = 22,
-		Operator = 23
+		Operator = 23,
+		TypeParameter = 24
 	}
 
 	/**

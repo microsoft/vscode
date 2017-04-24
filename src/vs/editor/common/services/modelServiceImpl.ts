@@ -25,6 +25,7 @@ import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/com
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+import { ClassName } from "vs/editor/common/model/textModelWithDecorations";
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -121,14 +122,14 @@ class ModelMarkerHandler {
 				break;
 			case Severity.Warning:
 			case Severity.Info:
-				className = editorCommon.ClassName.EditorWarningDecoration;
+				className = ClassName.EditorWarningDecoration;
 				color = 'rgba(18,136,18,0.7)';
 				darkColor = 'rgba(18,136,18,0.7)';
 				hcColor = 'rgba(50,255,50,1)';
 				break;
 			case Severity.Error:
 			default:
-				className = editorCommon.ClassName.EditorErrorDecoration;
+				className = ClassName.EditorErrorDecoration;
 				color = 'rgba(255,18,18,0.7)';
 				darkColor = 'rgba(255,18,18,0.7)';
 				hcColor = 'rgba(255,50,50,1)';

@@ -219,17 +219,18 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Part container
 		const container = this.getContainer();
-		container.style('background-color', this.getColor(ACTIVITY_BAR_BACKGROUND));
+		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
+		container.style('background-color', background);
 
-		const useBorder = this.isHighContrastTheme;
+		const hcBorder = this.getColor(highContrastBorder);
 		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style('box-sizing', useBorder && isPositionLeft ? 'border-box' : null);
-		container.style('border-right-width', useBorder && isPositionLeft ? '1px' : null);
-		container.style('border-right-style', useBorder && isPositionLeft ? 'solid' : null);
-		container.style('border-right-color', useBorder && isPositionLeft ? this.getColor(highContrastBorder) : null);
-		container.style('border-left-width', useBorder && !isPositionLeft ? '1px' : null);
-		container.style('border-left-style', useBorder && !isPositionLeft ? 'solid' : null);
-		container.style('border-left-color', useBorder && !isPositionLeft ? this.getColor(highContrastBorder) : null);
+		container.style('box-sizing', hcBorder && isPositionLeft ? 'border-box' : null);
+		container.style('border-right-width', hcBorder && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', hcBorder && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', isPositionLeft ? hcBorder : null);
+		container.style('border-left-width', hcBorder && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', hcBorder && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', !isPositionLeft ? hcBorder : null);
 	}
 
 	private showContextMenu(e: MouseEvent): void {
@@ -515,10 +516,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
-	// High Contrast Styling
-	if (theme.type === 'hc') {
-		const outline = theme.getColor(highContrastOutline);
-
+	// Styling with Outline color (e.g. high contrast theme)
+	const outline = theme.getColor(highContrastOutline);
+	if (outline) {
 		collector.addRule(`
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label:before {
 				content: "";
@@ -562,7 +562,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	// Non High Contrast Themes
+	// Styling without outline color
 	else {
 		const focusBorder = theme.getColor(focus);
 

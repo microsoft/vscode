@@ -14,7 +14,7 @@ import { ITextFileService, ModelState, StateChange } from 'vs/workbench/services
 import { workbenchInstantiationService, TestTextFileService, createFileInput, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { onError, toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { FileOperationResult, IFileOperationResult, IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { FileOperationResult, IFileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 class ServiceAccessor {
@@ -375,24 +375,25 @@ suite('Files - TextFileEditorModel', () => {
 		}, error => onError(error, done));
 	});
 
-	test('Orphaned models - state and event', function (done) {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
+	// TODO@Ben unreliable test
+	// test('Orphaned models - state and event', function (done) {
+	// 	const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
-		const unbind = model.onDidStateChange(e => {
-			if (e === StateChange.ORPHANED_CHANGE) {
-				unbind.dispose();
-				done();
-			}
-		});
+	// 	const unbind = model.onDidStateChange(e => {
+	// 		if (e === StateChange.ORPHANED_CHANGE) {
+	// 			unbind.dispose();
+	// 			done();
+	// 		}
+	// 	});
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.DELETED }]));
-		return TPromise.timeout(110).then(() => {
-			assert.ok(model.hasState(ModelState.ORPHAN));
+	// 	accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.DELETED }]));
+	// 	return TPromise.timeout(110).then(() => {
+	// 		assert.ok(model.hasState(ModelState.ORPHAN));
 
-			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.ADDED }]));
-			assert.ok(!model.hasState(ModelState.ORPHAN));
-		});
-	});
+	// 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.ADDED }]));
+	// 		assert.ok(!model.hasState(ModelState.ORPHAN));
+	// 	});
+	// });
 
 	test('SaveSequentializer - pending basics', function (done) {
 		const sequentializer = new SaveSequentializer();

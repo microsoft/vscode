@@ -26,6 +26,7 @@ import { RGBA } from 'vs/base/common/color';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import * as platform from 'vs/base/common/platform';
+import { VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
 
 const enum RenderMinimap {
 	None = 0,
@@ -440,24 +441,24 @@ export class Minimap extends ViewPart {
 		this._buffers = null;
 
 		this._domNode = createFastDomNode(document.createElement('div'));
-		PartFingerprints.write(this._domNode.domNode, PartFingerprint.Minimap);
+		PartFingerprints.write(this._domNode, PartFingerprint.Minimap);
 		this._domNode.setClassName('minimap');
 		this._domNode.setPosition('absolute');
 		this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
 
 		this._shadow = createFastDomNode(document.createElement('div'));
 		this._shadow.setClassName('minimap-shadow-hidden');
-		this._domNode.domNode.appendChild(this._shadow.domNode);
+		this._domNode.appendChild(this._shadow);
 
 		this._canvas = createFastDomNode(document.createElement('canvas'));
 		this._canvas.setPosition('absolute');
 		this._canvas.setLeft(0);
-		this._domNode.domNode.appendChild(this._canvas.domNode);
+		this._domNode.appendChild(this._canvas);
 
 		this._slider = createFastDomNode(document.createElement('div'));
 		this._slider.setPosition('absolute');
 		this._slider.setClassName('minimap-slider');
-		this._domNode.domNode.appendChild(this._slider.domNode);
+		this._domNode.appendChild(this._slider);
 
 		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
 
@@ -484,8 +485,7 @@ export class Minimap extends ViewPart {
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, 1, lineNumber, 1),
-				editorCommon.VerticalRevealType.Center,
-				false,
+				VerticalRevealType.Center,
 				false
 			));
 		});
@@ -549,8 +549,8 @@ export class Minimap extends ViewPart {
 		super.dispose();
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
 	}
 
 	private _applyLayout(): void {

@@ -14,6 +14,7 @@ import MDDocumentSymbolProvider from './documentSymbolProvider';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './previewContentProvider';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
+import { Logger } from "./logger";
 
 interface IPackageInfo {
 	name: string;
@@ -46,7 +47,9 @@ export function activate(context: vscode.ExtensionContext) {
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState);
 	const engine = new MarkdownEngine();
 
-	const contentProvider = new MDDocumentContentProvider(engine, context, cspArbiter);
+	const logger = new Logger();
+
+	const contentProvider = new MDDocumentContentProvider(engine, context, cspArbiter, logger);
 	const contentProviderRegistration = vscode.workspace.registerTextDocumentContentProvider('markdown', contentProvider);
 	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, contentProvider);
 	if (vscode.workspace.getConfiguration('markdown').get('enableExperimentalExtensionApi', false)) {
@@ -106,6 +109,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri, line) => {
 		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
+		logger.log('revealLine', { uri, sourceUri: sourceUri.toString(), line });
+
 		vscode.window.visibleTextEditors
 			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.fsPath === sourceUri.fsPath)
 			.forEach(editor => {
@@ -158,7 +163,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewSecuritySelector', (resource: string | undefined) => {
-		previewSecuritySelector.showSecutitySelectorForWorkspace(resource);
+		previewSecuritySelector.showSecutitySelectorForWorkspace(resource ? vscode.Uri.parse(resource).query : undefined);
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
@@ -176,13 +181,17 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
+		logger.updateConfiguration();
 		contentProvider.updateConfiguration();
 	}));
 
 	context.subscriptions.push(vscode.window.onDidChangeTextEditorSelection(event => {
 		if (isMarkdownFile(event.textEditor.document)) {
+			const markdownFile = getMarkdownUri(event.textEditor.document.uri);
+			logger.log('updatePreviewForSelection', { markdownFile: markdownFile.toString() });
+
 			vscode.commands.executeCommand('_workbench.htmlPreview.postMessage',
-				getMarkdownUri(event.textEditor.document.uri),
+				markdownFile,
 				{
 					line: event.selections[0].active.line
 				});
@@ -271,5 +280,3 @@ function getPackageInfo(): IPackageInfo | null {
 	}
 	return null;
 }
-
-

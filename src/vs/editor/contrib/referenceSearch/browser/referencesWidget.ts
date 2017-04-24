@@ -41,7 +41,6 @@ import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/se
 import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler } from "vs/platform/theme/common/styler";
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 
@@ -735,9 +734,6 @@ export class ReferenceWidget extends PeekViewWidget {
 		this._preview.layout();
 		this._tree.layout();
 		this.focus();
-
-		// announce results found
-		alert(nls.localize('aria.result', "Found {0} references", this._model.references.length));
 
 		// pick input and a reference to begin with
 		const input = this._model.groups.length === 1 ? this._model.groups[0] : this._model;

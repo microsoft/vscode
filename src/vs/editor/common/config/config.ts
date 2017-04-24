@@ -13,10 +13,11 @@ import { ICommandAndKeybindingRule, KeybindingsRegistry, IKeybindings } from 'vs
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { CursorMove } from "vs/editor/common/controller/cursorMoveCommands";
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { EditorScroll, RevealLine } from "vs/editor/common/controller/cursor";
 
 import H = editorCommon.Handler;
-import D = editorCommon.CommandDescription;
-import EditorContextKeys = editorCommon.EditorContextKeys;
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 
@@ -227,7 +228,7 @@ class WordCommand extends CoreCommand {
 			precondition: precondition,
 			kbOpts: {
 				weight: CORE_WEIGHT,
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: WordCommand.getWordNavigationKB(shift, key),
 				mac: { primary: WordCommand.getMacWordNavigationKB(shift, key) }
 			}
@@ -275,14 +276,14 @@ class WordCommand extends CoreCommand {
 // Control+Command+shift+d => noop
 
 // Register cursor commands
-registerCoreAPICommand(H.CursorMove, D.CursorMove);
+registerCoreAPICommand(H.CursorMove, CursorMove.description);
 
 registerCommand(new CoreCommand({
 	id: H.CursorLeft,
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.LeftArrow,
 		mac: { primary: KeyCode.LeftArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_B] }
 	}
@@ -292,7 +293,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.Shift | KeyCode.LeftArrow
 	}
 }));
@@ -301,7 +302,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.RightArrow,
 		mac: { primary: KeyCode.RightArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_F] }
 	}
@@ -311,7 +312,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.Shift | KeyCode.RightArrow
 	}
 }));
@@ -320,7 +321,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.UpArrow,
 		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_P] }
 	}
@@ -330,7 +331,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.Shift | KeyCode.UpArrow,
 		secondary: [WordCommand.getWordNavigationKB(true, KeyCode.UpArrow)],
 		mac: { primary: KeyMod.Shift | KeyCode.UpArrow },
@@ -342,7 +343,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.DownArrow,
 		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.WinCtrl | KeyCode.KEY_N] }
 	}
@@ -352,7 +353,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.Shift | KeyCode.DownArrow,
 		secondary: [WordCommand.getWordNavigationKB(true, KeyCode.DownArrow)],
 		mac: { primary: KeyMod.Shift | KeyCode.DownArrow },
@@ -365,7 +366,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.PageUp
 	}
 }));
@@ -374,7 +375,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.Shift | KeyCode.PageUp
 	}
 }));
@@ -383,7 +384,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.PageDown
 	}
 }));
@@ -392,7 +393,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.Shift | KeyCode.PageDown
 	}
 }));
@@ -401,7 +402,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Home,
 		mac: { primary: KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyCode.LeftArrow, KeyMod.WinCtrl | KeyCode.KEY_A] }
 	}
@@ -411,7 +412,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.Shift | KeyCode.Home,
 		mac: { primary: KeyMod.Shift | KeyCode.Home, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow] }
 	}
@@ -421,7 +422,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.End,
 		mac: { primary: KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow, KeyMod.WinCtrl | KeyCode.KEY_E] }
 	}
@@ -431,7 +432,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.Shift | KeyCode.End,
 		mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
 	}
@@ -441,19 +442,19 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_I
 	}
 }));
 
-registerCoreAPICommand(H.EditorScroll, D.EditorScroll);
+registerCoreAPICommand(H.EditorScroll, EditorScroll.description);
 
 registerCommand(new CoreCommand({
 	id: H.ScrollLineUp,
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.PageUp }
 	}
@@ -463,7 +464,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.PageDown }
 	}
@@ -474,7 +475,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.PageUp,
 		win: { primary: KeyMod.Alt | KeyCode.PageUp },
 		linux: { primary: KeyMod.Alt | KeyCode.PageUp }
@@ -485,21 +486,21 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.PageDown,
 		win: { primary: KeyMod.Alt | KeyCode.PageDown },
 		linux: { primary: KeyMod.Alt | KeyCode.PageDown }
 	}
 }));
 
-registerCoreAPICommand(H.RevealLine, D.RevealLine);
+registerCoreAPICommand(H.RevealLine, RevealLine.description);
 
 registerCommand(new CoreCommand({
 	id: H.CursorColumnSelectLeft,
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
 		linux: { primary: 0 }
 	}
@@ -509,7 +510,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
 		linux: { primary: 0 }
 	}
@@ -519,7 +520,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.UpArrow,
 		linux: { primary: 0 }
 	}
@@ -529,7 +530,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageUp,
 		linux: { primary: 0 }
 	}
@@ -539,7 +540,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.DownArrow,
 		linux: { primary: 0 }
 	}
@@ -549,7 +550,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.PageDown,
 		linux: { primary: 0 }
 	}
@@ -557,24 +558,24 @@ registerCommand(new CoreCommand({
 
 registerCommand(new CoreCommand({
 	id: H.Tab,
-	precondition: EditorContextKeys.Writable,
+	precondition: EditorContextKeys.writable,
 	kbOpts: {
 		weight: CORE_WEIGHT,
 		kbExpr: ContextKeyExpr.and(
-			EditorContextKeys.TextFocus,
-			EditorContextKeys.TabDoesNotMoveFocus
+			EditorContextKeys.textFocus,
+			EditorContextKeys.tabDoesNotMoveFocus
 		),
 		primary: KeyCode.Tab
 	}
 }));
 registerCommand(new CoreCommand({
 	id: H.Outdent,
-	precondition: EditorContextKeys.Writable,
+	precondition: EditorContextKeys.writable,
 	kbOpts: {
 		weight: CORE_WEIGHT,
 		kbExpr: ContextKeyExpr.and(
-			EditorContextKeys.TextFocus,
-			EditorContextKeys.TabDoesNotMoveFocus
+			EditorContextKeys.textFocus,
+			EditorContextKeys.tabDoesNotMoveFocus
 		),
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
@@ -582,10 +583,10 @@ registerCommand(new CoreCommand({
 
 registerCommand(new CoreCommand({
 	id: H.DeleteLeft,
-	precondition: EditorContextKeys.Writable,
+	precondition: EditorContextKeys.writable,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Backspace,
 		secondary: [KeyMod.Shift | KeyCode.Backspace],
 		mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KEY_H, KeyMod.WinCtrl | KeyCode.Backspace] }
@@ -593,10 +594,10 @@ registerCommand(new CoreCommand({
 }));
 registerCommand(new CoreCommand({
 	id: H.DeleteRight,
-	precondition: EditorContextKeys.Writable,
+	precondition: EditorContextKeys.writable,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Delete,
 		mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KEY_D, KeyMod.WinCtrl | KeyCode.Delete] }
 	}
@@ -604,20 +605,20 @@ registerCommand(new CoreCommand({
 
 registerCommand(new CoreCommand({
 	id: H.CancelSelection,
-	precondition: EditorContextKeys.HasNonEmptySelection,
+	precondition: EditorContextKeys.hasNonEmptySelection,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
 registerCommand(new CoreCommand({
 	id: H.RemoveSecondaryCursors,
-	precondition: EditorContextKeys.HasMultipleSelections,
+	precondition: EditorContextKeys.hasMultipleSelections,
 	kbOpts: {
 		weight: CORE_WEIGHT + 1,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
@@ -628,7 +629,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Home,
 		mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow }
 	}
@@ -638,7 +639,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Home,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow }
 	}
@@ -648,7 +649,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.End,
 		mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow }
 	}
@@ -658,7 +659,7 @@ registerCommand(new CoreCommand({
 	precondition: null,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.End,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow }
 	}
@@ -666,22 +667,12 @@ registerCommand(new CoreCommand({
 
 registerCommand(new CoreCommand({
 	id: H.LineBreakInsert,
-	precondition: EditorContextKeys.Writable,
+	precondition: EditorContextKeys.writable,
 	kbOpts: {
 		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: null,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_O }
-	}
-}));
-
-registerCommand(new CoreCommand({
-	id: H.CursorUndo,
-	precondition: null,
-	kbOpts: {
-		weight: CORE_WEIGHT,
-		kbExpr: EditorContextKeys.TextFocus,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_U
 	}
 }));
 
@@ -747,10 +738,10 @@ class UndoCommand extends BaseTextInputAwareCommand {
 	constructor() {
 		super({
 			id: H.Undo,
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: CORE_WEIGHT,
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
 			}
 		});
@@ -771,10 +762,10 @@ class RedoCommand extends BaseTextInputAwareCommand {
 	constructor() {
 		super({
 			id: H.Redo,
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: CORE_WEIGHT,
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
 				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }

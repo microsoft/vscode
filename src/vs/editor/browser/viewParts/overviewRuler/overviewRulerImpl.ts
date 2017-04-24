@@ -5,10 +5,10 @@
 'use strict';
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { OverviewRulerLane, OverviewRulerZone, ColorZone, ThemeType } from 'vs/editor/common/editorCommon';
+import { OverviewRulerLane, ThemeType } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
-import { OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
+import { OverviewZoneManager, ColorZone, OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { Color } from 'vs/base/common/color';
 import { OverviewRulerPosition } from "vs/editor/common/config/editorOptions";
 

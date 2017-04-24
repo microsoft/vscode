@@ -11,7 +11,6 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { TokenIterator } from 'vs/editor/common/model/tokenIterator';
 import { ITokenizationSupport, IState, TokenizationRegistry, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { NULL_LANGUAGE_IDENTIFIER, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
@@ -456,13 +455,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			startColumn: wordAtPosition.startColumn,
 			endColumn: position.column
 		};
-	}
-
-	public tokenIterator(position: IPosition, callback: (it: TokenIterator) => any): any {
-		var iter = new TokenIterator(this, this.validatePosition(position));
-		var result = callback(iter);
-		iter._invalidate();
-		return result;
 	}
 
 	public findMatchingBracketUp(_bracket: string, _position: IPosition): Range {

@@ -31,31 +31,29 @@ const STOP_SYNC_MODEL_DELTA_TIME_MS = 60 * 1000;
  */
 const STOP_WORKER_DELTA_TIME_MS = 5 * 60 * 1000;
 
-export class EditorWorkerServiceImpl implements IEditorWorkerService {
+export class EditorWorkerServiceImpl extends Disposable implements IEditorWorkerService {
 	public _serviceBrand: any;
 
 	private readonly _workerManager: WorkerManager;
-	private readonly _registrations: IDisposable[];
 
 	constructor(
 		@IModelService modelService: IModelService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		this._workerManager = new WorkerManager(modelService);
+		super();
+		this._workerManager = this._register(new WorkerManager(modelService));
 
 		// todo@joh make sure this happens only once
-		const linkProvider = modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
+		this._register(modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
 			provideLinks: (model, token) => {
 				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
 			}
-		});
-		const completionProvider = modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService));
-		this._registrations = [linkProvider, completionProvider];
+		}));
+		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService)));
 	}
 
 	public dispose(): void {
-		this._workerManager.dispose();
-		dispose(this._registrations);
+		super.dispose();
 	}
 
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.ILineChange[]> {

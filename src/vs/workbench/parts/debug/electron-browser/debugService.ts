@@ -319,7 +319,7 @@ export class DebugService implements debug.IDebugService {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (session && session.getId() === event.body.sessionId) {
 				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart && process) {
-					this.restartProcess(process).done(null, err => this.messageService.show(severity.Error, err.message));
+					this.restartProcess(process, true).done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
 					session.disconnect().done(null, errors.onUnexpectedError);
 				}
@@ -365,6 +365,9 @@ export class DebugService implements debug.IDebugService {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
 			const breakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
 			if (breakpoint) {
+				if (!breakpoint.column) {
+					event.body.breakpoint.column = undefined;
+				}
 				this.model.updateBreakpoints({ [breakpoint.getId()]: event.body.breakpoint });
 			} else {
 				const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
@@ -869,7 +872,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.deemphasizeSource(uri);
 	}
 
-	public restartProcess(process: debug.IProcess): TPromise<any> {
+	public restartProcess(process: debug.IProcess, internalRestart?: boolean): TPromise<any> {
 		if (process.session.capabilities.supportsRestartRequest) {
 			return process.session.custom('restart', null);
 		}
@@ -884,6 +887,7 @@ export class DebugService implements debug.IDebugService {
 					if (config) {
 						// Take the type from the process since the debug extension might overwrite it #21316
 						config.type = process.configuration.type;
+						config.__restart = internalRestart;
 					}
 					this.createProcess(config || process.configuration).then(() => c(null), err => e(err));
 				}, 300);
@@ -936,9 +940,9 @@ export class DebugService implements debug.IDebugService {
 
 		if (this.model.getProcesses().length === 0) {
 			// set breakpoints back to unverified since the session ended.
-			const data: { [id: string]: { line: number, verified: boolean } } = {};
+			const data: { [id: string]: { line: number, verified: boolean, column: number } } = {};
 			this.model.getBreakpoints().forEach(bp => {
-				data[bp.getId()] = { line: bp.lineNumber, verified: false };
+				data[bp.getId()] = { line: bp.lineNumber, verified: false, column: bp.column };
 			});
 			this.model.updateBreakpoints(data);
 
@@ -987,7 +991,7 @@ export class DebugService implements debug.IDebugService {
 			const breakpointsToSend = this.model.getBreakpoints().filter(bp => this.model.areBreakpointsActivated() && bp.enabled && bp.uri.toString() === modelUri.toString());
 
 			const source = process.sources.get(modelUri.toString());
-			const rawSource = source ? source.raw : { path: paths.normalize(modelUri.fsPath, true) };
+			const rawSource = source ? source.raw : { path: paths.normalize(modelUri.fsPath, true), name: paths.basename(modelUri.fsPath) };
 
 			return session.setBreakpoints({
 				source: rawSource,

@@ -117,7 +117,7 @@
 },
 {
 	"name": "electron",
-	"version": "1.4.6",
+	"version": "1.6.6",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/electron/electron",
 	"isProd": true

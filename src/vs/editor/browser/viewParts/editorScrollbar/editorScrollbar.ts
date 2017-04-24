@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { ScrollableElementCreationOptions, ScrollableElementChangeOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
 import { IOverviewRulerLayoutInfo, ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { Scrollable } from 'vs/base/common/scrollable';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -20,7 +18,6 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 export class EditorScrollbar extends ViewPart {
 
 	private scrollable: Scrollable;
-	private toDispose: IDisposable[];
 	private scrollbar: ScrollableElement;
 	private scrollbarDomNode: FastDomNode<HTMLElement>;
 
@@ -33,7 +30,6 @@ export class EditorScrollbar extends ViewPart {
 	) {
 		super(context);
 
-		this.toDispose = [];
 		this.scrollable = scrollable;
 
 		const viewInfo = this._context.configuration.editor.viewInfo;
@@ -42,7 +38,7 @@ export class EditorScrollbar extends ViewPart {
 		let scrollbarOptions: ScrollableElementCreationOptions = {
 			canUseTranslate3d: viewInfo.canUseTranslate3d,
 			listenOnDomNode: viewDomNode.domNode,
-			className: ClassNames.SCROLLABLE_ELEMENT + ' ' + viewInfo.theme,
+			className: 'editor-scrollable' + ' ' + viewInfo.theme,
 			useShadows: false,
 			lazyRender: true,
 
@@ -59,10 +55,8 @@ export class EditorScrollbar extends ViewPart {
 			mouseWheelScrollSensitivity: configScrollbarOpts.mouseWheelScrollSensitivity,
 		};
 
-		this.scrollbar = new ScrollableElement(linesContent.domNode, scrollbarOptions, this.scrollable);
+		this.scrollbar = this._register(new ScrollableElement(linesContent.domNode, scrollbarOptions, this.scrollable));
 		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
-
-		this.toDispose.push(this.scrollbar);
 
 		this.scrollbarDomNode = createFastDomNode(this.scrollbar.getDomNode());
 		this.scrollbarDomNode.setPosition('absolute');
@@ -96,13 +90,13 @@ export class EditorScrollbar extends ViewPart {
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.
-		this.toDispose.push(dom.addDisposableListener(viewDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(viewDomNode.domNode, true, true)));
-		this.toDispose.push(dom.addDisposableListener(linesContent.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(linesContent.domNode, true, false)));
-		this.toDispose.push(dom.addDisposableListener(overflowGuardDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(overflowGuardDomNode.domNode, true, false)));
+		this._register(dom.addDisposableListener(viewDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(viewDomNode.domNode, true, true)));
+		this._register(dom.addDisposableListener(linesContent.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(linesContent.domNode, true, false)));
+		this._register(dom.addDisposableListener(overflowGuardDomNode.domNode, 'scroll', (e: Event) => onBrowserDesperateReveal(overflowGuardDomNode.domNode, true, false)));
 	}
 
 	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+		super.dispose();
 	}
 
 	private _setLayout(): void {
@@ -117,8 +111,8 @@ export class EditorScrollbar extends ViewPart {
 		return this.scrollbar.getOverviewRulerLayoutInfo();
 	}
 
-	public getDomNode(): HTMLElement {
-		return this.scrollbarDomNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this.scrollbarDomNode;
 	}
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
@@ -134,7 +128,7 @@ export class EditorScrollbar extends ViewPart {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const viewInfo = this._context.configuration.editor.viewInfo;
 
-		this.scrollbar.updateClassName(ClassNames.SCROLLABLE_ELEMENT + ' ' + viewInfo.theme);
+		this.scrollbar.updateClassName('editor-scrollable' + ' ' + viewInfo.theme);
 		if (e.viewInfo.scrollbar || e.viewInfo.canUseTranslate3d) {
 			let newOpts: ScrollableElementChangeOptions = {
 				canUseTranslate3d: viewInfo.canUseTranslate3d,
@@ -180,9 +174,6 @@ export class EditorScrollbar extends ViewPart {
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return true;
-	}
-	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
-		return false;
 	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return false;

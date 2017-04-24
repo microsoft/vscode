@@ -8,9 +8,9 @@
 import 'vs/css!./dnd';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IEditorMouseEvent, IMouseTarget } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
@@ -28,8 +28,8 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	private _dragSelection: Selection;
 	private _dndDecorationIds: string[];
 	private _mouseDown: boolean;
-	static TRIGGER_MODIFIER = isWindows ? 'ctrlKey' : 'altKey';
-	static TRIGGER_KEY_VALUE = isWindows ? KeyCode.Ctrl : KeyCode.Alt;
+	static TRIGGER_MODIFIER = isMacintosh ? 'altKey' : 'ctrlKey';
+	static TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
 	static get(editor: editorCommon.ICommonCodeEditor): DragAndDropController {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
@@ -79,6 +79,10 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 
 	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
 		this._mouseDown = false;
+		// Whenever users release the mouse, the drag and drop operation should finish and the cursor should revert to text.
+		this._editor.updateOptions({
+			mouseStyle: 'text'
+		});
 	}
 
 	private _onEditorMouseDrag(mouseEvent: IEditorMouseEvent): void {
@@ -161,14 +165,14 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	}
 
 	private _hitContent(target: IMouseTarget): boolean {
-		return target.type === editorCommon.MouseTargetType.CONTENT_TEXT ||
-			target.type === editorCommon.MouseTargetType.CONTENT_EMPTY;
+		return target.type === MouseTargetType.CONTENT_TEXT ||
+			target.type === MouseTargetType.CONTENT_EMPTY;
 	}
 
 	private _hitMargin(target: IMouseTarget): boolean {
-		return target.type === editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN ||
-			target.type === editorCommon.MouseTargetType.GUTTER_LINE_NUMBERS ||
-			target.type === editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS;
+		return target.type === MouseTargetType.GUTTER_GLYPH_MARGIN ||
+			target.type === MouseTargetType.GUTTER_LINE_NUMBERS ||
+			target.type === MouseTargetType.GUTTER_LINE_DECORATIONS;
 	}
 
 	public getId(): string {

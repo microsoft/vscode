@@ -34,3 +34,10 @@ export class Kind {
 	public static readonly variable = 'var';
 	public static readonly warning = 'warning';
 }
+
+
+export class DiagnosticCategory {
+	public static readonly error = 'error';
+
+	public static readonly warning = 'warning';
+}

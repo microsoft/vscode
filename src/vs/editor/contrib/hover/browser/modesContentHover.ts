@@ -267,10 +267,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		});
 
 		// show
-		this.showAt({
-			lineNumber: renderRange.startLineNumber,
-			column: renderColumn
-		}, this._shouldFocus);
+		this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
 
 		this.updateContents(fragment);
 

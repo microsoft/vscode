@@ -64,24 +64,6 @@
         }
       },
       {
-        "command": "git.openChangeFromUri",
-        "title": "%command.openChange%",
-        "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/open-change.svg",
-          "dark": "resources/icons/dark/open-change.svg"
-        }
-      },
-      {
-        "command": "git.openFileFromUri",
-        "title": "%command.openFile%",
-        "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/open-file.svg",
-          "dark": "resources/icons/dark/open-file.svg"
-        }
-      },
-      {
         "command": "git.stage",
         "title": "%command.stage%",
         "category": "Git",
@@ -245,19 +227,11 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
-          "command": "git.openChange",
-          "when": "false"
-        },
-        {
           "command": "git.openFile",
-          "when": "false"
-        },
-        {
-          "command": "git.openChangeFromUri",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
-          "command": "git.openFileFromUri",
+          "command": "git.openChange",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
@@ -550,12 +524,12 @@
       ],
       "editor/title": [
         {
-          "command": "git.openFileFromUri",
+          "command": "git.openFile",
           "group": "navigation",
           "when": "config.git.enabled && scmProvider == git && isInDiffEditor && resourceScheme != extension"
         },
         {
-          "command": "git.openChangeFromUri",
+          "command": "git.openChange",
           "group": "navigation",
           "when": "config.git.enabled && scmProvider == git && !isInDiffEditor && resourceScheme != extension"
         }
@@ -618,15 +592,23 @@
           "type": "boolean",
           "description": "%config.ignoreLegacyWarning%",
           "default": false
+        },
+        "git.ignoreLimitWarning": {
+          "type": "boolean",
+          "description": "%config.ignoreLimitWarning%",
+          "default": false
         }
       }
     }
   },
   "dependencies": {
-    "vscode-extension-telemetry": "^0.0.6",
+    "iconv-lite": "0.4.15",
+    "vscode-extension-telemetry": "^0.0.7",
     "vscode-nls": "^2.0.1"
   },
   "devDependencies": {
-    "@types/node": "^7.0.4"
+    "@types/mocha": "^2.2.41",
+    "@types/node": "^7.0.4",
+    "mocha": "^3.2.0"
   }
 }

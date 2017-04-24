@@ -150,12 +150,28 @@
 				"--debug=5875"
 			],
 			"webRoot": "${workspaceRoot}"
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Git Unit Tests",
+			"protocol": "inspector",
+			"program": "${workspaceRoot}/extensions/git/node_modules/mocha/bin/_mocha",
+			"stopOnEntry": false,
+			"cwd": "${workspaceRoot}/extensions/git",
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/extensions/git/out/**/*.js"
+			]
 		}
 	],
 	"compounds": [
 		{
 			"name": "Debug VS Code Main and Renderer",
-			"configurations": ["Launch VS Code", "Attach to Main Process"]
+			"configurations": [
+				"Launch VS Code",
+				"Attach to Main Process"
+			]
 		}
 	]
 }

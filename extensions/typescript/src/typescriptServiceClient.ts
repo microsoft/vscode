@@ -13,7 +13,7 @@ import * as os from 'os';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, Disposable, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
+import { workspace, window, extensions, Uri, CancellationToken, Disposable, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 
@@ -121,6 +121,11 @@ interface MyMessageItem extends MessageItem {
 	id: MessageAction;
 }
 
+interface TypeScriptServerPlugin {
+	path: string;
+	name: string;
+}
+
 
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 	private static useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
@@ -165,6 +170,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
+	private checkJs: boolean;
 
 	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento, private workspaceState: Memento, disposables: Disposable[]) {
 		this.host = host;
@@ -197,10 +203,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this._checkGlobalTSCVersion = true;
 		this.trace = this.readTrace();
 		this.tsServerLogLevel = this.readTsServerLogLevel();
+		this.checkJs = this.readCheckJs();
+
 		disposables.push(workspace.onDidChangeConfiguration(() => {
 			let oldLoggingLevel = this.tsServerLogLevel;
 			let oldglobalTsdk = this.globalTsdk;
 			let oldLocalTsdk = this.localTsdk;
+			let oldCheckJs = this.checkJs;
 
 			this.trace = this.readTrace();
 			this.tsServerLogLevel = this.readTsServerLogLevel();
@@ -208,6 +217,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			const configuration = workspace.getConfiguration();
 			this.globalTsdk = this.extractGlobalTsdk(configuration);
 			this.localTsdk = this.extractLocalTsdk(configuration);
+			this.checkJs = this.readCheckJs();
+
+			if (this.servicePromise && oldCheckJs !== this.checkJs) {
+				this.setCompilerOptionsForInferredProjects();
+			}
 
 			if (this.servicePromise === null && (oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk)) {
 				this.startService();
@@ -310,6 +324,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private readTsServerLogLevel(): TsServerLogLevel {
 		const setting = workspace.getConfiguration().get<string>('typescript.tsserver.log', 'off');
 		return TsServerLogLevel.fromString(setting);
+	}
+
+	private readCheckJs(): boolean {
+		return workspace.getConfiguration().get<boolean>('javascript.implicitProjectConfig.checkJs', false);
 	}
 
 	public get experimentalAutoBuild(): boolean {
@@ -565,6 +583,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						}
 					}
 
+					if (this.apiVersion.has230Features()) {
+						const plugins = this.getContributedTypeScriptServerPlugins();
+						if (plugins.length) {
+							args.push('--globalPlugins', plugins.map(x => x.name).join(','));
+							args.push('--pluginProbeLocations', plugins.map(x => x.path).join(','));
+						}
+					}
+
 					electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
 						if (err) {
 							this.lastError = err;
@@ -743,26 +769,36 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			// configureOptions.autoDiagnostics = true;
 		}
 		this.execute('configure', configureOptions);
-		if (this.apiVersion.has206Features()) {
-			let compilerOptions: Proto.ExternalProjectCompilerOptions = {
-				module: 'CommonJS',
-				target: 'ES6',
-				allowSyntheticDefaultImports: true,
-				allowNonTsExtensions: true,
-				allowJs: true,
-				jsx: 'Preserve'
-			};
-			let args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
-				options: compilerOptions
-			};
-			this.execute('compilerOptionsForInferredProjects', args, true).catch((err) => {
-				this.error(`'compilerOptionsForInferredProjects' request failed with error.`, err);
-			});
-		}
-
+		this.setCompilerOptionsForInferredProjects();
 		if (resendModels) {
 			this.host.populateService();
 		}
+	}
+
+	private setCompilerOptionsForInferredProjects(): void {
+		if (!this.apiVersion.has206Features()) {
+			return;
+		}
+
+		const compilerOptions: Proto.ExternalProjectCompilerOptions = {
+			module: 'CommonJS',
+			target: 'ES6',
+			allowSyntheticDefaultImports: true,
+			allowNonTsExtensions: true,
+			allowJs: true,
+			jsx: 'Preserve'
+		};
+
+		if (this.apiVersion.has230Features()) {
+			compilerOptions.checkJs = workspace.getConfiguration('javascript').get<boolean>('implicitProjectConfig.checkJs', false);
+		}
+
+		const args: Proto.SetCompilerOptionsForInferredProjectsArgs = {
+			options: compilerOptions
+		};
+		this.execute('compilerOptionsForInferredProjects', args, true).catch((err) => {
+			this.error(`'compilerOptionsForInferredProjects' request failed with error.`, err);
+		});
 	}
 
 	private getTypeScriptVersion(serverPath: string): string | undefined {
@@ -791,6 +827,22 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return undefined;
 		}
 		return desc.version;
+	}
+
+	private getContributedTypeScriptServerPlugins(): TypeScriptServerPlugin[] {
+		const plugins: TypeScriptServerPlugin[] = [];
+		for (const extension of extensions.all) {
+			const pack = extension.packageJSON;
+			if (pack.contributes && pack.contributes.typescriptServerPlugins && Array.isArray(pack.contributes.typescriptServerPlugins)) {
+				for (const plugin of pack.contributes.typescriptServerPlugins) {
+					plugins.push({
+						name: plugin.name,
+						path: extension.extensionPath
+					});
+				}
+			}
+		}
+		return plugins;
 	}
 
 	private serviceExited(restart: boolean): void {
@@ -979,11 +1031,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					if (response.success) {
 						p.c(response);
 					} else {
-						this.logTelemetry('requestFailed', {
-							id: response.request_seq.toString(),
-							command: response.command,
-							message: response.message ? response.message : 'No detailed message provided'
-						});
 						p.e(response);
 					}
 				}

@@ -203,7 +203,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 			}
 			this.structuralTreeRefreshScheduler.schedule(this.structuralRefreshDelay);
 		} else {
-			this.tree.refresh(e.group).done(() => this.highlightActiveEditor(), errors.onUnexpectedError);
+			const toRefresh = e.editor ? new OpenEditor(e.editor, e.group) : e.group;
+			this.tree.refresh(toRefresh, false).done(() => this.highlightActiveEditor(), errors.onUnexpectedError);
 		}
 	}
 

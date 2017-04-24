@@ -14,7 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
-import { IPosition } from "vs/editor/common/core/position";
+import { Position } from "vs/editor/common/core/position";
 
 
 export class QuickFixOracle {
@@ -125,7 +125,7 @@ export class QuickFixOracle {
 export interface QuickFixComputeEvent {
 	type: 'auto' | 'manual';
 	range: Range;
-	position: IPosition;
+	position: Position;
 	fixes: TPromise<CodeAction[]>;
 }
 

@@ -210,7 +210,8 @@ export type SuggestionType = 'method'
 	| 'file'
 	| 'reference'
 	| 'customcolor'
-	| 'folder';
+	| 'folder'
+	| 'type-parameter';
 
 /**
  * @internal
@@ -494,7 +495,8 @@ export enum SymbolKind {
 	EnumMember = 21,
 	Struct = 22,
 	Event = 23,
-	Operator = 24
+	Operator = 24,
+	TypeParameter = 25
 }
 
 
@@ -529,6 +531,7 @@ export const symbolKindToCssClass = (function () {
 	_fromMapping[SymbolKind.Struct] = 'struct';
 	_fromMapping[SymbolKind.Event] = 'event';
 	_fromMapping[SymbolKind.Operator] = 'operator';
+	_fromMapping[SymbolKind.TypeParameter] = 'type-parameter';
 
 	return function toCssClassName(kind: SymbolKind): string {
 		return _fromMapping[kind] || 'property';

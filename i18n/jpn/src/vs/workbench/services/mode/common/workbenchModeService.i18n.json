@@ -6,11 +6,11 @@
 {
 	"invalid": "`contributes.{0}` が無効です。配列が必要です。",
 	"invalid.empty": "`contributes.{0}` に対する空の値",
-	"opt.aliases": "プロパティ `{0}` を省略するか、型 `string[]` にする必要があります",
-	"opt.configuration": "プロパティ `{0}` を省略するか、型 `string` にする必要があります",
+	"require.id": "プロパティ `{0}` は必須で、型 `string` でなければなりません",
 	"opt.extensions": "プロパティ `{0}` を省略するか、型 `string[]` にする必要があります",
 	"opt.filenames": "プロパティ `{0}` を省略するか、型 `string[]` にする必要があります",
 	"opt.firstLine": "プロパティ `{0}` を省略するか、型 `string` にする必要があります",
-	"opt.mimetypes": "プロパティ `{0}` を省略するか、型 `string[]` にする必要があります",
-	"require.id": "プロパティ `{0}` は必須で、型 `string` でなければなりません"
+	"opt.configuration": "プロパティ `{0}` を省略するか、型 `string` にする必要があります",
+	"opt.aliases": "プロパティ `{0}` を省略するか、型 `string[]` にする必要があります",
+	"opt.mimetypes": "プロパティ `{0}` を省略するか、型 `string[]` にする必要があります"
 }

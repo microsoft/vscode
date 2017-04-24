@@ -14,8 +14,7 @@ import { findFocusedEditor } from 'vs/editor/common/config/config';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { CopyOptions } from 'vs/editor/common/controller/textAreaHandler';
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -68,9 +67,9 @@ class ExecCommandCutAction extends ExecCommandAction {
 			id: 'editor.action.clipboardCutAction',
 			label: nls.localize('actions.clipboard.cutLabel', "Cut"),
 			alias: 'Cut',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
 			},
@@ -102,7 +101,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 			alias: 'Copy',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
 			},
@@ -132,9 +131,9 @@ class ExecCommandPasteAction extends ExecCommandAction {
 			id: 'editor.action.clipboardPasteAction',
 			label: nls.localize('actions.clipboard.pasteLabel', "Paste"),
 			alias: 'Paste',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
 			},
@@ -156,7 +155,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 			alias: 'Copy With Syntax Highlighting',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: null
 			}
 		});

@@ -85,7 +85,7 @@ export class ExtensionExplorersContribtion implements IWorkbenchContribution {
 					const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${viewletCSSClass}`;
 					const iconPath = join(extension.description.extensionFolderPath, icon);
 
-					createCSSRule(iconClass, `background-image: url('${iconPath}')`);
+					createCSSRule(iconClass, `-webkit-mask: url('${iconPath}')`);
 				}
 
 				// Register action to open the viewlet

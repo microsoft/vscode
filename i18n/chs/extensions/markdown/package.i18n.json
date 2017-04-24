@@ -14,7 +14,8 @@
 	"markdown.preview.title": "打开预览",
 	"markdown.previewFrontMatter.dec": "设置如何在 Markdown 预览中呈现 YAML 扉页。“隐藏”会删除扉页。否则，扉页则被视为 Markdown 内容。",
 	"markdown.previewSide.title": "打开侧边预览",
-	"markdown.showPreviewSecuritySelector.title": "更改 Markdown 预览安全设置",
 	"markdown.showSource.title": "显示源",
-	"markdown.styles.dec": "要在 Markdown 预览中使用的 CSS 样式表的 URL 或本地路径列表。相对路径被解释为相对于资源管理器中打开的文件夹。如果没有任何打开的文件夹，则会被解释为相对于 Markdown 文件的位置。所有的 \"\" 需写为 \"\\\"。"
+	"markdown.styles.dec": "要在 Markdown 预览中使用的 CSS 样式表的 URL 或本地路径列表。相对路径被解释为相对于资源管理器中打开的文件夹。如果没有任何打开的文件夹，则会被解释为相对于 Markdown 文件的位置。所有的 \"\\\" 需写为 \"\\\\\"。",
+	"markdown.showPreviewSecuritySelector.title": "更改 Markdown 预览安全设置",
+	"markdown.preview.enableExperimentalExtensionApi.desc": "[实验功能] 允许扩展程序来扩展 Markdown 预览功能。"
 }

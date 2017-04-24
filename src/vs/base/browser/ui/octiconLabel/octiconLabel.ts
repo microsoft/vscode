@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-
 import 'vs/css!./octicons/octicons';
+import 'vs/css!./octicons/octicons-animations';
 import { escape } from 'vs/base/common/strings';
 
 export function expand(text: string): string {
-	return text.replace(/\$\(([^)]+)\)/g, (match, g1) => {
-		return `<span class="octicon octicon-${g1}"></span>`;
+	return text.replace(/\$\(((.+?)(~(.*?))?)\)/g, (match, g1, name, g3, animation) => {
+		return `<span class="octicon octicon-${name} ${animation ? `octicon-animation-${animation}` : ''}"></span>`;
 	});
 }
 

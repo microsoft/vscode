@@ -84,8 +84,8 @@ export class ViewCursor {
 		this._renderData = null;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
 	}
 
 	public getIsInEditableRange(): boolean {

@@ -308,6 +308,7 @@ export interface IEnvConfig {
 	request: string;
 	internalConsoleOptions?: string;
 	preLaunchTask?: string;
+	__restart?: boolean;
 	debugServer?: number;
 	noDebug?: boolean;
 	port?: number;

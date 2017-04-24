@@ -19,7 +19,7 @@ import { TextSource } from 'vs/editor/common/model/textSource';
 import { MainContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from './extHost.protocol';
 import { ExtHostDocumentData, setWordDefinitionFor } from './extHostDocumentData';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel2';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
 
 export class ExtHostDocuments extends ExtHostDocumentsShape {
 

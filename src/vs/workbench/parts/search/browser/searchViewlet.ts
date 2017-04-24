@@ -13,7 +13,6 @@ import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCo
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
-import { IExpression } from 'vs/base/common/glob';
 import env = require('vs/base/common/platform');
 import { Delayer } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
@@ -179,9 +178,7 @@ export class SearchViewlet extends Viewlet {
 		const useIgnoreFiles = typeof this.viewletSettings['query.useIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useIgnoreFiles'] :
 			this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault;
-		const useExcludeSettings = typeof this.viewletSettings['query.useExcludeSettings'] === 'boolean' ?
-			this.viewletSettings['query.useExcludeSettings'] :
-			true;
+		const useExcludeSettings = true;
 
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
@@ -806,8 +803,20 @@ export class SearchViewlet extends Viewlet {
 			return null;
 		}
 
-		let range = editorControl.getSelection();
-		if (range && !range.isEmpty() && range.startLineNumber === range.endLineNumber) {
+		const codeEditor: ICommonCodeEditor = <ICommonCodeEditor>editorControl;
+		const range = codeEditor.getSelection();
+		if (!range) {
+			return null;
+		}
+
+		if (range.isEmpty() && !this.searchWidget.searchInput.getValue()) {
+			const wordAtPosition = codeEditor.getModel().getWordAtPosition(range.getStartPosition());
+			if (wordAtPosition) {
+				return wordAtPosition.word;
+			}
+		}
+
+		if (!range.isEmpty() && range.startLineNumber === range.endLineNumber) {
 			let searchText = editorControl.getModel().getLineContent(range.startLineNumber);
 			searchText = searchText.substring(range.startColumn - 1, range.endColumn - 1);
 			return searchText;
@@ -883,7 +892,7 @@ export class SearchViewlet extends Viewlet {
 		const workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
 		if (workspaceRelativePath) {
 			this.inputPatternIncludes.setIsGlobPattern(false);
-			this.inputPatternIncludes.setValue(workspaceRelativePath);
+			this.inputPatternIncludes.setValue('./' + workspaceRelativePath);
 			this.searchWidget.focus(false);
 		}
 	}
@@ -910,7 +919,6 @@ export class SearchViewlet extends Viewlet {
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
 		this.viewletSettings['query.includesUsePattern'] = includesUsePattern;
 		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
-		this.viewletSettings['query.useExcludeSettings'] = useExcludeSettings;
 
 		if (!rerunQuery) {
 			return;
@@ -941,17 +949,18 @@ export class SearchViewlet extends Viewlet {
 			isWordMatch: isWholeWords
 		};
 
-		const excludes: IExpression = this.inputPatternExclusions.getGlob();
-		const includes: IExpression = this.inputPatternIncludes.getGlob();
+		const { expression: excludePattern } = this.inputPatternExclusions.getGlob();
+		const { expression: includePattern, searchPaths } = this.inputPatternIncludes.getGlob();
 
 		const options: IQueryOptions = {
 			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
-			excludePattern: excludes,
+			excludePattern,
+			includePattern,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
-			includePattern: includes,
 			disregardIgnoreFiles: !useIgnoreFiles,
-			disregardExcludeSettings: !useExcludeSettings
+			disregardExcludeSettings: !useExcludeSettings,
+			searchPaths
 		};
 
 		this.onQueryTriggered(this.queryBuilder.text(content, options), patternExcludes, patternIncludes);

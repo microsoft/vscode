@@ -6,15 +6,15 @@
 {
 	"debugAdapterBinNotFound": "Исполняемый файл адаптера отладки \"{0}\" не существует.",
 	"debugAdapterCannotDetermineExecutable": "Невозможно определить исполняемый файл для адаптера отладки \"{0}\".",
-	"debugLinuxConfiguration": "Атрибуты конфигурации запуска для Linux.",
+	"debugType": "Тип конфигурации.",
+	"node2NotSupported": "Значение \"node2\" больше не поддерживается; используйте \"node\" и задайте для атрибута \"protocol\" значение \"inspector\".",
 	"debugName": "Имя конфигурации; отображается в раскрывающемся меню конфигурации запуска.",
-	"debugOSXConfiguration": "Атрибуты конфигурации запуска для OS X.",
-	"debugPrelaunchTask": "Задача, выполняемая перед началом сеанса отладки.",
 	"debugRequest": "Запросите тип конфигурации. Возможные типы: \"запуск\" и \"подключение\".",
 	"debugServer": "Только для разработки расширений отладки: если указан порт, VS Code пытается подключиться к адаптеру отладки, запущенному в режиме сервера.",
-	"debugType": "Тип конфигурации.",
-	"debugWindowsConfiguration": "Атрибуты конфигурации запуска для Windows.",
-	"deprecatedVariables": "\"env.\", \"config.\" и \"command.\" устарели, используйте \"env:\", \"config:\" и \"command:\".",
+	"debugPrelaunchTask": "Задача, выполняемая перед началом сеанса отладки.",
 	"internalConsoleOptions": "Управляет поведением внутренней консоли отладки.",
-	"node2NotSupported": "Значение \"node2\" больше не поддерживается; используйте \"node\" и задайте для атрибута \"protocol\" значение \"inspector\"."
+	"debugWindowsConfiguration": "Атрибуты конфигурации запуска для Windows.",
+	"debugOSXConfiguration": "Атрибуты конфигурации запуска для OS X.",
+	"debugLinuxConfiguration": "Атрибуты конфигурации запуска для Linux.",
+	"deprecatedVariables": "env.\", \"config.\" и \"command.\" устарели, используйте \"env:\", \"config:\" и \"command:\"."
 }

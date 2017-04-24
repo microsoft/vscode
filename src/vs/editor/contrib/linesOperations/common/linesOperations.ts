@@ -9,7 +9,8 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { EditorContextKeys, Handler, ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { Handler, ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -49,9 +50,9 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 			id: 'editor.action.copyLinesUpAction',
 			label: nls.localize('lines.copyUp', "Copy Line Up"),
 			alias: 'Copy Line Up',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow }
 			}
@@ -66,9 +67,9 @@ class CopyLinesDownAction extends AbstractCopyLinesAction {
 			id: 'editor.action.copyLinesDownAction',
 			label: nls.localize('lines.copyDown', "Copy Line Down"),
 			alias: 'Copy Line Down',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow }
 			}
@@ -107,9 +108,9 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 			id: 'editor.action.moveLinesUpAction',
 			label: nls.localize('lines.moveUp', "Move Line Up"),
 			alias: 'Move Line Up',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Alt | KeyCode.UpArrow,
 				linux: { primary: KeyMod.Alt | KeyCode.UpArrow }
 			}
@@ -124,9 +125,9 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 			id: 'editor.action.moveLinesDownAction',
 			label: nls.localize('lines.moveDown', "Move Line Down"),
 			alias: 'Move Line Down',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Alt | KeyCode.DownArrow,
 				linux: { primary: KeyMod.Alt | KeyCode.DownArrow }
 			}
@@ -161,7 +162,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 			id: 'editor.action.sortLinesAscending',
 			label: nls.localize('lines.sortAscending', "Sort Lines Ascending"),
 			alias: 'Sort Lines Ascending',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 }
@@ -173,7 +174,7 @@ class SortLinesDescendingAction extends AbstractSortLinesAction {
 			id: 'editor.action.sortLinesDescending',
 			label: nls.localize('lines.sortDescending', "Sort Lines Descending"),
 			alias: 'Sort Lines Descending',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 }
@@ -188,9 +189,9 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 			id: TrimTrailingWhitespaceAction.ID,
 			label: nls.localize('lines.trimTrailingWhitespace', "Trim Trailing Whitespace"),
 			alias: 'Trim Trailing Whitespace',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_X)
 			}
 		});
@@ -262,9 +263,9 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 			id: 'editor.action.deleteLines',
 			label: nls.localize('lines.delete', "Delete Line"),
 			alias: 'Delete Line',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
 			}
 		});
@@ -290,10 +291,10 @@ class IndentLinesAction extends HandlerEditorAction {
 			id: 'editor.action.indentLines',
 			label: nls.localize('lines.indent', "Indent Line"),
 			alias: 'Indent Line',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			handlerId: Handler.Indent,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
 			}
 		});
@@ -307,10 +308,10 @@ class OutdentLinesAction extends HandlerEditorAction {
 			id: 'editor.action.outdentLines',
 			label: nls.localize('lines.outdent', "Outdent Line"),
 			alias: 'Outdent Line',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			handlerId: Handler.Outdent,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
 			}
 		});
@@ -324,10 +325,10 @@ class InsertLineBeforeAction extends HandlerEditorAction {
 			id: 'editor.action.insertLineBefore',
 			label: nls.localize('lines.insertBefore', "Insert Line Above"),
 			alias: 'Insert Line Above',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			handlerId: Handler.LineInsertBefore,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
 			}
 		});
@@ -341,10 +342,10 @@ class InsertLineAfterAction extends HandlerEditorAction {
 			id: 'editor.action.insertLineAfter',
 			label: nls.localize('lines.insertAfter', "Insert Line Below"),
 			alias: 'Insert Line Below',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			handlerId: Handler.LineInsertAfter,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter
 			}
 		});
@@ -395,9 +396,9 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			id: 'deleteAllLeft',
 			label: nls.localize('lines.deleteAllLeft', "Delete All Left"),
 			alias: 'Delete All Left',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: null,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
 			}
@@ -449,9 +450,9 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 			id: 'deleteAllRight',
 			label: nls.localize('lines.deleteAllRight', "Delete All Right"),
 			alias: 'Delete All Right',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: null,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_K, secondary: [KeyMod.CtrlCmd | KeyCode.Delete] }
 			}
@@ -507,9 +508,9 @@ export class JoinLinesAction extends EditorAction {
 			id: 'editor.action.joinLines',
 			label: nls.localize('lines.joinLines', "Join Lines"),
 			alias: 'Join Lines',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: 0,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_J }
 			}
@@ -655,7 +656,7 @@ export class TransposeAction extends EditorAction {
 			id: 'editor.action.transpose',
 			label: nls.localize('editor.transpose', "Transpose characters around the cursor"),
 			alias: 'Transpose characters around the cursor',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 
@@ -737,7 +738,7 @@ export class UpperCaseAction extends AbstractCaseAction {
 			id: 'editor.action.transformToUppercase',
 			label: nls.localize('editor.transformToUppercase', "Transform to Uppercase"),
 			alias: 'Transform to Uppercase',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 
@@ -753,7 +754,7 @@ export class LowerCaseAction extends AbstractCaseAction {
 			id: 'editor.action.transformToLowercase',
 			label: nls.localize('editor.transformToLowercase', "Transform to Lowercase"),
 			alias: 'Transform to Lowercase',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 

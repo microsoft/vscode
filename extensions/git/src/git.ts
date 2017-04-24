@@ -9,11 +9,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
+import { EventEmitter } from 'events';
+import iconv = require('iconv-lite');
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp } from './util';
-import { EventEmitter, Event } from 'vscode';
-import * as nls from 'vscode-nls';
 
-const localize = nls.loadMessageBundle();
 const readdir = denodeify<string[]>(fs.readdir);
 const readfile = denodeify<string>(fs.readFile);
 
@@ -159,7 +158,7 @@ export interface IExecutionResult {
 	stderr: string;
 }
 
-export async function exec(child: cp.ChildProcess): Promise<IExecutionResult> {
+async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecutionResult> {
 	const disposables: IDisposable[] = [];
 
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
@@ -178,14 +177,14 @@ export async function exec(child: cp.ChildProcess): Promise<IExecutionResult> {
 			once(child, 'exit', c);
 		}),
 		new Promise<string>(c => {
-			const buffers: string[] = [];
+			const buffers: Buffer[] = [];
 			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(buffers.join('')));
+			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), options.encoding || 'utf8')));
 		}),
 		new Promise<string>(c => {
-			const buffers: string[] = [];
+			const buffers: Buffer[] = [];
 			on(child.stderr, 'data', b => buffers.push(b));
-			once(child.stderr, 'close', () => c(buffers.join('')));
+			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 		})
 	]);
 
@@ -280,8 +279,8 @@ export class Git {
 	private version: string;
 	private env: any;
 
-	private _onOutput = new EventEmitter<string>();
-	get onOutput(): Event<string> { return this._onOutput.event; }
+	private _onOutput = new EventEmitter();
+	get onOutput(): EventEmitter { return this._onOutput; }
 
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
@@ -329,7 +328,7 @@ export class Git {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		const result = await exec(child);
+		const result = await exec(child, options);
 
 		if (result.exitCode) {
 			let gitErrorCode: string | undefined = void 0;
@@ -394,13 +393,79 @@ export class Git {
 	}
 
 	private log(output: string): void {
-		this._onOutput.fire(output);
+		this._onOutput.emit('log', output);
 	}
 }
 
 export interface Commit {
 	hash: string;
 	message: string;
+}
+
+export class GitStatusParser {
+
+	private lastRaw = '';
+	private result: IFileStatus[] = [];
+
+	get status(): IFileStatus[] {
+		return this.result;
+	}
+
+	update(raw: string): void {
+		let i = 0;
+		let nextI: number | undefined;
+
+		raw = this.lastRaw + raw;
+
+		while ((nextI = this.parseEntry(raw, i)) !== undefined) {
+			i = nextI;
+		}
+
+		this.lastRaw = raw.substr(i);
+	}
+
+	private parseEntry(raw: string, i: number): number | undefined {
+		if (i + 4 >= raw.length) {
+			return;
+		}
+
+		let lastIndex: number;
+		const entry: IFileStatus = {
+			x: raw.charAt(i++),
+			y: raw.charAt(i++),
+			rename: undefined,
+			path: ''
+		};
+
+		// space
+		i++;
+
+		if (entry.x === 'R') {
+			lastIndex = raw.indexOf('\0', i);
+
+			if (lastIndex === -1) {
+				return;
+			}
+
+			entry.rename = raw.substring(i, lastIndex);
+			i = lastIndex + 1;
+		}
+
+		lastIndex = raw.indexOf('\0', i);
+
+		if (lastIndex === -1) {
+			return;
+		}
+
+		entry.path = raw.substring(i, lastIndex);
+
+		// If path ends with slash, it must be a nested git repo
+		if (entry.path[entry.path.length - 1] !== '/') {
+			this.result.push(entry);
+		}
+
+		return lastIndex + 1;
+	}
 }
 
 export class Repository {
@@ -448,14 +513,23 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async buffer(object: string): Promise<string> {
+	async buffer(object: string, encoding: string = 'utf8'): Promise<string> {
 		const child = this.stream(['show', object]);
 
 		if (!child.stdout) {
-			return Promise.reject<string>(localize('errorBuffer', "Can't open file from git"));
+			return Promise.reject<string>('Can\'t open file from git');
 		}
 
-		return await this.doBuffer(object);
+		const { exitCode, stdout } = await exec(child, { encoding });
+
+		if (exitCode) {
+			return Promise.reject<string>(new GitError({
+				message: 'Could not show object.',
+				exitCode
+			}));
+		}
+
+		return stdout;
 
 		// TODO@joao
 		// return new Promise((c, e) => {
@@ -472,20 +546,6 @@ export class Repository {
 		// 	}
 		// });
 		// });
-	}
-
-	private async doBuffer(object: string): Promise<string> {
-		const child = this.stream(['show', object]);
-		const { exitCode, stdout } = await exec(child);
-
-		if (exitCode) {
-			return Promise.reject<string>(new GitError({
-				message: 'Could not buffer object.',
-				exitCode
-			}));
-		}
-
-		return stdout;
 	}
 
 	async add(paths: string[]): Promise<void> {
@@ -717,44 +777,36 @@ export class Repository {
 		}
 	}
 
-	async getStatus(): Promise<IFileStatus[]> {
-		const executionResult = await this.run(['status', '-z', '-u']);
-		const status = executionResult.stdout;
-		const result: IFileStatus[] = [];
-		let current: IFileStatus;
-		let i = 0;
+	getStatus(limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
+		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
+			const parser = new GitStatusParser();
+			const child = this.stream(['status', '-z', '-u']);
 
-		function readName(): string {
-			const start = i;
-			let c: string;
-			while ((c = status.charAt(i)) !== '\u0000') { i++; }
-			return status.substring(start, i++);
-		}
+			const onExit = exitCode => {
+				if (exitCode !== 0) {
+					e(new GitError({ message: 'Could not get git status.', exitCode }));
+				}
 
-		while (i < status.length) {
-			current = {
-				x: status.charAt(i++),
-				y: status.charAt(i++),
-				path: ''
+				c({ status: parser.status, didHitLimit: false });
 			};
 
-			i++;
+			const onData = (raw: string) => {
+				parser.update(raw);
 
-			if (current.x === 'R') {
-				current.rename = readName();
-			}
+				if (parser.status.length > 5000) {
+					child.removeListener('exit', onExit);
+					child.stdout.removeListener('data', onData);
+					child.kill();
 
-			current.path = readName();
+					c({ status: parser.status.slice(0, 5000), didHitLimit: true });
+				}
+			};
 
-			// If path ends with slash, it must be a nested git repo
-			if (current.path[current.path.length - 1] === '/') {
-				continue;
-			}
-
-			result.push(current);
-		}
-
-		return result;
+			child.stdout.setEncoding('utf8');
+			child.stdout.on('data', onData);
+			child.on('error', e);
+			child.on('exit', onExit);
+		});
 	}
 
 	async getHEAD(): Promise<Ref> {
