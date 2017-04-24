@@ -43,7 +43,7 @@ class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 }
 
 export class TerminalInstance implements ITerminalInstance {
-	private static readonly EOL_REGEX = /\r?\n/g;
+	private static readonly WINDOWS_EOL_REGEX = /\r?\n/g;
 
 	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _lastKnownDimensions: Dimension = null;
@@ -423,7 +423,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _sanitizeInput(data: any) {
-		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
+		return typeof data === 'string' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
 	}
 
 	protected _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
