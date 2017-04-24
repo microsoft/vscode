@@ -21,11 +21,13 @@ import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperat
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
-import { ICommandHandlerDescription } from "vs/platform/commands/common/commands";
-import * as types from 'vs/base/common/types';
 import { CursorMoveCommands, CursorMove } from "vs/editor/common/controller/cursorMoveCommands";
+import { RevealLine, EditorScroll } from "vs/editor/common/config/config";
+import { CommonEditorRegistry } from "vs/editor/common/editorCommonExtensions";
+import { ICursor } from "vs/editor/common/controller/oneCursor";
+import { CoreCommand } from 'vs/editor/common/controller/coreCommands';
 
-const enum RevealTarget {
+export const enum RevealTarget {
 	Primary = 0,
 	TopMost = 1,
 	BottomMost = 2
@@ -66,7 +68,15 @@ interface ICommandsData {
 	anyoneHadTrackedRange: boolean;
 }
 
-export class Cursor extends Disposable {
+export interface ICursors {
+	readonly context: CursorContext;
+	getPrimaryCursor(): ICursor;
+
+	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
+	reveal(horizontal: boolean, target: RevealTarget): void;
+}
+
+export class Cursor extends Disposable implements ICursors {
 
 	public onDidChangePosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable {
 		return this._eventEmitter.addListener(CursorEventType.CursorPositionChanged, listener);
@@ -76,7 +86,7 @@ export class Cursor extends Disposable {
 	}
 
 	private configuration: editorCommon.IConfiguration;
-	private context: CursorContext;
+	public context: CursorContext;
 	private model: editorCommon.IModel;
 	private _eventEmitter: EventEmitter;
 
@@ -187,6 +197,53 @@ export class Cursor extends Disposable {
 		this.configuration = null;
 		this.viewModelHelper = null;
 		super.dispose();
+	}
+
+	public getPrimaryCursor(): ICursor {
+		return this.cursors.getPrimaryCursor();
+	}
+
+	public setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void {
+		const oldSelections = this.cursors.getSelections();
+		const oldViewSelections = this.cursors.getViewSelections();
+
+		// TODO@Alex
+		// ensure valid state on all cursors
+		// this.cursors.ensureValidState();
+
+		this.cursors.setStates(states, false);
+		this.cursors.normalize();
+
+		// TODO@Alex
+		this._columnSelectData = null;
+
+		const newSelections = this.cursors.getSelections();
+		const newViewSelections = this.cursors.getViewSelections();
+
+		let somethingChanged = false;
+		if (oldSelections.length !== newSelections.length) {
+			somethingChanged = true;
+		} else {
+			for (let i = 0, len = oldSelections.length; !somethingChanged && i < len; i++) {
+				if (!oldSelections[i].equalsSelection(newSelections[i])) {
+					somethingChanged = true;
+				}
+			}
+			for (let i = 0, len = oldViewSelections.length; !somethingChanged && i < len; i++) {
+				if (!oldViewSelections[i].equalsSelection(newViewSelections[i])) {
+					somethingChanged = true;
+				}
+			}
+		}
+
+		if (somethingChanged) {
+			this.emitCursorPositionChanged(source, reason);
+			this.emitCursorSelectionChanged(source, reason);
+		}
+	}
+
+	public reveal(horizontal: boolean, target: RevealTarget): void {
+		this.revealRange(target, VerticalRevealType.Simple, horizontal);
 	}
 
 	public saveState(): editorCommon.ICursorState[] {
@@ -805,6 +862,14 @@ export class Cursor extends Disposable {
 
 	public trigger(source: string, handlerId: string, payload: any): void {
 		if (!this._handlers.hasOwnProperty(handlerId)) {
+			const command = CommonEditorRegistry.getEditorCommand(handlerId);
+			if (!command || !(command instanceof CoreCommand)) {
+				return;
+			}
+
+			payload = payload || {};
+			payload.source = source;
+			command.runCoreCommand(this, payload);
 			return;
 		}
 		let handler = this._handlers[handlerId];
@@ -815,8 +880,6 @@ export class Cursor extends Disposable {
 		let H = editorCommon.Handler;
 
 		this._handlers[H.CursorMove] = (ctx) => this._cursorMove(ctx);
-		this._handlers[H.MoveTo] = (ctx) => this._moveTo(false, ctx);
-		this._handlers[H.MoveToSelect] = (ctx) => this._moveTo(true, ctx);
 		this._handlers[H.ColumnSelect] = (ctx) => this._columnSelectMouse(ctx);
 		this._handlers[H.AddCursorUp] = (ctx) => this._addCursorUp(ctx);
 		this._handlers[H.AddCursorDown] = (ctx) => this._addCursorDown(ctx);
@@ -905,16 +968,6 @@ export class Cursor extends Disposable {
 		this._handlers[H.ExecuteCommands] = (ctx) => this._externalExecuteCommands(ctx);
 
 		this._handlers[H.RevealLine] = (ctx) => this._revealLine(ctx);
-	}
-
-	private _moveTo(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-		if (ctx.eventSource === 'mouse') {
-			ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
-		}
-		const result = CursorMoveCommands.moveTo(this.context, this.cursors.getPrimaryCursor(), inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
-		this.cursors.setStates([result], false);
 	}
 
 	private _cursorMove(ctx: IMultipleCursorOperationContext): void {
@@ -1519,200 +1572,4 @@ export class Cursor extends Disposable {
 			ctx.isAutoWhitespaceCommand[i] = false;
 		}
 	}
-}
-
-export namespace EditorScroll {
-
-	const isEditorScrollArgs = function (arg): boolean {
-		if (!types.isObject(arg)) {
-			return false;
-		}
-
-		let scrollArg: RawArguments = arg;
-
-		if (!types.isString(scrollArg.to)) {
-			return false;
-		}
-
-		if (!types.isUndefined(scrollArg.by) && !types.isString(scrollArg.by)) {
-			return false;
-		}
-
-		if (!types.isUndefined(scrollArg.value) && !types.isNumber(scrollArg.value)) {
-			return false;
-		}
-
-		if (!types.isUndefined(scrollArg.revealCursor) && !types.isBoolean(scrollArg.revealCursor)) {
-			return false;
-		}
-
-		return true;
-	};
-
-	export const description = <ICommandHandlerDescription>{
-		description: 'Scroll editor in the given direction',
-		args: [
-			{
-				name: 'Editor scroll argument object',
-				description: `Property-value pairs that can be passed through this argument:
-					* 'to': A mandatory direction value.
-						\`\`\`
-						'up', 'down'
-						\`\`\`
-					* 'by': Unit to move. Default is computed based on 'to' value.
-						\`\`\`
-						'line', 'wrappedLine', 'page', 'halfPage'
-						\`\`\`
-					* 'value': Number of units to move. Default is '1'.
-					* 'revealCursor': If 'true' reveals the cursor if it is outside view port.
-				`,
-				constraint: isEditorScrollArgs
-			}
-		]
-	};
-
-	/**
-	 * Directions in the view for editor scroll command.
-	 */
-	export const RawDirection = {
-		Up: 'up',
-		Down: 'down',
-	};
-
-	/**
-	 * Units for editor scroll 'by' argument
-	 */
-	export const RawUnit = {
-		Line: 'line',
-		WrappedLine: 'wrappedLine',
-		Page: 'page',
-		HalfPage: 'halfPage'
-	};
-
-	/**
-	 * Arguments for editor scroll command
-	 */
-	export interface RawArguments {
-		to: string;
-		by?: string;
-		value?: number;
-		revealCursor?: boolean;
-	};
-
-	export function parse(args: RawArguments): ParsedArguments {
-		let direction: Direction;
-		switch (args.to) {
-			case RawDirection.Up:
-				direction = Direction.Up;
-				break;
-			case RawDirection.Down:
-				direction = Direction.Down;
-				break;
-			default:
-				// Illegal arguments
-				return null;
-		}
-
-		let unit: Unit;
-		switch (args.by) {
-			case RawUnit.Line:
-				unit = Unit.Line;
-				break;
-			case RawUnit.WrappedLine:
-				unit = Unit.WrappedLine;
-				break;
-			case RawUnit.Page:
-				unit = Unit.Page;
-				break;
-			case RawUnit.HalfPage:
-				unit = Unit.HalfPage;
-				break;
-			default:
-				unit = Unit.WrappedLine;
-		}
-
-		const value = Math.floor(args.value || 1);
-		const revealCursor = !!args.revealCursor;
-
-		return {
-			direction: direction,
-			unit: unit,
-			value: value,
-			revealCursor: revealCursor
-		};
-	}
-
-	export interface ParsedArguments {
-		direction: Direction;
-		unit: Unit;
-		value: number;
-		revealCursor: boolean;
-	}
-
-	export const enum Direction {
-		Up = 1,
-		Down = 2
-	}
-
-	export const enum Unit {
-		Line = 1,
-		WrappedLine = 2,
-		Page = 3,
-		HalfPage = 4
-	}
-}
-
-export namespace RevealLine {
-
-	const isRevealLineArgs = function (arg): boolean {
-		if (!types.isObject(arg)) {
-			return false;
-		}
-
-		let reveaLineArg: RawArguments = arg;
-
-		if (!types.isNumber(reveaLineArg.lineNumber)) {
-			return false;
-		}
-
-		if (!types.isUndefined(reveaLineArg.at) && !types.isString(reveaLineArg.at)) {
-			return false;
-		}
-
-		return true;
-	};
-
-	export const description = <ICommandHandlerDescription>{
-		description: 'Reveal the given line at the given logical position',
-		args: [
-			{
-				name: 'Reveal line argument object',
-				description: `Property-value pairs that can be passed through this argument:
-					* 'lineNumber': A mandatory line number value.
-					* 'at': Logical position at which line has to be revealed .
-						\`\`\`
-						'top', 'center', 'bottom'
-						\`\`\`
-				`,
-				constraint: isRevealLineArgs
-			}
-		]
-	};
-
-	/**
-	 * Arguments for reveal line command
-	 */
-	export interface RawArguments {
-		lineNumber?: number;
-		at?: string;
-	};
-
-	/**
-	 * Values for reveal line 'at' argument
-	 */
-	export const RawAtArgument = {
-		Top: 'top',
-		Center: 'center',
-		Bottom: 'bottom'
-	};
 }

@@ -252,8 +252,8 @@ class ToggleExperimentalScreenReaderSupportCommand extends Command {
 		GlobalScreenReaderNVDA.setValue(!currentValue);
 	}
 }
-
-CommonEditorRegistry.registerEditorCommand(new ToggleExperimentalScreenReaderSupportCommand());
+const command = new ToggleExperimentalScreenReaderSupportCommand();
+KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 registerThemingParticipant((theme, collector) => {
 	let widgetBackground = theme.getColor(editorWidgetBackground);

@@ -11,6 +11,7 @@ import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
+import { CoreCommands } from "vs/editor/common/controller/coreCommands";
 
 export interface TriggerCursorHandler {
 	(source: string, handlerId: string, payload: any): void;
@@ -159,7 +160,7 @@ export class ViewController {
 
 	public moveTo(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.MoveTo, {
+		this.triggerCursorHandler(source, CoreCommands.MoveTo.id, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -167,7 +168,7 @@ export class ViewController {
 
 	private moveToSelect(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.MoveToSelect, {
+		this.triggerCursorHandler(source, CoreCommands.MoveToSelect.id, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});

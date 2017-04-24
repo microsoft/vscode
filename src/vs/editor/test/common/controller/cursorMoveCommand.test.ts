@@ -17,6 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorOptions } from "vs/editor/common/config/editorOptions";
 import { IViewModelHelper } from "vs/editor/common/controller/cursorCommon";
+import { CoreCommands } from "vs/editor/common/controller/coreCommands";
 
 let H = Handler;
 
@@ -561,7 +562,15 @@ function selectionEqual(selection: Selection, posLineNumber: number, posColumn: 
 }
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.MoveToSelect : H.MoveTo, { position: new Position(lineNumber, column) });
+	if (inSelectionMode) {
+		CoreCommands.MoveToSelect.runCoreCommand(cursor, {
+			position: new Position(lineNumber, column)
+		});
+	} else {
+		CoreCommands.MoveTo.runCoreCommand(cursor, {
+			position: new Position(lineNumber, column)
+		});
+	}
 }
 
 function moveToEndOfLine(cursor: Cursor, inSelectionMode: boolean = false) {

@@ -368,7 +368,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		FindMatch: <any>editorCommon.FindMatch,
 
 		// vars
-		EditorType: editorCommon.EditorType,
-		Handler: editorCommon.Handler,
+		EditorType: editorCommon.EditorType
 	};
 }

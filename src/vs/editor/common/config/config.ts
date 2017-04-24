@@ -15,11 +15,206 @@ import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/cod
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { CursorMove } from "vs/editor/common/controller/cursorMoveCommands";
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EditorScroll, RevealLine } from "vs/editor/common/controller/cursor";
-
+import * as types from 'vs/base/common/types';
 import H = editorCommon.Handler;
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
+
+export namespace EditorScroll {
+
+	const isEditorScrollArgs = function (arg): boolean {
+		if (!types.isObject(arg)) {
+			return false;
+		}
+
+		let scrollArg: RawArguments = arg;
+
+		if (!types.isString(scrollArg.to)) {
+			return false;
+		}
+
+		if (!types.isUndefined(scrollArg.by) && !types.isString(scrollArg.by)) {
+			return false;
+		}
+
+		if (!types.isUndefined(scrollArg.value) && !types.isNumber(scrollArg.value)) {
+			return false;
+		}
+
+		if (!types.isUndefined(scrollArg.revealCursor) && !types.isBoolean(scrollArg.revealCursor)) {
+			return false;
+		}
+
+		return true;
+	};
+
+	export const description = <ICommandHandlerDescription>{
+		description: 'Scroll editor in the given direction',
+		args: [
+			{
+				name: 'Editor scroll argument object',
+				description: `Property-value pairs that can be passed through this argument:
+					* 'to': A mandatory direction value.
+						\`\`\`
+						'up', 'down'
+						\`\`\`
+					* 'by': Unit to move. Default is computed based on 'to' value.
+						\`\`\`
+						'line', 'wrappedLine', 'page', 'halfPage'
+						\`\`\`
+					* 'value': Number of units to move. Default is '1'.
+					* 'revealCursor': If 'true' reveals the cursor if it is outside view port.
+				`,
+				constraint: isEditorScrollArgs
+			}
+		]
+	};
+
+	/**
+	 * Directions in the view for editor scroll command.
+	 */
+	export const RawDirection = {
+		Up: 'up',
+		Down: 'down',
+	};
+
+	/**
+	 * Units for editor scroll 'by' argument
+	 */
+	export const RawUnit = {
+		Line: 'line',
+		WrappedLine: 'wrappedLine',
+		Page: 'page',
+		HalfPage: 'halfPage'
+	};
+
+	/**
+	 * Arguments for editor scroll command
+	 */
+	export interface RawArguments {
+		to: string;
+		by?: string;
+		value?: number;
+		revealCursor?: boolean;
+	};
+
+	export function parse(args: RawArguments): ParsedArguments {
+		let direction: Direction;
+		switch (args.to) {
+			case RawDirection.Up:
+				direction = Direction.Up;
+				break;
+			case RawDirection.Down:
+				direction = Direction.Down;
+				break;
+			default:
+				// Illegal arguments
+				return null;
+		}
+
+		let unit: Unit;
+		switch (args.by) {
+			case RawUnit.Line:
+				unit = Unit.Line;
+				break;
+			case RawUnit.WrappedLine:
+				unit = Unit.WrappedLine;
+				break;
+			case RawUnit.Page:
+				unit = Unit.Page;
+				break;
+			case RawUnit.HalfPage:
+				unit = Unit.HalfPage;
+				break;
+			default:
+				unit = Unit.WrappedLine;
+		}
+
+		const value = Math.floor(args.value || 1);
+		const revealCursor = !!args.revealCursor;
+
+		return {
+			direction: direction,
+			unit: unit,
+			value: value,
+			revealCursor: revealCursor
+		};
+	}
+
+	export interface ParsedArguments {
+		direction: Direction;
+		unit: Unit;
+		value: number;
+		revealCursor: boolean;
+	}
+
+	export const enum Direction {
+		Up = 1,
+		Down = 2
+	}
+
+	export const enum Unit {
+		Line = 1,
+		WrappedLine = 2,
+		Page = 3,
+		HalfPage = 4
+	}
+}
+
+export namespace RevealLine {
+
+	const isRevealLineArgs = function (arg): boolean {
+		if (!types.isObject(arg)) {
+			return false;
+		}
+
+		let reveaLineArg: RawArguments = arg;
+
+		if (!types.isNumber(reveaLineArg.lineNumber)) {
+			return false;
+		}
+
+		if (!types.isUndefined(reveaLineArg.at) && !types.isString(reveaLineArg.at)) {
+			return false;
+		}
+
+		return true;
+	};
+
+	export const description = <ICommandHandlerDescription>{
+		description: 'Reveal the given line at the given logical position',
+		args: [
+			{
+				name: 'Reveal line argument object',
+				description: `Property-value pairs that can be passed through this argument:
+					* 'lineNumber': A mandatory line number value.
+					* 'at': Logical position at which line has to be revealed .
+						\`\`\`
+						'top', 'center', 'bottom'
+						\`\`\`
+				`,
+				constraint: isRevealLineArgs
+			}
+		]
+	};
+
+	/**
+	 * Arguments for reveal line command
+	 */
+	export interface RawArguments {
+		lineNumber?: number;
+		at?: string;
+	};
+
+	/**
+	 * Values for reveal line 'at' argument
+	 */
+	export const RawAtArgument = {
+		Top: 'top',
+		Center: 'center',
+		Bottom: 'bottom'
+	};
+}
 
 export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpr;
