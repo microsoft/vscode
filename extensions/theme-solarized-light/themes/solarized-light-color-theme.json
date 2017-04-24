@@ -301,7 +301,7 @@
 		"sideBarBackground": "#EEE8D5",
 		"sideBarTitleForeground": "#586E75",
 		"activityBarBackground": "#DDD6C1",
-		"activityIconForeground": "#584c27",
+		"activityBarForeground": "#584c27",
 		"activityBarDragAndDropBackground": "#EEE8D5",
 		"activityBadgeBackground": "#B58900",
 		"editorWidgetBackground": "#EEE8D5",

@@ -24,7 +24,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
-import { ACTIVITY_BADGE_FOREGROUND, ACTIVITY_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_ICON_FOREGROUND } from "vs/workbench/common/theme";
+import { ACTIVITY_BADGE_FOREGROUND, ACTIVITY_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from "vs/workbench/common/theme";
 import { highContrastBorder } from "vs/platform/theme/common/colorRegistry";
 
 export class ActivityAction extends Action {
@@ -153,7 +153,7 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Label
 		if (this.$e) {
-			const background = theme.getColor(ACTIVITY_ICON_FOREGROUND);
+			const background = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 
 			this.$e.style('background-color', background ? background.toString() : null);
 		}

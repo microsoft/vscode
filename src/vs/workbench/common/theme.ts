@@ -182,11 +182,11 @@ export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBarBackground', {
 	hc: '#000000'
 }, nls.localize('activityBarBackground', "Activity bar background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_ICON_FOREGROUND = registerColor('activityIconForeground', {
+export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBarForeground', {
 	dark: Color.white,
 	light: Color.white,
 	hc: Color.white
-}, nls.localize('activityIconForeground', "Activity icon foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+}, nls.localize('activityBarForeground', "Activity bar foreground color (e.g. used for the icons). The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBarDragAndDropBackground', {
 	dark: '#403F3F',
