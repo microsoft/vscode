@@ -179,22 +179,18 @@ export async function exec(child: cp.ChildProcess, encoding: string = 'utf8'): P
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
 			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(decode(Buffer.concat(buffers), encoding)));
+			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
 		}),
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
 			on(child.stderr, 'data', b => buffers.push(b));
-			once(child.stderr, 'close', () => c(decode(Buffer.concat(buffers), encoding)));
+			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 		})
 	]);
 
 	dispose(disposables);
 
 	return { exitCode, stdout, stderr };
-}
-
-function decode(buffer: NodeBuffer, encoding: string): string {
-	return iconv.decode(buffer, encoding);
 }
 
 export interface IGitErrorData {
