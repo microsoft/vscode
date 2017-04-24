@@ -250,6 +250,38 @@ export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBarInactiveBack
 	hc: null
 }, nls.localize('titleBarInactiveBackground', "Title bar background when the window is inactive. Note that this color is currently only supported on macOS."));
 
+// < --- Notifications --- >
+
+export const NOTIFICATIONS_FOREGROUND = registerColor('notificationsForeground', {
+	dark: '#EEEEEE',
+	light: '#EEEEEE',
+	hc: '#FFFFFF'
+}, nls.localize('notificationsForeground', "Notifications foreground color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_BACKGROUND = registerColor('notificationsBackground', {
+	dark: '#333333',
+	light: '#2C2C2C',
+	hc: '#000000'
+}, nls.localize('notificationsBackground', "Notifications background color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_ERROR_BACKGROUND = registerColor('notificationsErrorBackground', {
+	dark: '#BE1100',
+	light: '#BE1100',
+	hc: null
+}, nls.localize('notificationsErrorBackground', "Notifications error background color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_WARNING_BACKGROUND = registerColor('notificationsWarningBackground', {
+	dark: '#B89500',
+	light: '#B89500',
+	hc: null
+}, nls.localize('notificationsWarningBackground', "Notifications background color. Notifications slide in from the top of the window."));
+
+export const NOTIFICATIONS_INFO_BACKGROUND = registerColor('notificationsInfoBackground', {
+	dark: '#007ACC',
+	light: '#007ACC',
+	hc: null
+}, nls.localize('notificationsInfoBackground', "Notifications background color. Notifications slide in from the top of the window."));
+
 /**
  * Base class for all themable workbench components.
  */
