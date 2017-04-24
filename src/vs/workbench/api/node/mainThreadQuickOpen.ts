@@ -82,7 +82,7 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 		if (options) {
 			inputOptions.password = options.password;
 			inputOptions.placeHolder = options.placeHolder;
-			inputOptions.noValuePreselect = options.noValuePreselect;
+			inputOptions.valueSelection = options.valueSelection;
 			inputOptions.prompt = options.prompt;
 			inputOptions.value = options.value;
 			inputOptions.ignoreFocusLost = options.ignoreFocusOut;

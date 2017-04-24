@@ -67,9 +67,9 @@ export interface IInputOptions {
 	value?: string;
 
 	/**
-	 * whether to automatically select the first value set
+	 * the selection of value, default to the whole word
 	 */
-	noValuePreselect?: boolean;
+	valueSelection?: [number, number];
 
 	/**
 	 * the text to display underneath the input box
