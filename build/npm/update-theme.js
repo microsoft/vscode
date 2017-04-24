@@ -10,8 +10,29 @@ var fs = require('fs');
 var plist = require('fast-plist');
 
 var mappings = {
-	"ansiBlack": ["terminalAnsiBlack"], "ansiRed": ["terminalAnsiRed"], "ansiGreen": ["terminalAnsiGreen"], "ansiYellow": ["terminalAnsiYellow"], "ansiBlue": ["terminalAnsiBlue"], "ansiMagenta": ["terminalAnsiMagenta"], "ansiCyan": ["terminalAnsiCyan"], "ansiWhite": ["terminalAnsiWhite"], "ansiBrightBlack": ["terminalAnsiBrightBlack"], "ansiBrightRed": ["terminalAnsiBrightRed"], "ansiBrightGreen": ["terminalAnsiBrightGreen"], "ansiBrightYellow": ["terminalAnsiBrightYellow"], "ansiBrightBlue": ["terminalAnsiBrightBlue"], "ansiBrightMagenta": ["terminalAnsiBrightMagenta"], "ansiBrightCyan": ["terminalAnsiBrightCyan"], "ansiBrightWhite": ["terminalAnsiBrightWhite"], "background": ["editorBackground"],
-	"hoverHighlight": ["editorHoverHighlight", "editorHoverHighlight"], "linkForeground": ["editorLinkForeground"], "selection": ["editorSelection"], "inactiveSelection": ["editorInactiveSelection"], "selectionHighlightColor": ["editorSelectionHighlight"], "wordHighlight": ["editorWordHighlight"], "wordHighlightStrong": ["editorWordHighlightStrong"], "findMatchHighlight": ["editorFindMatchHighlight", "referencesFindMatchHighlight"], "currentFindMatchHighlight": ["editorFindMatch"], "findRangeHighlight": ["editorFindRangeHighlight"], "referenceHighlight": ["referencesReferenceHighlight"], "lineHighlight": ["editorLineHighlight"], "rangeHighlight": ["editorRangeHighlight"], "caret": ["editorCursor"], "invisibles": ["editorWhitespaces"], "guide": ["editorIndentGuides"]
+	"background": ["editorBackground"],
+	"foreground": ["editorForeground"],
+	"hoverHighlight": ["editorHoverHighlight"],
+	"linkForeground": ["editorLinkForeground"],
+	"selection": ["editorSelection"],
+	"inactiveSelection": ["editorInactiveSelection"],
+	"selectionHighlightColor": ["editorSelectionHighlight"],
+	"wordHighlight": ["editorWordHighlight"],
+	"wordHighlightStrong": ["editorWordHighlightStrong"],
+	"findMatchHighlight": ["editorFindMatchHighlight", "peekViewEditorMatchHighlight"],
+	"currentFindMatchHighlight": ["editorFindMatch"],
+	"findRangeHighlight": ["editorFindRangeHighlight"],
+	"referenceHighlight": ["peekViewResultsMatchForeground"],
+	"lineHighlight": ["editorLineHighlight"],
+	"rangeHighlight": ["editorRangeHighlight"],
+	"caret": ["editorCursor"],
+	"invisibles": ["editorWhitespaces"],
+	"guide": ["editorIndentGuides"],
+	"ansiBlack": ["terminalAnsiBlack"], "ansiRed": ["terminalAnsiRed"], "ansiGreen": ["terminalAnsiGreen"], "ansiYellow": ["terminalAnsiYellow"],
+	"ansiBlue": ["terminalAnsiBlue"], "ansiMagenta": ["terminalAnsiMagenta"], "ansiCyan": ["terminalAnsiCyan"], "ansiWhite": ["terminalAnsiWhite"],
+	"ansiBrightBlack": ["terminalAnsiBrightBlack"], "ansiBrightRed": ["terminalAnsiBrightRed"], "ansiBrightGreen": ["terminalAnsiBrightGreen"],
+	"ansiBrightYellow": ["terminalAnsiBrightYellow"], "ansiBrightBlue": ["terminalAnsiBrightBlue"], "ansiBrightMagenta": ["terminalAnsiBrightMagenta"],
+	"ansiBrightCyan": ["terminalAnsiBrightCyan"], "ansiBrightWhite": ["terminalAnsiBrightWhite"]
 };
 
 exports.update = function (srcName, destName) {
