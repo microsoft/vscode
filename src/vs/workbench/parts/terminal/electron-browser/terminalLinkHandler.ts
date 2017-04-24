@@ -255,29 +255,19 @@ export class TerminalLinkHandler {
 	 */
 	public extractLineColumnInfo(link: string): LineColumnInfo {
 		const matches: string[] = this._localLinkRegex.exec(link);
+		const lineColumnInfo: LineColumnInfo = {};
+		const lineAndColumnMatchIndex = this._platform === platform.Platform.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
 
-		let lineColumnClauseLength = lineAndColumnClause.length;
-		let lineColumnInfo: LineColumnInfo = {};
-
-		let lineAndColumnMatchIndex = winLineAndColumnMatchIndex;
-
-		if (this._platform !== platform.Platform.Windows) {
-			lineAndColumnMatchIndex = unixLineAndColumnMatchIndex;
-		}
-
-		for (let i = 0; i < lineColumnClauseLength; i++) {
-			let lineMatchIndex = lineAndColumnMatchIndex + (lineAndColumnClauseGroupCount * i);
-
+		for (let i = 0; i < lineAndColumnClause.length; i++) {
+			const lineMatchIndex = lineAndColumnMatchIndex + (lineAndColumnClauseGroupCount * i);
 			const rowNumber = matches[lineMatchIndex];
 			if (rowNumber) {
 				lineColumnInfo['lineNumber'] = rowNumber;
-
-				// check if column number exists
+				// Check if column number exists
 				const columnNumber = matches[lineMatchIndex + 2];
 				if (columnNumber) {
 					lineColumnInfo['columnNumber'] = columnNumber;
 				}
-
 				break;
 			}
 		}
