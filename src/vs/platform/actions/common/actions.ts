@@ -50,6 +50,7 @@ export class MenuId {
 	static readonly SCMResourceGroupContext = new MenuId('12');
 	static readonly SCMResourceContext = new MenuId('13');
 	static readonly CommandPalette = new MenuId('14');
+	static readonly ViewletTitle = new MenuId('15');
 
 	constructor(private _id: string) {
 

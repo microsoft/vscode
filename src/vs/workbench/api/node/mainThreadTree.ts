@@ -42,7 +42,7 @@ class TreeExplorerNodeProvider implements InternalTreeExplorerNodeProvider {
 	readonly _onRefresh: Emitter<InternalTreeExplorerNodeContent> = new Emitter<InternalTreeExplorerNodeContent>();
 	readonly onRefresh: Event<InternalTreeExplorerNodeContent> = this._onRefresh.event;
 
-	constructor(private providerId: string, private rootNode: InternalTreeExplorerNodeContent, private _proxy: ExtHostTreeShape,
+	constructor(public readonly id: string, private rootNode: InternalTreeExplorerNodeContent, private _proxy: ExtHostTreeShape,
 		private messageService: IMessageService,
 		private commandService: ICommandService
 	) {
@@ -53,11 +53,11 @@ class TreeExplorerNodeProvider implements InternalTreeExplorerNodeProvider {
 	}
 
 	resolveChildren(node: InternalTreeExplorerNodeContent): TPromise<InternalTreeExplorerNodeContent[]> {
-		return this._proxy.$resolveChildren(this.providerId, node).then(children => children, err => this.messageService.show(Severity.Error, err));
+		return this._proxy.$resolveChildren(this.id, node).then(children => children, err => this.messageService.show(Severity.Error, err));
 	}
 
 	executeCommand(node: InternalTreeExplorerNodeContent): TPromise<any> {
-		return this._proxy.$getInternalCommand(this.providerId, node).then(command => {
+		return this._proxy.$getInternalCommand(this.id, node).then(command => {
 			return this.commandService.executeCommand(command.id, ...command.arguments);
 		});
 	}

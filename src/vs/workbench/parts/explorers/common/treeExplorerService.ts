@@ -14,8 +14,10 @@ export const ITreeExplorerService = createDecorator<ITreeExplorerService>('treeE
 export interface ITreeExplorerService {
 	_serviceBrand: any;
 
-	onTreeExplorerNodeProviderRegistered: Event<String>;
+	onDidChangeProvider: Event<string>;
+	activeProvider: string;
 
+	onTreeExplorerNodeProviderRegistered: Event<String>;
 	registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void;
 	hasProvider(providerId: string): boolean;
 	getProvider(providerId: string): InternalTreeExplorerNodeProvider;
