@@ -449,7 +449,7 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 }
 
 function getSiblings(file: string): TPromise<string[]> {
-	return new TPromise((resolve, reject) => {
+	return new TPromise<string[]>((resolve, reject) => {
 		extfs.readdir(path.dirname(file), (error: Error, files: string[]) => {
 			if (error) {
 				reject(error);

@@ -100,13 +100,13 @@ export class SuggestModel implements IDisposable {
 
 	private completionModel: CompletionModel;
 
-	private _onDidCancel: Emitter<ICancelEvent> = new Emitter();
+	private _onDidCancel: Emitter<ICancelEvent> = new Emitter<ICancelEvent>();
 	get onDidCancel(): Event<ICancelEvent> { return this._onDidCancel.event; }
 
-	private _onDidTrigger: Emitter<ITriggerEvent> = new Emitter();
+	private _onDidTrigger: Emitter<ITriggerEvent> = new Emitter<ITriggerEvent>();
 	get onDidTrigger(): Event<ITriggerEvent> { return this._onDidTrigger.event; }
 
-	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter();
+	private _onDidSuggest: Emitter<ISuggestEvent> = new Emitter<ISuggestEvent>();
 	get onDidSuggest(): Event<ISuggestEvent> { return this._onDidSuggest.event; }
 
 	constructor(private editor: ICommonCodeEditor) {

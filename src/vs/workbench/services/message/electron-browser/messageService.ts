@@ -62,7 +62,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 
 		let onCancel: () => void = null;
 
-		const promise = new TPromise((c, e) => {
+		const promise = new TPromise<number>((c, e) => {
 			const callback = (index: number) => () => {
 				c(index);
 				return TPromise.as(true);

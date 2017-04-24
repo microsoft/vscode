@@ -144,7 +144,7 @@ export class GitChannelClient implements IRawGitService {
 
 	constructor(private channel: IGitChannel) { }
 
-	private _onOutput = eventFromCall(this.channel, 'onOutput');
+	private _onOutput = eventFromCall<string>(this.channel, 'onOutput');
 	get onOutput(): Event<string> { return this._onOutput; }
 
 	getVersion(): TPromise<string> {

@@ -194,7 +194,7 @@ export class UpdateService implements IUpdateService {
 			return update;
 		}, err => {
 			this.state = State.Idle;
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<IUpdate>(err);
 		});
 
 		return always(result, () => dispose(listeners));

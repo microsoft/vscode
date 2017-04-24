@@ -131,7 +131,8 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
 		const run = (): TPromise<void> => {
-			return TPromise.as(_descriptor.run(this));
+			const r = _descriptor.run(this);
+			return r ? r : TPromise.as(void 0);
 		};
 
 

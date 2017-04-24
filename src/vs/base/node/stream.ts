@@ -19,7 +19,7 @@ export interface ReadResult {
  * Reads up to total bytes from the provided stream.
  */
 export function readExactlyByStream(stream: stream.Readable, totalBytes: number): TPromise<ReadResult> {
-	return new TPromise((complete, error) => {
+	return new TPromise<ReadResult>((complete, error) => {
 		let done = false;
 		let buffer = new Buffer(totalBytes);
 		let bytesRead = 0;
@@ -56,7 +56,7 @@ export function readExactlyByStream(stream: stream.Readable, totalBytes: number)
  * Reads totalBytes from the provided file.
  */
 export function readExactlyByFile(file: string, totalBytes: number): TPromise<ReadResult> {
-	return new TPromise((complete, error) => {
+	return new TPromise<ReadResult>((complete, error) => {
 		fs.open(file, 'r', null, (err, fd) => {
 			if (err) {
 				return error(err);
@@ -119,7 +119,7 @@ export function readExactlyByFile(file: string, totalBytes: number): TPromise<Re
  * @param callback The finished callback.
  */
 export function readToMatchingString(file: string, matchingString: string, chunkBytes: number, maximumBytesToRead: number): TPromise<string> {
-	return new TPromise((complete, error) =>
+	return new TPromise<string>((complete, error) =>
 		fs.open(file, 'r', null, (err, fd) => {
 			if (err) {
 				return error(err);

@@ -91,7 +91,7 @@ const lazyV8Profiler = new class {
 	private _value: TPromise<Profiler>;
 	get value() {
 		if (!this._value) {
-			this._value = new TPromise((resolve, reject) => {
+			this._value = new TPromise<Profiler>((resolve, reject) => {
 				require(['v8-profiler'], resolve, reject);
 			});
 		}

@@ -18,7 +18,7 @@ import Event from 'vs/base/common/event';
 import { Range } from "vs/editor/common/core/range";
 
 function promiseOnce<T>(event: Event<T>): TPromise<T> {
-	return new TPromise(resolve => {
+	return new TPromise<T>(resolve => {
 		let reg = event(e => {
 			reg.dispose();
 			resolve(e);

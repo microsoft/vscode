@@ -191,7 +191,7 @@ export function createApiFactory(
 			}
 
 			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
-				return extHostCommands.executeCommand(id, ...args);
+				return extHostCommands.executeCommand<T>(id, ...args);
 			}
 
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {

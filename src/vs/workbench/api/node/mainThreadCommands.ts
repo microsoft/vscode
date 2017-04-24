@@ -43,7 +43,7 @@ export class MainThreadCommands extends MainThreadCommandsShape {
 	}
 
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> {
-		return this._commandService.executeCommand(id, ...args);
+		return this._commandService.executeCommand<T>(id, ...args);
 	}
 
 	$getCommands(): Thenable<string[]> {
