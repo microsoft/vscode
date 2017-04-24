@@ -188,10 +188,10 @@
 	},
 	{
 		"c": "main",
-		"t": "source.go entity.name.function",
+		"t": "source.go entity.name.function.go",
 		"r": {
-			"dark_plus": "entity.name.function: #DCDCAA",
-			"light_plus": "entity.name.function: #795E26",
+			"dark_plus": "entity.name.function.go: #DCDCAA",
+			"light_plus": "entity.name.function.go: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
