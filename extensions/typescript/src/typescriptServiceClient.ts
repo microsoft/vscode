@@ -686,7 +686,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 								if (localModulePath) {
 									tryShowRestart(localModulePath);
 								}
-								return localModulePath;
+								return localModulePath || '';
 							});
 					case MessageAction.useBundled:
 						return this.workspaceState.update(TypeScriptServiceClient.useWorkspaceTsdkStorageKey, false)

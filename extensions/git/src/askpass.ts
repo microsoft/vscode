@@ -20,7 +20,7 @@ export class Askpass implements Disposable {
 
 		try {
 			this.server.listen(0);
-			this.portPromise = new Promise(c => this.server.on('listening', () => c(this.server.address().port)));
+			this.portPromise = new Promise<number>(c => this.server.on('listening', () => c(this.server.address().port)));
 			this.server.on('error', err => console.error(err));
 		} catch (err) {
 			this.enabled = false;

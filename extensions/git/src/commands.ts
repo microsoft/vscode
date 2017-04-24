@@ -533,7 +533,7 @@ export class CommandCenter {
 	}
 
 	private async smartCommit(
-		getCommitMessage: () => Promise<string>,
+		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
 		if (!opts) {

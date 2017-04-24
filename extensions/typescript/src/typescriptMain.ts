@@ -123,7 +123,7 @@ export function activate(context: ExtensionContext): void {
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 	client.onReady().then(() => {
 		context.subscriptions.push(ProjectStatus.create(client,
-			path => new Promise(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
+			path => new Promise<boolean>(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
 			context.workspaceState));
 	}, () => {
 		// Nothing to do here. The client did show a message;
