@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
+import iconv = require('iconv-lite');
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp } from './util';
 
 const readdir = denodeify<string[]>(fs.readdir);
@@ -157,7 +158,7 @@ export interface IExecutionResult {
 	stderr: string;
 }
 
-export async function exec(child: cp.ChildProcess): Promise<IExecutionResult> {
+export async function exec(child: cp.ChildProcess, encoding: string = 'utf8'): Promise<IExecutionResult> {
 	const disposables: IDisposable[] = [];
 
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
@@ -176,20 +177,24 @@ export async function exec(child: cp.ChildProcess): Promise<IExecutionResult> {
 			once(child, 'exit', c);
 		}),
 		new Promise<string>(c => {
-			const buffers: string[] = [];
+			const buffers: Buffer[] = [];
 			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(buffers.join('')));
+			once(child.stdout, 'close', () => c(decode(Buffer.concat(buffers), encoding)));
 		}),
 		new Promise<string>(c => {
-			const buffers: string[] = [];
+			const buffers: Buffer[] = [];
 			on(child.stderr, 'data', b => buffers.push(b));
-			once(child.stderr, 'close', () => c(buffers.join('')));
+			once(child.stderr, 'close', () => c(decode(Buffer.concat(buffers), encoding)));
 		})
 	]);
 
 	dispose(disposables);
 
 	return { exitCode, stdout, stderr };
+}
+
+function decode(buffer: NodeBuffer, encoding: string): string {
+	return iconv.decode(buffer, encoding);
 }
 
 export interface IGitErrorData {
@@ -327,7 +332,7 @@ export class Git {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		const result = await exec(child);
+		const result = await exec(child, options.encoding);
 
 		if (result.exitCode) {
 			let gitErrorCode: string | undefined = void 0;

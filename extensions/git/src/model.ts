@@ -358,7 +358,8 @@ export class Model implements Disposable {
 
 	constructor(
 		private _git: Git,
-		private workspaceRootPath: string
+		private workspaceRootPath: string,
+		private encoding?: string
 	) {
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
@@ -486,7 +487,9 @@ export class Model implements Disposable {
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`]);
+			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`], {
+				encoding: this.encoding
+			});
 
 			if (result.exitCode !== 0) {
 				throw new GitError({
