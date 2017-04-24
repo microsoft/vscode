@@ -59,9 +59,7 @@ export class TerminalLinkHandler {
 	private _tooltipDisposables: IDisposable[] = [];
 	private _widgetManager: TerminalWidgetManager;
 
-
-	private _winLocalLinkPattern: RegExp;
-	private _unixLocalLinkPattern: RegExp;
+	private _localLinkPattern: RegExp;
 
 	constructor(
 		private _xterm: any,
@@ -70,14 +68,9 @@ export class TerminalLinkHandler {
 		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService
 	) {
-		// Append line and column number regex in both Windows and Unix system.
-		this._winLocalLinkPattern = new RegExp(
-			`${winLocalLinkClause}(${lineAndColumnClauses.join('|')})`
-		);
-
-		this._unixLocalLinkPattern = new RegExp(
-			`${unixLocalLinkClause}(${lineAndColumnClauses.join('|')})`
-		);
+		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
+		// Append line and column number regex
+		this._localLinkPattern = new RegExp(`${baseLocalLinkClause}(${lineAndColumnClauses.join('|')})`);
 
 		this._xterm.setHypertextLinkHandler(this._wrapLinkHandler(() => true));
 		this._xterm.setHypertextValidationCallback((uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => {
@@ -133,10 +126,7 @@ export class TerminalLinkHandler {
 	}
 
 	protected get _localLinkRegex(): RegExp {
-		if (this._platform === platform.Platform.Windows) {
-			return this._winLocalLinkPattern;
-		}
-		return this._unixLocalLinkPattern;
+		return this._localLinkPattern;
 	}
 
 	private _handleLocalLink(link: string): TPromise<void> {
