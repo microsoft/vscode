@@ -11,8 +11,6 @@
 	"typescript.tsdk.desc": "使用する tsserver と lib*.d.ts ファイルが含まれているフォルダーのパスを指定します。",
 	"typescript.disableAutomaticTypeAcquisition": "種類の自動的な取得を無効にします。変更後、TypeScript 2.0.6 以降と再起動が必要です。",
 	"typescript.check.tscVersion": "グローバル インストール TypeScript コンパイラ (tsc など) が、使用された TypeScript 言語サービスと異なっているかどうかを確認します。",
-	"typescript.tsserver.log": "ファイルへの TS サーバーのログの記録を有効にします。",
-	"typescript.tsserver.trace": "TS サーバーに送信されるメッセージのトレースを有効にします。",
 	"typescript.tsserver.experimentalAutoBuild": "試験的な自動ビルドを有効にします。1.9 dev または 2.x tsserver バージョンと、変更後に VS Code の再起動が必要です。",
 	"typescript.validate.enable": "TypeScript の検証を有効/無効にします。",
 	"typescript.format.enable": "既定の TypeScript フォーマッタを有効/無効にします。",
@@ -32,6 +30,8 @@
 	"javascript.validate.enable": "JavaScript の検証を有効/無効にします。",
 	"typescript.goToProjectConfig.title": "プロジェクト構成に移動",
 	"javascript.goToProjectConfig.title": "プロジェクト構成に移動",
+	"typescript.referencesCodeLens.enabled": "CodeLens の参照を有効/無効にします。TypeScript 2.0.6 以上が必要です。",
+	"typescript.implementationsCodeLens.enabled": "CodeLens の実装を有効/無効にします。TypeScript 2.2.0 以上が必要です。",
 	"typescript.openTsServerLog.title": "TS サーバーのログ ファイルを開く",
 	"typescript.selectTypeScriptVersion.title": "TypeScript のバージョンの選択"
 }

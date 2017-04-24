@@ -16,7 +16,6 @@
 	"confirm discard": "Rimuovere le modifiche in {0}?",
 	"confirm discard multiple": "Rimuovere le modifiche in {0} file?",
 	"discard": "Rimuovi modifiche",
-	"confirm discard all": "Rimuovere TUTTE le modifiche?",
 	"no changes": "Non ci sono modifiche di cui eseguire il commit.",
 	"commit message": "Messaggio di commit",
 	"provide commit message": "Specificare un messaggio di commit",

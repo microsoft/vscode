@@ -11,6 +11,7 @@
 	"findInFiles": "在檔案中尋找",
 	"openAnythingHandlerDescription": "前往檔案",
 	"openSymbolDescriptionNormal": "前往工作區中的符號",
+	"searchOutputChannelTitle": "搜尋",
 	"searchConfigurationTitle": "搜尋",
 	"exclude": "設定 Glob 模式，以排除不要搜尋的檔案及資料夾。請從 file.exclude 設定繼承所有的 Glob 模式。",
 	"exclude.boolean": "要符合檔案路徑的 Glob 模式。設為 True 或 False 可啟用或停用模式。",

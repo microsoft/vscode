@@ -11,6 +11,7 @@
 	"findInFiles": "파일에서 찾기",
 	"openAnythingHandlerDescription": "파일로 이동",
 	"openSymbolDescriptionNormal": "작업 영역에서 기호로 이동",
+	"searchOutputChannelTitle": "검색",
 	"searchConfigurationTitle": "검색",
 	"exclude": "검색에서 파일 및 폴더를 제외하도록 GLOB 패턴을 구성합니다. files.exclude 설정에서 모든 GLOB 패턴을 상속합니다.",
 	"exclude.boolean": "파일 경로를 일치시킬 GLOB 패턴입니다. 패턴을 사용하거나 사용하지 않도록 설정하려면 true 또는 false로 설정하세요.",

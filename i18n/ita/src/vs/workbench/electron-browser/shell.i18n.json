@@ -6,7 +6,7 @@
 {
 	"runningAsRoot": "È consigliabile non eseguire il codice come 'radice'.",
 	"prof.message": "I profili sono stati creati.",
-	"prof.detail": "Creare un problema e allegare manualmente i file seguenti:\\n{0}",
+	"prof.detail": "Creare un problema e allegare manualmente i file seguenti:\n{0}",
 	"prof.restartAndFileIssue": "Crea problema e riavvia",
 	"prof.restart": "Riavvia"
 }

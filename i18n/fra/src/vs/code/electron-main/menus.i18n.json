@@ -126,6 +126,7 @@
 	"miNewBreakpoint": "&&Nouveau point d'arrêt",
 	"miDisableAllBreakpoints": "Désacti&&ver tous les points d'arrêt",
 	"miRemoveAllBreakpoints": "Supprimer &&tous les points d'arrêt",
+	"miInstallAdditionalDebuggers": "&&Installer des débogueurs supplémentaires...",
 	"mMinimize": "Réduire",
 	"mClose": "Fermer",
 	"mBringToFront": "Mettre tout au premier plan",

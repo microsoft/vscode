@@ -8,5 +8,6 @@
 	"merge changes": "変更のマージ",
 	"staged changes": "ステージング済みの変更",
 	"changes": "変更",
-	"cantshow": "オブジェクトを表示できませんでした"
+	"ok": "OK",
+	"neveragain": "今後は表示しない"
 }

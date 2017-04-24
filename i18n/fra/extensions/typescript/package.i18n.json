@@ -11,8 +11,6 @@
 	"typescript.tsdk.desc": "Spécifie le chemin de dossier contenant les fichiers tsserver et lib*.d.ts à utiliser.",
 	"typescript.disableAutomaticTypeAcquisition": "Désactive l'acquisition de type automatique. Nécessite TypeScript >= 2.0.6 et un redémarrage, une fois le changement effectué.",
 	"typescript.check.tscVersion": "Vérifiez si un compilateur TypeScript installé globalement (par exemple tsc) est différent du service de langage TypeScript.",
-	"typescript.tsserver.log": "Active la journalisation du serveur TS dans un fichier.",
-	"typescript.tsserver.trace": "Active le traçage des messages envoyés au serveur TS.",
 	"typescript.tsserver.experimentalAutoBuild": "Active la build automatique expérimentale. Nécessite la version 1.9 dev ou 2.x tsserver et le redémarrage du code VS une fois celui-ci modifié.",
 	"typescript.validate.enable": "Activez/désactivez la validation TypeScript.",
 	"typescript.format.enable": "Activez/désactivez le formateur TypeScript par défaut.",

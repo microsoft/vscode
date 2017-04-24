@@ -16,7 +16,7 @@
 	"confirm discard": "¿Está seguro de que quiere descartar los cambios de {0}?",
 	"confirm discard multiple": "¿Está seguro de que quiere descartar los cambios de {0} archivos?",
 	"discard": "Descartar cambios",
-	"confirm discard all": "¿Está seguro de que quiere descartar TODOS los cambios?",
+	"confirm discard all": "¿Está seguro de que quiere descartar TODOS los cambios? Esta acción es irreversible.",
 	"no changes": "No hay cambios para confirmar.",
 	"commit message": "Mensaje de confirmación",
 	"provide commit message": "Proporcione un mensaje de confirmación",

@@ -17,7 +17,6 @@
 	"dropdownBackground": "Фон раскрывающегося списка.",
 	"dropdownForeground": "Передний план раскрывающегося списка.",
 	"dropdownBorder": "Граница раскрывающегося списка.",
-	"listFocusBackground": "Фон фокуса активного списка",
 	"editorBackground": "Цвет фона редактора.",
 	"editorForeground": "Цвет переднего плана редактора по умолчанию.",
 	"editorSelection": "Цвет выделения редактора.",

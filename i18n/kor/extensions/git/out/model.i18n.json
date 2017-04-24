@@ -8,5 +8,5 @@
 	"merge changes": "변경 내용 병합",
 	"staged changes": "스테이징된 변경 내용",
 	"changes": "변경 내용",
-	"cantshow": "개체를 표시할 수 없음"
+	"ok": "확인"
 }

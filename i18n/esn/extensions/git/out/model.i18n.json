@@ -8,5 +8,7 @@
 	"merge changes": "Fusionar cambios mediante combinación",
 	"staged changes": "Cambios almacenados provisionalmente",
 	"changes": "Cambios",
-	"cantshow": "No se pudo mostrar el objeto"
+	"ok": "Aceptar",
+	"neveragain": "No volver a mostrar",
+	"huge": "El repositorio Git '{0}' contiene muchos cambios activos, solamente un subconjunto de las características de Git serán habilitadas."
 }

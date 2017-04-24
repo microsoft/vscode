@@ -26,7 +26,7 @@
 	"wordWrap.on": "Le retour automatique à la ligne s'effectue en fonction de la largeur de la fenêtre d'affichage.",
 	"wordWrap.wordWrapColumn": "Le retour automatique à la ligne s'effectue en fonction de 'editor.wordWrapColumn'.",
 	"wordWrap.bounded": "Retour automatique à la ligne au minimum en fonction de la fenêtre d'affichage et de 'editor.wordWrapColumn'.",
-	"wordWrap": "Contrôle le retour automatique à la ligne. Valeurs possibles :\\n - 'off' (désactive le retour automatique à la ligne) ;\\n - 'on' (retour automatique à la ligne dans la fenêtre d'affichage) ;\\n - 'wordWrapColumn' (retour automatique à la ligne en fonction de 'editor.wordWrapColumn') ou ;\\n - 'bounded' (retour automatique à la ligne au minimum en fonction de la fenêtre d'affichage et de 'editor.wordWrapColumn').",
+	"wordWrap": "Contrôle le retour automatique à la ligne. Valeurs possibles :\n - 'off' (désactive le retour automatique à la ligne) ;\n - 'on' (retour automatique à la ligne dans la fenêtre d'affichage) ;\n - 'wordWrapColumn' (retour automatique à la ligne en fonction de 'editor.wordWrapColumn') ou ;\n - 'bounded' (retour automatique à la ligne au minimum en fonction de la fenêtre d'affichage et de 'editor.wordWrapColumn').",
 	"wordWrapColumn": "Contrôle la colonne de retour automatique à la ligne de l'éditeur quand 'editor.wordWrap' a la valeur 'wordWrapColumn' ou 'bounded'.",
 	"wrappingIndent": "Contrôle le retrait des lignes renvoyées. La valeur peut être 'none', 'same' ou 'indent'.",
 	"mouseWheelScrollSensitivity": "Multiplicateur à utiliser pour le 'deltaX' et le 'deltaY' des événements de défilement de la roulette de la souris",

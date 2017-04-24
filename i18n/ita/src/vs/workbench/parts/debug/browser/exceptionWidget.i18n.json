@@ -6,10 +6,6 @@
 {
 	"debugExceptionWidgetBorder": "Colore del bordo del widget Eccezione.",
 	"debugExceptionWidgetBackground": "Colore di sfondo del widget Eccezione.",
-	"neverException": "Si è verificata un'eccezione gestita dall'utente: {0}",
-	"alwaysException": "Si è verificata un'eccezione che causa sempre un'interruzione: {0}",
-	"unhandledException": "Si è verificata un'eccezione non gestita: {0}",
-	"userUnhandledException": "Si è verificata un'eccezione non gestita dall'utente: {0}",
 	"exceptionThrownWithId": "Si è verificata un'eccezione: {0}",
 	"exceptionThrown": "Si è verificata un'eccezione"
 }

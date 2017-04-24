@@ -30,6 +30,7 @@
 	"statusBarInfoItemBackground": "Color de fondo del elemento de información de la barra de estado, que se muestra en la parte inferior de la ventana.",
 	"statusBarInfoItemHoverBackground": "Color de fondo del elemento de información de la barra de estado, que se muestra en la parte inferior de la ventana.",
 	"activityBarBackground": "Color de fondo de la barra de actividad, que se muestra en el lado izquierdo o derecho y que permite cambiar entre diferentes vistas de la barra lateral.",
+	"activityBarForeground": "Color de fondo de la barra de actividad (por ejemplo utilizado por los iconos). La barra de actividad muestra en el lado izquierdo o derecho y permite cambiar entre diferentes vistas de la barra lateral.",
 	"activityBarDragAndDropBackground": "Color de arrastrar y colocar comentarios de la barra de actividad. La barra de actividad se muestra en el extremo izquierdo o derecho y permite cambiar entre vistas de la barra lateral.",
 	"activityBadgeBackground": "Color de fondo de distintivo de notificación de actividad. La barra de actividad se muestra en el extremo izquierdo o derecho y permite cambiar entre vistas de la barra lateral.",
 	"activityBadgeForeground": "Color de primer plano de distintivo de notificación de actividad. La barra de actividad se muestra en el extremo izquierdo o derecho y permite cambiar entre vistas de la barra lateral.",

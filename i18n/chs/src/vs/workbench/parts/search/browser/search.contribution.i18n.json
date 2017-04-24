@@ -11,6 +11,7 @@
 	"findInFiles": "在文件中查找",
 	"openAnythingHandlerDescription": "转到文件",
 	"openSymbolDescriptionNormal": "转到工作区中的符号",
+	"searchOutputChannelTitle": "搜索",
 	"searchConfigurationTitle": "搜索",
 	"exclude": "配置 glob 模式以在搜索中排除文件和文件夹。从 files.exclude 设置中继承所有 glob 模式。",
 	"exclude.boolean": "匹配文件路径所依据的 glob 模式。设置为 true 或 false 可启用或禁用该模式。",

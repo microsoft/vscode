@@ -8,5 +8,5 @@
 	"merge changes": "Fusionner les modifications",
 	"staged changes": "Modifications en zone de transit",
 	"changes": "Modifications",
-	"cantshow": "Impossible d'afficher l'objet"
+	"ok": "OK"
 }

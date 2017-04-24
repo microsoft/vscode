@@ -26,7 +26,7 @@
 	"wordWrap.on": "Der Zeilenumbruch erfolgt an der Breite des Anzeigebereichs.",
 	"wordWrap.wordWrapColumn": "Der Zeilenbereich erfolgt bei \"editor.wordWrapColumn\".",
 	"wordWrap.bounded": "Der Zeilenumbruch erfolgt beim Mindestanzeigebereich und \"editor.wordWrapColumn\".",
-	"wordWrap": "Steuert den Zeilenumbruch. Mögliche Einstellungen sind:\\n - \"off\" (Umbruch deaktivieren),\\n - \"on\" (Anzeigebereichsumbruch),\\n - \"wordWrapColumn\" (Umbruch bei \"editor.wordWrapColumn\") oder \\n - \"bounded\" (der Zeilenumbruch erfolgt beim Mindestanzeigebereich und \"editor.wordWrapColumn\").",
+	"wordWrap": "Steuert den Zeilenumbruch. Mögliche Einstellungen sind:\n - \"off\" (Umbruch deaktivieren),\n - \"on\" (Anzeigebereichsumbruch),\n - \"wordWrapColumn\" (Umbruch bei \"editor.wordWrapColumn\") oder\n - \"bounded\" (der Zeilenumbruch erfolgt beim Mindestanzeigebereich und \"editor.wordWrapColumn\").",
 	"wordWrapColumn": "Steuert die Umbruchspalte des Editors, wenn für \"editor.wordWrap\" die Option \"wordWrapColumn\" oder \"bounded\" festgelegt ist.",
 	"wrappingIndent": "Steuert den Einzug der umbrochenen Zeilen. Der Wert kann \"none\", \"same\" oder \"indent\" sein.",
 	"mouseWheelScrollSensitivity": "Ein Multiplikator, der für die Mausrad-Bildlaufereignisse \"deltaX\" und \"deltaY\" verwendet werden soll.",

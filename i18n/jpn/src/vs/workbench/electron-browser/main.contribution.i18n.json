@@ -7,7 +7,6 @@
 	"view": "表示",
 	"help": "ヘルプ",
 	"file": "ファイル",
-	"workbenchConfigurationTitle": "ワークベンチ",
 	"showEditorTabs": "開いているエディターをタブに表示するかどうかを制御します。",
 	"editorTabCloseButton": "エディター タブの閉じるボタンの位置を制御するか、[off] に設定した場合に無効にします。",
 	"showIcons": "開いているエディターをアイコンで表示するかどうかを制御します。これには、アイコンのテーマを有効にする必要もあります。",
@@ -21,6 +20,7 @@
 	"statusBarVisibility": "ワークベンチの下部にステータス バーを表示するかどうかを制御します。",
 	"activityBarVisibility": "ワークベンチでのアクティビティ バーの表示をコントロールします。",
 	"closeOnFileDelete": "ファイルを表示しているエディターを、ファイルが削除されるかその他のプロセスによって名前を変更された場合に、自動的に閉じるかどうかを制御します。これを無効にすると、このような場合にエディターはダーティで開かれたままになります。アプリケーション内で削除すると、必ずエディターは閉じられ、ダーティ ファイルは閉じられることがなく、データは保存されませんのでご注意ください。",
+	"workbenchConfigurationTitle": "ワークベンチ",
 	"window.openFilesInNewWindow.on": "新しいウィンドウでファイルを開きます",
 	"window.openFilesInNewWindow.off": "ファイルのフォルダーが開かれていたウィンドウまたは最後のアクティブ ウィンドウでファイルを開きます",
 	"window.openFilesInNewWindow.default": "ファイルのフォルダーが開かれていたウィンドウでファイルを開くか、Dock または Finder を使用して開く場合以外は最後のアクティブ ウィンドウでファイルを開きます (macOS のみ)",
@@ -53,5 +53,6 @@
 	"zenMode.fullScreen": "Zen Mode をオンにするとワークベンチを自動的に全画面モードに切り替えるかどうかを制御します。",
 	"zenMode.hideTabs": "Zen Mode をオンにしたときにワークベンチ タブも非表示にするかどうかを制御します。",
 	"zenMode.hideStatusBar": "Zen Mode をオンにするとワークベンチの下部にあるステータス バーを非表示にするかどうかを制御します。",
+	"zenMode.hideActivityBar": "Zen Mode をオンにするとワークベンチの左側にあるアクティビティ バーを非表示にするかを制御します。",
 	"zenMode.restore": "Zen Mode で終了したウィンドウを Zen Mode に復元するかどうかを制御します。"
 }

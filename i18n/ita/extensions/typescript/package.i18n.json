@@ -11,8 +11,6 @@
 	"typescript.tsdk.desc": "Specifica il percorso della cartella che contiene i file tsserver e lib*.d.ts da usare.",
 	"typescript.disableAutomaticTypeAcquisition": "Disabilita l'acquisizione automatica del tipo. Richiede TypeScript >= 2.0.6 e un riavvio dopo la modifica.",
 	"typescript.check.tscVersion": "Verifica se un compilatore TypeScript di installazione globale, ad esempio tsc, è diverso dal servizio di linguaggio TypeScript usato.",
-	"typescript.tsserver.log": "Abilita la registrazione del server TypeScript in un file.",
-	"typescript.tsserver.trace": "Consente la traccia dei messaggi inviati al server di Servizi terminal.",
 	"typescript.tsserver.experimentalAutoBuild": "Abilita la compilazione automatica sperimentale. Richiede la versione 1.9 dev o 2.x tsserver e il riavvio di Visual Studio Code dopo la modifica.",
 	"typescript.validate.enable": "Abilita/Disabilita la convalida TypeScript.",
 	"typescript.format.enable": "Abilita/Disabilita il formattatore TypeScript predefinito.",

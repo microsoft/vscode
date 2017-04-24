@@ -11,6 +11,7 @@
 	"findInFiles": "フォルダーを指定して検索",
 	"openAnythingHandlerDescription": "ファイルに移動する",
 	"openSymbolDescriptionNormal": "ワークスペース内のシンボルへ移動",
+	"searchOutputChannelTitle": "検索",
 	"searchConfigurationTitle": "検索",
 	"exclude": "検索でファイルとフォルダーを除外するために glob パターンを構成します。files.exclude 設定からすべての glob パターンを継承します。",
 	"exclude.boolean": "ファイル パスの照合基準となる glob パターン。これを true または false に設定すると、パターンがそれぞれ有効/無効になります。",

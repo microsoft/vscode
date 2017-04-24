@@ -12,10 +12,12 @@
 	"actions.previewDecl.label": "預覽定義",
 	"goToImplementation.noResultWord": "找不到 '{0}' 的任何實作",
 	"goToImplementation.generic.noResults": "找不到任何實作",
+	"meta.implementations.title": " – {0} 個實作",
 	"actions.goToImplementation.label": "前往實作",
 	"actions.peekImplementation.label": "預覽實作",
 	"goToTypeDefinition.noResultWord": "找不到 '{0}' 的任何類型定義",
 	"goToTypeDefinition.generic.noResults": "找不到任何類型定義",
+	"meta.typeDefinitions.title": " – {0} 個定義",
 	"actions.goToTypeDefinition.label": "移至類型定義",
 	"actions.peekTypeDefinition.label": "預覽類型定義",
 	"multipleResults": "按一下以顯示 {0} 項定義。"

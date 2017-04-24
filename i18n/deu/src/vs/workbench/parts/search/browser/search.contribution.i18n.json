@@ -11,6 +11,7 @@
 	"findInFiles": "In Dateien suchen",
 	"openAnythingHandlerDescription": "Zu Datei wechseln",
 	"openSymbolDescriptionNormal": "Zu Symbol im Arbeitsbereich wechseln",
+	"searchOutputChannelTitle": "Suchen",
 	"searchConfigurationTitle": "Suchen",
 	"exclude": "Konfigurieren Sie Globmuster zum Ausschließen von Dateien und Ordnern in Suchvorgängen. Alle Globmuster werden von der files.exclude-Einstellung geerbt.",
 	"exclude.boolean": "Das Globmuster, mit dem Dateipfade verglichen werden sollen. Legen Sie diesen Wert auf \"true\" oder \"false\" fest, um das Muster zu aktivieren bzw. zu deaktivieren.",

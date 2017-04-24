@@ -11,8 +11,6 @@
 	"typescript.tsdk.desc": "Gibt den Ordnerpfad mit den zu verwendenden tsserver- und lib*.d.ts-Dateien an.",
 	"typescript.disableAutomaticTypeAcquisition": "Deaktiviert die automatische Typerfassung. Erfordert TypeScript >= 2.0.6 und einen Neustart nach der Änderung.",
 	"typescript.check.tscVersion": "Überprüfen, ob sich ein global installierter TypeScript-Compiler (z. B. tsc) vom verwendeten TypeScript-Sprachdienst unterscheidet.",
-	"typescript.tsserver.log": "Aktiviert die Protokollierung von TS Server in einer Datei.",
-	"typescript.tsserver.trace": "Aktiviert die Nachverfolgung von an den TS-Server gesendeten Nachrichten.",
 	"typescript.tsserver.experimentalAutoBuild": "Ermöglicht experimentelle automatische Buildvorgänge. Erfordert Version 1.9 dev oder 2.x tsserver sowie einen Neustart von VS Code nach der Änderung.",
 	"typescript.validate.enable": "TypeScript-Überprüfung aktivieren/deaktivieren.",
 	"typescript.format.enable": "Standardmäßigen TypeScript-Formatierer aktivieren/deaktivieren.",

@@ -41,5 +41,6 @@
 	"config.confirmSync": "Confirmar antes de sincronizar repositorios GIT",
 	"config.countBadge": "Controla el contador de señales GIT",
 	"config.checkoutType": "Controla qué tipo de ramas figuran en la lista",
-	"config.ignoreLegacyWarning": "Ignora las advertencias hereradas de Git"
+	"config.ignoreLegacyWarning": "Ignora las advertencias hereradas de Git",
+	"config.ignoreLimitWarning": "\nIgnora advertencias cuando se encuentran muchos cambios en un repositorio."
 }

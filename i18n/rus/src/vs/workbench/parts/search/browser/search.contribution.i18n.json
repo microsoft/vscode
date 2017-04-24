@@ -11,6 +11,7 @@
 	"findInFiles": "Найти в файлах",
 	"openAnythingHandlerDescription": "Перейти к файлу",
 	"openSymbolDescriptionNormal": "Перейти к символу в рабочей области",
+	"searchOutputChannelTitle": "Поиск",
 	"searchConfigurationTitle": "Поиск",
 	"exclude": "Настройте стандартные маски для исключения файлов и папок при поиске. Все стандартные маски наследуются от параметра file.exclude.",
 	"exclude.boolean": "Стандартная маска, соответствующая путям к файлам. Задайте значение true или false, чтобы включить или отключить маску.",

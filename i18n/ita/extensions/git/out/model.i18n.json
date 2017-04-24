@@ -8,5 +8,5 @@
 	"merge changes": "Esegui merge delle modifiche",
 	"staged changes": "Modifiche preparate per il commit",
 	"changes": "Modifiche",
-	"cantshow": "Non è stato possibile mostrare l'oggetto"
+	"ok": "OK"
 }
