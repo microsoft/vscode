@@ -368,7 +368,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
 			focusedSf.thread.exceptionInfo.then(exceptionInfo => {
-				if (exceptionInfo) {
+				if (exceptionInfo && exceptionSf.lineNumber && exceptionSf.column) {
 					this.showExceptionWidget(exceptionInfo, exceptionSf.lineNumber, exceptionSf.column);
 				}
 			});
