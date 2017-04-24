@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
+import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, TitleCaseAction, DeleteAllRightAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
 
 suite('Editor Contrib - Line Operations', () => {
 	suite('DeleteAllLeftAction', () => {
@@ -247,36 +247,53 @@ suite('Editor Contrib - Line Operations', () => {
 				let model = editor.getModel();
 				let uppercaseAction = new UpperCaseAction();
 				let lowercaseAction = new LowerCaseAction();
+				let titlecaseAction = new TitleCaseAction();
 
+				// because testing title case after upper case requires upper case test cases to be modified
 				editor.setSelection(new Selection(1, 1, 1, 12));
-				uppercaseAction.run(null, editor);
-				assert.equal(model.getLineContent(1), 'HELLO WORLD', '001');
+				titlecaseAction.run(null, editor);
+				assert.equal(model.getLineContent(1), 'Hello World', '001');
 				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 1, 12).toString(), '002');
 
 				editor.setSelection(new Selection(1, 1, 1, 12));
-				lowercaseAction.run(null, editor);
-				assert.equal(model.getLineContent(1), 'hello world', '003');
+				uppercaseAction.run(null, editor);
+				assert.equal(model.getLineContent(1), 'HELLO WORLD', '003');
 				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 1, 12).toString(), '004');
+
+				editor.setSelection(new Selection(1, 1, 1, 12));
+				lowercaseAction.run(null, editor);
+				assert.equal(model.getLineContent(1), 'hello world', '005');
+				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 1, 1, 12).toString(), '006');
+
+				editor.setSelection(new Selection(1, 3, 1, 3));
+				titlecaseAction.run(null, editor);
+				assert.equal(model.getLineContent(1), 'Hello world', '007');
+				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 3, 1, 3).toString(), '008');
 
 				editor.setSelection(new Selection(1, 3, 1, 3));
 				uppercaseAction.run(null, editor);
-				assert.equal(model.getLineContent(1), 'HELLO world', '005');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 3, 1, 3).toString(), '006');
+				assert.equal(model.getLineContent(1), 'HELLO world', '009');
+				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 3, 1, 3).toString(), '010');
 
 				editor.setSelection(new Selection(1, 4, 1, 4));
 				lowercaseAction.run(null, editor);
-				assert.equal(model.getLineContent(1), 'hello world', '007');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 4, 1, 4).toString(), '008');
+				assert.equal(model.getLineContent(1), 'hello world', '011');
+				assert.deepEqual(editor.getSelection().toString(), new Selection(1, 4, 1, 4).toString(), '012');
+
+				editor.setSelection(new Selection(2, 1, 2, 6));
+				titlecaseAction.run(null, editor);
+				assert.equal(model.getLineContent(2), 'Öçşğü', '013');
+				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 1, 2, 6).toString(), '014');
 
 				editor.setSelection(new Selection(2, 1, 2, 6));
 				uppercaseAction.run(null, editor);
-				assert.equal(model.getLineContent(2), 'ÖÇŞĞÜ', '009');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 1, 2, 6).toString(), '010');
+				assert.equal(model.getLineContent(2), 'ÖÇŞĞÜ', '015');
+				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 1, 2, 6).toString(), '016');
 
 				editor.setSelection(new Selection(2, 1, 2, 6));
 				lowercaseAction.run(null, editor);
-				assert.equal(model.getLineContent(2), 'öçşğü', '011');
-				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 1, 2, 6).toString(), '012');
+				assert.equal(model.getLineContent(2), 'öçşğü', '017');
+				assert.deepEqual(editor.getSelection().toString(), new Selection(2, 1, 2, 6).toString(), '018');
 			}
 		);
 

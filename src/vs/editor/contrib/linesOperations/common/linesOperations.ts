@@ -762,3 +762,19 @@ export class LowerCaseAction extends AbstractCaseAction {
 		return text.toLocaleLowerCase();
 	}
 }
+
+@editorAction
+export class TitleCaseAction extends AbstractCaseAction {
+	constructor() {
+		super({
+			id: 'editor.action.transformToTitlecase',
+			label: nls.localize('editor.transformToTitlecase', "Transform to Titlecase"),
+			alias: 'Transform to Titlecase',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	protected _modifyText(text: string): string {
+		return text.toLowerCase().split(' ').map(word => word && word[0].toUpperCase() + word.slice(1)).join(' ');
+	}
+}
