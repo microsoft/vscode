@@ -188,7 +188,7 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
-		return TPromise.wrapError('not available');
+		return TPromise.wrapError<string>('not available');
 	}
 
 	getChangelog(): TPromise<string> {
@@ -199,7 +199,7 @@ class Extension implements IExtension {
 		const changelogUrl = this.local && this.local.changelogUrl;
 
 		if (!changelogUrl) {
-			return TPromise.wrapError('not available');
+			return TPromise.wrapError<string>('not available');
 		}
 
 		const uri = URI.parse(changelogUrl);
@@ -208,7 +208,7 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
-		return TPromise.wrapError('not available');
+		return TPromise.wrapError<string>('not available');
 	}
 
 	get dependencies(): string[] {
@@ -374,13 +374,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 					return TPromise.as(singlePagePager([]));
 				}
 
-				return TPromise.wrapError(err);
+				return TPromise.wrapError<IPager<IExtension>>(err);
 			});
 	}
 
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies> {
 		if (!extension.dependencies.length) {
-			return TPromise.wrap(null);
+			return TPromise.wrap<IExtensionDependencies>(null);
 		}
 
 		return this.galleryService.getAllDependencies((<Extension>extension).gallery)

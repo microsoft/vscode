@@ -86,10 +86,10 @@ export class SearchWorkerEngine {
 
 	private _searchBatch(args: ISearchWorkerSearchArgs, contentPattern: RegExp, fileEncoding: string): TPromise<ISearchWorkerSearchResult> {
 		if (this.isCanceled) {
-			return TPromise.wrap(null);
+			return TPromise.wrap<ISearchWorkerSearchResult>(null);
 		}
 
-		return new TPromise(batchDone => {
+		return new TPromise<ISearchWorkerSearchResult>(batchDone => {
 			const result: ISearchWorkerSearchResult = {
 				matches: [],
 				numMatches: 0,

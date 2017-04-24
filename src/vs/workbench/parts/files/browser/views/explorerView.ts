@@ -265,7 +265,7 @@ export class ExplorerView extends CollapsibleViewletView {
 			if (visible) {
 
 				// If a refresh was requested and we are now visible, run it
-				let refreshPromise = TPromise.as(null);
+				let refreshPromise = TPromise.as<void>(null);
 				if (this.shouldRefresh) {
 					refreshPromise = this.doRefresh();
 					this.shouldRefresh = false; // Reset flag

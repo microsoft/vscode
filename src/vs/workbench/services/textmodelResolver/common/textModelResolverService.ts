@@ -85,7 +85,7 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		return first(factories).then(model => {
 			if (!model) {
 				console.error(`Unable to open '${resource}' resource is not available.`); // TODO PII
-				return TPromise.wrapError('resource is not available');
+				return TPromise.wrapError<IModel>('resource is not available');
 			}
 
 			return model;
@@ -137,7 +137,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 			const cachedModel = this.modelService.getModel(resource);
 
 			if (!cachedModel) {
-				return TPromise.wrapError('Cant resolve inmemory resource');
+				return TPromise.wrapError<IReference<ITextEditorModel>>('Cant resolve inmemory resource');
 			}
 
 			return TPromise.as(new ImmortalReference(this.instantiationService.createInstance(ResourceEditorModel, resource)));
@@ -150,7 +150,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 			err => {
 				ref.dispose();
 
-				return TPromise.wrapError(err);
+				return TPromise.wrapError<IReference<ITextEditorModel>>(err);
 			}
 		);
 	}

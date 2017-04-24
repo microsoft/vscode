@@ -162,7 +162,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Offer to create a file from the error if we have a file not found and the name is valid
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename(input.getResource().fsPath))) {
-				return TPromise.wrapError(errors.create(toErrorMessage(error), {
+				return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
 					actions: [
 						new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
 							return this.fileService.updateContent(input.getResource(), '').then(() => {
@@ -182,7 +182,7 @@ export class TextFileEditor extends BaseTextEditor {
 			}
 
 			// Otherwise make sure the error bubbles up
-			return TPromise.wrapError(error);
+			return TPromise.wrapError<void>(error);
 		});
 	}
 
