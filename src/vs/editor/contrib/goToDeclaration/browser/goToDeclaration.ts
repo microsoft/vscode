@@ -9,6 +9,7 @@ import 'vs/css!./goToDeclaration';
 import * as nls from 'vs/nls';
 import { Throttler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { MarkedString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
@@ -120,6 +121,10 @@ export class DefinitionAction extends EditorAction {
 	}
 
 	private _onResult(editorService: IEditorService, editor: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
+
+		const msg = model.getAriaMessage();
+		alert(msg);
+
 		if (this._configuration.openInPeek) {
 			this._openInPeek(editorService, editor, model);
 		} else {

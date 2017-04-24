@@ -10,6 +10,7 @@ import { any } from 'vs/base/common/event';
 import { setDisposableTimeout } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { commonEditorContribution, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
@@ -50,6 +51,8 @@ export class MessageController {
 	}
 
 	showMessage(message: string, position: IPosition): void {
+
+		alert(message);
 
 		this._visible.set(true);
 		dispose(this._messageWidget);
