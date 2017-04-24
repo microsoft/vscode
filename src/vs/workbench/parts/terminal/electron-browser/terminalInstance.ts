@@ -365,8 +365,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {
-		if (addNewLine && text.substr(text.length - os.EOL.length) !== os.EOL) {
-			text += os.EOL;
+		text = this._sanitizeInput(text);
+		if (addNewLine && text.substr(text.length - 1) !== '\r') {
+			text += '\r';
 		}
 		this._process.send({
 			event: 'input',
