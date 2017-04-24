@@ -188,7 +188,7 @@
 	},
 	{
 		"c": "main",
-		"t": "source.go entity.name.function",
+		"t": "source.go entity.name.function.go",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
