@@ -67,6 +67,11 @@ export interface IInputOptions {
 	value?: string;
 
 	/**
+	 * whether to automatically select the first value set
+	 */
+	noValuePreselect?: boolean;
+
+	/**
 	 * the text to display underneath the input box
 	 */
 	prompt?: string;

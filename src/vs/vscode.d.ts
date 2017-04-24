@@ -1466,6 +1466,11 @@ declare module 'vscode' {
 		value?: string;
 
 		/**
+		 * Whether to preselect the given `value` when the box is first shown.
+		 */
+		noValuePreselect?: boolean;
+
+		/**
 		 * The text to display underneath the input box.
 		 */
 		prompt?: string;

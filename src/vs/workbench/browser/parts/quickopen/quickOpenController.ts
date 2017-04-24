@@ -184,7 +184,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				password: options.password,
 				placeHolder: options.placeHolder,
 				value: lastValue === void 0 ? options.value : lastValue,
-				valueSelect: lastValue === void 0,
+				valueSelect: options.noValuePreselect ? false : lastValue === void 0,
 				inputDecoration: currentDecoration,
 				onDidType: (value) => {
 					lastValue = value;
