@@ -158,7 +158,7 @@ export interface IExecutionResult {
 	stderr: string;
 }
 
-export async function exec(child: cp.ChildProcess, encoding: string = 'utf8'): Promise<IExecutionResult> {
+async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecutionResult> {
 	const disposables: IDisposable[] = [];
 
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
@@ -179,7 +179,7 @@ export async function exec(child: cp.ChildProcess, encoding: string = 'utf8'): P
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
 			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
+			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), options.encoding || 'utf8')));
 		}),
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
@@ -328,7 +328,7 @@ export class Git {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		const result = await exec(child, options.encoding);
+		const result = await exec(child, options);
 
 		if (result.exitCode) {
 			let gitErrorCode: string | undefined = void 0;
@@ -513,14 +513,23 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async buffer(object: string): Promise<string> {
+	async buffer(object: string, encoding: string = 'utf8'): Promise<string> {
 		const child = this.stream(['show', object]);
 
 		if (!child.stdout) {
 			return Promise.reject<string>('Can\'t open file from git');
 		}
 
-		return await this.doBuffer(object);
+		const { exitCode, stdout } = await exec(child, { encoding });
+
+		if (exitCode) {
+			return Promise.reject<string>(new GitError({
+				message: 'Could not show object.',
+				exitCode
+			}));
+		}
+
+		return stdout;
 
 		// TODO@joao
 		// return new Promise((c, e) => {
@@ -537,20 +546,6 @@ export class Repository {
 		// 	}
 		// });
 		// });
-	}
-
-	private async doBuffer(object: string): Promise<string> {
-		const child = this.stream(['show', object]);
-		const { exitCode, stdout } = await exec(child);
-
-		if (exitCode) {
-			return Promise.reject<string>(new GitError({
-				message: 'Could not buffer object.',
-				exitCode
-			}));
-		}
-
-		return stdout;
 	}
 
 	async add(paths: string[]): Promise<void> {

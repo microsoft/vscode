@@ -29,7 +29,6 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	const outputChannel = window.createOutputChannel('Git');
 	disposables.push(outputChannel);
 
-	const configFiles = workspace.getConfiguration('files');
 	const config = workspace.getConfiguration('git');
 	const enabled = config.get<boolean>('enabled') === true;
 	const workspaceRootPath = workspace.rootPath;
@@ -46,7 +45,7 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 		return;
 	}
 
-	const model = new Model(git, workspaceRootPath, configFiles.get<string>('encoding'));
+	const model = new Model(git, workspaceRootPath);
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
