@@ -365,6 +365,9 @@ export class DebugService implements debug.IDebugService {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
 			const breakpoint = this.model.getBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
 			if (breakpoint) {
+				if (!breakpoint.column) {
+					event.body.breakpoint.column = undefined;
+				}
 				this.model.updateBreakpoints({ [breakpoint.getId()]: event.body.breakpoint });
 			} else {
 				const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.idFromAdapter === id).pop();
@@ -937,9 +940,9 @@ export class DebugService implements debug.IDebugService {
 
 		if (this.model.getProcesses().length === 0) {
 			// set breakpoints back to unverified since the session ended.
-			const data: { [id: string]: { line: number, verified: boolean } } = {};
+			const data: { [id: string]: { line: number, verified: boolean, column: number } } = {};
 			this.model.getBreakpoints().forEach(bp => {
-				data[bp.getId()] = { line: bp.lineNumber, verified: false };
+				data[bp.getId()] = { line: bp.lineNumber, verified: false, column: bp.column };
 			});
 			this.model.updateBreakpoints(data);
 
