@@ -68,7 +68,7 @@ export function once<T>(event: Event<T>): Event<T> {
 }
 
 export function eventToPromise<T>(event: Event<T>): Promise<T> {
-	return new Promise(c => once(event)(c));
+	return new Promise<T>(c => once(event)(c));
 }
 
 // TODO@Joao: replace with Object.assign
@@ -104,11 +104,11 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 }
 
 export function denodeify<R>(fn: Function): (...args) => Promise<R> {
-	return (...args) => new Promise((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+	return (...args) => new Promise<R>((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
 }
 
 export function nfcall<R>(fn: Function, ...args): Promise<R> {
-	return new Promise((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+	return new Promise<R>((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
 }
 
 export async function mkdirp(path: string, mode?: number): Promise<boolean> {

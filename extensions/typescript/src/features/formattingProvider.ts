@@ -117,13 +117,15 @@ export default class TypeScriptFormattingProvider implements DocumentRangeFormat
 			if (!absPath) {
 				return Promise.resolve(Object.create(null));
 			}
+
+			const formatOptions = this.getFormatOptions(options);
 			const args: Proto.ConfigureRequestArguments = {
 				file: absPath,
-				formatOptions: this.getFormatOptions(options)
+				formatOptions: formatOptions
 			};
 			return this.client.execute('configure', args, token).then(_ => {
-				this.formatOptions[key] = args.formatOptions;
-				return args.formatOptions;
+				this.formatOptions[key] = formatOptions;
+				return formatOptions;
 			});
 		}
 	}
