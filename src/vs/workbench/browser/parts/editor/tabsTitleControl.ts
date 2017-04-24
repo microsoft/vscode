@@ -734,8 +734,9 @@ class TabActionRunner extends ActionRunner {
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
-	// High Contrast Styling
-	if (theme.type === 'hc') {
+	// Styling with Outline color (e.g. high contrast theme)
+	const outline = theme.getColor(highContrastOutline);
+	if (outline) {
 		collector.addRule(`
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active,
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover  {

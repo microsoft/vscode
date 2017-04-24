@@ -516,10 +516,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
-	// High Contrast Styling
-	if (theme.type === 'hc') {
-		const outline = theme.getColor(highContrastOutline);
-
+	// Styling with Outline color (e.g. high contrast theme)
+	const outline = theme.getColor(highContrastOutline);
+	if (outline) {
 		collector.addRule(`
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label:before {
 				content: "";
@@ -563,7 +562,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	// Non High Contrast Themes
+	// Styling without outline color
 	else {
 		const focusBorder = theme.getColor(focus);
 
