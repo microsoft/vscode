@@ -8,11 +8,9 @@
 import { ISpreadSpliceable } from './splice';
 
 export interface ITreeElement<T> {
-	element: T;
-	children: ITreeElement<T>[];
+	readonly element: T;
+	readonly children: ITreeElement<T>[];
 }
-
-export type TreeLocation = number[];
 
 export interface ITreeNode<T> {
 	readonly element: T;
@@ -29,15 +27,11 @@ export class TreeNode<T> implements ITreeNode<T> {
 		return node;
 	}
 
-	static createNode<T>(
-		treeElement: ITreeElement<T>,
-		depth: number,
-		list: ITreeNode<T>[]
-	): TreeNode<T> {
+	static createNode<T>(treeElement: ITreeElement<T>, depth: number, list: ITreeNode<T>[]): TreeNode<T> {
 		const node = new TreeNode<T>();
 		list.push(node);
 
-		const {children, count} = treeElement.children.reduce((r, e) => {
+		const { children, count } = treeElement.children.reduce((r, e) => {
 			const child = TreeNode.createNode<T>(e, depth + 1, list);
 			r.children.push(child);
 			r.count += child.count;
@@ -66,7 +60,7 @@ export class TreeNode<T> implements ITreeNode<T> {
 
 	constructor() { }
 
-	splice(index: number, deleteCount: number, elements: ITreeElement<T>[]): { listDeleteCount: number, listElements: ITreeNode<T>[] } {
+	splice(index: number, deleteCount: number, elements: ITreeElement<T>[]): { listDeleteCount: number; listElements: ITreeNode<T>[]; } {
 		const listElements = [] as ITreeNode<T>[];
 
 		const added = elements.map(e => TreeNode.createNode<T>(e, this.depth + 1, listElements));
@@ -86,18 +80,18 @@ export class TreeModel<T> {
 
 	constructor(private spliceable: ISpreadSpliceable<ITreeNode<T>>) { }
 
-	splice(start: TreeLocation, deleteCount: number, elements: ITreeElement<T>[]): void {
+	splice(start: number[], deleteCount: number, elements: ITreeElement<T>[]): void {
 		if (start.length === 0) {
 			throw new Error('Invalid tree location');
 		}
 
-		const {node, listIndex} = this.findNode(start, this.root, 0);
-		const {listDeleteCount, listElements} = node.splice(start[start.length - 1], deleteCount, elements);
+		const { node, listIndex } = this.findNode(start, this.root, 0);
+		const { listDeleteCount, listElements } = node.splice(start[start.length - 1], deleteCount, elements);
 
 		this.spliceable.splice(listIndex, listDeleteCount, ...listElements);
 	}
 
-	private findNode(location: TreeLocation, node: TreeNode<T>, listIndex: number): { node: TreeNode<T>; listIndex: number } {
+	private findNode(location: number[], node: TreeNode<T>, listIndex: number): { node: TreeNode<T>; listIndex: number } {
 		const [i, ...rest] = location;
 
 		if (rest.length === 0) {
