@@ -176,12 +176,17 @@ export const STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND = registerColor('statusBarInf
 
 // < --- Activity Bar --- >
 
-export const ACTIVITY_BAR_BACKGROUND_LIGHT_DEFAULT = '#2C2C2C';
 export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBarBackground', {
 	dark: '#333333',
-	light: ACTIVITY_BAR_BACKGROUND_LIGHT_DEFAULT,
+	light: '#2C2C2C',
 	hc: '#000000'
 }, nls.localize('activityBarBackground', "Activity bar background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
+export const ACTIVITY_ICON_FOREGROUND = registerColor('activityIconForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: Color.white
+}, nls.localize('activityIconForeground', "Activity icon foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBarDragAndDropBackground', {
 	dark: '#403F3F',

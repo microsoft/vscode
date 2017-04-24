@@ -24,7 +24,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
-import { ACTIVITY_BADGE_FOREGROUND, ACTIVITY_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND } from "vs/workbench/common/theme";
+import { ACTIVITY_BADGE_FOREGROUND, ACTIVITY_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_ICON_FOREGROUND } from "vs/workbench/common/theme";
 import { highContrastBorder } from "vs/platform/theme/common/colorRegistry";
 
 export class ActivityAction extends Action {
@@ -151,13 +151,21 @@ export class ActivityActionItem extends BaseActionItem {
 		const theme = this.themeService.getTheme();
 		const isHighContrastTheme = theme.type === 'hc';
 
+		// Label
+		if (this.$e) {
+			const background = theme.getColor(ACTIVITY_ICON_FOREGROUND);
+
+			this.$e.style('background-color', background ? background.toString() : null);
+		}
+
+		// Badge
 		if (this.$badgeContent) {
-			const foreground = theme.getColor(ACTIVITY_BADGE_FOREGROUND);
-			const background = theme.getColor(ACTIVITY_BADGE_BACKGROUND);
+			const badgeForeground = theme.getColor(ACTIVITY_BADGE_FOREGROUND);
+			const badgeBackground = theme.getColor(ACTIVITY_BADGE_BACKGROUND);
 			const hcBorder = theme.getColor(highContrastBorder);
 
-			this.$badgeContent.style('color', foreground ? foreground.toString() : null);
-			this.$badgeContent.style('background-color', background ? background.toString() : null);
+			this.$badgeContent.style('color', badgeForeground ? badgeForeground.toString() : null);
+			this.$badgeContent.style('background-color', badgeBackground ? badgeBackground.toString() : null);
 
 			this.$badgeContent.style('border-style', isHighContrastTheme ? 'solid' : null);
 			this.$badgeContent.style('border-width', isHighContrastTheme ? '1px' : null);
