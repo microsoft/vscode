@@ -5,6 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import Event from 'vs/base/common/event';
 
 export interface InternalTreeExplorerNodeContent {
 	label: string;
@@ -20,4 +21,5 @@ export interface InternalTreeExplorerNodeProvider {
 	provideRootNode(): Thenable<InternalTreeExplorerNodeContent>;
 	resolveChildren(node: InternalTreeExplorerNodeContent): Thenable<InternalTreeExplorerNodeContent[]>;
 	executeCommand(node: InternalTreeExplorerNodeContent): TPromise<any>;
+	onRefresh?: Event<InternalTreeExplorerNodeContent>;
 }

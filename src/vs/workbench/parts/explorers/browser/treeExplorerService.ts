@@ -49,7 +49,7 @@ export class TreeExplorerService implements ITreeExplorerService {
 		return TPromise.wrap(provider.executeCommand(node));
 	}
 
-	private getProvider(providerId: string): InternalTreeExplorerNodeProvider {
+	public getProvider(providerId: string): InternalTreeExplorerNodeProvider {
 		const provider = this._treeExplorerNodeProviders[providerId];
 
 		if (!provider) {

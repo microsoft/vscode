@@ -19,6 +19,7 @@ import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDoc
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostTreeExplorers } from 'vs/workbench/api/node/extHostTreeExplorers';
+import { ExtHostTree } from 'vs/workbench/api/node/extHostTree';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostQuickOpen } from 'vs/workbench/api/node/extHostQuickOpen';
 import { ExtHostProgress } from 'vs/workbench/api/node/extHostProgress';
@@ -112,6 +113,7 @@ export function createApiFactory(
 	const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocumentsAndEditors));
 	const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostHeapService));
 	const extHostExplorers = col.define(ExtHostContext.ExtHostExplorers).set<ExtHostTreeExplorers>(new ExtHostTreeExplorers(threadService, extHostCommands));
+	const extHostTree = col.define(ExtHostContext.ExtHostTree).set<ExtHostTree>(new ExtHostTree(threadService, extHostCommands));
 	const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), initData.configuration));
 	const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set<ExtHostDiagnostics>(new ExtHostDiagnostics(threadService));
 	const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set<ExtHostLanguageFeatures>(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
@@ -366,6 +368,9 @@ export function createApiFactory(
 			registerTreeExplorerNodeProvider: proposedApiFunction(extension, (providerId: string, provider: vscode.TreeExplorerNodeProvider<any>) => {
 				return extHostExplorers.registerTreeExplorerNodeProvider(providerId, provider);
 			}),
+			registerTree: proposedApiFunction(extension, (providerId: string, root: vscode.TreeNode) => {
+				return extHostTree.registerTree(providerId, root);
+			})
 		};
 
 		// namespace: workspace

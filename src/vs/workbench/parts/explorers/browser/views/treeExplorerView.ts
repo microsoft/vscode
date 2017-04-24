@@ -11,6 +11,7 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -25,6 +26,9 @@ import { attachListStyler } from "vs/platform/theme/common/styler";
 import { IThemeService } from "vs/platform/theme/common/themeService";
 
 export class TreeExplorerView extends CollapsibleViewletView {
+
+	private providerDisposables = IDisposable[];
+
 	constructor(
 		private viewletState: TreeExplorerViewletState,
 		private treeNodeProviderId: string,
@@ -86,9 +90,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 
 	public updateInput(): TPromise<void> {
 		if (this.treeExplorerService.hasProvider(this.treeNodeProviderId)) {
-			return this.treeExplorerService.provideRootNode(this.treeNodeProviderId).then(tree => {
-				this.tree.setInput(tree);
-			});
+			return this.updateProvider();
 		}
 		// Provider registration happens independently of the reading of extension's contribution,
 		// which constructs the viewlet, so it's possible the viewlet is constructed before a provider
@@ -97,9 +99,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		else {
 			this.treeExplorerService.onTreeExplorerNodeProviderRegistered(providerId => {
 				if (this.treeNodeProviderId === providerId) {
-					return this.treeExplorerService.provideRootNode(this.treeNodeProviderId).then(tree => {
-						this.tree.setInput(tree);
-					});
+					return this.updateProvider();
 				}
 				return undefined;
 			});
@@ -113,5 +113,17 @@ export class TreeExplorerView extends CollapsibleViewletView {
 		const childNodes = [].slice.call(parentNode.querySelectorAll('.outline-item-label > a'));
 
 		return DOM.getLargestChildWidth(parentNode, childNodes);
+	}
+
+	private updateProvider(): TPromise<void> {
+		if (this.providerDisposables) {
+			dispose(this.providerDisposables);
+		}
+
+		const provider = this.treeExplorerService.getProvider(this.treeNodeProviderId);
+		provider.onRefresh(node => this.tree.refresh(node));
+		return this.treeExplorerService.provideRootNode(this.treeNodeProviderId).then(tree => {
+			this.tree.setInput(tree);
+		});
 	}
 }

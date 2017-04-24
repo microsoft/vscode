@@ -18,6 +18,7 @@ export interface ITreeExplorerService {
 
 	registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void;
 	hasProvider(providerId: string): boolean;
+	getProvider(providerId: string): InternalTreeExplorerNodeProvider;
 
 	provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode>;
 	resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]>;

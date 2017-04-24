@@ -149,6 +149,12 @@ export abstract class MainThreadEditorsShape {
 
 export abstract class MainThreadTreeExplorersShape {
 	$registerTreeExplorerNodeProvider(providerId: string): void { throw ni(); }
+	$refresh(providerId: string, node: InternalTreeExplorerNodeContent): void { throw ni(); }
+}
+
+export abstract class MainThreadTreeShape {
+	$registerTreeExplorerNodeProvider(providerId: string, node: InternalTreeExplorerNodeContent): void { throw ni(); }
+	$refresh(providerId: string, node: InternalTreeExplorerNodeContent): void { throw ni(); }
 }
 
 export abstract class MainThreadErrorsShape {
@@ -358,6 +364,11 @@ export abstract class ExtHostTreeExplorersShape {
 	$getInternalCommand(providerId: string, node: InternalTreeExplorerNodeContent): TPromise<modes.Command> { throw ni(); }
 }
 
+export abstract class ExtHostTreeShape {
+	$resolveChildren(providerId: string, node: InternalTreeExplorerNodeContent): TPromise<InternalTreeExplorerNodeContent[]> { throw ni(); }
+	$getInternalCommand(providerId: string, node: InternalTreeExplorerNodeContent): TPromise<modes.Command> { throw ni(); }
+}
+
 export abstract class ExtHostExtensionServiceShape {
 	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
 	$activateExtension(extensionDescription: IExtensionDescription): TPromise<void> { throw ni(); }
@@ -447,6 +458,7 @@ export const MainContext = {
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors', MainThreadEditorsShape),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors', MainThreadErrorsShape),
 	MainThreadExplorers: createMainId<MainThreadTreeExplorersShape>('MainThreadExplorers', MainThreadTreeExplorersShape),
+	MainThreadTree: createMainId<MainThreadTreeShape>('MainThreadTree', MainThreadTreeShape),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures', MainThreadLanguageFeaturesShape),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages', MainThreadLanguagesShape),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService', MainThreadMessageServiceShape),
@@ -479,5 +491,6 @@ export const ExtHostContext = {
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService', ExtHostExtensionServiceShape),
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape),
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape),
+	ExtHostTree: createExtId<ExtHostTreeShape>('ExtHostTree', ExtHostTreeShape),
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ExtHostTaskShape)
 };

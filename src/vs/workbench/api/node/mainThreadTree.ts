@@ -7,14 +7,14 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, MainThreadTreeExplorersShape, ExtHostTreeExplorersShape } from './extHost.protocol';
+import { ExtHostContext, MainThreadTreeShape, ExtHostTreeShape } from './extHost.protocol';
 import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
 import { InternalTreeExplorerNodeContent, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
-export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
-	private _proxy: ExtHostTreeExplorersShape;
+export class MainThreadTree extends MainThreadTreeShape {
+	private _proxy: ExtHostTreeShape;
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -24,11 +24,11 @@ export class MainThreadTreeExplorers extends MainThreadTreeExplorersShape {
 	) {
 		super();
 
-		this._proxy = threadService.get(ExtHostContext.ExtHostExplorers);
+		this._proxy = threadService.get(ExtHostContext.ExtHostTree);
 	}
 
-	$registerTreeExplorerNodeProvider(providerId: string): void {
-		const provider = new TreeExplorerNodeProvider(providerId, this._proxy, this.messageService, this.commandService);
+	$registerTreeExplorerNodeProvider(providerId: string, rootNode: InternalTreeExplorerNodeContent): void {
+		const provider = new TreeExplorerNodeProvider(providerId, rootNode, this._proxy, this.messageService, this.commandService);
 		this.treeExplorerService.registerTreeExplorerNodeProvider(providerId, provider);
 	}
 
@@ -42,14 +42,14 @@ class TreeExplorerNodeProvider implements InternalTreeExplorerNodeProvider {
 	readonly _onRefresh: Emitter<InternalTreeExplorerNodeContent> = new Emitter<InternalTreeExplorerNodeContent>();
 	readonly onRefresh: Event<InternalTreeExplorerNodeContent> = this._onRefresh.event;
 
-	constructor(private providerId: string, private _proxy: ExtHostTreeExplorersShape,
+	constructor(private providerId: string, private rootNode: InternalTreeExplorerNodeContent, private _proxy: ExtHostTreeShape,
 		private messageService: IMessageService,
 		private commandService: ICommandService
 	) {
 	}
 
 	provideRootNode(): TPromise<InternalTreeExplorerNodeContent> {
-		return this._proxy.$provideRootNode(this.providerId).then(rootNode => rootNode, err => this.messageService.show(Severity.Error, err));
+		return TPromise.as(this.rootNode);
 	}
 
 	resolveChildren(node: InternalTreeExplorerNodeContent): TPromise<InternalTreeExplorerNodeContent[]> {
