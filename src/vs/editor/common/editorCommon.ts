@@ -2053,10 +2053,6 @@ export var Handler = {
 	LineInsertBefore: 'lineInsertBefore',
 	LineInsertAfter: 'lineInsertAfter',
 	LineBreakInsert: 'lineBreakInsert',
-
-	SelectAll: 'selectAll',
-
-	RevealLine: 'revealLine'
 };
 
 /**

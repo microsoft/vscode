@@ -21,8 +21,7 @@ export class OneCursor {
 		this._setState(
 			context,
 			new SingleCursorState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0),
-			new SingleCursorState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0),
-			false
+			new SingleCursorState(new Range(1, 1, 1, 1), 0, new Position(1, 1), 0)
 		);
 	}
 
@@ -47,7 +46,7 @@ export class OneCursor {
 	}
 
 	public ensureValidState(context: CursorContext): void {
-		this._setState(context, this.modelState, this.viewState, false);
+		this._setState(context, this.modelState, this.viewState);
 	}
 
 	public setSelection(context: CursorContext, selection: ISelection): void {
@@ -62,42 +61,23 @@ export class OneCursor {
 		this._setState(
 			context,
 			modelState,
-			null,
-			false
+			null
 		);
 	}
 
-	public setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState, ensureInEditableRange: boolean): void {
-		this._setState(context, modelState, viewState, ensureInEditableRange);
+	public setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState): void {
+		this._setState(context, modelState, viewState);
 	}
 
-	private _ensureInEditableRange(context: CursorContext, position: Position): Position {
-		const editableRange = context.model.getEditableRange();
-
-		if (position.lineNumber < editableRange.startLineNumber || (position.lineNumber === editableRange.startLineNumber && position.column < editableRange.startColumn)) {
-			return new Position(editableRange.startLineNumber, editableRange.startColumn);
-		} else if (position.lineNumber > editableRange.endLineNumber || (position.lineNumber === editableRange.endLineNumber && position.column > editableRange.endColumn)) {
-			return new Position(editableRange.endLineNumber, editableRange.endColumn);
-		}
-		return position;
-	}
-
-	private _validatePosition(context: CursorContext, _position: Position, ensureInEditableRange: boolean): Position {
-		const position = context.model.validatePosition(_position);
-		return (ensureInEditableRange ? this._ensureInEditableRange(context, position) : position);
-	}
-
-	private _setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState, ensureInEditableRange: boolean): void {
+	private _setState(context: CursorContext, modelState: SingleCursorState, viewState: SingleCursorState): void {
 		if (!modelState) {
 			// We only have the view state => compute the model state
 			const selectionStart = context.model.validateRange(
 				context.convertViewRangeToModelRange(viewState.selectionStart)
 			);
 
-			const position = this._validatePosition(
-				context,
-				context.convertViewPositionToModelPosition(viewState.position.lineNumber, viewState.position.column),
-				ensureInEditableRange
+			const position = context.model.validatePosition(
+				context.convertViewPositionToModelPosition(viewState.position.lineNumber, viewState.position.column)
 			);
 
 			modelState = new SingleCursorState(selectionStart, viewState.selectionStartLeftoverVisibleColumns, position, viewState.leftoverVisibleColumns);
@@ -106,10 +86,8 @@ export class OneCursor {
 			const selectionStart = context.model.validateRange(modelState.selectionStart);
 			const selectionStartLeftoverVisibleColumns = modelState.selectionStart.equalsRange(selectionStart) ? modelState.selectionStartLeftoverVisibleColumns : 0;
 
-			const position = this._validatePosition(
-				context,
-				modelState.position,
-				ensureInEditableRange
+			const position = context.model.validatePosition(
+				modelState.position
 			);
 			const leftoverVisibleColumns = modelState.position.equals(position) ? modelState.leftoverVisibleColumns : 0;
 

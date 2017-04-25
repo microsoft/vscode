@@ -5,75 +5,14 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandAndKeybindingRule, KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ICommandAndKeybindingRule, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as types from 'vs/base/common/types';
 import H = editorCommon.Handler;
-
-const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
-
-
-export namespace RevealLine {
-
-	const isRevealLineArgs = function (arg): boolean {
-		if (!types.isObject(arg)) {
-			return false;
-		}
-
-		let reveaLineArg: RawArguments = arg;
-
-		if (!types.isNumber(reveaLineArg.lineNumber)) {
-			return false;
-		}
-
-		if (!types.isUndefined(reveaLineArg.at) && !types.isString(reveaLineArg.at)) {
-			return false;
-		}
-
-		return true;
-	};
-
-	export const description = <ICommandHandlerDescription>{
-		description: 'Reveal the given line at the given logical position',
-		args: [
-			{
-				name: 'Reveal line argument object',
-				description: `Property-value pairs that can be passed through this argument:
-					* 'lineNumber': A mandatory line number value.
-					* 'at': Logical position at which line has to be revealed .
-						\`\`\`
-						'top', 'center', 'bottom'
-						\`\`\`
-				`,
-				constraint: isRevealLineArgs
-			}
-		]
-	};
-
-	/**
-	 * Arguments for reveal line command
-	 */
-	export interface RawArguments {
-		lineNumber?: number;
-		at?: string;
-	};
-
-	/**
-	 * Values for reveal line 'at' argument
-	 */
-	export const RawAtArgument = {
-		Top: 'top',
-		Center: 'center',
-		Bottom: 'bottom'
-	};
-}
 
 export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpr;
@@ -166,7 +105,7 @@ export abstract class EditorCommand extends Command {
 	}
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void> {
-		let editor = findFocusedEditor(this.id, accessor, false);
+		let editor = findFocusedEditor(accessor);
 		if (!editor) {
 			editor = getActiveEditorWidget(accessor);
 		}
@@ -188,19 +127,12 @@ export abstract class EditorCommand extends Command {
 	public abstract runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
 }
 
-export function findFocusedEditor(commandId: string, accessor: ServicesAccessor, complain: boolean): editorCommon.ICommonCodeEditor {
-	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-	if (!editor) {
-		if (complain) {
-			console.warn('Cannot execute ' + commandId + ' because no code editor is focused.');
-		}
-		return null;
-	}
-	return editor;
+function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
 }
 
-function withCodeEditorFromCommandHandler(commandId: string, accessor: ServicesAccessor, callback: (editor: editorCommon.ICommonCodeEditor) => void): void {
-	let editor = findFocusedEditor(commandId, accessor, true);
+function withCodeEditorFromCommandHandler(accessor: ServicesAccessor, callback: (editor: editorCommon.ICommonCodeEditor) => void): void {
+	let editor = findFocusedEditor(accessor);
 	if (editor) {
 		callback(editor);
 	}
@@ -213,7 +145,7 @@ function getActiveEditorWidget(accessor: ServicesAccessor): editorCommon.ICommon
 }
 
 function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, args: any): void {
-	withCodeEditorFromCommandHandler(handlerId, accessor, (editor) => {
+	withCodeEditorFromCommandHandler(accessor, (editor) => {
 		editor.trigger('keyboard', handlerId, args);
 	});
 }
@@ -222,17 +154,6 @@ class CoreCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		triggerEditorHandler(this.id, accessor, args);
 	}
-}
-
-function registerCommand(command: Command) {
-	KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
-}
-
-function registerCoreAPICommand(handlerId: string, description: ICommandHandlerDescription): void {
-	CommandsRegistry.registerCommand(handlerId, {
-		handler: triggerEditorHandler.bind(null, handlerId),
-		description: description
-	});
 }
 
 function registerOverwritableCommand(handlerId: string, handler: ICommandHandler): void {
@@ -249,114 +170,3 @@ registerCoreDispatchCommand(H.CompositionStart);
 registerCoreDispatchCommand(H.CompositionEnd);
 registerCoreDispatchCommand(H.Paste);
 registerCoreDispatchCommand(H.Cut);
-
-// Register cursor commands
-
-registerCoreAPICommand(H.RevealLine, RevealLine.description);
-
-abstract class BaseTextInputAwareCommand extends Command {
-
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		let HANDLER = this.getEditorHandler();
-
-		let focusedEditor = findFocusedEditor(HANDLER, accessor, false);
-		// Only if editor text focus (i.e. not if editor has widget focus).
-		if (focusedEditor && focusedEditor.isFocused()) {
-			focusedEditor.trigger('keyboard', HANDLER, args);
-			return;
-		}
-
-		// Ignore this action when user is focussed on an element that allows for entering text
-		let activeElement = <HTMLElement>document.activeElement;
-		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-			document.execCommand(this.getInputHandler());
-			return;
-		}
-
-		// Redirecting to last active editor
-		let activeEditor = getActiveEditorWidget(accessor);
-		if (activeEditor) {
-			activeEditor.focus();
-			activeEditor.trigger('keyboard', HANDLER, args);
-			return;
-		}
-	}
-
-	protected abstract getEditorHandler(): string;
-
-	protected abstract getInputHandler(): string;
-}
-
-class SelectAllCommand extends BaseTextInputAwareCommand {
-
-	constructor() {
-		super({
-			id: 'editor.action.selectAll',
-			precondition: null,
-			kbOpts: {
-				weight: CORE_WEIGHT,
-				kbExpr: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_A
-			}
-		});
-	}
-
-	protected getEditorHandler(): string {
-		return editorCommon.Handler.SelectAll;
-	}
-
-	protected getInputHandler(): string {
-		return 'selectAll';
-	}
-}
-registerCommand(new SelectAllCommand());
-
-class UndoCommand extends BaseTextInputAwareCommand {
-
-	constructor() {
-		super({
-			id: H.Undo,
-			precondition: EditorContextKeys.writable,
-			kbOpts: {
-				weight: CORE_WEIGHT,
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
-			}
-		});
-	}
-
-	protected getEditorHandler(): string {
-		return H.Undo;
-	}
-
-	protected getInputHandler(): string {
-		return 'undo';
-	}
-}
-registerCommand(new UndoCommand());
-
-class RedoCommand extends BaseTextInputAwareCommand {
-
-	constructor() {
-		super({
-			id: H.Redo,
-			precondition: EditorContextKeys.writable,
-			kbOpts: {
-				weight: CORE_WEIGHT,
-				kbExpr: EditorContextKeys.textFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
-			}
-		});
-	}
-
-	protected getEditorHandler(): string {
-		return H.Redo;
-	}
-
-	protected getInputHandler(): string {
-		return 'redo';
-	}
-}
-registerCommand(new RedoCommand());

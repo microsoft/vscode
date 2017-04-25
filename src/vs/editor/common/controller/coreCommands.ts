@@ -6,9 +6,10 @@
 'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CursorState, ICursors, RevealTarget, IColumnSelectData, CursorContext } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
+import { CursorChangeReason, VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
 import { CursorMoveCommands, CursorMove as CursorMove_ } from "vs/editor/common/controller/cursorMoveCommands";
 import { EditorCommand, ICommandOptions, Command } from "vs/editor/common/config/config";
 import { ServicesAccessor } from "vs/platform/instantiation/common/instantiation";
@@ -18,10 +19,11 @@ import { EditorContextKeys } from "vs/editor/common/editorContextKeys";
 import { KeyMod, KeyCode } from "vs/base/common/keyCodes";
 import { KeybindingsRegistry } from "vs/platform/keybinding/common/keybindingsRegistry";
 import H = editorCommon.Handler;
-import { ICodeEditorService } from "vs/editor/common/services/codeEditorService";
+import { ICodeEditorService, getCodeEditor } from "vs/editor/common/services/codeEditorService";
 import { ContextKeyExpr } from "vs/platform/contextkey/common/contextkey";
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from "vs/platform/commands/common/commands";
+import { IEditorService } from "vs/platform/editor/common/editor";
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 
@@ -172,6 +174,61 @@ export namespace EditorScroll_ {
 		Page = 3,
 		HalfPage = 4
 	}
+}
+
+export namespace RevealLine_ {
+
+	const isRevealLineArgs = function (arg): boolean {
+		if (!types.isObject(arg)) {
+			return false;
+		}
+
+		let reveaLineArg: RawArguments = arg;
+
+		if (!types.isNumber(reveaLineArg.lineNumber)) {
+			return false;
+		}
+
+		if (!types.isUndefined(reveaLineArg.at) && !types.isString(reveaLineArg.at)) {
+			return false;
+		}
+
+		return true;
+	};
+
+	export const description = <ICommandHandlerDescription>{
+		description: 'Reveal the given line at the given logical position',
+		args: [
+			{
+				name: 'Reveal line argument object',
+				description: `Property-value pairs that can be passed through this argument:
+					* 'lineNumber': A mandatory line number value.
+					* 'at': Logical position at which line has to be revealed .
+						\`\`\`
+						'top', 'center', 'bottom'
+						\`\`\`
+				`,
+				constraint: isRevealLineArgs
+			}
+		]
+	};
+
+	/**
+	 * Arguments for reveal line command
+	 */
+	export interface RawArguments {
+		lineNumber?: number;
+		at?: string;
+	};
+
+	/**
+	 * Values for reveal line 'at' argument
+	 */
+	export const RawAtArgument = {
+		Top: 'top',
+		Center: 'center',
+		Bottom: 'bottom'
+	};
 }
 
 export namespace CoreCommands {
@@ -1265,30 +1322,95 @@ export namespace CoreCommands {
 			cursors.reveal(true, RevealTarget.Primary);
 		}
 	});
+
+	export const RevealLine: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+		constructor() {
+			super({
+				id: 'revealLine',
+				precondition: null,
+				description: RevealLine_.description
+			});
+		}
+
+		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+			const revealLineArg = <RevealLine_.RawArguments>args;
+			let lineNumber = revealLineArg.lineNumber + 1;
+			if (lineNumber < 1) {
+				lineNumber = 1;
+			}
+			const lineCount = cursors.context.model.getLineCount();
+			if (lineNumber > lineCount) {
+				lineNumber = lineCount;
+			}
+
+			const range = new Range(
+				lineNumber, 1,
+				lineNumber, cursors.context.model.getLineMaxColumn(lineNumber)
+			);
+
+			let revealAt = VerticalRevealType.Simple;
+			if (revealLineArg.at) {
+				switch (revealLineArg.at) {
+					case RevealLine_.RawAtArgument.Top:
+						revealAt = VerticalRevealType.Top;
+						break;
+					case RevealLine_.RawAtArgument.Center:
+						revealAt = VerticalRevealType.Center;
+						break;
+					case RevealLine_.RawAtArgument.Bottom:
+						revealAt = VerticalRevealType.Bottom;
+						break;
+					default:
+						break;
+				}
+			}
+
+			cursors.revealRange(false, range, null, revealAt);
+		}
+	});
+
+	export const SelectAll: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+		constructor() {
+			super({
+				id: 'selectAll',
+				precondition: null
+			});
+		}
+
+		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+			cursors.context.model.pushStackElement();
+			cursors.setStates(
+				args.source,
+				CursorChangeReason.Explicit,
+				[
+					CursorMoveCommands.selectAll(cursors.context, cursors.getPrimaryCursor())
+				]
+			);
+		}
+	});
 };
 
 namespace Config {
 
-	function findFocusedEditor(commandId: string, accessor: ServicesAccessor, complain: boolean): editorCommon.ICommonCodeEditor {
-		let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		if (!editor) {
-			if (complain) {
-				console.warn('Cannot execute ' + commandId + ' because no code editor is focused.');
-			}
-			return null;
-		}
-		return editor;
+	function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+		return accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	}
 
-	function withCodeEditorFromCommandHandler(commandId: string, accessor: ServicesAccessor, callback: (editor: editorCommon.ICommonCodeEditor) => void): void {
-		let editor = findFocusedEditor(commandId, accessor, true);
+	function getActiveEditorWidget(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+		const editorService = accessor.get(IEditorService);
+		let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
+		return getCodeEditor(activeEditor);
+	}
+
+	function withCodeEditorFromCommandHandler(accessor: ServicesAccessor, callback: (editor: editorCommon.ICommonCodeEditor) => void): void {
+		let editor = findFocusedEditor(accessor);
 		if (editor) {
 			callback(editor);
 		}
 	}
 
 	function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, args: any): void {
-		withCodeEditorFromCommandHandler(handlerId, accessor, (editor) => {
+		withCodeEditorFromCommandHandler(accessor, (editor) => {
 			editor.trigger('keyboard', handlerId, args);
 		});
 	}
@@ -1302,7 +1424,6 @@ namespace Config {
 	function registerCommand(command: Command) {
 		KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
 	}
-
 
 	registerCommand(new CoreCommand({
 		id: H.Tab,
@@ -1361,4 +1482,90 @@ namespace Config {
 			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_O }
 		}
 	}));
+
+
+	class BaseTextInputAwareCommand extends Command {
+
+		private readonly _editorHandler: string | EditorCommand;
+		private readonly _inputHandler: string;
+
+		constructor(opts: ICommandOptions & { editorHandler: string | EditorCommand; inputHandler: string; }) {
+			super(opts);
+			this._editorHandler = opts.editorHandler;
+			this._inputHandler = opts.inputHandler;
+		}
+
+		public runCommand(accessor: ServicesAccessor, args: any): void {
+
+			let focusedEditor = findFocusedEditor(accessor);
+			// Only if editor text focus (i.e. not if editor has widget focus).
+			if (focusedEditor && focusedEditor.isFocused()) {
+				return this._runEditorHandler(focusedEditor, args);
+			}
+
+			// Ignore this action when user is focussed on an element that allows for entering text
+			let activeElement = <HTMLElement>document.activeElement;
+			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+				document.execCommand(this._inputHandler);
+				return;
+			}
+
+			// Redirecting to last active editor
+			let activeEditor = getActiveEditorWidget(accessor);
+			if (activeEditor) {
+				activeEditor.focus();
+				return this._runEditorHandler(activeEditor, args);
+			}
+		}
+
+		private _runEditorHandler(editor: editorCommon.ICommonCodeEditor, args: any): void {
+			let HANDLER = this._editorHandler;
+			if (typeof HANDLER === 'string') {
+				editor.trigger('keyboard', HANDLER, args);
+			} else {
+				args = args || {};
+				args.source = 'keyboard';
+				HANDLER.runEditorCommand(null, editor, args);
+			}
+		}
+	}
+
+	registerCommand(new BaseTextInputAwareCommand({
+		editorHandler: CoreCommands.SelectAll,
+		inputHandler: 'selectAll',
+		id: 'editor.action.selectAll',
+		precondition: null,
+		kbOpts: {
+			weight: CORE_WEIGHT,
+			kbExpr: null,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+		}
+	}));
+
+	registerCommand(new BaseTextInputAwareCommand({
+		editorHandler: H.Undo,
+		inputHandler: 'undo',
+		id: H.Undo,
+		precondition: EditorContextKeys.writable,
+		kbOpts: {
+			weight: CORE_WEIGHT,
+			kbExpr: EditorContextKeys.textFocus,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
+		}
+	}));
+
+	registerCommand(new BaseTextInputAwareCommand({
+		editorHandler: H.Redo,
+		inputHandler: 'redo',
+		id: H.Redo,
+		precondition: EditorContextKeys.writable,
+		kbOpts: {
+			weight: CORE_WEIGHT,
+			kbExpr: EditorContextKeys.textFocus,
+			primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
+			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
+			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
+		}
+	}));
+
 }

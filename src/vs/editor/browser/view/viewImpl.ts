@@ -17,7 +17,7 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { KeyboardHandler, IKeyboardHandlerHelper } from 'vs/editor/browser/controller/keyboardHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { ViewController, TriggerCursorHandler } from 'vs/editor/browser/view/viewController';
+import { ViewController, ExecCoreEditorCommandFunc } from 'vs/editor/browser/view/viewController';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
 import { LayoutProvider } from 'vs/editor/common/viewLayout/viewLayout';
@@ -102,14 +102,14 @@ export class View extends ViewEventHandler {
 		commandService: ICommandService,
 		configuration: Configuration,
 		model: IViewModel,
-		triggerCursorHandler: TriggerCursorHandler
+		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
 	) {
 		super();
 		this._isDisposed = false;
 		this._renderAnimationFrame = null;
 		this.outgoingEvents = new ViewOutgoingEvents(model);
 
-		let viewController = new ViewController(model, triggerCursorHandler, this.outgoingEvents, commandService);
+		let viewController = new ViewController(model, execCoreEditorCommandFunc, this.outgoingEvents, commandService);
 
 		// The event dispatcher will always go through _renderOnce before dispatching any events
 		this.eventDispatcher = new ViewEventDispatcher((callback: () => void) => this._renderOnce(callback));

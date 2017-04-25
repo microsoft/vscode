@@ -590,7 +590,7 @@ suite('Editor Controller - Cursor', () => {
 	// --------- misc
 
 	test('select all', () => {
-		cursorCommand(thisCursor, H.SelectAll);
+		CoreCommands.SelectAll.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
 	});
 

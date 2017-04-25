@@ -20,16 +20,12 @@ import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperat
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
-import { CursorMoveCommands } from "vs/editor/common/controller/cursorMoveCommands";
-import { RevealLine } from "vs/editor/common/config/config";
 import { CommonEditorRegistry } from "vs/editor/common/editorCommonExtensions";
 import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 
 interface IMultipleCursorOperationContext {
 	cursorPositionChangeReason: CursorChangeReason;
 	shouldReveal: boolean;
-	shouldRevealHorizontal: boolean;
-	shouldRevealTarget: RevealTarget;
 	shouldPushStackElementBefore: boolean;
 	shouldPushStackElementAfter: boolean;
 	eventSource: string;
@@ -178,7 +174,7 @@ export class Cursor extends Disposable implements ICursors {
 	}
 
 	public getPrimaryCursor(): CursorState {
-		return this.cursors.getPrimaryCursor2();
+		return this.cursors.getPrimaryCursor();
 	}
 
 	public getLastAddedCursorIndex(): number {
@@ -186,7 +182,7 @@ export class Cursor extends Disposable implements ICursors {
 	}
 
 	public getAll(): CursorState[] {
-		return this.cursors.getAll2();
+		return this.cursors.getAll();
 	}
 
 	public setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void {
@@ -197,7 +193,7 @@ export class Cursor extends Disposable implements ICursors {
 		// ensure valid state on all cursors
 		// this.cursors.ensureValidState();
 
-		this.cursors.setStates(states, false);
+		this.cursors.setStates(states);
 		this.cursors.normalize();
 		this._columnSelectData = null;
 
@@ -231,7 +227,11 @@ export class Cursor extends Disposable implements ICursors {
 	}
 
 	public reveal(horizontal: boolean, target: RevealTarget): void {
-		this.revealRange(target, VerticalRevealType.Simple, horizontal);
+		this._revealRange(target, VerticalRevealType.Simple, horizontal);
+	}
+
+	public revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: VerticalRevealType) {
+		this.emitCursorRevealRange(modelRange, viewRange, verticalType, revealHorizontal);
 	}
 
 	public scrollTo(desiredScrollTop: number): void {
@@ -320,19 +320,13 @@ export class Cursor extends Disposable implements ICursors {
 			if (!this._isHandling) {
 				// Read the markers before entering `_onHandler`, since that would validate
 				// the position and ruin the markers
-				const cursors = this.cursors.getAll();
-				const selectionsFromMarkers: Selection[] = cursors.map((cursor) => {
-					return cursor.readSelectionFromMarkers(this.context);
-				});
-
+				const selectionsFromMarkers = this.cursors.readSelectionFromMarkers();
 				this._onHandler('recoverSelectionFromMarkers', (ctx: IMultipleCursorOperationContext) => {
-					for (let i = 0, len = cursors.length; i < len; i++) {
-						cursors[i].setSelection(this.context, selectionsFromMarkers[i]);
-					}
 					ctx.cursorPositionChangeReason = CursorChangeReason.RecoverFromMarkers;
 					ctx.shouldReveal = false;
 					ctx.shouldPushStackElementBefore = false;
 					ctx.shouldPushStackElementAfter = false;
+					this.cursors.setSelections(selectionsFromMarkers);
 				}, 'modelChange', null);
 			}
 		}
@@ -367,8 +361,6 @@ export class Cursor extends Disposable implements ICursors {
 		var ctx: IMultipleCursorOperationContext = {
 			cursorPositionChangeReason: CursorChangeReason.NotSet,
 			shouldReveal: true,
-			shouldRevealHorizontal: true,
-			shouldRevealTarget: RevealTarget.Primary,
 			eventSource: eventSource,
 			eventData: eventData,
 			executeCommands: [],
@@ -396,16 +388,12 @@ export class Cursor extends Disposable implements ICursors {
 
 			let cursorPositionChangeReason: CursorChangeReason;
 			let shouldReveal: boolean;
-			let shouldRevealHorizontal: boolean;
-			let shouldRevealTarget: RevealTarget;
 
 			this._createAndInterpretHandlerCtx(source, data, (currentHandlerCtx: IMultipleCursorOperationContext) => {
 				handler(currentHandlerCtx);
 
 				cursorPositionChangeReason = currentHandlerCtx.cursorPositionChangeReason;
 				shouldReveal = currentHandlerCtx.shouldReveal;
-				shouldRevealTarget = currentHandlerCtx.shouldRevealTarget;
-				shouldRevealHorizontal = currentHandlerCtx.shouldRevealHorizontal;
 			});
 
 			const newSelections = this.cursors.getSelections();
@@ -431,7 +419,7 @@ export class Cursor extends Disposable implements ICursors {
 				this.emitCursorPositionChanged(source, cursorPositionChangeReason);
 
 				if (shouldReveal) {
-					this.revealRange(shouldRevealTarget, VerticalRevealType.Simple, shouldRevealHorizontal);
+					this._revealRange(RevealTarget.Primary, VerticalRevealType.Simple, true);
 				}
 				this.emitCursorSelectionChanged(source, cursorPositionChangeReason);
 			}
@@ -801,13 +789,13 @@ export class Cursor extends Disposable implements ICursors {
 			viewSelection: primaryViewSelection,
 			secondarySelections: secondarySelections,
 			secondaryViewSelections: secondaryViewSelections,
-			source: source,
+			source: source || 'keyboard',
 			reason: reason
 		};
 		this._eventEmitter.emit(CursorEventType.CursorSelectionChanged, e);
 	}
 
-	private revealRange(revealTarget: RevealTarget, verticalType: VerticalRevealType, revealHorizontal: boolean): void {
+	private _revealRange(revealTarget: RevealTarget, verticalType: VerticalRevealType, revealHorizontal: boolean): void {
 		var positions = this.cursors.getPositions();
 		var viewPositions = this.cursors.getViewPositions();
 
@@ -872,8 +860,6 @@ export class Cursor extends Disposable implements ICursors {
 	private _registerHandlers(): void {
 		let H = editorCommon.Handler;
 
-		this._handlers[H.SelectAll] = (ctx) => this._selectAll(ctx);
-
 		this._handlers[H.LineInsertBefore] = (ctx) => this._lineInsertBefore(ctx);
 		this._handlers[H.LineInsertAfter] = (ctx) => this._lineInsertAfter(ctx);
 		this._handlers[H.LineBreakInsert] = (ctx) => this._lineBreakInsert(ctx);
@@ -897,8 +883,6 @@ export class Cursor extends Disposable implements ICursors {
 
 		this._handlers[H.ExecuteCommand] = (ctx) => this._externalExecuteCommand(ctx);
 		this._handlers[H.ExecuteCommands] = (ctx) => this._externalExecuteCommands(ctx);
-
-		this._handlers[H.RevealLine] = (ctx) => this._revealLine(ctx);
 	}
 
 	public getColumnSelectData(): IColumnSelectData {
@@ -913,19 +897,10 @@ export class Cursor extends Disposable implements ICursors {
 		};
 	}
 
-	private _selectAll(ctx: IMultipleCursorOperationContext): void {
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-		ctx.shouldReveal = false;
-		const result = CursorMoveCommands.selectAll(this.context, this.getPrimaryCursor());
-		this.cursors.setStates([result], false);
-	}
-
 	// -------------------- START editing operations
 
 	private _applyEdits(ctx: IMultipleCursorOperationContext, edits: EditOperationResult): void {
 		ctx.shouldReveal = true;
-		ctx.shouldRevealHorizontal = true;
 		ctx.shouldPushStackElementBefore = edits.shouldPushStackElementBefore;
 		ctx.shouldPushStackElementAfter = edits.shouldPushStackElementAfter;
 
@@ -990,7 +965,6 @@ export class Cursor extends Disposable implements ICursors {
 					// The last typed character gets to win
 					ctx.cursorPositionChangeReason = charHandlerCtx.cursorPositionChangeReason;
 					ctx.shouldReveal = charHandlerCtx.shouldReveal;
-					ctx.shouldRevealHorizontal = charHandlerCtx.shouldRevealHorizontal;
 				});
 
 			}
@@ -1074,43 +1048,6 @@ export class Cursor extends Disposable implements ICursors {
 
 	// -------------------- END editing operations
 
-
-	private _revealLine(ctx: IMultipleCursorOperationContext): void {
-		const revealLineArg = <RevealLine.RawArguments>ctx.eventData;
-		let lineNumber = revealLineArg.lineNumber + 1;
-		if (lineNumber < 1) {
-			lineNumber = 1;
-		}
-		const lineCount = this.model.getLineCount();
-		if (lineNumber > lineCount) {
-			lineNumber = lineCount;
-		}
-
-		const range = new Range(
-			lineNumber, 1,
-			lineNumber, this.model.getLineMaxColumn(lineNumber)
-		);
-
-		let revealAt = VerticalRevealType.Simple;
-		if (revealLineArg.at) {
-			switch (revealLineArg.at) {
-				case RevealLine.RawAtArgument.Top:
-					revealAt = VerticalRevealType.Top;
-					break;
-				case RevealLine.RawAtArgument.Center:
-					revealAt = VerticalRevealType.Center;
-					break;
-				case RevealLine.RawAtArgument.Bottom:
-					revealAt = VerticalRevealType.Bottom;
-					break;
-				default:
-					break;
-			}
-		}
-
-		this.emitCursorRevealRange(range, null, revealAt, false);
-	}
-
 	private _undo(ctx: IMultipleCursorOperationContext): void {
 		ctx.cursorPositionChangeReason = CursorChangeReason.Undo;
 		this._interpretCommandResult(this.model.undo());
@@ -1127,7 +1064,6 @@ export class Cursor extends Disposable implements ICursors {
 		this.cursors.killSecondaryCursors();
 
 		ctx.shouldReveal = true;
-		ctx.shouldRevealHorizontal = true;
 
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
@@ -1140,13 +1076,11 @@ export class Cursor extends Disposable implements ICursors {
 		const commands = <editorCommon.ICommand[]>ctx.eventData;
 
 		ctx.shouldReveal = true;
-		ctx.shouldRevealHorizontal = true;
 
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
 
-		const cursors = this.cursors.getAll();
-		for (let i = 0; i < cursors.length; i++) {
+		for (let i = 0; i < commands.length; i++) {
 			ctx.executeCommands[i] = commands[i];
 			ctx.isAutoWhitespaceCommand[i] = false;
 		}

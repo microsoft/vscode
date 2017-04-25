@@ -17,7 +17,7 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 import { ICoordinatesConverter } from "vs/editor/common/viewModel/viewModel";
-import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
+import { CursorChangeReason, VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
 
 export interface IColumnSelectData {
 	toViewLineNumber: number;
@@ -41,6 +41,8 @@ export interface ICursors {
 
 	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
 	reveal(horizontal: boolean, target: RevealTarget): void;
+	revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: VerticalRevealType);
+
 	scrollTo(desiredScrollTop: number): void;
 }
 

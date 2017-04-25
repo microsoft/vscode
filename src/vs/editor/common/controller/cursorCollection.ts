@@ -42,16 +42,25 @@ export class CursorCollection {
 		}
 	}
 
-	public getAll(): OneCursor[] {
+	public readSelectionFromMarkers(): Selection[] {
+		let result: Selection[] = [];
+		result[0] = this.primaryCursor.readSelectionFromMarkers(this.context);
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			result[i + 1] = this.secondaryCursors[i].readSelectionFromMarkers(this.context);
+		}
+		return result;
+	}
+
+	private _getAll(): OneCursor[] {
 		var result: OneCursor[] = [];
 		result.push(this.primaryCursor);
 		result = result.concat(this.secondaryCursors);
 		return result;
 	}
 
-	public getAll2(): CursorState[] {
+	public getAll(): CursorState[] {
 		let result: CursorState[] = [];
-		result.push(this.primaryCursor.asCursorState());
+		result[0] = this.primaryCursor.asCursorState();
 		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
 			result[i + 1] = this.secondaryCursors[i].asCursorState();
 		}
@@ -99,33 +108,29 @@ export class CursorCollection {
 		this._setSecondarySelections(selections.slice(1));
 	}
 
-	public getPrimaryCursor(): OneCursor {
-		return this.primaryCursor;
-	}
-
-	public getPrimaryCursor2(): CursorState {
+	public getPrimaryCursor(): CursorState {
 		return this.primaryCursor.asCursorState();
 	}
 
-	public setStates(states: CursorState[], ensureInEditableRange: boolean): void {
+	public setStates(states: CursorState[]): void {
 		if (states === null) {
 			return;
 		}
-		this.primaryCursor.setState(this.context, states[0].modelState, states[0].viewState, ensureInEditableRange);
-		this._setSecondaryStates(states.slice(1), ensureInEditableRange);
+		this.primaryCursor.setState(this.context, states[0].modelState, states[0].viewState);
+		this._setSecondaryStates(states.slice(1));
 	}
 
 	/**
 	 * Creates or disposes secondary cursors as necessary to match the number of `secondarySelections`.
 	 */
-	private _setSecondaryStates(secondaryStates: CursorState[], ensureInEditableRange: boolean): void {
+	private _setSecondaryStates(secondaryStates: CursorState[]): void {
 		const secondaryCursorsLength = this.secondaryCursors.length;
 		const secondaryStatesLength = secondaryStates.length;
 
 		if (secondaryCursorsLength < secondaryStatesLength) {
 			let createCnt = secondaryStatesLength - secondaryCursorsLength;
 			for (let i = 0; i < createCnt; i++) {
-				this.addSecondaryCursor(null);
+				this._addSecondaryCursor(null);
 			}
 		} else if (secondaryCursorsLength > secondaryStatesLength) {
 			let removeCnt = secondaryCursorsLength - secondaryStatesLength;
@@ -135,7 +140,7 @@ export class CursorCollection {
 		}
 
 		for (let i = 0; i < secondaryStatesLength; i++) {
-			this.secondaryCursors[i].setState(this.context, secondaryStates[i].modelState, secondaryStates[i].viewState, ensureInEditableRange);
+			this.secondaryCursors[i].setState(this.context, secondaryStates[i].modelState, secondaryStates[i].viewState);
 		}
 	}
 
@@ -147,20 +152,13 @@ export class CursorCollection {
 		this._mergeCursorsIfNecessary();
 	}
 
-	public addSecondaryCursor(selection: ISelection): void {
+	private _addSecondaryCursor(selection: ISelection): void {
 		var newCursor = new OneCursor(this.context);
 		if (selection) {
 			newCursor.setSelection(this.context, selection);
 		}
 		this.secondaryCursors.push(newCursor);
 		this.lastAddedCursorIndex = this.secondaryCursors.length;
-	}
-
-	public getLastAddedCursor(): OneCursor {
-		if (this.secondaryCursors.length === 0 || this.lastAddedCursorIndex === 0) {
-			return this.primaryCursor;
-		}
-		return this.secondaryCursors[this.lastAddedCursorIndex - 1];
 	}
 
 	public getLastAddedCursorIndex(): number {
@@ -185,7 +183,7 @@ export class CursorCollection {
 		if (secondaryCursorsLength < secondarySelectionsLength) {
 			var createCnt = secondarySelectionsLength - secondaryCursorsLength;
 			for (var i = 0; i < createCnt; i++) {
-				this.addSecondaryCursor(null);
+				this._addSecondaryCursor(null);
 			}
 		} else if (secondaryCursorsLength > secondarySelectionsLength) {
 			var removeCnt = secondaryCursorsLength - secondarySelectionsLength;
@@ -215,7 +213,7 @@ export class CursorCollection {
 		if (this.secondaryCursors.length === 0) {
 			return;
 		}
-		var cursors = this.getAll();
+		var cursors = this._getAll();
 		var sortedCursors: {
 			index: number;
 			selection: Selection;
