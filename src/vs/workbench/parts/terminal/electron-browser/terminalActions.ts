@@ -295,15 +295,16 @@ export class RunActiveFileInTerminalAction extends Action {
 			return TPromise.as(void 0);
 		}
 		const editor = this.codeEditorService.getFocusedCodeEditor();
-		if (editor) {
-			const uri = editor.getModel().uri;
-			if (uri.scheme === 'file') {
-				instance.sendText(uri.fsPath, true);
-			} else {
-				this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
-			}
+		if (!editor) {
+			return TPromise.as(void 0);
 		}
-		return TPromise.as(void 0);
+		const uri = editor.getModel().uri;
+		if (uri.scheme !== 'file') {
+			this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
+			return TPromise.as(void 0);
+		}
+		instance.sendText(uri.fsPath, true);
+		return this.terminalService.showPanel();
 	}
 }
 
