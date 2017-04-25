@@ -15,7 +15,7 @@ import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { EditorModel } from 'vs/workbench/common/editor';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
@@ -551,7 +551,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				result.push(settingsGroup);
 			}
 			const configurationSettings: ISetting[] = this.parseSettings(config.properties);
-			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
+			if (configurationSettings.length) {
+				settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
+			}
 		}
 		if (config.allOf) {
 			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup));
@@ -559,14 +561,18 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return result;
 	}
 
-	private parseSettings(settingsObject: any): ISetting[] {
-		return Object.keys(settingsObject).map((key) => {
+	private parseSettings(settingsObject: { [path: string]: IConfigurationPropertySchema; }): ISetting[] {
+		let result = [];
+		for (let key in settingsObject) {
 			const prop = settingsObject[key];
-			const value = prop.default;
-			const description = (prop.description || '').split('\n');
-			const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-			return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides };
-		});
+			if (!prop.deprecationMessage) {
+				const value = prop.default;
+				const description = (prop.description || '').split('\n');
+				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
+				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides });
+			}
+		}
+		return result;
 	}
 
 	private parseOverrideSettings(overrideSettings: any): ISetting[] {
