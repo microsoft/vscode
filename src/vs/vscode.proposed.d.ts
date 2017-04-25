@@ -538,30 +538,43 @@ declare module 'vscode' {
 	export namespace window {
 
 		/**
-		 * Register a [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
+		 * Create a new [TreeView](#TreeView) instance.
 		 *
-		 * @param providerId A unique id that identifies the provider.
-		 * @param provider A [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * @param viewId A unique id that identifies the view.
+		 * @param provider A [TreeDataProvider](#TreeDataProvider).
+		 * @return An instance of [TreeView](#TreeView).
 		 */
-		export function registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable;
+		export function createTreeView<T>(viewId: string, provider: TreeDataProvider<T>): TreeView<T>;
 	}
 
 	/**
-	 * A node provider for a tree explorer contribution.
+	 * An source control is able to provide [resource states](#SourceControlResourceState)
+	 * to the editor and interact with the editor in several source control related ways.
+	 */
+	export interface TreeView<T> {
+
+		/**
+		 * Refresh the given nodes
+		 */
+		refresh(...nodes: T[]): void;
+
+		/**
+		 * Dispose this view
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * A data provider for a tree view contribution.
 	 *
-	 * Providers are registered through (#window.registerTreeExplorerNodeProvider) with a
-	 * `providerId` that corresponds to the `treeExplorerNodeProviderId` in the extension's
-	 * `contributes.explorer` section.
-	 *
-	 * The contributed tree explorer will ask the corresponding provider to provide the root
+	 * The contributed tree view will ask the corresponding provider to provide the root
 	 * node and resolve children for each node. In addition, the provider could **optionally**
 	 * provide the following information for each node:
 	 * - label: A human-readable label used for rendering the node.
 	 * - hasChildren: Whether the node has children and is expandable.
 	 * - clickCommand: A command to execute when the node is clicked.
 	 */
-	export interface TreeExplorerNodeProvider<T> {
+	export interface TreeDataProvider<T> {
 
 		/**
 		 * Provide the root node. This function will be called when the tree explorer is activated
@@ -607,11 +620,6 @@ declare module 'vscode' {
 		 * @return The command to execute when `node` is clicked.
 		 */
 		getClickCommand?(node: T): Command;
-
-		/**
-		 * Event to be listened for any changes
-		 */
-		onChange?: Event<T>;
 	}
 
 	/**

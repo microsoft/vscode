@@ -7,7 +7,7 @@
 import Event from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { InternalTreeNode, InternalTreeNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 
 export const ITreeExplorerService = createDecorator<ITreeExplorerService>('treeExplorerService');
 
@@ -18,11 +18,11 @@ export interface ITreeExplorerService {
 	activeProvider: string;
 
 	onTreeExplorerNodeProviderRegistered: Event<String>;
-	registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void;
+	registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeNodeProvider): void;
 	hasProvider(providerId: string): boolean;
-	getProvider(providerId: string): InternalTreeExplorerNodeProvider;
+	getProvider(providerId: string): InternalTreeNodeProvider;
 
-	provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode>;
-	resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]>;
-	executeCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<void>;
+	provideRootNode(providerId: string): TPromise<InternalTreeNode>;
+	resolveChildren(providerId: string, node: InternalTreeNode): TPromise<InternalTreeNode[]>;
+	executeCommand(providerId: string, node: InternalTreeNode): TPromise<void>;
 }

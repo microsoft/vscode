@@ -7,20 +7,20 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event from 'vs/base/common/event';
 
-export interface InternalTreeExplorerNodeContent {
+export interface InternalTreeNodeContent {
 	label: string;
 	hasChildren: boolean;
 	clickCommand: string;
 }
 
-export interface InternalTreeExplorerNode extends InternalTreeExplorerNodeContent {
+export interface InternalTreeNode extends InternalTreeNodeContent {
 	readonly id: string;
 }
 
-export interface InternalTreeExplorerNodeProvider {
+export interface InternalTreeNodeProvider {
 	id: string;
-	provideRootNode(): Thenable<InternalTreeExplorerNodeContent>;
-	resolveChildren(node: InternalTreeExplorerNodeContent): Thenable<InternalTreeExplorerNodeContent[]>;
-	executeCommand(node: InternalTreeExplorerNodeContent): TPromise<any>;
-	onRefresh?: Event<InternalTreeExplorerNodeContent>;
+	provideRootNode(): Thenable<InternalTreeNodeContent>;
+	resolveChildren(node: InternalTreeNodeContent): Thenable<InternalTreeNodeContent[]>;
+	executeCommand(node: InternalTreeNodeContent): TPromise<any>;
+	onRefresh?: Event<InternalTreeNodeContent>;
 }

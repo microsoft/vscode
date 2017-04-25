@@ -8,7 +8,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { InternalTreeExplorerNode, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { InternalTreeNode, InternalTreeNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
@@ -24,7 +24,7 @@ export class TreeExplorerService implements ITreeExplorerService {
 	private _onTreeExplorerNodeProviderRegistered = new Emitter<String>();
 	public get onTreeExplorerNodeProviderRegistered(): Event<string> { return this._onTreeExplorerNodeProviderRegistered.event; };
 
-	private _treeExplorerNodeProviders: { [providerId: string]: InternalTreeExplorerNodeProvider };
+	private _treeExplorerNodeProviders: { [providerId: string]: InternalTreeNodeProvider };
 
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -53,7 +53,7 @@ export class TreeExplorerService implements ITreeExplorerService {
 		this._onDidChangeProvider.fire(provider);
 	}
 
-	public registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeExplorerNodeProvider): void {
+	public registerTreeExplorerNodeProvider(providerId: string, provider: InternalTreeNodeProvider): void {
 		this._treeExplorerNodeProviders[providerId] = provider;
 		this._onTreeExplorerNodeProviderRegistered.fire(providerId);
 	}
@@ -62,22 +62,22 @@ export class TreeExplorerService implements ITreeExplorerService {
 		return !!this._treeExplorerNodeProviders[providerId];
 	}
 
-	public provideRootNode(providerId: string): TPromise<InternalTreeExplorerNode> {
+	public provideRootNode(providerId: string): TPromise<InternalTreeNode> {
 		const provider = this.getProvider(providerId);
 		return TPromise.wrap(provider.provideRootNode());
 	}
 
-	public resolveChildren(providerId: string, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
+	public resolveChildren(providerId: string, node: InternalTreeNode): TPromise<InternalTreeNode[]> {
 		const provider = this.getProvider(providerId);
 		return TPromise.wrap(provider.resolveChildren(node));
 	}
 
-	public executeCommand(providerId: string, node: InternalTreeExplorerNode): TPromise<any> {
+	public executeCommand(providerId: string, node: InternalTreeNode): TPromise<any> {
 		const provider = this.getProvider(providerId);
 		return TPromise.wrap(provider.executeCommand(node));
 	}
 
-	public getProvider(providerId: string): InternalTreeExplorerNodeProvider {
+	public getProvider(providerId: string): InternalTreeNodeProvider {
 		const provider = this._treeExplorerNodeProviders[providerId];
 
 		if (!provider) {

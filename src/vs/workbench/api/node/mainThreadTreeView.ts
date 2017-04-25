@@ -2,19 +2,19 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/*'use strict';
+'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, MainThreadTreeShape, ExtHostTreeShape } from './extHost.protocol';
+import { ExtHostContext, MainThreadTreeViewShape, ExtHostTreeViewShape } from './extHost.protocol';
 import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
-import { InternalTreeExplorerNodeContent, InternalTreeExplorerNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { InternalTreeNodeContent, InternalTreeNodeProvider } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
-export class MainThreadTree extends MainThreadTreeShape {
-	private _proxy: ExtHostTreeShape;
+export class MainThreadTreeView extends MainThreadTreeViewShape {
+	private _proxy: ExtHostTreeViewShape;
 
 	constructor(
 		@IThreadService threadService: IThreadService,
@@ -24,42 +24,41 @@ export class MainThreadTree extends MainThreadTreeShape {
 	) {
 		super();
 
-		this._proxy = threadService.get(ExtHostContext.ExtHostTree);
+		this._proxy = threadService.get(ExtHostContext.ExtHostTreeView);
 	}
 
-	$registerTreeExplorerNodeProvider(providerId: string, rootNode: InternalTreeExplorerNodeContent): void {
-		const provider = new TreeExplorerNodeProvider(providerId, rootNode, this._proxy, this.messageService, this.commandService);
+	$registerTreeDataProvider(providerId: string): void {
+		const provider = new TreeExplorerNodeProvider(providerId, this._proxy, this.messageService, this.commandService);
 		this.treeExplorerService.registerTreeExplorerNodeProvider(providerId, provider);
 	}
 
-	$refresh(providerId: string, node: InternalTreeExplorerNodeContent): void {
+	$refresh(providerId: string, node: InternalTreeNodeContent): void {
 		(<TreeExplorerNodeProvider>this.treeExplorerService.getProvider(providerId))._onRefresh.fire(node);
 	}
 }
 
-class TreeExplorerNodeProvider implements InternalTreeExplorerNodeProvider {
+class TreeExplorerNodeProvider implements InternalTreeNodeProvider {
 
-	readonly _onRefresh: Emitter<InternalTreeExplorerNodeContent> = new Emitter<InternalTreeExplorerNodeContent>();
-	readonly onRefresh: Event<InternalTreeExplorerNodeContent> = this._onRefresh.event;
+	readonly _onRefresh: Emitter<InternalTreeNodeContent> = new Emitter<InternalTreeNodeContent>();
+	readonly onRefresh: Event<InternalTreeNodeContent> = this._onRefresh.event;
 
-	constructor(public readonly id: string, private rootNode: InternalTreeExplorerNodeContent, private _proxy: ExtHostTreeShape,
+	constructor(public readonly id: string, private _proxy: ExtHostTreeViewShape,
 		private messageService: IMessageService,
 		private commandService: ICommandService
 	) {
 	}
 
-	provideRootNode(): TPromise<InternalTreeExplorerNodeContent> {
-		return TPromise.as(this.rootNode);
+	provideRootNode(): TPromise<InternalTreeNodeContent> {
+		return this._proxy.$provideRootNode(this.id).then(rootNode => rootNode, err => this.messageService.show(Severity.Error, err));
 	}
 
-	resolveChildren(node: InternalTreeExplorerNodeContent): TPromise<InternalTreeExplorerNodeContent[]> {
+	resolveChildren(node: InternalTreeNodeContent): TPromise<InternalTreeNodeContent[]> {
 		return this._proxy.$resolveChildren(this.id, node).then(children => children, err => this.messageService.show(Severity.Error, err));
 	}
 
-	executeCommand(node: InternalTreeExplorerNodeContent): TPromise<any> {
+	executeCommand(node: InternalTreeNodeContent): TPromise<any> {
 		return this._proxy.$getInternalCommand(this.id, node).then(command => {
 			return this.commandService.executeCommand(command.id, ...command.arguments);
 		});
 	}
 }
-*/

@@ -18,7 +18,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { ExtHostTreeExplorers } from 'vs/workbench/api/node/extHostTreeExplorers';
+import { ExtHostTreeView } from 'vs/workbench/api/node/extHostTreeView';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostQuickOpen } from 'vs/workbench/api/node/extHostQuickOpen';
 import { ExtHostProgress } from 'vs/workbench/api/node/extHostProgress';
@@ -111,7 +111,7 @@ export function createApiFactory(
 	const extHostDocumentSaveParticipant = col.define(ExtHostContext.ExtHostDocumentSaveParticipant).set<ExtHostDocumentSaveParticipant>(new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadWorkspace)));
 	const extHostEditors = col.define(ExtHostContext.ExtHostEditors).set<ExtHostEditors>(new ExtHostEditors(threadService, extHostDocumentsAndEditors));
 	const extHostCommands = col.define(ExtHostContext.ExtHostCommands).set<ExtHostCommands>(new ExtHostCommands(threadService, extHostHeapService));
-	const extHostExplorers = col.define(ExtHostContext.ExtHostExplorers).set<ExtHostTreeExplorers>(new ExtHostTreeExplorers(threadService, extHostCommands));
+	const extHostTreeView = col.define(ExtHostContext.ExtHostTreeView).set<ExtHostTreeView>(new ExtHostTreeView(threadService, extHostCommands));
 	const extHostConfiguration = col.define(ExtHostContext.ExtHostConfiguration).set<ExtHostConfiguration>(new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), initData.configuration));
 	const extHostDiagnostics = col.define(ExtHostContext.ExtHostDiagnostics).set<ExtHostDiagnostics>(new ExtHostDiagnostics(threadService));
 	const languageFeatures = col.define(ExtHostContext.ExtHostLanguageFeatures).set<ExtHostLanguageFeatures>(new ExtHostLanguageFeatures(threadService, extHostDocuments, extHostCommands, extHostHeapService, extHostDiagnostics));
@@ -363,8 +363,8 @@ export function createApiFactory(
 			sampleFunction: proposedApiFunction(extension, () => {
 				return extHostMessageService.showMessage(Severity.Info, 'Hello Proposed Api!', {}, []);
 			}),
-			registerTreeExplorerNodeProvider: proposedApiFunction(extension, (providerId: string, provider: vscode.TreeExplorerNodeProvider<any>) => {
-				return extHostExplorers.registerTreeExplorerNodeProvider(providerId, provider);
+			createTreeView: proposedApiFunction(extension, (providerId: string, provider: vscode.TreeDataProvider<any>): vscode.TreeView<any> => {
+				return extHostTreeView.createTreeView(providerId, provider);
 			})
 		};
 

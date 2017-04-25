@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { $, Builder } from 'vs/base/browser/builder';
 import { ITree, IDataSource, IRenderer, IActionProvider } from 'vs/base/parts/tree/browser/tree';
-import { InternalTreeExplorerNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { InternalTreeNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IActionRunner } from 'vs/base/common/actions';
@@ -25,15 +25,15 @@ export class TreeDataSource implements IDataSource {
 
 	}
 
-	public getId(tree: ITree, node: InternalTreeExplorerNode): string {
+	public getId(tree: ITree, node: InternalTreeNode): string {
 		return node.id.toString();
 	}
 
-	public hasChildren(tree: ITree, node: InternalTreeExplorerNode): boolean {
+	public hasChildren(tree: ITree, node: InternalTreeNode): boolean {
 		return node.hasChildren;
 	}
 
-	public getChildren(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode[]> {
+	public getChildren(tree: ITree, node: InternalTreeNode): TPromise<InternalTreeNode[]> {
 		const promise = this.treeExplorerService.resolveChildren(this.treeNodeProviderId, node);
 
 		this.progressService.showWhile(promise, 800);
@@ -41,7 +41,7 @@ export class TreeDataSource implements IDataSource {
 		return promise;
 	}
 
-	public getParent(tree: ITree, node: InternalTreeExplorerNode): TPromise<InternalTreeExplorerNode> {
+	public getParent(tree: ITree, node: InternalTreeNode): TPromise<InternalTreeNode> {
 		return TPromise.as(null);
 	}
 }
@@ -80,7 +80,7 @@ export class TreeRenderer implements IRenderer {
 		return { label: link };
 	}
 
-	public renderElement(tree: ITree, node: InternalTreeExplorerNode, templateId: string, templateData: ITreeExplorerTemplateData): void {
+	public renderElement(tree: ITree, node: InternalTreeNode, templateId: string, templateData: ITreeExplorerTemplateData): void {
 		templateData.label.text(node.label).title(node.label);
 	}
 
@@ -97,7 +97,7 @@ export class TreeController extends DefaultController {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false });
 	}
 
-	public onLeftClick(tree: ITree, node: InternalTreeExplorerNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
+	public onLeftClick(tree: ITree, node: InternalTreeNode, event: IMouseEvent, origin: string = 'mouse'): boolean {
 		super.onLeftClick(tree, node, event, origin);
 
 		if (node.clickCommand) {
