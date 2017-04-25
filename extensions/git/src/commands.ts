@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState } from 'vscode';
-import { Ref, RefType, Git } from './git';
+import { Ref, RefType, Git, GitErrorCodes } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
@@ -801,8 +801,11 @@ export class CommandCenter {
 				let message: string;
 
 				switch (err.gitErrorCode) {
-					case 'DirtyWorkTree':
+					case GitErrorCodes.DirtyWorkTree:
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
+						break;
+					case GitErrorCodes.PushRejected:
+						message = localize('cant push', "Can't push refs to remote. Run 'Pull' first to integrate your changes.");
 						break;
 					default:
 						const hint = (err.stderr || err.message || String(err))
