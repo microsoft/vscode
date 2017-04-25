@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, window, workspace } from 'vscode';
+import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
 import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -531,7 +531,7 @@ export class Model implements Disposable {
 		};
 
 		return shouldShowProgress(operation)
-			? window.withScmProgress(run)
+			? window.withProgress({ location: ProgressLocation.Scm }, run)
 			: run();
 	}
 
