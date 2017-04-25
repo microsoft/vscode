@@ -111,14 +111,6 @@
 
 /* TODO@theme */
 
-.vs .global-message-list {
-	box-shadow: 0 5px 8px #A8A8A8;
-}
-
-.vs-dark .global-message-list  {
-	box-shadow: 0 5px 8px #000;
-}
-
 .vs .global-message-list li.message-list-entry .actions-container .message-action .action-button:focus,
 .vs-dark .global-message-list li.message-list-entry .actions-container .message-action .action-button:focus {
 	outline-color: rgba(255, 255, 255, .5); /* buttons have a blue color, so focus indication needs to be different */

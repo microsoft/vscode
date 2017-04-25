@@ -22,7 +22,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_INFO_BACKGROUND, NOTIFICATIONS_ERROR_BACKGROUND, NOTIFICATIONS_WARNING_BACKGROUND } from "vs/workbench/common/theme";
 import { ITelemetryService } from "vs/platform/telemetry/common/telemetry";
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { highContrastBorder, buttonBackground, buttonHoverBackground } from "vs/platform/theme/common/colorRegistry";
+import { highContrastBorder, buttonBackground, buttonHoverBackground, widgetShadow } from "vs/platform/theme/common/colorRegistry";
 import { IDisposable, dispose } from "vs/base/common/lifecycle";
 import { Color } from "vs/base/common/color";
 
@@ -74,6 +74,7 @@ export class MessageList {
 
 	private background = Color.fromHex('#333333');
 	private foreground = Color.fromHex('#EEEEEE');
+	private widgetShadow = Color.fromHex('#000000');
 	private outlineBorder: Color;
 	private buttonBackground = Color.fromHex('#0E639C');
 	private infoBackground = Color.fromHex('#007ACC');
@@ -103,6 +104,7 @@ export class MessageList {
 		this.toDispose.push(registerThemingParticipant((theme, collector) => {
 			this.background = theme.getColor(NOTIFICATIONS_BACKGROUND);
 			this.foreground = theme.getColor(NOTIFICATIONS_FOREGROUND);
+			this.widgetShadow = theme.getColor(widgetShadow);
 			this.outlineBorder = theme.getColor(highContrastBorder);
 			this.buttonBackground = theme.getColor(buttonBackground);
 			this.infoBackground = theme.getColor(NOTIFICATIONS_INFO_BACKGROUND);
@@ -128,6 +130,7 @@ export class MessageList {
 			this.messageListContainer.style('background-color', this.background ? this.background.toString() : null);
 			this.messageListContainer.style('color', this.foreground ? this.foreground.toString() : null);
 			this.messageListContainer.style('outline-color', this.outlineBorder ? this.outlineBorder.toString() : null);
+			this.messageListContainer.style('box-shadow', this.widgetShadow ? `0 5px 8px ${this.widgetShadow}` : null);
 		}
 	}
 

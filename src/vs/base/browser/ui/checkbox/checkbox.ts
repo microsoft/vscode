@@ -51,7 +51,7 @@ export class Checkbox extends Widget {
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		this.domNode.setAttribute('aria-label', this._opts.title);
 
-		this._applyStyles();
+		this.applyStyles();
 
 		this.onclick(this.domNode, (ev) => {
 			this.checked = !this._checked;
@@ -85,7 +85,7 @@ export class Checkbox extends Widget {
 		this._checked = newIsChecked;
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		this.domNode.className = this._className();
-		this._applyStyles();
+		this.applyStyles();
 	}
 
 	private _className(): string {
@@ -96,14 +96,14 @@ export class Checkbox extends Widget {
 		return 2 /*marginleft*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
-	public style(styles: ICheckboxStyles) {
+	public style(styles: ICheckboxStyles): void {
 		if (styles.inputActiveOptionBorder) {
 			this._opts.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		}
-		this._applyStyles();
+		this.applyStyles();
 	}
 
-	protected _applyStyles() {
+	protected applyStyles(): void {
 		if (this.domNode) {
 			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : null;
 		}

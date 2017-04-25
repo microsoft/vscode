@@ -242,7 +242,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 		}); // style() will trigger _applyStyles
 	}
 
-	protected _applyStyles() {
+	protected _applyStyles(): void {
 		if (this._parentContainer) {
 			this._parentContainer.style.backgroundColor = this._backgroundColor.toString();
 		}

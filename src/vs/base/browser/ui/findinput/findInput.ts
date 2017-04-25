@@ -146,15 +146,15 @@ export class FindInput extends Widget {
 		}
 	}
 
-	public style(styles: IFindInputStyles) {
+	public style(styles: IFindInputStyles): void {
 		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		this.inputBackground = styles.inputBackground;
 		this.inputForeground = styles.inputForeground;
 
-		this._applyStyles();
+		this.applyStyles();
 	}
 
-	protected _applyStyles() {
+	protected applyStyles(): void {
 		if (this.domNode) {
 			const checkBoxStyles: ICheckboxStyles = {
 				inputActiveOptionBorder: this.inputActiveOptionBorder,

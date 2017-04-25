@@ -161,7 +161,7 @@ export class InputBox extends Widget {
 			this.actionbar.push(this.options.actions, { icon: true, label: false });
 		}
 
-		this._applyStyles();
+		this.applyStyles();
 	}
 
 	private onBlur(): void {
@@ -395,15 +395,15 @@ export class InputBox extends Widget {
 		this.layout();
 	}
 
-	public style(styles: IInputBoxStyles) {
+	public style(styles: IInputBoxStyles): void {
 		this.inputBackground = styles.inputBackground;
 		this.inputForeground = styles.inputForeground;
 		this.inputBorder = styles.inputBorder;
 
-		this._applyStyles();
+		this.applyStyles();
 	}
 
-	protected _applyStyles() {
+	protected applyStyles(): void {
 		if (this.element) {
 			const background = this.inputBackground ? this.inputBackground.toString() : null;
 			const foreground = this.inputForeground ? this.inputForeground.toString() : null;

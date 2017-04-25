@@ -28,7 +28,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Themable } from "vs/workbench/common/theme";
 import { IThemeService } from "vs/platform/theme/common/themeService";
-import { registerColor, highContrastBorder } from "vs/platform/theme/common/colorRegistry";
+import { registerColor, highContrastBorder, widgetShadow } from "vs/platform/theme/common/colorRegistry";
 import { localize } from "vs/nls";
 
 const $ = builder.$;
@@ -145,6 +145,9 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		if (this.$el) {
 			this.$el.style('background-color', this.getColor(debugToolBarBackground));
+
+			const widgetShadowColor = this.getColor(widgetShadow);
+			this.$el.style('box-shadow', widgetShadowColor ? `0 5px 8px ${widgetShadow}` : null);
 
 			const hcBorder = this.getColor(highContrastBorder);
 			this.$el.style('border-style', hcBorder ? 'solid' : null);

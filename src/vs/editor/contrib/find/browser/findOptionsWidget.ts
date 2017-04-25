@@ -14,7 +14,7 @@ import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { CaseSensitiveCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IThemeService, ITheme, registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { inputActiveOptionBorder, editorWidgetBackground, highContrastBorder, editorWidgetShadow } from "vs/platform/theme/common/colorRegistry";
+import { inputActiveOptionBorder, editorWidgetBackground, highContrastBorder, widgetShadow } from "vs/platform/theme/common/colorRegistry";
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
@@ -177,9 +177,9 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor.${theme.selector} .findOptionsWidget { background-color: ${widgetBackground}; }`);
 	}
 
-	let widgetShadow = theme.getColor(editorWidgetShadow);
-	if (widgetShadow) {
-		collector.addRule(`.monaco-editor.${theme.selector} .findOptionsWidget { box-shadow: 0 2px 8px ${widgetShadow}; }`);
+	let widgetShadowColor = theme.getColor(widgetShadow);
+	if (widgetShadowColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .findOptionsWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 
 	let hcBorder = theme.getColor(highContrastBorder);

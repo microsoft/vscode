@@ -44,7 +44,7 @@ export class ExceptionWidget extends ZoneWidget {
 		this._disposables.add(onDidLayoutChangeScheduler);
 	}
 
-	private _applyTheme(theme: ITheme) {
+	private _applyTheme(theme: ITheme): void {
 		this._backgroundColor = theme.getColor(debugExceptionWidgetBackground);
 		let frameColor = theme.getColor(debugExceptionWidgetBorder);
 		this.style({
@@ -53,7 +53,7 @@ export class ExceptionWidget extends ZoneWidget {
 		}); // style() will trigger _applyStyles
 	}
 
-	protected _applyStyles() {
+	protected _applyStyles(): void {
 		if (this.container) {
 			this.container.style.backgroundColor = this._backgroundColor.toString();
 		}

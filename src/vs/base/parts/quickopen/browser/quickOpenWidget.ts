@@ -52,6 +52,7 @@ export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
 	borderColor?: Color;
 	pickerGroupForeground?: Color;
 	pickerGroupBorder?: Color;
+	widgetShadow?: Color;
 }
 
 export interface IShowOptions {
@@ -84,7 +85,8 @@ const defaultStyles = {
 	background: Color.fromHex('#1E1E1E'),
 	foreground: Color.fromHex('#CCCCCC'),
 	pickerGroupForeground: Color.fromHex('#0097FB'),
-	pickerGroupBorder: Color.fromHex('#3F3F46')
+	pickerGroupBorder: Color.fromHex('#3F3F46'),
+	widgetShadow: Color.fromHex('#000000')
 };
 
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
@@ -317,28 +319,30 @@ export class QuickOpenWidget implements IModelProvider {
 			this.layout(this.layoutDimensions);
 		}
 
-		this._applyStyles();
+		this.applyStyles();
 
 		return this.builder.getHTMLElement();
 	}
 
-	public style(styles: IQuickOpenStyles) {
+	public style(styles: IQuickOpenStyles): void {
 		this.styles = styles;
 
-		this._applyStyles();
+		this.applyStyles();
 	}
 
-	protected _applyStyles() {
+	protected applyStyles(): void {
 		if (this.builder) {
 			const foreground = this.styles.foreground ? this.styles.foreground.toString() : null;
 			const background = this.styles.background ? this.styles.background.toString() : null;
 			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : null;
+			const widgetShadow = this.styles.widgetShadow ? this.styles.widgetShadow.toString() : null;
 
 			this.builder.style('color', foreground);
 			this.builder.style('background-color', background);
 			this.builder.style('border-color', borderColor);
 			this.builder.style('border-width', borderColor ? '2px' : null);
 			this.builder.style('border-style', borderColor ? 'solid' : null);
+			this.builder.style('box-shadow', widgetShadow ? `0 5px 8px ${widgetShadow}` : null);
 		}
 
 		if (this.inputBox) {

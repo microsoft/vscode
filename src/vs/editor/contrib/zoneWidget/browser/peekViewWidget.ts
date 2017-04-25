@@ -98,7 +98,7 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 		super.show(where, heightInLines);
 	}
 
-	public style(styles: IPeekViewStyles) {
+	public style(styles: IPeekViewStyles): void {
 		let options = <IPeekViewOptions>this.options;
 		if (styles.headerBackgroundColor) {
 			options.headerBackgroundColor = styles.headerBackgroundColor;
@@ -112,7 +112,7 @@ export abstract class PeekViewWidget extends ZoneWidget implements IPeekViewServ
 		super.style(styles);
 	}
 
-	protected _applyStyles() {
+	protected _applyStyles(): void {
 		super._applyStyles();
 		let options = <IPeekViewOptions>this.options;
 		if (this._headElement) {

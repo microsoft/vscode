@@ -170,7 +170,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this._applyStyles();
 	}
 
-	public style(styles: IStyles) {
+	public style(styles: IStyles): void {
 		if (styles.frameColor) {
 			this.options.frameColor = styles.frameColor;
 		}
@@ -180,7 +180,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this._applyStyles();
 	}
 
-	protected _applyStyles() {
+	protected _applyStyles(): void {
 		if (this.container) {
 			let frameColor = this.options.frameColor.toString();
 			this.container.style.borderTopColor = frameColor;

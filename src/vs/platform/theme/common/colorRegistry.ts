@@ -135,6 +135,8 @@ export const highContrastOutline = registerColor('highContrastOutline', { light:
 /**
  * Widgets
  */
+export const widgetShadow = registerColor('widgetShadow', { dark: '#000000', light: '#A8A8A8', hc: null }, nls.localize('widgetShadow', 'Shadow color of widgets such as find/replace inside the editor.'));
+
 export const inputBackground = registerColor('inputBoxBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('inputBoxBackground', "Input box background."));
 export const inputForeground = registerColor('inputBoxForeground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('inputBoxForeground', "Input box foreground."));
 export const inputBorder = registerColor('inputBoxBorder', { dark: null, light: null, hc: highContrastBorder }, nls.localize('inputBoxBorder', "Input box border."));
@@ -206,7 +208,6 @@ export const editorLinkForeground = registerColor('editorLinkForeground', { dark
  * Find widget
  */
 export const editorWidgetBackground = registerColor('editorWidgetBackground', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
-export const editorWidgetShadow = registerColor('editorWidgetShadow', { dark: '#000000', light: '#A8A8A8', hc: null }, nls.localize('editorWidgetShadow', 'Shadow color of editor widgets such as find/replace.'));
 
 
 // ----- color functions

@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, listHoverOutline, listSelectionOutline, listFocusOutline, listInactiveFocusOutline, pickerGroupBorder, pickerGroupForeground } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, listHoverOutline, listSelectionOutline, listFocusOutline, listInactiveFocusOutline, pickerGroupBorder, pickerGroupForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from "vs/base/common/lifecycle";
 
 export interface IThemable {
@@ -63,6 +63,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 	foreground?: ColorIdentifier,
 	background?: ColorIdentifier,
 	borderColor?: ColorIdentifier,
+	widgetShadow?: ColorIdentifier,
 	inputBackground?: ColorIdentifier,
 	inputForeground?: ColorIdentifier,
 	inputBorder?: ColorIdentifier,
@@ -84,6 +85,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		foreground: (style && style.foreground) || foreground,
 		background: (style && style.background) || editorBackground,
 		borderColor: style && style.borderColor || highContrastBorder,
+		widgetShadow: style && style.widgetShadow || widgetShadow,
 		pickerGroupForeground: style && style.pickerGroupForeground || pickerGroupForeground,
 		pickerGroupBorder: style && style.pickerGroupBorder || pickerGroupBorder,
 		inputBackground: (style && style.inputBackground) || inputBackground,

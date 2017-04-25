@@ -151,18 +151,6 @@
 
 /* Theming */
 
-.quick-open-widget {
-	box-shadow: 0 5px 8px #A8A8A8;
-}
-
-.vs-dark .quick-open-widget {
-	box-shadow: 0 5px 8px #000;
-}
-
-.hc-black .quick-open-widget {
-	box-shadow: none;
-}
-
 .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
 	color: #007ACC;
 	font-weight: bold;
