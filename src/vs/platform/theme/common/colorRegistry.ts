@@ -165,6 +165,11 @@ export const pickerGroupBorder = registerColor('pickerGroupBorder', { dark: '#3F
 export const buttonBackground = registerColor('buttonBackground', { dark: '#0E639C', light: '#007ACC', hc: null }, nls.localize('buttonBackground', "Button background color."));
 export const buttonHoverBackground = registerColor('buttonHoverBackground', { dark: '#007ACC', light: '#006BB3', hc: null }, nls.localize('buttonHoverBackground', "Button background color when hovering."));
 
+export const scrollbarShadow = registerColor('scrollbarShadow', { dark: '#000000', light: '#DDDDDD', hc: null }, nls.localize('scrollbarShadow', "Scrollbar shadow to indicate that the view is scrolled."));
+export const scrollbarSliderBackground = registerColor('scrollbarSliderBackground', { dark: Color.fromHex('#797979').transparent(0.4), light: Color.fromHex('#646464').transparent(0.4), hc: Color.fromHex('#6FC3DF').transparent(0.6) }, nls.localize('scrollbarSliderBackground', "Slider background color."));
+export const scrollbarSliderHoverBackground = registerColor('scrollbarSliderHoverBackground', { dark: Color.fromHex('#646464').transparent(0.7), light: Color.fromHex('#646464').transparent(0.7), hc: Color.fromHex('#6FC3DF').transparent(0.8) }, nls.localize('scrollbarSliderHoverBackground', "Slider background color when hovering."));
+export const scrollbarSliderActiveBackground = registerColor('scrollbarSliderActiveBackground', { dark: Color.fromHex('#BFBFBF').transparent(0.4), light: Color.fromHex('#000000').transparent(0.6), hc: Color.fromHex('#6FC3DF') }, nls.localize('scrollbarSliderActiveBackground', "Slider background color when active."));
+
 /**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
