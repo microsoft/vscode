@@ -517,13 +517,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private hasCustomizationChanged(newColorCustomizations: IColorCustomizations, newColorIds: string[]): boolean {
-		let prevColorIds = Object.keys(this.colorCustomizations);
-		if (prevColorIds.length !== this.numberOfColorCustomizations) {
+		if (newColorIds.length !== this.numberOfColorCustomizations) {
 			return true;
 		}
-		for (let key of prevColorIds) {
-			let color = newColorCustomizations[key];
-			if (!color || color !== this.colorCustomizations[key]) {
+		for (let key of newColorIds) {
+			let color = this.colorCustomizations[key];
+			if (!color || color !== newColorCustomizations[key]) {
 				return true;
 			}
 		}
