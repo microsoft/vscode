@@ -14,7 +14,7 @@ import { IResolvedTextEditorConfiguration, ISelectionChangeEvent } from 'vs/work
 import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData } from './extHost.protocol';
+import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 export class ExtHostEditors extends ExtHostEditorsShape {
@@ -57,20 +57,20 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 
 	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor>;
 	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): TPromise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.ShowTextDocumentOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.ShowTextDocumentOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
-		let options: vscode.ShowTextDocumentOptions;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+		let options: ITextDocumentShowOptions;
 		if (typeof columnOrOptions === 'number') {
 			options = {
-				column: columnOrOptions,
+				position: TypeConverters.fromViewColumn(columnOrOptions),
 				preserveFocus: preserveFocus,
 				pinned: true
 			};
 		} else {
 			options = {
-				column: columnOrOptions.column,
+				position: TypeConverters.fromViewColumn(columnOrOptions.column),
 				preserveFocus: columnOrOptions.preserveFocus,
-				pinned: columnOrOptions.pinned === undefined ? true : columnOrOptions.pinned
+				pinned: columnOrOptions.preview === undefined ? true : !columnOrOptions.preview
 			};
 		}
 

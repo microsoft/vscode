@@ -376,7 +376,7 @@ export function registerCommands(): void {
 		win: { primary: void 0 }
 	});
 
-	CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, vscode.ShowTextDocumentOptions]) {
+	CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, vscode.TextDocumentShowOptions]) {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		let [leftResource, rightResource, label, description, options] = args;
 
@@ -386,7 +386,7 @@ export function registerCommands(): void {
 			position = TypeConverters.fromViewColumn(options.column);
 			editorOptions = {
 				preserveFocus: options.preserveFocus,
-				pinned: options.pinned
+				pinned: !options.preview
 			};
 		}
 		else {
