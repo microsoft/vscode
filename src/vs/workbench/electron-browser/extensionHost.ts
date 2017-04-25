@@ -189,7 +189,7 @@ export class ExtensionHostProcessWorker {
 	private tryFindDebugPort(): TPromise<number> {
 		const extensionHostPort = this.environmentService.debugExtensionHost.port;
 		if (typeof extensionHostPort !== 'number') {
-			return TPromise.wrap(void 0);
+			return TPromise.wrap<number>(void 0);
 		}
 		return new TPromise<number>((c, e) => {
 			findFreePort(extensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, (port) => {

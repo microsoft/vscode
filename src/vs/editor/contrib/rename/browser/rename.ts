@@ -198,7 +198,7 @@ class RenameController implements IEditorContribution {
 
 		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
 			if (result.rejectReason) {
-				return TPromise.wrapError(result.rejectReason);
+				return TPromise.wrapError<BulkEdit>(result.rejectReason);
 			}
 			edit.add(result.edits);
 			return edit;

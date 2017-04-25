@@ -157,8 +157,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 								if (value === 0) {
 									return this.installWithDependencies(compatibleVersion);
 								}
-								return TPromise.wrapError(errors.canceled());
-							}, error => TPromise.wrapError(errors.canceled()));
+								return TPromise.wrapError<ILocalExtension>(errors.canceled());
+							}, error => TPromise.wrapError<ILocalExtension>(errors.canceled()));
 					} else {
 						return this.installWithDependencies(compatibleVersion);
 					}
@@ -210,7 +210,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return localExtension;
 					}, error => {
 						return this.rollback(localExtension, dependecies).then(() => {
-							return TPromise.wrapError(Array.isArray(error) ? error[error.length - 1] : error);
+							return TPromise.wrapError<ILocalExtension>(Array.isArray(error) ? error[error.length - 1] : error);
 						});
 					});
 			})
@@ -218,7 +218,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				for (const dependency of dependecies) {
 					this._onDidInstallExtension.fire({ id: getLocalExtensionIdFromGallery(dependency, dependency.version), gallery: dependency, error });
 				}
-				return TPromise.wrapError(error);
+				return TPromise.wrapError<ILocalExtension>(error);
 			});
 	}
 
@@ -456,7 +456,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			promises.push(this.scanUserExtensions());
 		}
 
-		return TPromise.join(promises).then(flatten);
+		return TPromise.join<ILocalExtension[]>(promises).then(flatten);
 	}
 
 	private scanSystemExtensions(): TPromise<ILocalExtension[]> {

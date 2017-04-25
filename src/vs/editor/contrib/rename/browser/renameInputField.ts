@@ -176,7 +176,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			return newValue;
 		}, err => {
 			always();
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<string>(err);
 		});
 	}
 

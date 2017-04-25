@@ -138,7 +138,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE);
 		}
 
-		return TPromise.wrap(null);
+		return TPromise.wrap<IPreferencesEditorModel<any>>(null);
 	}
 
 	openSettings(): TPromise<IEditor> {
@@ -238,7 +238,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.textModelResolverService.createModelReference(settingsUri)
 				.then(reference => this.instantiationService.createInstance(SettingsEditorModel, reference, configurationTarget));
 		}
-		return TPromise.wrap(null);
+		return TPromise.wrap<SettingsEditorModel>(null);
 	}
 
 	private getEmptyEditableSettingsContent(configurationTarget: ConfigurationTarget): string {

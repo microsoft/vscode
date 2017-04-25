@@ -87,7 +87,7 @@ function findGitDarwin(): TPromise<IGit> {
 
 function findSystemGitWin32(base: string): TPromise<IGit> {
 	if (!base) {
-		return TPromise.wrapError('Not found');
+		return TPromise.wrapError<IGit>('Not found');
 	}
 
 	return findSpecificGit(join(base, 'Git', 'cmd', 'git.exe'));
@@ -100,7 +100,7 @@ function findGitHubGitWin32(): TPromise<IGit> {
 		const git = children.filter(child => /^PortableGit/.test(child))[0];
 
 		if (!git) {
-			return TPromise.wrapError('Not found');
+			return TPromise.wrapError<IGit>('Not found');
 		}
 
 		return findSpecificGit(join(github, git, 'cmd', 'git.exe'));

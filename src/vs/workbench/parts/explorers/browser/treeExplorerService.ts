@@ -21,7 +21,7 @@ export class TreeExplorerService implements ITreeExplorerService {
 	private _onDidChangeProvider = new Emitter<string>();
 	get onDidChangeProvider(): Event<string> { return this._onDidChangeProvider.event; }
 
-	private _onTreeExplorerNodeProviderRegistered = new Emitter<String>();
+	private _onTreeExplorerNodeProviderRegistered = new Emitter<string>();
 	public get onTreeExplorerNodeProviderRegistered(): Event<string> { return this._onTreeExplorerNodeProviderRegistered.event; };
 
 	private _treeExplorerNodeProviders: { [providerId: string]: InternalTreeNodeProvider };

@@ -157,7 +157,7 @@ export class WindowsManager implements IWindowsMainService {
 	onWindowReload: CommonEvent<number> = this._onWindowReload.event;
 
 	private _onPathsOpen = new Emitter<IPath[]>();
-	onPathsOpen: CommonEvent<IPath> = this._onPathsOpen.event;
+	onPathsOpen: CommonEvent<IPath[]> = this._onPathsOpen.event;
 
 	constructor(
 		@ILogService private logService: ILogService,

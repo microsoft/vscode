@@ -48,7 +48,7 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as([]);
 	}
 
-	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: any }[]): TPromise<IEditor[]> {
+	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: any }[]): TPromise<BaseEditor[]> {
 		return TPromise.as([]);
 	}
 

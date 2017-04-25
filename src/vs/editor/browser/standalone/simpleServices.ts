@@ -294,7 +294,7 @@ export class StandaloneCommandService implements ICommandService {
 	public executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
 		const command = (CommandsRegistry.getCommand(id) || this._dynamicCommands[id]);
 		if (!command) {
-			return TPromise.wrapError(new Error(`command '${id}' not found`));
+			return TPromise.wrapError<T>(new Error(`command '${id}' not found`));
 		}
 
 		try {
@@ -302,7 +302,7 @@ export class StandaloneCommandService implements ICommandService {
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler].concat(args));
 			return TPromise.as(result);
 		} catch (err) {
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<T>(err);
 		}
 	}
 }
@@ -441,7 +441,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 	}
 
 	public reloadConfiguration<T>(section?: string): TPromise<T> {
-		return TPromise.as(this.getConfiguration(section));
+		return TPromise.as<T>(this.getConfiguration<T>(section));
 	}
 
 	public lookup<C>(key: string): IConfigurationValue<C> {
