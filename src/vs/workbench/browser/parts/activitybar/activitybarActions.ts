@@ -675,7 +675,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const focusBorder = theme.getColor(focus);
 
 		collector.addRule(`
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item {
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label {
 				opacity: 0.6;
 			}
 

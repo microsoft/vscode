@@ -67,8 +67,8 @@
 	text-align: center;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active,
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover {
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
 	opacity: 1;
 }
 
