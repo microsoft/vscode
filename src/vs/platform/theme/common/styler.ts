@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, listHoverOutline, listSelectionOutline, listFocusOutline, listInactiveFocusOutline, pickerGroupBorder, pickerGroupForeground, widgetShadow, infoBorder, infoBackground, warningBorder, warningBackground, errorBorder, errorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, infoBorder, infoBackground, warningBorder, warningBackground, errorBorder, errorBackground, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from "vs/base/common/lifecycle";
 import { SIDE_BAR_SECTION_HEADER_BACKGROUND } from "vs/workbench/common/theme";
 
@@ -147,9 +147,9 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
 		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
 		listDropBackground: (style && style.listDropBackground) || listDropBackground,
-		listFocusOutline: (style && style.listFocusOutline) || listFocusOutline,
-		listSelectionOutline: (style && style.listSelectionOutline) || listSelectionOutline,
-		listHoverOutline: (style && style.listHoverOutline) || listHoverOutline
+		listFocusOutline: (style && style.listFocusOutline) || highContrastOutline,
+		listSelectionOutline: (style && style.listSelectionOutline) || highContrastOutline,
+		listHoverOutline: (style && style.listHoverOutline) || highContrastOutline
 	});
 }
 
@@ -178,10 +178,10 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
 		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
 		listDropBackground: (style && style.listDropBackground) || listDropBackground,
-		listFocusOutline: (style && style.listFocusOutline) || listFocusOutline,
-		listInactiveFocusOutline: (style && style.listInactiveFocusOutline) || listInactiveFocusOutline,
-		listSelectionOutline: (style && style.listSelectionOutline) || listSelectionOutline,
-		listHoverOutline: (style && style.listHoverOutline) || listHoverOutline,
+		listFocusOutline: (style && style.listFocusOutline) || highContrastOutline,
+		listSelectionOutline: (style && style.listSelectionOutline) || highContrastOutline,
+		listHoverOutline: (style && style.listHoverOutline) || highContrastOutline,
+		listInactiveFocusOutline: style && style.listInactiveFocusOutline // not defined by default, only opt-in
 	});
 }
 

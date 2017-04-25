@@ -163,11 +163,6 @@ export const listInactiveSelectionBackground = registerColor('listInactiveSelect
 export const listHoverBackground = registerColor('listHoverBackground', { dark: '#2A2D2E', light: '#F0F0F0', hc: null }, nls.localize('listHoverBackground', "List/Tree hover background."));
 export const listDropBackground = registerColor('listDropBackground', { dark: '#383B3D', light: '#DDECFF', hc: null }, nls.localize('listDropBackground', "List/Tree drag and drop background."));
 
-export const listFocusOutline = registerColor('listFocusOutline', { dark: null, light: null, hc: highContrastOutline }, nls.localize('listFocusOutline', "List/Tree focus outline color when active."));
-export const listInactiveFocusOutline = registerColor('listInactiveFocusOutline', { dark: null, light: null, hc: null }, nls.localize('listInactiveFocusOutline', "List/Tree focus outline color when inactive."));
-export const listSelectionOutline = registerColor('listSelectionOutline', { dark: null, light: null, hc: highContrastOutline }, nls.localize('listSelectionOutline', "List/Tree selection outline color."));
-export const listHoverOutline = registerColor('listHoverOutline', { dark: null, light: null, hc: highContrastOutline }, nls.localize('listHoverOutline', "List/Tree hover outline color."));
-
 export const pickerGroupForeground = registerColor('pickerGroupForeground', { dark: Color.fromHex('#0097FB').transparent(0.6), light: Color.fromHex('#007ACC').transparent(0.6), hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
 export const pickerGroupBorder = registerColor('pickerGroupBorder', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
 

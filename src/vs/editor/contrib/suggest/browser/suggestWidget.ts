@@ -29,7 +29,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from "vs/platform/theme/common/styler";
 import { IThemeService, ITheme, registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { registerColor, editorWidgetBackground, highContrastBorder, listFocusBackground, listFocusOutline } from "vs/platform/theme/common/colorRegistry";
+import { registerColor, editorWidgetBackground, highContrastBorder, listFocusBackground, highContrastOutline } from "vs/platform/theme/common/colorRegistry";
 
 const sticky = false; // for development purposes
 
@@ -384,7 +384,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		});
 
 		this.toDispose = [
-			attachListStyler(this.list, themeService, { listInactiveFocusBackground: listFocusBackground, listInactiveFocusOutline: listFocusOutline }),
+			attachListStyler(this.list, themeService, { listInactiveFocusBackground: listFocusBackground, listInactiveFocusOutline: highContrastOutline }),
 			themeService.onThemeChange(t => this.onThemeChange(t)),
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
