@@ -26,29 +26,29 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 
 registerSingleton(ITreeExplorerService, TreeExplorerService);
 
-const treeViewSchema: IJSONSchema = {
-	description: localize('vscode.extension.contributes.treeView', 'Contributes custom tree view'),
+const viewSchema: IJSONSchema = {
+	description: localize('vscode.extension.contributes.view', 'Contributes custom view'),
 	type: 'object',
 	properties: {
 		id: {
-			description: localize('vscode.extension.contributes.treeView.id', 'Unique id used to identify view created through vscode.workspace.createTreeView'),
+			description: localize('vscode.extension.contributes.view.id', 'Unique id used to identify view created through vscode.workspace.createTreeView'),
 			type: 'string'
 		},
 		label: {
-			description: localize('vscode.extension.contributes.treeView.label', 'Human readable string used to render the tree view'),
+			description: localize('vscode.extension.contributes.view.label', 'Human readable string used to render the view'),
 			type: 'string'
 		},
 		icon: {
-			description: localize('vscode.extension.contributes.treeView.icon', 'Path to the viewlet icon on the activity bar'),
+			description: localize('vscode.extension.contributes.view.icon', 'Path to the view icon'),
 			type: 'string'
 		}
 	}
 };
 
-const treeViewsSchema: IJSONSchema = {
-	description: localize('vscode.extension.contributes.treeView', 'Contributes custom tree view'),
+const viewsSchema: IJSONSchema = {
+	description: localize('vscode.extension.contributes.views', 'Contributes custom views'),
 	type: 'object',
-	items: treeViewSchema
+	items: viewSchema
 };
 
 export class OpenViewletAction extends ToggleViewletAction {
@@ -70,11 +70,11 @@ export class ExtensionExplorersContribtion implements IWorkbenchContribution {
 	}
 
 	public getId(): string {
-		return 'vs.extension.treeView';
+		return 'vs.extension.view';
 	}
 
 	private init() {
-		ExtensionsRegistry.registerExtensionPoint<ITreeExplorer[]>('treeViews', [], treeViewsSchema).setHandler(extensions => {
+		ExtensionsRegistry.registerExtensionPoint<ITreeExplorer[]>('views', [], viewsSchema).setHandler(extensions => {
 			for (let extension of extensions) {
 				for (const { id, label, icon } of extension.value) {
 					if (!isValidViewletId(id)) {

@@ -15,6 +15,7 @@ export interface InternalTreeNodeContent {
 
 export interface InternalTreeNode extends InternalTreeNodeContent {
 	readonly id: string;
+	readonly providerId: string;
 }
 
 export interface InternalTreeNodeProvider {

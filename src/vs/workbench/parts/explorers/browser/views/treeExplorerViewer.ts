@@ -6,14 +6,20 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { $, Builder } from 'vs/base/browser/builder';
-import { ITree, IDataSource, IRenderer, IActionProvider } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IDataSource, IRenderer, IActionProvider, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { InternalTreeNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IActionRunner } from 'vs/base/common/actions';
+import { IActionRunner, IAction, ActionRunner } from 'vs/base/common/actions';
 import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 import { ITreeExplorerService } from 'vs/workbench/parts/explorers/common/treeExplorerService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { TreeExplorerMenus } from 'vs/workbench/parts/explorers/browser/treeExplorerMenus';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
 
 export class TreeDataSource implements IDataSource {
 
@@ -92,7 +98,10 @@ export class TreeController extends DefaultController {
 
 	constructor(
 		private treeNodeProviderId: string,
-		@ITreeExplorerService private treeExplorerService: ITreeExplorerService
+		private menus: TreeExplorerMenus,
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@ITreeExplorerService private treeExplorerService: ITreeExplorerService,
+		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false });
 	}
@@ -105,6 +114,50 @@ export class TreeController extends DefaultController {
 		}
 
 		return true;
+	}
+
+	public onContextMenu(tree: ITree, node: InternalTreeNode, event: ContextMenuEvent): boolean {
+		tree.setFocus(node);
+		const actions = this.menus.getResourceContextActions();
+		if (!actions.length) {
+			return true;
+		}
+		const anchor = { x: event.posx + 1, y: event.posy };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+
+			getActions: () => {
+				return TPromise.as(actions);
+			},
+
+			getActionItem: (action) => {
+				const keybinding = this._keybindingFor(action);
+				if (keybinding) {
+					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+				}
+				return null;
+			},
+
+			getKeyBinding: (action): ResolvedKeybinding => {
+				return this._keybindingFor(action);
+			},
+
+			onHide: (wasCancelled?: boolean) => {
+				if (wasCancelled) {
+					tree.DOMFocus();
+				}
+			},
+
+			getActionsContext: () => node,
+
+			actionRunner: new MultipleSelectionActionRunner(() => tree.getSelection())
+		});
+
+		return true;
+	}
+
+	private _keybindingFor(action: IAction): ResolvedKeybinding {
+		return this._keybindingService.lookupKeybinding(action.id);
 	}
 }
 
@@ -130,4 +183,26 @@ export class TreeExplorerViewletState implements ITreeExplorerViewletState {
 	}
 
 	public get actionProvider() { return this._actionProvider; }
+}
+
+class MultipleSelectionActionRunner extends ActionRunner {
+
+	constructor(private getSelectedResources: () => InternalTreeNode[]) {
+		super();
+	}
+
+	runAction(action: IAction, context: InternalTreeNode): TPromise<any> {
+		if (action instanceof MenuItemAction) {
+			const selection = this.getSelectedResources();
+			const filteredSelection = selection.filter(s => s !== context);
+
+			if (selection.length === filteredSelection.length || selection.length === 1) {
+				return action.run(context);
+			}
+
+			return action.run(context, ...filteredSelection);
+		}
+
+		return super.runAction(action, context);
+	}
 }

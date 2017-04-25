@@ -62,7 +62,7 @@ export class TreeExplorerView extends CollapsibleViewletView {
 	public createViewer(container: Builder): ITree {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.treeNodeProviderId);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.viewletState, this.actionRunner, container.getHTMLElement());
-		const controller = this.instantiationService.createInstance(TreeController, this.treeNodeProviderId);
+		const controller = this.instantiationService.createInstance(TreeController, this.treeNodeProviderId, this.menus);
 
 		const tree = new Tree(container.getHTMLElement(), {
 			dataSource,

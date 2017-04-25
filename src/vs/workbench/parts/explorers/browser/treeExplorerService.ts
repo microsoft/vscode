@@ -31,7 +31,7 @@ export class TreeExplorerService implements ITreeExplorerService {
 		@IMessageService private messageService: IMessageService
 	) {
 		this._treeExplorerNodeProviders = Object.create(null);
-		this.activeProviderContextKey = this.contextKeyService.createKey<string | undefined>('treeExplorerProvider', void 0);
+		this.activeProviderContextKey = this.contextKeyService.createKey<string | undefined>('view', void 0);
 	}
 
 	get activeProvider(): string {

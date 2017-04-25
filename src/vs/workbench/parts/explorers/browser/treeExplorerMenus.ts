@@ -47,7 +47,7 @@ export class TreeExplorerMenus implements IDisposable {
 
 		this.activeProviderId = activeProvider;
 
-		const titleMenu = this.menuService.createMenu(MenuId.ViewletTitle, this.contextKeyService);
+		const titleMenu = this.menuService.createMenu(MenuId.ViewTitle, this.contextKeyService);
 		const updateActions = () => {
 			this.titleActions = [];
 			this.titleSecondaryActions = [];
@@ -72,6 +72,26 @@ export class TreeExplorerMenus implements IDisposable {
 
 	getTitleSecondaryActions(): IAction[] {
 		return this.titleSecondaryActions;
+	}
+
+	getResourceContextActions(): IAction[] {
+		return this.getActions(MenuId.ViewResource).secondary;
+	}
+
+	private getActions(menuId: MenuId): { primary: IAction[]; secondary: IAction[]; } {
+		if (!this.activeProviderId) {
+			return { primary: [], secondary: [] };
+		}
+
+		const menu = this.menuService.createMenu(menuId, this.contextKeyService);
+		const primary = [];
+		const secondary = [];
+		const result = { primary, secondary };
+		fillInActions(menu, { shouldForwardArgs: true }, result, g => g === 'inline');
+
+		menu.dispose();
+
+		return result;
 	}
 
 	dispose(): void {
