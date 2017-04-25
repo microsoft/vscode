@@ -6,10 +6,9 @@
 import Paths = require('vs/base/common/paths');
 import Json = require('vs/base/common/json');
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/electron-browser/themeCompatibility';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { getBaseThemeId, getSyntaxThemeId } from 'vs/platform/theme/common/themes';
 import nls = require('vs/nls');
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
@@ -21,7 +20,6 @@ import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorFo
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';
 import { WorkbenchThemeService } from "vs/workbench/services/themes/electron-browser/workbenchThemeService";
-import { IThemeExtensionPoint } from "vs/platform/theme/common/themeExtensionPoint";
 
 let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 
@@ -121,22 +119,6 @@ export class ColorThemeData implements IColorTheme {
 	hasEqualData(other: ColorThemeData) {
 		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.tokenColors, other.tokenColors);
 	}
-
-	isLightTheme() {
-		return this.type === 'light';
-	}
-
-	isDarkTheme() {
-		return this.type === 'dark';
-	}
-
-	getSyntaxThemeId() {
-		return getSyntaxThemeId(this.id);
-	}
-
-	getBaseThemeId() {
-		return getBaseThemeId(this.id);
-	}
 }
 
 export function fromStorageData(themeService: WorkbenchThemeService, input: string): ColorThemeData {
@@ -159,7 +141,7 @@ export function fromStorageData(themeService: WorkbenchThemeService, input: stri
 }
 
 export function fromExtensionTheme(themeService: WorkbenchThemeService, theme: IThemeExtensionPoint, normalizedAbsolutePath: string, extensionData: ExtensionData): ColorThemeData {
-	let baseTheme = theme.uiTheme || 'vs-dark';
+	let baseTheme = theme['uiTheme'] || 'vs-dark';
 
 	let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
 	let themeData = new ColorThemeData(themeService);
@@ -175,8 +157,9 @@ export function fromExtensionTheme(themeService: WorkbenchThemeService, theme: I
 	return themeData;
 }
 
-function baseThemeToType(baseTheme: string): ThemeType {
-	switch (getBaseThemeId(baseTheme)) {
+function baseThemeToType(themeId: string): ThemeType {
+	let baseTheme = themeId.split(' ')[0];
+	switch (baseTheme) {
 		case VS_LIGHT_THEME: return 'light';
 		case VS_HC_THEME: return 'hc';
 		default: return 'dark';

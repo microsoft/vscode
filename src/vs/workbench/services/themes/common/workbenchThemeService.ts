@@ -29,11 +29,6 @@ export interface IColorTheme extends ITheme {
 	readonly description?: string;
 	readonly isLoaded: boolean;
 	readonly tokenColors?: ITokenColorizationRule[];
-
-	isLightTheme(): boolean;
-	isDarkTheme(): boolean;
-	getSyntaxThemeId(): string;
-	getBaseThemeId(): string;
 }
 
 export interface IColorMap {
@@ -82,4 +77,11 @@ export interface ExtensionData {
 	extensionPublisher: string;
 	extensionName: string;
 	extensionIsBuiltin: boolean;
+}
+
+export interface IThemeExtensionPoint {
+	id: string;
+	label?: string;
+	description?: string;
+	path: string;
 }
