@@ -152,6 +152,8 @@ class LanguageProvider {
 
 	private readonly disposables: Disposable[] = [];
 
+	private versionDependentDisposables: Disposable[] = [];
+
 	constructor(
 		private readonly client: TypeScriptServiceClient,
 		private readonly description: LanguageDescription
@@ -188,6 +190,13 @@ class LanguageProvider {
 
 		while (this.disposables.length) {
 			const obj = this.disposables.pop();
+			if (obj) {
+				obj.dispose();
+			}
+		}
+
+		while (this.versionDependentDisposables.length) {
+			const obj = this.versionDependentDisposables.pop();
 			if (obj) {
 				obj.dispose();
 			}
@@ -235,13 +244,7 @@ class LanguageProvider {
 
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
 
-		if (client.apiVersion.has220Features()) {
-			this.disposables.push(languages.registerImplementationProvider(selector, new ImplementationProvider(client)));
-		}
-
-		if (client.apiVersion.has213Features()) {
-			this.disposables.push(languages.registerTypeDefinitionProvider(selector, new TypeDefintionProvider(client)));
-		}
+		this.registerVersionDependentProviders();
 
 		this.description.modeIds.forEach(modeId => {
 			this.disposables.push(languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId)));
@@ -363,6 +366,30 @@ class LanguageProvider {
 		this.syntaxDiagnostics = Object.create(null);
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
+		this.registerVersionDependentProviders();
+	}
+
+	private registerVersionDependentProviders(): void {
+		while (this.versionDependentDisposables.length) {
+			const obj = this.versionDependentDisposables.pop();
+			if (obj) {
+				obj.dispose();
+			}
+		}
+
+		this.versionDependentDisposables = [];
+		if (!this.client) {
+			return;
+		}
+
+		const selector = this.description.modeIds;
+		if (this.client.apiVersion.has220Features()) {
+			this.versionDependentDisposables.push(languages.registerImplementationProvider(selector, new ImplementationProvider(this.client)));
+		}
+
+		if (this.client.apiVersion.has213Features()) {
+			this.versionDependentDisposables.push(languages.registerTypeDefinitionProvider(selector, new TypeDefintionProvider(this.client)));
+		}
 	}
 
 	public triggerAllDiagnostics(): void {
