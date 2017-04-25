@@ -458,7 +458,6 @@ export const MainContext = {
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors', MainThreadEditorsShape),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors', MainThreadErrorsShape),
 	MainThreadExplorers: createMainId<MainThreadTreeExplorersShape>('MainThreadExplorers', MainThreadTreeExplorersShape),
-	MainThreadTree: createMainId<MainThreadTreeShape>('MainThreadTree', MainThreadTreeShape),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures', MainThreadLanguageFeaturesShape),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages', MainThreadLanguagesShape),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService', MainThreadMessageServiceShape),
@@ -491,6 +490,5 @@ export const ExtHostContext = {
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService', ExtHostExtensionServiceShape),
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService', ExtHostTerminalServiceShape),
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ExtHostSCMShape),
-	ExtHostTree: createExtId<ExtHostTreeShape>('ExtHostTree', ExtHostTreeShape),
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ExtHostTaskShape)
 };

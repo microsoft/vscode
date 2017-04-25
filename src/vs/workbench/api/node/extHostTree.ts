@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+/*'use strict';
 
 import { TreeNode } from 'vscode';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -124,4 +124,4 @@ export class ExtHostTree extends ExtHostTreeShape {
 		return TPromise.as(null);
 	}
 
-}
+}*/
