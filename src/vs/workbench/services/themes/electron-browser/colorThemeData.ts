@@ -38,8 +38,6 @@ export class ColorThemeData implements IColorTheme {
 	path?: string;
 	extensionData: ExtensionData;
 	colorMap: IColorMap = {};
-	defaultColorMap: IColorMap = {};
-
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color {
 		let customColor = this.themeService.getCustomColor(colorId);
@@ -54,12 +52,7 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	private getDefault(colorId: ColorIdentifier): Color {
-		let color = this.defaultColorMap[colorId];
-		if (types.isUndefined(color)) {
-			color = colorRegistry.resolveDefaultColor(colorId, this);
-			this.defaultColorMap[colorId] = color;
-		}
-		return color;
+		return colorRegistry.resolveDefaultColor(colorId, this);
 	}
 
 	public isDefault(colorId: ColorIdentifier): boolean {
@@ -75,7 +68,6 @@ export class ColorThemeData implements IColorTheme {
 		if (!this.isLoaded) {
 			this.tokenColors = [];
 			this.colorMap = {};
-			this.defaultColorMap = {};
 			if (this.path) {
 				return _loadColorThemeFromFile(this.path, this.tokenColors, this.colorMap).then(_ => {
 					this.isLoaded = true;
