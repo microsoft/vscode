@@ -1,7 +1,7 @@
 [
 	{
 		"c": "rowData",
-		"t": "source.ts variable.other.object.ts",
+		"t": "source.ts meta.function-call.ts variable.other.object.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -12,7 +12,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.ts punctuation.accessor.ts",
+		"t": "source.ts meta.function-call.ts punctuation.accessor.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -23,7 +23,7 @@
 	},
 	{
 		"c": "push",
-		"t": "source.ts support.function.ts",
+		"t": "source.ts meta.function-call.ts support.function.ts",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "callback",
-		"t": "source.ts entity.name.function.ts",
+		"t": "source.ts meta.function-call.ts entity.name.function.ts",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
