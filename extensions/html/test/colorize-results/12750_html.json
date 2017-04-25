@@ -111,7 +111,7 @@
 	},
 	{
 		"c": "window",
-		"t": "text.html.basic meta.embedded.block.html source.js support.variable.dom.js",
+		"t": "text.html.basic meta.embedded.block.html source.js meta.function-call.js support.variable.dom.js",
 		"r": {
 			"dark_plus": "support.variable: #9CDCFE",
 			"light_plus": "support.variable: #001080",
@@ -122,7 +122,7 @@
 	},
 	{
 		"c": ".",
-		"t": "text.html.basic meta.embedded.block.html source.js punctuation.accessor.js",
+		"t": "text.html.basic meta.embedded.block.html source.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -133,7 +133,7 @@
 	},
 	{
 		"c": "alert",
-		"t": "text.html.basic meta.embedded.block.html source.js support.function.js",
+		"t": "text.html.basic meta.embedded.block.html source.js meta.function-call.js support.function.js",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -298,7 +298,7 @@
 	},
 	{
 		"c": "window",
-		"t": "text.html.basic meta.embedded.block.html source.js support.variable.dom.js",
+		"t": "text.html.basic meta.embedded.block.html source.js meta.function-call.js support.variable.dom.js",
 		"r": {
 			"dark_plus": "support.variable: #9CDCFE",
 			"light_plus": "support.variable: #001080",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": ".",
-		"t": "text.html.basic meta.embedded.block.html source.js punctuation.accessor.js",
+		"t": "text.html.basic meta.embedded.block.html source.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -320,7 +320,7 @@
 	},
 	{
 		"c": "alert",
-		"t": "text.html.basic meta.embedded.block.html source.js support.function.js",
+		"t": "text.html.basic meta.embedded.block.html source.js meta.function-call.js support.function.js",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
