@@ -17,6 +17,31 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
 import { ICoordinatesConverter } from "vs/editor/common/viewModel/viewModel";
+import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
+
+export interface IColumnSelectData {
+	toViewLineNumber: number;
+	toViewVisualColumn: number;
+}
+
+export const enum RevealTarget {
+	Primary = 0,
+	TopMost = 1,
+	BottomMost = 2
+}
+
+export interface ICursors {
+	readonly context: CursorContext;
+	getPrimaryCursor(): CursorState;
+	getLastAddedCursorIndex(): number;
+	getAll(): CursorState[];
+
+	getColumnSelectData(): IColumnSelectData;
+	setColumnSelectData(columnSelectData: IColumnSelectData): void;
+
+	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
+	reveal(horizontal: boolean, target: RevealTarget): void;
+}
 
 export interface CharacterMap {
 	[char: string]: string;
@@ -25,6 +50,7 @@ export interface CharacterMap {
 export class CursorConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
+	public readonly readOnly: boolean;
 	public readonly tabSize: number;
 	public readonly insertSpaces: boolean;
 	public readonly oneIndent: string;
@@ -45,6 +71,7 @@ export class CursorConfiguration {
 			|| e.autoClosingBrackets
 			|| e.useTabStops
 			|| e.lineHeight
+			|| e.readOnly
 		);
 	}
 
@@ -56,6 +83,7 @@ export class CursorConfiguration {
 	) {
 		let c = configuration.editor;
 
+		this.readOnly = c.readOnly;
 		this.tabSize = modelOptions.tabSize;
 		this.insertSpaces = modelOptions.insertSpaces;
 		this.oneIndent = oneIndent;
@@ -318,6 +346,50 @@ export class CursorState {
 
 	public static fromViewState(viewState: SingleCursorState): CursorState {
 		return new CursorState(null, viewState);
+	}
+
+	public static ensureInEditableRange(context: CursorContext, states: CursorState[]): CursorState[] {
+		const model = context.model;
+		if (!model.hasEditableRange()) {
+			return states;
+		}
+
+		const modelEditableRange = model.getEditableRange();
+		const viewEditableRange = context.convertModelRangeToViewRange(modelEditableRange);
+
+		let result: CursorState[] = [];
+		for (let i = 0, len = states.length; i < len; i++) {
+			const state = states[i];
+
+			if (state.modelState) {
+				const newModelState = CursorState._ensureInEditableRange(state.modelState, modelEditableRange);
+				result[i] = newModelState ? CursorState.fromModelState(newModelState) : state;
+			} else {
+				const newViewState = CursorState._ensureInEditableRange(state.viewState, viewEditableRange);
+				result[i] = newViewState ? CursorState.fromViewState(newViewState) : state;
+			}
+		}
+		return result;
+	}
+
+	private static _ensureInEditableRange(state: SingleCursorState, editableRange: Range): SingleCursorState {
+		const position = state.position;
+
+		if (position.lineNumber < editableRange.startLineNumber || (position.lineNumber === editableRange.startLineNumber && position.column < editableRange.startColumn)) {
+			return new SingleCursorState(
+				state.selectionStart, state.selectionStartLeftoverVisibleColumns,
+				new Position(editableRange.startLineNumber, editableRange.startColumn), 0
+			);
+		}
+
+		if (position.lineNumber > editableRange.endLineNumber || (position.lineNumber === editableRange.endLineNumber && position.column > editableRange.endColumn)) {
+			return new SingleCursorState(
+				state.selectionStart, state.selectionStartLeftoverVisibleColumns,
+				new Position(editableRange.endLineNumber, editableRange.endColumn), 0
+			);
+		}
+
+		return null;
 	}
 
 	readonly modelState: SingleCursorState;

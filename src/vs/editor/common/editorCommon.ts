@@ -23,7 +23,7 @@ import {
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from "vs/editor/common/config/editorOptions";
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
-import { ICursors } from "vs/editor/common/controller/cursor";
+import { ICursors } from "vs/editor/common/controller/cursorCommon";
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -1888,7 +1888,7 @@ export interface ICommonCodeEditor extends IEditor {
 	/**
 	 * @internal
 	 */
-	getCursors(): ICursors;
+	_getCursors(): ICursors;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
@@ -2032,49 +2032,10 @@ export var Handler = {
 	ExecuteCommand: 'executeCommand',
 	ExecuteCommands: 'executeCommands',
 
-	CursorLeft: 'cursorLeft',
-	CursorLeftSelect: 'cursorLeftSelect',
-
-	CursorRight: 'cursorRight',
-	CursorRightSelect: 'cursorRightSelect',
-
-	CursorUp: 'cursorUp',
-	CursorUpSelect: 'cursorUpSelect',
-	CursorDown: 'cursorDown',
-	CursorDownSelect: 'cursorDownSelect',
-
-	CursorPageUp: 'cursorPageUp',
-	CursorPageUpSelect: 'cursorPageUpSelect',
-	CursorPageDown: 'cursorPageDown',
-	CursorPageDownSelect: 'cursorPageDownSelect',
-
-	CursorHome: 'cursorHome',
-	CursorHomeSelect: 'cursorHomeSelect',
-
-	CursorEnd: 'cursorEnd',
-	CursorEndSelect: 'cursorEndSelect',
-
 	ExpandLineSelection: 'expandLineSelection',
-
-	CursorTop: 'cursorTop',
-	CursorTopSelect: 'cursorTopSelect',
-	CursorBottom: 'cursorBottom',
-	CursorBottomSelect: 'cursorBottomSelect',
-
-	CursorColumnSelectLeft: 'cursorColumnSelectLeft',
-	CursorColumnSelectRight: 'cursorColumnSelectRight',
-	CursorColumnSelectUp: 'cursorColumnSelectUp',
-	CursorColumnSelectPageUp: 'cursorColumnSelectPageUp',
-	CursorColumnSelectDown: 'cursorColumnSelectDown',
-	CursorColumnSelectPageDown: 'cursorColumnSelectPageDown',
-
-	CursorMove: 'cursorMove',
 
 	AddCursorDown: 'addCursorDown',
 	AddCursorUp: 'addCursorUp',
-	ColumnSelect: 'columnSelect',
-	CreateCursor: 'createCursor',
-	LastCursorMoveToSelect: 'lastCursorMoveToSelect',
 
 	Type: 'type',
 	ReplacePreviousChar: 'replacePreviousChar',

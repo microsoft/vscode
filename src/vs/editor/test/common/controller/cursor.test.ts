@@ -36,46 +36,78 @@ function cursorCommand(cursor: Cursor, command: string, extraData?: any, overwri
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.MoveToSelect.runCoreCommand(cursor, {
+		CoreCommands.MoveToSelect.runCoreEditorCommand(cursor, {
 			position: new Position(lineNumber, column)
 		});
 	} else {
-		CoreCommands.MoveTo.runCoreCommand(cursor, {
+		CoreCommands.MoveTo.runCoreEditorCommand(cursor, {
 			position: new Position(lineNumber, column)
 		});
 	}
 }
 
 function moveLeft(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorLeftSelect : H.CursorLeft);
+	if (inSelectionMode) {
+		CoreCommands.CursorLeftSelect.runCoreEditorCommand(cursor, {});
+	} else {
+		CoreCommands.CursorLeft.runCoreEditorCommand(cursor, {});
+	}
 }
 
 function moveRight(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorRightSelect : H.CursorRight);
+	if (inSelectionMode) {
+		CoreCommands.CursorRightSelect.runCoreEditorCommand(cursor, {});
+	} else {
+		CoreCommands.CursorRight.runCoreEditorCommand(cursor, {});
+	}
 }
 
 function moveDown(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorDownSelect : H.CursorDown);
+	if (inSelectionMode) {
+		CoreCommands.CursorDownSelect.runCoreEditorCommand(cursor, {});
+	} else {
+		CoreCommands.CursorDown.runCoreEditorCommand(cursor, {});
+	}
 }
 
 function moveUp(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorUpSelect : H.CursorUp);
+	if (inSelectionMode) {
+		CoreCommands.CursorUpSelect.runCoreEditorCommand(cursor, {});
+	} else {
+		CoreCommands.CursorUp.runCoreEditorCommand(cursor, {});
+	}
 }
 
 function moveToBeginningOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorHomeSelect : H.CursorHome);
+	if (inSelectionMode) {
+		CoreCommands.CursorHomeSelect.runCoreEditorCommand(cursor, {});
+	} else {
+		CoreCommands.CursorHome.runCoreEditorCommand(cursor, {});
+	}
 }
 
 function moveToEndOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorEndSelect : H.CursorEnd);
+	if (inSelectionMode) {
+		CoreCommands.CursorEndSelect.runCoreEditorCommand(cursor, {});
+	} else {
+		CoreCommands.CursorEnd.runCoreEditorCommand(cursor, {});
+	}
 }
 
 function moveToBeginningOfBuffer(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorTopSelect : H.CursorTop);
+	if (inSelectionMode) {
+		CoreCommands.CursorTopSelect.runCoreEditorCommand(cursor, {});
+	} else {
+		CoreCommands.CursorTop.runCoreEditorCommand(cursor, {});
+	}
 }
 
 function moveToEndOfBuffer(cursor: Cursor, inSelectionMode: boolean = false) {
-	cursorCommand(cursor, inSelectionMode ? H.CursorBottomSelect : H.CursorBottom);
+	if (inSelectionMode) {
+		CoreCommands.CursorBottomSelect.runCoreEditorCommand(cursor, {});
+	} else {
+		CoreCommands.CursorBottom.runCoreEditorCommand(cursor, {});
+	}
 }
 
 function assertCursor(cursor: Cursor, what: Position | Selection | Selection[]): void {
@@ -678,7 +710,7 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(cursor, 1, 7, false);
 		assertCursor(cursor, new Position(1, 7));
 
-		cursorCommand(cursor, H.ColumnSelect, {
+		CoreCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(4, 4),
 			viewPosition: new Position(4, 4),
 			mouseColumn: 15
@@ -712,7 +744,7 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
 
-		cursorCommand(cursor, H.ColumnSelect, {
+		CoreCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(4, 1),
 			viewPosition: new Position(4, 1),
 			mouseColumn: 1
@@ -747,7 +779,7 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
 
-		cursorCommand(cursor, H.ColumnSelect, {
+		CoreCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
 			mouseColumn: 1
@@ -765,7 +797,7 @@ suite('Editor Controller - Cursor', () => {
 			new Selection(1, 10, 1, 1),
 		]);
 
-		cursorCommand(cursor, H.ColumnSelect, {
+		CoreCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
 			mouseColumn: 1
@@ -805,28 +837,28 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
 
-		cursorCommand(cursor, H.CursorColumnSelectLeft);
+		CoreCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 9)
 		]);
 
-		cursorCommand(cursor, H.CursorColumnSelectLeft);
+		CoreCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 8)
 		]);
 
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 9)
 		]);
 
-		cursorCommand(cursor, H.CursorColumnSelectUp);
+		CoreCommands.CursorColumnSelectUp.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 9),
 			new Selection(9, 10, 9, 9),
 		]);
 
-		cursorCommand(cursor, H.CursorColumnSelectDown);
+		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 9)
 		]);
@@ -850,28 +882,28 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
 
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 5)
 		]);
 
-		cursorCommand(cursor, H.CursorColumnSelectDown);
+		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 5),
 			new Selection(2, 4, 2, 5)
 		]);
 
-		cursorCommand(cursor, H.CursorColumnSelectDown);
+		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 5),
 			new Selection(2, 4, 2, 5),
 			new Selection(3, 4, 3, 5),
 		]);
 
-		cursorCommand(cursor, H.CursorColumnSelectDown);
-		cursorCommand(cursor, H.CursorColumnSelectDown);
-		cursorCommand(cursor, H.CursorColumnSelectDown);
-		cursorCommand(cursor, H.CursorColumnSelectDown);
+		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 5),
 			new Selection(2, 4, 2, 5),
@@ -882,7 +914,7 @@ suite('Editor Controller - Cursor', () => {
 			new Selection(7, 4, 7, 5),
 		]);
 
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 6),
 			new Selection(2, 4, 2, 6),
@@ -894,16 +926,16 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 10 times
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 16),
 			new Selection(2, 4, 2, 16),
@@ -915,16 +947,16 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 10 times
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 26),
 			new Selection(2, 4, 2, 26),
@@ -936,8 +968,8 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 2 times => reaching the ending of lines 1 and 2
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -949,10 +981,10 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 4 times => reaching the ending of line 3
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -964,8 +996,8 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 2 times => reaching the ending of line 4
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -977,7 +1009,7 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 1 time => reaching the ending of line 7
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -989,9 +1021,9 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 3 times => reaching the ending of lines 5 & 6
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -1003,7 +1035,7 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// cannot go anywhere anymore
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -1015,10 +1047,10 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// cannot go anywhere anymore even if we insist
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
-		cursorCommand(cursor, H.CursorColumnSelectRight);
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -1030,7 +1062,7 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// can easily go back
-		cursorCommand(cursor, H.CursorColumnSelectLeft);
+		CoreCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -1111,7 +1143,7 @@ suite('Editor Controller - Regression tests', () => {
 			cursorCommand(cursor, H.Type, { text: 'x' });
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert4');
 
-			cursorCommand(cursor, H.CursorLeft, {});
+			CoreCommands.CursorLeft.runCoreEditorCommand(cursor, {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert5');
 
 			cursorCommand(cursor, H.DeleteLeft, {});
@@ -2268,7 +2300,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			cursorCommand(cursor, H.Type, { text: 'x' });
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert4');
 
-			cursorCommand(cursor, H.CursorLeft, {});
+			CoreCommands.CursorLeft.runCoreEditorCommand(cursor, {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert5');
 
 			cursorCommand(cursor, H.DeleteLeft, {});

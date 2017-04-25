@@ -49,6 +49,15 @@ export class CursorCollection {
 		return result;
 	}
 
+	public getAll2(): CursorState[] {
+		let result: CursorState[] = [];
+		result.push(this.primaryCursor.asCursorState());
+		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
+			result[i + 1] = this.secondaryCursors[i].asCursorState();
+		}
+		return result;
+	}
+
 	public getPositions(): Position[] {
 		var result: Position[] = [];
 		result.push(this.primaryCursor.modelState.position);
@@ -92,6 +101,10 @@ export class CursorCollection {
 
 	public getPrimaryCursor(): OneCursor {
 		return this.primaryCursor;
+	}
+
+	public getPrimaryCursor2(): CursorState {
+		return this.primaryCursor.asCursorState();
 	}
 
 	public setStates(states: CursorState[], ensureInEditableRange: boolean): void {
@@ -148,6 +161,13 @@ export class CursorCollection {
 			return this.primaryCursor;
 		}
 		return this.secondaryCursors[this.lastAddedCursorIndex - 1];
+	}
+
+	public getLastAddedCursorIndex(): number {
+		if (this.secondaryCursors.length === 0 || this.lastAddedCursorIndex === 0) {
+			return 0;
+		}
+		return this.lastAddedCursorIndex;
 	}
 
 	/**

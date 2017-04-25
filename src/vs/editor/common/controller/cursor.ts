@@ -14,24 +14,16 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorColumns, CursorConfiguration, EditOperationResult, SingleCursorState, IViewModelHelper, CursorContext, CursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, EditOperationResult, SingleCursorState, IViewModelHelper, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
-import { CursorMoveCommands, CursorMove } from "vs/editor/common/controller/cursorMoveCommands";
+import { CursorMoveCommands } from "vs/editor/common/controller/cursorMoveCommands";
 import { RevealLine, EditorScroll } from "vs/editor/common/config/config";
 import { CommonEditorRegistry } from "vs/editor/common/editorCommonExtensions";
-import { ICursor } from "vs/editor/common/controller/oneCursor";
-import { CoreCommand } from 'vs/editor/common/controller/coreCommands';
-
-export const enum RevealTarget {
-	Primary = 0,
-	TopMost = 1,
-	BottomMost = 2
-}
+import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 
 interface IMultipleCursorOperationContext {
 	cursorPositionChangeReason: CursorChangeReason;
@@ -44,12 +36,6 @@ interface IMultipleCursorOperationContext {
 	eventData: any;
 	executeCommands: editorCommon.ICommand[];
 	isAutoWhitespaceCommand: boolean[];
-	setColumnSelectData: IColumnSelectData;
-}
-
-interface IColumnSelectData {
-	toViewLineNumber: number;
-	toViewVisualColumn: number;
 }
 
 interface IExecContext {
@@ -66,14 +52,6 @@ interface ICommandsData {
 	operations: editorCommon.IIdentifiedSingleEditOperation[];
 	hadTrackedRanges: boolean[];
 	anyoneHadTrackedRange: boolean;
-}
-
-export interface ICursors {
-	readonly context: CursorContext;
-	getPrimaryCursor(): ICursor;
-
-	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
-	reveal(horizontal: boolean, target: RevealTarget): void;
 }
 
 export class Cursor extends Disposable implements ICursors {
@@ -199,8 +177,16 @@ export class Cursor extends Disposable implements ICursors {
 		super.dispose();
 	}
 
-	public getPrimaryCursor(): ICursor {
-		return this.cursors.getPrimaryCursor();
+	public getPrimaryCursor(): CursorState {
+		return this.cursors.getPrimaryCursor2();
+	}
+
+	public getLastAddedCursorIndex(): number {
+		return this.cursors.getLastAddedCursorIndex();
+	}
+
+	public getAll(): CursorState[] {
+		return this.cursors.getAll2();
 	}
 
 	public setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void {
@@ -213,8 +199,6 @@ export class Cursor extends Disposable implements ICursors {
 
 		this.cursors.setStates(states, false);
 		this.cursors.normalize();
-
-		// TODO@Alex
 		this._columnSelectData = null;
 
 		const newSelections = this.cursors.getSelections();
@@ -240,6 +224,10 @@ export class Cursor extends Disposable implements ICursors {
 			this.emitCursorPositionChanged(source, reason);
 			this.emitCursorSelectionChanged(source, reason);
 		}
+	}
+
+	public setColumnSelectData(columnSelectData: IColumnSelectData): void {
+		this._columnSelectData = columnSelectData;
 	}
 
 	public reveal(horizontal: boolean, target: RevealTarget): void {
@@ -380,8 +368,7 @@ export class Cursor extends Disposable implements ICursors {
 			executeCommands: [],
 			isAutoWhitespaceCommand: [],
 			shouldPushStackElementBefore: false,
-			shouldPushStackElementAfter: false,
-			setColumnSelectData: null
+			shouldPushStackElementAfter: false
 		};
 
 		callback(ctx);
@@ -456,7 +443,7 @@ export class Cursor extends Disposable implements ICursors {
 			ctx.shouldPushStackElementBefore = false;
 		}
 
-		this._columnSelectData = ctx.setColumnSelectData;
+		this._columnSelectData = null;
 
 		this._internalExecuteCommands(ctx.executeCommands, ctx.isAutoWhitespaceCommand);
 		ctx.executeCommands = [];
@@ -863,13 +850,13 @@ export class Cursor extends Disposable implements ICursors {
 	public trigger(source: string, handlerId: string, payload: any): void {
 		if (!this._handlers.hasOwnProperty(handlerId)) {
 			const command = CommonEditorRegistry.getEditorCommand(handlerId);
-			if (!command || !(command instanceof CoreCommand)) {
+			if (!command || !(command instanceof CoreEditorCommand)) {
 				return;
 			}
 
 			payload = payload || {};
 			payload.source = source;
-			command.runCoreCommand(this, payload);
+			command.runCoreEditorCommand(this, payload);
 			return;
 		}
 		let handler = this._handlers[handlerId];
@@ -879,47 +866,8 @@ export class Cursor extends Disposable implements ICursors {
 	private _registerHandlers(): void {
 		let H = editorCommon.Handler;
 
-		this._handlers[H.CursorMove] = (ctx) => this._cursorMove(ctx);
-		this._handlers[H.ColumnSelect] = (ctx) => this._columnSelectMouse(ctx);
 		this._handlers[H.AddCursorUp] = (ctx) => this._addCursorUp(ctx);
 		this._handlers[H.AddCursorDown] = (ctx) => this._addCursorDown(ctx);
-		this._handlers[H.CreateCursor] = (ctx) => this._createCursor(ctx);
-		this._handlers[H.LastCursorMoveToSelect] = (ctx) => this._lastCursorMoveTo(ctx);
-
-
-		this._handlers[H.CursorLeft] = (ctx) => this._moveLeft(false, ctx);
-		this._handlers[H.CursorLeftSelect] = (ctx) => this._moveLeft(true, ctx);
-
-		this._handlers[H.CursorRight] = (ctx) => this._moveRight(false, ctx);
-		this._handlers[H.CursorRightSelect] = (ctx) => this._moveRight(true, ctx);
-
-		this._handlers[H.CursorUp] = (ctx) => this._moveUp(false, false, ctx);
-		this._handlers[H.CursorUpSelect] = (ctx) => this._moveUp(true, false, ctx);
-		this._handlers[H.CursorDown] = (ctx) => this._moveDown(false, false, ctx);
-		this._handlers[H.CursorDownSelect] = (ctx) => this._moveDown(true, false, ctx);
-
-		this._handlers[H.CursorPageUp] = (ctx) => this._moveUp(false, true, ctx);
-		this._handlers[H.CursorPageUpSelect] = (ctx) => this._moveUp(true, true, ctx);
-		this._handlers[H.CursorPageDown] = (ctx) => this._moveDown(false, true, ctx);
-		this._handlers[H.CursorPageDownSelect] = (ctx) => this._moveDown(true, true, ctx);
-
-		this._handlers[H.CursorHome] = (ctx) => this._moveToBeginningOfLine(false, ctx);
-		this._handlers[H.CursorHomeSelect] = (ctx) => this._moveToBeginningOfLine(true, ctx);
-
-		this._handlers[H.CursorEnd] = (ctx) => this._moveToEndOfLine(false, ctx);
-		this._handlers[H.CursorEndSelect] = (ctx) => this._moveToEndOfLine(true, ctx);
-
-		this._handlers[H.CursorTop] = (ctx) => this._moveToBeginningOfBuffer(false, ctx);
-		this._handlers[H.CursorTopSelect] = (ctx) => this._moveToBeginningOfBuffer(true, ctx);
-		this._handlers[H.CursorBottom] = (ctx) => this._moveToEndOfBuffer(false, ctx);
-		this._handlers[H.CursorBottomSelect] = (ctx) => this._moveToEndOfBuffer(true, ctx);
-
-		this._handlers[H.CursorColumnSelectLeft] = (ctx) => this._columnSelectLeft(ctx);
-		this._handlers[H.CursorColumnSelectRight] = (ctx) => this._columnSelectRight(ctx);
-		this._handlers[H.CursorColumnSelectUp] = (ctx) => this._columnSelectUp(false, ctx);
-		this._handlers[H.CursorColumnSelectPageUp] = (ctx) => this._columnSelectUp(true, ctx);
-		this._handlers[H.CursorColumnSelectDown] = (ctx) => this._columnSelectDown(false, ctx);
-		this._handlers[H.CursorColumnSelectPageDown] = (ctx) => this._columnSelectDown(true, ctx);
 
 		this._handlers[H.SelectAll] = (ctx) => this._selectAll(ctx);
 
@@ -970,25 +918,7 @@ export class Cursor extends Disposable implements ICursors {
 		this._handlers[H.RevealLine] = (ctx) => this._revealLine(ctx);
 	}
 
-	private _cursorMove(ctx: IMultipleCursorOperationContext): void {
-		const args = CursorMove.parse(ctx.eventData);
-		if (!args) {
-			// illegal arguments
-			return;
-		}
-		return this._doCursorMove(ctx, args);
-	}
-
-	private _doCursorMove(ctx: IMultipleCursorOperationContext, args: CursorMove.ParsedArguments): void {
-		ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-		ctx.shouldReveal = true;
-		ctx.shouldRevealHorizontal = true;
-		this.cursors.setStates(CursorMoveCommands.move(this.context, this.cursors.getAll(), args), true);
-	}
-
-	private _getColumnSelectData(): IColumnSelectData {
+	public getColumnSelectData(): IColumnSelectData {
 		if (this._columnSelectData) {
 			return this._columnSelectData;
 		}
@@ -1000,108 +930,6 @@ export class Cursor extends Disposable implements ICursors {
 		};
 	}
 
-	private _applyColumnSelect(ctx: IMultipleCursorOperationContext, result: IColumnSelectResult): void {
-		ctx.shouldRevealTarget = (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost);
-		ctx.shouldReveal = true;
-		ctx.setColumnSelectData = {
-			toViewLineNumber: result.toLineNumber,
-			toViewVisualColumn: result.toVisualColumn
-		};
-		this.cursors.setStates(result.viewStates.map((viewState) => CursorState.fromViewState(viewState)), false);
-	}
-
-	private _columnSelectMouse(ctx: IMultipleCursorOperationContext): void {
-		let primary = this.cursors.getPrimaryCursor();
-
-		// validate `eventData`
-		let validatedPosition = this.context.model.validatePosition(ctx.eventData.position);
-		let validatedViewPosition: Position;
-		if (ctx.eventData.viewPosition) {
-			validatedViewPosition = this.context.validateViewPosition(new Position(ctx.eventData.viewPosition.lineNumber, ctx.eventData.viewPosition.column), validatedPosition);
-		} else {
-			validatedViewPosition = this.context.convertModelPositionToViewPosition(validatedPosition);
-		}
-
-		let result = ColumnSelection.columnSelect(this.context.config, this.context.viewModel, primary.viewState.selection, validatedViewPosition.lineNumber, ctx.eventData.mouseColumn - 1);
-		this._applyColumnSelect(ctx, result);
-	}
-
-	private _columnSelectLeft(ctx: IMultipleCursorOperationContext): void {
-		const primary = this.cursors.getPrimaryCursor();
-		const prevColumnSelectData = this._getColumnSelectData();
-		this._applyColumnSelect(ctx,
-			ColumnSelection.columnSelectLeft(this.context.config, this.context.viewModel, primary.viewState, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn)
-		);
-	}
-
-	private _columnSelectRight(ctx: IMultipleCursorOperationContext): void {
-		const primary = this.cursors.getPrimaryCursor();
-		const prevColumnSelectData = this._getColumnSelectData();
-		this._applyColumnSelect(ctx,
-			ColumnSelection.columnSelectRight(this.context.config, this.context.viewModel, primary.viewState, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn)
-		);
-	}
-
-	private _columnSelectUp(isPaged: boolean, ctx: IMultipleCursorOperationContext): void {
-		const primary = this.cursors.getPrimaryCursor();
-		const prevColumnSelectData = this._getColumnSelectData();
-		this._applyColumnSelect(ctx,
-			ColumnSelection.columnSelectUp(this.context.config, this.context.viewModel, primary.viewState, isPaged, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn)
-		);
-	}
-
-	private _columnSelectDown(isPaged: boolean, ctx: IMultipleCursorOperationContext): void {
-		const primary = this.cursors.getPrimaryCursor();
-		const prevColumnSelectData = this._getColumnSelectData();
-		this._applyColumnSelect(ctx,
-			ColumnSelection.columnSelectDown(this.context.config, this.context.viewModel, primary.viewState, isPaged, prevColumnSelectData.toViewLineNumber, prevColumnSelectData.toViewVisualColumn)
-		);
-	}
-
-	private _createCursor(ctx: IMultipleCursorOperationContext): void {
-		if (this.configuration.editor.readOnly || this.model.hasEditableRange()) {
-			return;
-		}
-
-		this.cursors.addSecondaryCursor({
-			selectionStartLineNumber: 1,
-			selectionStartColumn: 1,
-			positionLineNumber: 1,
-			positionColumn: 1
-		});
-
-		const lastAddedCursor = this.cursors.getLastAddedCursor();
-		if (ctx.eventData.wholeLine) {
-			const result = CursorMoveCommands.line(this.context, lastAddedCursor, false, ctx.eventData.position, ctx.eventData.viewPosition);
-			lastAddedCursor.setState(this.context, result.modelState, result.viewState, false);
-		} else {
-			const result = CursorMoveCommands.moveTo(this.context, lastAddedCursor, false, ctx.eventData.position, ctx.eventData.viewPosition);
-			lastAddedCursor.setState(this.context, result.modelState, result.viewState, false);
-		}
-
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-		ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
-		ctx.shouldReveal = false;
-	}
-
-	private _lastCursorMoveTo(ctx: IMultipleCursorOperationContext): void {
-		if (this.configuration.editor.readOnly || this.model.hasEditableRange()) {
-			return;
-		}
-
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-		if (ctx.eventSource === 'mouse') {
-			ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
-		}
-		ctx.shouldReveal = false;
-
-		const lastAddedCursor = this.cursors.getLastAddedCursor();
-		const result = CursorMoveCommands.moveTo(this.context, lastAddedCursor, true, ctx.eventData.position, ctx.eventData.viewPosition);
-		lastAddedCursor.setState(this.context, result.modelState, result.viewState, false);
-	}
-
 	private _addCursorUp(ctx: IMultipleCursorOperationContext): void {
 		if (this.configuration.editor.readOnly) {
 			return;
@@ -1111,7 +939,7 @@ export class Cursor extends Disposable implements ICursors {
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
 
-		this.cursors.setStates(CursorMoveCommands.addCursorUp(this.context, this.cursors.getAll()), true);
+		this.cursors.setStates(CursorMoveCommands.addCursorUp(this.context, this.getAll()), true);
 	}
 
 	private _addCursorDown(ctx: IMultipleCursorOperationContext): void {
@@ -1123,78 +951,14 @@ export class Cursor extends Disposable implements ICursors {
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
 
-		this.cursors.setStates(CursorMoveCommands.addCursorDown(this.context, this.cursors.getAll()), true);
-	}
-
-	private _moveLeft(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
-		this._doCursorMove(ctx, {
-			direction: CursorMove.Direction.Left,
-			unit: CursorMove.Unit.None,
-			select: inSelectionMode,
-			value: 1
-		});
-	}
-
-	private _moveRight(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
-		this._doCursorMove(ctx, {
-			direction: CursorMove.Direction.Right,
-			unit: CursorMove.Unit.None,
-			select: inSelectionMode,
-			value: 1
-		});
-	}
-
-	private _moveDown(inSelectionMode: boolean, isPaged: boolean, ctx: IMultipleCursorOperationContext): void {
-		this._doCursorMove(ctx, {
-			direction: CursorMove.Direction.Down,
-			unit: CursorMove.Unit.WrappedLine,
-			select: inSelectionMode,
-			value: (isPaged ? this.context.config.pageSize : 1)
-		});
-	}
-
-	private _moveUp(inSelectionMode: boolean, isPaged: boolean, ctx: IMultipleCursorOperationContext): void {
-		this._doCursorMove(ctx, {
-			direction: CursorMove.Direction.Up,
-			unit: CursorMove.Unit.WrappedLine,
-			select: inSelectionMode,
-			value: (isPaged ? this.context.config.pageSize : 1)
-		});
-	}
-
-	private _moveToBeginningOfLine(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
-		ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-		this.cursors.setStates(CursorMoveCommands.moveToBeginningOfLine(this.context, this.cursors.getAll(), inSelectionMode), true);
-	}
-
-	private _moveToEndOfLine(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
-		ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-		this.cursors.setStates(CursorMoveCommands.moveToEndOfLine(this.context, this.cursors.getAll(), inSelectionMode), true);
-	}
-
-	private _moveToBeginningOfBuffer(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
-		ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-		this.cursors.setStates(CursorMoveCommands.moveToBeginningOfBuffer(this.context, this.cursors.getAll(), inSelectionMode), true);
-	}
-
-	private _moveToEndOfBuffer(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
-		ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-		this.cursors.setStates(CursorMoveCommands.moveToEndOfBuffer(this.context, this.cursors.getAll(), inSelectionMode), true);
+		this.cursors.setStates(CursorMoveCommands.addCursorDown(this.context, this.getAll()), true);
 	}
 
 	private _selectAll(ctx: IMultipleCursorOperationContext): void {
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
 		ctx.shouldReveal = false;
-		const result = CursorMoveCommands.selectAll(this.context, this.cursors.getPrimaryCursor());
+		const result = CursorMoveCommands.selectAll(this.context, this.getPrimaryCursor());
 		this.cursors.setStates([result], false);
 	}
 
@@ -1204,7 +968,7 @@ export class Cursor extends Disposable implements ICursors {
 		ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
 		ctx.shouldRevealHorizontal = false;
 
-		const r = CursorMoveCommands.line(this.context, this.cursors.getPrimaryCursor(), inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
+		const r = CursorMoveCommands.line(this.context, this.getPrimaryCursor(), inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
 		this.cursors.setStates([r], false);
 	}
 
@@ -1219,7 +983,7 @@ export class Cursor extends Disposable implements ICursors {
 		ctx.shouldReveal = false;
 
 		const lastAddedCursor = this.cursors.getLastAddedCursor();
-		const result = CursorMoveCommands.line(this.context, lastAddedCursor, inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
+		const result = CursorMoveCommands.line(this.context, lastAddedCursor.asCursorState(), inSelectionMode, ctx.eventData.position, ctx.eventData.viewPosition);
 		lastAddedCursor.setState(this.context, result.modelState, result.viewState, false);
 	}
 
@@ -1227,7 +991,7 @@ export class Cursor extends Disposable implements ICursors {
 		ctx.cursorPositionChangeReason = CursorChangeReason.Explicit;
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
-		this.cursors.setStates(CursorMoveCommands.expandLineSelection(this.context, this.cursors.getAll()), true);
+		this.cursors.setStates(CursorMoveCommands.expandLineSelection(this.context, this.getAll()), true);
 	}
 
 	private _word(inSelectionMode: boolean, ctx: IMultipleCursorOperationContext): void {
@@ -1235,7 +999,7 @@ export class Cursor extends Disposable implements ICursors {
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
 
-		const primaryCursor = this.cursors.getPrimaryCursor();
+		const primaryCursor = this.getPrimaryCursor();
 		const r = CursorMoveCommands.word(this.context, primaryCursor, inSelectionMode, ctx.eventData.position);
 		this.cursors.setStates([r], false);
 	}
@@ -1251,7 +1015,7 @@ export class Cursor extends Disposable implements ICursors {
 		ctx.shouldReveal = false;
 
 		const lastAddedCursor = this.cursors.getLastAddedCursor();
-		const r = CursorMoveCommands.word(this.context, lastAddedCursor, true, ctx.eventData.position);
+		const r = CursorMoveCommands.word(this.context, lastAddedCursor.asCursorState(), true, ctx.eventData.position);
 		lastAddedCursor.setState(this.context, r.modelState, r.viewState, false);
 	}
 
@@ -1262,7 +1026,7 @@ export class Cursor extends Disposable implements ICursors {
 	private _cancelSelection(ctx: IMultipleCursorOperationContext): void {
 		ctx.shouldPushStackElementBefore = true;
 		ctx.shouldPushStackElementAfter = true;
-		const r = CursorMoveCommands.cancelSelection(this.context, this.cursors.getPrimaryCursor());
+		const r = CursorMoveCommands.cancelSelection(this.context, this.getPrimaryCursor());
 		this.cursors.setStates([r], false);
 	}
 
@@ -1490,7 +1254,7 @@ export class Cursor extends Disposable implements ICursors {
 		if (args.revealCursor) {
 			// must ensure cursor is in new visible range
 			const desiredVisibleViewRange = this.context.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
-			const r = CursorMoveCommands.findPositionInViewportIfOutside(this.context, this.cursors.getPrimaryCursor(), desiredVisibleViewRange, false);
+			const r = CursorMoveCommands.findPositionInViewportIfOutside(this.context, this.getPrimaryCursor(), desiredVisibleViewRange, false);
 			this.cursors.setStates([r], false);
 		}
 

@@ -4,17 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { SingleCursorState, CursorContext } from 'vs/editor/common/controller/cursorCommon';
+import { SingleCursorState, CursorContext, CursorState } from 'vs/editor/common/controller/cursorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 
-export interface ICursor {
-	readonly modelState: SingleCursorState;
-	readonly viewState: SingleCursorState;
-}
-
-export class OneCursor implements ICursor {
+export class OneCursor {
 
 	public modelState: SingleCursorState;
 	public viewState: SingleCursorState;
@@ -34,6 +29,10 @@ export class OneCursor implements ICursor {
 	public dispose(context: CursorContext): void {
 		context.model._removeMarker(this._selStartMarker);
 		context.model._removeMarker(this._selEndMarker);
+	}
+
+	public asCursorState(): CursorState {
+		return new CursorState(this.modelState, this.viewState);
 	}
 
 	public readSelectionFromMarkers(context: CursorContext): Selection {

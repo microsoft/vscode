@@ -13,8 +13,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKey, IContextKeyServiceTarget, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { Cursor, ICursors } from 'vs/editor/common/controller/cursor';
-import { CursorColumns, IViewModelHelper } from 'vs/editor/common/controller/cursorCommon';
+import { Cursor } from 'vs/editor/common/controller/cursor';
+import { CursorColumns, IViewModelHelper, ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
@@ -604,7 +604,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 	}
 
-	public getCursors(): ICursors {
+	public _getCursors(): ICursors {
 		return this.cursor;
 	}
 

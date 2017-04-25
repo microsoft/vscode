@@ -176,7 +176,7 @@ export class ViewController {
 
 	private columnSelect(source: string, viewPosition: Position, mouseColumn: number): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.ColumnSelect, {
+		this.triggerCursorHandler(source, CoreCommands.ColumnSelect.id, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition,
 			mouseColumn: mouseColumn
@@ -185,7 +185,7 @@ export class ViewController {
 
 	private createCursor(source: string, viewPosition: Position, wholeLine: boolean): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.CreateCursor, {
+		this.triggerCursorHandler(source, CoreCommands.CreateCursor.id, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition,
 			wholeLine: wholeLine
@@ -194,7 +194,7 @@ export class ViewController {
 
 	private lastCursorMoveToSelect(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorMoveToSelect, {
+		this.triggerCursorHandler(source, CoreCommands.LastCursorMoveToSelect.id, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
