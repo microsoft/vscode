@@ -122,9 +122,12 @@ class LazyEmmet {
 			let preferences = { ...LazyEmmet.preferencesFromFile, ...emmetPreferences.preferences };
 			let snippets = LazyEmmet.snippetsFromFile;
 			let mappedModes = [];
+			let outputProfileFromSettings = false;
 			for (let key in emmetPreferences.syntaxProfiles) {
 				if (LazyEmmet.emmetSupportedModes.indexOf(key) === -1) {
 					mappedModes.push(key);
+				} else {
+					outputProfileFromSettings = true;
 				}
 			}
 
@@ -138,6 +141,7 @@ class LazyEmmet {
 					emmetSyntaxProfilesFromFile: Object.keys(LazyEmmet.syntaxProfilesFromFile).length > 0,
 					emmetSnippetsFromFile: Object.keys(LazyEmmet.snippetsFromFile).length > 0,
 					emmetPreferencesFromSettings: Object.keys(emmetPreferences.preferences).length > 0,
+					emmetSyntaxProfilesFromSettings: outputProfileFromSettings,
 					emmetMappedModes: mappedModes
 				};
 				telemetryService.publicLog('emmetCustomizations', emmetCustomizationTelemetry);
