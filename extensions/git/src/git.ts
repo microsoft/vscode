@@ -330,6 +330,10 @@ export class Git {
 
 		const result = await exec(child, options);
 
+		if (options.log !== false && result.stderr.length > 0) {
+			this.log(`${result.stderr}\n`);
+		}
+
 		if (result.exitCode) {
 			let gitErrorCode: string | undefined = void 0;
 
@@ -347,10 +351,6 @@ export class Git {
 				gitErrorCode = GitErrorCodes.RepositoryNotFound;
 			} else if (/unable to access/.test(result.stderr)) {
 				gitErrorCode = GitErrorCodes.CantAccessRemote;
-			}
-
-			if (options.log !== false) {
-				this.log(`${result.stderr}\n`);
 			}
 
 			return Promise.reject<IExecutionResult>(new GitError({
