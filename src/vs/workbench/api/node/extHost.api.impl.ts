@@ -299,8 +299,8 @@ export function createApiFactory(
 			get visibleTextEditors() {
 				return extHostEditors.getVisibleTextEditors();
 			},
-			showTextDocument(document: vscode.TextDocument, column?: vscode.ViewColumn, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
-				return extHostEditors.showTextDocument(document, column, preserveFocus);
+			showTextDocument(document: vscode.TextDocument, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+				return extHostEditors.showTextDocument(document, columnOrOptions, preserveFocus);
 			},
 			createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
 				return extHostEditors.createTextEditorDecorationType(options);

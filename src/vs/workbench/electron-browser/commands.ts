@@ -20,6 +20,9 @@ import errors = require('vs/base/common/errors');
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
+import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
+import * as vscode from 'vscode';
 
 // --- List Commands
 
@@ -373,15 +376,31 @@ export function registerCommands(): void {
 		win: { primary: void 0 }
 	});
 
-	CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string]) {
+	CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, vscode.TextDocumentShowOptions]) {
 		const editorService = accessor.get(IWorkbenchEditorService);
-		let [leftResource, rightResource, label, description] = args;
+		let [leftResource, rightResource, label, description, options] = args;
+
+		let position: EditorPosition;
+		let editorOptions: IEditorOptions;
+		if (typeof options === 'object' && options !== undefined && options !== null) {
+			position = TypeConverters.fromViewColumn(options.column);
+			editorOptions = {
+				preserveFocus: options.preserveFocus,
+				pinned: !options.preview
+			};
+		}
+		else {
+			editorOptions = {
+				preserveFocus: false,
+				pinned: false
+			};
+		}
 
 		if (!label) {
 			label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
 		}
 
-		return editorService.openEditor({ leftResource, rightResource, label, description }).then(() => {
+		return editorService.openEditor({ leftResource, rightResource, label, description, options: editorOptions }, position).then(() => {
 			return void 0;
 		});
 	});
