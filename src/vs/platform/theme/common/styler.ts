@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, infoBorder, infoBackground, warningBorder, warningBackground, errorBorder, errorBackground, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, infoBorder, infoBackground, warningBorder, warningBackground, errorBorder, errorBackground, highContrastOutline, buttonForeground, buttonBackground, buttonHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from "vs/base/common/lifecycle";
 import { SIDE_BAR_SECTION_HEADER_BACKGROUND } from "vs/workbench/common/theme";
 
@@ -189,5 +189,13 @@ export function attachHeaderViewStyler(widget: IThemable, themeService: IThemeSe
 	return attachStyler(themeService, widget, {
 		headerBackground: (style && style.headerBackground) || SIDE_BAR_SECTION_HEADER_BACKGROUND,
 		headerHighContrastBorder: (style && style.highContrastBorder) || highContrastBorder
+	});
+}
+
+export function attachButtonStyler(widget: IThemable, themeService: IThemeService, style?: { buttonForeground?: ColorIdentifier, buttonBackground?: ColorIdentifier, buttonHoverBackground?: ColorIdentifier }): IDisposable {
+	return attachStyler(themeService, widget, {
+		buttonForeground: (style && style.buttonForeground) || buttonForeground,
+		buttonBackground: (style && style.buttonBackground) || buttonBackground,
+		buttonHoverBackground: (style && style.buttonHoverBackground) || buttonHoverBackground
 	});
 }

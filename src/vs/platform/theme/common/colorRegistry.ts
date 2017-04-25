@@ -166,8 +166,9 @@ export const listDropBackground = registerColor('listDropBackground', { dark: '#
 export const pickerGroupForeground = registerColor('pickerGroupForeground', { dark: Color.fromHex('#0097FB').transparent(0.6), light: Color.fromHex('#007ACC').transparent(0.6), hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
 export const pickerGroupBorder = registerColor('pickerGroupBorder', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
 
+export const buttonForeground = registerColor('buttonForeground', { dark: Color.white, light: Color.white, hc: Color.white }, nls.localize('buttonForeground', "Button foreground color."));
 export const buttonBackground = registerColor('buttonBackground', { dark: '#0E639C', light: '#007ACC', hc: null }, nls.localize('buttonBackground', "Button background color."));
-export const buttonHoverBackground = registerColor('buttonHoverBackground', { dark: '#007ACC', light: '#006BB3', hc: null }, nls.localize('buttonHoverBackground', "Button background color when hovering."));
+export const buttonHoverBackground = registerColor('buttonHoverBackground', { dark: '#006BB3', light: '#006BB3', hc: null }, nls.localize('buttonHoverBackground', "Button background color when hovering."));
 
 export const scrollbarShadow = registerColor('scrollbarShadow', { dark: '#000000', light: '#DDDDDD', hc: null }, nls.localize('scrollbarShadow', "Scrollbar shadow to indicate that the view is scrolled."));
 export const scrollbarSliderBackground = registerColor('scrollbarSliderBackground', { dark: Color.fromHex('#797979').transparent(0.4), light: Color.fromHex('#646464').transparent(0.4), hc: Color.fromHex('#6FC3DF').transparent(0.6) }, nls.localize('scrollbarSliderBackground', "Slider background color."));
