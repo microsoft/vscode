@@ -140,9 +140,9 @@ export const inputForeground = registerColor('inputBoxForeground', { dark: foreg
 export const inputBorder = registerColor('inputBoxBorder', { dark: null, light: null, hc: highContrastBorder }, nls.localize('inputBoxBorder', "Input box border."));
 export const inputActiveOptionBorder = registerColor('inputBoxActiveOptionBorder', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('inputBoxActiveOptionBorder', "Border color of activated options in input fields."));
 
-export const selectBackground = registerColor('dropdownBackground', { dark: '#3C3C3C', light: Color.white, hc: '#3C3C3C' }, nls.localize('dropdownBackground', "Dropdown background."));
+export const selectBackground = registerColor('dropdownBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('dropdownBackground', "Dropdown background."));
 export const selectForeground = registerColor('dropdownForeground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('dropdownForeground', "Dropdown foreground."));
-export const selectBorder = registerColor('dropdownBorder', { dark: selectBackground, light: '#CECECE', hc: selectBackground }, nls.localize('dropdownBorder', "Dropdown border."));
+export const selectBorder = registerColor('dropdownBorder', { dark: selectBackground, light: '#CECECE', hc: highContrastBorder }, nls.localize('dropdownBorder', "Dropdown border."));
 
 export const listFocusBackground = registerColor('listFocusBackground', { dark: '#073655', light: '#DCEBFC', hc: null }, nls.localize('listFocusBackground', "List/Tree focus background when active."));
 export const listInactiveFocusBackground = registerColor('listInactiveFocusBackground', { dark: null, light: null, hc: null }, nls.localize('listInactiveFocusBackground', "List/Tree focus background when inactive."));
