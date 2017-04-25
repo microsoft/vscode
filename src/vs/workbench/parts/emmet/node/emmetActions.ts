@@ -72,14 +72,16 @@ class LazyEmmet {
 	private static syntaxProfilesFromFile = {};
 	private static preferencesFromFile = {};
 	private static workspaceRoot = '';
-	private emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
+	private static emmetSupportedModes: string[];
 
 	public static withConfiguredEmmet(configurationService: IConfigurationService,
 		messageService: IMessageService,
 		telemetryService: ITelemetryService,
+		emmetSupportedModes: string[],
 		workspaceRoot: string,
 		callback: (_emmet: typeof emmet) => void): TPromise<void> {
 		LazyEmmet.workspaceRoot = workspaceRoot;
+		LazyEmmet.emmetSupportedModes = emmetSupportedModes;
 		return LazyEmmet._INSTANCE.withEmmetPreferences(configurationService, messageService, telemetryService, callback);
 	}
 
@@ -121,7 +123,7 @@ class LazyEmmet {
 			let snippets = LazyEmmet.snippetsFromFile;
 			let mappedModes = [];
 			for (let key in emmetPreferences.syntaxProfiles) {
-				if (this.emmetSupportedModes.indexOf(key) === -1) {
+				if (LazyEmmet.emmetSupportedModes.indexOf(key) === -1) {
 					mappedModes.push(key);
 				}
 			}
@@ -280,7 +282,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 				return undefined;
 			}
 
-			return LazyEmmet.withConfiguredEmmet(configurationService, messageService, telemetryService, workspaceRoot, (_emmet) => {
+			return LazyEmmet.withConfiguredEmmet(configurationService, messageService, telemetryService, editorAccessor.getEmmetSupportedModes(), workspaceRoot, (_emmet) => {
 				if (!_emmet) {
 					this.noExpansionOccurred(editor);
 					return undefined;

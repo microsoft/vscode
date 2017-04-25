@@ -33,7 +33,7 @@ export class EditorAccessor implements emmet.Editor {
 	private _emmetActionName: string;
 	private _hasMadeEdits: boolean;
 
-	private emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
+	private readonly emmetSupportedModes = ['html', 'css', 'xml', 'xsl', 'haml', 'jade', 'jsx', 'slim', 'scss', 'sass', 'less', 'stylus', 'styl', 'svg'];
 
 	constructor(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICommonCodeEditor, syntaxProfiles: any, excludedLanguages: String[], grammars: IGrammarContributions, emmetActionName?: string) {
 		this._languageIdentifierResolver = languageIdentifierResolver;
@@ -45,8 +45,11 @@ export class EditorAccessor implements emmet.Editor {
 		this._emmetActionName = emmetActionName;
 	}
 
-	public isEmmetEnabledMode(): boolean {
+	public getEmmetSupportedModes(): string[] {
+		return this.emmetSupportedModes;
+	}
 
+	public isEmmetEnabledMode(): boolean {
 		return this.emmetSupportedModes.indexOf(this.getSyntax()) !== -1;
 	}
 
