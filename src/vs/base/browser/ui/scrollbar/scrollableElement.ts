@@ -225,9 +225,9 @@ export class ScrollableElement extends Widget {
 				[deltaY, deltaX] = [deltaX, deltaY];
 			}
 
-			// Convert vertical scrolling to horizontal if shift is held
-			const shiftConvert = (Platform.isLinux || Platform.isWindows) && e.browserEvent.shiftKey;
-
+			// Convert vertical scrolling to horizontal if shift is held, this
+			// is handled at a higher level on Mac
+			const shiftConvert = !Platform.isMacintosh && e.browserEvent.shiftKey;
 			if ((this._options.scrollYToX || shiftConvert) && !deltaX) {
 				deltaX = deltaY;
 				deltaY = 0;
