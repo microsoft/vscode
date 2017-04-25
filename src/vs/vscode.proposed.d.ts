@@ -545,15 +545,6 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable;
-
-		/**
-		 * Register a [TreeNode](#TreeNode).
-		 *
-		 * @param providerId A unique id that identifies the provider.
-		 * @param provider A [TreeNode](#TreeNode).
-		 * @return A [disposable](#Disposable) that unregisters this tree when being disposed.
-		 */
-		export function registerTree(id: string, root: TreeNode): Disposable;
 	}
 
 	/**
@@ -621,27 +612,6 @@ declare module 'vscode' {
 		 * Event to be listened for any changes
 		 */
 		onChange?: Event<T>;
-	}
-
-	export interface TreeNode {
-		/**
-		 * Human-readable string used for rendering the node.
-		 * Label for Root node is not rendered.
-		 */
-		readonly label: string;
-		/**
-		 * Get the children for the node. If not implemented, the node is not expandable.
-		 */
-		getChildren?(): Thenable<TreeNode[]>;
-		/**
-		 * The [command](#Command) which should be run when the node
-		 * is selected in the View.
-		 */
-		command?: Command;
-		/**
-		 * Event to be listened for any changes on this node
-		 */
-		onChange?: Event<void>;
 	}
 
 	/**
