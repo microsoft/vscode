@@ -347,7 +347,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Otherwise bubble up the error
-		return TPromise.wrapError(error);
+		return TPromise.wrapError<EditorModel>(error);
 	}
 
 	private loadWithContent(content: IRawTextContent | IContent, backup?: URI): TPromise<EditorModel> {
@@ -442,7 +442,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}, error => {
 				this.createTextEditorModelPromise = null;
 
-				return TPromise.wrapError(error);
+				return TPromise.wrapError<TextFileEditorModel>(error);
 			});
 		});
 

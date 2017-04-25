@@ -513,7 +513,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	private _runOnProxy(callback: () => TPromise<any>, silent: boolean): TPromise<ExtHostTextEditor> {
 		if (this._disposed) {
 			if (!silent) {
-				return TPromise.wrapError(silent);
+				return TPromise.wrapError<ExtHostTextEditor>(silent);
 			} else {
 				console.warn('TextEditor is closed/disposed');
 				return TPromise.as(undefined);
@@ -521,7 +521,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		}
 		return callback().then(() => this, err => {
 			if (!silent) {
-				return TPromise.wrapError(silent);
+				return TPromise.wrapError<ExtHostTextEditor>(silent);
 			}
 			console.warn(err);
 			return undefined;

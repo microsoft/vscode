@@ -134,7 +134,7 @@ export class SideBySideEditor extends BaseEditor {
 	private _createEditor(editorInput: EditorInput, container: HTMLElement): TPromise<BaseEditor> {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 		if (!descriptor) {
-			return TPromise.wrapError(new Error(strings.format('Can not find a registered editor for the input {0}', editorInput)));
+			return TPromise.wrapError<BaseEditor>(new Error(strings.format('Can not find a registered editor for the input {0}', editorInput)));
 		}
 		return this.instantiationService.createInstance(<EditorDescriptor>descriptor)
 			.then((editor: BaseEditor) => {

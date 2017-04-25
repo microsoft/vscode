@@ -297,7 +297,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// We need an editor descriptor for the input
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(input);
 		if (!descriptor) {
-			return TPromise.wrapError(new Error(strings.format('Can not find a registered editor for the input {0}', input)));
+			return TPromise.wrapError<BaseEditor>(new Error(strings.format('Can not find a registered editor for the input {0}', input)));
 		}
 
 		// Opened to the side
@@ -453,7 +453,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				return TPromise.as(arg);
 			}
 
-			return TPromise.wrapError(arg);
+			return TPromise.wrapError<BaseEditor | Error>(arg);
 		};
 
 		const instantiateEditorPromise = editorInstantiationService.createInstance(<EditorDescriptor>descriptor).then(onInstantiate, onInstantiate);

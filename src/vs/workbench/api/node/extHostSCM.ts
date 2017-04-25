@@ -310,7 +310,7 @@ export class ExtHostSCM {
 		return sourceControl;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> {
+	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<vscode.Uri> {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl || !sourceControl.quickDiffProvider) {

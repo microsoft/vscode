@@ -85,7 +85,7 @@ export class ExtHostTreeView extends ExtHostTreeViewShape {
 		const provider = this._extNodeProviders[providerId];
 		if (!provider) {
 			const errMessage = localize('treeExplorer.notRegistered', 'No TreeExplorerNodeProvider with id \'{0}\' registered.', providerId);
-			return TPromise.wrapError(errMessage);
+			return TPromise.wrapError<InternalTreeExplorerNode>(errMessage);
 		}
 
 		return asWinJsPromise(() => provider.provideRootNode()).then(extRootNode => {
@@ -100,7 +100,7 @@ export class ExtHostTreeView extends ExtHostTreeViewShape {
 			return internalRootNode;
 		}, err => {
 			const errMessage = localize('treeExplorer.failedToProvideRootNode', 'TreeExplorerNodeProvider \'{0}\' failed to provide root node.', providerId);
-			return TPromise.wrapError(errMessage);
+			return TPromise.wrapError<InternalTreeExplorerNode>(errMessage);
 		});
 	}
 
@@ -108,7 +108,7 @@ export class ExtHostTreeView extends ExtHostTreeViewShape {
 		const provider = this._extNodeProviders[providerId];
 		if (!provider) {
 			const errMessage = localize('treeExplorer.notRegistered', 'No TreeExplorerNodeProvider with id \'{0}\' registered.', providerId);
-			return TPromise.wrapError(errMessage);
+			return TPromise.wrapError<InternalTreeExplorerNode[]>(errMessage);
 		}
 
 		const extNodeMap = this._extNodeMaps[providerId];

@@ -231,7 +231,9 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	private resolveAsBinary(): TPromise<BinaryEditorModel> {
-		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
+		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName())
+			.load()
+			.then(x => x as BinaryEditorModel);
 	}
 
 	public isResolved(): boolean {

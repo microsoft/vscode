@@ -33,7 +33,7 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 
 		const myToken = ++this._token;
 
-		this._contents = new TPromise((c, e) => {
+		this._contents = new TPromise<MyQuickPickItems[]>((c, e) => {
 			this._doSetItems = (items) => {
 				if (myToken === this._token) {
 					c(items);

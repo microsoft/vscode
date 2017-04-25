@@ -260,7 +260,7 @@ export class WorkbenchShell {
 						secondaryButton: nls.localize('prof.restart', "Restart")
 					});
 
-					let createIssue = TPromise.as(undefined);
+					let createIssue = TPromise.as<void>(void 0);
 					if (primaryButton) {
 						const action = this.workbench.getInstantiationService().createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
 
