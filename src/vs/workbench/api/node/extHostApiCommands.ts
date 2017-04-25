@@ -17,6 +17,7 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class ExtHostApiCommands {
 
@@ -203,15 +204,30 @@ export class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.diff', (left: URI, right: URI, label: string, options?: { preserveFocus?: boolean, pinned?: boolean }) => {
-			return this._commands.executeCommand('_workbench.diff', [left, right, label, undefined, options]);
+		this._register('vscode.diff', (left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions) => {
+
+			let editorOptions: IEditorOptions;
+			if (options) {
+				editorOptions = {
+					pinned: !options.preview,
+					preserveFocus: options.preserveFocus
+				};
+			}
+
+			return this._commands.executeCommand('_workbench.diff', [
+				left, right,
+				label,
+				undefined,
+				editorOptions,
+				options ? typeConverters.fromViewColumn(options.column) : undefined
+			]);
 		}, {
 				description: 'Opens the provided resources in the diff editor to compare their contents.',
 				args: [
 					{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
 					{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
 					{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' },
-					{ name: 'options', description: '(optional) Editor options' }
+					{ name: 'options', description: '(optional) Editor options, see vscode.TextDocumentShowOptions' }
 				]
 			});
 
