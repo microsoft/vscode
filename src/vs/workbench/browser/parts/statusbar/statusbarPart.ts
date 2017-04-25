@@ -169,7 +169,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// Create new
 		let statusDispose: IDisposable;
 		let showHandle = setTimeout(() => {
-			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, Number.MIN_VALUE);
+			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
 			showHandle = null;
 		}, delayBy);
 		let hideHandle: number;
