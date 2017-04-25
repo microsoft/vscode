@@ -2032,11 +2032,6 @@ export var Handler = {
 	ExecuteCommand: 'executeCommand',
 	ExecuteCommands: 'executeCommands',
 
-	ExpandLineSelection: 'expandLineSelection',
-
-	AddCursorDown: 'addCursorDown',
-	AddCursorUp: 'addCursorUp',
-
 	Type: 'type',
 	ReplacePreviousChar: 'replacePreviousChar',
 	CompositionStart: 'compositionStart',
@@ -2050,35 +2045,16 @@ export var Handler = {
 	DeleteLeft: 'deleteLeft',
 	DeleteRight: 'deleteRight',
 
-	RemoveSecondaryCursors: 'removeSecondaryCursors',
-	CancelSelection: 'cancelSelection',
-
 	Cut: 'cut',
 
 	Undo: 'undo',
 	Redo: 'redo',
 
-	WordSelect: 'wordSelect',
-	WordSelectDrag: 'wordSelectDrag',
-	LastCursorWordSelect: 'lastCursorWordSelect',
-
-	LineSelect: 'lineSelect',
-	LineSelectDrag: 'lineSelectDrag',
-	LastCursorLineSelect: 'lastCursorLineSelect',
-	LastCursorLineSelectDrag: 'lastCursorLineSelectDrag',
 	LineInsertBefore: 'lineInsertBefore',
 	LineInsertAfter: 'lineInsertAfter',
 	LineBreakInsert: 'lineBreakInsert',
 
 	SelectAll: 'selectAll',
-
-	EditorScroll: 'editorScroll',
-
-	ScrollLineUp: 'scrollLineUp',
-	ScrollLineDown: 'scrollLineDown',
-
-	ScrollPageUp: 'scrollPageUp',
-	ScrollPageDown: 'scrollPageDown',
 
 	RevealLine: 'revealLine'
 };

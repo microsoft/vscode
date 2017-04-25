@@ -202,28 +202,28 @@ export class ViewController {
 
 	private wordSelect(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.WordSelect, {
+		this.triggerCursorHandler(source, CoreCommands.WordSelect.id, {
 			position: this.convertViewToModelPosition(viewPosition)
 		});
 	}
 
 	private wordSelectDrag(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.WordSelectDrag, {
+		this.triggerCursorHandler(source, CoreCommands.WordSelectDrag.id, {
 			position: this.convertViewToModelPosition(viewPosition)
 		});
 	}
 
 	private lastCursorWordSelect(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorWordSelect, {
+		this.triggerCursorHandler(source, CoreCommands.LastCursorWordSelect.id, {
 			position: this.convertViewToModelPosition(viewPosition)
 		});
 	}
 
 	private lineSelect(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LineSelect, {
+		this.triggerCursorHandler(source, CoreCommands.LineSelect.id, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -231,7 +231,7 @@ export class ViewController {
 
 	private lineSelectDrag(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LineSelectDrag, {
+		this.triggerCursorHandler(source, CoreCommands.LineSelectDrag.id, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -239,7 +239,7 @@ export class ViewController {
 
 	private lastCursorLineSelect(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorLineSelect, {
+		this.triggerCursorHandler(source, CoreCommands.LastCursorLineSelect.id, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -247,7 +247,7 @@ export class ViewController {
 
 	private lastCursorLineSelectDrag(source: string, viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorLineSelectDrag, {
+		this.triggerCursorHandler(source, CoreCommands.LastCursorLineSelectDrag.id, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});

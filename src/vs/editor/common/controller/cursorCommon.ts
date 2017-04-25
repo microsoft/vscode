@@ -41,6 +41,7 @@ export interface ICursors {
 
 	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
 	reveal(horizontal: boolean, target: RevealTarget): void;
+	scrollTo(desiredScrollTop: number): void;
 }
 
 export interface CharacterMap {

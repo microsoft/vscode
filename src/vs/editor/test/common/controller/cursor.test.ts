@@ -599,37 +599,37 @@ suite('Editor Controller - Cursor', () => {
 		//              01234 56789012345678 0
 		// let LINE1 = '    \tMy First Line\t ';
 		moveTo(thisCursor, 1, 1);
-		cursorCommand(thisCursor, H.ExpandLineSelection);
+		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 2);
-		cursorCommand(thisCursor, H.ExpandLineSelection);
+		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 5);
-		cursorCommand(thisCursor, H.ExpandLineSelection);
+		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 19);
-		cursorCommand(thisCursor, H.ExpandLineSelection);
+		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 20);
-		cursorCommand(thisCursor, H.ExpandLineSelection);
+		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 21);
-		cursorCommand(thisCursor, H.ExpandLineSelection);
+		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
-		cursorCommand(thisCursor, H.ExpandLineSelection);
+		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 3, 1));
-		cursorCommand(thisCursor, H.ExpandLineSelection);
+		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 4, 1));
-		cursorCommand(thisCursor, H.ExpandLineSelection);
+		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 5, 1));
-		cursorCommand(thisCursor, H.ExpandLineSelection);
+		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
-		cursorCommand(thisCursor, H.ExpandLineSelection);
+		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
 	});
 
@@ -1501,34 +1501,6 @@ suite('Editor Controller - Regression tests', () => {
 		mode.dispose();
 	});
 
-	test('issue #1336: Insert cursor below on last line adds a cursor to the end of the current line', () => {
-		usingCursor({
-			text: [
-				'abc'
-			],
-		}, (model, cursor) => {
-			cursorCommand(cursor, H.AddCursorDown);
-			assert.equal(cursor.getSelections().length, 1);
-		});
-	});
-
-	test('issue #2205: Multi-cursor pastes in reverse order', () => {
-		usingCursor({
-			text: [
-				'abc',
-				'def'
-			],
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 1, false);
-			cursorCommand(cursor, H.AddCursorUp);
-			assert.equal(cursor.getSelections().length, 2);
-
-			cursorCommand(cursor, H.Paste, { text: '1\n2' });
-			assert.equal(model.getLineContent(1), '1abc');
-			assert.equal(model.getLineContent(2), '2def');
-		});
-	});
-
 	test('issue #10212: Pasting entire line does not replace selection', () => {
 		usingCursor({
 			text: [
@@ -1653,13 +1625,17 @@ suite('Editor Controller - Regression tests', () => {
 			moveTo(cursor, 1, 1, false);
 
 			function assertWordRight(col, expectedCol) {
-				cursorCommand(cursor, col === 1 ? H.WordSelect : H.WordSelectDrag, {
+				let args = {
 					position: {
 						lineNumber: 1,
 						column: col
-					},
-					preference: 'right'
-				});
+					}
+				};
+				if (col === 1) {
+					CoreCommands.WordSelect.runCoreEditorCommand(cursor, args);
+				} else {
+					CoreCommands.WordSelectDrag.runCoreEditorCommand(cursor, args);
+				}
 
 				assert.equal(cursor.getSelection().startColumn, 1, 'TEST FOR ' + col);
 				assert.equal(cursor.getSelection().endColumn, expectedCol, 'TEST FOR ' + col);
