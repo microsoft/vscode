@@ -6,6 +6,7 @@
 
 import 'vs/css!./referencesWidget';
 import * as nls from 'vs/nls';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { getPathLabel } from 'vs/base/common/labels';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -410,15 +411,9 @@ class AriaProvider implements tree.IAccessibilityProvider {
 
 	getAriaLabel(tree: tree.ITree, element: FileReferences | OneReference): string {
 		if (element instanceof FileReferences) {
-			const len = element.children.length;
-			if (len === 1) {
-				return nls.localize('aria.fileReferences.1', "1 reference in {0}", element.uri.fsPath);
-			} else {
-				return nls.localize('aria.fileReferences.N', "{0} references in {1}", len, element.uri.fsPath);
-			}
+			return element.getAriaMessage();
 		} else if (element instanceof OneReference) {
-			return nls.localize('aria.oneReference', "reference in {0} on line {1} at column {2}", element.uri.fsPath, element.range.startLineNumber, element.range.startColumn);
-
+			return element.getAriaMessage();
 		} else {
 			return undefined;
 		}
@@ -626,7 +621,8 @@ export class ReferenceWidget extends PeekViewWidget {
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer),
 				controller: new Controller(),
-				accessibilityProvider: new AriaProvider()
+				// TODO@{Joh,Ben} make this work with the embedded tree
+				// accessibilityProvider: new AriaProvider()
 			};
 
 			var options = {
@@ -703,6 +699,10 @@ export class ReferenceWidget extends PeekViewWidget {
 			if (element instanceof OneReference) {
 				this._revealReference(element);
 				this._onDidSelectReference.fire({ element, kind: 'show', source: 'tree' });
+			}
+			if (element instanceof OneReference || element instanceof FileReferences) {
+				const msg = element.getAriaMessage();
+				alert(msg);
 			}
 		}));
 		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.SELECTED, (element: any) => {

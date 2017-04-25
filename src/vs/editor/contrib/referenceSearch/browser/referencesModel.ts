@@ -62,6 +62,13 @@ export class OneReference {
 		this._range = value;
 		this._eventBus.emit('ref/changed', this);
 	}
+
+	public getAriaMessage(): string {
+		return localize(
+			'aria.oneReference', "symbol in {0} on line {1} at column {2}",
+			this.uri.fsPath, this.range.startLineNumber, this.range.startColumn
+		);
+	}
 }
 
 export class FilePreview implements IDisposable {
@@ -142,6 +149,15 @@ export class FileReferences implements IDisposable {
 
 	public get failure(): any {
 		return this._loadFailure;
+	}
+
+	getAriaMessage(): string {
+		const len = this.children.length;
+		if (len === 1) {
+			return localize('aria.fileReferences.1', "1 symbol in {0}", this.uri.fsPath);
+		} else {
+			return localize('aria.fileReferences.N', "{0} symbols in {1}", len, this.uri.fsPath);
+		}
 	}
 
 	public resolve(textModelResolverService: ITextModelResolverService): TPromise<FileReferences> {
