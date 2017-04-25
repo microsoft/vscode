@@ -1266,3 +1266,8 @@ export class ShellTask extends BaseTask {
 		this._options = value;
 	}
 }
+
+export enum ProgressLocation {
+	Scm = 1,
+	Window = 10,
+}

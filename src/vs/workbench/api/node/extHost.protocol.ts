@@ -23,6 +23,7 @@ import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
@@ -202,9 +203,8 @@ export abstract class MainThreadOutputServiceShape {
 
 export abstract class MainThreadProgressShape {
 
-	$startWindow(handle: number, title: string): void { throw ni(); };
-	$startScm(handle: number): void { throw ni(); };
-	$progressReport(handle: number, message: string): void { throw ni(); }
+	$startProgress(handle: number, options: IProgressOptions): void { throw ni(); };
+	$progressReport(handle: number, message: IProgressStep): void { throw ni(); }
 	$progressEnd(handle: number): void { throw ni(); }
 }
 

@@ -3876,15 +3876,27 @@ declare module 'vscode' {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * Show progress in the Source Control viewlet while running the given callback and while
-		 * its returned promise isn't resolve or rejected.
+		 * ~~Show progress in the Source Control viewlet while running the given callback and while
+		 * its returned promise isn't resolve or rejected.~~
 		 *
 		 * @param task A callback returning a promise. Progress increments can be reported with
 		 * the provided [progress](#Progress)-object.
-		 * @return The thenable the task did return.
+		 * @return The thenable the task did rseturn.
+		 *
+		 * @deprecated Use `withProgress` instead.
 		 */
 		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
 
+		/**
+		 * Show progress in the editor. Progress is shown while running the given callback
+		 * and while the promise it returned isn't resolved nor rejected. The location at which
+		 * progress should show (and other details) is defined via the passed [`ProgressOptions`](#ProgressOptions).
+		 *
+		 * @param task A callback returning a promise. Progress state can be reported with
+		 * the provided [progress](#Progress)-object.
+		 * @return The thenable the task-callback returned.
+		 */
+		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; percentage?: number }>) => Thenable<R>): Thenable<R>;
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
@@ -3917,7 +3929,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Value-object describing what options formatting should use.
+	 * Value-object describing what options a terminal should use.
 	 */
 	export interface TerminalOptions {
 		/**
@@ -3934,6 +3946,41 @@ declare module 'vscode' {
 		 * Args for the custom shell executable, this does not work on Windows (see #8429)
 		 */
 		shellArgs?: string[];
+	}
+
+	/**
+	 * A location in the editor at which progress information can be shown. It depends on the
+	 * location how progress is visually represented.
+	 */
+	export enum ProgressLocation {
+
+		/**
+		 * Show progress for the scm viewlet, as overlay for the icon and as progress bar
+		 * inside the viewlet (when visible).
+		 */
+		Scm = 1,
+
+		/**
+		 * Show progress in the status bar of the editor.
+		 */
+		Window = 10
+	}
+
+	/**
+	 * Value-object describing where and how progress should show.
+	 */
+	export interface ProgressOptions {
+
+		/**
+		 * The location at which progress should show.
+		 */
+		location: ProgressLocation;
+
+		/**
+		 * A human-readable string which will be used to describe the
+		 * operation.
+		 */
+		title?: string;
 	}
 
 	/**

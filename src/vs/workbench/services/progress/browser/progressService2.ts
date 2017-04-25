@@ -8,7 +8,7 @@ import 'vs/css!vs/workbench/services/progress/browser/media/progressService2';
 import * as dom from 'vs/base/browser/dom';
 import { IActivityBarService, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IProgressService2, IProgress, Progress, emptyProgress } from 'vs/platform/progress/common/progress';
+import { IProgressService2, IProgressOptions, ProgressLocation, IProgress, Progress, emptyProgress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/platform';
@@ -67,35 +67,50 @@ export class ProgressService2 implements IProgressService2 {
 		//
 	}
 
-	withWindowProgress(title: string, callback: (progress: IProgress<string>) => TPromise<any>): void {
+	withProgress(options: IProgressOptions, task: (progress: IProgress<{ message?: string, percentage?: number }>) => TPromise<any>): void {
+		const { location } = options;
+		switch (location) {
+			case ProgressLocation.Window:
+				this._withWindowProgress(options, task);
+				break;
+			case ProgressLocation.Scm:
+				this._withViewletProgress('workbench.view.scm', task);
+				break;
+			default:
+				console.warn(`Bad progress location: ${location}`);
+		}
+	}
+
+
+	private _withWindowProgress(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, percentage?: number }>) => TPromise<any>): void {
 
 		const task = {
-			progress: new Progress<string>(() => this._updateProgress()),
-			title
+			progress: new Progress<string>(() => this._updateWindowProgress()),
+			title: options.title
 		};
 
 		const promise = callback(task.progress);
 		this._stack.unshift(task);
-		this._updateProgress();
+		this._updateWindowProgress();
 
 		always(promise, () => {
 			const idx = this._stack.indexOf(task);
 			this._stack.splice(idx, 1);
-			this._updateProgress();
+			this._updateWindowProgress();
 		});
 	}
 
-	private _updateProgress() {
+	private _updateWindowProgress() {
 		if (this._stack.length === 0) {
 			WindowProgressItem.Instance.hide();
 		} else {
 			const { title, progress } = this._stack[0];
-			WindowProgressItem.Instance.text = progress.value || title;
+			WindowProgressItem.Instance.text = progress.value || title || '<missing title or progress message>';
 			WindowProgressItem.Instance.show();
 		}
 	}
 
-	withViewletProgress(viewletId: string, task: (progress: IProgress<number>) => TPromise<any>): void {
+	private _withViewletProgress(viewletId: string, task: (progress: IProgress<number>) => TPromise<any>): void {
 
 		const promise = task(emptyProgress);
 

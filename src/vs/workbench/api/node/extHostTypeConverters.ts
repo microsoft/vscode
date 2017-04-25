@@ -11,6 +11,7 @@ import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
+import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from "vs/editor/common/core/position";
 import { IRange } from "vs/editor/common/core/range";
@@ -405,3 +406,12 @@ export namespace EndOfLine {
 	}
 }
 
+export namespace ProgressLocation {
+	export function from(loc: vscode.ProgressLocation): MainProgressLocation {
+		switch (loc) {
+			case types.ProgressLocation.Scm: return MainProgressLocation.Scm;
+			case types.ProgressLocation.Window: return MainProgressLocation.Window;
+		}
+		return undefined;
+	}
+}

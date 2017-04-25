@@ -39,7 +39,6 @@
     "workspaceContains:tsconfig.json"
   ],
   "main": "./out/typescriptMain",
-  "enableProposedApi": true,
   "contributes": {
     "languages": [
       {
@@ -106,10 +105,10 @@
           "description": "%typescript.check.tscVersion%"
         },
         "typescript.check.npmIsInstalled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typescript.check.npmIsInstalled%"
-          },
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.check.npmIsInstalled%"
+        },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
           "default": false,
@@ -403,7 +402,7 @@
         "fileMatch": "tsconfig.json",
         "url": "./schemas/tsconfig.schema.json"
       },
-       {
+      {
         "fileMatch": "tsconfig.*.json",
         "url": "http://json.schemastore.org/tsconfig"
       },
@@ -432,14 +431,20 @@
         "name": "tsc",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "${cwd}"],
-	      "pattern": "$tsc"
+        "fileLocation": [
+          "relative",
+          "${cwd}"
+        ],
+        "pattern": "$tsc"
       },
       {
         "name": "tsc-watch",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "${cwd}"],
+        "fileLocation": [
+          "relative",
+          "${cwd}"
+        ],
         "pattern": "$tsc",
         "watching": {
           "activeOnStart": true,

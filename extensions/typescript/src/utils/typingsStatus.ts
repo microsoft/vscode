@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference path="../../../../src/vs/vscode.proposed.d.ts" />
-
 'use strict';
 
-import { MessageItem, workspace, Disposable, window, commands } from 'vscode';
+import { MessageItem, workspace, Disposable, ProgressLocation, window, commands } from 'vscode';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
 
@@ -87,7 +85,10 @@ export class AtaProgressReporter {
 			});
 		});
 
-		window.withWindowProgress(localize('installingPackages', "Fetching data for better TypeScript IntelliSense"), () => promise);
+		window.withProgress({
+			location: ProgressLocation.Window,
+			title: localize('installingPackages', "Fetching data for better TypeScript IntelliSense")
+		}, () => promise);
 	}
 
 	private _onEndOrTimeout(eventId: number): void {

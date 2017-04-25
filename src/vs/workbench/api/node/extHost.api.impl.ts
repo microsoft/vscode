@@ -344,11 +344,11 @@ export function createApiFactory(
 			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
 			},
-			withWindowProgress: proposedApiFunction(extension, <R>(title: string, task: (progress: vscode.Progress<string>, token: vscode.CancellationToken) => Thenable<R>): Thenable<R> => {
-				return extHostProgress.withWindowProgress(extension, title, task);
-			}),
 			withScmProgress<R>(task: (progress: vscode.Progress<number>) => Thenable<R>) {
-				return extHostProgress.withScmProgress(extension, task);
+				return extHostProgress.withProgress(extension, { location: extHostTypes.ProgressLocation.Scm }, task);
+			},
+			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; percentage?: number }>) => Thenable<R>) {
+				return extHostProgress.withProgress(extension, options, task);
 			},
 			createOutputChannel(name: string): vscode.OutputChannel {
 				return extHostOutputService.createOutputChannel(name);
@@ -526,6 +526,7 @@ export function createApiFactory(
 			Uri: URI,
 			ViewColumn: extHostTypes.ViewColumn,
 			WorkspaceEdit: extHostTypes.WorkspaceEdit,
+			ProgressLocation: extHostTypes.ProgressLocation,
 			// functions
 			FileLocationKind: extHostTypes.FileLocationKind,
 			ApplyToKind: extHostTypes.ApplyToKind,
