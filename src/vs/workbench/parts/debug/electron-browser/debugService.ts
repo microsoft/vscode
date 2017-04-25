@@ -887,6 +887,7 @@ export class DebugService implements debug.IDebugService {
 					if (config) {
 						// Take the type from the process since the debug extension might overwrite it #21316
 						config.type = process.configuration.type;
+						config.noDebug = process.configuration.noDebug;
 						config.__restart = internalRestart;
 					}
 					this.createProcess(config || process.configuration).then(() => c(null), err => e(err));
