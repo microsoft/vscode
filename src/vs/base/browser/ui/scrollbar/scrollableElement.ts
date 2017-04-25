@@ -23,6 +23,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
+const SCROLL_WHEEL_SMOOTH_SCROLL_TRESHOLD = 1.7;
 
 export interface IOverviewRulerLayoutInfo {
 	parent: HTMLElement;
@@ -240,7 +241,7 @@ export class ScrollableElement extends Widget {
 				}
 			}
 
-			const scrollState = this._scrollable.getState();
+			const scrollState = this._scrollable.getSmoothScrollTargetState();
 			if (deltaY) {
 				let currentScrollTop = scrollState.scrollTop;
 				desiredScrollTop = this._verticalScrollbar.validateScrollPosition((desiredScrollTop !== -1 ? desiredScrollTop : currentScrollTop) - SCROLL_WHEEL_SENSITIVITY * deltaY);
@@ -258,11 +259,17 @@ export class ScrollableElement extends Widget {
 
 			if (desiredScrollTop !== -1 || desiredScrollLeft !== -1) {
 				if (desiredScrollTop !== -1) {
-					this._shouldRender = this._verticalScrollbar.setDesiredScrollPosition(desiredScrollTop) || this._shouldRender;
+					// If |∆y| is too small then do not apply smooth scroll animation, because in that case the input source must be a touchpad or something similar.
+					const applySmoothScroll = this._options.mouseWheelSmoothScroll && Math.abs(deltaY) > SCROLL_WHEEL_SMOOTH_SCROLL_TRESHOLD;
+					const shouldRender = this._verticalScrollbar.setDesiredScrollPosition(desiredScrollTop, applySmoothScroll ? this._options.mouseWheelSmoothScrollDuration : undefined);
+					this._shouldRender = shouldRender || this._shouldRender;
 					desiredScrollTop = -1;
 				}
 				if (desiredScrollLeft !== -1) {
-					this._shouldRender = this._horizontalScrollbar.setDesiredScrollPosition(desiredScrollLeft) || this._shouldRender;
+					// If |∆x| is too small then do not apply smooth scroll animation, because in that case the input source must be a touchpad or something similar.
+					const applySmoothScroll = this._options.mouseWheelSmoothScroll && Math.abs(deltaX) > SCROLL_WHEEL_SMOOTH_SCROLL_TRESHOLD;
+					const shouldRender = this._horizontalScrollbar.setDesiredScrollPosition(desiredScrollLeft, applySmoothScroll ? this._options.mouseWheelSmoothScrollDuration : undefined);
+					this._shouldRender = shouldRender || this._shouldRender;
 					desiredScrollLeft = -1;
 				}
 			}
@@ -407,6 +414,8 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		alwaysConsumeMouseWheel: (typeof opts.alwaysConsumeMouseWheel !== 'undefined' ? opts.alwaysConsumeMouseWheel : false),
 		scrollYToX: (typeof opts.scrollYToX !== 'undefined' ? opts.scrollYToX : false),
 		mouseWheelScrollSensitivity: (typeof opts.mouseWheelScrollSensitivity !== 'undefined' ? opts.mouseWheelScrollSensitivity : 1),
+		mouseWheelSmoothScroll: (typeof opts.mouseWheelSmoothScroll !== 'undefined' ? opts.mouseWheelSmoothScroll : true),
+		mouseWheelSmoothScrollDuration: (typeof opts.mouseWheelSmoothScrollDuration !== 'undefined' ? opts.mouseWheelSmoothScrollDuration : 100),
 		arrowSize: (typeof opts.arrowSize !== 'undefined' ? opts.arrowSize : 11),
 
 		listenOnDomNode: (typeof opts.listenOnDomNode !== 'undefined' ? opts.listenOnDomNode : null),

@@ -237,6 +237,20 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 	}
 
 	public setScrollPosition(position: editorCommon.INewScrollPosition): void {
-		this._scrollable.updateState(position);
+		const state = this._scrollable.getSmoothScrollTargetState();
+		const xAbsChange = Math.abs(typeof position.scrollLeft !== 'undefined' ? position.scrollLeft - state.scrollLeft : 0);
+		const yAbsChange = Math.abs(typeof position.scrollTop !== 'undefined' ? position.scrollTop - state.scrollTop : 0);
+
+		if (xAbsChange || yAbsChange) {
+			// If position change is big enough, then appply smooth scrolling
+			if (xAbsChange > state.width / 10 ||
+				yAbsChange > state.height / 10) {
+				this._scrollable.updateState(position, 125);
+			}
+			// Otherwise update scroll position immediately
+			else {
+				this._scrollable.updateState(position);
+			}
+		}
 	}
 }

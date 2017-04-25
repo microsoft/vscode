@@ -236,11 +236,11 @@ export abstract class AbstractScrollbar extends Widget {
 		return this._scrollbarState.validateScrollPosition(desiredScrollPosition);
 	}
 
-	public setDesiredScrollPosition(desiredScrollPosition: number): boolean {
+	public setDesiredScrollPosition(desiredScrollPosition: number, smoothScrollDuration?: number): boolean {
 		desiredScrollPosition = this.validateScrollPosition(desiredScrollPosition);
 
 		let oldScrollPosition = this._getScrollPosition();
-		this._setScrollPosition(desiredScrollPosition);
+		this._setScrollPosition(desiredScrollPosition, smoothScrollDuration);
 		let newScrollPosition = this._getScrollPosition();
 
 		if (oldScrollPosition !== newScrollPosition) {
@@ -258,5 +258,5 @@ export abstract class AbstractScrollbar extends Widget {
 	protected abstract _sliderMousePosition(e: IMouseMoveEventData): number;
 	protected abstract _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number;
 	protected abstract _getScrollPosition(): number;
-	protected abstract _setScrollPosition(elementScrollPosition: number): void;
+	protected abstract _setScrollPosition(elementScrollPosition: number, smoothScrollDuration?: number): void;
 }
