@@ -66,11 +66,16 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 				preserveFocus: preserveFocus,
 				pinned: true
 			};
-		} else {
+		} else if (typeof columnOrOptions === 'object') {
 			options = {
 				position: TypeConverters.fromViewColumn(columnOrOptions.column),
 				preserveFocus: columnOrOptions.preserveFocus,
 				pinned: columnOrOptions.preview === undefined ? true : !columnOrOptions.preview
+			};
+		} else {
+			options = {
+				preserveFocus: false,
+				pinned: true
 			};
 		}
 
