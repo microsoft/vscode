@@ -1,25 +1,28 @@
 {
 	"tokenColors": "./red.tmTheme",
 	"colors": {
+		// window
 		"activityBadgeBackground": "#DB7E58",
 		"activityBarBackground": "#4B0000",
-		"dropdownBackground": "#580000",
-		"inputBoxBackground": "#580000",
+		"inactiveTabBackground": "#300000",
+		"sideBarBackground": "#300000",
+		"statusBarBackground": "#300000",
+
+		// editor
 		"editorBackground": "#390000",
 		"editorCursor": "#970000",
 		"editorForeground": "#F8F8F8",
 		"editorWhitespaces": "#c10000",
 		"editorLineHighlight": "#0000004A",
 		"editorSelection": "#750000",
-		"inactiveTabBackground": "#300000",
-		"sideBarBackground": "#300000",
-		"listActiveSelectionBackground": "#870000",
-		"listFocusAndSelectionBackground": "#650000",
-		"listInactiveFocusBackground": "#570000",
-		"listFocusBackground": "#650000",
-		"listHoverBackground": "#740000",
-		"notificationsBackground": "#910000",
-		"statusBarBackground": "#300000"
+		"editorLineNumbers": "#c03333",
+		"editorHoverBackground": "#300000",
+		"editorSuggestWidgetBackground": "#300000",
+		"peekViewEditorBackground": "#390000",
+
+		// UI
+		"dropdownBackground": "#580000",
+		"inputBoxBackground": "#580000"
 	},
 	"name": "Red"
 }
