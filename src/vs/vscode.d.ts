@@ -715,7 +715,8 @@ declare module 'vscode' {
 		preserveFocus?: boolean,
 
 		/**
-		 * An optional flag that when `true` will pin the [editor](#TextEditor).
+		 * An optional flag that controls if an [editor](#TextEditor)-tab will be replaced
+		 * with the next editor or if it will be kept.
 		 */
 		preview?: boolean
 	}
