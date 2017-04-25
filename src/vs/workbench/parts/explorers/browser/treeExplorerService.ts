@@ -43,10 +43,6 @@ export class TreeExplorerService implements ITreeExplorerService {
 			throw new Error('invalid provider');
 		}
 
-		if (provider && !!this._treeExplorerNodeProviders[provider]) {
-			throw new Error('Provider not registered');
-		}
-
 		this._activeProvider = provider;
 		this.activeProviderContextKey.set(provider ? provider : void 0);
 
