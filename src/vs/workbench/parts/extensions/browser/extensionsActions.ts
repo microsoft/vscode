@@ -309,7 +309,8 @@ export class DropDownMenuActionItem extends ActionItem {
 		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.wrap(actions)
+			getActions: () => TPromise.wrap(actions),
+			actionRunner: this.actionRunner
 		});
 	}
 
