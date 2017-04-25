@@ -1,6 +1,5 @@
 {
 	"name": "Quiet Light",
-	"type": "light",
 	"tokenColors": [
 		{
 			"settings": {

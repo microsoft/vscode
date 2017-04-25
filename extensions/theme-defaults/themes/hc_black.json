@@ -1,7 +1,6 @@
 {
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Dark High Contrast",
-	"type": "hc",
 	"include": "./hc_black_defaults.json",
 	"settings": [
 		{

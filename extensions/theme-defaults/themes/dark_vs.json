@@ -1,7 +1,6 @@
 {
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Dark (Visual Studio)",
-	"type": "dark",
 	"include": "./dark_defaults.json",
 	"tokenColors": [
 		{

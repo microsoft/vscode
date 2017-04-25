@@ -1,7 +1,6 @@
 {
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light (Visual Studio)",
-	"type": "light",
 	"include": "./light_defaults.json",
 	"tokenColors": [
 		{

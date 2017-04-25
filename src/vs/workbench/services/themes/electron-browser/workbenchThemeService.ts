@@ -83,8 +83,12 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 				description: nls.localize('vscode.extension.contributes.themes.label', 'Label of the color theme as shown in the UI.'),
 				type: 'string'
 			},
+			uiTheme: {
+				description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme.'),
+				enum: [VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME]
+			},
 			path: {
-				description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the color theme file. The path is relative to the extension folder and is typically \'./themes/my-color-theme.json\'.'),
+				description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./themes/themeFile.tmTheme\'.'),
 				type: 'string'
 			}
 		},
@@ -221,9 +225,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			extensionData: null
 		};
 
+		let themeData = null;
 		let persistedThemeData = this.storageService.get(PERSISTED_THEME_STORAGE_KEY);
 		if (persistedThemeData) {
-			let themeData = fromStorageData(this, persistedThemeData);
+			themeData = fromStorageData(this, persistedThemeData);
+		}
+		if (themeData !== null) {
 			this.updateColorCustomizations(this.configurationService.lookup<IColorCustomizations>(CUSTOM_COLORS_SETTING).value, false);
 			this.updateDynamicCSSRules(themeData);
 			this.applyTheme(themeData, null, true);
@@ -235,7 +242,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 			let initialTheme = new ColorThemeData(this);
 			initialTheme.id = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
-			initialTheme.type = isLightTheme ? 'light' : 'dark';
 			initialTheme.label = '';
 			initialTheme.selector = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 			initialTheme.settingsId = null;
@@ -402,7 +408,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (themeData) {
 				return themeData.ensureLoaded(this).then(_ => {
 					if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
-						// the loaded theme is identical to the persisted theme. Don't need to send an event.
+						// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 						this.currentColorTheme = themeData;
 						return TPromise.as(themeData);
 					}
@@ -469,7 +475,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return TPromise.as(this.currentColorTheme);
 	}
 
-	public getColorTheme() {
+	public getColorTheme(): IColorTheme {
 		return this.currentColorTheme;
 	}
 
