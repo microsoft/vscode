@@ -259,18 +259,19 @@ export class RunSelectedTextInTerminalAction extends Action {
 			return TPromise.as(void 0);
 		}
 		let editor = this.codeEditorService.getFocusedCodeEditor();
-		if (editor) {
-			let selection = editor.getSelection();
-			let text: string;
-			if (selection.isEmpty()) {
-				text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
-			} else {
-				let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
-				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
-			}
-			instance.sendText(text, true);
+		if (!editor) {
+			return TPromise.as(void 0);
 		}
-		return TPromise.as(void 0);
+		let selection = editor.getSelection();
+		let text: string;
+		if (selection.isEmpty()) {
+			text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
+		} else {
+			let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+		}
+		instance.sendText(text, true);
+		return this.terminalService.showPanel();
 	}
 }
 
