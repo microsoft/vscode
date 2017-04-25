@@ -7,6 +7,7 @@
 		"editorForeground": "#d3af86",
 		"editorSelection": "#84613daa",
 		"editorWidgetBackground": "#131510",
+		"editorHoverBackground": "#221a14",
 		"tabsContainerBackground": "#131510",
 		"inactiveTabBackground": "#131510",
 		"statusBarBackground": "#162257",

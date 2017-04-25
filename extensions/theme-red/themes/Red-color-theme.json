@@ -16,6 +16,7 @@
 		"editorLineHighlight": "#0000004A",
 		"editorSelection": "#750000",
 		"editorLineNumbers": "#c03333",
+		"editorWidgetBackground": "#300000",
 		"editorHoverBackground": "#300000",
 		"editorSuggestWidgetBackground": "#300000",
 		"peekViewEditorBackground": "#390000",
