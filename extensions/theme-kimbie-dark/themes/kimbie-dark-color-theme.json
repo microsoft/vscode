@@ -1,12 +1,27 @@
 {
-	"name": "Kimbie (dark)",
+	"name": "Kimbie Dark",
+	"type": "dark",
 	"colors": {
+		"inputBoxBackground": "#2f2f2f",
 		"editorBackground": "#221a0f",
-		"editorCursor": "#d3af86",
 		"editorForeground": "#d3af86",
-		"editorWhitespaces": "#a57a4c",
+		"editorSelection": "#84613daa",
+		"editorWidgetBackground": "#131510",
+		"tabsContainerBackground": "#131510",
+		"inactiveTabBackground": "#131510",
+		"statusBarBackground": "#162257",
+		"activityBarBackground": "#221a0f",
+		"activityBarForeground": "#d3af86",
+		"activityBadgeBackground": "#162257",
+		"sideBarBackground": "#131510",
 		"editorLineHighlight": "#5e452b",
-		"editorSelection": "#84613d"
+		"editorCursor": "#d3af86",
+		"editorWhitespaces": "#a57a4c",
+		"peekViewTitleBackground": "#131510",
+		"peekViewBorder": "#5e452b",
+		"peekViewResultsBackground": "#131510",
+		"peekViewEditorBackground": "#221a14",
+		"peekViewEditorMatchHighlight": "#84613daa"
 	},
 	"tokenColors": [
 		{
