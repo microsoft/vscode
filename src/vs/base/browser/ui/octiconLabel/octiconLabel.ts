@@ -28,4 +28,8 @@ export class OcticonLabel {
 		innerHTML = expand(innerHTML);
 		this._container.innerHTML = innerHTML;
 	}
+
+	set title(title: string) {
+		this._container.title = title;
+	}
 }

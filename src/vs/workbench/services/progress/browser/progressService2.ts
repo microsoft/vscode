@@ -6,9 +6,10 @@
 
 import 'vs/css!vs/workbench/services/progress/browser/media/progressService2';
 import * as dom from 'vs/base/browser/dom';
+import { localize } from 'vs/nls';
 import { IActivityBarService, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IProgressService2, IProgressOptions, ProgressLocation, IProgress, Progress, emptyProgress } from 'vs/platform/progress/common/progress';
+import { IProgressService2, IProgressOptions, ProgressLocation, IProgress, IProgressStep, Progress, emptyProgress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/platform';
@@ -39,6 +40,10 @@ class WindowProgressItem implements IStatusbarItem {
 		this._label.text = value;
 	}
 
+	set title(value: string) {
+		this._label.title = value;
+	}
+
 	hide() {
 		dom.hide(this._element);
 	}
@@ -48,17 +53,12 @@ class WindowProgressItem implements IStatusbarItem {
 	}
 }
 
-interface IWindowProgressTask {
-	title: string;
-	progress: Progress<string>;
-}
-
 
 export class ProgressService2 implements IProgressService2 {
 
 	_serviceBrand: any;
 
-	private _stack: IWindowProgressTask[] = [];
+	private _stack: [IProgressOptions, Progress<IProgressStep>][] = [];
 
 	constructor(
 		@IActivityBarService private _activityBar: IActivityBarService,
@@ -84,12 +84,9 @@ export class ProgressService2 implements IProgressService2 {
 
 	private _withWindowProgress(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, percentage?: number }>) => TPromise<any>): void {
 
-		const task = {
-			progress: new Progress<string>(() => this._updateWindowProgress()),
-			title: options.title
-		};
+		const task: [IProgressOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this._updateWindowProgress())];
 
-		const promise = callback(task.progress);
+		const promise = callback(task[1]);
 		this._stack.unshift(task);
 		this._updateWindowProgress();
 
@@ -100,12 +97,34 @@ export class ProgressService2 implements IProgressService2 {
 		});
 	}
 
-	private _updateWindowProgress() {
-		if (this._stack.length === 0) {
+	private _updateWindowProgress(idx: number = 0) {
+		if (idx >= this._stack.length) {
 			WindowProgressItem.Instance.hide();
 		} else {
-			const { title, progress } = this._stack[0];
-			WindowProgressItem.Instance.text = progress.value || title || '<missing title or progress message>';
+			const [options, progress] = this._stack[idx];
+
+			let text = options.title;
+			if (progress.value && progress.value.message) {
+				if (options.title) {
+					text = localize('progress.text', "{0} - {1}", progress.value.message, options.title);
+				} else {
+					text = progress.value.message;
+				}
+			}
+
+			if (!text) {
+				// no message -> no progress. try with next on stack
+				this._updateWindowProgress(idx + 1);
+				return;
+			}
+
+			let title = text;
+			if (options.tooltip) {
+				title = localize('progress.title', "{0}: {1}", options.tooltip, text);
+			}
+
+			WindowProgressItem.Instance.text = text;
+			WindowProgressItem.Instance.title = title;
 			WindowProgressItem.Instance.show();
 		}
 	}
