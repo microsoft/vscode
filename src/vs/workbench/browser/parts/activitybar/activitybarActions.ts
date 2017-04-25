@@ -199,8 +199,10 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 
+		// Make the container tab-able for keyboard navigation
 		this.$container = $(container).attr({
-			tabIndex: '0'
+			tabIndex: '0',
+			role: 'button'
 		});
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
@@ -640,10 +642,6 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				opacity: 0.6;
 			}
 
-			.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item.active:before {
-				border: none;
-			}
-
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before {
 				outline: 1px solid;
@@ -675,6 +673,12 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		const focusBorder = theme.getColor(focus);
 
 		collector.addRule(`
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
+				opacity: 1;
+			}
+
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label {
 				opacity: 0.6;
 			}
