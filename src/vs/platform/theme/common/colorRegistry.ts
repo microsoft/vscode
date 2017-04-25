@@ -126,6 +126,13 @@ export const focus = registerColor('focusedElementOutline', {
 	hc: '#F38518'
 }, nls.localize('focusedElementOutline', "Overall outline/border color for focused elements. This color is only used if not overridden by a component."));
 
+export const infoBackground = registerColor('infoBackground', { dark: '#063B49', light: '#D6ECF2', hc: Color.black }, nls.localize('infoBackground', "Overall info background color. This color is only used if not overridden by a component."));
+export const infoBorder = registerColor('infoBorder', { dark: '#55AAFF', light: '#009CCC', hc: '#6FC3DF' }, nls.localize('infoBorder', "Overall info border color. This color is only used if not overridden by a component."));
+export const warningBackground = registerColor('warningBackground', { dark: '#352A05', light: '#F6F5D2', hc: Color.black }, nls.localize('warningBackground', "Overall warning background color. This color is only used if not overridden by a component."));
+export const warningBorder = registerColor('warningBorder', { dark: '#B89500', light: '#F2CB1D', hc: '#B89500' }, nls.localize('warningBorder', "Overall warning border color. This color is only used if not overridden by a component."));
+export const errorBackground = registerColor('errorBackground', { dark: '#5A1D1D', light: '#F2DEDE', hc: Color.black }, nls.localize('errorBackground', "Overall error background color. This color is only used if not overridden by a component."));
+export const errorBorder = registerColor('errorBorder', { dark: '#BE1100', light: '#E51400', hc: '#BE1100' }, nls.localize('errorBorder', "Overall error border color. This color is only used if not overridden by a component."));
+
 /**
  * Commonly used High contrast colors.
  */

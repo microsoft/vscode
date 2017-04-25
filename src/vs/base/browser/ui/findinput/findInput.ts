@@ -48,6 +48,14 @@ export class FindInput extends Widget {
 	private inputActiveOptionBorder: Color;
 	private inputBackground: Color;
 	private inputForeground: Color;
+	private inputBorder: Color;
+
+	private infoBorder: Color;
+	private infoBackground: Color;
+	private warningBorder: Color;
+	private warningBackground: Color;
+	private errorBorder: Color;
+	private errorBackground: Color;
 
 	private regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
@@ -81,6 +89,14 @@ export class FindInput extends Widget {
 		this.inputActiveOptionBorder = options.inputActiveOptionBorder;
 		this.inputBackground = options.inputBackground;
 		this.inputForeground = options.inputForeground;
+		this.inputBorder = options.inputBorder;
+
+		this.infoBorder = options.infoBorder;
+		this.infoBackground = options.infoBackground;
+		this.warningBorder = options.warningBorder;
+		this.warningBackground = options.warningBackground;
+		this.errorBorder = options.errorBorder;
+		this.errorBackground = options.errorBackground;
 
 		this.regex = null;
 		this.wholeWords = null;
@@ -150,6 +166,14 @@ export class FindInput extends Widget {
 		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		this.inputBackground = styles.inputBackground;
 		this.inputForeground = styles.inputForeground;
+		this.inputBorder = styles.inputBorder;
+
+		this.infoBackground = styles.infoBackground;
+		this.infoBorder = styles.infoBorder;
+		this.warningBackground = styles.warningBackground;
+		this.warningBorder = styles.warningBorder;
+		this.errorBackground = styles.errorBackground;
+		this.errorBorder = styles.errorBorder;
 
 		this.applyStyles();
 	}
@@ -165,7 +189,14 @@ export class FindInput extends Widget {
 
 			const inputBoxStyles: IInputBoxStyles = {
 				inputBackground: this.inputBackground,
-				inputForeground: this.inputForeground
+				inputForeground: this.inputForeground,
+				inputBorder: this.inputBorder,
+				infoBackground: this.infoBackground,
+				infoBorder: this.infoBorder,
+				warningBackground: this.warningBackground,
+				warningBorder: this.warningBorder,
+				errorBackground: this.errorBackground,
+				errorBorder: this.errorBorder
 			};
 			this.inputBox.style(inputBoxStyles);
 		}
@@ -235,7 +266,14 @@ export class FindInput extends Widget {
 				showMessage: true
 			},
 			inputBackground: this.inputBackground,
-			inputForeground: this.inputForeground
+			inputForeground: this.inputForeground,
+			inputBorder: this.inputBorder,
+			infoBackground: this.infoBackground,
+			infoBorder: this.infoBorder,
+			warningBackground: this.warningBackground,
+			warningBorder: this.warningBorder,
+			errorBackground: this.errorBackground,
+			errorBorder: this.errorBorder
 		}));
 
 		this.regex = this._register(new RegexCheckbox({

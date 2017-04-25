@@ -170,7 +170,13 @@ export class QuickOpenWidget implements IModelProvider {
 					ariaLabel: DEFAULT_INPUT_ARIA_LABEL,
 					inputBackground: this.styles.inputBackground,
 					inputForeground: this.styles.inputForeground,
-					inputBorder: this.styles.inputBorder
+					inputBorder: this.styles.inputBorder,
+					infoBackground: this.styles.infoBackground,
+					infoBorder: this.styles.infoBorder,
+					warningBackground: this.styles.warningBackground,
+					warningBorder: this.styles.warningBorder,
+					errorBackground: this.styles.errorBackground,
+					errorBorder: this.styles.errorBorder
 				});
 
 				// ARIA
@@ -349,7 +355,13 @@ export class QuickOpenWidget implements IModelProvider {
 			this.inputBox.style({
 				inputBackground: this.styles.inputBackground,
 				inputForeground: this.styles.inputForeground,
-				inputBorder: this.styles.inputBorder
+				inputBorder: this.styles.inputBorder,
+				infoBackground: this.styles.infoBackground,
+				infoBorder: this.styles.infoBorder,
+				warningBackground: this.styles.warningBackground,
+				warningBorder: this.styles.warningBorder,
+				errorBackground: this.styles.errorBackground,
+				errorBorder: this.styles.errorBorder
 			});
 		}
 
