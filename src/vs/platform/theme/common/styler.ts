@@ -8,6 +8,7 @@
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveFocusBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, listHoverOutline, listSelectionOutline, listFocusOutline, listInactiveFocusOutline, pickerGroupBorder, pickerGroupForeground, widgetShadow, infoBorder, infoBackground, warningBorder, warningBackground, errorBorder, errorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from "vs/base/common/lifecycle";
+import { SIDE_BAR_SECTION_HEADER_BACKGROUND } from "vs/workbench/common/theme";
 
 export interface IThemable {
 	style(colors: { [name: string]: ColorIdentifier }): void;
@@ -181,5 +182,12 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 		listInactiveFocusOutline: (style && style.listInactiveFocusOutline) || listInactiveFocusOutline,
 		listSelectionOutline: (style && style.listSelectionOutline) || listSelectionOutline,
 		listHoverOutline: (style && style.listHoverOutline) || listHoverOutline,
+	});
+}
+
+export function attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, style?: { headerBackground?: ColorIdentifier, highContrastBorder?: ColorIdentifier }): IDisposable {
+	return attachStyler(themeService, widget, {
+		headerBackground: (style && style.headerBackground) || SIDE_BAR_SECTION_HEADER_BACKGROUND,
+		headerHighContrastBorder: (style && style.highContrastBorder) || highContrastBorder
 	});
 }
