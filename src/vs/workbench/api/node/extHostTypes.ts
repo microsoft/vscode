@@ -1268,6 +1268,6 @@ export class ShellTask extends BaseTask {
 }
 
 export enum ProgressLocation {
-	Scm = 1,
+	SourceControl = 1,
 	Window = 10,
 }

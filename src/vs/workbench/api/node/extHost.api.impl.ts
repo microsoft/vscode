@@ -345,7 +345,7 @@ export function createApiFactory(
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
 			},
 			withScmProgress<R>(task: (progress: vscode.Progress<number>) => Thenable<R>) {
-				return extHostProgress.withProgress(extension, { location: extHostTypes.ProgressLocation.Scm }, task);
+				return extHostProgress.withProgress(extension, { location: extHostTypes.ProgressLocation.SourceControl }, task);
 			},
 			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; percentage?: number }>) => Thenable<R>) {
 				return extHostProgress.withProgress(extension, options, task);

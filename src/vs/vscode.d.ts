@@ -3955,10 +3955,10 @@ declare module 'vscode' {
 	export enum ProgressLocation {
 
 		/**
-		 * Show progress for the scm viewlet, as overlay for the icon and as progress bar
+		 * Show progress for the source control viewlet, as overlay for the icon and as progress bar
 		 * inside the viewlet (when visible).
 		 */
-		Scm = 1,
+		SourceControl = 1,
 
 		/**
 		 * Show progress in the status bar of the editor.

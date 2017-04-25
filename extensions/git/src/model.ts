@@ -531,7 +531,7 @@ export class Model implements Disposable {
 		};
 
 		return shouldShowProgress(operation)
-			? window.withProgress({ location: ProgressLocation.Scm }, run)
+			? window.withProgress({ location: ProgressLocation.SourceControl }, run)
 			: run();
 	}
 

@@ -409,7 +409,7 @@ export namespace EndOfLine {
 export namespace ProgressLocation {
 	export function from(loc: vscode.ProgressLocation): MainProgressLocation {
 		switch (loc) {
-			case types.ProgressLocation.Scm: return MainProgressLocation.Scm;
+			case types.ProgressLocation.SourceControl: return MainProgressLocation.Scm;
 			case types.ProgressLocation.Window: return MainProgressLocation.Window;
 		}
 		return undefined;
