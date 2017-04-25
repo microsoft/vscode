@@ -1,5 +1,6 @@
 {
 	"name": "Solarized (light)",
+	"type": "light",
 	"tokenColors": [
 		{
 			"settings": {

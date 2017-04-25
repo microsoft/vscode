@@ -84,12 +84,8 @@ let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPo
 				description: nls.localize('vscode.extension.contributes.themes.label', 'Label of the color theme as shown in the UI.'),
 				type: 'string'
 			},
-			uiTheme: {
-				description: nls.localize('vscode.extension.contributes.themes.uiTheme', 'Base theme defining the colors around the editor: \'vs\' is the light color theme, \'vs-dark\' is the dark color theme. \'hc-black\' is the dark high contrast theme.'),
-				enum: [VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME]
-			},
 			path: {
-				description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the tmTheme file. The path is relative to the extension folder and is typically \'./themes/themeFile.tmTheme\'.'),
+				description: nls.localize('vscode.extension.contributes.themes.path', 'Path of the color theme file. The path is relative to the extension folder and is typically \'./themes/my-color-theme.json\'.'),
 				type: 'string'
 			}
 		},
@@ -240,6 +236,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 			let initialTheme = new ColorThemeData(this);
 			initialTheme.id = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
+			initialTheme.type = isLightTheme ? 'light' : 'dark';
 			initialTheme.label = '';
 			initialTheme.selector = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 			initialTheme.settingsId = null;
@@ -303,9 +300,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			return pfs.writeFile(backupFileLocation, content).then(_ => backupFileLocation);
 		}, err => {
 			if (err && err.code === 'ENOENT') {
-				return TPromise.as(null); // ignore, user config file doesn't exist yet
+				return TPromise.as<string>(null); // ignore, user config file doesn't exist yet
 			};
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<string>(err);
 		});
 	}
 
@@ -406,14 +403,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (themeData) {
 				return themeData.ensureLoaded(this).then(_ => {
 					if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
-						// the loaded theme is identical to the perisisted theme. Don't need to send an event.
+						// the loaded theme is identical to the persisted theme. Don't need to send an event.
 						this.currentColorTheme = themeData;
 						return TPromise.as(themeData);
 					}
 					this.updateDynamicCSSRules(themeData);
 					return this.applyTheme(themeData, settingsTarget);
 				}, error => {
-					return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message));
+					return TPromise.wrapError<IColorTheme>(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message));
 				});
 			}
 			return null;
@@ -435,7 +432,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 	}
 
-	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): TPromise<IFileIconTheme> {
+	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): TPromise<IColorTheme> {
 		if (this.container) {
 			if (this.currentColorTheme) {
 				$(this.container).removeClass(this.currentColorTheme.id);
@@ -466,7 +463,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.writeColorThemeConfiguration(settingsTarget);
 	};
 
-	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
+	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): TPromise<IColorTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
 			return this.configurationWriter.writeConfiguration(COLOR_THEME_SETTING, this.currentColorTheme.settingsId, settingsTarget).then(_ => this.currentColorTheme);
 		}
@@ -479,13 +476,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private findThemeData(themeId: string, defaultId?: string): TPromise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
-			let defaultTheme: IColorTheme = void 0;
+			let defaultTheme: ColorThemeData = void 0;
 			for (let t of allThemes) {
 				if (t.id === themeId) {
-					return t;
+					return <ColorThemeData>t;
 				}
 				if (t.id === defaultId) {
-					defaultTheme = t;
+					defaultTheme = <ColorThemeData>t;
 				}
 			}
 			return defaultTheme;
@@ -494,13 +491,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	public findThemeDataBySettingsId(settingsId: string, defaultId: string): TPromise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
-			let defaultTheme: IColorTheme = void 0;
+			let defaultTheme: ColorThemeData = void 0;
 			for (let t of allThemes) {
 				if (t.settingsId === settingsId) {
-					return t;
+					return <ColorThemeData>t;
 				}
 				if (t.id === defaultId) {
-					defaultTheme = t;
+					defaultTheme = <ColorThemeData>t;
 				}
 			}
 			return defaultTheme;
@@ -735,7 +732,7 @@ function _applyIconTheme(data: IInternalIconThemeData, onApply: (theme: IInterna
 		_applyRules(data.styleSheetContent, iconThemeRulesClassName);
 		return onApply(data);
 	}, error => {
-		return TPromise.wrapError(nls.localize('error.cannotloadicontheme', "Unable to load {0}", data.path));
+		return TPromise.wrapError<IFileIconTheme>(nls.localize('error.cannotloadicontheme', "Unable to load {0}", data.path));
 	});
 }
 

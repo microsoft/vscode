@@ -9,7 +9,7 @@ import { Color } from 'vs/base/common/color';
 import { ExtensionData, ITokenColorizationRule, IColorTheme, IColorMap, VS_LIGHT_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/electron-browser/themeCompatibility';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { getBaseThemeId, getSyntaxThemeId, isDarkTheme, isLightTheme } from 'vs/platform/theme/common/themes';
+import { getBaseThemeId, getSyntaxThemeId } from 'vs/platform/theme/common/themes';
 import nls = require('vs/nls');
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
@@ -31,6 +31,7 @@ export class ColorThemeData implements IColorTheme {
 	}
 
 	id: string;
+	type: ThemeType;
 	label: string;
 	settingsId: string;
 	description?: string;
@@ -79,7 +80,8 @@ export class ColorThemeData implements IColorTheme {
 			this.colorMap = {};
 			this.defaultColorMap = {};
 			if (this.path) {
-				return _loadColorThemeFromFile(this.path, this.tokenColors, this.colorMap).then(_ => {
+				return _loadColorThemeFromFile(this.path, this.tokenColors, this.colorMap, this.type).then(type => {
+					this.type = type;
 					this.isLoaded = true;
 					_completeTokenColors(this);
 				});
@@ -106,6 +108,7 @@ export class ColorThemeData implements IColorTheme {
 		}
 		return JSON.stringify({
 			id: this.id,
+			type: this.type,
 			label: this.label,
 			settingsId: this.settingsId,
 			selector: this.selector,
@@ -119,20 +122,12 @@ export class ColorThemeData implements IColorTheme {
 		return objects.equals(this.colorMap, other.colorMap) && objects.equals(this.tokenColors, other.tokenColors);
 	}
 
-	get type(): ThemeType {
-		switch (this.getBaseThemeId()) {
-			case VS_LIGHT_THEME: return 'light';
-			case VS_HC_THEME: return 'hc';
-			default: return 'dark';
-		}
-	}
-
 	isLightTheme() {
-		return isLightTheme(this.id);
+		return this.type === 'light';
 	}
 
 	isDarkTheme() {
-		return isDarkTheme(this.id);
+		return this.type === 'dark';
 	}
 
 	getSyntaxThemeId() {
@@ -157,6 +152,9 @@ export function fromStorageData(themeService: WorkbenchThemeService, input: stri
 			}
 		}
 	}
+	if (!theme.type) {
+		theme.type = baseThemeToType(theme.id);
+	}
 	return theme;
 }
 
@@ -166,6 +164,7 @@ export function fromExtensionTheme(themeService: WorkbenchThemeService, theme: I
 	let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
 	let themeData = new ColorThemeData(themeService);
 	themeData.id = `${baseTheme} ${themeSelector}`;
+	themeData.type = baseThemeToType(baseTheme);
 	themeData.label = theme.label || Paths.basename(theme.path);
 	themeData.settingsId = theme.id || themeData.label;
 	themeData.selector = `${baseTheme}.${themeSelector}`;
@@ -176,6 +175,14 @@ export function fromExtensionTheme(themeService: WorkbenchThemeService, theme: I
 	return themeData;
 }
 
+function baseThemeToType(baseTheme: string): ThemeType {
+	switch (getBaseThemeId(baseTheme)) {
+		case VS_LIGHT_THEME: return 'light';
+		case VS_HC_THEME: return 'hc';
+		default: return 'dark';
+	}
+}
+
 function toCSSSelector(str: string) {
 	str = str.replace(/[^_\-a-zA-Z0-9]/g, '-');
 	if (str.charAt(0).match(/[0-9\-]/)) {
@@ -184,27 +191,33 @@ function toCSSSelector(str: string) {
 	return str;
 }
 
-function _loadColorThemeFromFile(themePath: string, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
+function _loadColorThemeFromFile(themePath: string, resultRules: ITokenColorizationRule[], resultColors: IColorMap, defaultType: ThemeType): TPromise<ThemeType> {
 	if (Paths.extname(themePath) === '.json') {
 		return pfs.readFile(themePath).then(content => {
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.toString(), errors);
 			if (errors.length > 0) {
-				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
+				return TPromise.wrapError<ThemeType>(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
 			}
-			let includeCompletes = TPromise.as(null);
+			let includeCompletes = TPromise.as(defaultType);
 			if (contentValue.include) {
-				includeCompletes = _loadColorThemeFromFile(Paths.join(Paths.dirname(themePath), contentValue.include), resultRules, resultColors);
+				includeCompletes = _loadColorThemeFromFile(Paths.join(Paths.dirname(themePath), contentValue.include), resultRules, resultColors, defaultType);
 			}
-			return includeCompletes.then(_ => {
+			return includeCompletes.then(type => {
 				if (Array.isArray(contentValue.settings)) {
 					convertSettings(contentValue.settings, resultRules, resultColors);
-					return null;
+					return type;
 				}
+				let themeType = contentValue.type;
+				if (themeType !== 'light' && themeType !== 'dark' && themeType !== 'hc') {
+					return TPromise.wrapError<ThemeType>(new Error(nls.localize({ key: 'error.invalidformat.type', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'type' must be 'light', 'dark' or 'hc'", themePath)));
+				}
+				type = themeType;
+
 				let colors = contentValue.colors;
 				if (colors) {
 					if (typeof colors !== 'object') {
-						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.colors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'colors' is not of type 'object'.", themePath)));
+						return TPromise.wrapError<ThemeType>(new Error(nls.localize({ key: 'error.invalidformat.colors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'colors' is not of type 'object'.", themePath)));
 					}
 					// new JSON color themes format
 					for (let colorId in colors) {
@@ -218,36 +231,35 @@ function _loadColorThemeFromFile(themePath: string, resultRules: ITokenColorizat
 				if (tokenColors) {
 					if (Array.isArray(tokenColors)) {
 						resultRules.push(...tokenColors);
-						return null;
 					} else if (typeof tokenColors === 'string') {
-						return _loadSyntaxTokensFromFile(Paths.join(Paths.dirname(themePath), tokenColors), resultRules, {});
+						return _loadSyntaxTokensFromFile(Paths.join(Paths.dirname(themePath), tokenColors), resultRules, {}, type);
 					} else {
-						return TPromise.wrapError(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a text mate theme file", themePath)));
+						return TPromise.wrapError<ThemeType>(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a text mate theme file", themePath)));
 					}
 				}
-				return null;
+				return type;
 			});
 		});
 	} else {
-		return _loadSyntaxTokensFromFile(themePath, resultRules, resultColors);
+		return _loadSyntaxTokensFromFile(themePath, resultRules, resultColors, defaultType);
 	}
 }
 
-function _loadSyntaxTokensFromFile(themePath: string, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {
+function _loadSyntaxTokensFromFile(themePath: string, resultRules: ITokenColorizationRule[], resultColors: IColorMap, type: ThemeType): TPromise<ThemeType> {
 	return pfs.readFile(themePath).then(content => {
 		try {
 			let contentValue = plist.parse(content.toString());
 			let settings: ITokenColorizationRule[] = contentValue.settings;
 			if (!Array.isArray(settings)) {
-				return TPromise.wrapError(new Error(nls.localize('error.plist.invalidformat', "Problem parsing tmTheme file: {0}. 'settings' is not array.")));
+				return TPromise.wrapError<ThemeType>(new Error(nls.localize('error.plist.invalidformat', "Problem parsing tmTheme file: {0}. 'settings' is not array.")));
 			}
 			convertSettings(settings, resultRules, resultColors);
-			return TPromise.as(null);
+			return TPromise.as(type);
 		} catch (e) {
-			return TPromise.wrapError(new Error(nls.localize('error.cannotparse', "Problems parsing tmTheme file: {0}", e.message)));
+			return TPromise.wrapError<ThemeType>(new Error(nls.localize('error.cannotparse', "Problems parsing tmTheme file: {0}", e.message)));
 		}
 	}, error => {
-		return TPromise.wrapError(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themePath, error.message)));
+		return TPromise.wrapError<ThemeType>(new Error(nls.localize('error.cannotload', "Problems loading tmTheme file {0}: {1}", themePath, error.message)));
 	});
 }
 /**
