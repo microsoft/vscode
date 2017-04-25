@@ -285,8 +285,12 @@ export class CommandsHandler extends QuickOpenHandler {
 		// Remove duplicates
 		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
 
-		// Sort by name
-		entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
+		// Sorting
+		if (!searchValue) {
+			entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
+		} else {
+			entries = entries.sort((elementA, elementB) => elementA.getLabel().length - elementB.getLabel().length);
+		}
 
 		return TPromise.as(new QuickOpenModel(entries));
 	}
