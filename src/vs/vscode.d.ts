@@ -703,9 +703,11 @@ declare module 'vscode' {
 	 */
 	export interface TextDocumentShowOptions {
 		/**
-		 * An optional view column in which the [editor](#TextEditor) should be shown. The default is the [one](#ViewColumn.One), other values are adjusted to be __Min(column, columnCount + 1)__.
+		 * An optional view column in which the [editor](#TextEditor) should be shown.
+		 * The default is the [one](#ViewColumn.One), other values are adjusted to
+		 * be __Min(column, columnCount + 1)__.
 		 */
-		column?: ViewColumn,
+		viewColumn?: ViewColumn,
 
 		/**
 		 * An optional flag that when `true` will stop the [editor](#TextEditor) from taking focus.
