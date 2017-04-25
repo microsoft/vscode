@@ -9,7 +9,7 @@ import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, Outpu
 import { Ref, RefType, Git } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import * as staging from './staging';
+import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
 import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -356,20 +356,17 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selections = textEditor.selections;
-		const selectedDiffs = diffs.filter(diff => {
-			const modifiedRange = diff.modifiedEndLineNumber === 0
-				? new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, modifiedDocument.lineAt(diff.modifiedStartLineNumber).range.start)
-				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
-
-			return selections.some(selection => !!selection.intersection(modifiedRange));
-		});
+		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+		const selectedDiffs = diffs
+			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
+			.filter(d => !!d) as LineChange[];
 
 		if (!selectedDiffs.length) {
 			return;
 		}
 
-		const result = staging.applyChanges(originalDocument, modifiedDocument, selectedDiffs);
+		const result = applyLineChanges(originalDocument, modifiedDocument, selectedDiffs);
+
 		await this.model.stage(modifiedUri, result);
 	}
 
@@ -412,7 +409,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const result = staging.applyChanges(originalDocument, modifiedDocument, selectedDiffs);
+		const result = applyLineChanges(originalDocument, modifiedDocument, selectedDiffs);
 		const edit = new WorkspaceEdit();
 		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
 		workspace.applyEdit(edit);
@@ -456,33 +453,30 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
 
-		if (modifiedUri.scheme !== 'git' || modifiedUri.query !== '') {
+		if (modifiedUri.scheme !== 'git') {
+			return;
+		}
+
+		const { ref } = fromGitUri(modifiedUri);
+
+		if (ref !== '') {
 			return;
 		}
 
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selections = textEditor.selections;
-		const selectedDiffs = diffs.filter(diff => {
-			const modifiedRange = diff.modifiedEndLineNumber === 0
-				? new Range(diff.modifiedStartLineNumber - 1, 0, diff.modifiedStartLineNumber - 1, 0)
-				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
-
-			return selections.some(selection => !!selection.intersection(modifiedRange));
-		});
+		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+		const selectedDiffs = diffs
+			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
+			.filter(d => !!d) as LineChange[];
 
 		if (!selectedDiffs.length) {
 			return;
 		}
 
-		const invertedDiffs = selectedDiffs.map(c => ({
-			modifiedStartLineNumber: c.originalStartLineNumber,
-			modifiedEndLineNumber: c.originalEndLineNumber,
-			originalStartLineNumber: c.modifiedStartLineNumber,
-			originalEndLineNumber: c.modifiedEndLineNumber
-		}));
+		const invertedDiffs = selectedDiffs.map(invertLineChange);
+		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
 
-		const result = staging.applyChanges(modifiedDocument, originalDocument, invertedDiffs);
 		await this.model.stage(modifiedUri, result);
 	}
 
