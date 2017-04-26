@@ -503,7 +503,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 				const tsConfig = workspace.getConfiguration('typescript');
 
-				this.info(`Using tsserver from location: ${modulePath}`);
+				this.info(`Using tsserver from: ${modulePath}`);
 				if (!fs.existsSync(modulePath)) {
 					window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', modulePath ? path.dirname(modulePath) : ''));
 					if (!this.bundledTypeScriptPath) {
@@ -572,6 +572,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							try {
 								const logDir = fs.mkdtempSync(path.join(os.tmpdir(), `vscode-tsserver-log-`));
 								this.tsServerLogFile = path.join(logDir, `tsserver.log`);
+								this.info(`TSServer log file: ${this.tsServerLogFile}`);
 							} catch (e) {
 								this.error('Could not create TSServer log directory');
 							}
@@ -603,10 +604,16 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						childProcess.on('error', (err: Error) => {
 							this.lastError = err;
 							this.error('TSServer errored with error.', err);
+							if (this.tsServerLogFile) {
+								this.error(`TSServer log file: ${this.tsServerLogFile}`);
+							}
 							this.serviceExited(false);
 						});
 						childProcess.on('exit', (code: any) => {
 							this.error(`TSServer exited with code: ${code ? code : 'unknown'}`);
+							if (this.tsServerLogFile) {
+								this.error(`TSServer log file: ${this.tsServerLogFile}`);
+							}
 							this.serviceExited(true);
 						});
 						this.reader = new Reader<Proto.Response>(childProcess.stdout, (msg) => {
