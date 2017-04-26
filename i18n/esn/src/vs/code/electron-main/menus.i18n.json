@@ -155,6 +155,6 @@
 	"miDownloadingUpdate": "Descargando actualización...",
 	"miInstallingUpdate": "Instalando actualización...",
 	"miCheckForUpdates": "Buscar actualizaciones...",
-	"aboutDetail": "\\nVersión {0} Confirmación {1} Fecha {2} Shell {3} Representador {4} Node {5}",
+	"aboutDetail": "\nVersión {0}\nConfirmación {1}\nFecha {2}\nShell {3}\nRepresentador {4}\nNode {5}",
 	"okButton": "Aceptar"
 }

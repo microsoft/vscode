@@ -16,5 +16,5 @@
 	"debugWindowsConfiguration": "Атрибуты конфигурации запуска для Windows.",
 	"debugOSXConfiguration": "Атрибуты конфигурации запуска для OS X.",
 	"debugLinuxConfiguration": "Атрибуты конфигурации запуска для Linux.",
-	"deprecatedVariables": "env.\", \"config.\" и \"command.\" устарели, используйте \"env:\", \"config:\" и \"command:\"."
+	"deprecatedVariables": "\"env.\", \"config.\" и \"command.\" устарели, используйте \"env:\", \"config:\" и \"command:\"."
 }

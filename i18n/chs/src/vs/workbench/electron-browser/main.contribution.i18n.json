@@ -20,6 +20,7 @@
 	"statusBarVisibility": "控制工作台底部状态栏的可见性。",
 	"activityBarVisibility": "控制工作台中活动栏的可见性。",
 	"closeOnFileDelete": "控制文件被其他某些进程删除或重命名时是否应该自动关闭显示文件的编辑器。禁用此项会保持编辑器作为此类事件的脏文件打开。请注意，从应用程序内部进行删除操作会始终关闭编辑器，并且脏文件始终不会关闭以保存数据。",
+	"swipeToNavigate": "使用三指横扫在打开的文件之间导航",
 	"workbenchConfigurationTitle": "工作台",
 	"window.openFilesInNewWindow.on": "文件将在新窗口中打开",
 	"window.openFilesInNewWindow.off": "文件将在该文件的文件夹打开的窗口中打开，或在上一个活动窗口中打开",
