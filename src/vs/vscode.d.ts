@@ -707,18 +707,18 @@ declare module 'vscode' {
 		 * The default is the [one](#ViewColumn.One), other values are adjusted to
 		 * be __Min(column, columnCount + 1)__.
 		 */
-		viewColumn?: ViewColumn,
+		viewColumn?: ViewColumn;
 
 		/**
 		 * An optional flag that when `true` will stop the [editor](#TextEditor) from taking focus.
 		 */
-		preserveFocus?: boolean,
+		preserveFocus?: boolean;
 
 		/**
 		 * An optional flag that controls if an [editor](#TextEditor)-tab will be replaced
 		 * with the next editor or if it will be kept.
 		 */
-		preview?: boolean
+		preview?: boolean;
 	}
 
 	/**
@@ -945,7 +945,7 @@ declare module 'vscode' {
 		/**
 		 * Overwrite options for dark themes.
 		 */
-		dark?: ThemableDecorationInstanceRenderOptions
+		dark?: ThemableDecorationInstanceRenderOptions;
 	}
 
 	/**
@@ -1593,7 +1593,7 @@ declare module 'vscode' {
 	 * }
 	 * ```
 	 */
-	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>
+	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
 
 	/**
 	 * Contains additional diagnostic information about the context in which
@@ -3317,7 +3317,7 @@ declare module 'vscode' {
 		 * Report a progress update.
 		 * @param value A progress item, like a message or an updated percentage value
 		 */
-		report(value: T): void
+		report(value: T): void;
 	}
 
 	/**
