@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { MessageItem, workspace, Disposable, ProgressLocation, window, commands } from 'vscode';
+import { MessageItem, workspace, Disposable, ProgressLocation, window, commands, Uri } from 'vscode';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
 
@@ -108,7 +108,7 @@ export class AtaProgressReporter {
 			window.showWarningMessage<MyMessageItem>(
 				localize(
 					'typesInstallerInitializationFailed.title',
-					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed"
+					"Could not install typings files for JavaScript language features. Please ensure that NPM is installed and is in your PATH"
 				), {
 					title: localize('typesInstallerInitializationFailed.moreInformation', "More Information"),
 					id: 1
@@ -128,7 +128,7 @@ export class AtaProgressReporter {
 				}
 				switch (selected.id) {
 					case 1:
-						commands.executeCommand('open', 'https://go.microsoft.com/fwlink/?linkid=847635');
+						commands.executeCommand('vscode.open', Uri.parse('https://go.microsoft.com/fwlink/?linkid=847635'));
 						break;
 					case 2:
 						const tsConfig = workspace.getConfiguration('typescript');
