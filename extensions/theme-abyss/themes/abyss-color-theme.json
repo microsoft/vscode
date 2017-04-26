@@ -287,9 +287,9 @@
 		"listDropBackground": "#041D52",
 
 		"scrollbarShadow": "#515E91AA",
-		"scrollbarSliderActiveBackground": "#3B3F51",
-		"scrollbarSliderBackground": "#1F2230",
-		"scrollbarSliderHoverBackground": "#3B3F51",
+		"scrollbarSliderActiveBackground": "#3B3F5188",
+		"scrollbarSliderBackground": "#1F223088",
+		"scrollbarSliderHoverBackground": "#3B3F5188",
 
 		// Editor
 		"editorBackground": "#000c18",
