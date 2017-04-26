@@ -41,8 +41,8 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { isLinux } from 'vs/base/common/platform';
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { attachListStyler } from "vs/platform/theme/common/styler";
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { attachListStyler } from 'vs/platform/theme/common/styler';
 
 export class ExplorerView extends CollapsibleViewletView {
 

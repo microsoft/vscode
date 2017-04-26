@@ -19,12 +19,12 @@ import { Action } from 'vs/base/common/actions';
 import htmlRenderer = require('vs/base/browser/htmlContentRenderer');
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_BACKGROUND } from "vs/workbench/common/theme";
-import { ITelemetryService } from "vs/platform/telemetry/common/telemetry";
-import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { highContrastBorder, buttonBackground, buttonHoverBackground, widgetShadow, errorBorder, warningBorder, infoBorder } from "vs/platform/theme/common/colorRegistry";
-import { IDisposable, dispose } from "vs/base/common/lifecycle";
-import { Color } from "vs/base/common/color";
+import { NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { highContrastBorder, buttonBackground, buttonHoverBackground, widgetShadow, errorBorder, warningBorder, infoBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Color } from 'vs/base/common/color';
 
 export enum Severity {
 	Info,

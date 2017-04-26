@@ -16,9 +16,9 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
-import { IThemeService } from "vs/platform/theme/common/themeService";
-import { attachSelectBoxStyler } from "vs/platform/theme/common/styler";
-import { SIDE_BAR_BACKGROUND } from "vs/workbench/common/theme";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 

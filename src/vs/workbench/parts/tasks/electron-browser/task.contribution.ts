@@ -1278,8 +1278,8 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from './jsonSchema_v1';
 import schemaVersion2 from './jsonSchema_v2';
-import { Themable, STATUS_BAR_FOREGROUND } from "vs/workbench/common/theme";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,

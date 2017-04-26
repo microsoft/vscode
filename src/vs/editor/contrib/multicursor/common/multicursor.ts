@@ -10,8 +10,8 @@ import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
-import { CursorMoveCommands } from "vs/editor/common/controller/cursorMoveCommands";
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
 import { CursorState, RevealTarget } from 'vs/editor/common/controller/cursorCommon';
 
 @editorAction

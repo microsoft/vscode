@@ -25,8 +25,8 @@ import DOM = require('vs/base/browser/dom');
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { Color } from "vs/base/common/color";
-import { mixin } from "vs/base/common/objects";
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;

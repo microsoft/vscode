@@ -18,7 +18,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import { InternalEditorOptions } from "vs/editor/common/config/editorOptions";
+import { InternalEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';

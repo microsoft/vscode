@@ -44,8 +44,8 @@ import { resolveCommonProperties, machineIdStorageKey, machineIdIpcChannel } fro
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { IDisposable, dispose } from "vs/base/common/lifecycle";
-import { ConfigurationService } from "vs/platform/configuration/node/configurationService";
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { TPromise } from "vs/base/common/winjs.base";
 
 export class VSCodeApplication {

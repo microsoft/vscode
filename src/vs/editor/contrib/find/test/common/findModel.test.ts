@@ -13,7 +13,7 @@ import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-import { CoreCommands } from "vs/editor/common/controller/coreCommands";
+import { CoreCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('FindModel', () => {
 

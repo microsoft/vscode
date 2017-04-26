@@ -12,7 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	actionClassName: string;

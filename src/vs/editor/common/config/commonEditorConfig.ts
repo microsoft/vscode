@@ -18,7 +18,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
 
 /**
  * Control what pressing Tab does.

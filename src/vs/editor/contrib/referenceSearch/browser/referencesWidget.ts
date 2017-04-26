@@ -14,7 +14,7 @@ import { IDisposable, dispose, Disposables, IReference } from 'vs/base/common/li
 import { Schemas } from 'vs/base/common/network';
 import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import { Sash, ISashEvent, IVerticalSashLayoutProvider } from 'vs/base/browser/ui/sash/sash';
@@ -41,9 +41,9 @@ import { FileReferences, OneReference, ReferencesModel } from './referencesModel
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachListStyler } from "vs/platform/theme/common/styler";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 class DecorationsManager implements IDisposable {
 

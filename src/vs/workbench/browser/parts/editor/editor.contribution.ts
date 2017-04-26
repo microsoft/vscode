@@ -36,7 +36,7 @@ import {
 	NAVIGATE_IN_GROUP_TWO_PREFIX, ShowEditorsInGroupThreeAction, NAVIGATE_IN_GROUP_THREE_PREFIX, FocusLastEditorInStackAction, OpenNextRecentlyUsedEditorInGroupAction, MoveEditorToPreviousGroupAction, MoveEditorToNextGroupAction, MoveEditorLeftInGroupAction, ClearRecentFilesAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IWorkbenchEditorService } from "vs/workbench/services/editor/common/editorService";
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(

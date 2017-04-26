@@ -18,8 +18,8 @@ import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
-import { ViewController } from "vs/editor/browser/view/viewController";
+import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
+import { ViewController } from 'vs/editor/browser/view/viewController';
 
 export interface IKeyboardHandlerHelper {
 	viewDomNode: FastDomNode<HTMLElement>;

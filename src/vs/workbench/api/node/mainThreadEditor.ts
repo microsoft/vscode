@@ -13,8 +13,8 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
-import { TextEditorCursorStyle, cursorStyleToString } from "vs/editor/common/config/editorOptions";
-import { ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { TextEditorCursorStyle, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 export interface ITextEditorConfigurationUpdate {
 	tabSize?: number | 'auto';

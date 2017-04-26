@@ -13,9 +13,9 @@ import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { IPosition } from "vs/editor/common/core/position";
-import { IRange } from "vs/editor/common/core/range";
-import { ISelection } from "vs/editor/common/core/selection";
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 
 export interface PositionLike {
 	line: number;

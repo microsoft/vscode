@@ -16,7 +16,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { commonEditorContribution, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IPosition } from "vs/editor/common/core/position";
+import { IPosition } from 'vs/editor/common/core/position';
 
 @commonEditorContribution
 export class MessageController {

@@ -21,9 +21,9 @@ import {
 	ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent,
 	IModelLanguageChangedEvent, IModelOptionsChangedEvent
 } from 'vs/editor/common/model/textModelEvents';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
-import { ICursors } from "vs/editor/common/controller/cursorCommon";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursors } from 'vs/editor/common/controller/cursorCommon';
 
 /**
  * Vertical Lane in the overview ruler of the editor.

@@ -21,7 +21,7 @@ import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextModelResolverService } from "vs/editor/common/services/resolverService";
+import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.

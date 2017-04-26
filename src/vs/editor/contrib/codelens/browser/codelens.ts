@@ -21,7 +21,7 @@ import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol, Command } 
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeLensData, getCodeLensData } from '../common/codelens';
-import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
 
 class CodeLensViewZone implements editorBrowser.IViewZone {

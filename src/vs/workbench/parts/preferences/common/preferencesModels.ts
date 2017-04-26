@@ -21,7 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { IRange } from "vs/editor/common/core/range";
+import { IRange } from 'vs/editor/common/core/range';
 
 class SettingMatches {
 

@@ -18,8 +18,8 @@ import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, any } fro
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
-import { Color } from "vs/base/common/color";
-import { mixin } from "vs/base/common/objects";
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
 export interface IIdentityProvider<T> {
 	(element: T): string;

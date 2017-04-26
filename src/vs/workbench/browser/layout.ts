@@ -18,7 +18,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const MIN_EDITOR_PART_HEIGHT = 70;

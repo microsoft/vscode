@@ -21,8 +21,8 @@ import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/searc
 import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { IPosition } from "vs/editor/common/core/position";
-import { IRange } from "vs/editor/common/core/range";
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
 
 // --- adapter
 

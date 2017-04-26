@@ -11,7 +11,7 @@ import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import { Range } from 'vs/editor/common/core/range';
 import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
-import { Position } from "vs/editor/common/core/position";
+import { Position } from 'vs/editor/common/core/position';
 
 import emmet = require('emmet');
 

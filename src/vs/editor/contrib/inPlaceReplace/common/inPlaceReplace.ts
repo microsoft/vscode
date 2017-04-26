@@ -15,7 +15,7 @@ import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution 
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
-import { EditorState, CodeEditorStateFlag } from "vs/editor/common/core/editorState";
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 
 @commonEditorContribution
 class InPlaceReplaceController implements IEditorContribution {

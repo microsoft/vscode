@@ -37,8 +37,8 @@ import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { isObject } from 'vs/base/common/types';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { Parts, IPartService } from "vs/workbench/services/part/common/partService";
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);

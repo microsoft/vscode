@@ -15,9 +15,9 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
-import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
-import { ICoordinatesConverter } from "vs/editor/common/viewModel/viewModel";
-import { CursorChangeReason, VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { CursorChangeReason, VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 
 export interface IColumnSelectData {
 	toViewLineNumber: number;

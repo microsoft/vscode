@@ -19,8 +19,8 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
-import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
-import { CommonEditorRegistry } from "vs/editor/common/editorCommonExtensions";
+import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from 'vs/editor/common/controller/cursorEvents';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 
 interface IMultipleCursorOperationContext {

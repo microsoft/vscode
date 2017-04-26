@@ -16,7 +16,7 @@ import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorCursor } from 'vs/editor/common/view/editorColorRegistry';
-import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from "vs/editor/common/config/editorOptions";
+import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 
 export class ViewCursors extends ViewPart {
 

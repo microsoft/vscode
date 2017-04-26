@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./lineNumbers';
-import { editorLineNumbers } from "vs/editor/common/view/editorColorRegistry";
+import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import * as platform from 'vs/base/common/platform';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';

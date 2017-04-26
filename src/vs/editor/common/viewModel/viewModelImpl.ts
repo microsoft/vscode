@@ -21,9 +21,9 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import * as errors from 'vs/base/common/errors';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { WrappingIndent, IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
-import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
-import { Cursor } from "vs/editor/common/controller/cursor";
+import { WrappingIndent, IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from 'vs/editor/common/controller/cursorEvents';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 
 const ConfigurationChanged = 'configurationChanged';
 

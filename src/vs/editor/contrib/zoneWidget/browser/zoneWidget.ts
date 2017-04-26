@@ -13,9 +13,9 @@ import * as dom from 'vs/base/browser/dom';
 import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { Color, RGBA } from "vs/base/common/color";
-import { EditorLayoutInfo } from "vs/editor/common/config/editorOptions";
-import { Position, IPosition } from "vs/editor/common/core/position";
+import { Color, RGBA } from 'vs/base/common/color';
+import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 
 export interface IOptions {
 	showFrame?: boolean;

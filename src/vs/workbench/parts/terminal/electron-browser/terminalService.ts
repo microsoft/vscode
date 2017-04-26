@@ -21,9 +21,9 @@ import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/t
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChoiceService } from "vs/platform/message/common/message";
-import { Severity } from "vs/editor/common/standalone/standaloneBase";
-import { IStorageService, StorageScope } from "vs/platform/storage/common/storage";
+import { IChoiceService } from 'vs/platform/message/common/message';
+import { Severity } from 'vs/editor/common/standalone/standaloneBase';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { TERMINAL_DEFAULT_SHELL_WINDOWS } from "vs/workbench/parts/terminal/electron-browser/terminal";
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {

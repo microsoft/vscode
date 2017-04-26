@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Node, build, find } from './tokenTree';
-import { Position } from "vs/editor/common/core/position";
+import { Position } from 'vs/editor/common/core/position';
 
 /**
  * Interface used to compute a hierachry of logical ranges.

@@ -35,7 +35,7 @@ import { ITelemetryService, ITelemetryExperiments, ITelemetryInfo } from 'vs/pla
 import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
-import { IRange } from "vs/editor/common/core/range";
+import { IRange } from 'vs/editor/common/core/range';
 
 export class SimpleEditor implements IEditor {
 

@@ -15,8 +15,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
-import { Color } from "vs/base/common/color";
-import { ICheckboxStyles } from "vs/base/browser/ui/checkbox/checkbox";
+import { Color } from 'vs/base/common/color';
+import { ICheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
 
 export interface IFindInputOptions extends IFindInputStyles {
 	placeholder?: string;

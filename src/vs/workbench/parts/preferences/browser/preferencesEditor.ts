@@ -51,8 +51,8 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { FindController } from 'vs/editor/contrib/find/browser/find';
 import { SelectionHighlighter } from 'vs/editor/contrib/find/common/findController';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
-import { KeybindingsRegistry } from "vs/platform/keybinding/common/keybindingsRegistry";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';

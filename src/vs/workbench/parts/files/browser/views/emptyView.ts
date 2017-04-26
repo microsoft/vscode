@@ -16,8 +16,8 @@ import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CollapsibleView } from 'vs/base/browser/ui/splitview/splitview';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
-import { attachButtonStyler } from "vs/platform/theme/common/styler";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class EmptyView extends CollapsibleView {
 	private openFolderButton: Button;

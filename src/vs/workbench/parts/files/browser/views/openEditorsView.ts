@@ -31,8 +31,8 @@ import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEdi
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { attachListStyler } from "vs/platform/theme/common/styler";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 

@@ -27,7 +27,7 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 

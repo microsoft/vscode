@@ -23,8 +23,8 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
-import { IDiffEditorOptions, IEditorOptions } from "vs/editor/common/config/editorOptions";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 /**
  * The options to create an editor.

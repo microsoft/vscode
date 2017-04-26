@@ -10,7 +10,7 @@ import { ILineMapperFactory, ILineMapping, OutputPosition } from 'vs/editor/comm
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { toUint32Array } from 'vs/editor/common/core/uint';
-import { WrappingIndent } from "vs/editor/common/config/editorOptions";
+import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
 const enum CharacterClass {
 	NONE = 0,

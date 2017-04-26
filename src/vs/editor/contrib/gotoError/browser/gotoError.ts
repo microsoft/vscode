@@ -24,9 +24,9 @@ import { editorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCom
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { registerColor } from "vs/platform/theme/common/colorRegistry";
-import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
-import { Color } from "vs/base/common/color";
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { Color } from 'vs/base/common/color';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 class MarkerModel {

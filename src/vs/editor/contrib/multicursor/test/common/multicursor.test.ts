@@ -5,10 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import { withMockCodeEditor } from "vs/editor/test/common/mocks/mockCodeEditor";
-import { Selection } from "vs/editor/common/core/selection";
-import { InsertCursorAbove, InsertCursorBelow } from "vs/editor/contrib/multicursor/common/multicursor";
-import { Handler } from "vs/editor/common/editorCommon";
+import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { Selection } from 'vs/editor/common/core/selection';
+import { InsertCursorAbove, InsertCursorBelow } from 'vs/editor/contrib/multicursor/common/multicursor';
+import { Handler } from 'vs/editor/common/editorCommon';
 
 
 suite('Multicursor', () => {

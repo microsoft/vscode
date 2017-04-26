@@ -27,9 +27,9 @@ import { Context as SuggestContext } from './suggest';
 import { ICompletionItem, CompletionModel } from './completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachListStyler } from "vs/platform/theme/common/styler";
-import { IThemeService, ITheme, registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { registerColor, editorWidgetBackground, highContrastBorder, listFocusBackground, highContrastOutline } from "vs/platform/theme/common/colorRegistry";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor, editorWidgetBackground, highContrastBorder, listFocusBackground, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 
 const sticky = false; // for development purposes
 

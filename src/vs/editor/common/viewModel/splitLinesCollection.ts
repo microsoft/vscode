@@ -11,7 +11,7 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ViewLineData, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { WrappingIndent } from "vs/editor/common/config/editorOptions";
+import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
 export class OutputPosition {
 	_outputPositionBrand: void;

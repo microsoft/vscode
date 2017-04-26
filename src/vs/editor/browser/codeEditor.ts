@@ -12,7 +12,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export class CodeEditor extends CodeEditorWidget {
 

@@ -25,8 +25,8 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
-import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
-import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, highContrastOutline, highContrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, infoBackground, infoBorder, warningBackground, warningBorder, errorBackground, errorBorder } from "vs/platform/theme/common/colorRegistry";
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, highContrastOutline, highContrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, infoBackground, infoBorder, warningBackground, warningBorder, errorBackground, errorBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IFindController {
 	replace(): void;

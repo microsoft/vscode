@@ -12,8 +12,8 @@ import Keyboard = require('vs/base/browser/keyboardEvent');
 import { INavigator } from 'vs/base/common/iterator';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import Event from 'vs/base/common/event';
-import { IAction, IActionItem } from "vs/base/common/actions";
-import { Color } from "vs/base/common/color";
+import { IAction, IActionItem } from 'vs/base/common/actions';
+import { Color } from 'vs/base/common/color';
 
 export interface ITree extends Events.IEventEmitter {
 

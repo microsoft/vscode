@@ -23,7 +23,7 @@ import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/c
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { DocumentSymbolProviderRegistry, SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { IRange } from "vs/editor/common/core/range";
+import { IRange } from 'vs/editor/common/core/range';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';

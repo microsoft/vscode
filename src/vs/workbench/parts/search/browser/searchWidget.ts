@@ -29,7 +29,7 @@ import { HistoryNavigator } from 'vs/base/common/history';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { attachInputBoxStyler, attachFindInputBoxStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SIDE_BAR_BACKGROUND } from "vs/workbench/common/theme";
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export interface ISearchWidgetOptions {
 	value?: string;

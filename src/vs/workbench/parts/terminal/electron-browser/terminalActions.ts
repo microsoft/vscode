@@ -15,8 +15,8 @@ import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { attachSelectBoxStyler } from "vs/platform/theme/common/styler";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class ToggleTerminalAction extends TogglePanelAction {
 

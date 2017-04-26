@@ -21,9 +21,9 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import nls = require('vs/nls');
 import { getPathLabel, IWorkspaceProvider } from 'vs/base/common/labels';
-import { ResourceMap } from "vs/base/common/map";
-import { once } from "vs/base/common/event";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { ResourceMap } from 'vs/base/common/map';
+import { once } from 'vs/base/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface IEditorPart {
 	openEditor(input?: IEditorInput, options?: IEditorOptions | ITextEditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;

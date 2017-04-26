@@ -11,7 +11,7 @@ import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
-import { CoreCommands, CoreEditorCommand } from "vs/editor/common/controller/coreCommands";
+import { CoreCommands, CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 
 export interface ExecCoreEditorCommandFunc {
 	(editorCommand: CoreEditorCommand, args: any): void;

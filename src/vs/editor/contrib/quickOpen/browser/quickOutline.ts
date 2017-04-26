@@ -20,7 +20,7 @@ import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { getDocumentSymbols, IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Range } from "vs/editor/common/core/range";
+import { Range } from 'vs/editor/common/core/range';
 
 let SCOPE_PREFIX = ':';
 

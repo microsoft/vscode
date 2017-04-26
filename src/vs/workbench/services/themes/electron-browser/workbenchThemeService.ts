@@ -39,7 +39,7 @@ import pfs = require('vs/base/node/pfs');
 import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 
 
 // implementation

@@ -16,8 +16,8 @@ import * as dom from 'vs/base/browser/dom';
 import { IGitService } from 'vs/workbench/parts/git/common/git';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { attachButtonStyler } from "vs/platform/theme/common/styler";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 

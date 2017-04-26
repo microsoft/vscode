@@ -21,7 +21,7 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { once } from "vs/base/common/event";
+import { once } from 'vs/base/common/event';
 
 class ServiceAccessor {
 	constructor(

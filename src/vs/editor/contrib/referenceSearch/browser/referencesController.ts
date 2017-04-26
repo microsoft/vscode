@@ -26,8 +26,8 @@ import { ReferencesModel, OneReference } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
-import { IThemeService } from "vs/platform/theme/common/themeService";
-import { Position } from "vs/editor/common/core/position";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Position } from 'vs/editor/common/core/position';
 
 export const ctxReferenceSearchVisible = new RawContextKey<boolean>('referenceSearchVisible', false);
 

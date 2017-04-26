@@ -17,7 +17,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 

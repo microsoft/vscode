@@ -11,7 +11,7 @@ import { MouseHandler, IPointerHandlerHelper } from 'vs/editor/browser/controlle
 import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
-import { ViewController } from "vs/editor/browser/view/viewController";
+import { ViewController } from 'vs/editor/browser/view/viewController';
 
 interface IThrottledGestureEvent {
 	translationX: number;

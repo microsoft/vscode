@@ -31,7 +31,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachHeaderViewStyler } from "vs/platform/theme/common/styler";
+import { attachHeaderViewStyler } from 'vs/platform/theme/common/styler';
 
 export class ExplorerViewlet extends Viewlet {
 	private viewletContainer: Builder;

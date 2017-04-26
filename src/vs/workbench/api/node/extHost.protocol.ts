@@ -40,9 +40,9 @@ import { IApplyEditsOptions, IUndoStopOptions, TextEditorRevealType, ITextEditor
 import { InternalTreeNodeContent } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
-import { IPosition } from "vs/editor/common/core/position";
-import { IRange } from "vs/editor/common/core/range";
-import { ISelection } from "vs/editor/common/core/selection";
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 
 export interface IEnvironment {
 	enableProposedApi: boolean;

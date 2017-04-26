@@ -24,7 +24,7 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { CoreCommands } from "vs/editor/common/controller/coreCommands";
+import { CoreCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('Editor - Range decorations', () => {
 

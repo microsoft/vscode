@@ -22,9 +22,9 @@ import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
-import { CoreCommands } from "vs/editor/common/controller/coreCommands";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { CoreCommands } from 'vs/editor/common/controller/coreCommands';
 
 let H = Handler;
 

@@ -32,7 +32,7 @@ import { IExtensionEnablementService, IExtensionManagementService, IExtensionGal
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { tildify } from "vs/base/common/labels";
+import { tildify } from 'vs/base/common/labels';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Themable } from 'vs/workbench/common/theme';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';

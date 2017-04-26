@@ -29,10 +29,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
-import { IPosition } from "vs/editor/common/core/position";
-import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
-import { CoreEditorCommand } from "vs/editor/common/controller/coreCommands";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 

@@ -18,8 +18,8 @@ import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData } from './extHost.protocol';
-import { IRange } from "vs/editor/common/core/range";
-import { ISelection } from "vs/editor/common/core/selection";
+import { IRange } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 
 export class MainThreadEditors extends MainThreadEditorsShape {
 

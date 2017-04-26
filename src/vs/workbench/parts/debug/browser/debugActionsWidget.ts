@@ -26,10 +26,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Themable } from "vs/workbench/common/theme";
-import { IThemeService } from "vs/platform/theme/common/themeService";
-import { registerColor, highContrastBorder, widgetShadow } from "vs/platform/theme/common/colorRegistry";
-import { localize } from "vs/nls";
+import { Themable } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerColor, highContrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from 'vs/nls';
 
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';

@@ -12,7 +12,7 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { FindWidget, IFindController } from 'vs/editor/contrib/find/browser/findWidget';
 import { FindOptionsWidget } from 'vs/editor/contrib/find/browser/findOptionsWidget';
 import { CommonFindController, FindStartFocusAction, IFindStartOptions } from 'vs/editor/contrib/find/common/findController';
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 @editorContribution
 export class FindController extends CommonFindController implements IFindController {

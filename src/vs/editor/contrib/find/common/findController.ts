@@ -18,7 +18,7 @@ import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, T
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export const enum FindStartFocusAction {

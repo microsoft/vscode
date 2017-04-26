@@ -18,7 +18,7 @@ import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contex
 import Event, { Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
-import { mixin } from "vs/base/common/objects";
+import { mixin } from 'vs/base/common/objects';
 
 const $ = dom.$;
 

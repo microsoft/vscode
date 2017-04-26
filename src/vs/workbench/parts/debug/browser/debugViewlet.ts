@@ -23,7 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachHeaderViewStyler } from "vs/platform/theme/common/styler";
+import { attachHeaderViewStyler } from 'vs/platform/theme/common/styler';
 
 const DEBUG_VIEWS_WEIGHTS = 'debug.viewsweights';
 

@@ -59,9 +59,9 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
-import { attachListStyler } from "vs/platform/theme/common/styler";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 
 export class SearchViewlet extends Viewlet {
 

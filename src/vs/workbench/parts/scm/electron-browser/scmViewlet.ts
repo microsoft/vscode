@@ -37,7 +37,7 @@ import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, LIGHT } from "vs/platform/theme/common/themeService";
+import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';

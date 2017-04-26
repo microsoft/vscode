@@ -28,7 +28,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { ParsedExpression, parse, IExpression } from 'vs/base/common/glob';
-import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.

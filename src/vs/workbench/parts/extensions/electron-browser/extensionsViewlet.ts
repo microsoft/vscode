@@ -51,7 +51,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachListStyler } from "vs/platform/theme/common/styler";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;

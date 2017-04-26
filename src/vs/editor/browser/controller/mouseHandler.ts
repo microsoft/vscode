@@ -22,8 +22,8 @@ import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { IViewWhitespaceViewportData } from "vs/editor/common/viewModel/viewModel";
-import { ViewController } from "vs/editor/browser/view/viewController";
+import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel/viewModel';
+import { ViewController } from 'vs/editor/browser/view/viewController';
 
 /**
  * Merges mouse events when mouse move events are throttled

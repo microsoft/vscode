@@ -11,8 +11,8 @@ import { FeedbackDropdown, IFeedback, IFeedbackService } from './feedback';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/node/product';
-import { Themable, STATUS_BAR_FOREGROUND } from "vs/workbench/common/theme";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 class TwitterFeedbackService implements IFeedbackService {
 

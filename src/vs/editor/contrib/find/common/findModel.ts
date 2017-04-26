@@ -19,7 +19,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Constants } from 'vs/editor/common/core/uint';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CursorChangeReason, ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,

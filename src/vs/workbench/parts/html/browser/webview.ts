@@ -14,7 +14,7 @@ import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, LIGHT, DARK } from "vs/platform/theme/common/themeService";
+import { ITheme, LIGHT, DARK } from 'vs/platform/theme/common/themeService';
 
 declare interface WebviewElement extends HTMLElement {
 	src: string;

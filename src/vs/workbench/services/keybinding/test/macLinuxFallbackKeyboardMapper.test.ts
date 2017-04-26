@@ -8,7 +8,7 @@
 import { KeyMod, KeyCode, createKeybinding, KeyChord, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IResolvedKeybinding, assertResolveKeybinding, assertResolveKeyboardEvent, assertResolveUserBinding } from 'vs/workbench/services/keybinding/test/keyboardMapperTestUtils';
-import { MacLinuxFallbackKeyboardMapper } from "vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper";
+import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import { ScanCodeBinding, ScanCode } from 'vs/workbench/services/keybinding/common/scanCode';
 
 suite('keyboardMapper - MAC fallback', () => {

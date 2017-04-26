@@ -32,12 +32,12 @@ import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
-import { registerThemingParticipant, IThemeService, ITheme } from "vs/platform/theme/common/themeService";
-import { registerColor } from "vs/platform/theme/common/colorRegistry";
-import { Color, RGBA } from "vs/base/common/color";
-import { OverviewRulerZone } from "vs/editor/common/view/overviewZoneManager";
-import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { registerThemingParticipant, IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { Color, RGBA } from 'vs/base/common/color';
+import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];

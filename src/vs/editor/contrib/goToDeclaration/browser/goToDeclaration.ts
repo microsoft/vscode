@@ -36,10 +36,10 @@ import { ITextModelResolverService } from 'vs/editor/common/services/resolverSer
 import { MessageController } from './messageController';
 import * as corePosition from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { EditorState, CodeEditorStateFlag } from "vs/editor/common/core/editorState";
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 
 
 export class DefinitionActionConfig {

@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/treeExplorerView';
 import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachHeaderViewStyler } from "vs/platform/theme/common/styler";
+import { attachHeaderViewStyler } from 'vs/platform/theme/common/styler';
 
 export class TreeExplorerViewlet extends Viewlet {
 

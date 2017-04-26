@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeEditorService } from "vs/editor/common/services/codeEditorService";
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { CopyOptions } from 'vs/editor/common/controller/textAreaHandler';

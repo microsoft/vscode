@@ -25,7 +25,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorLinkForeground, editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { Position } from "vs/editor/common/core/position";
+import { Position } from 'vs/editor/common/core/position';
 
 class LinkOccurence {
 

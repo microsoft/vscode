@@ -16,8 +16,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { FileOperationResult, IFileOperationResult } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { Verbosity } from 'vs/platform/editor/common/editor';
-import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
-import { IModelService } from "vs/editor/common/services/modelService";
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 function toResource(path) {
 	return URI.file(join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));

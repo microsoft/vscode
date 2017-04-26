@@ -26,7 +26,7 @@ import { RGBA } from 'vs/base/common/color';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import * as platform from 'vs/base/common/platform';
-import { VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
+import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 
 const enum RenderMinimap {
 	None = 0,

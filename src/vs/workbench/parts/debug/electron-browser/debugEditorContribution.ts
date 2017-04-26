@@ -35,8 +35,8 @@ import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWid
 import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService } from "vs/platform/theme/common/themeService";
-import { Position } from "vs/editor/common/core/position";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Position } from 'vs/editor/common/core/position';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;

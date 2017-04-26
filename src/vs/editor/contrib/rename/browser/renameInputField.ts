@@ -12,9 +12,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
-import { inputBackground, inputBorder, inputForeground, widgetShadow, focus } from "vs/platform/theme/common/colorRegistry";
-import { Position } from "vs/editor/common/core/position";
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { inputBackground, inputBorder, inputForeground, widgetShadow, focus } from 'vs/platform/theme/common/colorRegistry';
+import { Position } from 'vs/editor/common/core/position';
 
 export default class RenameInputField implements IContentWidget, IDisposable {
 

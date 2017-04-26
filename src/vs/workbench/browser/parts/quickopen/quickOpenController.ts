@@ -49,9 +49,9 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SIDE_BAR_BACKGROUND } from "vs/workbench/common/theme";
-import { attachQuickOpenStyler } from "vs/platform/theme/common/styler";
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const HELP_PREFIX = '?';
 

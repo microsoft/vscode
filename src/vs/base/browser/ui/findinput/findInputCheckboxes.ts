@@ -9,7 +9,7 @@ import 'vs/css!./findInputCheckboxes';
 import * as nls from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 
 export interface IFindInputCheckboxOpts {
 	appendTitle: string;

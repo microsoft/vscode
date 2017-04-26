@@ -15,7 +15,7 @@ import { ISuggestSupport, SuggestRegistry, StandardTokenType } from 'vs/editor/c
 import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 export interface ICancelEvent {
 	retrigger: boolean;

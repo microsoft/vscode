@@ -17,7 +17,7 @@ import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel'
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { workbenchInstantiationService, TestThemeService } from 'vs/workbench/test/workbenchTestServices';
 import { DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
-import { UntitledEditorInput } from "vs/workbench/common/editor/untitledEditorInput";
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 
 let activeEditor: BaseEditor = <any>{
 	getSelection: function () {

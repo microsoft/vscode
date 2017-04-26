@@ -22,7 +22,7 @@ import { computeRanges, limitByIndent } from 'vs/editor/contrib/folding/common/i
 import { IFoldingController, ID } from 'vs/editor/contrib/folding/common/folding';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
 @editorContribution
 export class FoldingController implements IFoldingController {

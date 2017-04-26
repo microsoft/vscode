@@ -11,7 +11,7 @@ import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation 
 import { EditableTextModel, IValidatedEditOperation } from 'vs/editor/common/model/editableTextModel';
 import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
-import { IModelContentChangedEvent } from "vs/editor/common/model/textModelEvents";
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 

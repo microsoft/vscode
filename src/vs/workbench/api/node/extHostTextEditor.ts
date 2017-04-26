@@ -16,8 +16,8 @@ import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from
 import * as TypeConverters from './extHostTypeConverters';
 import { MainThreadEditorsShape } from './extHost.protocol';
 import * as vscode from 'vscode';
-import { TextEditorCursorStyle } from "vs/editor/common/config/editorOptions";
-import { IRange } from "vs/editor/common/core/range";
+import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 

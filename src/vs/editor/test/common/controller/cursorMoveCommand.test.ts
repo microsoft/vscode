@@ -12,12 +12,12 @@ import { Model } from 'vs/editor/common/model/model';
 import { IMode } from 'vs/editor/common/modes';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { viewModelHelper as aViewModelHelper } from 'vs/editor/test/common/editorTestUtils';
-import { CursorMove } from "vs/editor/common/controller/cursorMoveCommands";
+import { CursorMove } from 'vs/editor/common/controller/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
-import { IViewModelHelper } from "vs/editor/common/controller/cursorCommon";
-import { CoreCommands } from "vs/editor/common/controller/coreCommands";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IViewModelHelper } from 'vs/editor/common/controller/cursorCommon';
+import { CoreCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('Cursor move command test', () => {
 

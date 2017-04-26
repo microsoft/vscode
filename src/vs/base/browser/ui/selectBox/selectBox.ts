@@ -10,8 +10,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
-import { Color } from "vs/base/common/color";
-import { clone } from "vs/base/common/objects";
+import { Color } from 'vs/base/common/color';
+import { clone } from 'vs/base/common/objects';
 
 export interface ISelectBoxStyles {
 	selectBackground?: Color;

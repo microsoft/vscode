@@ -25,8 +25,8 @@ import { editorAction, CommonEditorRegistry, EditorAction, EditorCommand, Comman
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
-import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { editorWidgetBackground, widgetShadow, highContrastBorder } from "vs/platform/theme/common/colorRegistry";
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorWidgetBackground, widgetShadow, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';

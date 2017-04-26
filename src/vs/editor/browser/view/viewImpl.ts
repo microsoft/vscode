@@ -50,7 +50,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;

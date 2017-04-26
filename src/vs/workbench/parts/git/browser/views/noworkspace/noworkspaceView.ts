@@ -17,8 +17,8 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { IActionRunner, IAction } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
-import { attachButtonStyler } from "vs/platform/theme/common/styler";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 const $ = builder.$;
 
 export class NoWorkspaceView

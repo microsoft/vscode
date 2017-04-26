@@ -21,7 +21,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IOptions, ZoneWidget, IStyles } from './zoneWidget';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 
 export var IPeekViewService = createDecorator<IPeekViewService>('peekViewService');
 
