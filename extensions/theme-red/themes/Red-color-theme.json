@@ -3,7 +3,7 @@
 	"colors": {
 		// window
 		"activityBadgeBackground": "#DB7E58",
-		"activityBarBackground": "#4B0000",
+		"activityBarBackground": "#580000",
 		"inactiveTabBackground": "#300000",
 		"sideBarBackground": "#330000",
 		"statusBarBackground": "#700000",
@@ -11,6 +11,7 @@
 		"titleBarActiveBackground": "#770000",
 		// editor
 		"editorBackground": "#390000",
+		"editorGroupBorder": "#ff666633",
 		"editorCursor": "#970000",
 		"editorForeground": "#F8F8F8",
 		"editorWhitespaces": "#c10000",
@@ -24,6 +25,8 @@
 		"editorLineHighlight": "#ff000033",
 		"editorHoverHighlight": "#ff000044",
 		"editorSelectionHighlight": "#f5500039",
+		"editorLinkForeground": "#D69B6A",
+		"editorActiveLinkForeground": "#FFD0AA",
 		"peekViewTitleBackground": "#550000",
 		"peekViewBorder": "#ff000044",
 		"peekViewResultsBackground": "#400000",
