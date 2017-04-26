@@ -126,12 +126,6 @@ export function isNamedProblemMatcher(value: ProblemMatcher): value is NamedProb
 	return value && Types.isString((<NamedProblemMatcher>value).name) ? true : false;
 }
 
-let valueMap: { [key: string]: string; } = {
-	E: 'error',
-	W: 'warning',
-	I: 'info',
-};
-
 interface Location {
 	startLineNumber: number;
 	startCharacter: number;
@@ -192,7 +186,7 @@ export function createLineMatcher(matcher: ProblemMatcher): ILineMatcher {
 	}
 }
 
-class AbstractLineMatcher implements ILineMatcher {
+abstract class AbstractLineMatcher implements ILineMatcher {
 	private matcher: ProblemMatcher;
 
 	constructor(matcher: ProblemMatcher) {
@@ -207,9 +201,7 @@ class AbstractLineMatcher implements ILineMatcher {
 		return null;
 	}
 
-	public get matchLength(): number {
-		throw new Error('Subclass reponsibility');
-	}
+	public abstract get matchLength(): number;
 
 	protected fillProblemData(data: ProblemData, pattern: ProblemPattern, matches: RegExpExecArray): void {
 		this.fillProperty(data, 'file', pattern, matches, true);
@@ -302,11 +294,21 @@ class AbstractLineMatcher implements ILineMatcher {
 		let result: Severity = null;
 		if (data.severity) {
 			let value = data.severity;
-			if (value && value.length > 0) {
-				if (value.length === 1 && valueMap[value[0]]) {
-					value = valueMap[value[0]];
-				}
+			if (value) {
 				result = Severity.fromValue(value);
+				if (result === Severity.Ignore) {
+					if (value === 'E') {
+						result = Severity.Error;
+					} else if (value === 'W') {
+						result = Severity.Warning;
+					} else if (value === 'I') {
+						result = Severity.Info;
+					} else if (Strings.equalsIgnoreCase(value, 'hint')) {
+						result = Severity.Info;
+					} else if (Strings.equalsIgnoreCase(value, 'note')) {
+						result = Severity.Info;
+					}
+				}
 			}
 		}
 		if (result === null || result === Severity.Ignore) {
