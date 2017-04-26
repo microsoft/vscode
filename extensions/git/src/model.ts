@@ -125,6 +125,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_DELETED:
 			case Status.DELETED_BY_THEM:
 			case Status.DELETED_BY_US:
+			case Status.INDEX_DELETED:
 				return true;
 			default:
 				return false;
