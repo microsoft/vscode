@@ -23,7 +23,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
-const SCROLL_WHEEL_SMOOTH_SCROLL_TRESHOLD = 1.7;
+const SCROLL_WHEEL_SMOOTH_SCROLL_THRESHOLD = 1.7;
 
 export interface IOverviewRulerLayoutInfo {
 	parent: HTMLElement;
@@ -260,14 +260,14 @@ export class ScrollableElement extends Widget {
 			if (desiredScrollTop !== -1 || desiredScrollLeft !== -1) {
 				if (desiredScrollTop !== -1) {
 					// If |∆y| is too small then do not apply smooth scroll animation, because in that case the input source must be a touchpad or something similar.
-					const applySmoothScroll = this._options.mouseWheelSmoothScroll && Math.abs(deltaY) > SCROLL_WHEEL_SMOOTH_SCROLL_TRESHOLD;
+					const applySmoothScroll = this._options.mouseWheelSmoothScroll && Math.abs(deltaY) > SCROLL_WHEEL_SMOOTH_SCROLL_THRESHOLD;
 					const shouldRender = this._verticalScrollbar.setDesiredScrollPosition(desiredScrollTop, applySmoothScroll ? this._options.mouseWheelSmoothScrollDuration : undefined);
 					this._shouldRender = shouldRender || this._shouldRender;
 					desiredScrollTop = -1;
 				}
 				if (desiredScrollLeft !== -1) {
 					// If |∆x| is too small then do not apply smooth scroll animation, because in that case the input source must be a touchpad or something similar.
-					const applySmoothScroll = this._options.mouseWheelSmoothScroll && Math.abs(deltaX) > SCROLL_WHEEL_SMOOTH_SCROLL_TRESHOLD;
+					const applySmoothScroll = this._options.mouseWheelSmoothScroll && Math.abs(deltaX) > SCROLL_WHEEL_SMOOTH_SCROLL_THRESHOLD;
 					const shouldRender = this._horizontalScrollbar.setDesiredScrollPosition(desiredScrollLeft, applySmoothScroll ? this._options.mouseWheelSmoothScrollDuration : undefined);
 					this._shouldRender = shouldRender || this._shouldRender;
 					desiredScrollLeft = -1;
