@@ -50,7 +50,9 @@ const indentationFilter = [
 	'!**/*.template',
 	'!**/*.yml',
 	'!**/lib/**',
-	'!**/*.d.ts',
+	'!extensions/**/*.d.ts',
+	'!src/typings/**/*.d.ts',
+	'!src/vs/*/**/*.d.ts',
 	'!**/*.d.ts.recipe',
 	'!test/assert.js',
 	'!**/package.json',
@@ -92,7 +94,6 @@ const copyrightFilter = [
 const tslintFilter = [
 	'src/**/*.ts',
 	'extensions/**/*.ts',
-	'!**/*.d.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',
 	'!**/node_modules/**',
