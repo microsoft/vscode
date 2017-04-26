@@ -423,7 +423,8 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 	let searchPatternAfterDoubleDashes: string;
 	if (config.contentPattern.isWordMatch) {
 		const regexp = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, { wholeWord: config.contentPattern.isWordMatch });
-		args.push('--regexp', regexp.source);
+		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
+		args.push('--regexp', regexpStr);
 	} else if (config.contentPattern.isRegExp) {
 		args.push('--regexp', config.contentPattern.pattern);
 	} else {
