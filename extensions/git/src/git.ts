@@ -171,6 +171,9 @@ async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecuti
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
+	let encoding = options.encoding || 'utf8';
+	encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+
 	const [exitCode, stdout, stderr] = await Promise.all<any>([
 		new Promise<number>((c, e) => {
 			once(child, 'error', e);
@@ -179,7 +182,7 @@ async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecuti
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
 			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), options.encoding || 'utf8')));
+			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
 		}),
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
