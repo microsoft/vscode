@@ -547,7 +547,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	public getCustomColor(id: ColorIdentifier) {
-		if (this.colorCustomizations && this.colorCustomizations.hasOwnProperty(id)) {
+		let color = this.colorCustomizations[id];
+		if (typeof color === 'string') {
 			return Color.fromHex(this.colorCustomizations[id], null);
 		}
 		return null;
