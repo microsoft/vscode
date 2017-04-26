@@ -587,6 +587,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
 			.monaco-shell input[type="button"]:focus,
 			.monaco-shell input[type="text"]:focus,
+			.monaco-shell button:focus,
 			.monaco-shell textarea:focus,
 			.monaco-shell input[type="search"]:focus,
 			.monaco-shell input[type="checkbox"]:focus {
