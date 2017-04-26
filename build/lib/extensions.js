@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 var event_stream_1 = require("event-stream");
 var assign = require("object-assign");
 var remote = require("gulp-remote-src");
