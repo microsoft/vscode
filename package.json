@@ -35,7 +35,7 @@
     "node-pty": "0.6.4",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
-    "vscode-debugprotocol": "1.18.0",
+    "vscode-debugprotocol": "1.19.0",
     "vscode-ripgrep": "0.0.11",
     "vscode-textmate": "^3.1.4",
     "winreg": "1.2.0",
