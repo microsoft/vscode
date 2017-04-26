@@ -273,6 +273,26 @@ export const GitErrorCodes = {
 	RepositoryIsLocked: 'RepositoryIsLocked'
 };
 
+function getGitErrorCode(stderr: string): string | undefined {
+	if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(stderr)) {
+		return GitErrorCodes.RepositoryIsLocked;
+	} else if (/Authentication failed/.test(stderr)) {
+		return GitErrorCodes.AuthenticationFailed;
+	} else if (/Not a git repository/.test(stderr)) {
+		return GitErrorCodes.NotAGitRepository;
+	} else if (/bad config file/.test(stderr)) {
+		return GitErrorCodes.BadConfigFile;
+	} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(stderr)) {
+		return GitErrorCodes.CantCreatePipe;
+	} else if (/Repository not found/.test(stderr)) {
+		return GitErrorCodes.RepositoryNotFound;
+	} else if (/unable to access/.test(stderr)) {
+		return GitErrorCodes.CantAccessRemote;
+	}
+
+	return void 0;
+}
+
 export class Git {
 
 	private gitPath: string;
@@ -335,30 +355,12 @@ export class Git {
 		}
 
 		if (result.exitCode) {
-			let gitErrorCode: string | undefined = void 0;
-
-			if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.RepositoryIsLocked;
-			} else if (/Authentication failed/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.AuthenticationFailed;
-			} else if (/Not a git repository/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.NotAGitRepository;
-			} else if (/bad config file/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.BadConfigFile;
-			} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.CantCreatePipe;
-			} else if (/Repository not found/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.RepositoryNotFound;
-			} else if (/unable to access/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.CantAccessRemote;
-			}
-
 			return Promise.reject<IExecutionResult>(new GitError({
 				message: 'Failed to execute git',
 				stdout: result.stdout,
 				stderr: result.stderr,
 				exitCode: result.exitCode,
-				gitErrorCode,
+				gitErrorCode: getGitErrorCode(result.stderr),
 				gitCommand: args[0]
 			}));
 		}
@@ -784,18 +786,25 @@ export class Repository {
 
 			const onExit = exitCode => {
 				if (exitCode !== 0) {
-					e(new GitError({ message: 'Could not get git status.', exitCode }));
+					const stderr = stderrData.join('');
+					return e(new GitError({
+						message: 'Failed to execute git',
+						stderr,
+						exitCode,
+						gitErrorCode: getGitErrorCode(stderr),
+						gitCommand: 'status'
+					}));
 				}
 
 				c({ status: parser.status, didHitLimit: false });
 			};
 
-			const onData = (raw: string) => {
+			const onStdoutData = (raw: string) => {
 				parser.update(raw);
 
 				if (parser.status.length > 5000) {
 					child.removeListener('exit', onExit);
-					child.stdout.removeListener('data', onData);
+					child.stdout.removeListener('data', onStdoutData);
 					child.kill();
 
 					c({ status: parser.status.slice(0, 5000), didHitLimit: true });
@@ -803,7 +812,12 @@ export class Repository {
 			};
 
 			child.stdout.setEncoding('utf8');
-			child.stdout.on('data', onData);
+			child.stdout.on('data', onStdoutData);
+
+			const stderrData: string[] = [];
+			child.stderr.setEncoding('utf8');
+			child.stderr.on('data', raw => stderrData.push(raw as string));
+
 			child.on('error', e);
 			child.on('exit', onExit);
 		});
