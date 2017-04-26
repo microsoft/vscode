@@ -225,7 +225,7 @@ export class ProcessRunnerDetector {
 		return result;
 	}
 
-	private tryDetectGulp(list: boolean): TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectGulp(list: boolean): TPromise<DetectorResult> {
 		return this.fileService.resolveFile(this.contextService.toResource('gulpfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
 			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, { cwd: this._cwd });
@@ -235,7 +235,7 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectGrunt(list: boolean): TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectGrunt(list: boolean): TPromise<DetectorResult> {
 		return this.fileService.resolveFile(this.contextService.toResource('Gruntfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, { cwd: this._cwd });
@@ -245,7 +245,7 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectJake(list: boolean): TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectJake(list: boolean): TPromise<DetectorResult> {
 		let run = () => {
 			let config = ProcessRunnerDetector.detectorConfig('jake');
 			let process = new LineProcess('jake', [config.arg], true, { cwd: this._cwd });
