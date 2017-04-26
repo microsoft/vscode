@@ -597,6 +597,11 @@
           "type": "boolean",
           "description": "%config.ignoreLimitWarning%",
           "default": false
+        },
+        "git.enableSmartCommit": {
+          "type": "boolean",
+          "description": "%config.enableSmartCommit%",
+          "default": false
         }
       }
     }
