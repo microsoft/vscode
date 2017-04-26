@@ -1,6 +1,8 @@
 @echo off
 setlocal
 
+pushd %~dp0\..
+
 if not "%APPVEYOR%" == "" (
 	set ELECTRON_RUN_AS_NODE=
 )
@@ -12,5 +14,7 @@ set VSCODEUSERDATADIR=%TMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,5%
 .\scripts\test-int-mocha.bat
 
 rmdir /s /q %VSCODEUSERDATADIR%
+
+popd
 
 endlocal
