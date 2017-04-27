@@ -325,6 +325,7 @@
 		"listInactiveFocusBackground": "#00445488",
 		"listInactiveSelectionBackground": "#00445488",
 		"listDropBackground": "#00445488",
+		// "listHighlightForeground": "",
 
 		// "scrollbarShadow": "",
 		// "scrollbarSliderActiveBackground": "",
@@ -356,7 +357,6 @@
 		// "editorLinkForeground": "",
 		// "editorRangeHighlight": "",
 		// "editorSelectionHighlight": "",
-		// "editorSuggestMatchHighlight": "",
 		// "editorSuggestWidgetBackground": "",
 		// "editorSuggestWidgetBorder": "",
 		// "editorWordHighlight": "",

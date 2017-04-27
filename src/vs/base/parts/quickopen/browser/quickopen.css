@@ -149,13 +149,6 @@
 	height: 16px;
 }
 
-/* Theming */
-
 .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
-	color: #007ACC;
 	font-weight: bold;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
-	color: #0097FB;
 }
