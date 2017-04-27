@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { registerColor, editorBackground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, activeContrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
@@ -26,6 +26,10 @@ registerThemingParticipant((theme, collector) => {
 	let background = theme.getColor(editorBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-background { background-color: ${background}; }`);
+	}
+	let foreground = theme.getColor(editorForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor.${theme.selector}, .monaco-editor.${theme.selector} .inputarea { color: ${foreground}; }`);
 	}
 
 	let rangeHighlight = theme.getColor(editorRangeHighlight);
