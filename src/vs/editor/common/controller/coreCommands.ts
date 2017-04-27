@@ -111,6 +111,7 @@ export namespace EditorScroll_ {
 		by?: string;
 		value?: number;
 		revealCursor?: boolean;
+		select?: boolean;
 	};
 
 	export function parse(args: RawArguments): ParsedArguments {
@@ -152,7 +153,8 @@ export namespace EditorScroll_ {
 			direction: direction,
 			unit: unit,
 			value: value,
-			revealCursor: revealCursor
+			revealCursor: revealCursor,
+			select: (!!args.select)
 		};
 	}
 
@@ -161,6 +163,7 @@ export namespace EditorScroll_ {
 		unit: Unit;
 		value: number;
 		revealCursor: boolean;
+		select: boolean;
 	}
 
 	export const enum Direction {
@@ -965,7 +968,7 @@ export namespace CoreCommands {
 					source,
 					CursorChangeReason.Explicit,
 					[
-						CursorMoveCommands.findPositionInViewportIfOutside(cursors.context, cursors.getPrimaryCursor(), desiredVisibleViewRange, false)
+						CursorMoveCommands.findPositionInViewportIfOutside(cursors.context, cursors.getPrimaryCursor(), desiredVisibleViewRange, args.select)
 					]
 				);
 			}
@@ -1026,7 +1029,8 @@ export namespace CoreCommands {
 				direction: EditorScroll_.Direction.Up,
 				unit: EditorScroll_.Unit.WrappedLine,
 				value: 1,
-				revealCursor: false
+				revealCursor: false,
+				select: false
 			});
 		}
 	});
@@ -1051,7 +1055,8 @@ export namespace CoreCommands {
 				direction: EditorScroll_.Direction.Up,
 				unit: EditorScroll_.Unit.Page,
 				value: 1,
-				revealCursor: false
+				revealCursor: false,
+				select: false
 			});
 		}
 	});
@@ -1075,7 +1080,8 @@ export namespace CoreCommands {
 				direction: EditorScroll_.Direction.Down,
 				unit: EditorScroll_.Unit.WrappedLine,
 				value: 1,
-				revealCursor: false
+				revealCursor: false,
+				select: false
 			});
 		}
 	});
@@ -1100,7 +1106,8 @@ export namespace CoreCommands {
 				direction: EditorScroll_.Direction.Down,
 				unit: EditorScroll_.Unit.Page,
 				value: 1,
-				revealCursor: false
+				revealCursor: false,
+				select: false
 			});
 		}
 	});
