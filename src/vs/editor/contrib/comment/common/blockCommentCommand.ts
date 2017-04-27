@@ -62,7 +62,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		}
 
 		for (var i = 0; i < ops.length; i++) {
-			builder.addEditOperation(ops[i].range, ops[i].text);
+			builder.addTrackedEditOperation(ops[i].range, ops[i].text);
 		}
 	}
 

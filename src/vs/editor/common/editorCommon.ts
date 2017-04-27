@@ -292,6 +292,14 @@ export interface IEditOperationBuilder {
 	addEditOperation(range: Range, text: string): void;
 
 	/**
+	 * Add a new edit operation (a replace operation).
+	 * The inverse edits will be accessible in `ICursorStateComputerData.getInverseEditOperations()`
+	 * @param range The range to replace (delete). May be empty to represent a simple insert.
+	 * @param text The text to replace with. May be null to represent a simple delete.
+	 */
+	addTrackedEditOperation(range: Range, text: string): void;
+
+	/**
 	 * Track `selection` when applying edit operations.
 	 * A best effort will be made to not grow/expand the selection.
 	 * An empty selection will clamp to a nearby character.
@@ -384,6 +392,11 @@ export interface IIdentifiedSingleEditOperation {
 	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
 	 */
 	isAutoWhitespaceEdit?: boolean;
+	/**
+	 * This indicates that this operation is in a set of operations that are tracked and should not be "simplified".
+	 * @internal
+	 */
+	_isTracked?: boolean;
 }
 
 /**

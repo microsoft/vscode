@@ -42,12 +42,14 @@ interface IExecContext {
 interface ICommandData {
 	operations: editorCommon.IIdentifiedSingleEditOperation[];
 	hadTrackedRange: boolean;
+	hadTrackedEditOperation: boolean;
 }
 
 interface ICommandsData {
 	operations: editorCommon.IIdentifiedSingleEditOperation[];
 	hadTrackedRanges: boolean[];
 	anyoneHadTrackedRange: boolean;
+	anyoneHadTrackedEditOperation: boolean;
 }
 
 export class Cursor extends Disposable implements ICursors {
@@ -479,6 +481,12 @@ export class Cursor extends Disposable implements ICursors {
 			});
 		};
 
+		var hadTrackedEditOperation = false;
+		var addTrackedEditOperation = (selection: Range, text: string) => {
+			hadTrackedEditOperation = true;
+			addEditOperation(selection, text);
+		};
+
 		var hadTrackedRange = false;
 		var trackSelection = (selection: Selection, trackPreviousOnEmpty?: boolean) => {
 			var selectionMarkerStickToPreviousCharacter: boolean,
@@ -517,6 +525,7 @@ export class Cursor extends Disposable implements ICursors {
 
 		var editOperationBuilder: editorCommon.IEditOperationBuilder = {
 			addEditOperation: addEditOperation,
+			addTrackedEditOperation: addTrackedEditOperation,
 			trackSelection: trackSelection
 		};
 
@@ -527,13 +536,15 @@ export class Cursor extends Disposable implements ICursors {
 			onUnexpectedError(e);
 			return {
 				operations: [],
-				hadTrackedRange: false
+				hadTrackedRange: false,
+				hadTrackedEditOperation: false
 			};
 		}
 
 		return {
 			operations: operations,
-			hadTrackedRange: hadTrackedRange
+			hadTrackedRange: hadTrackedRange,
+			hadTrackedEditOperation: hadTrackedEditOperation
 		};
 	}
 
@@ -541,6 +552,7 @@ export class Cursor extends Disposable implements ICursors {
 		var oneResult: ICommandData;
 		var operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		var hadTrackedRanges: boolean[] = [];
+		var anyoneHadTrackedEditOperation: boolean = false;
 		var anyoneHadTrackedRange: boolean;
 
 		for (var i = 0; i < commands.length; i++) {
@@ -549,6 +561,7 @@ export class Cursor extends Disposable implements ICursors {
 				operations = operations.concat(oneResult.operations);
 				hadTrackedRanges[i] = oneResult.hadTrackedRange;
 				anyoneHadTrackedRange = anyoneHadTrackedRange || hadTrackedRanges[i];
+				anyoneHadTrackedEditOperation = anyoneHadTrackedEditOperation || oneResult.hadTrackedEditOperation;
 			} else {
 				hadTrackedRanges[i] = false;
 			}
@@ -556,7 +569,8 @@ export class Cursor extends Disposable implements ICursors {
 		return {
 			operations: operations,
 			hadTrackedRanges: hadTrackedRanges,
-			anyoneHadTrackedRange: anyoneHadTrackedRange
+			anyoneHadTrackedRange: anyoneHadTrackedRange,
+			anyoneHadTrackedEditOperation: anyoneHadTrackedEditOperation
 		};
 	}
 
@@ -682,6 +696,11 @@ export class Cursor extends Disposable implements ICursors {
 			}
 		}
 
+		// TODO@Alex: find a better way to do this.
+		// give the hint that edit operations are tracked to the model
+		if (commandsData.anyoneHadTrackedEditOperation && filteredOperations.length > 0) {
+			filteredOperations[0]._isTracked = true;
+		}
 		var selectionsAfter = this.model.pushEditOperations(selectionsBefore, filteredOperations, (inverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[]): Selection[] => {
 			var groupedInverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[][] = [];
 			for (var i = 0; i < selectionsBefore.length; i++) {

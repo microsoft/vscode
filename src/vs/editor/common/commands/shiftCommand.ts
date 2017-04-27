@@ -52,6 +52,14 @@ export class ShiftCommand implements ICommand {
 		this._useLastEditRangeForCursorEndPosition = false;
 	}
 
+	private _addEditOperation(builder: IEditOperationBuilder, range: Range, text: string) {
+		if (this._useLastEditRangeForCursorEndPosition) {
+			builder.addTrackedEditOperation(range, text);
+		} else {
+			builder.addEditOperation(range, text);
+		}
+	}
+
 	public getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void {
 		const startLine = this._selection.startLineNumber;
 
@@ -147,7 +155,7 @@ export class ShiftCommand implements ICommand {
 					indents[j] = indents[j - 1] + oneIndent;
 				}
 
-				builder.addEditOperation(new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);
+				this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), indents[desiredIndentCount]);
 			}
 		} else {
 
@@ -186,9 +194,9 @@ export class ShiftCommand implements ICommand {
 						}
 					}
 
-					builder.addEditOperation(new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), '');
+					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, indentationEndIndex + 1), '');
 				} else {
-					builder.addEditOperation(new Range(lineNumber, 1, lineNumber, 1), oneIndent);
+					this._addEditOperation(builder, new Range(lineNumber, 1, lineNumber, 1), oneIndent);
 				}
 			}
 		}
