@@ -301,7 +301,7 @@
 			"name": "meta.expression.clojure",
 			"patterns": [
 				{
-					"begin": "(?<=\\()(ns|def|def-|defn|defn-|defvar|defvar-|defmacro|defmacro-|deftest)\\s+",
+					"begin": "(?<=\\()(ns|def|def-|defn|defn-|defvar|defvar-|defmacro|defmacro-|defonce|deftest|defmulti|defmethod|defrecord|deftype)\\s+",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.clojure"
