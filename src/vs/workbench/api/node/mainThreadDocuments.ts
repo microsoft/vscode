@@ -227,7 +227,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 	}
 
 	private _handleUnititledScheme(uri: URI): TPromise<boolean> {
-		let asFileUri = URI.file(uri.fsPath);
+		let asFileUri = uri.with({ scheme: 'file' });
 		return this._fileService.resolveFile(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return TPromise.wrapError<boolean>('file already exists on disk');

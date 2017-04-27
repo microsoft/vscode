@@ -85,6 +85,13 @@ suite('workspace-namespace', () => {
 		});
 	});
 
+	test('openTextDocument, untitled with host', function () {
+		const uri = Uri.parse('untitled://localhost/c%24/Users/jrieken/code/samples/foobar.txt');
+		return workspace.openTextDocument(uri).then(doc => {
+			assert.equal(doc.uri.scheme, 'untitled');
+		});
+	});
+
 	test('openTextDocument, untitled without path', function () {
 		return workspace.openTextDocument().then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
