@@ -28,6 +28,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	private _dragSelection: Selection;
 	private _dndDecorationIds: string[];
 	private _mouseDown: boolean;
+	private _modiferPressed: boolean;
 	static TRIGGER_MODIFIER = isMacintosh ? 'altKey' : 'ctrlKey';
 	static TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
@@ -46,12 +47,17 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._toUnhook.push(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this._dndDecorationIds = [];
 		this._mouseDown = false;
+		this._modiferPressed = false;
 		this._dragSelection = null;
 	}
 
 	private onEditorKeyDown(e: IKeyboardEvent): void {
 		if (!this._editor.getConfiguration().dragAndDrop) {
 			return;
+		}
+
+		if (e[DragAndDropController.TRIGGER_MODIFIER]) {
+			this._modiferPressed = true;
 		}
 
 		if (this._mouseDown && e[DragAndDropController.TRIGGER_MODIFIER]) {
@@ -64,6 +70,10 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	private onEditorKeyUp(e: IKeyboardEvent): void {
 		if (!this._editor.getConfiguration().dragAndDrop) {
 			return;
+		}
+
+		if (e[DragAndDropController.TRIGGER_MODIFIER]) {
+			this._modiferPressed = false;
 		}
 
 		if (this._mouseDown && e.keyCode === DragAndDropController.TRIGGER_KEY_VALUE) {
@@ -127,12 +137,16 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 					}
 				});
 				this._editor.setSelections(newSelections);
-			} else if (!this._dragSelection.containsPosition(newCursorPosition) || (
-				mouseEvent.event[DragAndDropController.TRIGGER_MODIFIER] && (
-					this._dragSelection.getEndPosition().equals(newCursorPosition) || this._dragSelection.getStartPosition().equals(newCursorPosition)
-				) // we allow users to paste content beside the selection
-			)) {
-				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, mouseEvent.event[DragAndDropController.TRIGGER_MODIFIER]));
+			} else if (!this._dragSelection.containsPosition(newCursorPosition) ||
+				(
+					(
+						mouseEvent.event[DragAndDropController.TRIGGER_MODIFIER] ||
+						this._modiferPressed
+					) && (
+						this._dragSelection.getEndPosition().equals(newCursorPosition) || this._dragSelection.getStartPosition().equals(newCursorPosition)
+					) // we allow users to paste content beside the selection
+				)) {
+				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, mouseEvent.event[DragAndDropController.TRIGGER_MODIFIER] || this._modiferPressed));
 			}
 		}
 
@@ -183,6 +197,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._removeDecoration();
 		this._dragSelection = null;
 		this._mouseDown = false;
+		this._modiferPressed = false;
 		this._toUnhook = dispose(this._toUnhook);
 	}
 }
