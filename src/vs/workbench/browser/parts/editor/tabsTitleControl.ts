@@ -41,7 +41,7 @@ import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/b
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_GROUP_ACTIVE_FOREGROUND, TAB_ACTIVE_GROUP_INACTIVE_FOREGROUND, TAB_INACTIVE_GROUP_ACTIVE_FOREGROUND, TAB_INACTIVE_GROUP_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
-import { highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { highContrastOutline, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 interface IEditorInputLabel {
 	editor: IEditorInput;
@@ -272,8 +272,8 @@ export class TabsTitleControl extends TitleControl {
 				// Container
 				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = title;
-				tabContainer.style.borderLeftColor = (index !== 0) ? this.getColor(TAB_BORDER) : null;
-				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? this.getColor(TAB_BORDER) : null;
+				tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(highContrastBorder) || this.getColor(TAB_BORDER)) : null;
+				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(highContrastBorder) || this.getColor(TAB_BORDER)) : null;
 				tabContainer.style.outlineColor = this.getColor(highContrastOutline);
 
 				const tabOptions = this.editorGroupService.getTabOptions();

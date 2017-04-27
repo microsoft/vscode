@@ -1009,8 +1009,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			silo.style('background-color', this.getColor(editorBackground));
 
 			// Border
-			silo.style('border-left-color', index > Position.ONE ? this.getColor(EDITOR_GROUP_BORDER_COLOR) : null);
-			silo.style('border-top-color', index > Position.ONE ? this.getColor(EDITOR_GROUP_BORDER_COLOR) : null);
+			silo.style('border-left-color', index > Position.ONE ? (this.getColor(highContrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR)) : null);
+			silo.style('border-top-color', index > Position.ONE ? (this.getColor(highContrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR)) : null);
 		});
 
 		// Title control
@@ -1549,7 +1549,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		if (isDragging) {
 			this.parent.addClass('dragging');
 			silo.addClass('dragging');
-			borderColor = this.getColor(EDITOR_GROUP_BORDER_COLOR);
+			borderColor = (this.getColor(highContrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR));
 		} else {
 			this.parent.removeClass('dragging');
 			silo.removeClass('dragging');
