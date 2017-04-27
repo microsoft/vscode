@@ -362,7 +362,7 @@ export class SuggestModel implements IDisposable {
 			this.completionModel = new CompletionModel(items, this.context.column, {
 				leadingLineContent: ctx.leadingLineContent,
 				characterCountDelta: this.context ? ctx.column - this.context.column : 0
-			});
+			}, this.editor.getConfiguration().contribInfo.snippetSuggestions);
 			this.onNewContext(ctx);
 
 		}).then(null, onUnexpectedError);
