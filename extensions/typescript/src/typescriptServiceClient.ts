@@ -610,7 +610,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							this.serviceExited(false);
 						});
 						childProcess.on('exit', (code: any) => {
-							this.error(`TSServer exited with code: ${code ? code : 'unknown'}`);
+							this.error(`TSServer exited with code: ${code === null || typeof code === 'undefined' ? 'unknown' : code}`);
 							if (this.tsServerLogFile) {
 								this.error(`TSServer log file: ${this.tsServerLogFile}`);
 							}
