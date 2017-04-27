@@ -573,7 +573,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						const plugins = this.getContributedTypeScriptServerPlugins();
 						if (plugins.length) {
 							args.push('--globalPlugins', plugins.map(x => x.name).join(','));
-							args.push('--pluginProbeLocations', plugins.map(x => x.path).join(','));
+							if (modulePath === this.globalTypescriptPath) {
+								args.push('--pluginProbeLocations', plugins.map(x => x.path).join(','));
+							}
 						}
 					}
 
