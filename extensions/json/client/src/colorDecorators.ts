@@ -131,7 +131,7 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 	return Disposable.from(...disposables);
 }
 
-const colorPattern = /^#[0-9a-f]{3,8}$/;
+const colorPattern = /^#[0-9A-Fa-f]{3,8}$/;
 
 function hex2CSSColor(hex: string): string {
 	console.log(hex);
