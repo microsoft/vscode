@@ -30,11 +30,7 @@
       {
         "command": "git.init",
         "title": "%command.init%",
-        "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/git.svg",
-          "dark": "resources/icons/dark/git.svg"
-        }
+        "category": "Git"
       },
       {
         "command": "git.refresh",
