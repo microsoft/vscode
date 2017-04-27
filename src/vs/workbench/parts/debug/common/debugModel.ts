@@ -936,7 +936,7 @@ export class Model implements IModel {
 				if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
 					previousOutput.value += toAdd.shift().value;
 				}
-				if (previousOutput && previousOutput.value === '') {
+				if (previousOutput && previousOutput.value === '' && previousOutput.severity !== severity) {
 					// remove potential empty lines between different output types
 					this.replElements.pop();
 				}
