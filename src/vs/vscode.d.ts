@@ -3929,7 +3929,7 @@ declare module 'vscode' {
 		 * the provided [progress](#Progress)-object.
 		 * @return The thenable the task-callback returned.
 		 */
-		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; percentage?: number }>) => Thenable<R>): Thenable<R>;
+		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; }>) => Thenable<R>): Thenable<R>;
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
