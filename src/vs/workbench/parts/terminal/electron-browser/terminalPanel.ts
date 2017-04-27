@@ -22,6 +22,7 @@ import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceActi
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
+import URI from 'vs/base/common/uri';
 
 export class TerminalPanel extends Panel {
 
@@ -209,20 +210,18 @@ export class TerminalPanel extends Panel {
 				if (!e.dataTransfer) {
 					return;
 				}
+				// check if the file was dragged from the tree explorer
 				const url = e.dataTransfer.getData('URL');
-				const filePath = this._getPathFromUrl(url);
-				const terminal = this._terminalService.getActiveInstance();
+				let filePath = URI.parse(url).path;
 
-				// for files dragged from the tree explorer
-				if (filePath) {
-					terminal.sendText(filePath, false);
-					return;
+				// check if the file was dragged from the filesystem
+				if (!filePath && e.dataTransfer.files.length > 0) {
+					filePath = e.dataTransfer.files[0].path;
 				}
 
-				// for files dragged from the filesystem
-				const files = e.dataTransfer.files;
-				if (files.length > 0) {
-					terminal.sendText(files[0].path, false);
+				if (filePath) {
+					const terminal = this._terminalService.getActiveInstance();
+					terminal.sendText(this._wrapPathInQuotes(filePath), false);
 				}
 			}
 		}));
@@ -279,15 +278,12 @@ export class TerminalPanel extends Panel {
 	}
 
 	/**
-	 * Removes the trailing file:// from a URL if it exists
-	 * Returns null if it doesn't
+	 * Adds quotes to a path if it contains whitespaces
 	 */
-	private _getPathFromUrl(url: string): string {
-		const fileRefex = /^file:\/\/(.+)/;
-		const result = fileRefex.exec(url);
-		if (result && result.length === 2) {
-			return result[1];
+	private _wrapPathInQuotes(path: string) {
+		if (/\s+/.test(path)) {
+			return `"${path}"`;
 		}
-		return null;
+		return path;
 	}
 }
