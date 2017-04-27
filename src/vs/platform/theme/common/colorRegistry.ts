@@ -69,8 +69,8 @@ export interface IColorRegistry {
 
 }
 
-const colorPattern = '^#([0-9A-Fa-f]{2}){3,4}$';
-const colorPatternErrorMessage = nls.localize('invalid.color', 'Invalid color format. Use #RRGGBB or #RRGGBBAA');
+const colorPattern = '^#([0-9a-f]{3,4}|([0-9a-f]{2}){3,4})$';
+const colorPatternErrorMessage = nls.localize('invalid.color', 'Invalid color format. Use #RGB, #RGBA, #RRGGBB or #RRGGBBAA');
 
 class ColorRegistry implements IColorRegistry {
 	private colorsById: { [key: string]: ColorContribution };
