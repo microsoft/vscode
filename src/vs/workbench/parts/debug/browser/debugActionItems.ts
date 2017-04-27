@@ -173,10 +173,13 @@ export class FocusProcessActionItem extends SelectActionItem {
 			}
 		});
 
-		this.debugService.getModel().onDidChangeCallStack(() => {
-			const process = this.debugService.getViewModel().focusedProcess;
-			const names = this.debugService.getModel().getProcesses().map(p => p.name);
-			this.setOptions(names, process ? names.indexOf(process.name) : undefined);
-		});
+		this.debugService.getModel().onDidChangeCallStack(() => this.update());
+		this.update();
+	}
+
+	private update() {
+		const process = this.debugService.getViewModel().focusedProcess;
+		const names = this.debugService.getModel().getProcesses().map(p => p.name);
+		this.setOptions(names, process ? names.indexOf(process.name) : undefined);
 	}
 }
