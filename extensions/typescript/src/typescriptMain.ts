@@ -254,7 +254,7 @@ class LanguageProvider {
 					// ^(.*\*/)?\s*\}.*$
 					decreaseIndentPattern: /^(.*\*\/)?\s*\}.*$/,
 					// ^.*\{[^}"']*$
-					increaseIndentPattern: /^.*\{[^}"']*$/
+					increaseIndentPattern: /^.*\{[^}"'`]*$/
 				},
 				wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
 				onEnterRules: [
