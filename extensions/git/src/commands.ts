@@ -515,8 +515,8 @@ export class CommandCenter {
 
 	@command('git.cleanAll')
 	async cleanAll(): Promise<void> {
-		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes? This is irreversible!");
-		const yes = localize('discard', "Discard Changes");
+		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes? This is IRREVERSIBLE!");
+		const yes = localize('discardAll', "Discard ALL Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
