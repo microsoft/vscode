@@ -4,10 +4,11 @@
 		// window
 		"activityBadgeBackground": "#DB7E58",
 		"activityBarBackground": "#580000",
-		"inactiveTabBackground": "#300000",
+		"inactiveTabBackground": "#300a0a",
+		"activeTabBackground": "#490000",
 		"sideBarBackground": "#330000",
 		"statusBarBackground": "#700000",
-		"tabsContainerBackground": "#300000",
+		"tabsContainerBackground": "#330000",
 		"titleBarActiveBackground": "#770000",
 		// editor
 		"editorBackground": "#390000",
@@ -32,6 +33,7 @@
 		"peekViewResultsBackground": "#400000",
 		"peekViewEditorBackground": "#300000",
 		// UI
+		"focusedElementOutline": "#ff6666aa",
 		"buttonBackground": "#885555",
 		"buttonHoverBackground": "#aa5555",
 		"dropdownBackground": "#580000",
