@@ -226,7 +226,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			if (this.servicePromise === null && (oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk)) {
 				this.startService();
 			} else if (this.servicePromise !== null && (this.tsServerLogLevel !== oldLoggingLevel || (oldglobalTsdk !== this.globalTsdk || oldLocalTsdk !== this.localTsdk))) {
-				this.promptUserToRestartTsServer();
+				this.restartTsServer();
 			}
 		}));
 		if (this.packageInfo && this.packageInfo.aiKey) {
@@ -255,21 +255,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		}
 	}
 
-	private promptUserToRestartTsServer(): void {
-		const restartItem = { title: localize('restartTsServerTitle', 'Restart') };
-		window.showInformationMessage<MessageItem>(
-			localize('restartTypeScriptServerBlurb', 'Restart TypeScript Server to apply change'),
-			restartItem,
-			{
-				title: localize('later', 'Later'),
-				isCloseAffordance: true
-			})
-			.then(selected => {
-				if (selected === restartItem) {
-					this.restartTsServer();
-				}
-			});
-	}
 
 	private extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
 		let inspect = configuration.inspect('typescript.tsdk');
@@ -673,7 +658,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			if (firstRun || newModulePath === this.modulePath) {
 				return;
 			}
-			this.promptUserToRestartTsServer();
+			this.restartTsServer();
 		};
 
 		return window.showQuickPick<MyQuickPickItem>(pickOptions, {
@@ -854,6 +839,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private serviceExited(restart: boolean): void {
 		this.servicePromise = null;
+		this.tsServerLogFile = null;
 		Object.keys(this.callbacks).forEach((key) => {
 			this.callbacks[parseInt(key)].e(new Error('Service died.'));
 		});
