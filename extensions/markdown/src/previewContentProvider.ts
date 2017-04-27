@@ -67,7 +67,7 @@ class MarkdownPreviewConfig {
 		const markdownConfig = vscode.workspace.getConfiguration('markdown');
 
 		this.scrollBeyondLastLine = editorConfig.get<boolean>('scrollBeyondLastLine', false);
-		this.wordWrap = editorConfig.get<boolean>('wordWrap', false);
+		this.wordWrap = editorConfig.get<string>('wordWrap', 'off') !== 'off';
 
 		this.previewFrontMatter = markdownConfig.get<string>('previewFrontMatter', 'hide');
 		this.scrollPreviewWithEditorSelection = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditorSelection', true);
