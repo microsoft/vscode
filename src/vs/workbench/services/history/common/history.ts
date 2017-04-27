@@ -25,13 +25,19 @@ export interface IHistoryService {
 
 	/**
 	 * Navigate forwards in history.
+	 *
+	 * @param acrossEditors instructs the history to skip navigation entries that
+	 * are only within the same document.
 	 */
-	forward(): void;
+	forward(acrossEditors?: boolean): void;
 
 	/**
 	 * Navigate backwards in history.
+	 *
+	 * @param acrossEditors instructs the history to skip navigation entries that
+	 * are only within the same document.
 	 */
-	back(): void;
+	back(acrossEditors?: boolean): void;
 
 	/**
 	 * Removes an entry from history.

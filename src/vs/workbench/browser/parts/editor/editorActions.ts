@@ -1321,6 +1321,38 @@ export class OpenPreviousEditorFromHistoryAction extends Action {
 	}
 }
 
+export class OpenNextRecentlyUsedEditorAction extends Action {
+
+	public static ID = 'workbench.action.openNextRecentlyUsedEditor';
+	public static LABEL = nls.localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.historyService.forward(true);
+
+		return TPromise.as(null);
+	}
+}
+
+export class OpenPreviousRecentlyUsedEditorAction extends Action {
+
+	public static ID = 'workbench.action.openPreviousRecentlyUsedEditor';
+	public static LABEL = nls.localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.historyService.back(true);
+
+		return TPromise.as(null);
+	}
+}
+
 export class ClearEditorHistoryAction extends Action {
 
 	public static ID = 'workbench.action.clearEditorHistory';
