@@ -24,7 +24,6 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const MAX_REPL_LENGTH = 10000;
-const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
 export abstract class AbstractOutputElement implements ITreeElement {
 	private static ID_COUNTER = 0;
@@ -388,7 +387,7 @@ export class StackFrame implements IStackFrame {
 
 	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
 
-		return this.source.name === UNKNOWN_SOURCE_LABEL ? TPromise.as(null) : editorService.openEditor({
+		return !this.source.available ? TPromise.as(null) : editorService.openEditor({
 			resource: this.source.uri,
 			description: this.source.origin,
 			options: {
@@ -466,10 +465,7 @@ export class Thread implements IThread {
 			}
 
 			return response.body.stackFrames.map((rsf, level) => {
-				if (!rsf) {
-					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, rsf.presentationHint), nls.localize('unknownStack', "Unknown stack location"), null, null);
-				}
-				let source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint) : new Source({ name: UNKNOWN_SOURCE_LABEL }, rsf.presentationHint);
+				let source = new Source(rsf.source, rsf.source ? rsf.source.presentationHint : rsf.presentationHint);
 				if (this.process.sources.has(source.uri.toString())) {
 					const alreadyCreatedSource = this.process.sources.get(source.uri.toString());
 					alreadyCreatedSource.presenationHint = source.presenationHint;
