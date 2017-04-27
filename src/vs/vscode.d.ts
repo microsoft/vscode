@@ -4682,7 +4682,7 @@ declare module 'vscode' {
 
 		/**
 		 * Whether the [source control resource state](#SourceControlResourceState) should
-		 * be striked-through in the UI.
+		 * be faded in the UI.
 		 */
 		readonly faded?: boolean;
 
