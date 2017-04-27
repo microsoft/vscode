@@ -35,6 +35,7 @@ export interface ParsedArgs {
 	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
 	'uninstall-extension'?: string | string[];
+	'enable-proposed-api'?: string | string[];
 	'open-url'?: string | string[];
 	'prof-startup-timers': string;
 }

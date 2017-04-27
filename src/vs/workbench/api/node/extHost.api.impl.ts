@@ -60,7 +60,7 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 		return fn;
 	} else {
 		return <any>(() => {
-			throw new Error(`${extension.id} cannot access proposed api`);
+			throw new Error(`[${extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.id}`);
 		});
 	}
 }
@@ -139,12 +139,17 @@ export function createApiFactory(
 
 		if (extension.enableProposedApi && !extension.isBuiltin) {
 
-			if (!initData.environment.enableProposedApi) {
+			if (
+				!initData.environment.enableProposedApiForAll &&
+				initData.environment.enableProposedApiFor.indexOf(extension.id) < 0
+			) {
 				extension.enableProposedApi = false;
-				console.warn('PROPOSED API is only available when developing an extension');
+				console.error(`Extension '${extension.id} cannot use PROPOSED API (must started out of dev or enabled via --enable-proposed-api)`);
 
 			} else {
-				console.warn(`${extension.name} (${extension.id}) uses PROPOSED API which is subject to change and removal without notice`);
+				// proposed api is available when developing or when an extension was explicitly
+				// spelled out via a command line argument
+				console.warn(`Extension '${extension.id}' uses PROPOSED API which is subject to change and removal without notice.`);
 			}
 		}
 

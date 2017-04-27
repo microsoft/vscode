@@ -45,7 +45,8 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 
 export interface IEnvironment {
-	enableProposedApi: boolean;
+	enableProposedApiForAll: boolean;
+	enableProposedApiFor: string | string[];
 	appSettingsHome: string;
 	disableExtensions: boolean;
 	userExtensionsHome: string;
