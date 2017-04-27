@@ -4681,6 +4681,12 @@ declare module 'vscode' {
 		readonly strikeThrough?: boolean;
 
 		/**
+		 * Whether the [source control resource state](#SourceControlResourceState) should
+		 * be striked-through in the UI.
+		 */
+		readonly faded?: boolean;
+
+		/**
 		 * The light theme decorations.
 		 */
 		readonly light?: SourceControlResourceThemableDecorations;

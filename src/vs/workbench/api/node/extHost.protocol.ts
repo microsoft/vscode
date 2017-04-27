@@ -284,7 +284,8 @@ export type SCMRawResource = [
 	string /*resourceUri*/,
 	modes.Command /*command*/,
 	string[] /*icons: light, dark*/,
-	boolean /*strike through*/
+	boolean /*strike through*/,
+	boolean /*faded*/
 ];
 
 export abstract class MainThreadSCMShape {

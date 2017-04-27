@@ -117,6 +117,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 }
 
 interface ResourceTemplate {
+	element: HTMLElement;
 	name: HTMLElement;
 	fileLabel: FileLabel;
 	decorationIcon: HTMLElement;
@@ -170,7 +171,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 
 		const decorationIcon = append(element, $('.decoration-icon'));
 
-		return { name, fileLabel, decorationIcon, actionBar };
+		return { element, name, fileLabel, decorationIcon, actionBar };
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
@@ -179,6 +180,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		template.actionBar.context = resource;
 		template.actionBar.push(this.scmMenus.getResourceActions(resource));
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
+		toggleClass(template.element, 'faded', resource.decorations.faded);
 
 		const theme = this.themeService.getTheme();
 		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
