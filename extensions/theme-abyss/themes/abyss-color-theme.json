@@ -336,10 +336,10 @@
 		// "peekViewTitleInfoForeground": "",
 
 		// Editor: Diff
-		"diffInserted": "#31958A55",
-		// "diffInsertedOutline": "",
-		"diffRemoved": "#892F4688",
-		// "diffRemovedOutline": "",
+		"diffEditorInserted": "#31958A55",
+		// "diffEditorInsertedOutline": "",
+		"diffEditorRemoved": "#892F4688",
+		// "diffEditorRemovedOutline": "",
 
 		// Workbench: Title
 		"titleBarActiveBackground": "#10192c",
