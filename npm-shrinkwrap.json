@@ -415,9 +415,9 @@
       "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.19.0.tgz"
     },
     "vscode-ripgrep": {
-      "version": "0.0.11",
-      "from": "vscode-ripgrep@0.0.11",
-      "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.0.11.tgz"
+      "version": "0.0.12",
+      "from": "vscode-ripgrep@0.0.12",
+      "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.0.12.tgz"
     },
     "vscode-textmate": {
       "version": "3.1.4",
