@@ -533,7 +533,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			nls.localize('enable', "Yes"),
 			nls.localize('doNotEnable', "No")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, true)
+		return this.choiceService.choose(Severity.Info, message, options, 1, true)
 			.then<void>(value => {
 				if (value === 0) {
 					return this.checkAndSetEnablement(extension, dependencies, true, workspace);
@@ -549,7 +549,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			nls.localize('disableAll', "All"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, true)
+		return this.choiceService.choose(Severity.Info, message, options, 2, true)
 			.then<void>(value => {
 				if (value === 0) {
 					return this.checkAndSetEnablement(extension, [], false, workspace);

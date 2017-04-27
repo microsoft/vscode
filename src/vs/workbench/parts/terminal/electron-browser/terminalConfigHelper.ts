@@ -132,7 +132,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			}
 			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString);
 			const options = [nls.localize('allow', "Allow"), nls.localize('disallow', "Disallow")];
-			this._choiceService.choose(Severity.Info, message, options).then(choice => {
+			this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
 				switch (choice) {
 					case 0:
 						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);

@@ -171,7 +171,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 							localize('close', "Close")
 						];
 
-						this.choiceService.choose(Severity.Info, message, options).done(choice => {
+						this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 							switch (choice) {
 								case 0: return recommendationsAction.run();
 								case 1:
@@ -218,7 +218,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 					localize('close', "Close")
 				];
 
-				this.choiceService.choose(Severity.Info, message, options).done(choice => {
+				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 					switch (choice) {
 						case 0: return action.run();
 						case 1: return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);

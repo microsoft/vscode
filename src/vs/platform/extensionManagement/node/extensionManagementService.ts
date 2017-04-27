@@ -152,7 +152,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							nls.localize('install', "Yes"),
 							nls.localize('doNotInstall', "No")
 						];
-						return this.choiceService.choose(Severity.Info, message, options, true)
+						return this.choiceService.choose(Severity.Info, message, options, 1, true)
 							.then(value => {
 								if (value === 0) {
 									return this.installWithDependencies(compatibleVersion);
@@ -330,7 +330,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			nls.localize('uninstallAll', "All"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, true)
+		return this.choiceService.choose(Severity.Info, message, options, 2, true)
 			.then<void>(value => {
 				if (value === 0) {
 					return this.uninstallWithDependencies(extension, [], installed);
@@ -353,7 +353,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			nls.localize('ok', "OK"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, true)
+		return this.choiceService.choose(Severity.Info, message, options, 1, true)
 			.then<void>(value => {
 				if (value === 0) {
 					return this.uninstallWithDependencies(extension, [], installed);
