@@ -67,7 +67,7 @@ export const EDITOR_HEADER_BACKGROUND = registerColor('editorHeaderBackground', 
 	dark: editorBackground,
 	light: editorBackground,
 	hc: editorBackground
-}, nls.localize('editorHeaderBackground', "Background color of the editor title header when no tabs are enabled."));
+}, nls.localize('editorHeaderBackground', "Background color of the editor title header when tabs are disabled."));
 
 export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroupBorder', {
 	dark: '#444444',
