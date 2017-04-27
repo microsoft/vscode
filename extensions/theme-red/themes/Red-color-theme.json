@@ -4,8 +4,8 @@
 		// window
 		"activityBarBadgeBackground": "#DB7E58",
 		"activityBarBackground": "#580000",
-		"inactiveTabBackground": "#300a0a",
-		"activeTabBackground": "#490000",
+		"tabInactiveBackground": "#300a0a",
+		"tabActiveBackground": "#490000",
 		"sideBarBackground": "#330000",
 		"statusBarBackground": "#700000",
 		"tabsContainerBackground": "#330000",

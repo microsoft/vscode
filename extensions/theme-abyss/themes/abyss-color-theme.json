@@ -357,12 +357,12 @@
 		// Workbench: Tabs
 		"tabsContainerBackground": "#1c1c2a",
 		"tabBorder": "#2b2b4a",
-		// "activeTabBackground": "",
-		"inactiveTabBackground": "#10192c",
-		// "activeTabActiveGroupForeground": "",
-		// "activeTabInactiveGroupForeground": "",
-		// "inactiveTabActiveGroupForeground": "",
-		// "inactiveTabInactiveGroupForeground": "",
+		// "tabActiveBackground": "",
+		"tabInactiveBackground": "#10192c",
+		// "tabActiveEditorGroupActiveForeground": "",
+		// "tabActiveEditorGroupInactiveForeground": "",
+		// "tabInactiveEditorGroupActiveForeground": "",
+		// "tabInactiveEditorGroupInactiveForeground": "",
 
 		// Workbench: Activity Bar
 		"activityBarBackground": "#051336",

@@ -18,7 +18,7 @@
 		"editorCursor": "#ffffff",
 		"editorWhitespaces": "#404f7d",
 		"tabsContainerBackground": "#001733",
-		"inactiveTabBackground": "#001c40",
+		"tabInactiveBackground": "#001c40",
 		"statusBarBackground": "#001126",
 		"statusBarNoFolderBackground": "#001126",
 		"activityBarBackground": "#001733",

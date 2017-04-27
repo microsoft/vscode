@@ -40,7 +40,7 @@ import { LinkedMap } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { INACTIVE_TAB_BACKGROUND, ACTIVE_TAB_BACKGROUND, ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, ACTIVE_TAB_INACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_ACTIVE_GROUP_FOREGROUND, INACTIVE_TAB_INACTIVE_GROUP_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_GROUP_ACTIVE_FOREGROUND, TAB_ACTIVE_GROUP_INACTIVE_FOREGROUND, TAB_INACTIVE_GROUP_ACTIVE_FOREGROUND, TAB_INACTIVE_GROUP_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
 
 interface IEditorInputLabel {
@@ -215,7 +215,7 @@ export class TabsTitleControl extends TitleControl {
 		const isActiveTab = isTab && this.context.isActive(this.context.getEditor(index));
 
 		// Background
-		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? ACTIVE_TAB_BACKGROUND : INACTIVE_TAB_BACKGROUND) : null;
+		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : null;
 		element.style.backgroundColor = isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor;
 
 		// Outline
@@ -290,15 +290,15 @@ export class TabsTitleControl extends TitleControl {
 				if (isTabActive) {
 					DOM.addClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'true');
-					tabContainer.style.backgroundColor = this.getColor(ACTIVE_TAB_BACKGROUND);
-					tabLabel.element.style.color = this.getColor(isGroupActive ? ACTIVE_TAB_ACTIVE_GROUP_FOREGROUND : ACTIVE_TAB_INACTIVE_GROUP_FOREGROUND);
+					tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
+					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_GROUP_ACTIVE_FOREGROUND : TAB_ACTIVE_GROUP_INACTIVE_FOREGROUND);
 
 					this.activeTab = tabContainer;
 				} else {
 					DOM.removeClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'false');
-					tabContainer.style.backgroundColor = this.getColor(INACTIVE_TAB_BACKGROUND);
-					tabLabel.element.style.color = this.getColor(isGroupActive ? INACTIVE_TAB_ACTIVE_GROUP_FOREGROUND : INACTIVE_TAB_INACTIVE_GROUP_FOREGROUND);
+					tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
+					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_GROUP_ACTIVE_FOREGROUND : TAB_INACTIVE_GROUP_INACTIVE_FOREGROUND);
 				}
 
 				// Dirty State

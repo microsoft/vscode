@@ -9,7 +9,7 @@
 		"editorWidgetBackground": "#131510",
 		"editorHoverBackground": "#221a14",
 		"tabsContainerBackground": "#131510",
-		"inactiveTabBackground": "#131510",
+		"tabInactiveBackground": "#131510",
 		"statusBarBackground": "#162257",
 		"activityBarBackground": "#221a0f",
 		"activityBarForeground": "#d3af86",

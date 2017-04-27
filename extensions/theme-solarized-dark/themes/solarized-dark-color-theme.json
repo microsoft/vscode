@@ -393,14 +393,14 @@
 		"editorDragAndDropBackground": "#00212BAA",
 
 		// Workbench: Tabs
-		"activeTabActiveGroupForeground": "#d6dbdb",
-		"activeTabBackground": "#002B37",
-		"inactiveTabActiveGroupForeground": "#93A1A1",
-		"inactiveTabBackground": "#004052",
+		"tabActiveEditorGroupActiveForeground": "#d6dbdb",
+		"tabActiveBackground": "#002B37",
+		"tabInactiveEditorGroupActiveForeground": "#93A1A1",
+		"tabInactiveBackground": "#004052",
 		"tabsContainerBackground": "#004052",
 		"tabBorder": "#003847",
-		"activeTabInactiveGroupForeground": "#93A1A1",
-		"inactiveTabInactiveGroupForeground": "#93A1A1",
+		"tabActiveEditorGroupInactiveForeground": "#93A1A1",
+		"tabInactiveEditorGroupInactiveForeground": "#93A1A1",
 
 		// Workbench: Activity Bar
 		"activityBarBackground": "#003847",
