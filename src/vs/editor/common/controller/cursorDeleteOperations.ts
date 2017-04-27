@@ -49,53 +49,67 @@ export class DeleteOperations {
 		});
 	}
 
-	private static autoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState): CommandResult {
+	private static _isAutoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): boolean {
 		if (!config.autoClosingBrackets) {
-			return null;
+			return false;
 		}
 
-		if (!cursor.selection.isEmpty()) {
-			return null;
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			const selection = cursor.selection;
+			const position = cursor.position;
+
+			if (!selection.isEmpty()) {
+				return false;
+			}
+
+			const lineText = model.getLineContent(position.lineNumber);
+			const character = lineText[position.column - 2];
+
+			if (!config.autoClosingPairsOpen.hasOwnProperty(character)) {
+				return false;
+			}
+
+			const afterCharacter = lineText[position.column - 1];
+			const closeCharacter = config.autoClosingPairsOpen[character];
+
+			if (afterCharacter !== closeCharacter) {
+				return false;
+			}
 		}
 
-		let position = cursor.position;
+		return true;
+	}
 
-		let lineText = model.getLineContent(position.lineNumber);
-		let character = lineText[position.column - 2];
-
-		if (!config.autoClosingPairsOpen.hasOwnProperty(character)) {
-			return null;
+	private static _runAutoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): EditOperationResult {
+		let commands: CommandResult[] = [];
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			const position = cursor.position;
+			const deleteSelection = new Range(
+				position.lineNumber,
+				position.column - 1,
+				position.lineNumber,
+				position.column + 1
+			);
+			commands[i] = new CommandResult(new ReplaceCommand(deleteSelection, ''), false);
 		}
-
-		let afterCharacter = lineText[position.column - 1];
-		let closeCharacter = config.autoClosingPairsOpen[character];
-
-		if (afterCharacter !== closeCharacter) {
-			return null;
-		}
-
-		let deleteSelection = new Range(
-			position.lineNumber,
-			position.column - 1,
-			position.lineNumber,
-			position.column + 1
-		);
-
-		return new CommandResult(new ReplaceCommand(deleteSelection, ''), false);
+		return new EditOperationResult(commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: false
+		});
 	}
 
 	public static deleteLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): EditOperationResult {
+
+		if (this._isAutoClosingPairDelete(config, model, cursors)) {
+			return this._runAutoClosingPairDelete(config, model, cursors);
+		}
+
 		let commands: CommandResult[] = [];
 		let shouldPushStackElementBefore = false;
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-
-			let r = this.autoClosingPairDelete(config, model, cursor);
-			if (r) {
-				// This was a case for an auto-closing pair delete
-				commands[i] = r;
-				continue;
-			}
 
 			let deleteSelection: Range = cursor.selection;
 

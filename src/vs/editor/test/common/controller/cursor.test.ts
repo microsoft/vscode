@@ -3120,4 +3120,26 @@ suite('autoClosingPairs', () => {
 		});
 		mode.dispose();
 	});
+
+	test('All cursors should do the same thing when deleting left', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = ()'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 4, 1, 4),
+				new Selection(1, 10, 1, 10),
+			]);
+
+			// delete left
+			cursorCommand(cursor, H.DeleteLeft, null, 'keyboard');
+
+			assert.equal(model.getValue(), 'va a = )');
+		});
+		mode.dispose();
+	});
 });
