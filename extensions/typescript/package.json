@@ -34,9 +34,7 @@
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
-    "onCommand:typescript.openTsServerLog",
-    "workspaceContains:jsconfig.json",
-    "workspaceContains:tsconfig.json"
+    "onCommand:typescript.openTsServerLog"
   ],
   "main": "./out/typescriptMain",
   "contributes": {
