@@ -464,7 +464,7 @@ export class TypeOperations {
 	}
 
 	private static _typeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
-		if (!config.electricChars.hasOwnProperty(ch)) {
+		if (!config.electricChars.hasOwnProperty(ch) || !cursor.selection.isEmpty()) {
 			return null;
 		}
 
