@@ -390,7 +390,7 @@
 		// "editorHeaderBackground": "",
 		"editorGroupBorder": "#00212B",
 		"editorGroupBackground": "#011b23",
-		"editorSideBySideBorder": "#00212B",
+		"editorMasterDetailsBorder": "#00212B",
 		"editorDragAndDropBackground": "#00212BAA",
 
 		// Workbench: Tabs
@@ -425,8 +425,8 @@
 		"statusBarBackground": "#00212B",
 		"statusBarDebuggingBackground": "#00212B",
 		"statusBarNoFolderBackground": "#00212B",
-		"statusBarInfoItemBackground": "#003847",
-		"statusBarInfoItemHoverBackground": "#003847",
+		"statusBarProminentItemBackground": "#003847",
+		"statusBarProminentItemHoverBackground": "#003847",
 		// "statusBarItemActiveBackground": "",
 		// "statusBarItemHoverBackground": "",
 

@@ -79,7 +79,7 @@ export const EDITOR_GROUP_BACKGROUND = registerColor('editorGroupBackground', {
 	dark: '#2D2D2D',
 	light: '#ECECEC',
 	hc: null
-}, nls.localize('editorGroupBackground', "Background color of an editor group. Editor groups are the containers of editors."));
+}, nls.localize('editorGroupBackground', "Background color of an editor group. Editor groups are the containers of editors. The background color shows up when dragging editor groups around."));
 
 export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorDragAndDropBackground', {
 	dark: Color.fromRGBA(new RGBA(83, 89, 93)).transparent(0.5),
@@ -87,11 +87,11 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorDragAndDropB
 	hc: null
 }, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around."));
 
-export const EDITOR_SIDE_BY_SIDE_BORDER = registerColor('editorSideBySideBorder', {
+export const EDITOR_SIDE_BY_SIDE_BORDER = registerColor('editorMasterDetailsBorder', {
 	dark: '#000000',
 	light: '#DDDDDD',
 	hc: null
-}, nls.localize('editorSideBySideBorder', "Border color to separate the details from the master side for side by side editors."));
+}, nls.localize('editorMasterDetailsBorder', "Border color to separate the details from the master side for side by side editors. Examples include diff editors and the settings editor."));
 
 
 // < --- Panels --- >
@@ -160,17 +160,17 @@ export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItemHove
 	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12)
 }, nls.localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_INFO_ITEM_BACKGROUND = registerColor('statusBarInfoItemBackground', {
+export const STATUS_BAR_PROMINENT_ITEM_BACKGROUND = registerColor('statusBarProminentItemBackground', {
 	dark: '#388A34',
 	light: '#388A34',
 	hc: '#3883A4'
-}, nls.localize('statusBarInfoItemBackground', "Status bar info item background color. The status bar is shown in the bottom of the window."));
+}, nls.localize('statusBarProminentItemBackground', "Status bar prominent items background color. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND = registerColor('statusBarInfoItemHoverBackground', {
+export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusBarProminentItemHoverBackground', {
 	dark: '#369432',
 	light: '#369432',
 	hc: '#369432'
-}, nls.localize('statusBarInfoItemHoverBackground', "Status bar info item background color when hovering. The status bar is shown in the bottom of the window."));
+}, nls.localize('statusBarProminentItemHoverBackground', "Status bar prominent items background color when hovering. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
 
 
 
