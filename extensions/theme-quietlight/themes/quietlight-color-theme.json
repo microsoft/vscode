@@ -453,7 +453,7 @@
 		}
 	],
 	"colors": {
-		"focusedElementOutline": "#A6B39B",
+		"focusBorder": "#A6B39B",
 		"activityBarBackground": "#3E4932",
 		"pickerGroupForeground": "#A6B39B",
 		"pickerGroupBorder": "#749351",

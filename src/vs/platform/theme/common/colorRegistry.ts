@@ -120,11 +120,10 @@ export function registerColor(id: string, defaults: ColorDefaults, description: 
 // ----- base colors
 
 export const foreground = registerColor('foreground', { dark: '#CCCCCC', light: '#6C6C6C', hc: '#FFFFFF' }, nls.localize('foreground', "Overall foreground color. This color is only used if not overridden by a component."));
-export const focus = registerColor('focusedElementOutline', {
-	dark: Color.fromRGBA(new RGBA(14, 99, 156)).transparent(0.6),
-	light: Color.fromRGBA(new RGBA(0, 122, 204)).transparent(0.4),
-	hc: '#F38518'
-}, nls.localize('focusedElementOutline', "Overall outline/border color for focused elements. This color is only used if not overridden by a component."));
+export const focusBorder = registerColor('focusBorder', { dark: Color.fromRGBA(new RGBA(14, 99, 156)).transparent(0.6), light: Color.fromRGBA(new RGBA(0, 122, 204)).transparent(0.4), hc: '#F38518' }, nls.localize('focusBorder', "Overall border color for focused elements. This color is only used if not overridden by a component."));
+
+export const highContrastBorder = registerColor('highContrastBorder', { light: null, dark: null, hc: '#6FC3DF' }, nls.localize('highContrastBorder', "Border color to separate components when high contrast theme is enabled."));
+export const highContrastOutline = registerColor('highContrastOutline', { light: null, dark: null, hc: focusBorder }, nls.localize('highContrastOutline', "Outline color for active components when high contrast theme is enabled."));
 
 export const infoBackground = registerColor('infoBackground', { dark: '#063B49', light: '#D6ECF2', hc: Color.black }, nls.localize('infoBackground', "Overall info background color. This color is only used if not overridden by a component."));
 export const infoBorder = registerColor('infoBorder', { dark: '#55AAFF', light: '#009CCC', hc: '#6FC3DF' }, nls.localize('infoBorder', "Overall info border color. This color is only used if not overridden by a component."));
@@ -133,15 +132,7 @@ export const warningBorder = registerColor('warningBorder', { dark: '#B89500', l
 export const errorBackground = registerColor('errorBackground', { dark: '#5A1D1D', light: '#F2DEDE', hc: Color.black }, nls.localize('errorBackground', "Overall error background color. This color is only used if not overridden by a component."));
 export const errorBorder = registerColor('errorBorder', { dark: '#BE1100', light: '#E51400', hc: '#BE1100' }, nls.localize('errorBorder', "Overall error border color. This color is only used if not overridden by a component."));
 
-/**
- * Commonly used High contrast colors.
- */
-export const highContrastBorder = registerColor('highContrastBorder', { light: null, dark: null, hc: '#6FC3DF' }, nls.localize('highContrastBorder', "Border color to separate components when high contrast theme is enabled."));
-export const highContrastOutline = registerColor('highContrastOutline', { light: null, dark: null, hc: focus }, nls.localize('highContrastOutline', "Outline color for active components when high contrast theme is enabled."));
-
-/**
- * Widgets
- */
+// ----- widgets
 export const widgetShadow = registerColor('widgetShadow', { dark: '#000000', light: '#A8A8A8', hc: null }, nls.localize('widgetShadow', 'Shadow color of widgets such as find/replace inside the editor.'));
 
 export const inputBackground = registerColor('inputBoxBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('inputBoxBackground', "Input box background."));

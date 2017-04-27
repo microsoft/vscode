@@ -26,7 +26,7 @@ import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/acti
 import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER_COLOR, PANEL_ACTIVE_TITLE_COLOR, PANEL_INACTIVE_TITLE_COLOR, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
-import { highContrastOutline, focus, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { highContrastOutline, focusBorder, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -214,11 +214,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	`);
 
 	// Title focus
-	const focusBorder = theme.getColor(focus);
+	const focusBorderColor = theme.getColor(focusBorder);
 	collector.addRule(`
 		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
 			color: ${titleActive};
-			border-bottom-color: ${focusBorder} !important;
+			border-bottom-color: ${focusBorderColor} !important;
 			border-bottom: 1px solid;
 			outline: none;
 		}

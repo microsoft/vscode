@@ -25,7 +25,7 @@ import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet'
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
-import { highContrastBorder, highContrastOutline, focus } from 'vs/platform/theme/common/colorRegistry';
+import { highContrastBorder, highContrastOutline, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class ActivityAction extends Action {
 	private badge: IBadge;
@@ -670,7 +670,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	// Styling without outline color
 	else {
-		const focusBorder = theme.getColor(focus);
+		const focusBorderColor = theme.getColor(focusBorder);
 
 		collector.addRule(`
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
@@ -684,7 +684,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			}
 
 			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
-				border-left-color: ${focusBorder};
+				border-left-color: ${focusBorderColor};
 			}
 		`);
 	}

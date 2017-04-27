@@ -253,7 +253,7 @@
 
 		// Base
 		// "foreground": "",
-		"focusedElementOutline": "#596F99",
+		"focusBorder": "#596F99",
 		"infoBorder": "#384078",
 		"infoBackground": "#051336",
 		"warningBackground": "#5B7E7A",

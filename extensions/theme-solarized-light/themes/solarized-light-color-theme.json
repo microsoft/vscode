@@ -308,7 +308,7 @@
 		"inputBoxBackground": "#DDD6C1",
 		"inputBoxForeground": "#586E75",
 		"inputBoxActiveOptionBorder": "#2AA19899",
-		"focusedElementOutline": "#2AA19899",
+		"focusBorder": "#2AA19899",
 		"titleBarActiveBackground": "#002C39",
 		"titleBarInactiveBackground": "#002C39",
 		"statusBarForeground": "#586E75",

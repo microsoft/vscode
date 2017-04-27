@@ -32,7 +32,7 @@
 		"peekViewResultsBackground": "#400000",
 		"peekViewEditorBackground": "#300000",
 		// UI
-		"focusedElementOutline": "#ff6666aa",
+		"focusBorder": "#ff6666aa",
 		"buttonBackground": "#885555",
 		"buttonHoverBackground": "#aa5555",
 		"dropdownBackground": "#580000",
