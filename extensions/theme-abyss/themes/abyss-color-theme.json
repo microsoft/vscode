@@ -368,8 +368,8 @@
 		// Workbench: Activity Bar
 		"activityBarBackground": "#051336",
 		// "activityBarForeground": "",
-		"activityBadgeBackground": "#0063a5",
-		// "activityBadgeForeground": "",
+		"activityBarBadgeBackground": "#0063a5",
+		// "activityBarBadgeForeground": "",
 		"activityBarDragAndDropBackground": "#25375daa",
 
 		// Workbench: Panel

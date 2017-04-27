@@ -194,17 +194,17 @@ export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBarD
 	hc: '#403F3F'
 }, nls.localize('activityBarDragAndDropBackground', "Drag and drop feedback color for the activity bar items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BADGE_BACKGROUND = registerColor('activityBadgeBackground', {
+export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadgeBackground', {
 	dark: '#007ACC',
 	light: '#007ACC',
 	hc: '#000000'
-}, nls.localize('activityBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+}, nls.localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BADGE_FOREGROUND = registerColor('activityBadgeForeground', {
+export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadgeForeground', {
 	dark: Color.white,
 	light: Color.white,
 	hc: Color.white
-}, nls.localize('activityBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+}, nls.localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 
 

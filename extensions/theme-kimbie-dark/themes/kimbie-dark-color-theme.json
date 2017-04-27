@@ -13,7 +13,7 @@
 		"statusBarBackground": "#162257",
 		"activityBarBackground": "#221a0f",
 		"activityBarForeground": "#d3af86",
-		"activityBadgeBackground": "#162257",
+		"activityBarBadgeBackground": "#162257",
 		"sideBarBackground": "#131510",
 		"editorLineHighlight": "#5e452b",
 		"editorCursor": "#d3af86",

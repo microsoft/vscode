@@ -458,7 +458,6 @@
 		"pickerGroupForeground": "#A6B39B",
 		"pickerGroupBorder": "#749351",
 		"statusBarBackground": "#749351",
-		"activityBadgeBackground": "#749351",
 		"activityBarForeground": "#FFFFFF",
 		"listActiveSelectionForeground": "#6c6c6c",
 		"listFocusAndSelectionForeground": "#6c6c6c",
@@ -482,6 +481,6 @@
 		"peekViewEditorBackground": "#F2F8FC",
 		"peekViewResultsBackground": "#F2F8FC",
 		"peekViewResultsMatchHighlight": "#93C6D6",
-		"activityBadgeBackground": "#705697"
+		"activityBarBadgeBackground": "#705697"
 	}
 }

@@ -24,7 +24,7 @@ import { dispose } from 'vs/base/common/lifecycle';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BADGE_FOREGROUND, ACTIVITY_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { highContrastBorder, highContrastOutline, focus } from 'vs/platform/theme/common/colorRegistry';
 
 export class ActivityAction extends Action {
@@ -174,8 +174,8 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 
 		// Badge
 		if (this.$badgeContent) {
-			const badgeForeground = theme.getColor(ACTIVITY_BADGE_FOREGROUND);
-			const badgeBackground = theme.getColor(ACTIVITY_BADGE_BACKGROUND);
+			const badgeForeground = theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND);
+			const badgeBackground = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND);
 			const hcBorder = theme.getColor(highContrastBorder);
 
 			this.$badgeContent.style('color', badgeForeground ? badgeForeground.toString() : null);
