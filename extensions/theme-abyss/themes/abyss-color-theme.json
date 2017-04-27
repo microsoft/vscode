@@ -282,7 +282,6 @@
 		// "listActiveSelectionForeground": "",
 		"listFocusBackground": "#08286b",
 		"listHoverBackground": "#041D52",
-		"listInactiveFocusBackground": "#152037",
 		"listInactiveSelectionBackground": "#152037",
 		"listDropBackground": "#041D52",
 		// "listHighlightForeground": "",

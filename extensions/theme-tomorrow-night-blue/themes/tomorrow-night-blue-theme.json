@@ -5,7 +5,6 @@
 		"inputBoxBackground": "#001733",
 		"dropdownBackground": "#001733",
 		"listFocusBackground": "#ffffff60",
-		"listInactiveFocusBackground": "#ffffff20",
 		"listActiveSelectionBackground": "#ffffff50",
 		"listFocusAndSelectionBackground": "#ffffff60",
 		"listInactiveSelectionBackground": "#ffffff40",
