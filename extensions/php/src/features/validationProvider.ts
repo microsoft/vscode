@@ -224,6 +224,7 @@ export default class PHPValidationProvider {
 			let decoder = new LineDecoder();
 			let diagnostics: vscode.Diagnostic[] = [];
 			let processLine = (line: string) => {
+				console.log('Processing line',  line);
 				let matches = line.match(PHPValidationProvider.MatchExpression);
 				if (matches) {
 					let message = matches[1];
@@ -244,9 +245,29 @@ export default class PHPValidationProvider {
 			} else {
 				args = PHPValidationProvider.BufferArgs;
 			}
+
 			try {
+				// TESTING
+
+				// Set executable to bash.exe
+				executable = 'cmd';
+
+				// Translate path name to Linux format (assume using /mnt/<letter>/ mount)
+				let winPath = args.pop();
+				console.log('Old file path', winPath);
+				let linuxPath = winPath.trim().replace(/^([a-zA-Z]):\\/, '/mnt/$1/').replace(/\\/g, '/');
+				console.log('New file path', linuxPath);
+				args.push(linuxPath);
+
+				// Correct the args for bash.exe
+				args = ['/c', 'bash -c "php ' + args.join(' ') + '"'];
+				options['stdio'] = [0, 'pipe'];
+				// END TESTING
+
+				console.log('Linting with executable', executable, args);
 				let childProcess = cp.spawn(executable, args, options);
 				childProcess.on('error', (error: Error) => {
+					console.log('Child process error', error);
 					if (this.pauseValidation) {
 						resolve();
 						return;
@@ -261,9 +282,11 @@ export default class PHPValidationProvider {
 						childProcess.stdin.end();
 					}
 					childProcess.stdout.on('data', (data: Buffer) => {
+						console.log('Data returned from buffer');
 						decoder.write(data).forEach(processLine);
 					});
 					childProcess.stdout.on('end', () => {
+						console.log('End buffer');
 						let line = decoder.end();
 						if (line) {
 							processLine(line);
@@ -272,6 +295,7 @@ export default class PHPValidationProvider {
 						resolve();
 					});
 				} else {
+					console.log('Nuthin');
 					resolve();
 				}
 			} catch (error) {
