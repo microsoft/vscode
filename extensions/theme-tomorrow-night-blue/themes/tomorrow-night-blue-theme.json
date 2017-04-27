@@ -17,6 +17,7 @@
 		"editorLineHighlight": "#00346e",
 		"editorCursor": "#ffffff",
 		"editorWhitespaces": "#404f7d",
+		"editorWidgetBackground": "#001c40",
 		"tabsContainerBackground": "#001733",
 		"tabInactiveBackground": "#001c40",
 		"statusBarBackground": "#001126",
