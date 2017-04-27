@@ -260,8 +260,7 @@ export default class PHPValidationProvider {
 				args.push(linuxPath);
 
 				// Correct the args for bash.exe
-				args = ['/c', 'bash -c "php ' + args.join(' ') + '"'];
-				options['stdio'] = [0, 'pipe'];
+				args = ['/c', 'bash.exe -c "php ' + args.join(' ') + '"'];
 				// END TESTING
 
 				console.log('Linting with executable', executable, args);
