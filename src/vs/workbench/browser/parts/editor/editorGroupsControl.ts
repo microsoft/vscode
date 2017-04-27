@@ -35,7 +35,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, highContrastBorder, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
-import { Themable, TABS_CONTAINER_BACKGROUND, EDITOR_HEADER_BACKGROUND, EDITOR_GROUP_BORDER_COLOR, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
+import { Themable, TABS_CONTAINER_BACKGROUND, EDITOR_GROUP_HEADER_BACKGROUND, EDITOR_GROUP_BORDER_COLOR, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 
 export enum Rochade {
 	NONE,
@@ -1018,7 +1018,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			const container = this.getTitleAreaControl(position).getContainer();
 			const hcBorder = this.getColor(highContrastBorder);
 
-			container.style.backgroundColor = this.getColor(this.tabOptions.showTabs ? TABS_CONTAINER_BACKGROUND : EDITOR_HEADER_BACKGROUND);
+			container.style.backgroundColor = this.getColor(this.tabOptions.showTabs ? TABS_CONTAINER_BACKGROUND : EDITOR_GROUP_HEADER_BACKGROUND);
 			container.style.borderBottomWidth = (hcBorder && this.tabOptions.showTabs) ? '1px' : null;
 			container.style.borderBottomStyle = (hcBorder && this.tabOptions.showTabs) ? 'solid' : null;
 			container.style.borderBottomColor = this.tabOptions.showTabs ? hcBorder : null;

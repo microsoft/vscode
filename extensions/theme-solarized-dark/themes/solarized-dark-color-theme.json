@@ -386,7 +386,7 @@
 		"titleBarInactiveBackground": "#002C39",
 
 		// Workbench: Editors
-		// "editorHeaderBackground": "",
+		// "editorGroupHeaderBackground": "",
 		"editorGroupBorder": "#00212B",
 		"editorGroupBackground": "#011b23",
 		"editorMasterDetailsBorder": "#00212B",

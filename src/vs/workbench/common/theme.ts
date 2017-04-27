@@ -63,11 +63,17 @@ export const TAB_BORDER = registerColor('tabBorder', {
 
 // < --- Editors --- >
 
-export const EDITOR_HEADER_BACKGROUND = registerColor('editorHeaderBackground', {
+export const EDITOR_GROUP_BACKGROUND = registerColor('editorGroupBackground', {
+	dark: '#2D2D2D',
+	light: '#ECECEC',
+	hc: null
+}, nls.localize('editorGroupBackground', "Background color of an editor group. Editor groups are the containers of editors. The background color shows up when dragging editor groups around."));
+
+export const EDITOR_GROUP_HEADER_BACKGROUND = registerColor('editorGroupHeaderBackground', {
 	dark: editorBackground,
 	light: editorBackground,
 	hc: editorBackground
-}, nls.localize('editorHeaderBackground', "Background color of the editor title header when tabs are disabled."));
+}, nls.localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroupBorder', {
 	dark: '#444444',
@@ -75,19 +81,13 @@ export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroupBorder', {
 	hc: highContrastBorder
 }, nls.localize('editorGroupBorder', "Color to separate multiple editor groups from each other. Editor groups are the containers of editors."));
 
-export const EDITOR_GROUP_BACKGROUND = registerColor('editorGroupBackground', {
-	dark: '#2D2D2D',
-	light: '#ECECEC',
-	hc: null
-}, nls.localize('editorGroupBackground', "Background color of an editor group. Editor groups are the containers of editors. The background color shows up when dragging editor groups around."));
-
 export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorDragAndDropBackground', {
 	dark: Color.fromRGBA(new RGBA(83, 89, 93)).transparent(0.5),
 	light: Color.fromRGBA(new RGBA(51, 153, 255)).transparent(0.18),
 	hc: null
 }, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around."));
 
-export const EDITOR_SIDE_BY_SIDE_BORDER = registerColor('editorMasterDetailsBorder', {
+export const EDITOR_MASTER_DETAILS_BORDER = registerColor('editorMasterDetailsBorder', {
 	dark: '#000000',
 	light: '#DDDDDD',
 	hc: null
