@@ -332,8 +332,8 @@
 		"peekViewEditorMatchHighlight": "#eeeeee33",
 		// "peekViewResultsFileForeground": "",
 		"peekViewResultsMatchHighlight": "#eeeeee44",
-		// "peekViewTitle": "",
-		// "peekViewTitleInfo": "",
+		// "peekViewTitleForeground": "",
+		// "peekViewTitleInfoForeground": "",
 
 		// Editor: Diff
 		"diffInserted": "#31958A55",
