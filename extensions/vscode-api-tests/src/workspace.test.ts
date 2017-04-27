@@ -75,10 +75,6 @@ suite('workspace-namespace', () => {
 	});
 
 	test('openTextDocument, untitled is dirty', function () {
-		if (process.platform === 'win32') {
-			return; // TODO@Joh this test fails on windows
-		}
-
 		return workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath || '', './newfile.txt'))).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
