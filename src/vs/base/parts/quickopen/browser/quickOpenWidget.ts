@@ -171,12 +171,12 @@ export class QuickOpenWidget implements IModelProvider {
 					inputBackground: this.styles.inputBackground,
 					inputForeground: this.styles.inputForeground,
 					inputBorder: this.styles.inputBorder,
-					infoBackground: this.styles.infoBackground,
-					infoBorder: this.styles.infoBorder,
-					warningBackground: this.styles.warningBackground,
-					warningBorder: this.styles.warningBorder,
-					errorBackground: this.styles.errorBackground,
-					errorBorder: this.styles.errorBorder
+					inputValidationInfoBackground: this.styles.inputValidationInfoBackground,
+					inputValidationInfoBorder: this.styles.inputValidationInfoBorder,
+					inputValidationWarningBackground: this.styles.inputValidationWarningBackground,
+					inputValidationWarningBorder: this.styles.inputValidationWarningBorder,
+					inputValidationErrorBackground: this.styles.inputValidationErrorBackground,
+					inputValidationErrorBorder: this.styles.inputValidationErrorBorder
 				});
 
 				// ARIA
@@ -356,12 +356,12 @@ export class QuickOpenWidget implements IModelProvider {
 				inputBackground: this.styles.inputBackground,
 				inputForeground: this.styles.inputForeground,
 				inputBorder: this.styles.inputBorder,
-				infoBackground: this.styles.infoBackground,
-				infoBorder: this.styles.infoBorder,
-				warningBackground: this.styles.warningBackground,
-				warningBorder: this.styles.warningBorder,
-				errorBackground: this.styles.errorBackground,
-				errorBorder: this.styles.errorBorder
+				inputValidationInfoBackground: this.styles.inputValidationInfoBackground,
+				inputValidationInfoBorder: this.styles.inputValidationInfoBorder,
+				inputValidationWarningBackground: this.styles.inputValidationWarningBackground,
+				inputValidationWarningBorder: this.styles.inputValidationWarningBorder,
+				inputValidationErrorBackground: this.styles.inputValidationErrorBackground,
+				inputValidationErrorBorder: this.styles.inputValidationErrorBorder
 			});
 		}
 

@@ -38,6 +38,8 @@
 		"dropdownBackground": "#580000",
 		"inputBoxBackground": "#580000",
 		"inputBoxActiveOptionBorder": "#cc0000",
+		"inputValidationInfoBackground": "#550000",
+		"inputValidationInfoBorder": "#773333"
 		"listHoverBackground": "#800000",
 		"listActiveSelectionBackground": "#700000",
 		"listInactiveSelectionBackground": "#770000",
@@ -47,8 +49,6 @@
 		"notificationsBackground": "#662222",
 		"pickerGroupForeground": "#cc9999",
 		"pickerGroupBorder": "#ff000033",
-		"infoBackground": "#550000",
-		"infoBorder": "#773333"
 	},
 	"name": "Red"
 }

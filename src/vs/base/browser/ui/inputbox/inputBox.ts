@@ -35,12 +35,12 @@ export interface IInputBoxStyles {
 	inputBackground?: Color;
 	inputForeground?: Color;
 	inputBorder?: Color;
-	infoBorder?: Color;
-	infoBackground?: Color;
-	warningBorder?: Color;
-	warningBackground?: Color;
-	errorBorder?: Color;
-	errorBackground?: Color;
+	inputValidationInfoBorder?: Color;
+	inputValidationInfoBackground?: Color;
+	inputValidationWarningBorder?: Color;
+	inputValidationWarningBackground?: Color;
+	inputValidationErrorBorder?: Color;
+	inputValidationErrorBackground?: Color;
 }
 
 export interface IInputValidator {
@@ -72,12 +72,12 @@ export interface IRange {
 const defaultOpts = {
 	inputBackground: Color.fromHex('#3C3C3C'),
 	inputForeground: Color.fromHex('#CCCCCC'),
-	infoBorder: Color.fromHex('#55AAFF'),
-	infoBackground: Color.fromHex('#063B49'),
-	warningBorder: Color.fromHex('#B89500'),
-	warningBackground: Color.fromHex('#352A05'),
-	errorBorder: Color.fromHex('#BE1100'),
-	errorBackground: Color.fromHex('#5A1D1D')
+	inputValidationInfoBorder: Color.fromHex('#55AAFF'),
+	inputValidationInfoBackground: Color.fromHex('#063B49'),
+	inputValidationWarningBorder: Color.fromHex('#B89500'),
+	inputValidationWarningBackground: Color.fromHex('#352A05'),
+	inputValidationErrorBorder: Color.fromHex('#BE1100'),
+	inputValidationErrorBackground: Color.fromHex('#5A1D1D')
 };
 
 export class InputBox extends Widget {
@@ -99,12 +99,12 @@ export class InputBox extends Widget {
 	private inputForeground: Color;
 	private inputBorder: Color;
 
-	private infoBorder: Color;
-	private infoBackground: Color;
-	private warningBorder: Color;
-	private warningBackground: Color;
-	private errorBorder: Color;
-	private errorBackground: Color;
+	private inputValidationInfoBorder: Color;
+	private inputValidationInfoBackground: Color;
+	private inputValidationWarningBorder: Color;
+	private inputValidationWarningBackground: Color;
+	private inputValidationErrorBorder: Color;
+	private inputValidationErrorBackground: Color;
 
 	private _onDidChange = this._register(new Emitter<string>());
 	public onDidChange: Event<string> = this._onDidChange.event;
@@ -127,12 +127,12 @@ export class InputBox extends Widget {
 		this.inputForeground = this.options.inputForeground;
 		this.inputBorder = this.options.inputBorder;
 
-		this.infoBorder = this.options.infoBorder;
-		this.infoBackground = this.options.infoBackground;
-		this.warningBorder = this.options.warningBorder;
-		this.warningBackground = this.options.warningBackground;
-		this.errorBorder = this.options.errorBorder;
-		this.errorBackground = this.options.errorBackground;
+		this.inputValidationInfoBorder = this.options.inputValidationInfoBorder;
+		this.inputValidationInfoBackground = this.options.inputValidationInfoBackground;
+		this.inputValidationWarningBorder = this.options.inputValidationWarningBorder;
+		this.inputValidationWarningBackground = this.options.inputValidationWarningBackground;
+		this.inputValidationErrorBorder = this.options.inputValidationErrorBorder;
+		this.inputValidationErrorBackground = this.options.inputValidationErrorBackground;
 
 		if (this.options.validationOptions) {
 			this.validation = this.options.validationOptions.validation;
@@ -350,9 +350,9 @@ export class InputBox extends Widget {
 
 	private stylesForType(type: MessageType): { border: Color; background: Color } {
 		switch (type) {
-			case MessageType.INFO: return { border: this.infoBorder, background: this.infoBackground };
-			case MessageType.WARNING: return { border: this.warningBorder, background: this.warningBackground };
-			default: return { border: this.errorBorder, background: this.errorBackground };
+			case MessageType.INFO: return { border: this.inputValidationInfoBorder, background: this.inputValidationInfoBackground };
+			case MessageType.WARNING: return { border: this.inputValidationWarningBorder, background: this.inputValidationWarningBackground };
+			default: return { border: this.inputValidationErrorBorder, background: this.inputValidationErrorBackground };
 		}
 	}
 
@@ -445,12 +445,12 @@ export class InputBox extends Widget {
 		this.inputForeground = styles.inputForeground;
 		this.inputBorder = styles.inputBorder;
 
-		this.infoBackground = styles.infoBackground;
-		this.infoBorder = styles.infoBorder;
-		this.warningBackground = styles.warningBackground;
-		this.warningBorder = styles.warningBorder;
-		this.errorBackground = styles.errorBackground;
-		this.errorBorder = styles.errorBorder;
+		this.inputValidationInfoBackground = styles.inputValidationInfoBackground;
+		this.inputValidationInfoBorder = styles.inputValidationInfoBorder;
+		this.inputValidationWarningBackground = styles.inputValidationWarningBackground;
+		this.inputValidationWarningBorder = styles.inputValidationWarningBorder;
+		this.inputValidationErrorBackground = styles.inputValidationErrorBackground;
+		this.inputValidationErrorBorder = styles.inputValidationErrorBorder;
 
 		this.applyStyles();
 	}

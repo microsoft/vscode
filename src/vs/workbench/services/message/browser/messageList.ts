@@ -22,7 +22,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { contrastBorder, buttonBackground, buttonHoverBackground, widgetShadow, errorBorder, warningBorder, infoBorder } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, buttonBackground, buttonHoverBackground, widgetShadow, inputValidationErrorBorder, inputValidationWarningBorder, inputValidationInfoBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 
@@ -107,9 +107,9 @@ export class MessageList {
 			this.widgetShadow = theme.getColor(widgetShadow);
 			this.outlineBorder = theme.getColor(contrastBorder);
 			this.buttonBackground = theme.getColor(buttonBackground);
-			this.infoBackground = theme.getColor(infoBorder);
-			this.warningBackground = theme.getColor(warningBorder);
-			this.errorBackground = theme.getColor(errorBorder);
+			this.infoBackground = theme.getColor(inputValidationInfoBorder);
+			this.warningBackground = theme.getColor(inputValidationWarningBorder);
+			this.errorBackground = theme.getColor(inputValidationErrorBorder);
 
 			collector.addRule(`.global-message-list li.message-list-entry .actions-container .message-action .action-button:hover { background-color: ${theme.getColor(buttonHoverBackground)} !important; }`);
 

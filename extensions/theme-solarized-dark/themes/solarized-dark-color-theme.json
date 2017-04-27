@@ -296,18 +296,18 @@
 		// Base
 		// "foreground": "",
 		"focusBorder": "#2AA19899",
-		"infoBorder": "#384078",
-		"infoBackground": "#051336",
-		"warningBackground": "#5B7E7A",
-		"warningBorder": "#5B7E7A",
-		"errorBackground": "#A22D44",
-		"errorBorder": "#AB395B",
 
 		// "widgetShadow": "",
 
 		"inputBoxBackground": "#003847",
 		"inputBoxForeground": "#93A1A1",
 		"inputBoxActiveOptionBorder": "#2AA19899",
+		"inputValidationInfoBorder": "#384078",
+		"inputValidationInfoBackground": "#051336",
+		"inputValidationWarningBackground": "#5B7E7A",
+		"inputValidationWarningBorder": "#5B7E7A",
+		"inputValidationErrorBackground": "#A22D44",
+		"inputValidationErrorBorder": "#AB395B",
 
 		"dropdownBackground": "#00212B",
 		"dropdownBorder": "#2AA19899",

@@ -50,12 +50,12 @@ export class FindInput extends Widget {
 	private inputForeground: Color;
 	private inputBorder: Color;
 
-	private infoBorder: Color;
-	private infoBackground: Color;
-	private warningBorder: Color;
-	private warningBackground: Color;
-	private errorBorder: Color;
-	private errorBackground: Color;
+	private inputValidationInfoBorder: Color;
+	private inputValidationInfoBackground: Color;
+	private inputValidationWarningBorder: Color;
+	private inputValidationWarningBackground: Color;
+	private inputValidationErrorBorder: Color;
+	private inputValidationErrorBackground: Color;
 
 	private regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
@@ -91,12 +91,12 @@ export class FindInput extends Widget {
 		this.inputForeground = options.inputForeground;
 		this.inputBorder = options.inputBorder;
 
-		this.infoBorder = options.infoBorder;
-		this.infoBackground = options.infoBackground;
-		this.warningBorder = options.warningBorder;
-		this.warningBackground = options.warningBackground;
-		this.errorBorder = options.errorBorder;
-		this.errorBackground = options.errorBackground;
+		this.inputValidationInfoBorder = options.inputValidationInfoBorder;
+		this.inputValidationInfoBackground = options.inputValidationInfoBackground;
+		this.inputValidationWarningBorder = options.inputValidationWarningBorder;
+		this.inputValidationWarningBackground = options.inputValidationWarningBackground;
+		this.inputValidationErrorBorder = options.inputValidationErrorBorder;
+		this.inputValidationErrorBackground = options.inputValidationErrorBackground;
 
 		this.regex = null;
 		this.wholeWords = null;
@@ -168,12 +168,12 @@ export class FindInput extends Widget {
 		this.inputForeground = styles.inputForeground;
 		this.inputBorder = styles.inputBorder;
 
-		this.infoBackground = styles.infoBackground;
-		this.infoBorder = styles.infoBorder;
-		this.warningBackground = styles.warningBackground;
-		this.warningBorder = styles.warningBorder;
-		this.errorBackground = styles.errorBackground;
-		this.errorBorder = styles.errorBorder;
+		this.inputValidationInfoBackground = styles.inputValidationInfoBackground;
+		this.inputValidationInfoBorder = styles.inputValidationInfoBorder;
+		this.inputValidationWarningBackground = styles.inputValidationWarningBackground;
+		this.inputValidationWarningBorder = styles.inputValidationWarningBorder;
+		this.inputValidationErrorBackground = styles.inputValidationErrorBackground;
+		this.inputValidationErrorBorder = styles.inputValidationErrorBorder;
 
 		this.applyStyles();
 	}
@@ -191,12 +191,12 @@ export class FindInput extends Widget {
 				inputBackground: this.inputBackground,
 				inputForeground: this.inputForeground,
 				inputBorder: this.inputBorder,
-				infoBackground: this.infoBackground,
-				infoBorder: this.infoBorder,
-				warningBackground: this.warningBackground,
-				warningBorder: this.warningBorder,
-				errorBackground: this.errorBackground,
-				errorBorder: this.errorBorder
+				inputValidationInfoBackground: this.inputValidationInfoBackground,
+				inputValidationInfoBorder: this.inputValidationInfoBorder,
+				inputValidationWarningBackground: this.inputValidationWarningBackground,
+				inputValidationWarningBorder: this.inputValidationWarningBorder,
+				inputValidationErrorBackground: this.inputValidationErrorBackground,
+				inputValidationErrorBorder: this.inputValidationErrorBorder
 			};
 			this.inputBox.style(inputBoxStyles);
 		}
@@ -268,12 +268,12 @@ export class FindInput extends Widget {
 			inputBackground: this.inputBackground,
 			inputForeground: this.inputForeground,
 			inputBorder: this.inputBorder,
-			infoBackground: this.infoBackground,
-			infoBorder: this.infoBorder,
-			warningBackground: this.warningBackground,
-			warningBorder: this.warningBorder,
-			errorBackground: this.errorBackground,
-			errorBorder: this.errorBorder
+			inputValidationInfoBackground: this.inputValidationInfoBackground,
+			inputValidationInfoBorder: this.inputValidationInfoBorder,
+			inputValidationWarningBackground: this.inputValidationWarningBackground,
+			inputValidationWarningBorder: this.inputValidationWarningBorder,
+			inputValidationErrorBackground: this.inputValidationErrorBackground,
+			inputValidationErrorBorder: this.inputValidationErrorBorder
 		}));
 
 		this.regex = this._register(new RegexCheckbox({
