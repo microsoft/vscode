@@ -25,7 +25,7 @@
 	"TaskSystem.active": "이미 실행 중인 작업이 있습니다. 다른 작업을 실행하려면 먼저 이 작업을 종료하세요.",
 	"TaskSystem.restartFailed": "{0} 작업을 종료하고 다시 시작하지 못했습니다.",
 	"TaskSystem.configurationErrors": "오류: 제공한 작업 구성에 유효성 검사 오류가 있으며 사용할 수 없습니다. 먼저 오류를 수정하세요.",
-	"TaskSystem.invalidTaskJson": "오류: tasks.json 파일의 내용에 구문 오류가 있습니다. 작업을 실행하기 전에 오류를 정정하세요.\\n",
+	"TaskSystem.invalidTaskJson": "오류: tasks.json 파일의 내용에 구문 오류가 있습니다. 작업을 실행하기 전에 오류를 정정하세요.\n",
 	"TaskSystem.runningTask": "실행 중인 작업이 있습니다. 이 작업을 종료할까요?",
 	"TaskSystem.terminateTask": "작업 종료(&&T)",
 	"TaskSystem.noProcess": "시작된 작업이 더 이상 존재하지 않습니다. 작업에서 생성된, VS Code를 끝내는 백그라운드 프로세스가 분리된 프로세스가 될 수 있습니다. 이를 방지하려면 wait 플래그를 사용하여 마지막 백그라운드 프로세스를 시작하세요.",

@@ -41,5 +41,6 @@
 	"config.confirmSync": "同步 GIT 存储库前请先进行确认",
 	"config.countBadge": "控制 GIT 徽章计数器",
 	"config.checkoutType": "控制列出哪些分支类型",
-	"config.ignoreLegacyWarning": "忽略旧版 Git 警告"
+	"config.ignoreLegacyWarning": "忽略旧版 Git 警告",
+	"config.ignoreLimitWarning": "忽略“存储库中存在大量更改”的警告"
 }

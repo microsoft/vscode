@@ -18,6 +18,8 @@
 	"learnMore": "詳細情報",
 	"selectTsVersion": "JavaScript および TypeScript 言語の機能に使用する TypeScript バージョンを選択します",
 	"typescript.openTsServerLog.notSupported": "TS サーバーのログには TS 2.2.2 以降が必要です",
+	"typescript.openTsServerLog.loggingNotEnabled": "TS サーバーのログがオフになっています。ログを有効にするには、`typescript.tsserver.log` を設定して TS サーバーを再起動してください",
+	"typescript.openTsServerLog.enableAndReloadOption": "ログを有効にして、TS サーバーを再起動する",
 	"typescript.openTsServerLog.noLogFile": "TS サーバーはログを開始していません。",
 	"openTsServerLog.openFileFailedFailed": "TS サーバーのログ ファイルを開くことができませんでした",
 	"serverDiedAfterStart": "TypeScript 言語サービスは、開始直後に 5 回停止しました。サービスは再開されません。",

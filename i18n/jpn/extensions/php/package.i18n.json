@@ -9,5 +9,6 @@
 	"configuration.validate.executablePath": "PHP 実行可能ファイルを指します。",
 	"configuration.validate.run": "リンターを保存時に実行するか、入力時に実行するか。",
 	"configuration.title": "PHP",
-	"commands.categroy.php": "PHP"
+	"commands.categroy.php": "PHP",
+	"command.untrustValidationExecutable": "PHP の検証を無効にします (ワークスペース設定として定義)。"
 }

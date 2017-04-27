@@ -26,7 +26,7 @@
 	"wordWrap.on": "뷰포트 너비에서 줄이 바뀝니다.",
 	"wordWrap.wordWrapColumn": "`editor.wordWrapColumn`에서 줄이 바뀝니다.",
 	"wordWrap.bounded": "뷰포트의 최소값 및 `editor.wordWrapColumn`에서 줄이 바뀝니다.",
-	"wordWrap": "줄 바꿈 여부를 제어합니다. 다음 중 하나일 수 있습니다.\\n - 'off'(줄 바꿈 사용 안 함),\\n - 'on'(뷰포트 줄 바꿈),\\n - 'wordWrapColumn'(`editor.wordWrapColumn`에서 줄 바꿈) 또는\\n - 'bounded'(뷰포트의 최소값 및 `editor.wordWrapColumn`에서 줄 바꿈)",
+	"wordWrap": "줄 바꿈 여부를 제어합니다. 다음 중 하나일 수 있습니다.\n - 'off' (줄 바꿈 사용 안 함),\n - 'on' (뷰포트 줄 바꿈),\n - 'wordWrapColumn' (`editor.wordWrapColumn`에서 줄 바꿈) 또는\n - 'bounded' (뷰포트의 최소값 및 `editor.wordWrapColumn`에서 줄 바꿈).",
 	"wordWrapColumn": "`editor.wordWrap`이 'wordWrapColumn' 또는 'bounded'인 경우 편집기의 열 줄 바꿈을 제어합니다.",
 	"wrappingIndent": "줄 바꿈 행의 들여쓰기를 제어합니다. 'none', 'same' 또는 'indent' 중 하나일 수 있습니다.",
 	"mouseWheelScrollSensitivity": "마우스 휠 스크롤 이벤트의 `deltaX` 및 `deltaY`에서 사용할 승수",

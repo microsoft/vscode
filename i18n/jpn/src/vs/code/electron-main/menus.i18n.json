@@ -155,6 +155,6 @@
 	"miDownloadingUpdate": "更新をダウンロードしています...",
 	"miInstallingUpdate": "更新プログラムをインストールしています...",
 	"miCheckForUpdates": "更新の確認...",
-	"aboutDetail": "\\nバージョン {0}\\nコミット {1}\\n日付 {2}\\nシェル {3}\\nレンダラー {4}\\nNode {5}",
+	"aboutDetail": "\nバージョン{0}\nコミット{1}\n日付{2}\nシェル{3}\nレンダラー{4}\nNode {5}",
 	"okButton": "OK"
 }

@@ -26,7 +26,7 @@
 	"wordWrap.on": "行をビューポートの幅で折り返します。",
 	"wordWrap.wordWrapColumn": "行を 'editor.wordWrapColumn' で折り返します。",
 	"wordWrap.bounded": "ビューポートと 'editor.wordWrapColumn' の最小値で行を折り返します。",
-	"wordWrap": "行の折り返し方法を制御します。次の値を指定できます。\\n - 'off' (折り返さない)\\n - 'on' (ビューポート折り返し)\\n - 'wordWrapColumn' ('editor.wordWrapColumn' で折り返し)\\n - 'bounded' (ビューポートと 'editor.wordWrapColumn' の最小値で折り返し)。",
+	"wordWrap": "行の折り返し方法を制御します。次の値を指定できます。\n - 'off' (折り返さない),\n - 'on' (ビューポート折り返し),\n - 'wordWrapColumn' ('editor.wordWrapColumn' で折り返し) or\n - 'bounded' (ビューポートと 'editor.wordWrapColumn' の最小値で折り返し).",
 	"wordWrapColumn": "'editor.wordWrap' が 'wordWrapColumn' または 'bounded' の場合に、エディターの折り返し桁を制御します。",
 	"wrappingIndent": "折り返し行のインデントを制御します。'none'、'same'、または 'indent' のいずれかを指定できます。",
 	"mouseWheelScrollSensitivity": "マウス ホイール スクロール イベントの `deltaX` と `deltaY` で使用される乗数",

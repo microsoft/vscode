@@ -151,6 +151,6 @@
 	"miDownloadingUpdate": "正在下載更新...",
 	"miInstallingUpdate": "正在安裝更新...",
 	"miCheckForUpdates": "查看是否有更新...",
-	"aboutDetail": "\\n版本 {0}\\n認可 {1}\\n日期 {2}\\nShell {3}\\n轉譯器 {4}\\nNode {5}",
+	"aboutDetail": "\n版本 {0}\n認可 {1}\n日期 {2}\nShell {3}\n轉譯器 {4}\nNode {5}",
 	"okButton": "確定"
 }
