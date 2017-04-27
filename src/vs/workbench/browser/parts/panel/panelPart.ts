@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER_TOP_COLOR, PANEL_ACTIVE_TITLE_COLOR, PANEL_INACTIVE_TITLE_COLOR, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND, PANEL_BORDER_COLOR, PANEL_ACTIVE_TITLE_COLOR, PANEL_INACTIVE_TITLE_COLOR, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
 import { highContrastOutline, focus } from 'vs/platform/theme/common/colorRegistry';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
@@ -104,7 +104,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 
 		const title = this.getTitleArea();
-		title.style('border-top-color', this.getColor(PANEL_BORDER_TOP_COLOR));
+		title.style('border-top-color', this.getColor(PANEL_BORDER_COLOR));
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {

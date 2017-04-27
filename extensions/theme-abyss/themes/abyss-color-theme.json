@@ -373,7 +373,7 @@
 
 		// Workbench: Panel
 		// "panelBackground": "",
-		"panelTopBorder": "#2b2b4a",
+		"panelBorder": "#2b2b4a",
 		// "panelActiveTitleBorder": "",
 		// "panelActiveTitleForeground": "",
 		// "panelInactiveTitleForeground": "",
