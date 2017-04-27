@@ -384,6 +384,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				scrollTop: e.scrollTop
 			});
 			this._isHandlingScrollEvent = false;
+
+			this._layoutOverviewViewport();
 		}));
 
 		this._register(this.originalEditor.onDidChangeViewZones(() => {
