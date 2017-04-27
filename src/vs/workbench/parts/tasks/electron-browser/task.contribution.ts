@@ -138,9 +138,14 @@ abstract class OpenTaskConfigurationAction extends Action {
 							value.stderr.forEach((line) => {
 								outputChannel.append(line + '\n');
 							});
-							this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
-							return selection.content;
-						} else if (config) {
+							if (config && (!config.tasks || config.tasks.length === 0)) {
+								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
+								return selection.content;
+							} else {
+								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetectError', 'Auto detecting the task system produced errors. Consult the task output for details.'));
+							}
+						}
+						if (config) {
 							if (value.stdout && value.stdout.length > 0) {
 								value.stdout.forEach(line => outputChannel.append(line + '\n'));
 							}
