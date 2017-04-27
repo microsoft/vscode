@@ -26,7 +26,7 @@ import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findC
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, highContrastOutline, highContrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, infoBackground, infoBorder, warningBackground, warningBorder, errorBackground, errorBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, activeContrastBorder, contrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, infoBackground, infoBorder, warningBackground, warningBorder, errorBackground, errorBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IFindController {
 	replace(): void;
@@ -819,13 +819,13 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor.${theme.selector} .find-widget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 
-	let hcOutline = theme.getColor(highContrastOutline);
+	let hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
 		collector.addRule(`.monaco-editor.${theme.selector} .findScope { border: 1px dashed ${hcOutline.transparent(0.4)}; }`);
 		collector.addRule(`.monaco-editor.${theme.selector} .currentFindMatch { border: 2px solid ${hcOutline}; padding: 1px; -moz-box-sizing: border-box; box-sizing: border-box; }`);
 		collector.addRule(`.monaco-editor.${theme.selector} .findMatch { border: 1px dotted ${hcOutline}; -moz-box-sizing: border-box; box-sizing: border-box; }`);
 	}
-	let hcBorder = theme.getColor(highContrastBorder);
+	let hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
 		collector.addRule(`.monaco-editor.${theme.selector} .find-widget { border: 2px solid ${hcBorder}; }`);
 	}

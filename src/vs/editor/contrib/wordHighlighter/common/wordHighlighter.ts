@@ -15,7 +15,7 @@ import { CommonEditorRegistry, commonEditorContribution } from 'vs/editor/common
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
-import { registerColor, editorSelectionHighlight, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorSelectionHighlight, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
@@ -330,7 +330,7 @@ registerThemingParticipant((theme, collector) => {
 	if (wordHighlightStrong) {
 		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
 	}
-	let hcOutline = theme.getColor(highContrastOutline);
+	let hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
 		collector.addRule(`.monaco-editor.${theme.selector} .selectionHighlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
 		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlight { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);

@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, highContrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, infoBorder, infoBackground, warningBorder, warningBackground, errorBorder, errorBackground, highContrastOutline, buttonForeground, buttonBackground, buttonHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, infoBorder, infoBackground, warningBorder, warningBackground, errorBorder, errorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 
@@ -126,7 +126,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 	return attachStyler(themeService, widget, {
 		foreground: (style && style.foreground) || foreground,
 		background: (style && style.background) || editorBackground,
-		borderColor: style && style.borderColor || highContrastBorder,
+		borderColor: style && style.borderColor || contrastBorder,
 		widgetShadow: style && style.widgetShadow || widgetShadow,
 		pickerGroupForeground: style && style.pickerGroupForeground || pickerGroupForeground,
 		pickerGroupBorder: style && style.pickerGroupBorder || pickerGroupBorder,
@@ -147,9 +147,9 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
 		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
 		listDropBackground: (style && style.listDropBackground) || listDropBackground,
-		listFocusOutline: (style && style.listFocusOutline) || highContrastOutline,
-		listSelectionOutline: (style && style.listSelectionOutline) || highContrastOutline,
-		listHoverOutline: (style && style.listHoverOutline) || highContrastOutline
+		listFocusOutline: (style && style.listFocusOutline) || activeContrastBorder,
+		listSelectionOutline: (style && style.listSelectionOutline) || activeContrastBorder,
+		listHoverOutline: (style && style.listHoverOutline) || activeContrastBorder
 	});
 }
 
@@ -178,17 +178,17 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
 		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
 		listDropBackground: (style && style.listDropBackground) || listDropBackground,
-		listFocusOutline: (style && style.listFocusOutline) || highContrastOutline,
-		listSelectionOutline: (style && style.listSelectionOutline) || highContrastOutline,
-		listHoverOutline: (style && style.listHoverOutline) || highContrastOutline,
+		listFocusOutline: (style && style.listFocusOutline) || activeContrastBorder,
+		listSelectionOutline: (style && style.listSelectionOutline) || activeContrastBorder,
+		listHoverOutline: (style && style.listHoverOutline) || activeContrastBorder,
 		listInactiveFocusOutline: style && style.listInactiveFocusOutline // not defined by default, only opt-in
 	});
 }
 
-export function attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, style?: { headerBackground?: ColorIdentifier, highContrastBorder?: ColorIdentifier }): IDisposable {
+export function attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, style?: { headerBackground?: ColorIdentifier, contrastBorder?: ColorIdentifier }): IDisposable {
 	return attachStyler(themeService, widget, {
 		headerBackground: (style && style.headerBackground) || SIDE_BAR_SECTION_HEADER_BACKGROUND,
-		headerHighContrastBorder: (style && style.highContrastBorder) || highContrastBorder
+		headerHighContrastBorder: (style && style.contrastBorder) || contrastBorder
 	});
 }
 

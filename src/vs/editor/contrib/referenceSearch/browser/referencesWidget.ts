@@ -39,7 +39,7 @@ import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeE
 import { PeekViewWidget, IPeekViewService } from 'vs/editor/contrib/zoneWidget/browser/peekViewWidget';
 import { FileReferences, OneReference, ReferencesModel } from './referencesModel';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { registerColor, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
@@ -822,7 +822,7 @@ registerThemingParticipant((theme, collector) => {
 	if (referenceHighlightColor) {
 		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { background-color: ${referenceHighlightColor}; }`);
 	}
-	let hcOutline = theme.getColor(highContrastOutline);
+	let hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
 		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .ref-tree .referenceMatch { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
 		collector.addRule(`.monaco-editor.${theme.selector} .reference-zone-widget .preview .reference-decoration { border: 2px solid ${hcOutline}; box-sizing: border-box; }`);

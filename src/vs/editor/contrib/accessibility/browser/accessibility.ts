@@ -26,7 +26,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/b
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorWidgetBackground, widgetShadow, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';
@@ -266,7 +266,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 
-	let hcBorder = theme.getColor(highContrastBorder);
+	let hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
 		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
 	}

@@ -34,7 +34,7 @@ import { extractResources } from 'vs/base/browser/dnd';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorBackground, highContrastBorder, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, TABS_CONTAINER_BACKGROUND, EDITOR_GROUP_HEADER_BACKGROUND, EDITOR_GROUP_BORDER_COLOR, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 
 export enum Rochade {
@@ -1009,14 +1009,14 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			silo.style('background-color', this.getColor(editorBackground));
 
 			// Border
-			silo.style('border-left-color', index > Position.ONE ? (this.getColor(highContrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR)) : null);
-			silo.style('border-top-color', index > Position.ONE ? (this.getColor(highContrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR)) : null);
+			silo.style('border-left-color', index > Position.ONE ? (this.getColor(contrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR)) : null);
+			silo.style('border-top-color', index > Position.ONE ? (this.getColor(contrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR)) : null);
 		});
 
 		// Title control
 		POSITIONS.forEach(position => {
 			const container = this.getTitleAreaControl(position).getContainer();
-			const hcBorder = this.getColor(highContrastBorder);
+			const hcBorder = this.getColor(contrastBorder);
 
 			container.style.backgroundColor = this.getColor(this.tabOptions.showTabs ? TABS_CONTAINER_BACKGROUND : EDITOR_GROUP_HEADER_BACKGROUND);
 			container.style.borderBottomWidth = (hcBorder && this.tabOptions.showTabs) ? '1px' : null;
@@ -1226,7 +1226,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				const containers = $this.visibleEditors.filter(e => !!e).map(e => e.getContainer());
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
-						const hcOutline = $this.getColor(highContrastOutline);
+						const hcOutline = $this.getColor(activeContrastBorder);
 						overlay = $('div').style({
 							top: $this.tabOptions.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0,
 							height: $this.tabOptions.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%',
@@ -1549,7 +1549,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		if (isDragging) {
 			this.parent.addClass('dragging');
 			silo.addClass('dragging');
-			borderColor = (this.getColor(highContrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR));
+			borderColor = (this.getColor(contrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR));
 		} else {
 			this.parent.removeClass('dragging');
 			silo.removeClass('dragging');
@@ -1569,7 +1569,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		const background = this.getColor(isDropping ? EDITOR_DRAG_AND_DROP_BACKGROUND : groupCount > 0 ? EDITOR_GROUP_BACKGROUND : null);
 		element.style.backgroundColor = background;
 
-		const hcOutline = this.getColor(highContrastOutline);
+		const hcOutline = this.getColor(activeContrastBorder);
 		element.style.outlineColor = isDropping ? hcOutline : null;
 		element.style.outlineStyle = isDropping && hcOutline ? 'dashed' : null;
 		element.style.outlineWidth = isDropping && hcOutline ? '2px' : null;

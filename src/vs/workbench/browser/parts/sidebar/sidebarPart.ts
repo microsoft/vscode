@@ -25,7 +25,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class SidebarPart extends CompositePart<Viewlet> {
@@ -83,7 +83,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 
 		container.style('background-color', this.getColor(SIDE_BAR_BACKGROUND));
 
-		const hcBorder = this.getColor(highContrastBorder);
+		const hcBorder = this.getColor(contrastBorder);
 		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
 		container.style('border-right-width', hcBorder && isPositionLeft ? '1px' : null);
 		container.style('border-right-style', hcBorder && isPositionLeft ? 'solid' : null);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { registerColor, editorBackground, highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -32,7 +32,7 @@ export const TAB_INACTIVE_BACKGROUND = registerColor('tabInactiveBackground', {
 export const TAB_BORDER = registerColor('tabBorder', {
 	dark: '#252526',
 	light: '#F3F3F3',
-	hc: highContrastBorder
+	hc: contrastBorder
 }, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_ACTIVE_GROUP_ACTIVE_FOREGROUND = registerColor('tabActiveEditorGroupActiveForeground', {
@@ -78,7 +78,7 @@ export const EDITOR_GROUP_HEADER_BACKGROUND = registerColor('editorGroupHeaderBa
 export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroupBorder', {
 	dark: '#444444',
 	light: '#E7E7E7',
-	hc: highContrastBorder
+	hc: contrastBorder
 }, nls.localize('editorGroupBorder', "Color to separate multiple editor groups from each other. Editor groups are the containers of editors."));
 
 export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorDragAndDropBackground', {
@@ -105,7 +105,7 @@ export const PANEL_BACKGROUND = registerColor('panelBackground', {
 export const PANEL_BORDER_COLOR = registerColor('panelBorder', {
 	dark: Color.fromRGBA(new RGBA(128, 128, 128)).transparent(0.35),
 	light: Color.fromRGBA(new RGBA(128, 128, 128)).transparent(0.35),
-	hc: highContrastBorder
+	hc: contrastBorder
 }, nls.localize('panelBorder', "Panel border color on the top separating to the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_ACTIVE_TITLE_COLOR = registerColor('panelActiveTitleForeground', {
@@ -123,7 +123,7 @@ export const PANEL_INACTIVE_TITLE_COLOR = registerColor('panelInactiveTitleForeg
 export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelActiveTitleBorder', {
 	dark: '#404047',
 	light: '#CCCEDA',
-	hc: highContrastBorder
+	hc: contrastBorder
 }, nls.localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 

@@ -29,7 +29,7 @@ import { Action } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -139,7 +139,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		container.style('color', this.getColor(STATUS_BAR_FOREGROUND));
 		container.style('background-color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND));
 
-		const hcBorder = this.getColor(highContrastBorder);
+		const hcBorder = this.getColor(contrastBorder);
 		container.style('border-top-width', hcBorder ? '1px' : null);
 		container.style('border-top-style', hcBorder ? 'solid' : null);
 		container.style('border-top-color', hcBorder);

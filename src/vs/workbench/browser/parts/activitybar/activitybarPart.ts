@@ -32,7 +32,7 @@ import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 interface IViewletActivity {
 	badge: IBadge;
@@ -222,7 +222,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
 		container.style('background-color', background);
 
-		const hcBorder = this.getColor(highContrastBorder);
+		const hcBorder = this.getColor(contrastBorder);
 		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
 		container.style('box-sizing', hcBorder && isPositionLeft ? 'border-box' : null);
 		container.style('border-right-width', hcBorder && isPositionLeft ? '1px' : null);

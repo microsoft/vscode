@@ -49,7 +49,7 @@ import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron
 import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
 import { remote, ipcRenderer as ipc, webFrame } from 'electron';
-import { highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const dialog = remote.dialog;
 
@@ -134,7 +134,7 @@ export class ElectronWindow extends Themable {
 				// Find out if folders are dragged and show the appropiate feedback then
 				this.includesFolder(draggedExternalResources).done(includesFolder => {
 					if (includesFolder) {
-						const hcOutline = this.getColor(highContrastOutline);
+						const hcOutline = this.getColor(activeContrastBorder);
 						dropOverlay = $(window.document.getElementById(this.partService.getWorkbenchElementId()))
 							.div({
 								id: 'monaco-workbench-drop-overlay'

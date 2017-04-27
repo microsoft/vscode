@@ -22,7 +22,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { highContrastBorder, buttonBackground, buttonHoverBackground, widgetShadow, errorBorder, warningBorder, infoBorder } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, buttonBackground, buttonHoverBackground, widgetShadow, errorBorder, warningBorder, infoBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 
@@ -105,7 +105,7 @@ export class MessageList {
 			this.background = theme.getColor(NOTIFICATIONS_BACKGROUND);
 			this.foreground = theme.getColor(NOTIFICATIONS_FOREGROUND);
 			this.widgetShadow = theme.getColor(widgetShadow);
-			this.outlineBorder = theme.getColor(highContrastBorder);
+			this.outlineBorder = theme.getColor(contrastBorder);
 			this.buttonBackground = theme.getColor(buttonBackground);
 			this.infoBackground = theme.getColor(infoBorder);
 			this.warningBackground = theme.getColor(warningBorder);

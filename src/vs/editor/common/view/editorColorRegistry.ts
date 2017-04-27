@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { registerColor, editorBackground, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
@@ -32,7 +32,7 @@ registerThemingParticipant((theme, collector) => {
 	if (rangeHighlight) {
 		collector.addRule(`.monaco-editor.${theme.selector} .rangeHighlight { background-color: ${rangeHighlight}; }`);
 	}
-	let outline = theme.getColor(highContrastOutline);
+	let outline = theme.getColor(activeContrastBorder);
 	if (outline) {
 		collector.addRule(`.monaco-editor.${theme.selector} .rangeHighlight { border: 1px dotted ${outline}; }; }`);
 	}

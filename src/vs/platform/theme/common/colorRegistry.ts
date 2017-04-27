@@ -122,8 +122,8 @@ export function registerColor(id: string, defaults: ColorDefaults, description: 
 export const foreground = registerColor('foreground', { dark: '#CCCCCC', light: '#6C6C6C', hc: '#FFFFFF' }, nls.localize('foreground', "Overall foreground color. This color is only used if not overridden by a component."));
 export const focusBorder = registerColor('focusBorder', { dark: Color.fromRGBA(new RGBA(14, 99, 156)).transparent(0.6), light: Color.fromRGBA(new RGBA(0, 122, 204)).transparent(0.4), hc: '#F38518' }, nls.localize('focusBorder', "Overall border color for focused elements. This color is only used if not overridden by a component."));
 
-export const highContrastBorder = registerColor('highContrastBorder', { light: null, dark: null, hc: '#6FC3DF' }, nls.localize('highContrastBorder', "Border color to separate components when high contrast theme is enabled."));
-export const highContrastOutline = registerColor('highContrastOutline', { light: null, dark: null, hc: focusBorder }, nls.localize('highContrastOutline', "Outline color for active components when high contrast theme is enabled."));
+export const contrastBorder = registerColor('contrastBorder', { light: null, dark: null, hc: '#6FC3DF' }, nls.localize('contrastBorder', "An extra border around elements to separate them from others for greater contrast."));
+export const activeContrastBorder = registerColor('activeContrastBorder', { light: null, dark: null, hc: focusBorder }, nls.localize('activeContrastBorder', "An extra border around active elements to separate them from others for greater contrast."));
 
 export const infoBackground = registerColor('infoBackground', { dark: '#063B49', light: '#D6ECF2', hc: Color.black }, nls.localize('infoBackground', "Overall info background color. This color is only used if not overridden by a component."));
 export const infoBorder = registerColor('infoBorder', { dark: '#55AAFF', light: '#009CCC', hc: '#6FC3DF' }, nls.localize('infoBorder', "Overall info border color. This color is only used if not overridden by a component."));
@@ -137,12 +137,12 @@ export const widgetShadow = registerColor('widgetShadow', { dark: '#000000', lig
 
 export const inputBackground = registerColor('inputBoxBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('inputBoxBackground', "Input box background."));
 export const inputForeground = registerColor('inputBoxForeground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('inputBoxForeground', "Input box foreground."));
-export const inputBorder = registerColor('inputBoxBorder', { dark: null, light: null, hc: highContrastBorder }, nls.localize('inputBoxBorder', "Input box border."));
-export const inputActiveOptionBorder = registerColor('inputBoxActiveOptionBorder', { dark: '#007ACC', light: '#007ACC', hc: highContrastOutline }, nls.localize('inputBoxActiveOptionBorder', "Border color of activated options in input fields."));
+export const inputBorder = registerColor('inputBoxBorder', { dark: null, light: null, hc: contrastBorder }, nls.localize('inputBoxBorder', "Input box border."));
+export const inputActiveOptionBorder = registerColor('inputBoxActiveOptionBorder', { dark: '#007ACC', light: '#007ACC', hc: activeContrastBorder }, nls.localize('inputBoxActiveOptionBorder', "Border color of activated options in input fields."));
 
 export const selectBackground = registerColor('dropdownBackground', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('dropdownBackground', "Dropdown background."));
 export const selectForeground = registerColor('dropdownForeground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('dropdownForeground', "Dropdown foreground."));
-export const selectBorder = registerColor('dropdownBorder', { dark: selectBackground, light: '#CECECE', hc: highContrastBorder }, nls.localize('dropdownBorder', "Dropdown border."));
+export const selectBorder = registerColor('dropdownBorder', { dark: selectBackground, light: '#CECECE', hc: contrastBorder }, nls.localize('dropdownBorder', "Dropdown border."));
 
 export const listFocusBackground = registerColor('listFocusBackground', { dark: '#073655', light: '#DCEBFC', hc: null }, nls.localize('listFocusBackground', "List/Tree background color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 export const listActiveSelectionBackground = registerColor('listActiveSelectionBackground', { dark: '#0E639C', light: '#4FA7FF', hc: null }, nls.localize('listActiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
