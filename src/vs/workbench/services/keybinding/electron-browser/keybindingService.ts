@@ -44,6 +44,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 export class KeyboardMapperFactory {
 	public static INSTANCE = new KeyboardMapperFactory();
 
+	private _isISOKeyboard: boolean;
 	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo;
 	private _rawMapping: nativeKeymap.IKeyboardMapping;
 	private _keyboardMapper: IKeyboardMapper;
@@ -53,13 +54,15 @@ export class KeyboardMapperFactory {
 	public onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	private constructor() {
+		this._isISOKeyboard = false;
 		this._layoutInfo = null;
 		this._rawMapping = null;
 		this._keyboardMapper = null;
 		this._initialized = false;
 	}
 
-	public _onKeyboardLayoutChanged(): void {
+	public _onKeyboardLayoutChanged(isISOKeyboard: boolean): void {
+		this._isISOKeyboard = isISOKeyboard;
 		if (this._initialized) {
 			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
@@ -124,11 +127,11 @@ export class KeyboardMapperFactory {
 		this._initialized = true;
 
 		this._rawMapping = rawMapping;
-		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(KeyboardMapperFactory._isUSStandard(this._layoutInfo), this._rawMapping);
+		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._isISOKeyboard, KeyboardMapperFactory._isUSStandard(this._layoutInfo), this._rawMapping);
 		this._onDidChangeKeyboardMapper.fire();
 	}
 
-	private static _createKeyboardMapper(isUSStandard: boolean, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+	private static _createKeyboardMapper(isISOKeyboard: boolean, isUSStandard: boolean, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
 		if (OS === OperatingSystem.Windows) {
 			return new WindowsKeyboardMapper(<IWindowsKeyboardMapping>rawMapping);
 		}
@@ -138,7 +141,7 @@ export class KeyboardMapperFactory {
 			return new MacLinuxFallbackKeyboardMapper(OS);
 		}
 
-		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
+		return new MacLinuxKeyboardMapper(isISOKeyboard, isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
 	}
 
 	private static _equals(a: nativeKeymap.IKeyboardMapping, b: nativeKeymap.IKeyboardMapping): boolean {

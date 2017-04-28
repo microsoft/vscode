@@ -297,8 +297,8 @@ export class ElectronWindow extends Themable {
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:keyboardLayoutChanged', () => {
-			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
+		ipc.on('vscode:keyboardLayoutChanged', (event, isISOKeyboard: boolean) => {
+			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(isISOKeyboard);
 		});
 
 		// Configuration changes

@@ -253,9 +253,9 @@ export class WindowsManager implements IWindowsMainService {
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
 
-		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout((isISOKeyboard: boolean) => {
 			WindowsManager.WINDOWS.forEach((window) => {
-				window.sendWhenReady('vscode:keyboardLayoutChanged');
+				window.sendWhenReady('vscode:keyboardLayoutChanged', isISOKeyboard);
 			});
 		});
 	}
@@ -1329,21 +1329,52 @@ class KeyboardLayoutMonitor {
 
 	public static INSTANCE = new KeyboardLayoutMonitor();
 
-	private _emitter: Emitter<void>;
+	private _emitter: Emitter<boolean>;
 	private _registered: boolean;
 
 	private constructor() {
-		this._emitter = new Emitter<void>();
+		this._emitter = new Emitter<boolean>();
 		this._registered = false;
 	}
 
-	public onDidChangeKeyboardLayout(callback: () => void): IDisposable {
+	public onDidChangeKeyboardLayout(callback: (isISOKeyboard: boolean) => void): IDisposable {
 		if (!this._registered) {
 			this._registered = true;
+
 			nativeKeymap.onDidChangeKeyboardLayout(() => {
-				this._emitter.fire();
+				this._emitter.fire(this._isISOKeyboard());
 			});
+
+			if (platform.isMacintosh) {
+				// See https://github.com/Microsoft/vscode/issues/24153
+				// On OSX, on ISO keyboards, Chromium swaps the scan codes
+				// of IntlBackslash and Backquote.
+				//
+				// The C++ methods can give the current keyboard type (ISO or not)
+				// only after a NSEvent was handled.
+				//
+				// We therefore poll.
+				let prevValue: boolean = null;
+				setInterval(() => {
+					let newValue = this._isISOKeyboard();
+					if (prevValue === newValue) {
+						// no change
+						return;
+					}
+
+					prevValue = newValue;
+					this._emitter.fire(this._isISOKeyboard());
+
+				}, 3000);
+			}
 		}
 		return this._emitter.event(callback);
+	}
+
+	private _isISOKeyboard(): boolean {
+		if (platform.isMacintosh) {
+			return nativeKeymap.isISOKeyboard();
+		}
+		return false;
 	}
 }
