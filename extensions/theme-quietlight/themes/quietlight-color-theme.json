@@ -458,7 +458,6 @@
 		"pickerGroup.border": "#749351",
 		"list.activeSelectionForeground": "#6c6c6c",
 		"list.focusBackground": "#CADEB9",
-		"list.focusAndSelectionBackground": "#A2B294",
 		"list.activeSelectionBackground": "#B6C8A7",
 		"editor.background": "#F5F5F5",
 		"editorWhitespace.foreground": "#AAAAAA",

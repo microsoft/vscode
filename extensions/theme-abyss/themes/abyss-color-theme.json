@@ -276,7 +276,6 @@
 		"button.hoverBackground": "#4A5C6B",
 		// "button.foreground": "",
 
-		"list.focusAndSelectionBackground": "#08286b",
 		"list.activeSelectionBackground": "#011B51",
 		// "list.activeSelectionForeground": "",
 		"list.focusBackground": "#08286b",

@@ -47,7 +47,6 @@
 		"list.activeSelectionBackground": "#700000",
 		"list.inactiveSelectionBackground": "#770000",
 		"list.focusBackground": "#660000",
-		"list.focusAndSelectionBackground": "#880000",
 		"list.highlightForeground": "#ff4444",
 		"notification.background": "#662222",
 		"pickerGroup.foreground": "#cc9999",

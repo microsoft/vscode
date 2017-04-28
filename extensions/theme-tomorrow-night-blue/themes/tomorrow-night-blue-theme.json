@@ -6,7 +6,6 @@
 		"dropdown.background": "#001733",
 		"list.focusBackground": "#ffffff60",
 		"list.activeSelectionBackground": "#ffffff50",
-		"list.focusAndSelectionBackground": "#ffffff60",
 		"list.inactiveSelectionBackground": "#ffffff40",
 		"list.hoverBackground": "#ffffff30",
 		"list.dropBackground": "#ffffff60",
