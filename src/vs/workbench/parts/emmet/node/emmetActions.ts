@@ -23,6 +23,7 @@ import * as pfs from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 interface IEmmetConfiguration {
 	emmet: {
@@ -235,6 +236,14 @@ export interface IEmmetActionOptions extends IActionOptions {
 
 export abstract class EmmetEditorAction extends EditorAction {
 
+	private actionMap = {
+		'editor.emmet.action.removeTag': 'emmet.removeTag',
+		'editor.emmet.action.updateTag': 'emmet.updateTag',
+		'editor.emmet.action.matchingPair': 'emmet.matchTag',
+		'editor.emmet.action.wrapWithAbbreviation': 'emmet.wrapWithAbbreviation',
+		'editor.emmet.action.expandAbbreviation': 'emmet.expandAbbreviation'
+	};
+
 	protected emmetActionName: string;
 
 	constructor(opts: IEmmetActionOptions) {
@@ -269,6 +278,12 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const contextService = accessor.get(IWorkspaceContextService);
 		const workspaceRoot = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : '';
 		const telemetryService = accessor.get(ITelemetryService);
+		const commandService = accessor.get(ICommandService);
+
+		let mappedCommand = this.actionMap[this.id];
+		if (mappedCommand && CommandsRegistry.getCommand(mappedCommand)) {
+			return commandService.executeCommand<void>(mappedCommand);
+		}
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
@@ -296,7 +311,6 @@ export abstract class EmmetEditorAction extends EditorAction {
 					this.runEmmetAction(accessor, new EmmetActionContext(editor, _emmet, editorAccessor));
 				});
 				editorAccessor.onAfterEmmetAction();
-				telemetryService.publicLog('emmetActionCompleted', { action: this.emmetActionName });
 			});
 		});
 
