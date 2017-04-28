@@ -86,6 +86,26 @@
 					],
 					"default": "onSave",
 					"description": "%configuration.validate.run%"
+				},
+				"php.validate.runInShell": {
+					"type": [
+						"boolean",
+						"object"
+					],
+					"default": false,
+					"description":  "Do you want to validate your code with a shell?",
+					"properties": {
+						"shellArgs": {
+							"type": "array",
+							"default": ["-c"],
+							"description": "Arguments to pass to the shell"
+						},
+						"shellExecutable": {
+							"type": "string",
+							"default": "C:\\Windows\\sysnative\\bash.exe",
+							"description": "The shell executable path"
+						}
+					}
 				}
 			}
 		},
