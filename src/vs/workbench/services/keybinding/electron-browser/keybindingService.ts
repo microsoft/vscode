@@ -129,11 +129,11 @@ export class KeyboardMapperFactory {
 		this._initialized = true;
 		this._isISOKeyboard = isISOKeyboard;
 		this._rawMapping = rawMapping;
-		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._isISOKeyboard, KeyboardMapperFactory._isUSStandard(this._layoutInfo), this._rawMapping);
+		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._isISOKeyboard, this._layoutInfo, this._rawMapping);
 		this._onDidChangeKeyboardMapper.fire();
 	}
 
-	private static _createKeyboardMapper(isISOKeyboard: boolean, isUSStandard: boolean, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+	private static _createKeyboardMapper(isISOKeyboard: boolean, layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
 		if (OS === OperatingSystem.Windows) {
 			return new WindowsKeyboardMapper(<IWindowsKeyboardMapping>rawMapping);
 		}
@@ -143,6 +143,15 @@ export class KeyboardMapperFactory {
 			return new MacLinuxFallbackKeyboardMapper(OS);
 		}
 
+		if (OS === OperatingSystem.Macintosh) {
+			const kbInfo = <nativeKeymap.IMacKeyboardLayoutInfo>layoutInfo;
+			if (kbInfo.id === 'com.apple.keylayout.DVORAK-QWERTYCMD') {
+				// Use keyCode based dispatching for DVORAK - QWERTY ⌘
+				return new MacLinuxFallbackKeyboardMapper(OS);
+			}
+		}
+
+		const isUSStandard = KeyboardMapperFactory._isUSStandard(layoutInfo);
 		return new MacLinuxKeyboardMapper(isISOKeyboard, isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
 	}
 
