@@ -103,6 +103,10 @@ suite('HTML Embedded Formatting', () => {
 		assertFormat('<html><head>\n  <script>\n|var x=6;\nvar y=  9;|\n</script></head></html>', '<html><head>\n  <script>\n  var x = 6;\n  var y = 9;\n</script></head></html>');
 	});
 
+	test('Range after new line', function (): any {
+		assertFormat('<html><head>\n  |<script>\nvar x=6;\n</script>\n|</head></html>', '<html><head>\n  <script>\n    var x = 6;\n\n  </script>\n</head></html>');
+	});
+
 });
 
 function applyEdits(document: TextDocument, edits: TextEdit[]): string {
