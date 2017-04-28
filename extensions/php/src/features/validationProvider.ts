@@ -282,8 +282,8 @@ export default class PHPValidationProvider {
 				});
 				if (childProcess.pid) {
 					if (this.trigger === RunTrigger.onType) {
-						//childProcess.stdin.write(textDocument.getText());
-						//childProcess.stdin.end();
+						childProcess.stdin.write(textDocument.getText());
+						childProcess.stdin.end();
 					}
 					childProcess.stdout.on('data', (data: Buffer) => {
 						console.log('Data returned from buffer', data);
