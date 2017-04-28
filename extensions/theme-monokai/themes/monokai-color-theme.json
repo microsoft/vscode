@@ -1,10 +1,9 @@
 {
 	"type": "dark",
 	"colors": {
-		"foreground": "#ddffff",
-		"focusBorder": "#00f9ff",
+		// "foreground": "#ddffff",
+		// "focusBorder": "#00f9ff",
 		"dropdownBackground": "#383852",
-		"listInactiveFocusBackground": "#303052",
 		"listActiveSelectionBackground": "#303070",
 		"listFocusBackground": "#394770",
 		"listFocusAndSelectionBackground": "#383852",
