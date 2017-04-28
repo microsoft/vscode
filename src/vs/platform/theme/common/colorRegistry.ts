@@ -195,7 +195,6 @@ export const editorFindRangeHighlight = registerColor('editor.findRangeHighlight
  * Editor link colors
  */
 export const editorActiveLinkForeground = registerColor('editorLink.activeForeground', { dark: '#4E94CE', light: Color.black, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links.'));
-export const editorLinkForeground = registerColor('editorLink.foreground', { dark: null, light: null, hc: null }, nls.localize('linkForeground', 'Color of links.'));
 
 /**
  * Find widget
