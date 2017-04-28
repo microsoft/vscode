@@ -161,9 +161,9 @@ export const buttonBackground = registerColor('buttonBackground', { dark: '#0E63
 export const buttonHoverBackground = registerColor('buttonHoverBackground', { dark: '#006BB3', light: '#006BB3', hc: null }, nls.localize('buttonHoverBackground', "Button background color when hovering."));
 
 export const scrollbarShadow = registerColor('scrollbarShadow', { dark: '#000000', light: '#DDDDDD', hc: null }, nls.localize('scrollbarShadow', "Scrollbar shadow to indicate that the view is scrolled."));
-export const scrollbarSliderBackground = registerColor('scrollbarSliderBackground', { dark: Color.fromHex('#797979').transparent(0.4), light: Color.fromHex('#646464').transparent(0.4), hc: Color.fromHex('#6FC3DF').transparent(0.6) }, nls.localize('scrollbarSliderBackground', "Slider background color."));
-export const scrollbarSliderHoverBackground = registerColor('scrollbarSliderHoverBackground', { dark: Color.fromHex('#646464').transparent(0.7), light: Color.fromHex('#646464').transparent(0.7), hc: Color.fromHex('#6FC3DF').transparent(0.8) }, nls.localize('scrollbarSliderHoverBackground', "Slider background color when hovering."));
-export const scrollbarSliderActiveBackground = registerColor('scrollbarSliderActiveBackground', { dark: Color.fromHex('#BFBFBF').transparent(0.4), light: Color.fromHex('#000000').transparent(0.6), hc: Color.fromHex('#6FC3DF') }, nls.localize('scrollbarSliderActiveBackground', "Slider background color when active."));
+export const scrollbarSliderBackground = registerColor('scrollbarSliderBackground', { dark: Color.fromHex('#797979').transparent(0.4), light: Color.fromHex('#646464').transparent(0.4), hc: Color.fromHex(contrastBorder).transparent(0.6) }, nls.localize('scrollbarSliderBackground', "Slider background color."));
+export const scrollbarSliderHoverBackground = registerColor('scrollbarSliderHoverBackground', { dark: Color.fromHex('#646464').transparent(0.7), light: Color.fromHex('#646464').transparent(0.7), hc: Color.fromHex(contrastBorder).transparent(0.8) }, nls.localize('scrollbarSliderHoverBackground', "Slider background color when hovering."));
+export const scrollbarSliderActiveBackground = registerColor('scrollbarSliderActiveBackground', { dark: Color.fromHex('#BFBFBF').transparent(0.4), light: Color.fromHex('#000000').transparent(0.6), hc: Color.fromHex(contrastBorder) }, nls.localize('scrollbarSliderActiveBackground', "Slider background color when active."));
 
 /**
  * Editor background color.
