@@ -6,6 +6,8 @@
 'use strict';
 
 import { IStandaloneThemeData } from 'vs/editor/common/services/standaloneThemeService';
+import { editorBackground, editorForeground, editorSelectionHighlight, editorInactiveSelection } from "vs/platform/theme/common/colorRegistry";
+import { editorIndentGuides } from "vs/editor/common/view/editorColorRegistry";
 
 /* -------------------------------- Begin vs theme -------------------------------- */
 export const vs: IStandaloneThemeData = {
@@ -68,11 +70,11 @@ export const vs: IStandaloneThemeData = {
 		{ token: 'predefined.sql', foreground: 'FF00FF' },
 	],
 	colors: {
-		editorBackground: '#FFFFFE',
-		editorForeground: '#000000',
-		editorInactiveSelection: '#E5EBF1',
-		editorIndentGuides: '#D3D3D3',
-		editorSelectionHighlight: '#ADD6FF4D'
+		[editorBackground]: '#FFFFFE',
+		[editorForeground]: '#000000',
+		[editorInactiveSelection]: '#E5EBF1',
+		[editorIndentGuides]: '#D3D3D3',
+		[editorSelectionHighlight]: '#ADD6FF4D'
 	}
 };
 /* -------------------------------- End vs theme -------------------------------- */
@@ -138,11 +140,11 @@ export const vs_dark: IStandaloneThemeData = {
 		{ token: 'predefined.sql', foreground: 'FF00FF' },
 	],
 	colors: {
-		editorBackground: '#1E1E1E',
-		editorForeground: '#D4D4D4',
-		editorInactiveSelection: '#3A3D41',
-		editorIndentGuides: '#404040',
-		editorSelectionHighlight: '#ADD6FF26'
+		[editorBackground]: '#1E1E1E',
+		[editorForeground]: '#D4D4D4',
+		[editorInactiveSelection]: '#3A3D41',
+		[editorIndentGuides]: '#404040',
+		[editorSelectionHighlight]: '#ADD6FF26'
 	}
 };
 /* -------------------------------- End vs-dark theme -------------------------------- */
@@ -200,9 +202,9 @@ export const hc_black: IStandaloneThemeData = {
 		{ token: 'predefined.sql', foreground: 'FF00FF' },
 	],
 	colors: {
-		editorBackground: '#000000',
-		editorForeground: '#FFFFFF',
-		editorIndentGuides: '#FFFFFF',
+		[editorBackground]: '#000000',
+		[editorForeground]: '#FFFFFF',
+		[editorIndentGuides]: '#FFFFFF',
 	}
 };
 /* -------------------------------- End hc-black theme -------------------------------- */
