@@ -121,8 +121,8 @@ export const PANEL_INACTIVE_TITLE_COLOR = registerColor('panelInactiveTitleForeg
 }, nls.localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelActiveTitleBorder', {
-	dark: '#404047',
-	light: '#CCCEDA',
+	dark: PANEL_BORDER_COLOR,
+	light: PANEL_BORDER_COLOR,
 	hc: contrastBorder
 }, nls.localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
@@ -189,9 +189,9 @@ export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBarForeground', {
 }, nls.localize('activityBarForeground', "Activity bar foreground color (e.g. used for the icons). The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBarDragAndDropBackground', {
-	dark: '#403F3F',
-	light: '#403F3F',
-	hc: '#403F3F'
+	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
+	light: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
+	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
 }, nls.localize('activityBarDragAndDropBackground', "Drag and drop feedback color for the activity bar items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadgeBackground', {

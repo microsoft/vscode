@@ -404,7 +404,7 @@
 
 		// Workbench: Activity Bar
 		"activityBarBackground": "#003847",
-		"activityBarDragAndDropBackground": "#00212B",
+		// "activityBarDragAndDropBackground": "#00212B",
 		"activityBarBadgeBackground": "#047aa6",
 
 		// Workbench: Panel

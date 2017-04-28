@@ -369,7 +369,7 @@
 		// "activityBarForeground": "",
 		"activityBarBadgeBackground": "#0063a5",
 		// "activityBarBadgeForeground": "",
-		"activityBarDragAndDropBackground": "#25375daa",
+		// "activityBarDragAndDropBackground": "#25375daa",
 
 		// Workbench: Panel
 		// "panelBackground": "",
