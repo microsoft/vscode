@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { registerColor, editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -37,13 +37,13 @@ export const TAB_BORDER = registerColor('tab.border', {
 
 export const TAB_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
 	dark: Color.white,
-	light: Color.fromRGBA(new RGBA(51, 51, 51)),
+	light: '#333333',
 	hc: Color.white
 }, nls.localize('tabActiveEditorGroupActiveForeground', "Active tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_INACTIVE_FOREGROUND = registerColor('tab.inactiveForeground', {
-	dark: Color.white.transparent(0.5),
-	light: Color.fromRGBA(new RGBA(51, 51, 51)).transparent(0.5),
+	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
+	light: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
 	hc: Color.white
 }, nls.localize('tabInactiveEditorGroupActiveForeground', "Inactive tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
@@ -97,8 +97,8 @@ export const PANEL_ACTIVE_TITLE_COLOR = registerColor('panelTitle.activeForegrou
 }, nls.localize('panelActiveTitleForeground', "Title color for the active panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_INACTIVE_TITLE_COLOR = registerColor('panelTitle.inactiveForeground', {
-	dark: Color.fromRGBA(new RGBA(231, 231, 231)).transparent(0.5),
-	light: Color.fromRGBA(new RGBA(66, 66, 66)).transparent(0.75),
+	dark: transparent(PANEL_ACTIVE_TITLE_COLOR, 0.5),
+	light: transparent(PANEL_ACTIVE_TITLE_COLOR, 0.75),
 	hc: Color.white
 }, nls.localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
@@ -131,15 +131,15 @@ export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolder
 }, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('statusBarItem.activeBackground', {
-	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18),
-	light: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18),
-	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18)
+	dark: Color.white.transparent(0.18),
+	light: Color.white.transparent(0.18),
+	hc: Color.white.transparent(0.18)
 }, nls.localize('statusBarItemActiveBackground', "Status bar item background color when clicking. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hoverBackground', {
-	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
-	light: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
-	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12)
+	dark: Color.white.transparent(0.12),
+	light: Color.white.transparent(0.12),
+	hc: Color.white.transparent(0.12)
 }, nls.localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_PROMINENT_ITEM_BACKGROUND = registerColor('statusBarItem.prominentBackground', {
@@ -171,9 +171,9 @@ export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBar.foreground', {
 }, nls.localize('activityBarForeground', "Activity bar foreground color (e.g. used for the icons). The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', {
-	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
-	light: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
-	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
+	dark: Color.white.transparent(0.12),
+	light: Color.white.transparent(0.12),
+	hc: Color.white.transparent(0.12),
 }, nls.localize('activityBarDragAndDropBackground', "Drag and drop feedback color for the activity bar items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', {
@@ -221,8 +221,8 @@ export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBar.activeForegro
 }, nls.localize('titleBarActiveForeground', "Title bar foreground when the window is active. Note that this color is currently only supported on macOS."));
 
 export const TITLE_BAR_INACTIVE_FOREGROUND = registerColor('titleBar.inactiveForeground', {
-	dark: Color.fromRGBA(new RGBA(204, 204, 204)).transparent(0.6),
-	light: Color.fromRGBA(new RGBA(51, 51, 51)).transparent(0.6),
+	dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, 0.6),
+	light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, 0.6),
 	hc: null
 }, nls.localize('titleBarInactiveForeground', "Title bar foreground when the window is inactive. Note that this color is currently only supported on macOS."));
 
@@ -233,8 +233,8 @@ export const TITLE_BAR_ACTIVE_BACKGROUND = registerColor('titleBar.activeBackgro
 }, nls.localize('titleBarActiveBackground', "Title bar background when the window is active. Note that this color is currently only supported on macOS."));
 
 export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBar.inactiveBackground', {
-	dark: Color.fromRGBA(new RGBA(60, 60, 60)).transparent(0.6),
-	light: Color.fromRGBA(new RGBA(221, 221, 221)).transparent(0.6),
+	dark: transparent(TITLE_BAR_ACTIVE_BACKGROUND, 0.6),
+	light: transparent(TITLE_BAR_ACTIVE_BACKGROUND, 0.6),
 	hc: null
 }, nls.localize('titleBarInactiveBackground', "Title bar background when the window is inactive. Note that this color is currently only supported on macOS."));
 
