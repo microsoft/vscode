@@ -66,13 +66,13 @@ function createCoverageReport(opts) {
 				return str.charAt(0).toUpperCase() + str.substr(1);
 			}
 			return str;
-		};
+		}
 		function toLowerDriveLetter(str) {
 			if (/^[A-Z]:/.test(str)) {
 				return str.charAt(0).toLowerCase() + str.substr(1);
 			}
 			return str;
-		};
+		}
 
 		const REPO_PATH = toUpperDriveLetter(path.join(__dirname, '../..'));
 		const fixPath = function (brokenPath) {
