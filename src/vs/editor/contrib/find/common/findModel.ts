@@ -33,6 +33,9 @@ export const ToggleRegexKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_R,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
 };
+export const ToggleSearchScopeKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.KEY_S
+};
 export const ShowPreviousFindTermKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.UpArrow
 };
@@ -55,6 +58,7 @@ export const FIND_IDS = {
 	ToggleCaseSensitiveCommand: 'toggleFindCaseSensitive',
 	ToggleWholeWordCommand: 'toggleFindWholeWord',
 	ToggleRegexCommand: 'toggleFindRegex',
+	ToggleSearchScopeCommand: 'toggleSearchScope',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
 	SelectAllMatchesAction: 'editor.action.selectAllMatches',
