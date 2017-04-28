@@ -260,8 +260,8 @@ export default class PHPValidationProvider {
 				args.push(linuxPath);
 
 				// Correct the args for bash.exe
-				//args = ['/c', 'bash.exe -c "php ' + args.join(' ') + '"'];
-				args = ['-c "php ' + args.join(' ') + '"'];
+				args = ['-c "php ' + args.join(' ') + '"']; // <-- Why is my path Linux being auto converted to C:\\ style?
+				//args = ['-c "php --version"']; // <-- This works
 				options['shell'] = true;
 				// END TESTING
 
@@ -286,9 +286,11 @@ export default class PHPValidationProvider {
 						childProcess.stdin.write(textDocument.getText());
 						childProcess.stdin.end();
 					}
-					childProcess.stdout.on('data', (data: Buffer) => {
-						console.log('Data returned from buffer');
-						decoder.write(data).forEach(processLine);
+					childProcess.stdout.setEncoding('utf8');
+					//childProcess.stdout.on('data', (data: Buffer) => {
+					childProcess.stdout.on('data', (data) => {
+						console.log('Data returned from buffer', data);
+						//decoder.write(data).forEach(processLine);
 					});
 					childProcess.stderr.setEncoding('utf8');
 					childProcess.stderr.on('data', (data) => {
