@@ -174,9 +174,9 @@ class ShowHoverAction extends EditorAction {
 
 // theming
 
-export const editorHoverHighlight = registerColor('editorHoverHighlight', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown.'));
-export const editorHoverBackground = registerColor('editorHoverBackground', { light: '#F3F3F3', dark: '#2D2D30', hc: '#0C141F' }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
-export const editorHoverBorder = registerColor('editorHoverBorder', { light: '#CCCCCC', dark: '#555555', hc: '#CCCCCC' }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
+export const editorHoverHighlight = registerColor('editor.hoverHighlightBackground', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown.'));
+export const editorHoverBackground = registerColor('editorHoverWidget.background', { light: '#F3F3F3', dark: '#2D2D30', hc: '#0C141F' }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
+export const editorHoverBorder = registerColor('editorHoverWidget.border', { light: '#CCCCCC', dark: '#555555', hc: '#CCCCCC' }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
 
 registerThemingParticipant((theme, collector) => {
 	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);

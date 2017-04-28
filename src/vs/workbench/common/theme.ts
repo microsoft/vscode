@@ -11,49 +11,49 @@ import { Color, RGBA } from 'vs/base/common/color';
 
 // < --- Tabs --- >
 
-export const TABS_CONTAINER_BACKGROUND = registerColor('tabsContainerBackground', {
+export const TABS_CONTAINER_BACKGROUND = registerColor('editorGroupHeader.tabsBackground', {
 	dark: '#252526',
 	light: '#F3F3F3',
 	hc: null
 }, nls.localize('tabsContainerBackground', "Background color of the tabs container. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_ACTIVE_BACKGROUND = registerColor('tabActiveBackground', {
+export const TAB_ACTIVE_BACKGROUND = registerColor('tab.activeBackground', {
 	dark: editorBackground,
 	light: editorBackground,
 	hc: editorBackground
 }, nls.localize('tabActiveBackground', "Active tab background color. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_INACTIVE_BACKGROUND = registerColor('tabInactiveBackground', {
+export const TAB_INACTIVE_BACKGROUND = registerColor('tab.inactiveBackground', {
 	dark: '#2D2D2D',
 	light: '#ECECEC',
 	hc: null
 }, nls.localize('tabInactiveBackground', "Inactive tab background color. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_BORDER = registerColor('tabBorder', {
+export const TAB_BORDER = registerColor('tab.border', {
 	dark: '#252526',
 	light: '#F3F3F3',
 	hc: contrastBorder
 }, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_ACTIVE_GROUP_ACTIVE_FOREGROUND = registerColor('tabActiveEditorGroupActiveForeground', {
+export const TAB_ACTIVE_GROUP_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
 	dark: Color.white,
 	light: Color.fromRGBA(new RGBA(51, 51, 51)),
 	hc: Color.white
 }, nls.localize('tabActiveEditorGroupActiveForeground', "Active tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_ACTIVE_GROUP_INACTIVE_FOREGROUND = registerColor('tabActiveEditorGroupInactiveForeground', {
+export const TAB_ACTIVE_GROUP_INACTIVE_FOREGROUND = registerColor('tab.activeWithInactiveEditorGroupForeground', {
 	dark: Color.white.transparent(0.5),
 	light: Color.fromRGBA(new RGBA(51, 51, 51)).transparent(0.7),
 	hc: Color.white
 }, nls.localize('tabActiveEditorGroupInactiveForeground', "Active tab foreground color in an inactive group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_INACTIVE_GROUP_ACTIVE_FOREGROUND = registerColor('tabInactiveEditorGroupActiveForeground', {
+export const TAB_INACTIVE_GROUP_ACTIVE_FOREGROUND = registerColor('tab.inactiveForeground', {
 	dark: Color.white.transparent(0.5),
 	light: Color.fromRGBA(new RGBA(51, 51, 51)).transparent(0.5),
 	hc: Color.white
 }, nls.localize('tabInactiveEditorGroupActiveForeground', "Inactive tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_INACTIVE_GROUP_INACTIVE_FOREGROUND = registerColor('tabInactiveEditorGroupInactiveForeground', {
+export const TAB_INACTIVE_GROUP_INACTIVE_FOREGROUND = registerColor('tab.inactiveWithInactiveEditorGroupForeground', {
 	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.5).transparent(0.5),
 	light: Color.fromRGBA(new RGBA(51, 51, 51)).transparent(0.5).transparent(0.7),
 	hc: Color.white
@@ -63,31 +63,31 @@ export const TAB_INACTIVE_GROUP_INACTIVE_FOREGROUND = registerColor('tabInactive
 
 // < --- Editors --- >
 
-export const EDITOR_GROUP_BACKGROUND = registerColor('editorGroupBackground', {
+export const EDITOR_GROUP_BACKGROUND = registerColor('editorGroup.background', {
 	dark: '#2D2D2D',
 	light: '#ECECEC',
 	hc: null
 }, nls.localize('editorGroupBackground', "Background color of an editor group. Editor groups are the containers of editors. The background color shows up when dragging editor groups around."));
 
-export const EDITOR_GROUP_HEADER_BACKGROUND = registerColor('editorGroupHeaderBackground', {
+export const EDITOR_GROUP_HEADER_BACKGROUND = registerColor('editorGroupHeader.noTabsBackground', {
 	dark: editorBackground,
 	light: editorBackground,
 	hc: editorBackground
 }, nls.localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled. Editor groups are the containers of editors."));
 
-export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroupBorder', {
+export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroup.border', {
 	dark: '#444444',
 	light: '#E7E7E7',
 	hc: contrastBorder
 }, nls.localize('editorGroupBorder', "Color to separate multiple editor groups from each other. Editor groups are the containers of editors."));
 
-export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorDragAndDropBackground', {
+export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBackground', {
 	dark: Color.fromRGBA(new RGBA(83, 89, 93)).transparent(0.5),
 	light: Color.fromRGBA(new RGBA(51, 153, 255)).transparent(0.18),
 	hc: null
 }, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around."));
 
-export const EDITOR_MASTER_DETAILS_BORDER = registerColor('editorMasterDetailsBorder', {
+export const EDITOR_MASTER_DETAILS_BORDER = registerColor('masterDetailsEditor.border', {
 	dark: '#000000',
 	light: '#DDDDDD',
 	hc: null
@@ -96,31 +96,31 @@ export const EDITOR_MASTER_DETAILS_BORDER = registerColor('editorMasterDetailsBo
 
 // < --- Panels --- >
 
-export const PANEL_BACKGROUND = registerColor('panelBackground', {
+export const PANEL_BACKGROUND = registerColor('panel.background', {
 	dark: editorBackground,
 	light: editorBackground,
 	hc: editorBackground
 }, nls.localize('panelBackground', "Panel background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
-export const PANEL_BORDER_COLOR = registerColor('panelBorder', {
+export const PANEL_BORDER_COLOR = registerColor('panel.border', {
 	dark: Color.fromRGBA(new RGBA(128, 128, 128)).transparent(0.35),
 	light: Color.fromRGBA(new RGBA(128, 128, 128)).transparent(0.35),
 	hc: contrastBorder
 }, nls.localize('panelBorder', "Panel border color on the top separating to the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
-export const PANEL_ACTIVE_TITLE_COLOR = registerColor('panelActiveTitleForeground', {
+export const PANEL_ACTIVE_TITLE_COLOR = registerColor('panelTitle.activeForeground', {
 	dark: '#E7E7E7',
 	light: '#424242',
 	hc: Color.white
 }, nls.localize('panelActiveTitleForeground', "Title color for the active panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
-export const PANEL_INACTIVE_TITLE_COLOR = registerColor('panelInactiveTitleForeground', {
+export const PANEL_INACTIVE_TITLE_COLOR = registerColor('panelTitle.inactiveForeground', {
 	dark: Color.fromRGBA(new RGBA(231, 231, 231)).transparent(0.5),
 	light: Color.fromRGBA(new RGBA(66, 66, 66)).transparent(0.75),
 	hc: Color.white
 }, nls.localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
-export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelActiveTitleBorder', {
+export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder', {
 	dark: PANEL_BORDER_COLOR,
 	light: PANEL_BORDER_COLOR,
 	hc: contrastBorder
@@ -130,43 +130,43 @@ export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelActiveTitleBorder',
 
 // < --- Status --- >
 
-export const STATUS_BAR_FOREGROUND = registerColor('statusBarForeground', {
+export const STATUS_BAR_FOREGROUND = registerColor('statusBar.foreground', {
 	dark: '#FFFFFF',
 	light: '#FFFFFF',
 	hc: '#FFFFFF'
 }, nls.localize('statusBarForeground', "Status bar foreground color. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_BACKGROUND = registerColor('statusBarBackground', {
+export const STATUS_BAR_BACKGROUND = registerColor('statusBar.background', {
 	dark: '#007ACC',
 	light: '#007ACC',
 	hc: null
 }, nls.localize('statusBarBackground', "Standard status bar background color. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBarNoFolderBackground', {
+export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolderBackground', {
 	dark: '#68217A',
 	light: '#68217A',
 	hc: null
 }, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('statusBarItemActiveBackground', {
+export const STATUS_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('statusBarItem.activeBackground', {
 	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18),
 	light: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18),
 	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.18)
 }, nls.localize('statusBarItemActiveBackground', "Status bar item background color when clicking. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItemHoverBackground', {
+export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hoverBackground', {
 	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
 	light: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
 	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12)
 }, nls.localize('statusBarItemHoverBackground', "Status bar item background color when hovering. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_PROMINENT_ITEM_BACKGROUND = registerColor('statusBarProminentItemBackground', {
+export const STATUS_BAR_PROMINENT_ITEM_BACKGROUND = registerColor('statusBarItem.prominentBackground', {
 	dark: '#388A34',
 	light: '#388A34',
 	hc: '#3883A4'
 }, nls.localize('statusBarProminentItemBackground', "Status bar prominent items background color. Prominent items stand out from other status bar entries to indicate importance. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusBarProminentItemHoverBackground', {
+export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.prominentHoverBackground', {
 	dark: '#369432',
 	light: '#369432',
 	hc: '#369432'
@@ -176,31 +176,31 @@ export const STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND = registerColor('statusB
 
 // < --- Activity Bar --- >
 
-export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBarBackground', {
+export const ACTIVITY_BAR_BACKGROUND = registerColor('activityBar.background', {
 	dark: '#333333',
 	light: '#2C2C2C',
 	hc: '#000000'
 }, nls.localize('activityBarBackground', "Activity bar background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBarForeground', {
+export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBar.foreground', {
 	dark: Color.white,
 	light: Color.white,
 	hc: Color.white
 }, nls.localize('activityBarForeground', "Activity bar foreground color (e.g. used for the icons). The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBarDragAndDropBackground', {
+export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', {
 	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
 	light: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
 	hc: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.12),
 }, nls.localize('activityBarDragAndDropBackground', "Drag and drop feedback color for the activity bar items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadgeBackground', {
+export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', {
 	dark: '#007ACC',
 	light: '#007ACC',
 	hc: '#000000'
 }, nls.localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadgeForeground', {
+export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', {
 	dark: Color.white,
 	light: Color.white,
 	hc: Color.white
@@ -210,19 +210,19 @@ export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadgeFore
 
 // < --- Side Bar --- >
 
-export const SIDE_BAR_BACKGROUND = registerColor('sideBarBackground', {
+export const SIDE_BAR_BACKGROUND = registerColor('sideBar.background', {
 	dark: '#252526',
 	light: '#F3F3F3',
 	hc: '#000000'
 }, nls.localize('sideBarBackground', "Side bar background color. The side bar is the container for views like explorer and search."));
 
-export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitleForeground', {
+export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground', {
 	dark: '#BBBBBB',
 	light: '#6f6f6f',
 	hc: '#FFFFFF'
 }, nls.localize('sideBarTitleForeground', "Side bar title foreground color. The side bar is the container for views like explorer and search."));
 
-export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionHeaderBackground', {
+export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionHeader.background', {
 	dark: Color.fromHex('#808080').transparent(0.2),
 	light: Color.fromHex('#808080').transparent(0.2),
 	hc: null
@@ -232,25 +232,25 @@ export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionH
 
 // < --- Title Bar --- >
 
-export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBarActiveForeground', {
+export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBar.activeForeground', {
 	dark: '#CCCCCC',
 	light: '#333333',
 	hc: '#FFFFFF'
 }, nls.localize('titleBarActiveForeground', "Title bar foreground when the window is active. Note that this color is currently only supported on macOS."));
 
-export const TITLE_BAR_INACTIVE_FOREGROUND = registerColor('titleBarInactiveForeground', {
+export const TITLE_BAR_INACTIVE_FOREGROUND = registerColor('titleBar.inactiveForeground', {
 	dark: Color.fromRGBA(new RGBA(204, 204, 204)).transparent(0.6),
 	light: Color.fromRGBA(new RGBA(51, 51, 51)).transparent(0.6),
 	hc: null
 }, nls.localize('titleBarInactiveForeground', "Title bar foreground when the window is inactive. Note that this color is currently only supported on macOS."));
 
-export const TITLE_BAR_ACTIVE_BACKGROUND = registerColor('titleBarActiveBackground', {
+export const TITLE_BAR_ACTIVE_BACKGROUND = registerColor('titleBar.activeBackground', {
 	dark: '#3C3C3C',
 	light: '#DDDDDD',
 	hc: '#000000'
 }, nls.localize('titleBarActiveBackground', "Title bar background when the window is active. Note that this color is currently only supported on macOS."));
 
-export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBarInactiveBackground', {
+export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBar.inactiveBackground', {
 	dark: Color.fromRGBA(new RGBA(60, 60, 60)).transparent(0.6),
 	light: Color.fromRGBA(new RGBA(221, 221, 221)).transparent(0.6),
 	hc: null
@@ -258,13 +258,13 @@ export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBarInactiveBack
 
 // < --- Notifications --- >
 
-export const NOTIFICATIONS_FOREGROUND = registerColor('notificationsForeground', {
+export const NOTIFICATIONS_FOREGROUND = registerColor('notification.foreground', {
 	dark: '#EEEEEE',
 	light: '#EEEEEE',
 	hc: '#FFFFFF'
 }, nls.localize('notificationsForeground', "Notifications foreground color. Notifications slide in from the top of the window."));
 
-export const NOTIFICATIONS_BACKGROUND = registerColor('notificationsBackground', {
+export const NOTIFICATIONS_BACKGROUND = registerColor('notification.background', {
 	dark: '#333333',
 	light: '#2C2C2C',
 	hc: '#000000'
