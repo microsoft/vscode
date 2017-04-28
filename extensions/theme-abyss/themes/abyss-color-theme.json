@@ -359,9 +359,7 @@
 		// "tab.activeBackground": "",
 		"tab.inactiveBackground": "#10192c",
 		// "tab.activeForeground": "",
-		// "tab.activeWithInactiveEditorGroupForeground": "",
 		// "tab.inactiveForeground": "",
-		// "tab.inactiveWithInactiveEditorGroupForeground": "",
 
 		// Workbench: Activity Bar
 		"activityBar.background": "#051336",

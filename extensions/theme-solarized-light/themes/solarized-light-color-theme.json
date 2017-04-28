@@ -321,8 +321,6 @@
 		"tab.inactiveBackground": "#CCC4B0",
 		"editorGroupHeader.tabsBackground": "#CCC4B0",
 		"tab.border": "#DDD6C1",
-		// "tab.activeWithInactiveEditorGroupForeground": "#586E75",
-		// "tab.inactiveWithInactiveEditorGroupForeground": "#586E75",
 		"debugToolBar.background": "#EEE8D5",
 		"dropdown.background": "#EEE8D5",
 		"dropdown.border": "#2AA19899",

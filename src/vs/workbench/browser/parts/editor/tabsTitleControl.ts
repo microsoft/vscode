@@ -40,7 +40,7 @@ import { LinkedMap } from 'vs/base/common/map';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_GROUP_ACTIVE_FOREGROUND, TAB_ACTIVE_GROUP_INACTIVE_FOREGROUND, TAB_INACTIVE_GROUP_ACTIVE_FOREGROUND, TAB_INACTIVE_GROUP_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 interface IEditorInputLabel {
@@ -291,14 +291,38 @@ export class TabsTitleControl extends TitleControl {
 					DOM.addClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'true');
 					tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
-					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_GROUP_ACTIVE_FOREGROUND : TAB_ACTIVE_GROUP_INACTIVE_FOREGROUND);
+					tabLabel.element.style.color = this.getColor(TAB_ACTIVE_FOREGROUND, (color, theme) => {
+						if (!isGroupActive) {
+							if (theme.type === 'dark') {
+								return color.transparent(0.5);
+							}
+
+							if (theme.type === 'light') {
+								return color.transparent(0.7);
+							}
+						}
+
+						return color;
+					});
 
 					this.activeTab = tabContainer;
 				} else {
 					DOM.removeClass(tabContainer, 'active');
 					tabContainer.setAttribute('aria-selected', 'false');
 					tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
-					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_GROUP_ACTIVE_FOREGROUND : TAB_INACTIVE_GROUP_INACTIVE_FOREGROUND);
+					tabLabel.element.style.color = this.getColor(TAB_INACTIVE_FOREGROUND, (color, theme) => {
+						if (!isGroupActive) {
+							if (theme.type === 'dark') {
+								return color.transparent(0.5).transparent(0.5);
+							}
+
+							if (theme.type === 'light') {
+								return color.transparent(0.7).transparent(0.5);
+							}
+						}
+
+						return color;
+					});
 				}
 
 				// Dirty State

@@ -35,30 +35,17 @@ export const TAB_BORDER = registerColor('tab.border', {
 	hc: contrastBorder
 }, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_ACTIVE_GROUP_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
+export const TAB_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
 	dark: Color.white,
 	light: Color.fromRGBA(new RGBA(51, 51, 51)),
 	hc: Color.white
 }, nls.localize('tabActiveEditorGroupActiveForeground', "Active tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_ACTIVE_GROUP_INACTIVE_FOREGROUND = registerColor('tab.activeWithInactiveEditorGroupForeground', {
-	dark: Color.white.transparent(0.5),
-	light: Color.fromRGBA(new RGBA(51, 51, 51)).transparent(0.7),
-	hc: Color.white
-}, nls.localize('tabActiveEditorGroupInactiveForeground', "Active tab foreground color in an inactive group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
-
-export const TAB_INACTIVE_GROUP_ACTIVE_FOREGROUND = registerColor('tab.inactiveForeground', {
+export const TAB_INACTIVE_FOREGROUND = registerColor('tab.inactiveForeground', {
 	dark: Color.white.transparent(0.5),
 	light: Color.fromRGBA(new RGBA(51, 51, 51)).transparent(0.5),
 	hc: Color.white
 }, nls.localize('tabInactiveEditorGroupActiveForeground', "Inactive tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
-
-export const TAB_INACTIVE_GROUP_INACTIVE_FOREGROUND = registerColor('tab.inactiveWithInactiveEditorGroupForeground', {
-	dark: Color.fromRGBA(new RGBA(255, 255, 255)).transparent(0.5).transparent(0.5),
-	light: Color.fromRGBA(new RGBA(51, 51, 51)).transparent(0.5).transparent(0.7),
-	hc: Color.white
-}, nls.localize('tabInactiveEditorGroupInactiveForeground', "Inactive tab foreground color in an inactive group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
-
 
 
 // < --- Editors --- >
@@ -298,8 +285,12 @@ export class Themable extends Disposable {
 		// Subclasses to override
 	}
 
-	protected getColor(id: string): string {
-		const color = this.theme.getColor(id);
+	protected getColor(id: string, modify?: (color: Color, theme: ITheme) => Color): string {
+		let color = this.theme.getColor(id);
+
+		if (color && modify) {
+			color = modify(color, this.theme);
+		}
 
 		return color ? color.toString() : null;
 	}

@@ -398,8 +398,6 @@
 		"tab.inactiveBackground": "#004052",
 		"editorGroupHeader.tabsBackground": "#004052",
 		"tab.border": "#003847",
-		"tab.activeWithInactiveEditorGroupForeground": "#93A1A1",
-		"tab.inactiveWithInactiveEditorGroupForeground": "#93A1A1",
 
 		// Workbench: Activity Bar
 		"activityBar.background": "#003847",
