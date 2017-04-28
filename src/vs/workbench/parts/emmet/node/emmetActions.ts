@@ -23,7 +23,7 @@ import * as pfs from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 interface IEmmetConfiguration {
 	emmet: {
@@ -280,9 +280,9 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const telemetryService = accessor.get(ITelemetryService);
 		const commandService = accessor.get(ICommandService);
 
-		let overrideByExtension = configurationService.getConfiguration()['emmet']['overrideBuiltinActions'];
-		if (overrideByExtension && this.actionMap[this.id]) {
-			return commandService.executeCommand(this.actionMap[this.id]).then(() => { });
+		let mappedCommand = this.actionMap[this.id];
+		if (mappedCommand && CommandsRegistry.getCommand(mappedCommand)) {
+			return commandService.executeCommand<void>(mappedCommand);
 		}
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
