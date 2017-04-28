@@ -167,7 +167,16 @@ export class WorkspaceConfigurationService extends Disposable implements IWorksp
 
 		// Load configuration
 		return this.baseConfigurationService.reloadConfiguration().then(() => {
+			const current = this.cachedConfig;
 			return this.doLoadConfiguration().then(configuration => {
+				// emit this as update to listeners if changed
+				if (!objects.equals(current, this.cachedConfig)) {
+					this._onDidUpdateConfiguration.fire({
+						config: configuration.consolidated,
+						source: ConfigurationSource.Workspace,
+						sourceConfig: configuration.workspace
+					});
+				}
 				return section ? configuration.consolidated[section] : configuration.consolidated;
 			});
 		});
