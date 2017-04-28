@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { first, always } from 'vs/base/common/async';
+import { first } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IDisposable, toDisposable, IReference, ReferenceCollection, ImmortalReference } from 'vs/base/common/lifecycle';
@@ -97,7 +97,6 @@ export class TextModelResolverService implements ITextModelResolverService {
 
 	_serviceBrand: any;
 
-	private promiseCache: { [uri: string]: TPromise<IReference<ITextEditorModel>> } = Object.create(null);
 	private resourceModelCollection: ResourceModelCollection;
 
 	constructor(
@@ -110,16 +109,7 @@ export class TextModelResolverService implements ITextModelResolverService {
 	}
 
 	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
-		const uri = resource.toString();
-		let promise = this.promiseCache[uri];
-
-		if (promise) {
-			return promise;
-		}
-
-		promise = this.promiseCache[uri] = this._createModelReference(resource);
-
-		return always(promise, () => delete this.promiseCache[uri]);
+		return this._createModelReference(resource);
 	}
 
 	private _createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
