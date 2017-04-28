@@ -97,9 +97,9 @@ export default class PHPValidationProvider {
 	private diagnosticCollection: vscode.DiagnosticCollection;
 	private delayers: { [key: string]: ThrottledDelayer<void> };
 
-	private validationExecutableIsShell: boolean;
-	private validationExecutableArgs: string = '-c';
-	private validationShellExecutable: string = '/usr/bin/php';
+	private runInShell: boolean = false;
+	private shellExecutable: string = 'C:\\Windows\\sysnative\\bash.exe';
+	private shellArgs: string[] = ['-c'];
 
 	constructor(private workspaceStore: vscode.Memento) {
 		this.executable = null;
@@ -144,20 +144,21 @@ export default class PHPValidationProvider {
 				this.executableIsUserDefined = undefined;
 			}
 
-			this.validationExecutableIsShell = section.get<boolean>('validate.executableIsShell', false);
-			if (this.validationExecutableIsShell) {
-				let shellArgsInspect = section.inspect<string>('validate.executableArgs');
-				if (shellArgsInspect.workspaceValue) {
-					this.validationExecutableArgs = shellArgsInspect.workspaceValue;
-				} else if (shellArgsInspect.globalValue) {
-					this.validationExecutableArgs = shellArgsInspect.globalValue;
+			let shellSettings = section.get<any>('validate.runInShell');
+			if (typeof(shellSettings) === 'boolean') {
+				this.runInShell = shellSettings;
+			} else if (typeof(shellSettings) === 'object') {
+				this.runInShell = true;
+				if (shellSettings.shellExecutable && typeof(shellSettings.shellExecutable) === 'string') {
+					this.shellExecutable = shellSettings.shellExecutable;
 				}
-
-				let shellExecutableInspect = section.inspect<string>('validate.shellExecutablePath');
-				if (shellExecutableInspect.workspaceValue) {
-					this.validationShellExecutable = shellExecutableInspect.workspaceValue;
-				} else if (shellExecutableInspect.globalValue) {
-					this.validationShellExecutable = shellExecutableInspect.globalValue;
+				if (shellSettings.shellArgs) {
+					if (typeof(shellSettings.shellArgs) === 'string') {
+						this.shellArgs = [shellSettings.shellArgs];
+					}
+					if (shellSettings.shellArgs instanceof Array) {
+						this.shellArgs = shellSettings.shellArgs.splice(0);
+					}
 				}
 			}
 
@@ -246,7 +247,6 @@ export default class PHPValidationProvider {
 			let decoder = new LineDecoder();
 			let diagnostics: vscode.Diagnostic[] = [];
 			let processLine = (line: string) => {
-				console.log('Processing line',  line);
 				let matches = line.match(PHPValidationProvider.MatchExpression);
 				if (matches) {
 					let message = matches[1];
@@ -269,44 +269,34 @@ export default class PHPValidationProvider {
 			}
 
 			// Are we validating with WSL?
-			// TODO: Use config flag in this conditional
-			if (this.validationExecutableIsShell) {
+			if (this.runInShell) {
+				// Reset executable
+				let executableInShell = executable;
+				executable = this.shellExecutable;
+
 				// Shell args
-				let wslShellArgs = [this.validationExecutableArgs];
-				let wslShellPhpExecutableArgs = args.slice(0);
-				options['shell'] = true;
+				let executableArgs = args.slice(0);
 
 				// Transform Windows file path to Linux file path
-				let windowsPath = wslShellPhpExecutableArgs.pop();
+				let windowsPath = executableArgs.pop();
 				let linuxPath = windowsPath.trim().replace(/^([a-zA-Z]):\\/, '/mnt/$1/').replace(/\\/g, '/');
-				wslShellPhpExecutableArgs.push(linuxPath);
+				executableArgs.push(linuxPath);
 
 				// Finalize executable args
-				args = wslShellArgs.concat(['"', this.validationShellExecutable, wslShellPhpExecutableArgs.join(' '), '"']);
+				args = this.shellArgs.concat(['"', executableInShell, executableArgs.join(' '), '"']);
+
+				// Node spawn with shell
+				options['shell'] = true;
 			}
 
+			console.log('Validating with executable', executable);
+			console.log('Validating with shell?', this.runInShell);
+			console.log('Validating with shell executable', this.shellExecutable);
+			console.log('Validating with shell args', this.shellArgs);
+
 			try {
-				// TESTING
-
-				// Set executable to bash.exe
-				//executable = 'C:\\Windows\\sysnative\\bash';
-
-				// Translate path name to Linux format (assume using /mnt/<letter>/ mount)
-				// let winPath = args.pop();
-				// console.log('Old file path', winPath);
-				// let linuxPath = winPath.trim().replace(/^([a-zA-Z]):\\/, '/mnt/$1/').replace(/\\/g, '/');
-				// console.log('New file path', linuxPath);
-				// args.push(linuxPath);
-
-				// Correct the args for bash.exe
-				//args = ['-c', '"php ' + args.join(' ') + '"'];
-				//options['shell'] = true;
-				// END TESTING
-
-				console.log('Linting with executable', executable, args);
 				let childProcess = cp.spawn(executable, args, options);
 				childProcess.on('error', (error: Error) => {
-					console.log('Child process error', error);
 					if (this.pauseValidation) {
 						resolve();
 						return;
@@ -315,25 +305,15 @@ export default class PHPValidationProvider {
 					this.pauseValidation = true;
 					resolve();
 				});
-				childProcess.on('exit', (code: Number, signal: String) => {
-					console.log('Child exit status', code);
-					console.log('Child exit signal', signal);
-				});
 				if (childProcess.pid) {
 					if (this.trigger === RunTrigger.onType) {
 						childProcess.stdin.write(textDocument.getText());
 						childProcess.stdin.end();
 					}
 					childProcess.stdout.on('data', (data: Buffer) => {
-						console.log('Data returned from buffer', data);
 						decoder.write(data).forEach(processLine);
 					});
-					childProcess.stderr.setEncoding('utf8');
-					childProcess.stderr.on('data', (data) => {
-						console.log('Data returned from stderr', data);
-					});
 					childProcess.stdout.on('end', () => {
-						console.log('End buffer');
 						let line = decoder.end();
 						if (line) {
 							processLine(line);
@@ -342,7 +322,6 @@ export default class PHPValidationProvider {
 						resolve();
 					});
 				} else {
-					console.log('Nuthin');
 					resolve();
 				}
 			} catch (error) {
