@@ -733,6 +733,7 @@ export class WindowsManager implements IWindowsMainService {
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
 		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
+		configuration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
 
 		return configuration;
 	}
@@ -1331,10 +1332,12 @@ class KeyboardLayoutMonitor {
 
 	private _emitter: Emitter<boolean>;
 	private _registered: boolean;
+	private _isISOKeyboard: boolean;
 
 	private constructor() {
 		this._emitter = new Emitter<boolean>();
 		this._registered = false;
+		this._isISOKeyboard = this._readIsISOKeyboard();
 	}
 
 	public onDidChangeKeyboardLayout(callback: (isISOKeyboard: boolean) => void): IDisposable {
@@ -1342,7 +1345,7 @@ class KeyboardLayoutMonitor {
 			this._registered = true;
 
 			nativeKeymap.onDidChangeKeyboardLayout(() => {
-				this._emitter.fire(this._isISOKeyboard());
+				this._emitter.fire(this._isISOKeyboard);
 			});
 
 			if (platform.isMacintosh) {
@@ -1354,16 +1357,15 @@ class KeyboardLayoutMonitor {
 				// only after a NSEvent was handled.
 				//
 				// We therefore poll.
-				let prevValue: boolean = null;
 				setInterval(() => {
-					let newValue = this._isISOKeyboard();
-					if (prevValue === newValue) {
+					let newValue = this._readIsISOKeyboard();
+					if (this._isISOKeyboard === newValue) {
 						// no change
 						return;
 					}
 
-					prevValue = newValue;
-					this._emitter.fire(this._isISOKeyboard());
+					this._isISOKeyboard = newValue;
+					this._emitter.fire(this._isISOKeyboard);
 
 				}, 3000);
 			}
@@ -1371,10 +1373,14 @@ class KeyboardLayoutMonitor {
 		return this._emitter.event(callback);
 	}
 
-	private _isISOKeyboard(): boolean {
+	private _readIsISOKeyboard(): boolean {
 		if (platform.isMacintosh) {
 			return nativeKeymap.isISOKeyboard();
 		}
 		return false;
+	}
+
+	public isISOKeyboard(): boolean {
+		return this._isISOKeyboard;
 	}
 }

@@ -62,15 +62,17 @@ export class KeyboardMapperFactory {
 	}
 
 	public _onKeyboardLayoutChanged(isISOKeyboard: boolean): void {
-		this._isISOKeyboard = isISOKeyboard;
+		isISOKeyboard = !!isISOKeyboard;
 		if (this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+		} else {
+			this._isISOKeyboard = isISOKeyboard;
 		}
 	}
 
 	public getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
 		if (!this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		if (dispatchConfig === DispatchConfig.KeyCode) {
 			// Forcefully set to use keyCode
@@ -81,7 +83,7 @@ export class KeyboardMapperFactory {
 
 	public getCurrentKeyboardLayout(): nativeKeymap.IKeyboardLayoutInfo {
 		if (!this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		return this._layoutInfo;
 	}
@@ -111,21 +113,21 @@ export class KeyboardMapperFactory {
 
 	public getRawKeyboardMapping(): nativeKeymap.IKeyboardMapping {
 		if (!this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		return this._rawMapping;
 	}
 
-	private _setKeyboardData(layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): void {
+	private _setKeyboardData(isISOKeyboard: boolean, layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): void {
 		this._layoutInfo = layoutInfo;
 
-		if (this._initialized && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
+		if (this._initialized && this._isISOKeyboard === isISOKeyboard && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
 			// nothing to do...
 			return;
 		}
 
 		this._initialized = true;
-
+		this._isISOKeyboard = isISOKeyboard;
 		this._rawMapping = rawMapping;
 		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._isISOKeyboard, KeyboardMapperFactory._isUSStandard(this._layoutInfo), this._rawMapping);
 		this._onDidChangeKeyboardMapper.fire();
