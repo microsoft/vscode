@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listFocusAndSelectionForeground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusAndSelectionBackground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 
@@ -143,7 +143,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		listActiveSelectionBackground: (style && style.listActiveSelectionBackground) || listActiveSelectionBackground,
 		listActiveSelectionForeground: (style && style.listActiveSelectionForeground) || listActiveSelectionForeground,
 		listFocusAndSelectionBackground: (style && style.listFocusAndSelectionBackground) || listFocusAndSelectionBackground,
-		listFocusAndSelectionForeground: (style && style.listFocusAndSelectionForeground) || listFocusAndSelectionForeground,
+		listFocusAndSelectionForeground: (style && style.listFocusAndSelectionForeground) || listActiveSelectionForeground,
 		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
 		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
 		listDropBackground: (style && style.listDropBackground) || listDropBackground,
@@ -173,7 +173,7 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 		listActiveSelectionBackground: (style && style.listActiveSelectionBackground) || listActiveSelectionBackground,
 		listActiveSelectionForeground: (style && style.listActiveSelectionForeground) || listActiveSelectionForeground,
 		listFocusAndSelectionBackground: (style && style.listFocusAndSelectionBackground) || listFocusAndSelectionBackground,
-		listFocusAndSelectionForeground: (style && style.listFocusAndSelectionForeground) || listFocusAndSelectionForeground,
+		listFocusAndSelectionForeground: (style && style.listFocusAndSelectionForeground) || listActiveSelectionForeground,
 		listInactiveFocusBackground: (style && style.listInactiveFocusBackground),
 		listInactiveSelectionBackground: (style && style.listInactiveSelectionBackground) || listInactiveSelectionBackground,
 		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,

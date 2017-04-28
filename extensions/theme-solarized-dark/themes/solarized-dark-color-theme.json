@@ -317,7 +317,6 @@
 		// "button.foreground": "",
 
 		"list.focusAndSelectionBackground": "#005A6F",
-		// "list.focusAndSelectionForeground": "",
 		"list.activeSelectionBackground": "#004454",
 		// "list.activeSelectionForeground": "",
 		"list.focusBackground": "#005A6F",
