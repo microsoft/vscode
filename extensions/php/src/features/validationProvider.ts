@@ -250,7 +250,7 @@ export default class PHPValidationProvider {
 				// TESTING
 
 				// Set executable to bash.exe
-				executable = 'bash';
+				executable = 'cmd';
 
 				// Translate path name to Linux format (assume using /mnt/<letter>/ mount)
 				let winPath = args.pop();
@@ -260,8 +260,7 @@ export default class PHPValidationProvider {
 				args.push(linuxPath);
 
 				// Correct the args for bash.exe
-				args = ['-c "php ' + args.join(' ') + '"']; // <-- Why is my path Linux being auto converted to C:\\ style?
-				//args = ['-c "php --version"']; // <-- This works
+				args = ['/c', 'C:\\Windows\\sysnative\\bash -c "php ' + args.join(' ') + '"'];
 				options['shell'] = true;
 				// END TESTING
 
@@ -283,14 +282,12 @@ export default class PHPValidationProvider {
 				});
 				if (childProcess.pid) {
 					if (this.trigger === RunTrigger.onType) {
-						childProcess.stdin.write(textDocument.getText());
-						childProcess.stdin.end();
+						//childProcess.stdin.write(textDocument.getText());
+						//childProcess.stdin.end();
 					}
-					childProcess.stdout.setEncoding('utf8');
-					//childProcess.stdout.on('data', (data: Buffer) => {
-					childProcess.stdout.on('data', (data) => {
+					childProcess.stdout.on('data', (data: Buffer) => {
 						console.log('Data returned from buffer', data);
-						//decoder.write(data).forEach(processLine);
+						decoder.write(data).forEach(processLine);
 					});
 					childProcess.stderr.setEncoding('utf8');
 					childProcess.stderr.on('data', (data) => {
