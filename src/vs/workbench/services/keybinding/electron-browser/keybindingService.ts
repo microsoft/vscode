@@ -34,10 +34,6 @@ import { WindowsKeyboardMapper, IWindowsKeyboardMapping, windowsKeyboardMappingE
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
-import Severity from 'vs/base/common/severity';
 import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -86,10 +82,6 @@ export class KeyboardMapperFactory {
 			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		return this._layoutInfo;
-	}
-
-	public isUSStandard(): boolean {
-		return KeyboardMapperFactory._isUSStandard(this.getCurrentKeyboardLayout());
 	}
 
 	private static _isUSStandard(_kbInfo: nativeKeymap.IKeyboardLayoutInfo): boolean {
@@ -251,43 +243,6 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 	]
 });
 
-interface IStorageData {
-	dontShowPrompt: boolean;
-}
-
-class KeybindingsMigrationsStorage {
-	private static KEY = 'keybindingsMigration';
-
-	private _storageService: IStorageService;
-	private _value: IStorageData;
-
-	constructor(storageService: IStorageService) {
-		this._storageService = storageService;
-		this._value = this._read();
-	}
-
-	private _read(): IStorageData {
-		let jsonValue = this._storageService.get(KeybindingsMigrationsStorage.KEY, StorageScope.GLOBAL);
-		if (!jsonValue) {
-			return null;
-		}
-		try {
-			return JSON.parse(jsonValue);
-		} catch (err) {
-			return null;
-		}
-	}
-
-	public get(): IStorageData {
-		return this._value;
-	}
-
-	public set(data: IStorageData): void {
-		this._value = data;
-		this._storageService.store(KeybindingsMigrationsStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
-	}
-}
-
 export const enum DispatchConfig {
 	Code,
 	KeyCode
@@ -313,7 +268,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IStorageService private storageService: IStorageService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -372,52 +326,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		let data = KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
 		telemetryService.publicLog('keyboardLayout', {
 			currentKeyboardLayout: data
-		});
-
-		if (OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux) {
-			const isUSStandard = KeyboardMapperFactory.INSTANCE.isUSStandard();
-			if (!isUSStandard) {
-				this._promptIfNeeded();
-			}
-		}
-	}
-
-	private _promptIfNeeded(): void {
-		const storage = new KeybindingsMigrationsStorage(this.storageService);
-		const storedData = storage.get();
-		if (storedData && storedData.dontShowPrompt) {
-			// Do not prompt stored
-			return;
-		}
-
-		storage.set({
-			dontShowPrompt: true
-		});
-
-		this._prompt();
-	}
-
-	private _prompt(): void {
-		const openDocumentation = new Action(
-			'keybindingMigration.openDocumentation',
-			nls.localize('openDocumentation', 'Learn More'),
-			'',
-			true,
-			() => {
-				window.open('https://go.microsoft.com/fwlink/?linkid=846147'); // Don't change link.
-				return TPromise.as(true);
-			}
-		);
-		const okAction = new Action(
-			'keybindingMigration.ok',
-			nls.localize('keybindingMigration.ok', "OK"),
-			null,
-			true,
-			() => TPromise.as(true)
-		);
-		this.messageService.show(Severity.Info, {
-			message: nls.localize('keybindingMigration.prompt', "Some keyboard shortcuts have changed for your keyboard layout."),
-			actions: [openDocumentation, okAction]
 		});
 	}
 
