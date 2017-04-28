@@ -22,7 +22,7 @@ var mappings = {
 	"findMatchHighlight": ["editor.findMatchHighlightBackground", "peekViewEditor.matchHighlightBackground"],
 	"currentFindMatchHighlight": ["editor.findMatchBackground"],
 	"findRangeHighlight": ["editor.findRangeHighlightBackground"],
-	"referenceHighlight": ["peekViewResultItem.foreground"],
+	"referenceHighlight": ["peekViewResult.lineForeground"],
 	"lineHighlight": ["editor.lineHighlightBackground"],
 	"rangeHighlight": ["editor.rangeHighlightBackground"],
 	"caret": ["editorCursor.foreground"],

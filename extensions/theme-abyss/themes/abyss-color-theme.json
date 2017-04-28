@@ -323,17 +323,17 @@
 
 		// Editor: Peek View
 		"peekViewResult.background": "#060621",
-		// "peekViewResultItem.foreground": "",
+		// "peekViewResult.lineForeground": "",
 		// "peekViewResult.selectionBackground": "",
 		// "peekViewResult.selectionForeground": "",
 		"peekViewEditor.background": "#10192c",
 		"peekViewTitle.background": "#10192c",
 		"peekView.border": "#2b2b4a",
 		"peekViewEditor.matchHighlightBackground": "#eeeeee33",
-		// "peekViewResultContainer.foreground": "",
+		// "peekViewResult.fileForeground": "",
 		"peekViewResult.matchHighlightBackground": "#eeeeee44",
-		// "peekViewTitle.foreground": "",
-		// "peekViewTitle.infoForeground": "",
+		// "peekViewTitleLabel.foreground": "",
+		// "peekViewTitleDescription.foreground": "",
 
 		// Editor: Diff
 		"diffEditor.insertedTextBackground": "#31958A55",
