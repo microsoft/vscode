@@ -275,6 +275,10 @@ export default class PHPValidationProvider {
 					this.pauseValidation = true;
 					resolve();
 				});
+				childProcess.on('exit', (code: Number, signal: String) => {
+					console.log('Child exit status', code);
+					console.log('Child exit signal', signal);
+				});
 				if (childProcess.pid) {
 					if (this.trigger === RunTrigger.onType) {
 						childProcess.stdin.write(textDocument.getText());
