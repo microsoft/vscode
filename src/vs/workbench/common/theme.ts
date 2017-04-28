@@ -87,11 +87,6 @@ export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBa
 	hc: null
 }, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around."));
 
-export const EDITOR_MASTER_DETAILS_BORDER = registerColor('masterDetailsEditor.border', {
-	dark: '#000000',
-	light: '#DDDDDD',
-	hc: null
-}, nls.localize('editorMasterDetailsBorder', "Border color to separate the details from the master side for side by side editors. Examples include diff editors and the settings editor."));
 
 
 // < --- Panels --- >

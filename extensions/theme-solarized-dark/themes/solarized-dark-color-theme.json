@@ -389,7 +389,6 @@
 		// "editorGroupHeader.noTabsBackground": "",
 		"editorGroup.border": "#00212B",
 		"editorGroup.background": "#011b23",
-		"masterDetailsEditor.border": "#00212B",
 		"editorGroup.dropBackground": "#00212BAA",
 
 		// Workbench: Tabs

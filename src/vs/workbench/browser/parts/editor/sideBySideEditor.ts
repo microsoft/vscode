@@ -17,7 +17,7 @@ import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EDITOR_MASTER_DETAILS_BORDER } from 'vs/workbench/common/theme';
+import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -165,7 +165,7 @@ export class SideBySideEditor extends BaseEditor {
 		super.updateStyles();
 
 		if (this.masterEditorContainer) {
-			this.masterEditorContainer.style.boxShadow = `-6px 0 5px -5px ${this.getColor(EDITOR_MASTER_DETAILS_BORDER)}`;
+			this.masterEditorContainer.style.boxShadow = `-6px 0 5px -5px ${this.getColor(scrollbarShadow)}`;
 		}
 	}
 
