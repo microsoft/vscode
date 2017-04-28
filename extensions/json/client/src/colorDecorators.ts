@@ -134,7 +134,6 @@ export function activateColorDecorations(decoratorProvider: (uri: string) => The
 const colorPattern = /^#[0-9A-Fa-f]{3,8}$/;
 
 function hex2CSSColor(hex: string): string {
-	console.log(hex);
 	if (!hex || !colorPattern.test(hex)) {
 		return null;
 	}
