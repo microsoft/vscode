@@ -97,6 +97,10 @@ export default class PHPValidationProvider {
 	private diagnosticCollection: vscode.DiagnosticCollection;
 	private delayers: { [key: string]: ThrottledDelayer<void> };
 
+	private validationExecutableIsShell: boolean;
+	private validationExecutableArgs: string = '-c';
+	private validationShellExecutable: string = '/usr/bin/php';
+
 	constructor(private workspaceStore: vscode.Memento) {
 		this.executable = null;
 		this.validationEnabled = true;
@@ -139,6 +143,24 @@ export default class PHPValidationProvider {
 				this.executable = undefined;
 				this.executableIsUserDefined = undefined;
 			}
+
+			this.validationExecutableIsShell = section.get<boolean>('validate.executableIsShell', false);
+			if (this.validationExecutableIsShell) {
+				let shellArgsInspect = section.inspect<string>('validate.executableArgs');
+				if (shellArgsInspect.workspaceValue) {
+					this.validationExecutableArgs = shellArgsInspect.workspaceValue;
+				} else if (shellArgsInspect.globalValue) {
+					this.validationExecutableArgs = shellArgsInspect.globalValue;
+				}
+
+				let shellExecutableInspect = section.inspect<string>('validate.shellExecutablePath');
+				if (shellExecutableInspect.workspaceValue) {
+					this.validationShellExecutable = shellExecutableInspect.workspaceValue;
+				} else if (shellExecutableInspect.globalValue) {
+					this.validationShellExecutable = shellExecutableInspect.globalValue;
+				}
+			}
+
 			this.trigger = RunTrigger.from(section.get<string>('validate.run', RunTrigger.strings.onSave));
 		}
 		if (this.executableIsUserDefined !== true && this.workspaceStore.get<string>(CheckedExecutablePath, undefined) !== void 0) {
@@ -246,22 +268,39 @@ export default class PHPValidationProvider {
 				args = PHPValidationProvider.BufferArgs;
 			}
 
+			// Are we validating with WSL?
+			// TODO: Use config flag in this conditional
+			if (this.validationExecutableIsShell) {
+				// Shell args
+				let wslShellArgs = [this.validationExecutableArgs];
+				let wslShellPhpExecutableArgs = args.slice(0);
+				options['shell'] = true;
+
+				// Transform Windows file path to Linux file path
+				let windowsPath = wslShellPhpExecutableArgs.pop();
+				let linuxPath = windowsPath.trim().replace(/^([a-zA-Z]):\\/, '/mnt/$1/').replace(/\\/g, '/');
+				wslShellPhpExecutableArgs.push(linuxPath);
+
+				// Finalize executable args
+				args = wslShellArgs.concat(['"', this.validationShellExecutable, wslShellPhpExecutableArgs.join(' '), '"']);
+			}
+
 			try {
 				// TESTING
 
 				// Set executable to bash.exe
-				executable = 'cmd';
+				//executable = 'C:\\Windows\\sysnative\\bash';
 
 				// Translate path name to Linux format (assume using /mnt/<letter>/ mount)
-				let winPath = args.pop();
-				console.log('Old file path', winPath);
-				let linuxPath = winPath.trim().replace(/^([a-zA-Z]):\\/, '/mnt/$1/').replace(/\\/g, '/');
-				console.log('New file path', linuxPath);
-				args.push(linuxPath);
+				// let winPath = args.pop();
+				// console.log('Old file path', winPath);
+				// let linuxPath = winPath.trim().replace(/^([a-zA-Z]):\\/, '/mnt/$1/').replace(/\\/g, '/');
+				// console.log('New file path', linuxPath);
+				// args.push(linuxPath);
 
 				// Correct the args for bash.exe
-				args = ['/c', 'C:\\Windows\\sysnative\\bash -c "php ' + args.join(' ') + '"'];
-				options['shell'] = true;
+				//args = ['-c', '"php ' + args.join(' ') + '"'];
+				//options['shell'] = true;
 				// END TESTING
 
 				console.log('Linting with executable', executable, args);
