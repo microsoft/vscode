@@ -11,7 +11,7 @@
 		"statusBarNoFolderBackground": "#700000",
 		"tabsContainerBackground": "#330000",
 		"titleBarActiveBackground": "#770000",
-		"titleBarInactiveBackground": "#773333",
+		"titleBarInactiveBackground": "#772222",
 		// editor
 		"editorBackground": "#390000",
 		"editorGroupBorder": "#ff666633",
@@ -34,6 +34,7 @@
 		"peekViewResultsBackground": "#400000",
 		"peekViewEditorBackground": "#300000",
 		// UI
+		"debugToolBarBackground": "#660000",
 		"focusBorder": "#ff6666aa",
 		"buttonBackground": "#885555",
 		"buttonHoverBackground": "#aa5555",
