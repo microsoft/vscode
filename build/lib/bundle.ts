@@ -227,7 +227,7 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 
 	return {
 		// TODO@TS 2.1.2
-		files: extractStrings(/*removeDuplicateTSBoilerplate(*/result/*)*/),
+		files: extractStrings(removeDuplicateTSBoilerplate(result)),
 		bundleData: bundleData
 	};
 }
@@ -329,7 +329,7 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 	// Taken from typescript compiler => emitFiles
 	let BOILERPLATE = [
-		{ start: /^var __extends/, end: /^};$/ },
+		{ start: /^var __extends/, end: /^}\)\(\);$/ },
 		{ start: /^var __assign/, end: /^};$/ },
 		{ start: /^var __decorate/, end: /^};$/ },
 		{ start: /^var __metadata/, end: /^};$/ },
