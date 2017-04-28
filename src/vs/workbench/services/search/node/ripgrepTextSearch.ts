@@ -152,7 +152,15 @@ export class RipgrepEngine {
 			return this.config.searchPaths && this.config.searchPaths.indexOf(errorPath) >= 0 ? firstLine : undefined;
 		}
 
-		return strings.startsWith(firstLine, 'Error parsing regex') ? firstLine : undefined;
+		if (strings.startsWith(firstLine, 'Error parsing regex')) {
+			return firstLine;
+		}
+
+		if (strings.startsWith(firstLine, 'error parsing glob')) {
+			return firstLine;
+		}
+
+		return undefined;
 	}
 }
 
