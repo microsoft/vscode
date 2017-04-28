@@ -18,8 +18,8 @@ const $ = dom.$;
 
 // theming
 
-export const debugExceptionWidgetBorder = registerColor('debugExceptionWidgetBorder', { dark: '#a31515', light: '#a31515', hc: '#a31515' }, nls.localize('debugExceptionWidgetBorder', 'Exception widget border color.'));
-export const debugExceptionWidgetBackground = registerColor('debugExceptionWidgetBackground', { dark: '#a3151540', light: '#a315150d', hc: '#a3151573' }, nls.localize('debugExceptionWidgetBackground', 'Exception widget background color.'));
+export const debugExceptionWidgetBorder = registerColor('debugExceptionWidget.border', { dark: '#a31515', light: '#a31515', hc: '#a31515' }, nls.localize('debugExceptionWidgetBorder', 'Exception widget border color.'));
+export const debugExceptionWidgetBackground = registerColor('debugExceptionWidget.background', { dark: '#a3151540', light: '#a315150d', hc: '#a3151573' }, nls.localize('debugExceptionWidgetBackground', 'Exception widget background color.'));
 
 export class ExceptionWidget extends ZoneWidget {
 

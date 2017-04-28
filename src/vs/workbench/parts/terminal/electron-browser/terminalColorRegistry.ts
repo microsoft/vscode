@@ -14,7 +14,7 @@ import { registerColor, ColorIdentifier } from 'vs/platform/theme/common/colorRe
 export const ansiColorIdentifiers: ColorIdentifier[] = [];
 
 const ansiColorMap = {
-	terminalAnsiBlack: {
+	'terminal.ansiBlack': {
 		index: 0,
 		defaults: {
 			light: '#000000',
@@ -22,7 +22,7 @@ const ansiColorMap = {
 			hc: '#000000'
 		}
 	},
-	terminalAnsiRed: {
+	'terminal.ansiRed': {
 		index: 1,
 		defaults: {
 			light: '#cd3131',
@@ -30,7 +30,7 @@ const ansiColorMap = {
 			hc: '#cd0000'
 		}
 	},
-	terminalAnsiGreen: {
+	'terminal.ansiGreen': {
 		index: 2,
 		defaults: {
 			light: '#00BC00',
@@ -38,7 +38,7 @@ const ansiColorMap = {
 			hc: '#00cd00'
 		}
 	},
-	terminalAnsiYellow: {
+	'terminal.ansiYellow': {
 		index: 3,
 		defaults: {
 			light: '#949800',
@@ -46,7 +46,7 @@ const ansiColorMap = {
 			hc: '#cdcd00'
 		}
 	},
-	terminalAnsiBlue: {
+	'terminal.ansiBlue': {
 		index: 4,
 		defaults: {
 			light: '#0451a5',
@@ -54,7 +54,7 @@ const ansiColorMap = {
 			hc: '#0000ee'
 		}
 	},
-	terminalAnsiMagenta: {
+	'terminal.ansiMagenta': {
 		index: 5,
 		defaults: {
 			light: '#bc05bc',
@@ -62,7 +62,7 @@ const ansiColorMap = {
 			hc: '#cd00cd'
 		}
 	},
-	terminalAnsiCyan: {
+	'terminal.ansiCyan': {
 		index: 6,
 		defaults: {
 			light: '#0598bc',
@@ -70,7 +70,7 @@ const ansiColorMap = {
 			hc: '#00cdcd'
 		}
 	},
-	terminalAnsiWhite: {
+	'terminal.ansiWhite': {
 		index: 7,
 		defaults: {
 			light: '#555555',
@@ -78,7 +78,7 @@ const ansiColorMap = {
 			hc: '#e5e5e5'
 		}
 	},
-	terminalAnsiBrightBlack: {
+	'terminal.ansiBrightBlack': {
 		index: 8,
 		defaults: {
 			light: '#666666',
@@ -86,7 +86,7 @@ const ansiColorMap = {
 			hc: '#7f7f7f'
 		}
 	},
-	terminalAnsiBrightRed: {
+	'terminal.ansiBrightRed': {
 		index: 9,
 		defaults: {
 			light: '#cd3131',
@@ -94,7 +94,7 @@ const ansiColorMap = {
 			hc: '#ff0000'
 		}
 	},
-	terminalAnsiBrightGreen: {
+	'terminal.ansiBrightGreen': {
 		index: 10,
 		defaults: {
 			light: '#14CE14',
@@ -102,7 +102,7 @@ const ansiColorMap = {
 			hc: '#00ff00'
 		}
 	},
-	terminalAnsiBrightYellow: {
+	'terminal.ansiBrightYellow': {
 		index: 11,
 		defaults: {
 			light: '#b5ba00',
@@ -110,7 +110,7 @@ const ansiColorMap = {
 			hc: '#ffff00'
 		}
 	},
-	terminalAnsiBrightBlue: {
+	'terminal.ansiBrightBlue': {
 		index: 12,
 		defaults: {
 			light: '#0451a5',
@@ -118,7 +118,7 @@ const ansiColorMap = {
 			hc: '#5c5cff'
 		}
 	},
-	terminalAnsiBrightMagenta: {
+	'terminal.ansiBrightMagenta': {
 		index: 13,
 		defaults: {
 			light: '#bc05bc',
@@ -126,7 +126,7 @@ const ansiColorMap = {
 			hc: '#ff00ff'
 		}
 	},
-	terminalAnsiBrightCyan: {
+	'terminal.ansiBrightCyan': {
 		index: 14,
 		defaults: {
 			light: '#0598bc',
@@ -134,7 +134,7 @@ const ansiColorMap = {
 			hc: '#00ffff'
 		}
 	},
-	terminalAnsiBrightWhite: {
+	'terminal.ansiBrightWhite': {
 		index: 15,
 		defaults: {
 			light: '#a5a5a5',

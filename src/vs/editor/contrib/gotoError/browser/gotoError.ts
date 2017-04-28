@@ -486,6 +486,6 @@ CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
 
 // theming
 
-export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError', { dark: '#ff5a5a', light: '#ff5a5a', hc: '#ff5a5a' }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
-export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning', { dark: '#5aac5a', light: '#5aac5a', hc: '#5aac5a' }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
-export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigationBackground', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));
+export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: '#ff5a5a', light: '#ff5a5a', hc: '#ff5a5a' }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
+export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: '#5aac5a', light: '#5aac5a', hc: '#5aac5a' }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
+export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));

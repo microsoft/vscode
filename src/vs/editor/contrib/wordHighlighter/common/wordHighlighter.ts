@@ -19,8 +19,8 @@ import { registerColor, editorSelectionHighlight, activeContrastBorder } from 'v
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
-export const editorWordHighlight = registerColor('editorWordHighlight', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
-export const editorWordHighlightStrong = registerColor('editorWordHighlightStrong', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
+export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
+export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
 
 export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
 

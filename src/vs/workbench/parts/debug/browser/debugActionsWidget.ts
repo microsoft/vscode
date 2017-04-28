@@ -34,7 +34,7 @@ import { localize } from 'vs/nls';
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 
-export const debugToolBarBackground = registerColor('debugToolBarBackground', {
+export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	dark: '#333333',
 	light: '#F3F3F3',
 	hc: '#000000'

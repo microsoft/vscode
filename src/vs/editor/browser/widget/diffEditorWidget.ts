@@ -1954,10 +1954,10 @@ function createFakeLinesDiv(): HTMLElement {
 const defaultInsertColor = Color.fromRGBA(new RGBA(155, 185, 85, 255 * 0.2));
 const defaultRemoveColor = Color.fromRGBA(new RGBA(255, 0, 0, 255 * 0.2));
 
-export const diffInserted = registerColor('diffEditorInserted', { dark: defaultInsertColor, light: defaultInsertColor, hc: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted.'));
-export const diffRemoved = registerColor('diffEditorRemoved', { dark: defaultRemoveColor, light: defaultRemoveColor, hc: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed.'));
-export const diffInsertedOutline = registerColor('diffEditorInsertedOutline', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffEditorInsertedOutline', 'Outline color for the text that got inserted.'));
-export const diffRemovedOutline = registerColor('diffEditorRemovedOutline', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
+export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: defaultInsertColor, light: defaultInsertColor, hc: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted.'));
+export const diffRemoved = registerColor('diffEditor.removedTextBackground', { dark: defaultRemoveColor, light: defaultRemoveColor, hc: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed.'));
+export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffEditorInsertedOutline', 'Outline color for the text that got inserted.'));
+export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
 
 
 registerThemingParticipant((theme, collector) => {
