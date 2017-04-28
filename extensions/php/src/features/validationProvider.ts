@@ -250,7 +250,7 @@ export default class PHPValidationProvider {
 				// TESTING
 
 				// Set executable to bash.exe
-				executable = 'cmd';
+				executable = 'bash';
 
 				// Translate path name to Linux format (assume using /mnt/<letter>/ mount)
 				let winPath = args.pop();
@@ -260,7 +260,9 @@ export default class PHPValidationProvider {
 				args.push(linuxPath);
 
 				// Correct the args for bash.exe
-				args = ['/c', 'bash.exe -c "php ' + args.join(' ') + '"'];
+				//args = ['/c', 'bash.exe -c "php ' + args.join(' ') + '"'];
+				args = ['-c "php ' + args.join(' ') + '"'];
+				options['shell'] = true;
 				// END TESTING
 
 				console.log('Linting with executable', executable, args);
@@ -287,6 +289,10 @@ export default class PHPValidationProvider {
 					childProcess.stdout.on('data', (data: Buffer) => {
 						console.log('Data returned from buffer');
 						decoder.write(data).forEach(processLine);
+					});
+					childProcess.stderr.setEncoding('utf8');
+					childProcess.stderr.on('data', (data) => {
+						console.log('Data returned from stderr', data);
 					});
 					childProcess.stdout.on('end', () => {
 						console.log('End buffer');
