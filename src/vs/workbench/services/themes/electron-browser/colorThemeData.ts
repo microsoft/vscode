@@ -19,13 +19,13 @@ import pfs = require('vs/base/node/pfs');
 import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';
-import { WorkbenchThemeService } from "vs/workbench/services/themes/electron-browser/workbenchThemeService";
+import { WorkbenchThemeService, IColorCustomizations } from "vs/workbench/services/themes/electron-browser/workbenchThemeService";
 
 let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 
 export class ColorThemeData implements IColorTheme {
 
-	constructor(private themeService: WorkbenchThemeService) {
+	constructor() {
 	}
 
 	id: string;
@@ -38,20 +38,21 @@ export class ColorThemeData implements IColorTheme {
 	path?: string;
 	extensionData: ExtensionData;
 	colorMap: IColorMap = {};
+	customColorMap: IColorMap = {};
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color {
-		let customColor = this.themeService.getCustomColor(colorId);
-		if (customColor) {
-			return customColor;
+		let color = this.customColorMap[colorId];
+		if (color) {
+			return color;
 		}
-		let color = this.colorMap[colorId];
+		color = this.colorMap[colorId];
 		if (useDefault !== false && types.isUndefined(color)) {
 			color = this.getDefault(colorId);
 		}
 		return color;
 	}
 
-	private getDefault(colorId: ColorIdentifier): Color {
+	public getDefault(colorId: ColorIdentifier): Color {
 		return colorRegistry.resolveDefaultColor(colorId, this);
 	}
 
@@ -64,6 +65,22 @@ export class ColorThemeData implements IColorTheme {
 		return color === null ? defaultValue === null : color.equals(defaultValue);
 	}
 
+	public setCustomColors(colors: IColorCustomizations) {
+		this.customColorMap = {};
+		for (let id in colors) {
+			let colorVal = colors[id];
+			if (typeof colorVal === 'string') {
+				let color = Color.fromHex(colorVal, null);
+				if (color) {
+					this.customColorMap[id] = color;
+				}
+			}
+		}
+		if (this.tokenColors) {
+			updateDefaultRuleSettings(this.tokenColors[0], this);
+		}
+	}
+
 	public ensureLoaded(themeService: WorkbenchThemeService): TPromise<void> {
 		if (!this.isLoaded) {
 			this.tokenColors = [];
@@ -71,7 +88,7 @@ export class ColorThemeData implements IColorTheme {
 			if (this.path) {
 				return _loadColorThemeFromFile(this.path, this.tokenColors, this.colorMap).then(_ => {
 					this.isLoaded = true;
-					_completeTokenColors(this);
+					_sanitizeTokenColors(this);
 				});
 			}
 		}
@@ -119,10 +136,10 @@ export class ColorThemeData implements IColorTheme {
 	}
 }
 
-export function fromStorageData(themeService: WorkbenchThemeService, input: string): ColorThemeData {
+export function fromStorageData(input: string): ColorThemeData {
 	try {
 		let data = JSON.parse(input);
-		let theme = new ColorThemeData(themeService);
+		let theme = new ColorThemeData();
 		for (let key in data) {
 			if (key !== 'colorMap') {
 				theme[key] = data[key];
@@ -139,11 +156,11 @@ export function fromStorageData(themeService: WorkbenchThemeService, input: stri
 	}
 }
 
-export function fromExtensionTheme(themeService: WorkbenchThemeService, theme: IThemeExtensionPoint, normalizedAbsolutePath: string, extensionData: ExtensionData): ColorThemeData {
+export function fromExtensionTheme(theme: IThemeExtensionPoint, normalizedAbsolutePath: string, extensionData: ExtensionData): ColorThemeData {
 	let baseTheme = theme['uiTheme'] || 'vs-dark';
 
 	let themeSelector = toCSSSelector(extensionData.extensionId + '-' + Paths.normalize(theme.path));
-	let themeData = new ColorThemeData(themeService);
+	let themeData = new ColorThemeData();
 	themeData.id = `${baseTheme} ${themeSelector}`;
 	themeData.label = theme.label || Paths.basename(theme.path);
 	themeData.settingsId = theme.id || themeData.label;
@@ -230,25 +247,31 @@ function _loadSyntaxTokensFromFile(themePath: string, resultRules: ITokenColoriz
 	});
 }
 /**
- * Make sure that the token colors contain the default fore and background
+ * Place the default settings first and add add the token-info rules
  */
-function _completeTokenColors(theme: ColorThemeData) {
+function _sanitizeTokenColors(theme: ColorThemeData) {
 	let hasDefaultTokens = false;
+	let updatedTokenColors: ITokenColorizationRule[] = [updateDefaultRuleSettings({ settings: {} }, theme)];
 	theme.tokenColors.forEach(rule => {
-		if (!rule.scope) {
-			if (!rule.settings.background) {
-				rule.settings.background = theme.getColor(editorBackground).toRGBAHex();
+		if (rule.scope) {
+			if (rule.scope === 'token.info-token') {
+				hasDefaultTokens = true;
 			}
-			if (!rule.settings.foreground) {
-				rule.settings.foreground = theme.getColor(editorForeground).toRGBAHex();
-			}
-		} else if (rule.scope === 'token.info-token') {
-			hasDefaultTokens = true;
+			updatedTokenColors.push(rule);
 		}
 	});
 	if (!hasDefaultTokens) {
-		theme.tokenColors.push(...defaultThemeColors[theme.type]);
+		updatedTokenColors.push(...defaultThemeColors[theme.type]);
 	}
+	theme.tokenColors = updatedTokenColors;
+}
+
+function updateDefaultRuleSettings(defaultRule: ITokenColorizationRule, theme: ColorThemeData): ITokenColorizationRule {
+	let foreground = theme.getColor(editorForeground) || theme.getDefault(editorForeground);
+	let background = theme.getColor(editorBackground) || theme.getDefault(editorBackground);
+	defaultRule.settings.foreground = foreground.toRGBAHex();
+	defaultRule.settings.background = background.toRGBAHex();
+	return defaultRule;
 }
 
 

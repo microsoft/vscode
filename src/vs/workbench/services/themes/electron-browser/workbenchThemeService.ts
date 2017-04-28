@@ -29,7 +29,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import Severity from 'vs/base/common/severity';
 import { ColorThemeData, fromStorageData, fromExtensionTheme } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
-import { editorBackground, editorForeground, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -39,8 +39,6 @@ import pfs = require('vs/base/node/pfs');
 import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Color } from 'vs/base/common/color';
-
 
 // implementation
 
@@ -227,13 +225,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			extensionData: null
 		};
 
+		this.updateColorCustomizations(false);
+
 		let themeData = null;
 		let persistedThemeData = this.storageService.get(PERSISTED_THEME_STORAGE_KEY);
 		if (persistedThemeData) {
-			themeData = fromStorageData(this, persistedThemeData);
+			themeData = fromStorageData(persistedThemeData);
 		}
 		if (themeData !== null) {
-			this.updateColorCustomizations(false);
+			themeData.setCustomColors(this.colorCustomizations);
 			this.updateDynamicCSSRules(themeData);
 			this.applyTheme(themeData, null, true);
 		} else {
@@ -242,18 +242,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			// a color theme document with good defaults until the theme is loaded
 			let isLightTheme = (Array.prototype.indexOf.call(document.body.classList, 'vs') >= 0);
 
-			let initialTheme = new ColorThemeData(this);
+			let initialTheme = new ColorThemeData();
 			initialTheme.id = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 			initialTheme.label = '';
 			initialTheme.selector = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 			initialTheme.settingsId = null;
 			initialTheme.isLoaded = false;
-			initialTheme.tokenColors = [{
-				settings: {
-					foreground: initialTheme.getColor(editorForeground).toRGBAHex(),
-					background: initialTheme.getColor(editorBackground).toRGBAHex()
-				}
-			}];
+			initialTheme.tokenColors = [{ settings: {} }];
+			initialTheme.setCustomColors(this.colorCustomizations);
 			this.currentColorTheme = initialTheme;
 		}
 
@@ -413,6 +409,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 						this.currentColorTheme = themeData;
 						return TPromise.as(themeData);
 					}
+					themeData.setCustomColors(this.colorCustomizations);
 					this.updateDynamicCSSRules(themeData);
 					return this.applyTheme(themeData, settingsTarget);
 				}, error => {
@@ -539,19 +536,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (this.hasCustomizationChanged(newColorCustomizations, newColorIds)) {
 			this.colorCustomizations = newColorCustomizations;
 			this.numberOfColorCustomizations = newColorIds.length;
-			if (notify) {
-				this.updateDynamicCSSRules(this.currentColorTheme);
-				this.onColorThemeChange.fire(this.currentColorTheme);
+			if (this.currentColorTheme) {
+				this.currentColorTheme.setCustomColors(newColorCustomizations);
+				if (notify) {
+					this.updateDynamicCSSRules(this.currentColorTheme);
+					this.onColorThemeChange.fire(this.currentColorTheme);
+				}
 			}
 		}
-	}
-
-	public getCustomColor(id: ColorIdentifier) {
-		let color = this.colorCustomizations[id];
-		if (typeof color === 'string') {
-			return Color.fromHex(this.colorCustomizations[id], null);
-		}
-		return null;
 	}
 
 	private onThemes(extensionFolderPath: string, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
@@ -578,7 +570,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (normalizedAbsolutePath.indexOf(Paths.normalize(extensionFolderPath)) !== 0) {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
-			let themeData = fromExtensionTheme(this, theme, normalizedAbsolutePath, extensionData);
+			let themeData = fromExtensionTheme(theme, normalizedAbsolutePath, extensionData);
 			this.extensionsColorThemes.push(themeData);
 
 			colorThemeSettingSchema.enum.push(themeData.settingsId);
