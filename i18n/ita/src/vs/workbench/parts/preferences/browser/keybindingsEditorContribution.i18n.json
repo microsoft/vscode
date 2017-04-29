@@ -6,6 +6,5 @@
 {
 	"defineKeybinding.start": "Definisci tasto di scelta rapida",
 	"defineKeybinding.kbLayoutInfoMessage": "Per il layout di tastiera corrente premere ",
-	"defineKeybinding.kbLayoutErrorMessage": "Non sarà possibile produrre questa combinazione di tasti con il layout di tastiera corrente.",
-	"DefineKeybindingAction": "Definisci tasto di scelta rapida"
+	"defineKeybinding.kbLayoutErrorMessage": "Non sarà possibile produrre questa combinazione di tasti con il layout di tastiera corrente."
 }

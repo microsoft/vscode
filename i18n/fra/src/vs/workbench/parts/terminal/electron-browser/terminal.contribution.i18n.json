@@ -16,6 +16,7 @@
 	"terminal.integrated.fontLigatures": "Contrôle si les ligatures de police sont activées sur le terminal.",
 	"terminal.integrated.fontSize": "Contrôle la taille de police en pixels du terminal.",
 	"terminal.integrated.lineHeight": "Contrôle la hauteur de ligne du terminal. La multiplication de ce nombre par la taille de police du terminal permet d'obtenir la hauteur de ligne réelle en pixels.",
+	"terminal.integrated.enableBold": "Indique s'il faut activer ou non le texte en gras dans le terminal, ce qui nécessite une prise en charge de l'interpréteur de commandes du terminal.",
 	"terminal.integrated.cursorBlinking": "Contrôle si le curseur du terminal clignote.",
 	"terminal.integrated.cursorStyle": "Contrôle le style du curseur du terminal.",
 	"terminal.integrated.scrollback": "Contrôle la quantité maximale de lignes que le terminal conserve dans sa mémoire tampon.",

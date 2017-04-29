@@ -127,6 +127,7 @@
 	"miNewBreakpoint": "&&Новая точка останова",
 	"miDisableAllBreakpoints": "Отключить &&все точки останова",
 	"miRemoveAllBreakpoints": "&&Удалить &&все точки останова",
+	"miInstallAdditionalDebuggers": "У&&становить дополнительные отладчики...",
 	"mMinimize": "Свернуть",
 	"mClose": "Закрыть",
 	"mBringToFront": "Переместить все на передний план",

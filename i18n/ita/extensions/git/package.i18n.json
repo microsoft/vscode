@@ -9,14 +9,11 @@
 	"command.refresh": "Aggiorna",
 	"command.openChange": "Apri modifiche",
 	"command.openFile": "Apri file",
-	"command.stage": "Prepara modifiche per commit",
-	"command.stageAll": "Prepara tutte le modifiche per commit",
 	"command.stageSelectedRanges": "Prepara per il commit intervalli selezionati",
 	"command.revertSelectedRanges": "Ripristina intervalli selezionati",
 	"command.unstage": "Annulla preparazione modifiche per commit",
 	"command.unstageAll": "Annulla preparazione di tutte le modifiche per commit",
 	"command.unstageSelectedRanges": "Annulla preparazione per il commit di intervalli selezionati",
-	"command.clean": "Rimuovi modifiche",
 	"command.cleanAll": "Rimuovi tutte le modifiche",
 	"command.commit": "Commit",
 	"command.commitStaged": "Esegui commit dei file preparati",
@@ -39,7 +36,6 @@
 	"config.autofetch": "Indica se il recupero automatico è abilitato",
 	"config.enableLongCommitWarning": "Indica se visualizzare un avviso in caso di messaggi di commit lunghi",
 	"config.confirmSync": "Conferma prima di sincronizzare i repository GIT",
-	"config.countBadge": "Controlla il contatore dei log GIT",
-	"config.checkoutType": "Controlla il tipo di rami elencati",
-	"config.ignoreLegacyWarning": "Ignora l'avvertimento legacy di Git"
+	"config.ignoreLegacyWarning": "Ignora l'avvertimento legacy di Git",
+	"config.ignoreLimitWarning": "Ignora il messaggio di avviso quando ci sono troppi cambiamenti in un repository"
 }

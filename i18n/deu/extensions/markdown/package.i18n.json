@@ -17,5 +17,6 @@
 	"markdown.showSource.title": "Quelle anzeigen",
 	"markdown.styles.dec": "Eine Liste von URLs oder lokalen Pfaden zu CSS-Stylesheets aus der Markdownvorschau, die verwendet werden sollen. Relative Pfade werden relativ zu dem Ordner interpretiert, der im Explorer geöffnet ist. Wenn kein Ordner geöffnet ist, werden sie relativ zum Speicherort der Markdowndatei interpretiert. Alle '\\' müssen als '\\\\' geschrieben werden.",
 	"markdown.showPreviewSecuritySelector.title": "Sicherheitseinstellungen für Markdown-Vorschau ändern",
-	"markdown.preview.enableExperimentalExtensionApi.desc": "[Experimentell] Erlaube Erweiterungen die Markdown-Vorschau zu erweitern."
+	"markdown.preview.enableExperimentalExtensionApi.desc": "[Experimentell] Erlaube Erweiterungen die Markdown-Vorschau zu erweitern.",
+	"markdown.trace.desc": "Aktiviert die Debugprotokollierung für die Markdown-Erweiterung."
 }

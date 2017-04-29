@@ -12,10 +12,12 @@
 	"actions.previewDecl.label": "Apercu de définition",
 	"goToImplementation.noResultWord": "Implémentation introuvable pour '{0}'",
 	"goToImplementation.generic.noResults": "Implémentation introuvable",
+	"meta.implementations.title": "– Implémentations {0}",
 	"actions.goToImplementation.label": "Accéder à l'implémentation",
 	"actions.peekImplementation.label": "Aperçu de l'implémentation",
 	"goToTypeDefinition.noResultWord": "Définition de type introuvable pour '{0}'",
 	"goToTypeDefinition.generic.noResults": "Définition de type introuvable",
+	"meta.typeDefinitions.title": " – Définitions de type {0}",
 	"actions.goToTypeDefinition.label": "Atteindre la définition de type",
 	"actions.peekTypeDefinition.label": "Aperçu de la définition du type",
 	"multipleResults": "Cliquez pour afficher {0} définitions."

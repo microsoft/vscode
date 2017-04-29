@@ -6,6 +6,5 @@
 {
 	"defineKeybinding.start": "定義按鍵繫結關係",
 	"defineKeybinding.kbLayoutInfoMessage": "針對您目前的鍵盤配置，請按 ",
-	"defineKeybinding.kbLayoutErrorMessage": "您無法在目前的鍵盤配置下產生此按鍵組合。",
-	"DefineKeybindingAction": "定義按鍵繫結關係"
+	"defineKeybinding.kbLayoutErrorMessage": "您無法在目前的鍵盤配置下產生此按鍵組合。"
 }

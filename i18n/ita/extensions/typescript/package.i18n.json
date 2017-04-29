@@ -11,6 +11,8 @@
 	"typescript.tsdk.desc": "Specifica il percorso della cartella che contiene i file tsserver e lib*.d.ts da usare.",
 	"typescript.disableAutomaticTypeAcquisition": "Disabilita l'acquisizione automatica del tipo. Richiede TypeScript >= 2.0.6 e un riavvio dopo la modifica.",
 	"typescript.check.tscVersion": "Verifica se un compilatore TypeScript di installazione globale, ad esempio tsc, è diverso dal servizio di linguaggio TypeScript usato.",
+	"typescript.tsserver.log": "Abilita la registrazione del server TypeScript in un file. Questo registro può essere utilizzato per diagnosticare problemi del server TypeScript. Il registro può contenere percorsi di file, codice sorgente e altre informazioni del progetto potenzialmente riservate. ",
+	"typescript.tsserver.trace": "Abilita la traccia dei messaggi inviati al server TypeScript. Questa traccia può essere utilizzata per diagnosticare problemi del server TypeScript. La traccia può contenere percorsi di file, codice sorgente e altre informazioni del progetto potenzialmente riservate.",
 	"typescript.tsserver.experimentalAutoBuild": "Abilita la compilazione automatica sperimentale. Richiede la versione 1.9 dev o 2.x tsserver e il riavvio di Visual Studio Code dopo la modifica.",
 	"typescript.validate.enable": "Abilita/Disabilita la convalida TypeScript.",
 	"typescript.format.enable": "Abilita/Disabilita il formattatore TypeScript predefinito.",
@@ -23,6 +25,7 @@
 	"format.insertSpaceBeforeFunctionParenthesis": "Consente di definire la gestione dello spazio prima delle parentesi dell'argomento della funzione. Richiede TypeScript >= 2.1.5.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Consente di definire la gestione dello spazio dopo le parentesi tonde di apertura e di chiusura non vuote.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Consente di definire la gestione dello spazio dopo le parentesi quadre di apertura e di chiusura non vuote.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Consente di definire la gestione dello spazio dopo l'apertura e prima della chiusura di parentesi graffe non vuote. Richiede TypeScript >= 2.3.0.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Consente di definire la gestione dello spazio dopo la parentesi graffa iniziale e prima della parentesi graffa finale della stringa del modello. Richiede TypeScript >= 2.0.6",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Consente di definire la gestione dello spazio dopo la parentesi graffa iniziale e prima della parentesi graffa finale dell'espressione JSX. Richiede TypeScript >= 2.0.6",
 	"format.placeOpenBraceOnNewLineForFunctions": "Consente di definire se una parentesi graffa di apertura viene o meno inserita su una riga per le funzioni.",
@@ -34,5 +37,7 @@
 	"typescript.implementationsCodeLens.enabled": "Abilita/Disabilita le finestre CodeLens per le implementazioni. Richiede una versione di TypeScript uguale o successiva alla 2.2.0.",
 	"typescript.openTsServerLog.title": "Apri file di log del server TypeScript",
 	"typescript.selectTypeScriptVersion.title": "Seleziona la versione di TypeScript",
-	"jsDocCompletion.enabled": "Abilita/Disabilita commenti automatici JSDoc"
+	"jsDocCompletion.enabled": "Abilita/Disabilita commenti automatici JSDoc",
+	"javascript.implicitProjectConfig.checkJs": "Abilita/disabilita il controllo semantico di file JavaScript. File jsconfig.json o tsconfig.json esistenti sovrascrivono su questa impostazione. Richiede TypeScript >= 2.3.1.",
+	"typescript.check.npmIsInstalled": "Controllare se NPM è installato per l'acquisizione automatica delle definizioni di tipi"
 }

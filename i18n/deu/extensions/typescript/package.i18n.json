@@ -11,6 +11,8 @@
 	"typescript.tsdk.desc": "Gibt den Ordnerpfad mit den zu verwendenden tsserver- und lib*.d.ts-Dateien an.",
 	"typescript.disableAutomaticTypeAcquisition": "Deaktiviert die automatische Typerfassung. Erfordert TypeScript >= 2.0.6 und einen Neustart nach der Änderung.",
 	"typescript.check.tscVersion": "Überprüfen, ob sich ein global installierter TypeScript-Compiler (z. B. tsc) vom verwendeten TypeScript-Sprachdienst unterscheidet.",
+	"typescript.tsserver.log": "Aktiviert die Protokollierung des TS-Servers in eine Datei. Mithilfe der Protokolldatei lassen sich Probleme beim TS-Server diagnostizieren. Die Protokolldatei kann Dateipfade, Quellcode und weitere potenziell sensible Informationen aus Ihrem Projekt enthalten.",
+	"typescript.tsserver.trace": "Aktiviert die Ablaufverfolgung von an den TS-Server gesendeten Nachrichten. Mithilfe der Ablaufverfolgung lassen sich Probleme beim TS-Server diagnostizieren. Die Ablaufverfolgung kann Dateipfade, Quellcode und weitere potenziell sensible Informationen aus Ihrem Projekt enthalten.",
 	"typescript.tsserver.experimentalAutoBuild": "Ermöglicht experimentelle automatische Buildvorgänge. Erfordert Version 1.9 dev oder 2.x tsserver sowie einen Neustart von VS Code nach der Änderung.",
 	"typescript.validate.enable": "TypeScript-Überprüfung aktivieren/deaktivieren.",
 	"typescript.format.enable": "Standardmäßigen TypeScript-Formatierer aktivieren/deaktivieren.",
@@ -23,6 +25,7 @@
 	"format.insertSpaceBeforeFunctionParenthesis": "Definiert die Verarbeitung von Leerzeichen vor Funktionsargumentklammern. Erfordert TypeScript >= 2.1.5.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden nicht leeren runden Klammern.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden nicht leeren eckigen Klammern.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden geschweiften Klammern. Erfordert TypeScript 2.3.0 oder höher.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden geschweiften Klammern für Vorlagenzeichenfolgen. Erfordert TypeScript >= 2.0.6.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Definiert die Verarbeitung von Leerzeichen nach öffnenden und vor schließenden geschweiften Klammern für JSX-Ausdrücke. Erfordert TypeScript >= 2.0.6.",
 	"format.placeOpenBraceOnNewLineForFunctions": "Definiert, ob eine öffnende geschweifte Klammer für Funktionen in eine neue Zeile eingefügt wird.",
@@ -30,6 +33,11 @@
 	"javascript.validate.enable": "JavaScript-Überprüfung aktivieren/deaktivieren.",
 	"typescript.goToProjectConfig.title": "Zur Projektkonfiguration wechseln",
 	"javascript.goToProjectConfig.title": "Zur Projektkonfiguration wechseln",
+	"typescript.referencesCodeLens.enabled": "Aktiviert oder deaktiviert CodeLens-Verweise. Erfordert TypeScript 2.0.6 oder höher.",
+	"typescript.implementationsCodeLens.enabled": "Aktiviert oder deaktiviert CodeLens-Implementierungen. Erfordert TypeScript 2.2.0 oder höher.",
 	"typescript.openTsServerLog.title": "TS Server-Protokolldatei öffnen",
-	"typescript.selectTypeScriptVersion.title": "TypeScript-Version wählen"
+	"typescript.selectTypeScriptVersion.title": "TypeScript-Version wählen",
+	"jsDocCompletion.enabled": "Automatische JSDoc-Kommentare aktivieren/deaktivieren",
+	"javascript.implicitProjectConfig.checkJs": "Aktiviert/deaktiviert die Semantikprüfung bei JavaScript-Dateien. Diese Einstellung wird von vorhandenen \"jsconfig.json\"- oder \"tsconfig.json\"-Dateien außer Kraft gesetzt. Erfordert TypeScript 2.3.1 oder höher.",
+	"typescript.check.npmIsInstalled": "Überprüfen, ob NPM für automatische Typerfassung installiert ist"
 }
