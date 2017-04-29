@@ -20,6 +20,7 @@
 	"statusBarVisibility": "Controlla la visibilità della barra di stato nella parte inferiore del workbench.",
 	"activityBarVisibility": "Controlla la visibilità della barra attività nel workbench.",
 	"closeOnFileDelete": "Controlla se gli editor che visualizzano un file devono chiudersi automaticamente quando il file viene eliminato o rinominato da un altro processo. Se si disabilita questa opzione, in una simile circostanza l'editor verrà aperto e i file risulteranno modificati ma non salvati. Nota: se si elimina il file dall'interno dell'applicazione, l'editor verrà sempre chiuso e i file modificati ma non salvati non verranno mai chiusi allo scopo di salvaguardare i dati.",
+	"swipeToNavigate": "Scorrere orizzontalmente con tre dita per spostarsi tra i file aperti.",
 	"workbenchConfigurationTitle": "Area di lavoro",
 	"window.openFilesInNewWindow.on": "I file verranno aperti in una nuova finestra",
 	"window.openFilesInNewWindow.off": "I file verranno aperti nella finestra con la cartella dei file aperta o nell'ultima finestra attiva",

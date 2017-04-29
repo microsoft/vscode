@@ -14,5 +14,6 @@
 	"noIconThemeDesc": "ファイル アイコンを無効にする",
 	"problemChangingIconTheme": "アイコン テーマの設定で問題が発生しました: {0}",
 	"themes.selectIconTheme": "ファイル アイコンのテーマを選択します",
-	"preferences": "基本設定"
+	"preferences": "基本設定",
+	"developer": "Developer"
 }

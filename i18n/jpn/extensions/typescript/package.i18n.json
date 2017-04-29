@@ -25,6 +25,7 @@
 	"format.insertSpaceBeforeFunctionParenthesis": "関数の引数のかっこの前にあるスペース処理を定義します。TypeScript が 2.1.5. 以上である必要があります。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "左右の空でないかっこの間のスペース処理を定義します。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "左右の空でない角かっこの間のスペース処理を定義します。",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "左右の空でないかっこの間のスペース処理を定義します。TypeScript が 2.3.0 以上である必要があります。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "テンプレート文字列の始め波かっこの後と終わり波かっこの前のスペース処理を定義します。TypeScript が 2.0.6 以上である必要があります。",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "JSX 式の始め波かっこの後と終わり波かっこの前のスペース処理を定義します。TypeScript が 2.0.6 以上である必要があります。",
 	"format.placeOpenBraceOnNewLineForFunctions": "新しい行に関数の始め波かっこを配置するかどうかを定義します。",
@@ -36,5 +37,7 @@
 	"typescript.implementationsCodeLens.enabled": "CodeLens の実装を有効/無効にします。TypeScript 2.2.0 以上が必要です。",
 	"typescript.openTsServerLog.title": "TS サーバーのログ ファイルを開く",
 	"typescript.selectTypeScriptVersion.title": "TypeScript のバージョンの選択",
-	"jsDocCompletion.enabled": " 自動 JSDoc コメントを有効/無効にします"
+	"jsDocCompletion.enabled": " 自動 JSDoc コメントを有効/無効にします",
+	"javascript.implicitProjectConfig.checkJs": "JavaScript ファイルのセマンティック チェックを有効/無効にします。既存の jsconfi.json や tsconfi.json ファイルの設定はこれより優先されます。 TypeScript は 2.3.1 以上である必要があります。",
+	"typescript.check.npmIsInstalled": "型定義の自動取得に NPM がインストールされているかどうかを確認する"
 }

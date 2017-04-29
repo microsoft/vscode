@@ -14,5 +14,6 @@
 	"noIconThemeDesc": "停用檔案圖示",
 	"problemChangingIconTheme": "設定圖示佈景主題時發生問題: {0}",
 	"themes.selectIconTheme": "選取檔案圖示佈景主題",
-	"preferences": "喜好設定"
+	"preferences": "喜好設定",
+	"developer": "開發人員"
 }

@@ -39,6 +39,6 @@
 	"config.autofetch": "Gibt an, ob automatischer Abruf aktiviert ist.",
 	"config.enableLongCommitWarning": "Gibt an, ob Warnungen zu langen Commitnachrichten erfolgen sollen.",
 	"config.confirmSync": "Vor dem Synchronisieren von Git-Repositorys bestätigen.",
-	"config.countBadge": "Steuert die Git-Badgeanzahl.",
-	"config.checkoutType": "Steuert, welcher Branchtyp aufgelistet wird."
+	"config.ignoreLegacyWarning": "Ignoriert die Legacy-Git-Warnung.",
+	"config.ignoreLimitWarning": "Ignoriert Warnung bei zu hoher Anzahl von Änderungen in einem Repository"
 }

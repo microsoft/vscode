@@ -25,6 +25,5 @@
 	"colorThemeError": "Theme is unknown or not installed.",
 	"iconTheme": "Specifies the icon theme used in the workbench.",
 	"noIconThemeDesc": "No file icons",
-	"iconThemeError": "File icon theme is unknown or not installed.",
-	"workbenchColors": "覆寫目前選取之色彩佈景主題的色彩。此設定為實驗性質，色彩名稱將於下一版時變更。"
+	"iconThemeError": "File icon theme is unknown or not installed."
 }

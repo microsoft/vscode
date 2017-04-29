@@ -9,5 +9,6 @@
 	"configuration.validate.executablePath": "PHP 실행 파일을 가리킵니다.",
 	"configuration.validate.run": "저장 시 또는 입력 시 Linter의 실행 여부입니다.",
 	"configuration.title": "PHP",
-	"commands.categroy.php": "PHP"
+	"commands.categroy.php": "PHP",
+	"command.untrustValidationExecutable": "PHP 유효성 검사 실행 파일을 허용하지 않음(작업\n 영역 설정으로 정의됨)"
 }

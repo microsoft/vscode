@@ -9,5 +9,6 @@
 	"staged changes": "ステージング済みの変更",
 	"changes": "変更",
 	"ok": "OK",
-	"neveragain": "今後は表示しない"
+	"neveragain": "今後は表示しない",
+	"huge": "'{0}' のGit リポジトリにアクティブな変更が多いため、 Git 機能の一部のみが有効になります。"
 }

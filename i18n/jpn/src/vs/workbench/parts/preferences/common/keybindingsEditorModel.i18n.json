@@ -6,5 +6,6 @@
 {
 	"default": "既定",
 	"user": "ユーザー",
+	"meta": "meta",
 	"option": "オプション"
 }

@@ -25,6 +25,5 @@
 	"colorThemeError": "Theme is unknown or not installed.",
 	"iconTheme": "Specifies the icon theme used in the workbench.",
 	"noIconThemeDesc": "No file icons",
-	"iconThemeError": "File icon theme is unknown or not installed.",
-	"workbenchColors": "현재 선택한 색 테마의 색을 재정의합니다. 다음 릴리스에서 색 이름이 변경될 예정이므로 이 설정은 실험적입니다."
+	"iconThemeError": "File icon theme is unknown or not installed."
 }

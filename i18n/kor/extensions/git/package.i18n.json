@@ -39,6 +39,6 @@
 	"config.autofetch": "자동 가져오기 사용 여부",
 	"config.enableLongCommitWarning": "긴 커밋 메시지에 대해 경고할지 여부입니다.",
 	"config.confirmSync": "Git 리포지토리를 동기화하기 전에 확인합니다.",
-	"config.countBadge": "Git 배지 카운터를 제어합니다.",
-	"config.checkoutType": "나열되는 분기 유형을 제어합니다."
+	"config.ignoreLegacyWarning": "레거시 Git 경고를 무시합니다.",
+	"config.ignoreLimitWarning": "리포지토리에 변경 내용이 너무 많으면 경고를 무시합니다."
 }

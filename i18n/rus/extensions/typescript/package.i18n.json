@@ -30,6 +30,9 @@
 	"javascript.validate.enable": "Включение или отключение проверки JavaScript.",
 	"typescript.goToProjectConfig.title": "Перейти к конфигурации проекта",
 	"javascript.goToProjectConfig.title": "Перейти к конфигурации проекта",
+	"typescript.referencesCodeLens.enabled": "Включить или отключить CodeLens для ссылок. Требуется TypeScript >= 2.0.6.",
+	"typescript.implementationsCodeLens.enabled": "Включить или отключить CodeLens для реализаций. Требуется TypeScript >= 2.2.0.",
 	"typescript.openTsServerLog.title": "Открытие файла журнала сервера TS",
-	"typescript.selectTypeScriptVersion.title": "Выберите версию TypeScript."
+	"typescript.selectTypeScriptVersion.title": "Выберите версию TypeScript.",
+	"jsDocCompletion.enabled": "Включить или отключить JSDoc коментарии"
 }

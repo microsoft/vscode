@@ -14,5 +14,6 @@
 	"noIconThemeDesc": "파일 아이콘 사용 안 함",
 	"problemChangingIconTheme": "아이콘 테마를 설정하는 동안 문제 발생: {0}",
 	"themes.selectIconTheme": "파일 아이콘 테마 선택",
-	"preferences": "기본 설정"
+	"preferences": "기본 설정",
+	"developer": "개발자"
 }
