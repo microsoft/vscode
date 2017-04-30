@@ -21,7 +21,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
 import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions as EditorExtensions, EditorInput, EditorOptions, ConfirmResult, IWorkbenchEditorConfiguration, IEditorDescriptor, TextEditorOptions, SideBySideEditorInput, TextCompareEditorVisible, TEXT_DIFF_EDITOR_ID, IEditorGroup } from 'vs/workbench/common/editor';
 import { EditorGroupsControl, Rochade, IEditorGroupsControl, ProgressState } from 'vs/workbench/browser/parts/editor/editorGroupsControl';
 import { WorkbenchProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IEditorGroupService, GroupOrientation, GroupArrangement, ITabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
@@ -648,6 +648,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.textCompareEditorVisible.set(this.visibleEditors.some(e => e && e.isVisible() && e.getId() === TEXT_DIFF_EDITOR_ID));
 	}
 
+	public closeUnmodifiedEditors(group: IEditorGroup): TPromise<void> {
+		let groups = this.stacks.groups.reverse(); // start from the end to prevent layout to happen through rochade
+		groups.filter(groupToClose => groupToClose === group).map(groupToClose => this.doCloseUnmodifiedEditors(groupToClose));
+		return TPromise.as(null);
+	}
+
 	public closeAllEditors(except?: Position): TPromise<void> {
 		let groups = this.stacks.groups.reverse(); // start from the end to prevent layout to happen through rochade
 
@@ -689,6 +695,20 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 			this.doCloseEditors(group, except, direction);
 		});
+	}
+
+	private doCloseUnmodifiedEditors(group: EditorGroup) {
+		group.closeUnmodifiedEditors();
+
+		// Close group if this is the last editor in group
+		if (group.count === 0) {
+			this.doCloseGroup(group);
+		}
+
+		// Otherwise open next active
+		else {
+			this.openEditor(group.activeEditor, null).done(null, errors.onUnexpectedError);
+		}
 	}
 
 	private doCloseEditors(group: EditorGroup, except?: EditorInput, direction?: Direction): void {

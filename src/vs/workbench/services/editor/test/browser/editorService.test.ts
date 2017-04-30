@@ -64,6 +64,10 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as(null);
 	}
 
+	public closeUnmodifiedEditors(): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public openEditor(input?: EditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<BaseEditor>;
 	public openEditor(input?: EditorInput, options?: EditorOptions, position?: Position): TPromise<BaseEditor>;
 	public openEditor(input?: EditorInput, options?: EditorOptions, arg?: any): TPromise<BaseEditor> {

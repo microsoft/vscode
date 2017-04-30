@@ -704,6 +704,32 @@ export class CloseAllEditorsAction extends Action {
 	}
 }
 
+export class CloseUnmodifiedEditorsInGroupAction extends Action {
+
+	public static ID = 'workbench.action.closeUnmodifiedEditors';
+	public static LABEL = nls.localize('closeUnmodifiedEditors', "Close Unmodified Editors in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: IEditorContext): TPromise<any> {
+		const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
+		const groupId = context && context.group ? context.group.id : activeGroup ? activeGroup.id : null;
+		if (groupId) {
+			const group = this.editorGroupService.getStacksModel().getGroup(groupId);
+			return this.editorService.closeUnmodifiedEditors(group);
+		}
+
+		return TPromise.as(false);
+	}
+}
+
 export class CloseEditorsInOtherGroupsAction extends Action {
 
 	public static ID = 'workbench.action.closeEditorsInOtherGroups';

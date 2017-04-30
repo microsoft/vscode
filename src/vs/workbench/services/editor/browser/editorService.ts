@@ -10,7 +10,7 @@ import network = require('vs/base/common/network');
 import { Registry } from 'vs/platform/platform';
 import { basename, dirname } from 'vs/base/common/paths';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput, EditorOptions, TextEditorOptions, IEditorRegistry, Extensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, TextEditorOptions, IEditorRegistry, Extensions, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorGroup } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -33,6 +33,7 @@ export interface IEditorPart {
 	closeEditor(position: Position, input: IEditorInput): TPromise<void>;
 	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
 	closeAllEditors(except?: Position): TPromise<void>;
+	closeUnmodifiedEditors(group: IEditorGroup): TPromise<void>;
 	getActiveEditor(): BaseEditor;
 	getVisibleEditors(): IEditor[];
 	getActiveEditorInput(): IEditorInput;
@@ -201,6 +202,10 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public closeAllEditors(except?: Position): TPromise<void> {
 		return this.editorPart.closeAllEditors(except);
+	}
+
+	public closeUnmodifiedEditors(group: IEditorGroup): TPromise<void> {
+		return this.editorPart.closeUnmodifiedEditors(group);
 	}
 
 	public createInput(input: IEditorInput): EditorInput;

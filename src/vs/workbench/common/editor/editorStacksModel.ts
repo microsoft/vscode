@@ -412,6 +412,10 @@ export class EditorGroup implements IEditorGroup {
 		this.closeEditor(this.active);
 	}
 
+	public closeUnmodifiedEditors(): void {
+		this.getEditors().filter(e => !e.isDirty()).forEach(e => this.closeEditor(e));
+	}
+
 	public moveEditor(editor: EditorInput, toIndex: number): void {
 		const index = this.indexOf(editor);
 		if (index < 0) {
