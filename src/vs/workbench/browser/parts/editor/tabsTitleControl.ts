@@ -531,7 +531,13 @@ export class TabsTitleControl extends TitleControl {
 			DOM.EventHelper.stop(e);
 			tab.blur();
 
-			if (e.button === 1 /* Middle Button */) {
+			// the close button on a tab is handled elsewhere, so stopping the flow to prevent duplicate
+			// close events from being sent
+			if (DOM.hasClass(<HTMLElement>e.target, 'close-editor-action')) {
+				return;
+			}
+
+			if (e.button === 1 /* Middle Button*/) {
 				this.closeEditorAction.run(this.toTabContext(index)).done(null, errors.onUnexpectedError);
 			}
 		}));
