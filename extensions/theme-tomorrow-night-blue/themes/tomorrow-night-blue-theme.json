@@ -28,7 +28,7 @@
 		"titleBar.activeBackground": "#001126",
 		"statusBar.background": "#001126",
 		"statusBar.noFolderBackground": "#001126",
-		"statusBar.debuggingBackground": "#ffeead",
+		"statusBar.debuggingBackground": "#001126",
 		"activityBar.background": "#001733",
 		"activityBarBadge.background": "#bbdaff",
 		"activityBarBadge.foreground": "#001733",
