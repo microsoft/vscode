@@ -483,6 +483,7 @@
 		"statusBar.debuggingBackground": "#705697",
  		"activityBar.background": "#EDEDF5",
  		"activityBar.foreground": "#705697",
+		"activityBarBadge.background": "#705697",
 		"titleBar.activeBackground": "#c4b7d7",
 		"button.background": "#705697",
 		"notification.background": "#442e66"
