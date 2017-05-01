@@ -211,7 +211,8 @@ export enum Operation {
 	Init = 1 << 12,
 	Show = 1 << 13,
 	Stage = 1 << 14,
-	GetCommitTemplate = 1 << 15
+	GetCommitTemplate = 1 << 15,
+	Merge = 1 << 16
 }
 
 // function getOperationName(operation: Operation): string {
@@ -452,6 +453,10 @@ export class Model implements Disposable {
 
 	async branch(name: string): Promise<void> {
 		await this.run(Operation.Branch, () => this.repository.branch(name, true));
+	}
+
+	async merge(name: string): Promise<void> {
+		await this.run(Operation.Merge, () => this.repository.merge(name));
 	}
 
 	async checkout(treeish: string): Promise<void> {

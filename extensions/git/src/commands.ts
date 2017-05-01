@@ -17,14 +17,20 @@ import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
-class CheckoutItem implements QuickPickItem {
+class CheckoutBasicItem implements QuickPickItem {
+	get label(): string { return this.ref.name || ''; }
+	get description(): string { return this.ref.name || ''; }
+
+	constructor(protected ref: Ref) { }
+}
+
+
+class CheckoutItem extends CheckoutBasicItem {
 
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
 	protected get treeish(): string | undefined { return this.ref.name; }
 	get label(): string { return this.ref.name || this.shortCommit; }
 	get description(): string { return this.shortCommit; }
-
-	constructor(protected ref: Ref) { }
 
 	async run(model: Model): Promise<void> {
 		const ref = this.treeish;
@@ -669,6 +675,29 @@ export class CommandCenter {
 
 		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
 		await this.model.branch(name);
+	}
+
+	@command('git.merge')
+	async merge(): Promise<void> {
+		const config = workspace.getConfiguration('git');
+		const checkoutType = config.get<string>('checkoutType') || 'all';
+		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+
+		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
+			.map(ref => new CheckoutItem(ref));
+
+		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+			.map(ref => new CheckoutRemoteHeadItem(ref));
+
+		const picks = [...heads, ...remoteHeads];
+		const placeHolder = 'Select a ref to checkout';
+		const choice = await window.showQuickPick<CheckoutBasicItem>(picks, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		await this.model.merge(choice.label);
 	}
 
 	@command('git.pull')
