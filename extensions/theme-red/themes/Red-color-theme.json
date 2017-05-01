@@ -2,7 +2,7 @@
 	"tokenColors": "./red.tmTheme",
 	"colors": {
 		// window
-		"activityBarBadge.background": "#DB7E58",
+		"activityBarBadge.background": "#cc3333",
 		"activityBar.background": "#580000",
 		"tab.inactiveBackground": "#300a0a",
 		"tab.activeBackground": "#490000",
@@ -35,15 +35,17 @@
 		// UI
 		"debugToolBar.background": "#660000",
 		"focusBorder": "#ff6666aa",
-		"button.background": "#885555",
+		"button.background": "#833",
 		"dropdown.background": "#580000",
 		"input.background": "#580000",
 		"inputOption.activeBorder": "#cc0000",
 		"inputValidation.infoBackground": "#550000",
-		"inputValidation.infoBorder": "#773333",
+		"inputValidation.infoBorder": "#DB7E58",
 		"list.hoverBackground": "#800000",
 		"list.activeSelectionBackground": "#880000",
 		"list.inactiveSelectionBackground": "#770000",
+		"list.dropBackground": "#662222",
+		"list.focusAndSelectionBackground": "#882222",
 		"list.focusBackground": "#660000",
 		"list.highlightForeground": "#ff4444",
 		"notification.background": "#662222",
