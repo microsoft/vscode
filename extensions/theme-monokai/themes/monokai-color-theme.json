@@ -19,7 +19,7 @@
 		"editorGroupHeader.tabsBackground": "#1e1f1c",
 		"editorGroup.dropBackground": "#41433980",
 		"tab.inactiveBackground": "#414339",
-		"tab.border": "#000030",
+		"tab.border": "#1e1f1c",
 		"tab.inactiveForeground": "#ccccc7", // needs to be bright so it's readable when another editor group is focused
 		"widget.shadow": "#1e1f1c",
 		"editorLineNumber.foreground": "#90908a",
