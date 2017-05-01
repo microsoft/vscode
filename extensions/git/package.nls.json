@@ -29,6 +29,7 @@
 	"command.sync": "Sync",
 	"command.publish": "Publish Branch",
 	"command.showOutput": "Show Git Output",
+	"command.ignore": "Ignore",
 	"config.enabled": "Whether git is enabled",
 	"config.path": "Path to the git executable",
 	"config.autorefresh": "Whether auto refreshing is enabled",

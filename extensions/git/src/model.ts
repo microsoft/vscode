@@ -17,6 +17,8 @@ const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 const localize = nls.loadMessageBundle();
 const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
+const ignoreFileName = '.gitignore';
+
 function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
 }
@@ -211,7 +213,8 @@ export enum Operation {
 	Show = 1 << 13,
 	Stage = 1 << 14,
 	GetCommitTemplate = 1 << 15,
-	DeleteBranch = 1 << 16
+	DeleteBranch = 1 << 16,
+	Ignore = 1 << 17
 }
 
 // function getOperationName(operation: Operation): string {
@@ -523,6 +526,23 @@ export class Model implements Disposable {
 
 	async getCommitTemplate(): Promise<string> {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
+	}
+
+	async ignore(files: Resource[]): Promise<void> {
+		const newLineChar = '\n';
+
+		return await this.run(Operation.Ignore, async () => {
+			const ignoreFile = `${this.repository.root}${path.sep}${ignoreFileName}`;
+
+			let textToAppend = files
+				.map(file => path.relative(this.repository.root, file.resourceUri.fsPath).replace(/\\/g, '/'))
+				.join(newLineChar);
+
+			// Append in new line.
+			textToAppend = newLineChar + textToAppend;
+
+			createOrAppendFile(ignoreFile, textToAppend);
+		});
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
