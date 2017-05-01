@@ -36,6 +36,7 @@ import { tildify } from 'vs/base/common/labels';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Themable } from 'vs/workbench/common/theme';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { isLinux } from 'vs/base/common/platform';
 
 used();
 
@@ -174,7 +175,7 @@ class WelcomePage {
 		recentlyOpened.then(({ folders }) => {
 			if (this.contextService.hasWorkspace()) {
 				const current = this.contextService.getWorkspace().resource.fsPath;
-				folders = folders.filter(folder => folder !== current);
+				folders = folders.filter(folder => !this.pathEquals(folder, current));
 			}
 			if (!folders.length) {
 				const recent = container.querySelector('.welcomePage') as HTMLElement;
@@ -252,6 +253,15 @@ class WelcomePage {
 		}));
 
 		this.disposables.push(new WelcomeTheming(this.themeService, container));
+	}
+
+	private pathEquals(path1: string, path2: string): boolean {
+		if (!isLinux) {
+			path1 = path1.toLowerCase();
+			path2 = path2.toLowerCase();
+		}
+
+		return path1 === path2;
 	}
 
 	private installKeymap(keymapName: string, keymapIdentifier: string): void {
