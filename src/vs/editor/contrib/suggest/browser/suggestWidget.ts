@@ -637,7 +637,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.completionModel = completionModel;
 
-		if (isFrozen && this.state !== State.Empty) {
+		if (isFrozen && this.state !== State.Empty && this.state !== State.Hidden) {
 			this.setState(State.Frozen);
 			return;
 		}
@@ -667,7 +667,11 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.list.setFocus([0]);
 			this.list.reveal(0, 0);
 
-			this.setState(State.Open);
+			if (isFrozen) {
+				this.setState(State.Frozen);
+			} else {
+				this.setState(State.Open);
+			}
 		}
 	}
 
