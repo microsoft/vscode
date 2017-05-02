@@ -88,7 +88,7 @@ export function xhr(options: IXHROptions): TPromise<XMLHttpRequest> {
 			options.user,
 			options.password
 		);
-		req.responseType = options.responseType || '';
+		req.responseType = (options.responseType as XMLHttpRequestResponseType) || '';
 
 		Object.keys(options.headers || {}).forEach((k) => {
 			req.setRequestHeader(k, options.headers[k]);
