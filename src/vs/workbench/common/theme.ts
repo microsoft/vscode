@@ -7,7 +7,7 @@ import nls = require('vs/nls');
 import { registerColor, editorBackground, contrastBorder, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { Color, RGBA } from 'vs/base/common/color';
+import { Color } from 'vs/base/common/color';
 
 // < --- Tabs --- >
 
@@ -69,8 +69,8 @@ export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroup.border', {
 }, nls.localize('editorGroupBorder', "Color to separate multiple editor groups from each other. Editor groups are the containers of editors."));
 
 export const EDITOR_DRAG_AND_DROP_BACKGROUND = registerColor('editorGroup.dropBackground', {
-	dark: Color.fromRGBA(new RGBA(83, 89, 93)).transparent(0.5),
-	light: Color.fromRGBA(new RGBA(51, 153, 255)).transparent(0.18),
+	dark: Color.fromHex('#53595D').transparent(0.5),
+	light: Color.fromHex('#3399FF').transparent(0.18),
 	hc: null
 }, nls.localize('editorDragAndDropBackground', "Background color when dragging editors around."));
 
@@ -85,8 +85,8 @@ export const PANEL_BACKGROUND = registerColor('panel.background', {
 }, nls.localize('panelBackground', "Panel background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_BORDER_COLOR = registerColor('panel.border', {
-	dark: Color.fromRGBA(new RGBA(128, 128, 128)).transparent(0.35),
-	light: Color.fromRGBA(new RGBA(128, 128, 128)).transparent(0.35),
+	dark: Color.fromHex('#808080').transparent(0.35),
+	light: Color.fromHex('#808080').transparent(0.35),
 	hc: contrastBorder
 }, nls.localize('panelBorder', "Panel border color on the top separating to the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
