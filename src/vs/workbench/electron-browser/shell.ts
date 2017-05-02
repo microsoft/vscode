@@ -63,7 +63,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { IMessageService, IChoiceService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { ChoiceChannel } from 'vs/platform/message/common/messageIpc';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -183,7 +183,7 @@ export class WorkbenchShell {
 			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
 
 				// run workbench started logic
-				this.onWorkbenchStarted(info);
+				this.onWorkbenchStarted(instantiationService, info);
 
 				// start cached data manager
 				instantiationService.createInstance(NodeCachedDataManager);
@@ -206,7 +206,7 @@ export class WorkbenchShell {
 		return workbenchContainer;
 	}
 
-	private onWorkbenchStarted(info: IWorkbenchStartedInfo): void {
+	private onWorkbenchStarted(instantiationService: IInstantiationService, info: IWorkbenchStartedInfo): void {
 
 		// Telemetry: workspace info
 		const { filesToOpen, filesToCreate, filesToDiff } = this.options;
@@ -230,6 +230,12 @@ export class WorkbenchShell {
 		this.timerService.restoreViewletDuration = info.restoreViewletDuration;
 		this.extensionService.onReady().done(() => {
 			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
+
+			// Check for negative performance numbers (insiders only)
+			// TODO@Ben remove me
+			if (product.quality !== 'stable' && this.timerService.startupMetrics.ellapsed < 0) {
+				this.handleNegativePerformanceNumbers(instantiationService, this.timerService.startupMetrics.ellapsed);
+			}
 		});
 
 		// Telemetry: workspace tags
@@ -245,11 +251,9 @@ export class WorkbenchShell {
 		const { profileStartup } = this.environmentService;
 		if (profileStartup) {
 			this.extensionService.onReady().then(() => stopProfiling(profileStartup.dir, profileStartup.prefix)).then(() => {
-
 				readdir(profileStartup.dir).then(files => {
 					return files.filter(value => value.indexOf(profileStartup.prefix) === 0);
 				}).then(files => {
-
 					const profileFiles = files.reduce((prev, cur) => `${prev}${join(profileStartup.dir, cur)}\n`, '\n');
 
 					const primaryButton = this.messageService.confirm({
@@ -273,6 +277,16 @@ export class WorkbenchShell {
 
 			}, err => console.error(err));
 		}
+	}
+
+	private handleNegativePerformanceNumbers(i: IInstantiationService, time: number): void {
+		this.messageService.show(Severity.Warning, {
+			message: nls.localize('handleNegativePerformanceNumbers', "Something went wrong measuring startup performance numbers (ellapsed: {0}ms). We would like to learn more about this issue.", time),
+			actions: [
+				i.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL),
+				CloseAction
+			]
+		});
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
