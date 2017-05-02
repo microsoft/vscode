@@ -819,6 +819,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (styles.listActiveSelectionBackground) {
 			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`); // overwrite :hover style in this case!
 		}
 
 		if (styles.listActiveSelectionForeground) {
