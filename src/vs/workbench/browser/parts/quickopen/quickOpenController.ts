@@ -216,7 +216,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		return new TPromise(init).then(item => {
 			return currentValidation.then(valid => {
 				if (valid && item) {
-					return lastValue || options.value || '';
+					return lastValue === void 0 ? (options.value || '') : lastValue;
 				}
 				return undefined;
 			});
