@@ -1616,6 +1616,7 @@ export interface IEditorContribution {
  * @internal
  */
 export interface IThemeDecorationRenderOptions {
+	stickiness?: TrackedRangeStickiness;
 	backgroundColor?: string;
 
 	outline?: string;

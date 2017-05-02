@@ -699,6 +699,16 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Describes the behaviour of decorations when typing/editing near their edges.
+	 */
+	export enum TrackedRangeStickiness {
+		AlwaysGrowsWhenTypingAtEdges = 0,
+		NeverGrowsWhenTypingAtEdges = 1,
+		GrowsOnlyWhenTypingBefore = 2,
+		GrowsOnlyWhenTypingAfter = 3
+	}
+
+	/**
 	 * Represents options to configure the behavior of showing a [document](#TextDocument) in an [editor](#TextEditor).
 	 */
 	export interface TextDocumentShowOptions {
@@ -725,6 +735,12 @@ declare module 'vscode' {
 	 * Represents theme specific rendering styles for a [text editor decoration](#TextEditorDecorationType).
 	 */
 	export interface ThemableDecorationRenderOptions {
+		/**
+		 * Customize the growing behaviour of the decoration when typing at the edges of the decoration.
+		 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+		 */
+		stickiness?: TrackedRangeStickiness;
+
 		/**
 		 * Background color of the decoration. Use rgba() and define transparent background colors to play well with other decorations.
 		 */
