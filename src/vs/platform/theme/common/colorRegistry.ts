@@ -105,7 +105,16 @@ class ColorRegistry implements IColorRegistry {
 	}
 
 	public toString() {
-		return Object.keys(this.colorsById).sort().map(k => `- \`${k}\`: ${this.colorsById[k].description}`).join('\n');
+		let sorter = (a: string, b: string) => {
+			let cat1 = a.indexOf('.') === -1 ? 0 : 1;
+			let cat2 = b.indexOf('.') === -1 ? 0 : 1;
+			if (cat1 !== cat2) {
+				return cat1 - cat2;
+			}
+			return a.localeCompare(b);
+		};
+
+		return Object.keys(this.colorsById).sort(sorter).map(k => `- \`${k}\`: ${this.colorsById[k].description}`).join('\n');
 	}
 
 }
