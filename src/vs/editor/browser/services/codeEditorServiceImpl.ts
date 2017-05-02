@@ -204,6 +204,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		);
 
 		this.isWholeLine = Boolean(options.isWholeLine);
+		this.stickiness = options.stickiness;
 
 		if (
 			typeof themedOpts.light.overviewRulerColor !== 'undefined'
