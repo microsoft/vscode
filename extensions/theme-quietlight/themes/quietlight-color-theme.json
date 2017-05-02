@@ -460,6 +460,7 @@
 		"list.focusBackground": "#CADEB9",
 		"list.activeSelectionBackground": "#c4d9b1",
 		"list.inactiveSelectionBackground": "#d3dbcd",
+		"list.highlightForeground": "#9769dc",
 		"editor.background": "#F5F5F5",
 		"editorWhitespace.foreground": "#AAAAAA",
 		"editor.lineHighlightBackground": "#E4F6D4",
@@ -477,6 +478,7 @@
 		"peekViewTitle.background": "#F2F8FC",
 		"peekViewEditor.background": "#F2F8FC",
 		"peekViewResult.background": "#F2F8FC",
+		"peekView.border": "#705697",
 		"peekViewResult.matchHighlightBackground": "#93C6D6",
 		"statusBar.background": "#705697",
 		"statusBar.noFolderBackground": "#705697",
@@ -486,6 +488,13 @@
 		"activityBarBadge.background": "#705697",
 		"titleBar.activeBackground": "#c4b7d7",
 		"button.background": "#705697",
-		"notification.background": "#442e66"
+		"notification.background": "#442e66",
+		"editorGroup.dropBackground": "#C9D0D988",
+		"inputValidation.infoBorder": "#4ec1e5",
+		"inputValidation.infoBackground": "#f2fcff",
+		"inputValidation.warningBackground": "#fffee2",
+		"inputValidation.warningBorder": "#ffe055",
+		"inputValidation.errorBackground": "#ffeaea",
+		"inputValidation.errorBorder": "#f1897f"
 	}
 }

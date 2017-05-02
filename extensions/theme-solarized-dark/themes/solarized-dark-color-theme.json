@@ -306,12 +306,12 @@
 		// "input.border": "",
 
 		"inputOption.activeBorder": "#2AA19899",
-		"inputValidation.infoBorder": "#384078",
-		"inputValidation.infoBackground": "#051336",
-		"inputValidation.warningBackground": "#5B7E7A",
-		"inputValidation.warningBorder": "#5B7E7A",
-		"inputValidation.errorBackground": "#A22D44",
-		"inputValidation.errorBorder": "#AB395B",
+		"inputValidation.infoBorder": "#363b5f",
+		"inputValidation.infoBackground": "#052730",
+		"inputValidation.warningBackground": "#5d5938",
+		"inputValidation.warningBorder": "#9d8a5e",
+		"inputValidation.errorBackground": "#571b26",
+		"inputValidation.errorBorder": "#a92049",
 
 		"dropdown.background": "#00212B",
 		"dropdown.border": "#2AA19899",
@@ -326,7 +326,7 @@
 		"list.hoverBackground": "#004454AA",
 		"list.inactiveSelectionBackground": "#00445488",
 		"list.dropBackground": "#00445488",
-		"list.highlightForeground": "#047aa6",
+		"list.highlightForeground": "#1ebcc5",
 
 		// "scrollbar.shadow": "",
 		// "scrollbarSlider.activeBackground": "",
@@ -397,7 +397,7 @@
 		// "editorGroupHeader.noTabsBackground": "",
 		"editorGroup.border": "#00212B",
 		"editorGroup.background": "#011b23",
-		"editorGroup.dropBackground": "#00212BAA",
+		"editorGroup.dropBackground": "#2AA19844",
 		"editorGroupHeader.tabsBackground": "#004052",
 
 		// Workbench: Tabs
