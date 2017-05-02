@@ -19,7 +19,7 @@ export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolPr
 	provideDocumentSymbols(document: vscode.TextDocument): vscode.ProviderResult<vscode.SymbolInformation[]> {
 		const toc = new TableOfContentsProvider(this.engine, document);
 		return toc.getToc().map(entry => {
-			return new vscode.SymbolInformation(entry.text, vscode.SymbolKind.Module, '', entry.location);
+			return new vscode.SymbolInformation(entry.text, vscode.SymbolKind.Namespace, '', entry.location);
 		});
 	}
 }
