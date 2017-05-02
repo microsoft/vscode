@@ -521,7 +521,7 @@ export class TabsTitleControl extends TitleControl {
 			tab.blur();
 
 			const { editor, position } = this.toTabContext(index);
-			if (e.button === 0 /* Left Button */ && !DOM.findParentWithClass((e.target || e.srcElement) as HTMLElement, 'monaco-action-bar', 'tab')) {
+			if (e.button === 0 /* Left Button */ && !this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
 		}));
@@ -531,7 +531,7 @@ export class TabsTitleControl extends TitleControl {
 			DOM.EventHelper.stop(e);
 			tab.blur();
 
-			if (e.button === 1 /* Middle Button */) {
+			if (e.button === 1 /* Middle Button*/ && !this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
 				this.closeEditorAction.run(this.toTabContext(index)).done(null, errors.onUnexpectedError);
 			}
 		}));
@@ -664,6 +664,10 @@ export class TabsTitleControl extends TitleControl {
 		}));
 
 		return combinedDisposable(disposables);
+	}
+
+	private isTabActionBar(element: HTMLElement): boolean {
+		return !!DOM.findParentWithClass(element, 'monaco-action-bar', 'tab');
 	}
 
 	private toTabContext(index: number): { group: IEditorGroup, position: Position, editor: IEditorInput } {
