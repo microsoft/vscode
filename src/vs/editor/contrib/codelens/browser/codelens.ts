@@ -472,10 +472,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			// Ask for all references again
 			scheduler.schedule();
 		}));
-		this._localToDispose.push(this._editor.onDidScrollChange((e) => {
+		this._localToDispose.push(this._editor.onDidScrollChange(e => {
 			if (e.scrollTopChanged) {
 				this._detectVisibleLenses.schedule();
 			}
+		}));
+		this._localToDispose.push(this._editor.onDidLayoutChange(e => {
+			this._detectVisibleLenses.schedule();
 		}));
 		this._localToDispose.push({
 			dispose: () => {
