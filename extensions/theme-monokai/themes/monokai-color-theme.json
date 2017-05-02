@@ -1,14 +1,20 @@
+// This theme's colors are based on the original Monokai:
+//   #1e1f1c (tab well, borders)
+//   #272822 (editor background)
+//   #414339 (selection)
+//   #75715e (focus)
+//   #f8f8f2 (editor foreground)
 {
 	"type": "dark",
 	"colors": {
 		"dropdown.background": "#414339",
-		"list.activeSelectionBackground": "#f92672",
+		"list.activeSelectionBackground": "#75715E",
 		"list.focusBackground": "#414339",
 		"list.inactiveSelectionBackground": "#414339",
 		"list.hoverBackground": "#272822",
 		"list.dropBackground": "#414339",
-		"list.highlightForeground": "#f92672",
-		"button.background": "#f92672",
+		"list.highlightForeground": "#75715E",
+		"button.background": "#75715E",
 		"editor.background": "#272822",
 		"editor.foreground": "#f8f8f2",
 		"editor.selectionBackground": "#49483e",
@@ -24,33 +30,40 @@
 		"widget.shadow": "#1e1f1c",
 		"editorLineNumber.foreground": "#90908a",
 		"panelTitle.activeForeground": "#f8f8f2",
-		"panelTitle.activeBorder": "#f92672",
-		"panelTitle.inactiveForeground": "#75715E", // comment color
+		"panelTitle.activeBorder": "#75715E",
+		"panelTitle.inactiveForeground": "#75715E",
 		"panel.border": "#414339",
+		"titleBar.activeBackground": "#414339",
 		"statusBar.background": "#414339",
 		"statusBar.noFolderBackground": "#414339",
-		"statusBar.debuggingBackground": "#f92672",
+		"statusBar.debuggingBackground": "#75715E",
 		"activityBar.background": "#272822",
 		"activityBarBadge.foreground": "#f8f8f2",
-		"activityBarBadge.background": "#f92672",
+		"activityBarBadge.background": "#75715E",
 		"activityBar.foreground": "#f8f8f2",
 		"activityBar.dropBackground": "#414339",
 		"sideBar.background": "#1e1f1c",
 		"sideBarSectionHeader.background": "#272822",
-		"notification.foreground": "#1e1f1c",
-		"pickerGroup.foreground": "#f92672",
+		"pickerGroup.foreground": "#75715E",
 		"input.background": "#414339",
-		"focusBorder": "#f92672",
+		"inputOption.activeBorder": "#75715E",
+		"focusBorder": "#75715E",
 		"editorWidget.background": "#1e1f1c",
 		"debugToolBar.background": "#1e1f1c",
 		"diffEditor.insertedTextBackground": "#66852880", // middle of #272822 and #a6e22e
-		"diffEditor.removedTextBackground": "#90274A80", // middle of f92672 and #a6e22e
+		"diffEditor.removedTextBackground": "#90274A80", // middle of #272822 and #f92672
+		"inputValidation.errorBackground": "#90274A", // middle of #272822 and #f92672
+		"inputValidation.errorBorder": "#f92672",
+		"inputValidation.warningBackground": "#848528", // middle of #272822 and #e2e22e
+		"inputValidation.warningBorder": "#e2e22e",
+		"inputValidation.infoBackground": "#546190", // middle of #272822 and #819aff
+		"inputValidation.infoBorder": "#819aff",
 		"editorHoverWidget.background": "#414339",
-		"editorHoverWidget.border": "#75715E", // comment color
+		"editorHoverWidget.border": "#75715E",
 		"editorSuggestWidget.background": "#272822",
-		"editorSuggestWidget.border": "#75715E", // comment color
-		"editorGroup.border": "#414339", // comment color
-		"peekView.border": "#f92672",
+		"editorSuggestWidget.border": "#75715E",
+		"editorGroup.border": "#414339",
+		"peekView.border": "#75715E",
 		"peekViewEditor.background": "#272822",
 		"peekViewResult.background": "#1e1f1c",
 		"peekViewTitle.background": "#1e1f1c",
