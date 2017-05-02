@@ -241,7 +241,17 @@
 		},
 		"regexp": {
 			"begin": "#\\\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.regexp.begin.clojure"
+				}
+			},
 			"end": "\\\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.regexp.end.clojure"
+				}
+			},
 			"name": "string.regexp.clojure",
 			"patterns": [
 				{
