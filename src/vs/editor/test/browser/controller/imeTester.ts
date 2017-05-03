@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextAreaHandler } from 'vs/editor/common/controller/textAreaHandler';
+import { TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
 import * as browser from 'vs/base/browser/browser';
-import { TextAreaStrategy, ISimpleModel } from 'vs/editor/common/controller/textAreaState';
+import { TextAreaStrategy, ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';

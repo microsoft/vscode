@@ -13,7 +13,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { CopyOptions } from 'vs/editor/common/controller/textAreaHandler';
+import { CopyOptions } from 'vs/editor/browser/controller/textAreaHandler';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';

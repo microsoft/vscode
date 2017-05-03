@@ -568,7 +568,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			if (range.isEmpty()) {
 				if (enableEmptySelectionClipboard) {
 					let modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-					return this.getModelLineContent(modelLineNumber) + newLineCharacter;
+					return this.model.getLineContent(modelLineNumber) + newLineCharacter;
 				} else {
 					return '';
 				}
