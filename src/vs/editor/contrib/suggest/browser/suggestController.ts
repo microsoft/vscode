@@ -219,7 +219,7 @@ export class SuggestController implements IEditorContribution {
 	cancelSuggestWidget(): void {
 		if (this._widget) {
 			this._model.cancel();
-			this._widget.hideDetailsOrHideWidget();
+			this._widget.hideWidget();
 		}
 	}
 
@@ -261,7 +261,7 @@ export class SuggestController implements IEditorContribution {
 
 	toggleSuggestionDetails(): void {
 		if (this._widget) {
-			this._widget.toggleDetails();
+			this._widget.toggleDetailsFocus();
 		}
 	}
 }
