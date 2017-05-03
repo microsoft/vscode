@@ -16,6 +16,8 @@
 	"confirm discard": "{0} の変更を破棄しますか?",
 	"confirm discard multiple": "{0} 個のファイルの変更内容を破棄しますか?",
 	"discard": "変更を破棄",
+	"confirm discard all": "すべての変更を破棄しますか? 変更は戻りません!",
+	"discardAll": "すべての変更を破棄",
 	"no changes": "コミットする必要のある変更はありません。",
 	"commit message": "コミット メッセージ",
 	"provide commit message": "コミット メッセージを入力してください",

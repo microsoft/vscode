@@ -9,6 +9,7 @@
 	"ConfigureTaskRunnerAction.quickPick.template": "Seleccionar un ejecutador de tareas",
 	"ConfigureTaskRunnerAction.autoDetecting": "Detectando tareas automáticamente para {0}",
 	"ConfigureTaskRunnerAction.autoDetect": "Error de detección automática del sistema de tareas. Se usa la plantilla predeterminada. Consulte el resultado de la tarea para obtener más detalles",
+	"ConfigureTaskRunnerAction.autoDetectError": "Error de detección automática del sistema de tareas. Consulte el resultado de la tarea para obtener más detalles",
 	"ConfigureTaskRunnerAction.failed": "No se puede crear el archivo \"tasks.json\" dentro de la carpeta \".vscode\". Consulte el resultado de la tarea para obtener más detalles.",
 	"ConfigureTaskRunnerAction.label": "Configurar ejecutor de tareas",
 	"ConfigureBuildTaskAction.label": "Configurar tarea de compilación",

@@ -33,5 +33,7 @@
 	"titleBarActiveForeground": "作用中視窗之標題列的前景。請注意，目前只有 macOS 支援此色彩。",
 	"titleBarInactiveForeground": "非作用中視窗之標題列的前景。請注意，目前只有 macOS 支援此色彩。",
 	"titleBarActiveBackground": "作用中視窗之標題列的背景。請注意，目前只有 macOS 支援此色彩。",
-	"titleBarInactiveBackground": "非作用中視窗之標題列的背景。請注意，目前只有 macOS 支援此色彩。"
+	"titleBarInactiveBackground": "非作用中視窗之標題列的背景。請注意，目前只有 macOS 支援此色彩。",
+	"notificationsForeground": "通知的前景色彩。通知從視窗的上方滑入。",
+	"notificationsBackground": "通知的背景色彩。通知從視窗的上方滑入。"
 }

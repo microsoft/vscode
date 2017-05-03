@@ -9,6 +9,7 @@
 	"ConfigureTaskRunnerAction.quickPick.template": "Sélectionner un exécuteur de tâches",
 	"ConfigureTaskRunnerAction.autoDetecting": "Détection automatique des tâches pour {0}",
 	"ConfigureTaskRunnerAction.autoDetect": "En raison de l'échec de la détection automatique du système de tâche, le modèle par défaut va être utilisé. Pour plus d'informations, consultez la sortie de la tâche.",
+	"ConfigureTaskRunnerAction.autoDetectError": "La détection automatique du système de tâche a produit des erreurs. Consultez la sortie de la tâche pour plus d'informations.",
 	"ConfigureTaskRunnerAction.failed": "Impossible de créer le fichier 'tasks.json' dans le dossier '.vscode'. Pour plus d'informations, consultez la sortie de la tâche.",
 	"ConfigureTaskRunnerAction.label": "Configurer l'exécuteur de tâches",
 	"ConfigureBuildTaskAction.label": "Configurer une tâche de build",

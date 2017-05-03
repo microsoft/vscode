@@ -6,6 +6,9 @@
 {
 	"editorSuggestWidgetBackground": "Color de fondo del widget sugerido.",
 	"editorSuggestWidgetBorder": "Color de borde del widget sugerido.",
+	"editorSuggestWidgetForeground": "Color de primer plano del widget sugerido.",
+	"editorSuggestWidgetSelectedBackground": "Color de fondo de la entrada seleccionada del widget sugerido.",
+	"editorSuggestWidgetHighlightForeground": "Color del resaltado coincidido en el widget sugerido.",
 	"readMore": "Leer más...{0}",
 	"suggestionWithDetailsAriaLabel": "{0}, sugerencia, con detalles",
 	"suggestionAriaLabel": "{0}, sugerencia",

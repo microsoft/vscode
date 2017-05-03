@@ -15,5 +15,6 @@
 	"allowBreakpointsEverywhere": "允許在任何檔案設定中斷點",
 	"openExplorerOnEnd": "自動於偵錯工作階段結束時開啟總管檢視",
 	"inlineValues": "在偵錯時於編輯器以內嵌方式顯示變數值",
-	"hideActionBar": "控制是否應隱藏浮點偵錯動作列"
+	"hideActionBar": "控制是否應隱藏浮點偵錯動作列",
+	"launch": "全域偵錯啟動組態。應當做在工作區之間共用的 'launch.json' 替代方案使用"
 }

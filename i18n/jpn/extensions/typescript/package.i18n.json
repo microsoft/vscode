@@ -38,6 +38,6 @@
 	"typescript.openTsServerLog.title": "TS サーバーのログ ファイルを開く",
 	"typescript.selectTypeScriptVersion.title": "TypeScript のバージョンの選択",
 	"jsDocCompletion.enabled": " 自動 JSDoc コメントを有効/無効にします",
-	"javascript.implicitProjectConfig.checkJs": "JavaScript ファイルのセマンティック チェックを有効/無効にします。既存の jsconfi.json や tsconfi.json ファイルの設定はこれより優先されます。 TypeScript は 2.3.1 以上である必要があります。",
+	"javascript.implicitProjectConfig.checkJs": "JavaScript ファイルのセマンティック チェックを有効/無効にします。既存の jsconfi.json や tsconfi.json ファイルの設定はこれより優先されます。TypeScript は 2.3.1 以上である必要があります。",
 	"typescript.check.npmIsInstalled": "型定義の自動取得に NPM がインストールされているかどうかを確認する"
 }
