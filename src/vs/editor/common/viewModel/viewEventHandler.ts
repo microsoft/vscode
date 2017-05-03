@@ -70,7 +70,7 @@ export class ViewEventHandler extends Disposable {
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return false;
 	}
-	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean { // TODO@cursor
+	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
 		return false;
 	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {

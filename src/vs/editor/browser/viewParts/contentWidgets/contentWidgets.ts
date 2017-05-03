@@ -106,7 +106,7 @@ export class ViewContentWidgets extends ViewPart {
 
 			if (this._contentWidth !== this._context.configuration.editor.layoutInfo.contentWidth) {
 				this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-				// update the maxWidth on widgets nodes, such that `onReadAfterForcedLayout`
+				// update the maxWidth on widgets nodes, such that `prepareRender`
 				// below can read out the adjusted width/height of widgets
 				let keys = Object.keys(this._widgets);
 				for (let i = 0, len = keys.length; i < len; i++) {
@@ -122,15 +122,9 @@ export class ViewContentWidgets extends ViewPart {
 		}
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		return false;
-	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
-		return true;//e.inlineDecorationsChanged;
+		return true;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
@@ -143,9 +137,6 @@ export class ViewContentWidgets extends ViewPart {
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
-	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		return false;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return true;
