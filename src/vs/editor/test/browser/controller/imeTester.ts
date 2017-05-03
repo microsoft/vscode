@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextAreaHandler, ITextAreaHandlerHost } from 'vs/editor/browser/controller/textAreaHandler';
-import { TextAreaStrategy, ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
+import { TextAreaHandler, ITextAreaHandlerHost, TextAreaStrategy } from 'vs/editor/browser/controller/textAreaHandler';
+import { ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
@@ -67,7 +67,18 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let title = document.createElement('div');
 	title.className = 'title';
-	title.innerHTML = TextAreaStrategy[strategy] + ' strategy: ' + description + '. Type <strong>' + inputStr + '</strong>';
+
+	const toStr = (value: TextAreaStrategy): string => {
+		if (value === TextAreaStrategy.IENarrator) {
+			return 'IENarrator';
+		}
+		if (value === TextAreaStrategy.NVDA) {
+			return 'NVDA';
+		}
+		return '???';
+	};
+
+	title.innerHTML = toStr(strategy) + ' strategy: ' + description + '. Type <strong>' + inputStr + '</strong>';
 	container.appendChild(title);
 
 	let startBtn = document.createElement('button');

@@ -7,8 +7,8 @@
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalScreenReaderNVDA } from 'vs/editor/common/config/commonEditorConfig';
-import { TextAreaHandler, ITextAreaHandlerHost } from 'vs/editor/browser/controller/textAreaHandler';
-import { TextAreaStrategy, ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
+import { TextAreaHandler, ITextAreaHandlerHost, TextAreaStrategy } from 'vs/editor/browser/controller/textAreaHandler';
+import { ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { Configuration } from 'vs/editor/browser/config/configuration';
