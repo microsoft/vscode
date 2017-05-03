@@ -621,37 +621,85 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		// Handle all `withShiftAltGr` entries
 		for (let i = mappings.length - 1; i >= 0; i--) {
 			const mapping = mappings[i];
+			const scanCode = mapping.scanCode;
 			const withShiftAltGr = mapping.withShiftAltGr;
 			if (withShiftAltGr === mapping.withAltGr || withShiftAltGr === mapping.withShift || withShiftAltGr === mapping.value) {
 				// handled below
 				continue;
 			}
-			this._registerCharCode(mapping.scanCode, true, true, true, withShiftAltGr);
+			const kb = MacLinuxKeyboardMapper._charCodeToKb(withShiftAltGr);
+			if (!kb) {
+				this._registerAllCombos1(true, true, true, scanCode, KeyCode.Unknown);
+				continue;
+			}
+			const kbShiftKey = kb.shiftKey;
+			const keyCode = kb.keyCode;
+
+			this._registerAllCombos2(
+				true, true, true, scanCode,
+				kbShiftKey, keyCode
+			);
 		}
 		// Handle all `withAltGr` entries
 		for (let i = mappings.length - 1; i >= 0; i--) {
 			const mapping = mappings[i];
+			const scanCode = mapping.scanCode;
 			const withAltGr = mapping.withAltGr;
 			if (withAltGr === mapping.withShift || withAltGr === mapping.value) {
 				// handled below
 				continue;
 			}
-			this._registerCharCode(mapping.scanCode, true, false, true, withAltGr);
+			const kb = MacLinuxKeyboardMapper._charCodeToKb(withAltGr);
+			if (!kb) {
+				this._registerAllCombos1(true, false, true, scanCode, KeyCode.Unknown);
+				continue;
+			}
+			const kbShiftKey = kb.shiftKey;
+			const keyCode = kb.keyCode;
+
+			this._registerAllCombos2(
+				true, false, true, scanCode,
+				kbShiftKey, keyCode
+			);
 		}
 		// Handle all `withShift` entries
 		for (let i = mappings.length - 1; i >= 0; i--) {
 			const mapping = mappings[i];
+			const scanCode = mapping.scanCode;
 			const withShift = mapping.withShift;
 			if (withShift === mapping.value) {
 				// handled below
 				continue;
 			}
-			this._registerCharCode(mapping.scanCode, false, true, false, withShift);
+			const kb = MacLinuxKeyboardMapper._charCodeToKb(withShift);
+			if (!kb) {
+				this._registerAllCombos1(false, true, false, scanCode, KeyCode.Unknown);
+				continue;
+			}
+			const kbShiftKey = kb.shiftKey;
+			const keyCode = kb.keyCode;
+
+			this._registerAllCombos2(
+				false, true, false, scanCode,
+				kbShiftKey, keyCode
+			);
 		}
 		// Handle all `value` entries
 		for (let i = mappings.length - 1; i >= 0; i--) {
 			const mapping = mappings[i];
-			this._registerCharCode(mapping.scanCode, false, false, false, mapping.value);
+			const scanCode = mapping.scanCode;
+			const kb = MacLinuxKeyboardMapper._charCodeToKb(mapping.value);
+			if (!kb) {
+				this._registerAllCombos1(false, false, false, scanCode, KeyCode.Unknown);
+				continue;
+			}
+			const kbShiftKey = kb.shiftKey;
+			const keyCode = kb.keyCode;
+
+			this._registerAllCombos2(
+				false, false, false, scanCode,
+				kbShiftKey, keyCode
+			);
 		}
 		// Handle all left-over available digits
 		this._registerAllCombos1(false, false, false, ScanCode.Digit1, KeyCode.KEY_1);
@@ -869,27 +917,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 				}
 			}
 		}
-	}
-
-	private _registerCharCode(scanCode: ScanCode, ctrlKey: boolean, shiftKey: boolean, altKey: boolean, charCode: number): void {
-
-		let _kb = MacLinuxKeyboardMapper._charCodeToKb(charCode);
-		let kb = _kb ? {
-			ctrlKey: false,
-			shiftKey: _kb.shiftKey,
-			altKey: false,
-			keyCode: _kb.keyCode
-		} : null;
-
-		if (!_kb) {
-			this._registerAllCombos1(ctrlKey, shiftKey, altKey, scanCode, KeyCode.Unknown);
-			return;
-		}
-
-		this._registerAllCombos2(
-			ctrlKey, shiftKey, altKey, scanCode,
-			kb.shiftKey, kb.keyCode
-		);
 	}
 
 	public simpleKeybindingToScanCodeBinding(keybinding: SimpleKeybinding): ScanCodeBinding[] {
