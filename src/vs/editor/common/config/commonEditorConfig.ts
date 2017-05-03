@@ -329,6 +329,7 @@ class InternalEditorOptionsHelper {
 			occurrencesHighlight: toBoolean(opts.occurrencesHighlight),
 			codeLens: opts.referenceInfos && opts.codeLens,
 			folding: toBoolean(opts.folding),
+			hideFoldIcons: toBoolean(opts.hideFoldIcons),
 			matchBrackets: toBoolean(opts.matchBrackets),
 		});
 
@@ -931,6 +932,11 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': DefaultConfig.editor.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
+		},
+		'editor.hideFoldIcons': {
+			'type': 'boolean',
+			'default': DefaultConfig.editor.hideFoldIcons,
+			'description': nls.localize('hideFoldIcons', "Controls whether the fold icons on the gutter are automatically hidden.")
 		},
 		'editor.matchBrackets': {
 			'type': 'boolean',

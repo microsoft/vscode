@@ -421,6 +421,11 @@ export interface IEditorOptions {
 	 */
 	folding?: boolean;
 	/**
+	 * Enable automatic hiding of non-collapsed fold icons in the gutter.
+	 * Defaults to true.
+	 */
+	hideFoldIcons?: boolean;
+	/**
 	 * Enable highlighting of matching brackets.
 	 * Defaults to true.
 	 */
@@ -1017,6 +1022,7 @@ export class EditorContribOptions {
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
+	readonly hideFoldIcons: boolean;
 	readonly matchBrackets: boolean;
 
 	/**
@@ -1044,6 +1050,7 @@ export class EditorContribOptions {
 		occurrencesHighlight: boolean;
 		codeLens: boolean;
 		folding: boolean;
+		hideFoldIcons: boolean;
 		matchBrackets: boolean;
 	}) {
 		this.selectionClipboard = Boolean(source.selectionClipboard);
@@ -1067,6 +1074,7 @@ export class EditorContribOptions {
 		this.occurrencesHighlight = Boolean(source.occurrencesHighlight);
 		this.codeLens = Boolean(source.codeLens);
 		this.folding = Boolean(source.folding);
+		this.hideFoldIcons = Boolean(source.hideFoldIcons);
 		this.matchBrackets = Boolean(source.matchBrackets);
 	}
 
@@ -1096,6 +1104,7 @@ export class EditorContribOptions {
 			&& this.occurrencesHighlight === other.occurrencesHighlight
 			&& this.codeLens === other.codeLens
 			&& this.folding === other.folding
+			&& this.hideFoldIcons === other.hideFoldIcons
 			&& this.matchBrackets === other.matchBrackets
 		);
 	}
