@@ -5,9 +5,9 @@
 
 exports.base = [{
 	name: 'vs/base/common/worker/simpleWorker',
-	include: [ 'vs/editor/common/services/editorSimpleWorker' ],
-	prepend: [ 'vs/loader.js' ],
-	append: [ 'vs/base/worker/workerMain' ],
+	include: ['vs/editor/common/services/editorSimpleWorker'],
+	prepend: ['vs/tslib.js', 'vs/loader.js'],
+	append: ['vs/base/worker/workerMain'],
 	dest: 'vs/base/worker/workerMain.js'
 }];
 exports.workbench = require('./vs/workbench/buildfile').collectModules(['vs/workbench/electron-browser/workbench.main']);

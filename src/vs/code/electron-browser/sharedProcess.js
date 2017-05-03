@@ -73,6 +73,9 @@ function main() {
 
 	window.document.documentElement.setAttribute('lang', locale);
 
+	// load ts-helpers like __extends
+	require(path.join(configuration.appRoot, 'out/vs/tslib.js'));
+
 	// Load the loader and start loading the workbench
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
 
