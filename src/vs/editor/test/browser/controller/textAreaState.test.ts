@@ -5,13 +5,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IENarratorTextAreaState, ISimpleModel, TextAreaState, ISimpleTextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
+import { IENarratorTextAreaState, ISimpleModel, TextAreaState, ITextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Disposable } from 'vs/base/common/lifecycle';
 
-export class MockTextAreaWrapper extends Disposable implements ISimpleTextAreaWrapper {
+export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 	public _value: string;
 	public _selectionStart: number;

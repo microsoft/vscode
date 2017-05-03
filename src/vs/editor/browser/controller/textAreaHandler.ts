@@ -9,10 +9,10 @@ import * as strings from 'vs/base/common/strings';
 import Event, { Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ISimpleModel, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { ISimpleModel, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState, ITextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import * as browser from 'vs/base/browser/browser';
-import { ClipboardEventWrapper, TextAreaWrapper } from "vs/editor/browser/controller/input/textAreaWrapper";
+import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
 import { FastDomNode } from "vs/base/browser/fastDomNode";
 
@@ -106,14 +106,14 @@ export class TextAreaHandler extends Disposable {
 
 		this.hasFocus = false;
 
-		this._register(this.textArea.onKeyDown((e) => this._onKeyDownHandler(e)));
-		this._register(this.textArea.onKeyUp((e) => this._onKeyUp.fire(e)));
-		this._register(this.textArea.onKeyPress((e) => this._onKeyPressHandler(e)));
+		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => this._onKeyDownHandler(e)));
+		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keyup', (e: IKeyboardEvent) => this._onKeyUp.fire(e)));
+		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keypress', (e: IKeyboardEvent) => this._onKeyPressHandler(e)));
 
 		this.textareaIsShownAtCursor = false;
 		let compositionLocale = null;
 
-		this._register(this.textArea.onCompositionStart((e) => {
+		this._register(dom.addDisposableListener(textArea.domNode, 'compositionstart', (e: CompositionEvent) => {
 
 			if (this.textareaIsShownAtCursor) {
 				return;
@@ -132,7 +132,7 @@ export class TextAreaHandler extends Disposable {
 			});
 		}));
 
-		this._register(this.textArea.onCompositionUpdate((e) => {
+		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
 			if (isChromev55_v56) {
 				// See https://github.com/Microsoft/monaco-editor/issues/320
 				// where compositionupdate .data is broken in Chrome v55 and v56
@@ -181,7 +181,7 @@ export class TextAreaHandler extends Disposable {
 			}
 		};
 
-		this._register(this.textArea.onCompositionEnd((e) => {
+		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
 			// console.log('onCompositionEnd: ' + e.data);
 			if (browser.isEdgeOrIE && e.locale === 'ja') {
 				// https://github.com/Microsoft/monaco-editor/issues/339
@@ -209,7 +209,7 @@ export class TextAreaHandler extends Disposable {
 			this._onCompositionEnd.fire();
 		}));
 
-		this._register(this.textArea.onInput(() => {
+		this._register(dom.addDisposableListener(textArea.domNode, 'input', () => {
 			// console.log('onInput: ' + this.textArea.getValue());
 			if (this.textareaIsShownAtCursor) {
 				// See https://github.com/Microsoft/monaco-editor/issues/320
@@ -233,18 +233,18 @@ export class TextAreaHandler extends Disposable {
 
 		// --- Clipboard operations
 
-		this._register(this.textArea.onCut((e) => {
+		this._register(dom.addDisposableListener(textArea.domNode, 'cut', (e: ClipboardEvent) => {
 			this._ensureClipboardGetsEditorSelection(e);
 			this.asyncTriggerCut.schedule();
 		}));
 
-		this._register(this.textArea.onCopy((e) => {
+		this._register(dom.addDisposableListener(textArea.domNode, 'copy', (e: ClipboardEvent) => {
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
-		this._register(this.textArea.onPaste((e) => {
-			if (e.canUseTextData()) {
-				this.executePaste(e.getTextData());
+		this._register(dom.addDisposableListener(textArea.domNode, 'paste', (e: ClipboardEvent) => {
+			if (ClipboardEventUtils.canUseTextData(e)) {
+				this.executePaste(ClipboardEventUtils.getTextData(e));
 			} else {
 				if (this.textArea.getSelectionStart() !== this.textArea.getSelectionEnd()) {
 					// Clean up the textarea, to get a clean paste
@@ -351,14 +351,14 @@ export class TextAreaHandler extends Disposable {
 
 	// ------------- Clipboard operations
 
-	private _ensureClipboardGetsEditorSelection(e: ClipboardEventWrapper): void {
+	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
 		let whatToCopy = this.model.getPlainTextToCopy(this.selections, browser.enableEmptySelectionClipboard);
-		if (e.canUseTextData()) {
+		if (ClipboardEventUtils.canUseTextData(e)) {
 			let whatHTMLToCopy: string = null;
 			if (!browser.isEdgeOrIE && (whatToCopy.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
 				whatHTMLToCopy = this.model.getHTMLToCopy(this.selections, browser.enableEmptySelectionClipboard);
 			}
-			e.setTextData(whatToCopy, whatHTMLToCopy);
+			ClipboardEventUtils.setTextData(e, whatToCopy, whatHTMLToCopy);
 		} else {
 			this.setTextAreaState('copy or cut', this.textAreaState.fromText(whatToCopy), false);
 		}
@@ -375,5 +375,105 @@ export class TextAreaHandler extends Disposable {
 			let selections = this.selections;
 			this.lastCopiedValueIsFromEmptySelection = (selections.length === 1 && selections[0].isEmpty());
 		}
+	}
+}
+
+class ClipboardEventUtils {
+
+	public static canUseTextData(e: ClipboardEvent): boolean {
+		if (e.clipboardData) {
+			return true;
+		}
+		if ((<any>window).clipboardData) {
+			return true;
+		}
+		return false;
+	}
+
+	public static getTextData(e: ClipboardEvent): string {
+		if (e.clipboardData) {
+			e.preventDefault();
+			return e.clipboardData.getData('text/plain');
+		}
+
+		if ((<any>window).clipboardData) {
+			e.preventDefault();
+			return (<any>window).clipboardData.getData('Text');
+		}
+
+		throw new Error('ClipboardEventUtils.getTextData: Cannot use text data!');
+	}
+
+	public static setTextData(e: ClipboardEvent, text: string, richText: string): void {
+		if (e.clipboardData) {
+			e.clipboardData.setData('text/plain', text);
+			if (richText !== null) {
+				e.clipboardData.setData('text/html', richText);
+			}
+			e.preventDefault();
+			return;
+		}
+
+		if ((<any>window).clipboardData) {
+			(<any>window).clipboardData.setData('Text', text);
+			e.preventDefault();
+			return;
+		}
+
+		throw new Error('ClipboardEventUtils.setTextData: Cannot use text data!');
+	}
+}
+
+class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
+
+	private readonly _actual: FastDomNode<HTMLTextAreaElement>;
+
+	constructor(_textArea: FastDomNode<HTMLTextAreaElement>) {
+		super();
+		this._actual = _textArea;
+	}
+
+	public getValue(): string {
+		// console.log('current value: ' + this._textArea.value);
+		return this._actual.domNode.value;
+	}
+
+	public setValue(reason: string, value: string): void {
+		// console.log('reason: ' + reason + ', current value: ' + this._textArea.value + ' => new value: ' + value);
+		this._actual.domNode.value = value;
+	}
+
+	public getSelectionStart(): number {
+		return this._actual.domNode.selectionStart;
+	}
+
+	public getSelectionEnd(): number {
+		return this._actual.domNode.selectionEnd;
+	}
+
+	public setSelectionRange(selectionStart: number, selectionEnd: number): void {
+		const textArea = this._actual.domNode;
+		if (document.activeElement === textArea) {
+			textArea.setSelectionRange(selectionStart, selectionEnd);
+		} else {
+			// If the focus is outside the textarea, browsers will try really hard to reveal the textarea.
+			// Here, we try to undo the browser's desperate reveal.
+			try {
+				const scrollState = dom.saveParentsScrollTop(textArea);
+				textArea.focus();
+				textArea.setSelectionRange(selectionStart, selectionEnd);
+				dom.restoreParentsScrollTop(textArea, scrollState);
+			} catch (e) {
+				// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
+			}
+		}
+	}
+
+	public isInOverwriteMode(): boolean {
+		// In IE, pressing Insert will bring the typing into overwrite mode
+		if (browser.isIE && document.queryCommandValue('OverWrite')) {
+			return true;
+		}
+		return false;
 	}
 }
