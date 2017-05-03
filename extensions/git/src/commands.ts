@@ -60,6 +60,26 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 }
 
+class BranchDeleteItem implements QuickPickItem {
+
+	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
+	protected get treeish(): string | undefined { return this.ref.name; }
+	get label(): string { return this.ref.name || this.shortCommit; }
+	get description(): string { return this.shortCommit; }
+
+	constructor(protected ref: Ref) { }
+
+	async run(model: Model): Promise<void> {
+		const ref = this.treeish;
+
+		if (!ref) {
+			return;
+		}
+
+		await model.deleteBranch(ref);
+	}
+}
+
 interface Command {
 	commandId: string;
 	key: string;
@@ -697,6 +717,25 @@ export class CommandCenter {
 
 		const name = result.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
 		await this.model.branch(name);
+	}
+
+	@command('git.deleteBranch')
+	async deleteBranch(branchName: string): Promise<void> {
+		if (typeof branchName === 'string') {
+			return await this.model.deleteBranch(branchName);
+		}
+		const currentHead = this.model.HEAD && this.model.HEAD.name;
+		const heads = this.model.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
+			.map(ref => new BranchDeleteItem(ref));
+
+		const placeHolder = 'Select a branch to delete';
+		const choice = await window.showQuickPick<BranchDeleteItem>(heads, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		await choice.run(this.model);
 	}
 
 	@command('git.pull')
