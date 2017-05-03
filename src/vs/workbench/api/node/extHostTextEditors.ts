@@ -14,6 +14,7 @@ import { IResolvedTextEditorConfiguration, ISelectionChangeEvent } from 'vs/work
 import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
+import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData } from './extHost.protocol';
 import * as vscode from 'vscode';
 
@@ -74,6 +75,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 			};
 		} else {
 			options = {
+				position: EditorPosition.ONE,
 				preserveFocus: false,
 				pinned: true
 			};
