@@ -71,8 +71,9 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		doValidation(document: TextDocument): Diagnostic[] {
 			updateCurrentTextDocument(document);
-			const diagnostics = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
-			return diagnostics.map((diag): Diagnostic => {
+			const syntaxDiagnostics = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
+			const semanticDiagnostics = jsLanguageService.getSemanticDiagnostics(FILE_NAME);
+			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag): Diagnostic => {
 				return {
 					range: convertRange(currentTextDocument, diag),
 					severity: DiagnosticSeverity.Error,
