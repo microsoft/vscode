@@ -623,6 +623,16 @@
           "type": "boolean",
           "description": "%config.ignoreLimitWarning%",
           "default": false
+        },
+        "git.commitType": {
+          "type": "string",
+          "enum": [
+            "all",
+            "tracked",
+            "off"
+          ],
+          "description": "%config.commitType%",
+          "default": "all"
         }
       }
     }
