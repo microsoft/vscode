@@ -87,46 +87,16 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		this._chordPart = chordPart;
 	}
 
-	private _getUILabelForScanCodeBinding(binding: ScanCodeBinding): string {
-		if (!binding) {
-			return null;
-		}
-		if (binding.isDuplicateModifierCase()) {
-			return '';
-		}
-		return this._mapper.getUILabelForScanCode(binding.scanCode);
-	}
-
 	public getLabel(): string {
-		let firstPart = this._getUILabelForScanCodeBinding(this._firstPart);
-		let chordPart = this._getUILabelForScanCodeBinding(this._chordPart);
+		let firstPart = this._mapper.getUILabelForScanCodeBinding(this._firstPart);
+		let chordPart = this._mapper.getUILabelForScanCodeBinding(this._chordPart);
 		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
-	private _getAriaLabelForScanCodeBinding(binding: ScanCodeBinding): string {
-		if (!binding) {
-			return null;
-		}
-		if (binding.isDuplicateModifierCase()) {
-			return '';
-		}
-		return this._mapper.getAriaLabelForScanCode(binding.scanCode);
-	}
-
 	public getAriaLabel(): string {
-		let firstPart = this._getAriaLabelForScanCodeBinding(this._firstPart);
-		let chordPart = this._getAriaLabelForScanCodeBinding(this._chordPart);
+		let firstPart = this._mapper.getAriaLabelForScanCodeBinding(this._firstPart);
+		let chordPart = this._mapper.getAriaLabelForScanCodeBinding(this._chordPart);
 		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
-	}
-
-	private _getElectronAcceleratorLabelForScanCodeBinding(binding: ScanCodeBinding): string {
-		if (!binding) {
-			return null;
-		}
-		if (binding.isDuplicateModifierCase()) {
-			return null;
-		}
-		return this._mapper.getElectronLabelForScanCode(binding.scanCode);
 	}
 
 	public getElectronAccelerator(): string {
@@ -135,32 +105,25 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 			return null;
 		}
 
-		let firstPart = this._getElectronAcceleratorLabelForScanCodeBinding(this._firstPart);
+		let firstPart = this._mapper.getElectronAcceleratorLabelForScanCodeBinding(this._firstPart);
 		return ElectronAcceleratorLabelProvider.toLabel(this._firstPart, firstPart, null, null, this._OS);
 	}
 
-	private _getUserSettingsLabelForScanCodeBinding(binding: ScanCodeBinding): string {
-		if (!binding) {
-			return null;
-		}
-		if (binding.isDuplicateModifierCase()) {
-			return '';
-		}
-		return this._mapper.getUserSettingsLabel(binding.scanCode);
-	}
-
 	public getUserSettingsLabel(): string {
-		let firstPart = this._getUserSettingsLabelForScanCodeBinding(this._firstPart);
-		let chordPart = this._getUserSettingsLabelForScanCodeBinding(this._chordPart);
+		let firstPart = this._mapper.getUserSettingsLabelForScanCodeBinding(this._firstPart);
+		let chordPart = this._mapper.getUserSettingsLabelForScanCodeBinding(this._chordPart);
 		return UserSettingsLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._OS);
 	}
 
-	private _isWYSIWYG(scanCode: ScanCode): boolean {
-		if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== -1) {
+	private _isWYSIWYG(binding: ScanCodeBinding): boolean {
+		if (!binding) {
 			return true;
 		}
-		let a = this._mapper.getAriaLabelForScanCode(scanCode);
-		let b = this._mapper.getUserSettingsLabel(scanCode);
+		if (IMMUTABLE_CODE_TO_KEY_CODE[binding.scanCode] !== -1) {
+			return true;
+		}
+		let a = this._mapper.getAriaLabelForScanCodeBinding(binding);
+		let b = this._mapper.getUserSettingsLabelForScanCodeBinding(binding);
 
 		if (!a && !b) {
 			return true;
@@ -172,10 +135,7 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isWYSIWYG(): boolean {
-		let result = true;
-		result = result && (this._firstPart ? this._isWYSIWYG(this._firstPart.scanCode) : true);
-		result = result && (this._chordPart ? this._isWYSIWYG(this._chordPart.scanCode) : true);
-		return result;
+		return (this._isWYSIWYG(this._firstPart) && this._isWYSIWYG(this._chordPart));
 	}
 
 	public isChord(): boolean {
@@ -199,8 +159,8 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 			binding.shiftKey,
 			binding.altKey,
 			binding.metaKey,
-			this._getUILabelForScanCodeBinding(binding),
-			this._getAriaLabelForScanCodeBinding(binding)
+			this._mapper.getUILabelForScanCodeBinding(binding),
+			this._mapper.getAriaLabelForScanCodeBinding(binding)
 		);
 	}
 
@@ -900,9 +860,15 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return result;
 	}
 
-	public getUILabelForScanCode(scanCode: ScanCode): string {
+	public getUILabelForScanCodeBinding(binding: ScanCodeBinding): string {
+		if (!binding) {
+			return null;
+		}
+		if (binding.isDuplicateModifierCase()) {
+			return '';
+		}
 		if (this._OS === OperatingSystem.Macintosh) {
-			switch (scanCode) {
+			switch (binding.scanCode) {
 				case ScanCode.ArrowLeft:
 					return '←';
 				case ScanCode.ArrowUp:
@@ -913,11 +879,17 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 					return '↓';
 			}
 		}
-		return this._scanCodeToLabel[scanCode];
+		return this._scanCodeToLabel[binding.scanCode];
 	}
 
-	public getAriaLabelForScanCode(scanCode: ScanCode): string {
-		return this._scanCodeToLabel[scanCode];
+	public getAriaLabelForScanCodeBinding(binding: ScanCodeBinding): string {
+		if (!binding) {
+			return null;
+		}
+		if (binding.isDuplicateModifierCase()) {
+			return '';
+		}
+		return this._scanCodeToLabel[binding.scanCode];
 	}
 
 	public getDispatchStrForScanCodeBinding(keypress: ScanCodeBinding): string {
@@ -944,19 +916,33 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return result;
 	}
 
-	public getUserSettingsLabel(scanCode: ScanCode): string {
-		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
+	public getUserSettingsLabelForScanCodeBinding(binding: ScanCodeBinding): string {
+		if (!binding) {
+			return null;
+		}
+		if (binding.isDuplicateModifierCase()) {
+			return '';
+		}
+
+		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[binding.scanCode];
 		if (immutableKeyCode !== -1) {
 			return USER_SETTINGS.fromKeyCode(immutableKeyCode).toLowerCase();
 		}
 
 		// Check if this scanCode always maps to the same keyCode and back
-		let constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(scanCode);
+		let constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(binding.scanCode);
 		if (constantKeyCode !== -1) {
-			return USER_SETTINGS.fromKeyCode(constantKeyCode).toLowerCase();
+			// Verify that this is a good key code that can be mapped back to the same scan code
+			let reverseBindings = this.simpleKeybindingToScanCodeBinding(new SimpleKeybinding(binding.ctrlKey, binding.shiftKey, binding.altKey, binding.metaKey, constantKeyCode));
+			for (let i = 0, len = reverseBindings.length; i < len; i++) {
+				const reverseBinding = reverseBindings[i];
+				if (reverseBinding.scanCode === binding.scanCode) {
+					return USER_SETTINGS.fromKeyCode(constantKeyCode).toLowerCase();
+				}
+			}
 		}
 
-		return this._scanCodeToDispatch[scanCode];
+		return this._scanCodeToDispatch[binding.scanCode];
 	}
 
 	private _getElectronLabelForKeyCode(keyCode: KeyCode): string {
@@ -980,14 +966,21 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		return KeyCodeUtils.toString(keyCode);
 	}
 
-	public getElectronLabelForScanCode(scanCode: ScanCode): string {
-		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
+	public getElectronAcceleratorLabelForScanCodeBinding(binding: ScanCodeBinding): string {
+		if (!binding) {
+			return null;
+		}
+		if (binding.isDuplicateModifierCase()) {
+			return null;
+		}
+
+		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[binding.scanCode];
 		if (immutableKeyCode !== -1) {
 			return this._getElectronLabelForKeyCode(immutableKeyCode);
 		}
 
 		// Check if this scanCode always maps to the same keyCode and back
-		let constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(scanCode);
+		const constantKeyCode: KeyCode = this._scanCodeKeyCodeMapper.guessStableKeyCode(binding.scanCode);
 
 		if (!this._isUSStandard) {
 			// Electron cannot handle these key codes on anything else than standard US

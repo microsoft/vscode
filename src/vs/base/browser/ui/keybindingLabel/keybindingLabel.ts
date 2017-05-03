@@ -86,7 +86,7 @@ export class KeybindingLabel implements IDisposable {
 		if (part.metaKey) {
 			this.renderKey(parent, modifierLabels.metaKey, match && match.metaKey, modifierLabels.separator);
 		}
-		const keyLabel = part.kbLabel;
+		const keyLabel = part.keyLabel;
 		if (keyLabel) {
 			this.renderKey(parent, keyLabel, match && match.keyCode, '');
 		}
