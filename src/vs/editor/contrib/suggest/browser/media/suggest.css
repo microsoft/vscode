@@ -28,6 +28,10 @@
 	box-sizing: border-box;
 }
 
+.monaco-editor .suggest-widget.list-right > .tree {
+	float: right
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row {
 	display: flex;
 	-mox-box-sizing: border-box;

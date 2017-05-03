@@ -806,6 +806,15 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
 		this.listElement.style.height = `${height}px`;
 		this.list.layout(height);
+
+		// Experimenting with columns left to the right of cursor to decide if the list & details must be swapped
+		let columnsLeft = this.editor.getLayoutInfo().viewportColumn - this.editor.getPosition().column;
+		if (columnsLeft < 50) {
+			addClass(this.element, 'list-right');
+		} else {
+			removeClass(this.element, 'list-right');
+		}
+
 		this.editor.layoutContentWidget(this);
 
 		return height;
