@@ -39,6 +39,8 @@
 	"config.autofetch": "是否启用了自动提取",
 	"config.enableLongCommitWarning": "是否针对长段提交消息进行警告",
 	"config.confirmSync": "同步 GIT 存储库前请先进行确认",
+	"config.countBadge": "控制 Git 徽章计数器。“all”计算所有更改。“tracked”只计算跟踪的更改。“off”关闭此功能。",
+	"config.checkoutType": "控制运行“签出到...”时列出的分支的类型。“all”显示所有 refs，“local”只显示本地分支，“tags”只显示标签，“remote”只显示远程分支。",
 	"config.ignoreLegacyWarning": "忽略旧版 Git 警告",
 	"config.ignoreLimitWarning": "忽略“存储库中存在大量更改”的警告"
 }

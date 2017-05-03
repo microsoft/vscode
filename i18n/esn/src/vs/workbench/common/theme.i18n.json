@@ -12,6 +12,7 @@
 	"tabActiveEditorGroupInactiveForeground": "Color de primer plano de la pestaña activa en un grupo inactivo. Las pestañas son los contenedores de los editores en el área de editores. Se pueden abrir varias pestañas en un grupo de editores. Puede haber varios grupos de editores.",
 	"tabInactiveEditorGroupActiveForeground": "Color de primer plano de la pestaña inactiva en un grupo activo. Las pestañas son los contenedores de los editores en el área de editores. Se pueden abrir varias pestañas en un grupo de editores. Puede haber varios grupos de editores.",
 	"tabInactiveEditorGroupInactiveForeground": "Color de primer plano de la pestaña inactiva en un grupo inactivo. Las pestañas son los contenedores de los editores en el área de editores. Se pueden abrir varias pestañas en un grupo de editores. Puede haber varios grupos de editores.",
+	"editorGroupBackground": "Color de fondo de un grupo de editores. Los grupos de editores son los contenedores de los editores. El color de fondo se ve cuando se mueven arrastrando los grupos de editores.",
 	"editorGroupBorder": "Color para separar varios grupos de editores entre sí. Los grupos de editores son los contenedores de los editores.",
 	"editorDragAndDropBackground": "Color de fondo cuando se arrastran editores.",
 	"panelBackground": "Color de fondo del panel. Los paneles se muestran debajo del área de editores y contienen vistas, como Salida y Terminal integrado.",

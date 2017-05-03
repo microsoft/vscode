@@ -39,6 +39,8 @@
 	"config.autofetch": "Si la búsqueda automática está habilitada",
 	"config.enableLongCommitWarning": "Si se debe advertir sobre los mensajes de confirmación largos",
 	"config.confirmSync": "Confirmar antes de sincronizar repositorios GIT",
+	"config.countBadge": "Controla el contador de insignia de Git. \"Todo\" cuenta todos los cambios. \"Seguimiento\" solamente cuenta los cambios realizados. \"Desactivado\" lo desconecta.",
+	"config.checkoutType": "Controla el tipo de ramas listadas cuando ejecuta \"Desproteger\". \"Todo\" muetra todas las referencias, \"local\" solamente las ramas locales y \"remoto\" las ramas remotas.",
 	"config.ignoreLegacyWarning": "Ignora las advertencias hereradas de Git",
 	"config.ignoreLimitWarning": "\nIgnora advertencias cuando se encuentran muchos cambios en un repositorio."
 }
