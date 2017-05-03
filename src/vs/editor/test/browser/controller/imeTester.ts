@@ -5,11 +5,9 @@
 'use strict';
 
 import { TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
-import * as browser from 'vs/base/browser/browser';
 import { TextAreaStrategy, ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import { Position } from 'vs/editor/common/core/position';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 
@@ -101,11 +99,9 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 	input.setAttribute('cols', '40');
 	container.appendChild(input);
 
-	let textAreaWrapper = new TextAreaWrapper(createFastDomNode(input));
-
 	let model = new SingleLineTestModel('some  text');
 
-	let handler = new TextAreaHandler(browser, strategy, textAreaWrapper, model);
+	let handler = new TextAreaHandler(strategy, createFastDomNode(input), model);
 
 	input.onfocus = () => {
 		handler.setHasFocus(true);

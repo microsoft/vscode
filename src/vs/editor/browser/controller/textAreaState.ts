@@ -4,44 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event from 'vs/base/common/event';
 import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Constants } from 'vs/editor/common/core/uint';
 
-export interface IClipboardEvent {
-	canUseTextData(): boolean;
-	setTextData(text: string, richText: string): void;
-	getTextData(): string;
-}
-
-export interface ICompositionEvent {
-	data: string;
-	locale: string;
-}
-
-export interface IKeyboardEventWrapper {
-	_actual: any;
-	equals(keybinding: number): boolean;
-	preventDefault(): void;
-	stopPropagation(): void;
-	isDefaultPrevented(): boolean;
-}
-
-export interface ITextAreaWrapper {
-	onKeyDown: Event<IKeyboardEventWrapper>;
-	onKeyUp: Event<IKeyboardEventWrapper>;
-	onKeyPress: Event<IKeyboardEventWrapper>;
-	onCompositionStart: Event<ICompositionEvent>;
-	onCompositionUpdate: Event<ICompositionEvent>;
-	onCompositionEnd: Event<ICompositionEvent>;
-	onInput: Event<void>;
-	onCut: Event<IClipboardEvent>;
-	onCopy: Event<IClipboardEvent>;
-	onPaste: Event<IClipboardEvent>;
-
+export interface ISimpleTextAreaWrapper {
 	getValue(): string;
 	setValue(reason: string, value: string): void;
 	getSelectionStart(): number;
@@ -113,7 +82,7 @@ export abstract class TextAreaState {
 
 	public abstract equals(other: TextAreaState): boolean;
 
-	public abstract fromTextArea(textArea: ITextAreaWrapper): TextAreaState;
+	public abstract fromTextArea(textArea: ISimpleTextAreaWrapper): TextAreaState;
 
 	public abstract fromEditorSelection(model: ISimpleModel, selection: Range);
 
@@ -144,7 +113,7 @@ export abstract class TextAreaState {
 		return this.value;
 	}
 
-	public applyToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
+	public applyToTextArea(reason: string, textArea: ISimpleTextAreaWrapper, select: boolean): void {
 		// console.log(Date.now() + ': applyToTextArea ' + reason + ': ' + this.toString());
 		if (textArea.getValue() !== this.value) {
 			textArea.setValue(reason, this.value);
@@ -274,7 +243,7 @@ export class IENarratorTextAreaState extends TextAreaState {
 		return false;
 	}
 
-	public fromTextArea(textArea: ITextAreaWrapper): TextAreaState {
+	public fromTextArea(textArea: ISimpleTextAreaWrapper): TextAreaState {
 		return new IENarratorTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode(), this.selectionToken);
 	}
 
@@ -375,7 +344,7 @@ export class NVDAPagedTextAreaState extends TextAreaState {
 		return false;
 	}
 
-	public fromTextArea(textArea: ITextAreaWrapper): TextAreaState {
+	public fromTextArea(textArea: ISimpleTextAreaWrapper): TextAreaState {
 		return new NVDAPagedTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode());
 	}
 
@@ -484,7 +453,7 @@ export class NVDAFullTextAreaState extends TextAreaState {
 		return false;
 	}
 
-	public fromTextArea(textArea: ITextAreaWrapper): TextAreaState {
+	public fromTextArea(textArea: ISimpleTextAreaWrapper): TextAreaState {
 		return new NVDAFullTextAreaState(this, textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), textArea.isInOverwriteMode());
 	}
 

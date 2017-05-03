@@ -5,44 +5,13 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IENarratorTextAreaState, ISimpleModel, TextAreaState, IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ITextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
+import { IENarratorTextAreaState, ISimpleModel, TextAreaState, ISimpleTextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 
-export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
-
-	private _onKeyDown = this._register(new Emitter<IKeyboardEventWrapper>());
-	public onKeyDown: Event<IKeyboardEventWrapper> = this._onKeyDown.event;
-
-	private _onKeyUp = this._register(new Emitter<IKeyboardEventWrapper>());
-	public onKeyUp: Event<IKeyboardEventWrapper> = this._onKeyUp.event;
-
-	private _onKeyPress = this._register(new Emitter<IKeyboardEventWrapper>());
-	public onKeyPress: Event<IKeyboardEventWrapper> = this._onKeyPress.event;
-
-	private _onCompositionStart = this._register(new Emitter<ICompositionEvent>());
-	public onCompositionStart: Event<ICompositionEvent> = this._onCompositionStart.event;
-
-	private _onCompositionUpdate = this._register(new Emitter<ICompositionEvent>());
-	public onCompositionUpdate: Event<ICompositionEvent> = this._onCompositionUpdate.event;
-
-	private _onCompositionEnd = this._register(new Emitter<ICompositionEvent>());
-	public onCompositionEnd: Event<ICompositionEvent> = this._onCompositionEnd.event;
-
-	private _onInput = this._register(new Emitter<void>());
-	public onInput: Event<void> = this._onInput.event;
-
-	private _onCut = this._register(new Emitter<IClipboardEvent>());
-	public onCut: Event<IClipboardEvent> = this._onCut.event;
-
-	private _onCopy = this._register(new Emitter<IClipboardEvent>());
-	public onCopy: Event<IClipboardEvent> = this._onCopy.event;
-
-	private _onPaste = this._register(new Emitter<IClipboardEvent>());
-	public onPaste: Event<IClipboardEvent> = this._onPaste.event;
+export class MockTextAreaWrapper extends Disposable implements ISimpleTextAreaWrapper {
 
 	public _value: string;
 	public _selectionStart: number;

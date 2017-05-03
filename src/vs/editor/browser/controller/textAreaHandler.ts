@@ -9,8 +9,17 @@ import * as strings from 'vs/base/common/strings';
 import Event, { Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ISimpleModel, ITextAreaWrapper, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { ISimpleModel, ITypeData, TextAreaState, TextAreaStrategy, createTextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
+import * as browser from 'vs/base/browser/browser';
+import { ClipboardEventWrapper, TextAreaWrapper } from "vs/editor/browser/controller/input/textAreaWrapper";
+import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
+import { FastDomNode } from "vs/base/browser/fastDomNode";
+
+export interface ICompositionEvent {
+	data: string;
+	locale: string;
+}
 
 export const CopyOptions = {
 	forceCopyWithSyntaxHighlighting: false
@@ -19,14 +28,6 @@ export const CopyOptions = {
 const enum ReadFromTextArea {
 	Type,
 	Paste
-}
-
-export interface IBrowser {
-	isIPad: boolean;
-	isChrome: boolean;
-	isEdgeOrIE: boolean;
-	isFirefox: boolean;
-	enableEmptySelectionClipboard: boolean;
 }
 
 export interface IPasteData {
@@ -48,11 +49,11 @@ const isChromev55_v56 = (
 
 export class TextAreaHandler extends Disposable {
 
-	private _onKeyDown = this._register(new Emitter<IKeyboardEventWrapper>());
-	public onKeyDown: Event<IKeyboardEventWrapper> = this._onKeyDown.event;
+	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
+	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
-	private _onKeyUp = this._register(new Emitter<IKeyboardEventWrapper>());
-	public onKeyUp: Event<IKeyboardEventWrapper> = this._onKeyUp.event;
+	private _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
+	public onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
 
 	private _onCut = this._register(new Emitter<void>());
 	public onCut: Event<void> = this._onCut.event;
@@ -72,8 +73,7 @@ export class TextAreaHandler extends Disposable {
 	private _onCompositionEnd = this._register(new Emitter<ICompositionEvent>());
 	public onCompositionEnd: Event<ICompositionEvent> = this._onCompositionEnd.event;
 
-	private Browser: IBrowser;
-	private textArea: ITextAreaWrapper;
+	private textArea: TextAreaWrapper;
 	private model: ISimpleModel;
 
 	private selection: Range;
@@ -81,8 +81,6 @@ export class TextAreaHandler extends Disposable {
 	private hasFocus: boolean;
 
 	private asyncTriggerCut: RunOnceScheduler;
-
-	private lastCompositionEndTime: number;
 
 	private textAreaState: TextAreaState;
 	private textareaIsShownAtCursor: boolean;
@@ -92,24 +90,21 @@ export class TextAreaHandler extends Disposable {
 
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(Browser: IBrowser, strategy: TextAreaStrategy, textArea: ITextAreaWrapper, model: ISimpleModel) {
+	constructor(strategy: TextAreaStrategy, textArea: FastDomNode<HTMLTextAreaElement>, model: ISimpleModel) {
 		super();
-		this.Browser = Browser;
-		this.textArea = textArea;
+		this.textArea = this._register(new TextAreaWrapper(textArea));
 		this.model = model;
 		this.selection = new Range(1, 1, 1, 1);
 		this.selections = [new Range(1, 1, 1, 1)];
 		this._nextCommand = ReadFromTextArea.Type;
 
-		this.asyncTriggerCut = new RunOnceScheduler(() => this._onCut.fire(), 0);
+		this.asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
 
 		this.lastCopiedValue = null;
 		this.lastCopiedValueIsFromEmptySelection = false;
 		this.textAreaState = createTextAreaState(strategy);
 
 		this.hasFocus = false;
-
-		this.lastCompositionEndTime = 0;
 
 		this._register(this.textArea.onKeyDown((e) => this._onKeyDownHandler(e)));
 		this._register(this.textArea.onKeyUp((e) => this._onKeyUp.fire(e)));
@@ -127,7 +122,7 @@ export class TextAreaHandler extends Disposable {
 			this.textareaIsShownAtCursor = true;
 
 			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-			if (!this.Browser.isEdgeOrIE) {
+			if (!browser.isEdgeOrIE) {
 				this.setTextAreaState('compositionstart', this.textAreaState.toEmpty(), false);
 			}
 
@@ -148,7 +143,7 @@ export class TextAreaHandler extends Disposable {
 				return;
 			}
 
-			if (Browser.isEdgeOrIE && e.locale === 'ja') {
+			if (browser.isEdgeOrIE && e.locale === 'ja') {
 				// https://github.com/Microsoft/monaco-editor/issues/339
 				// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
 				// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
@@ -188,7 +183,7 @@ export class TextAreaHandler extends Disposable {
 
 		this._register(this.textArea.onCompositionEnd((e) => {
 			// console.log('onCompositionEnd: ' + e.data);
-			if (Browser.isEdgeOrIE && e.locale === 'ja') {
+			if (browser.isEdgeOrIE && e.locale === 'ja') {
 				// https://github.com/Microsoft/monaco-editor/issues/339
 				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
 				let typeInput = this.textAreaState.deduceInput();
@@ -202,11 +197,10 @@ export class TextAreaHandler extends Disposable {
 
 			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
 			// we cannot assume the text at the end consists only of the composited text
-			if (Browser.isEdgeOrIE || Browser.isChrome) {
+			if (browser.isEdgeOrIE || browser.isChrome) {
 				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
 			}
 
-			this.lastCompositionEndTime = (new Date()).getTime();
 			if (!this.textareaIsShownAtCursor) {
 				return;
 			}
@@ -264,7 +258,6 @@ export class TextAreaHandler extends Disposable {
 	}
 
 	public dispose(): void {
-		this.asyncTriggerCut.dispose();
 		super.dispose();
 	}
 
@@ -302,7 +295,7 @@ export class TextAreaHandler extends Disposable {
 		this.textAreaState = textAreaState;
 	}
 
-	private _onKeyDownHandler(e: IKeyboardEventWrapper): void {
+	private _onKeyDownHandler(e: IKeyboardEvent): void {
 		if (this.textareaIsShownAtCursor && e.equals(KeyCode.KEY_IN_COMPOSITION)) {
 			// Stop propagation for keyDown events if the IME is processing key input
 			e.stopPropagation();
@@ -316,7 +309,7 @@ export class TextAreaHandler extends Disposable {
 		this._onKeyDown.fire(e);
 	}
 
-	private _onKeyPressHandler(e: IKeyboardEventWrapper): void {
+	private _onKeyPressHandler(e: IKeyboardEvent): void {
 		if (!this.hasFocus) {
 			// Sometimes, when doing Alt-Tab, in FF, a 'keypress' is sent before a 'focus'
 			return;
@@ -331,7 +324,7 @@ export class TextAreaHandler extends Disposable {
 		}
 
 		let pasteOnNewLine = false;
-		if (this.Browser.enableEmptySelectionClipboard) {
+		if (browser.enableEmptySelectionClipboard) {
 			pasteOnNewLine = (txt === this.lastCopiedValue && this.lastCopiedValueIsFromEmptySelection);
 		}
 		this._onPaste.fire({
@@ -347,7 +340,7 @@ export class TextAreaHandler extends Disposable {
 	private _writePlaceholderAndSelectTextArea(reason: string, forceFocus: boolean): void {
 		if (!this.textareaIsShownAtCursor) {
 			// Do not write to the textarea if it is visible.
-			if (this.Browser.isIPad) {
+			if (browser.isIPad) {
 				// Do not place anything in the textarea for the iPad
 				this.setTextAreaState(reason, this.textAreaState.toEmpty(), forceFocus);
 			} else {
@@ -358,20 +351,20 @@ export class TextAreaHandler extends Disposable {
 
 	// ------------- Clipboard operations
 
-	private _ensureClipboardGetsEditorSelection(e: IClipboardEvent): void {
-		let whatToCopy = this.model.getPlainTextToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
+	private _ensureClipboardGetsEditorSelection(e: ClipboardEventWrapper): void {
+		let whatToCopy = this.model.getPlainTextToCopy(this.selections, browser.enableEmptySelectionClipboard);
 		if (e.canUseTextData()) {
 			let whatHTMLToCopy: string = null;
-			if (!this.Browser.isEdgeOrIE && (whatToCopy.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
-				whatHTMLToCopy = this.model.getHTMLToCopy(this.selections, this.Browser.enableEmptySelectionClipboard);
+			if (!browser.isEdgeOrIE && (whatToCopy.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
+				whatHTMLToCopy = this.model.getHTMLToCopy(this.selections, browser.enableEmptySelectionClipboard);
 			}
 			e.setTextData(whatToCopy, whatHTMLToCopy);
 		} else {
 			this.setTextAreaState('copy or cut', this.textAreaState.fromText(whatToCopy), false);
 		}
 
-		if (this.Browser.enableEmptySelectionClipboard) {
-			if (this.Browser.isFirefox) {
+		if (browser.enableEmptySelectionClipboard) {
+			if (browser.isFirefox) {
 				// When writing "LINE\r\n" to the clipboard and then pasting,
 				// Firefox pastes "LINE\n", so let's work around this quirk
 				this.lastCopiedValue = whatToCopy.replace(/\r\n/g, '\n');
