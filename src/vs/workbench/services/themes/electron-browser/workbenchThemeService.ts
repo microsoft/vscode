@@ -407,6 +407,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
 						// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 						this.currentColorTheme = themeData;
+						themeData.setCustomColors(this.colorCustomizations);
 						return TPromise.as(themeData);
 					}
 					themeData.setCustomColors(this.colorCustomizations);
