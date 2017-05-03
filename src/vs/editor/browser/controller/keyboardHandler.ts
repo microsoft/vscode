@@ -7,8 +7,8 @@
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalScreenReaderNVDA } from 'vs/editor/common/config/commonEditorConfig';
-import { TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
-import { TextAreaStrategy } from 'vs/editor/browser/controller/textAreaState';
+import { TextAreaHandler, ITextAreaHandlerHost } from 'vs/editor/browser/controller/textAreaHandler';
+import { TextAreaStrategy, ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { Configuration } from 'vs/editor/browser/config/configuration';
@@ -18,6 +18,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 import { ViewController } from 'vs/editor/browser/view/viewController';
+import { EndOfLinePreference } from "vs/editor/common/editorCommon";
 
 export interface IKeyboardHandlerHelper {
 	viewDomNode: FastDomNode<HTMLElement>;
@@ -41,16 +42,20 @@ export class KeyboardHandler extends ViewEventHandler {
 
 	private _context: ViewContext;
 	private viewController: ViewController;
-	private viewHelper: IKeyboardHandlerHelper;
 	private textArea: FastDomNode<HTMLTextAreaElement>;
-	private textAreaHandler: TextAreaHandler;
+	private viewHelper: IKeyboardHandlerHelper;
+	private visiblePosition: TextAreaVisiblePosition;
 
 	private contentLeft: number;
 	private contentWidth: number;
 	private scrollLeft: number;
 	private scrollTop: number;
 
-	private visiblePosition: TextAreaVisiblePosition;
+	private _selections: Range[];
+	private _lastCopiedValue: string;
+	private _lastCopiedValueIsFromEmptySelection: boolean;
+
+	private textAreaHandler: TextAreaHandler;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IKeyboardHandlerHelper) {
 		super();
@@ -67,11 +72,55 @@ export class KeyboardHandler extends ViewEventHandler {
 		this.scrollLeft = 0;
 		this.scrollTop = 0;
 
-		this.textAreaHandler = new TextAreaHandler(this._getStrategy(), this.textArea, this._context.model);
+		this._selections = [new Range(1, 1, 1, 1)];
+		this._lastCopiedValue = null;
+		this._lastCopiedValueIsFromEmptySelection = false;
+
+		const textAreaHandlerHost: ITextAreaHandlerHost = {
+			getPlainTextToCopy: (): string => {
+				const whatToCopy = this._context.model.getPlainTextToCopy(this._selections, browser.enableEmptySelectionClipboard);
+
+				if (browser.enableEmptySelectionClipboard) {
+					if (browser.isFirefox) {
+						// When writing "LINE\r\n" to the clipboard and then pasting,
+						// Firefox pastes "LINE\n", so let's work around this quirk
+						this._lastCopiedValue = whatToCopy.replace(/\r\n/g, '\n');
+					} else {
+						this._lastCopiedValue = whatToCopy;
+					}
+
+					let selections = this._selections;
+					this._lastCopiedValueIsFromEmptySelection = (selections.length === 1 && selections[0].isEmpty());
+				}
+
+				return whatToCopy;
+			},
+			getHTMLToCopy: (): string => {
+				return this._context.model.getHTMLToCopy(this._selections, browser.enableEmptySelectionClipboard);
+			}
+		};
+		const simpleModel: ISimpleModel = {
+			getLineCount: (): number => {
+				return this._context.model.getLineCount();
+			},
+			getLineMaxColumn: (lineNumber: number): number => {
+				return this._context.model.getLineMaxColumn(lineNumber);
+			},
+			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
+				return this._context.model.getValueInRange(range, eol);
+			}
+		};
+		this.textAreaHandler = new TextAreaHandler(textAreaHandlerHost, this._getStrategy(), this.textArea, simpleModel);
 
 		this._register(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(e)));
 		this._register(this.textAreaHandler.onKeyUp((e) => this.viewController.emitKeyUp(e)));
-		this._register(this.textAreaHandler.onPaste((e) => this.viewController.paste('keyboard', e.text, e.pasteOnNewLine)));
+		this._register(this.textAreaHandler.onPaste((e) => {
+			let pasteOnNewLine = false;
+			if (browser.enableEmptySelectionClipboard) {
+				pasteOnNewLine = (e.text === this._lastCopiedValue && this._lastCopiedValueIsFromEmptySelection);
+			}
+			this.viewController.paste('keyboard', e.text, pasteOnNewLine);
+		}));
 		this._register(this.textAreaHandler.onCut((e) => this.viewController.cut('keyboard')));
 		this._register(this.textAreaHandler.onType((e) => {
 			if (e.replaceCharCnt) {
@@ -80,9 +129,9 @@ export class KeyboardHandler extends ViewEventHandler {
 				this.viewController.type('keyboard', e.text);
 			}
 		}));
-		this._register(this.textAreaHandler.onCompositionStart((e) => {
-			const lineNumber = e.showAtLineNumber;
-			const column = e.showAtColumn;
+		this._register(this.textAreaHandler.onCompositionStart(() => {
+			const lineNumber = this._selections[0].startLineNumber;
+			const column = this._selections[0].startColumn;
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, column, lineNumber, column),
@@ -132,7 +181,7 @@ export class KeyboardHandler extends ViewEventHandler {
 			}
 		}));
 
-		this._register(this.textAreaHandler.onCompositionEnd((e) => {
+		this._register(this.textAreaHandler.onCompositionEnd(() => {
 			this.textArea.unsetHeight();
 			this.textArea.unsetWidth();
 			this.textArea.setLeft(0);
@@ -190,6 +239,7 @@ export class KeyboardHandler extends ViewEventHandler {
 
 	private _lastCursorSelectionChanged: viewEvents.ViewCursorSelectionChangedEvent = null;
 	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
+		this._selections = [e.selection].concat(e.secondarySelections);
 		this._lastCursorSelectionChanged = e;
 		return false;
 	}

@@ -7,7 +7,6 @@
 import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { Position } from 'vs/editor/common/core/position';
 import { Constants } from 'vs/editor/common/core/uint';
 
 export interface ITextAreaWrapper {
@@ -21,17 +20,9 @@ export interface ITextAreaWrapper {
 }
 
 export interface ISimpleModel {
-	getLineMaxColumn(lineNumber: number): number;
-	getEOL(): string;
-	getValueInRange(range: Range, eol: EndOfLinePreference): string;
-	getModelLineContent(lineNumber: number): string;
 	getLineCount(): number;
-	getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
-	getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
-
-	coordinatesConverter: {
-		convertViewPositionToModelPosition(viewPosition: Position): Position;
-	};
+	getLineMaxColumn(lineNumber: number): number;
+	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 }
 
 export interface ITypeData {

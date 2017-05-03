@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
+import { TextAreaHandler, ITextAreaHandlerHost } from 'vs/editor/browser/controller/textAreaHandler';
 import { TextAreaStrategy, ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Position } from 'vs/editor/common/core/position';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 
 // To run this test, open imeTester.html
@@ -18,27 +17,17 @@ class SingleLineTestModel implements ISimpleModel {
 	private _line: string;
 	private _eol: string;
 
-	public coordinatesConverter = {
-		convertViewPositionToModelPosition: (viewPosition: Position): Position => {
-			return viewPosition;
-		}
-	};
-
 	constructor(line: string) {
 		this._line = line;
 		this._eol = '\n';
 	}
 
-	setText(text: string) {
+	_setText(text: string) {
 		this._line = text;
 	}
 
 	getLineMaxColumn(lineNumber: number): number {
 		return this._line.length + 1;
-	}
-
-	getEOL(): string {
-		return this._eol;
 	}
 
 	getValueInRange(range: IRange, eol: editorCommon.EndOfLinePreference): string {
@@ -51,14 +40,6 @@ class SingleLineTestModel implements ISimpleModel {
 
 	getLineCount(): number {
 		return 1;
-	}
-
-	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
-		return '';
-	}
-
-	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
-		return '';
 	}
 }
 
@@ -101,7 +82,12 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let model = new SingleLineTestModel('some  text');
 
-	let handler = new TextAreaHandler(strategy, createFastDomNode(input), model);
+	const textAreaHandlerHost: ITextAreaHandlerHost = {
+		getPlainTextToCopy: (): string => '',
+		getHTMLToCopy: (): string => ''
+	};
+
+	let handler = new TextAreaHandler(textAreaHandlerHost, strategy, createFastDomNode(input), model);
 
 	input.onfocus = () => {
 		handler.setHasFocus(true);
@@ -135,7 +121,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 	};
 
 	let updateModelAndPosition = (text: string, off: number, len: number) => {
-		model.setText(text);
+		model._setText(text);
 		updatePosition(off, len);
 		view.paint(output);
 

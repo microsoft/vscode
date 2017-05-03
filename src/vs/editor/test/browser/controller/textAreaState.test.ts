@@ -6,7 +6,6 @@
 
 import * as assert from 'assert';
 import { IENarratorTextAreaState, ISimpleModel, TextAreaState, ITextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
-import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -466,12 +465,6 @@ class SimpleModel implements ISimpleModel {
 	private _lines: string[];
 	private _eol: string;
 
-	public coordinatesConverter = {
-		convertViewPositionToModelPosition: (viewPosition: Position): Position => {
-			return viewPosition;
-		}
-	};
-
 	constructor(lines: string[], eol: string) {
 		this._lines = lines;
 		this._eol = eol;
@@ -491,10 +484,6 @@ class SimpleModel implements ISimpleModel {
 				return this._eol;
 		}
 		throw new Error('Unknown EOL preference');
-	}
-
-	public getEOL(): string {
-		return this._eol;
 	}
 
 	public getValueInRange(range: Range, eol: EndOfLinePreference): string {
@@ -520,19 +509,7 @@ class SimpleModel implements ISimpleModel {
 		return resultLines.join(lineEnding);
 	}
 
-	public getModelLineContent(lineNumber: number): string {
-		return this._lines[lineNumber - 1];
-	}
-
 	public getLineCount(): number {
 		return this._lines.length;
-	}
-
-	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
-		return '';
-	}
-
-	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
-		return '';
 	}
 }

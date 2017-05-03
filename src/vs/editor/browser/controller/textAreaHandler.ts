@@ -32,12 +32,6 @@ const enum ReadFromTextArea {
 
 export interface IPasteData {
 	text: string;
-	pasteOnNewLine: boolean;
-}
-
-export interface ICompositionStartData {
-	showAtLineNumber: number;
-	showAtColumn: number;
 }
 
 // See https://github.com/Microsoft/monaco-editor/issues/320
@@ -46,6 +40,11 @@ const isChromev55_v56 = (
 	/* Edge likes to impersonate Chrome sometimes */
 	&& navigator.userAgent.indexOf('Edge/') === -1
 );
+
+export interface ITextAreaHandlerHost {
+	getPlainTextToCopy(): string;
+	getHTMLToCopy(): string;
+}
 
 export class TextAreaHandler extends Disposable {
 
@@ -64,72 +63,81 @@ export class TextAreaHandler extends Disposable {
 	private _onType = this._register(new Emitter<ITypeData>());
 	public onType: Event<ITypeData> = this._onType.event;
 
-	private _onCompositionStart = this._register(new Emitter<ICompositionStartData>());
-	public onCompositionStart: Event<ICompositionStartData> = this._onCompositionStart.event;
+	private _onCompositionStart = this._register(new Emitter<void>());
+	public onCompositionStart: Event<void> = this._onCompositionStart.event;
 
 	private _onCompositionUpdate = this._register(new Emitter<ICompositionEvent>());
 	public onCompositionUpdate: Event<ICompositionEvent> = this._onCompositionUpdate.event;
 
-	private _onCompositionEnd = this._register(new Emitter<ICompositionEvent>());
-	public onCompositionEnd: Event<ICompositionEvent> = this._onCompositionEnd.event;
+	private _onCompositionEnd = this._register(new Emitter<void>());
+	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
 
-	private textArea: TextAreaWrapper;
-	private model: ISimpleModel;
+	// ---
 
-	private selection: Range;
-	private selections: Range[];
-	private hasFocus: boolean;
+	private readonly _host: ITextAreaHandlerHost;
+	private readonly _textArea: TextAreaWrapper;
+	private readonly _model: ISimpleModel;
 
-	private asyncTriggerCut: RunOnceScheduler;
+	private _selection: Range;
+	private _hasFocus: boolean;
 
-	private textAreaState: TextAreaState;
-	private textareaIsShownAtCursor: boolean;
+	private readonly _asyncTriggerCut: RunOnceScheduler;
 
-	private lastCopiedValue: string;
-	private lastCopiedValueIsFromEmptySelection: boolean;
+	private _textAreaState: TextAreaState;
+	private _isDoingComposition: boolean;
 
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(strategy: TextAreaStrategy, textArea: FastDomNode<HTMLTextAreaElement>, model: ISimpleModel) {
+	constructor(host: ITextAreaHandlerHost, strategy: TextAreaStrategy, textArea: FastDomNode<HTMLTextAreaElement>, model: ISimpleModel) {
 		super();
-		this.textArea = this._register(new TextAreaWrapper(textArea));
-		this.model = model;
-		this.selection = new Range(1, 1, 1, 1);
-		this.selections = [new Range(1, 1, 1, 1)];
+		this._host = host;
+		this._textArea = this._register(new TextAreaWrapper(textArea));
+		this._model = model;
+
+		this._selection = new Range(1, 1, 1, 1);
+		this._hasFocus = false;
+
+		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
+
+		this._textAreaState = createTextAreaState(strategy);
+		this._isDoingComposition = false;
+
 		this._nextCommand = ReadFromTextArea.Type;
 
-		this.asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
+		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => {
+			if (this._isDoingComposition && e.equals(KeyCode.KEY_IN_COMPOSITION)) {
+				// Stop propagation for keyDown events if the IME is processing key input
+				e.stopPropagation();
+			}
 
-		this.lastCopiedValue = null;
-		this.lastCopiedValueIsFromEmptySelection = false;
-		this.textAreaState = createTextAreaState(strategy);
+			if (e.equals(KeyCode.Escape)) {
+				// Prevent default always for `Esc`, otherwise it will generate a keypress
+				// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
+				e.preventDefault();
+			}
+			this._onKeyDown.fire(e);
+		}));
 
-		this.hasFocus = false;
+		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keyup', (e: IKeyboardEvent) => {
+			this._onKeyUp.fire(e);
+		}));
 
-		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => this._onKeyDownHandler(e)));
-		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keyup', (e: IKeyboardEvent) => this._onKeyUp.fire(e)));
-		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keypress', (e: IKeyboardEvent) => this._onKeyPressHandler(e)));
-
-		this.textareaIsShownAtCursor = false;
 		let compositionLocale = null;
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionstart', (e: CompositionEvent) => {
 
-			if (this.textareaIsShownAtCursor) {
+			if (this._isDoingComposition) {
 				return;
 			}
 
-			this.textareaIsShownAtCursor = true;
+			this._isDoingComposition = true;
 
 			// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
 			if (!browser.isEdgeOrIE) {
-				this.setTextAreaState('compositionstart', this.textAreaState.toEmpty(), false);
+				this.setTextAreaState('compositionstart', this._textAreaState.toEmpty(), false);
 			}
 
-			this._onCompositionStart.fire({
-				showAtLineNumber: this.selection.startLineNumber,
-				showAtColumn: this.selection.startColumn
-			});
+			this._onCompositionStart.fire();
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
@@ -148,75 +156,55 @@ export class TextAreaHandler extends Disposable {
 				// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
 				// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
 				// which breaks this path of code.
-				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
-				let typeInput = this.textAreaState.deduceInput();
+				this._textAreaState = this._textAreaState.fromTextArea(this._textArea);
+				let typeInput = this._textAreaState.deduceInput();
 				this._onType.fire(typeInput);
 				this._onCompositionUpdate.fire(e);
 				return;
 			}
 
-			this.textAreaState = this.textAreaState.fromText(e.data);
-			let typeInput = this.textAreaState.updateComposition();
+			this._textAreaState = this._textAreaState.fromText(e.data);
+			let typeInput = this._textAreaState.updateComposition();
 			this._onType.fire(typeInput);
 			this._onCompositionUpdate.fire(e);
 		}));
-
-		let readFromTextArea = () => {
-			let tempTextAreaState = this.textAreaState.fromTextArea(this.textArea);
-			let typeInput = tempTextAreaState.deduceInput();
-			if (typeInput.replaceCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
-				// Ignore invalid input but keep it around for next time
-				return;
-			}
-
-			this.textAreaState = tempTextAreaState;
-			// console.log('==> DEDUCED INPUT: ' + JSON.stringify(typeInput));
-			if (this._nextCommand === ReadFromTextArea.Type) {
-				if (typeInput.text !== '') {
-					this._onType.fire(typeInput);
-				}
-			} else {
-				this.executePaste(typeInput.text);
-				this._nextCommand = ReadFromTextArea.Type;
-			}
-		};
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
 			// console.log('onCompositionEnd: ' + e.data);
 			if (browser.isEdgeOrIE && e.locale === 'ja') {
 				// https://github.com/Microsoft/monaco-editor/issues/339
-				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
-				let typeInput = this.textAreaState.deduceInput();
+				this._textAreaState = this._textAreaState.fromTextArea(this._textArea);
+				let typeInput = this._textAreaState.deduceInput();
 				this._onType.fire(typeInput);
 			}
 			else {
-				this.textAreaState = this.textAreaState.fromText(e.data);
-				let typeInput = this.textAreaState.updateComposition();
+				this._textAreaState = this._textAreaState.fromText(e.data);
+				let typeInput = this._textAreaState.updateComposition();
 				this._onType.fire(typeInput);
 			}
 
 			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
 			// we cannot assume the text at the end consists only of the composited text
 			if (browser.isEdgeOrIE || browser.isChrome) {
-				this.textAreaState = this.textAreaState.fromTextArea(this.textArea);
+				this._textAreaState = this._textAreaState.fromTextArea(this._textArea);
 			}
 
-			if (!this.textareaIsShownAtCursor) {
+			if (!this._isDoingComposition) {
 				return;
 			}
-			this.textareaIsShownAtCursor = false;
+			this._isDoingComposition = false;
 
 			this._onCompositionEnd.fire();
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'input', () => {
 			// console.log('onInput: ' + this.textArea.getValue());
-			if (this.textareaIsShownAtCursor) {
+			if (this._isDoingComposition) {
 				// See https://github.com/Microsoft/monaco-editor/issues/320
 				if (isChromev55_v56) {
-					let text = this.textArea.getValue();
-					this.textAreaState = this.textAreaState.fromText(text);
-					let typeInput = this.textAreaState.updateComposition();
+					let text = this._textArea.getValue();
+					this._textAreaState = this._textAreaState.fromText(text);
+					let typeInput = this._textAreaState.updateComposition();
 					this._onType.fire(typeInput);
 					let e = {
 						locale: compositionLocale,
@@ -228,14 +216,30 @@ export class TextAreaHandler extends Disposable {
 				return;
 			}
 
-			readFromTextArea();
+			let tempTextAreaState = this._textAreaState.fromTextArea(this._textArea);
+			let typeInput = tempTextAreaState.deduceInput();
+			if (typeInput.replaceCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
+				// Ignore invalid input but keep it around for next time
+				return;
+			}
+
+			this._textAreaState = tempTextAreaState;
+			// console.log('==> DEDUCED INPUT: ' + JSON.stringify(typeInput));
+			if (this._nextCommand === ReadFromTextArea.Type) {
+				if (typeInput.text !== '') {
+					this._onType.fire(typeInput);
+				}
+			} else {
+				this.executePaste(typeInput.text);
+				this._nextCommand = ReadFromTextArea.Type;
+			}
 		}));
 
 		// --- Clipboard operations
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'cut', (e: ClipboardEvent) => {
 			this._ensureClipboardGetsEditorSelection(e);
-			this.asyncTriggerCut.schedule();
+			this._asyncTriggerCut.schedule();
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'copy', (e: ClipboardEvent) => {
@@ -246,9 +250,9 @@ export class TextAreaHandler extends Disposable {
 			if (ClipboardEventUtils.canUseTextData(e)) {
 				this.executePaste(ClipboardEventUtils.getTextData(e));
 			} else {
-				if (this.textArea.getSelectionStart() !== this.textArea.getSelectionEnd()) {
+				if (this._textArea.getSelectionStart() !== this._textArea.getSelectionEnd()) {
 					// Clean up the textarea, to get a clean paste
-					this.setTextAreaState('paste', this.textAreaState.toEmpty(), false);
+					this.setTextAreaState('paste', this._textAreaState.toEmpty(), false);
 				}
 				this._nextCommand = ReadFromTextArea.Paste;
 			}
@@ -264,56 +268,34 @@ export class TextAreaHandler extends Disposable {
 	// --- begin event handlers
 
 	public setStrategy(strategy: TextAreaStrategy): void {
-		this.textAreaState = this.textAreaState.toStrategy(strategy);
+		this._textAreaState = this._textAreaState.toStrategy(strategy);
 	}
 
 	public setHasFocus(isFocused: boolean): void {
-		if (this.hasFocus === isFocused) {
+		if (this._hasFocus === isFocused) {
 			// no change
 			return;
 		}
-		this.hasFocus = isFocused;
-		if (this.hasFocus) {
+		this._hasFocus = isFocused;
+		if (this._hasFocus) {
 			this._writePlaceholderAndSelectTextArea('focusgain', false);
 		}
 	}
 
 	public setCursorSelections(primary: Range, secondary: Range[]): void {
-		this.selection = primary;
-		this.selections = [primary].concat(secondary);
+		this._selection = primary;
 		this._writePlaceholderAndSelectTextArea('selection changed', false);
 	}
 
 	// --- end event handlers
 
 	private setTextAreaState(reason: string, textAreaState: TextAreaState, forceFocus: boolean): void {
-		if (!this.hasFocus) {
+		if (!this._hasFocus) {
 			textAreaState = textAreaState.resetSelection();
 		}
 
-		textAreaState.applyToTextArea(reason, this.textArea, this.hasFocus || forceFocus);
-		this.textAreaState = textAreaState;
-	}
-
-	private _onKeyDownHandler(e: IKeyboardEvent): void {
-		if (this.textareaIsShownAtCursor && e.equals(KeyCode.KEY_IN_COMPOSITION)) {
-			// Stop propagation for keyDown events if the IME is processing key input
-			e.stopPropagation();
-		}
-
-		if (e.equals(KeyCode.Escape)) {
-			// Prevent default always for `Esc`, otherwise it will generate a keypress
-			// See https://msdn.microsoft.com/en-us/library/ie/ms536939(v=vs.85).aspx
-			e.preventDefault();
-		}
-		this._onKeyDown.fire(e);
-	}
-
-	private _onKeyPressHandler(e: IKeyboardEvent): void {
-		if (!this.hasFocus) {
-			// Sometimes, when doing Alt-Tab, in FF, a 'keypress' is sent before a 'focus'
-			return;
-		}
+		textAreaState.applyToTextArea(reason, this._textArea, this._hasFocus || forceFocus);
+		this._textAreaState = textAreaState;
 	}
 
 	// ------------- Operations that are always executed asynchronously
@@ -322,14 +304,8 @@ export class TextAreaHandler extends Disposable {
 		if (txt === '') {
 			return;
 		}
-
-		let pasteOnNewLine = false;
-		if (browser.enableEmptySelectionClipboard) {
-			pasteOnNewLine = (txt === this.lastCopiedValue && this.lastCopiedValueIsFromEmptySelection);
-		}
 		this._onPaste.fire({
-			text: txt,
-			pasteOnNewLine: pasteOnNewLine
+			text: txt
 		});
 	}
 
@@ -338,13 +314,13 @@ export class TextAreaHandler extends Disposable {
 	}
 
 	private _writePlaceholderAndSelectTextArea(reason: string, forceFocus: boolean): void {
-		if (!this.textareaIsShownAtCursor) {
+		if (!this._isDoingComposition) {
 			// Do not write to the textarea if it is visible.
 			if (browser.isIPad) {
 				// Do not place anything in the textarea for the iPad
-				this.setTextAreaState(reason, this.textAreaState.toEmpty(), forceFocus);
+				this.setTextAreaState(reason, this._textAreaState.toEmpty(), forceFocus);
 			} else {
-				this.setTextAreaState(reason, this.textAreaState.fromEditorSelection(this.model, this.selection), forceFocus);
+				this.setTextAreaState(reason, this._textAreaState.fromEditorSelection(this._model, this._selection), forceFocus);
 			}
 		}
 	}
@@ -352,28 +328,15 @@ export class TextAreaHandler extends Disposable {
 	// ------------- Clipboard operations
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		let whatToCopy = this.model.getPlainTextToCopy(this.selections, browser.enableEmptySelectionClipboard);
+		let whatToCopy = this._host.getPlainTextToCopy();
 		if (ClipboardEventUtils.canUseTextData(e)) {
 			let whatHTMLToCopy: string = null;
 			if (!browser.isEdgeOrIE && (whatToCopy.length < 65536 || CopyOptions.forceCopyWithSyntaxHighlighting)) {
-				whatHTMLToCopy = this.model.getHTMLToCopy(this.selections, browser.enableEmptySelectionClipboard);
+				whatHTMLToCopy = this._host.getHTMLToCopy();
 			}
 			ClipboardEventUtils.setTextData(e, whatToCopy, whatHTMLToCopy);
 		} else {
-			this.setTextAreaState('copy or cut', this.textAreaState.fromText(whatToCopy), false);
-		}
-
-		if (browser.enableEmptySelectionClipboard) {
-			if (browser.isFirefox) {
-				// When writing "LINE\r\n" to the clipboard and then pasting,
-				// Firefox pastes "LINE\n", so let's work around this quirk
-				this.lastCopiedValue = whatToCopy.replace(/\r\n/g, '\n');
-			} else {
-				this.lastCopiedValue = whatToCopy;
-			}
-
-			let selections = this.selections;
-			this.lastCopiedValueIsFromEmptySelection = (selections.length === 1 && selections[0].isEmpty());
+			this.setTextAreaState('copy or cut', this._textAreaState.fromText(whatToCopy), false);
 		}
 	}
 }
