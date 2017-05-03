@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import strings = require('vs/base/common/strings');
 import uri from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
@@ -10,7 +11,6 @@ import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as nls from 'vs/nls';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import fs = require('fs');
 
 export class LinkDetector {
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
@@ -20,7 +20,7 @@ export class LinkDetector {
 		// group 3: line number
 		// group 4: column number
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
-		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?):(\d+)(?::(\d+))?/g
+		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]+:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?\.[a-zA-Z]+[0-9]*):(\d+)(?::(\d+))?/g
 	];
 
 	constructor(
@@ -41,48 +41,43 @@ export class LinkDetector {
 			while (match !== null) {
 				let resource: uri = null;
 				try {
-					resource = match && (match[2] ? uri.file(match[1]) : this.contextService.toResource(match[1]));
+					resource = (match && !strings.startsWith(match[0], 'http')) && (match[2] ? uri.file(match[1]) : this.contextService.toResource(match[1]));
 				} catch (e) { }
 
-				if (resource) {
-					if (!linkContainer) {
-						linkContainer = document.createElement('span');
-					}
-
-					const valid = this.fileExists(resource.fsPath);
-					if (valid) {
-						let textBeforeLink = text.substring(lastMatchIndex, match.index);
-						if (textBeforeLink) {
-							let span = document.createElement('span');
-							span.textContent = textBeforeLink;
-							linkContainer.appendChild(span);
-						}
-
-						const link = document.createElement('a');
-						link.textContent = text.substr(match.index, match[0].length);
-						link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
-						linkContainer.appendChild(link);
-						const line = Number(match[3]);
-						const column = match[4] ? Number(match[4]) : undefined;
-						link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, line, column);
-					} else {
-						let plainText = document.createElement('span');
-						plainText.textContent = text.substring(lastMatchIndex, match.index + match[0].length);
-						linkContainer.appendChild(plainText);
-					}
-
-					lastMatchIndex = pattern.lastIndex;
-					const currentMatch = match;
+				if (!resource) {
 					match = pattern.exec(text);
+					continue;
+				}
+				if (!linkContainer) {
+					linkContainer = document.createElement('span');
+				}
 
-					// Append last string part if no more link matches
-					if (!match) {
-						let textAfterLink = text.substr(currentMatch.index + currentMatch[0].length);
-						if (textAfterLink) {
-							let span = document.createElement('span');
-							span.textContent = textAfterLink;
-							linkContainer.appendChild(span);
-						}
+				let textBeforeLink = text.substring(lastMatchIndex, match.index);
+				if (textBeforeLink) {
+					let span = document.createElement('span');
+					span.textContent = textBeforeLink;
+					linkContainer.appendChild(span);
+				}
+
+				const link = document.createElement('a');
+				link.textContent = text.substr(match.index, match[0].length);
+				link.title = isMacintosh ? nls.localize('fileLinkMac', "Click to follow (Cmd + click opens to the side)") : nls.localize('fileLink', "Click to follow (Ctrl + click opens to the side)");
+				linkContainer.appendChild(link);
+				const line = Number(match[3]);
+				const column = match[4] ? Number(match[4]) : undefined;
+				link.onclick = (e) => this.onLinkClick(new StandardMouseEvent(e), resource, line, column);
+
+				lastMatchIndex = pattern.lastIndex;
+				const currentMatch = match;
+				match = pattern.exec(text);
+
+				// Append last string part if no more link matches
+				if (!match) {
+					let textAfterLink = text.substr(currentMatch.index + currentMatch[0].length);
+					if (textAfterLink) {
+						let span = document.createElement('span');
+						span.textContent = textAfterLink;
+						linkContainer.appendChild(span);
 					}
 				}
 			}
@@ -108,19 +103,5 @@ export class LinkDetector {
 				}
 			}
 		}, event.ctrlKey || event.metaKey).done(null, errors.onUnexpectedError);
-	}
-
-	private fileExists(path: string): boolean {
-		let stat;
-		try {
-			stat = fs.statSync(path);
-		} catch (e) {
-			return false;
-		}
-
-		if (stat.isFile()) {
-			return true;
-		}
-		return false;
 	}
 }
