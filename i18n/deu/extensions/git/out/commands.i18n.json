@@ -16,7 +16,6 @@
 	"confirm discard": "Möchten Sie die Änderungen in {0} wirklich verwerfen?",
 	"confirm discard multiple": "Möchten Sie wirklich Änderungen in {0} Dateien verwerfen?",
 	"discard": "Änderungen verwerfen",
-	"confirm discard all": "Möchten Sie wirklich ALLE Änderungen verwerfen?",
 	"no changes": "Keine Änderungen zum Speichern vorhanden.",
 	"commit message": "Commit-Nachricht",
 	"provide commit message": "Geben Sie eine Commit-Nachrichte ein.",

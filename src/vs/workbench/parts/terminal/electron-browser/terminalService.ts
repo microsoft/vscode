@@ -21,9 +21,9 @@ import { TerminalService as AbstractTerminalService } from 'vs/workbench/parts/t
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChoiceService } from "vs/platform/message/common/message";
-import { Severity } from "vs/editor/common/standalone/standaloneBase";
-import { IStorageService, StorageScope } from "vs/platform/storage/common/storage";
+import { IChoiceService } from 'vs/platform/message/common/message';
+import { Severity } from 'vs/editor/common/standalone/standaloneBase';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { TERMINAL_DEFAULT_SHELL_WINDOWS } from "vs/workbench/parts/terminal/electron-browser/terminal";
 
 export class TerminalService extends AbstractTerminalService implements ITerminalService {
@@ -95,7 +95,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 		const message = nls.localize('terminal.integrated.chooseWindowsShellInfo', "You can change the default terminal shell by selecting the customize button.");
 		const options = [nls.localize('customize', "Customize"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")];
-		this._choiceService.choose(Severity.Info, message, options).then(choice => {
+		this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
 			switch (choice) {
 				case 0:
 					return this.selectDefaultWindowsShell().then(shell => {

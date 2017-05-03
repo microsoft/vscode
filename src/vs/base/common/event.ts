@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import CallbackList from 'vs/base/common/callbackList';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -28,6 +28,7 @@ export default Event;
 export interface EmitterOptions {
 	onFirstListenerAdd?: Function;
 	onFirstListenerDidAdd?: Function;
+	onListenerDidAdd?: Function;
 	onLastListenerRemove?: Function;
 }
 
@@ -85,6 +86,10 @@ export class Emitter<T> {
 
 				if (firstListener && this._options && this._options.onFirstListenerDidAdd) {
 					this._options.onFirstListenerDidAdd(this);
+				}
+
+				if (this._options && this._options.onListenerDidAdd) {
+					this._options.onListenerDidAdd(this, listener, thisArgs);
 				}
 
 				let result: IDisposable;
@@ -291,18 +296,7 @@ export function once<T>(event: Event<T>): Event<T> {
 }
 
 export function any<T>(...events: Event<T>[]): Event<T> {
-	let listeners: IDisposable[] = [];
-
-	const emitter = new Emitter<T>({
-		onFirstListenerAdd() {
-			listeners = events.map(e => e(r => emitter.fire(r)));
-		},
-		onLastListenerRemove() {
-			listeners = dispose(listeners);
-		}
-	});
-
-	return emitter.event;
+	return (listener, thisArgs = null, disposables?) => combinedDisposable(events.map(event => event(e => listener.call(thisArgs, e), null, disposables)));
 }
 
 export function debounceEvent<T>(event: Event<T>, merger: (last: T, event: T) => T, delay?: number, leading?: boolean): Event<T>;
@@ -486,6 +480,33 @@ export function buffer<T>(event: Event<T>, nextTick = false, buffer: T[] = []): 
 		onLastListenerRemove() {
 			listener.dispose();
 			listener = null;
+		}
+	});
+
+	return emitter.event;
+}
+
+/**
+ * Similar to `buffer` but it buffers indefinitely and repeats
+ * the buffered events to every new listener.
+ */
+export function echo<T>(event: Event<T>, nextTick = false, buffer: T[] = []): Event<T> {
+	buffer = buffer.slice();
+
+	event(e => {
+		buffer.push(e);
+		emitter.fire(e);
+	});
+
+	const flush = (listener, thisArgs?) => buffer.forEach(e => listener.call(thisArgs, e));
+
+	const emitter = new Emitter<T>({
+		onListenerDidAdd(emitter, listener, thisArgs?) {
+			if (nextTick) {
+				setTimeout(() => flush(listener, thisArgs));
+			} else {
+				flush(listener, thisArgs);
+			}
 		}
 	});
 

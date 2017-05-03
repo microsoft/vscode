@@ -14,5 +14,6 @@
 	"noIconThemeDesc": "Dateisymbole deaktivieren",
 	"problemChangingIconTheme": "Problem beim Festlegen des Symboldesigns: {0}",
 	"themes.selectIconTheme": "Dateisymboldesign auswählen",
-	"preferences": "Einstellungen"
+	"preferences": "Einstellungen",
+	"developer": "Entwickler"
 }

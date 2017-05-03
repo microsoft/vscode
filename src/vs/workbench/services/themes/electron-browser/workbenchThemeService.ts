@@ -11,10 +11,9 @@ import * as Paths from 'path';
 import Json = require('vs/base/common/json');
 import * as types from 'vs/base/common/types';
 import * as objects from 'vs/base/common/objects';
-import { IThemeExtensionPoint } from 'vs/platform/theme/common/themeExtensionPoint';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { IWorkbenchThemeService, IColorTheme, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_COLORS_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IColorTheme, IFileIconTheme, ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_COLORS_SETTING, DEPRECATED_CUSTOM_COLORS_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -30,7 +29,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import Severity from 'vs/base/common/severity';
 import { ColorThemeData, fromStorageData, fromExtensionTheme } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
-import { editorBackground, editorForeground, ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -40,8 +39,6 @@ import pfs = require('vs/base/node/pfs');
 import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Color } from "vs/base/common/color";
-
 
 // implementation
 
@@ -169,7 +166,7 @@ interface IconThemeDocument extends IconsAssociation {
 }
 
 export interface IColorCustomizations {
-	[colorId: string]: any;
+	[colorId: string]: string;
 }
 
 const noFileIconTheme: IFileIconTheme = {
@@ -187,6 +184,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private extensionsColorThemes: ColorThemeData[];
 	private colorCustomizations: IColorCustomizations;
+	private numberOfColorCustomizations: number;
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
 	private onColorThemeChange: Emitter<IColorTheme>;
@@ -211,7 +209,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.container = container;
 		this.extensionsColorThemes = [];
-		this.colorCustomizations = null;
+		this.colorCustomizations = {};
+		this.numberOfColorCustomizations = 0;
 		this.onFileIconThemeChange = new Emitter<IFileIconTheme>();
 		this.knownIconThemes = [];
 		this.onColorThemeChange = new Emitter<IColorTheme>();
@@ -226,10 +225,15 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			extensionData: null
 		};
 
+		this.updateColorCustomizations(false);
+
+		let themeData = null;
 		let persistedThemeData = this.storageService.get(PERSISTED_THEME_STORAGE_KEY);
 		if (persistedThemeData) {
-			let themeData = fromStorageData(this, persistedThemeData);
-			this.updateColorCustomizations(this.configurationService.lookup<IColorCustomizations>(CUSTOM_COLORS_SETTING).value, false);
+			themeData = fromStorageData(persistedThemeData);
+		}
+		if (themeData !== null) {
+			themeData.setCustomColors(this.colorCustomizations);
 			this.updateDynamicCSSRules(themeData);
 			this.applyTheme(themeData, null, true);
 		} else {
@@ -238,18 +242,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			// a color theme document with good defaults until the theme is loaded
 			let isLightTheme = (Array.prototype.indexOf.call(document.body.classList, 'vs') >= 0);
 
-			let initialTheme = new ColorThemeData(this);
+			let initialTheme = new ColorThemeData();
 			initialTheme.id = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 			initialTheme.label = '';
 			initialTheme.selector = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 			initialTheme.settingsId = null;
 			initialTheme.isLoaded = false;
-			initialTheme.tokenColors = [{
-				settings: {
-					foreground: initialTheme.getColor(editorForeground).toRGBAHex(),
-					background: initialTheme.getColor(editorBackground).toRGBAHex()
-				}
-			}];
+			initialTheme.tokenColors = [{ settings: {} }];
+			initialTheme.setCustomColors(this.colorCustomizations);
 			this.currentColorTheme = initialTheme;
 		}
 
@@ -303,9 +303,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			return pfs.writeFile(backupFileLocation, content).then(_ => backupFileLocation);
 		}, err => {
 			if (err && err.code === 'ENOENT') {
-				return TPromise.as(null); // ignore, user config file doesn't exist yet
+				return TPromise.as<string>(null); // ignore, user config file doesn't exist yet
 			};
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<string>(err);
 		});
 	}
 
@@ -345,7 +345,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private initialize(): TPromise<any> {
 
-		this.updateColorCustomizations(this.configurationService.lookup<IColorCustomizations>(CUSTOM_COLORS_SETTING).value, false);
+		this.updateColorCustomizations(false);
 
 		let colorThemeSetting = this.configurationService.lookup<string>(COLOR_THEME_SETTING).value;
 		let iconThemeSetting = this.configurationService.lookup<string>(ICON_THEME_SETTING).value || '';
@@ -378,8 +378,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				});
 			}
 
-			let colorCustomizations = this.configurationService.lookup<IColorCustomizations>(CUSTOM_COLORS_SETTING).value;
-			this.updateColorCustomizations(colorCustomizations);
+			this.updateColorCustomizations();
 		});
 	}
 
@@ -408,12 +407,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
 						// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 						this.currentColorTheme = themeData;
+						themeData.setCustomColors(this.colorCustomizations);
 						return TPromise.as(themeData);
 					}
+					themeData.setCustomColors(this.colorCustomizations);
 					this.updateDynamicCSSRules(themeData);
 					return this.applyTheme(themeData, settingsTarget);
 				}, error => {
-					return TPromise.wrapError(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message));
+					return TPromise.wrapError<IColorTheme>(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message));
 				});
 			}
 			return null;
@@ -435,7 +436,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 	}
 
-	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): TPromise<IFileIconTheme> {
+	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): TPromise<IColorTheme> {
 		if (this.container) {
 			if (this.currentColorTheme) {
 				$(this.container).removeClass(this.currentColorTheme.id);
@@ -457,7 +458,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		if (settingsTarget !== ConfigurationTarget.WORKSPACE) {
 			let background = newTheme.getColor(editorBackground).toRGBHex(); // only take RGB, its what is used in the initial CSS
-			let data = { baseTheme: newTheme.getBaseThemeId(), background: background };
+			let data = { id: newTheme.id, background: background };
 			this.windowService.broadcast({ channel: 'vscode:changeColorTheme', payload: JSON.stringify(data) });
 		}
 		// remember theme data for a quick restore
@@ -466,26 +467,26 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return this.writeColorThemeConfiguration(settingsTarget);
 	};
 
-	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
+	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): TPromise<IColorTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
 			return this.configurationWriter.writeConfiguration(COLOR_THEME_SETTING, this.currentColorTheme.settingsId, settingsTarget).then(_ => this.currentColorTheme);
 		}
 		return TPromise.as(this.currentColorTheme);
 	}
 
-	public getColorTheme() {
+	public getColorTheme(): IColorTheme {
 		return this.currentColorTheme;
 	}
 
 	private findThemeData(themeId: string, defaultId?: string): TPromise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
-			let defaultTheme: IColorTheme = void 0;
+			let defaultTheme: ColorThemeData = void 0;
 			for (let t of allThemes) {
 				if (t.id === themeId) {
-					return t;
+					return <ColorThemeData>t;
 				}
 				if (t.id === defaultId) {
-					defaultTheme = t;
+					defaultTheme = <ColorThemeData>t;
 				}
 			}
 			return defaultTheme;
@@ -494,13 +495,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	public findThemeDataBySettingsId(settingsId: string, defaultId: string): TPromise<ColorThemeData> {
 		return this.getColorThemes().then(allThemes => {
-			let defaultTheme: IColorTheme = void 0;
+			let defaultTheme: ColorThemeData = void 0;
 			for (let t of allThemes) {
 				if (t.settingsId === settingsId) {
-					return t;
+					return <ColorThemeData>t;
 				}
 				if (t.id === defaultId) {
-					defaultTheme = t;
+					defaultTheme = <ColorThemeData>t;
 				}
 			}
 			return defaultTheme;
@@ -513,29 +514,37 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		});
 	}
 
-	private updateColorCustomizations(customizations: IColorCustomizations, notify = true): void {
-		if (!customizations) {
-			if (!this.colorCustomizations) {
-				return; // no change
-			}
-			this.colorCustomizations = customizations;
-		} else {
-			if (this.colorCustomizations && objects.equals(this.colorCustomizations, customizations)) {
-				return; // no change
+	private hasCustomizationChanged(newColorCustomizations: IColorCustomizations, newColorIds: string[]): boolean {
+		if (newColorIds.length !== this.numberOfColorCustomizations) {
+			return true;
+		}
+		for (let key of newColorIds) {
+			let color = this.colorCustomizations[key];
+			if (!color || color !== newColorCustomizations[key]) {
+				return true;
 			}
 		}
-		this.colorCustomizations = customizations;
-		if (notify) {
-			this.updateDynamicCSSRules(this.currentColorTheme);
-			this.onColorThemeChange.fire(this.currentColorTheme);
-		}
+		return false;
 	}
 
-	public getCustomColor(id: ColorIdentifier) {
-		if (this.colorCustomizations && this.colorCustomizations.hasOwnProperty(id)) {
-			return Color.fromHex(this.colorCustomizations[id], null);
+	private updateColorCustomizations(notify = true): void {
+		let newColorCustomizations = this.configurationService.lookup<IColorCustomizations>(CUSTOM_COLORS_SETTING).value || {};
+		let newColorIds = Object.keys(newColorCustomizations);
+		if (newColorIds.length === 0) {
+			newColorCustomizations = this.configurationService.lookup<IColorCustomizations>(DEPRECATED_CUSTOM_COLORS_SETTING).value || {};
+			newColorIds = Object.keys(newColorCustomizations);
 		}
-		return null;
+		if (this.hasCustomizationChanged(newColorCustomizations, newColorIds)) {
+			this.colorCustomizations = newColorCustomizations;
+			this.numberOfColorCustomizations = newColorIds.length;
+			if (this.currentColorTheme) {
+				this.currentColorTheme.setCustomColors(newColorCustomizations);
+				if (notify) {
+					this.updateDynamicCSSRules(this.currentColorTheme);
+					this.onColorThemeChange.fire(this.currentColorTheme);
+				}
+			}
+		}
 	}
 
 	private onThemes(extensionFolderPath: string, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
@@ -562,7 +571,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (normalizedAbsolutePath.indexOf(Paths.normalize(extensionFolderPath)) !== 0) {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
 			}
-			let themeData = fromExtensionTheme(this, theme, normalizedAbsolutePath, extensionData);
+			let themeData = fromExtensionTheme(theme, normalizedAbsolutePath, extensionData);
 			this.extensionsColorThemes.push(themeData);
 
 			colorThemeSettingSchema.enum.push(themeData.settingsId);
@@ -735,7 +744,7 @@ function _applyIconTheme(data: IInternalIconThemeData, onApply: (theme: IInterna
 		_applyRules(data.styleSheetContent, iconThemeRulesClassName);
 		return onApply(data);
 	}, error => {
-		return TPromise.wrapError(nls.localize('error.cannotloadicontheme', "Unable to load {0}", data.path));
+		return TPromise.wrapError<IFileIconTheme>(nls.localize('error.cannotloadicontheme', "Unable to load {0}", data.path));
 	});
 }
 
@@ -962,10 +971,10 @@ const iconThemeSettingSchema: IJSONSchema = {
 	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")
 };
 const colorCustomizationsSchema: IJSONSchema = {
-	type: ['object', 'null'],
-	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme. This setting is experimental as the names of the colors will change in the next release."),
+	type: ['object'],
+	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
 	properties: colorThemeSchema.colorsSchema.properties,
-	default: null,
+	default: {},
 	defaultSnippets: [{
 		body: {
 			'statusBarBackground': '#666666',
@@ -975,6 +984,11 @@ const colorCustomizationsSchema: IJSONSchema = {
 	}]
 };
 
+const deprecatedColorCustomizationsSchema: IJSONSchema = objects.mixin({
+	deprecationMessage: nls.localize('workbenchColors.deprecated', "The setting is no longer experimental and has been renamed to 'workbench.colorCustomizations'"),
+	description: nls.localize('workbenchColors.deprecatedDescription', "Use 'workbench.colorCustomizations' instead")
+}, colorCustomizationsSchema, false);
+
 configurationRegistry.registerConfiguration({
 	id: 'workbench',
 	order: 7.1,
@@ -982,7 +996,8 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[COLOR_THEME_SETTING]: colorThemeSettingSchema,
 		[ICON_THEME_SETTING]: iconThemeSettingSchema,
-		[CUSTOM_COLORS_SETTING]: colorCustomizationsSchema
+		[CUSTOM_COLORS_SETTING]: colorCustomizationsSchema,
+		[DEPRECATED_CUSTOM_COLORS_SETTING]: deprecatedColorCustomizationsSchema
 	}
 });
 

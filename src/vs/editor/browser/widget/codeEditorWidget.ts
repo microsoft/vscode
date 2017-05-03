@@ -17,7 +17,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
@@ -29,9 +28,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
-import { IPosition } from "vs/editor/common/core/position";
-import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -561,11 +561,11 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			this._commandService,
 			this._configuration,
 			this.viewModel,
-			(source: string, handlerId: string, payload: any) => {
+			(editorCommand: CoreEditorCommand, args: any) => {
 				if (!this.cursor) {
 					return;
 				}
-				this.cursor.trigger(source, handlerId, payload);
+				editorCommand.runCoreEditorCommand(this.cursor, args);
 			}
 		);
 
@@ -683,101 +683,5 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 
 	public hasFocus(): boolean {
 		return this._hasFocus;
-	}
-}
-
-class OverlayWidget2 implements editorBrowser.IOverlayWidget {
-
-	private _id: string;
-	private _position: editorBrowser.IOverlayWidgetPosition;
-	private _domNode: HTMLElement;
-
-	constructor(id: string, position: editorBrowser.IOverlayWidgetPosition) {
-		this._id = id;
-		this._position = position;
-		this._domNode = document.createElement('div');
-		this._domNode.className = this._id.replace(/\./g, '-').replace(/[^a-z0-9\-]/, '');
-	}
-
-	public getId(): string {
-		return this._id;
-	}
-
-	public getDomNode(): HTMLElement {
-		return this._domNode;
-	}
-
-	public getPosition(): editorBrowser.IOverlayWidgetPosition {
-		return this._position;
-	}
-}
-
-export enum EditCursorState {
-	EndOfLastEditOperation = 0
-}
-
-class SingleEditOperation {
-
-	range: Range;
-	text: string;
-	forceMoveMarkers: boolean;
-
-	constructor(source: editorCommon.ISingleEditOperation) {
-		this.range = new Range(source.range.startLineNumber, source.range.startColumn, source.range.endLineNumber, source.range.endColumn);
-		this.text = source.text;
-		this.forceMoveMarkers = source.forceMoveMarkers || false;
-	}
-
-}
-
-export class CommandRunner implements editorCommon.ICommand {
-
-	private _ops: SingleEditOperation[];
-	private _editCursorState: EditCursorState;
-
-	constructor(ops: editorCommon.ISingleEditOperation[], editCursorState: EditCursorState) {
-		this._ops = ops.map(op => new SingleEditOperation(op));
-		this._editCursorState = editCursorState;
-	}
-
-	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
-		if (this._ops.length === 0) {
-			return;
-		}
-
-		// Sort them in ascending order by range starts
-		this._ops.sort((o1, o2) => {
-			return Range.compareRangesUsingStarts(o1.range, o2.range);
-		});
-
-		// Merge operations that touch each other
-		let resultOps: editorCommon.ISingleEditOperation[] = [];
-		let previousOp = this._ops[0];
-		for (let i = 1; i < this._ops.length; i++) {
-			if (previousOp.range.endLineNumber === this._ops[i].range.startLineNumber && previousOp.range.endColumn === this._ops[i].range.startColumn) {
-				// These operations are one after another and can be merged
-				previousOp.range = Range.plusRange(previousOp.range, this._ops[i].range);
-				previousOp.text = previousOp.text + this._ops[i].text;
-			} else {
-				resultOps.push(previousOp);
-				previousOp = this._ops[i];
-			}
-		}
-		resultOps.push(previousOp);
-
-		for (let i = 0; i < resultOps.length; i++) {
-			builder.addEditOperation(Range.lift(resultOps[i].range), resultOps[i].text);
-		}
-	}
-
-	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		let inverseEditOperations = helper.getInverseEditOperations();
-		let srcRange = inverseEditOperations[inverseEditOperations.length - 1].range;
-		return new Selection(
-			srcRange.endLineNumber,
-			srcRange.endColumn,
-			srcRange.endLineNumber,
-			srcRange.endColumn
-		);
 	}
 }

@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextAreaHandler } from 'vs/editor/common/controller/textAreaHandler';
-import * as browser from 'vs/base/browser/browser';
-import { TextAreaStrategy, ISimpleModel } from 'vs/editor/common/controller/textAreaState';
+import { TextAreaHandler, ITextAreaHandlerHost, TextAreaStrategy } from 'vs/editor/browser/controller/textAreaHandler';
+import { ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
-import { Position } from 'vs/editor/common/core/position';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 
 // To run this test, open imeTester.html
@@ -20,27 +17,17 @@ class SingleLineTestModel implements ISimpleModel {
 	private _line: string;
 	private _eol: string;
 
-	public coordinatesConverter = {
-		convertViewPositionToModelPosition: (viewPosition: Position): Position => {
-			return viewPosition;
-		}
-	};
-
 	constructor(line: string) {
 		this._line = line;
 		this._eol = '\n';
 	}
 
-	setText(text: string) {
+	_setText(text: string) {
 		this._line = text;
 	}
 
 	getLineMaxColumn(lineNumber: number): number {
 		return this._line.length + 1;
-	}
-
-	getEOL(): string {
-		return this._eol;
 	}
 
 	getValueInRange(range: IRange, eol: editorCommon.EndOfLinePreference): string {
@@ -53,14 +40,6 @@ class SingleLineTestModel implements ISimpleModel {
 
 	getLineCount(): number {
 		return 1;
-	}
-
-	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
-		return '';
-	}
-
-	public getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
-		return '';
 	}
 }
 
@@ -88,7 +67,18 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let title = document.createElement('div');
 	title.className = 'title';
-	title.innerHTML = TextAreaStrategy[strategy] + ' strategy: ' + description + '. Type <strong>' + inputStr + '</strong>';
+
+	const toStr = (value: TextAreaStrategy): string => {
+		if (value === TextAreaStrategy.IENarrator) {
+			return 'IENarrator';
+		}
+		if (value === TextAreaStrategy.NVDA) {
+			return 'NVDA';
+		}
+		return '???';
+	};
+
+	title.innerHTML = toStr(strategy) + ' strategy: ' + description + '. Type <strong>' + inputStr + '</strong>';
 	container.appendChild(title);
 
 	let startBtn = document.createElement('button');
@@ -101,11 +91,14 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 	input.setAttribute('cols', '40');
 	container.appendChild(input);
 
-	let textAreaWrapper = new TextAreaWrapper(createFastDomNode(input));
-
 	let model = new SingleLineTestModel('some  text');
 
-	let handler = new TextAreaHandler(browser, strategy, textAreaWrapper, model);
+	const textAreaHandlerHost: ITextAreaHandlerHost = {
+		getPlainTextToCopy: (): string => '',
+		getHTMLToCopy: (): string => ''
+	};
+
+	let handler = new TextAreaHandler(textAreaHandlerHost, strategy, createFastDomNode(input), model);
 
 	input.onfocus = () => {
 		handler.setHasFocus(true);
@@ -139,7 +132,7 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 	};
 
 	let updateModelAndPosition = (text: string, off: number, len: number) => {
-		model.setText(text);
+		model._setText(text);
 		updatePosition(off, len);
 		view.paint(output);
 

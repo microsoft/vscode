@@ -138,7 +138,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE);
 		}
 
-		return TPromise.wrap(null);
+		return TPromise.wrap<IPreferencesEditorModel<any>>(null);
 	}
 
 	openSettings(): TPromise<IEditor> {
@@ -238,7 +238,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.textModelResolverService.createModelReference(settingsUri)
 				.then(reference => this.instantiationService.createInstance(SettingsEditorModel, reference, configurationTarget));
 		}
-		return TPromise.wrap(null);
+		return TPromise.wrap<SettingsEditorModel>(null);
 	}
 
 	private getEmptyEditableSettingsContent(configurationTarget: ConfigurationTarget): string {
@@ -271,11 +271,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, error => {
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.fileService.updateContent(resource, contents).then(null, error => {
-					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService), error)));
+					return TPromise.wrapError<boolean>(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService), error)));
 				});
 			}
 
-			return TPromise.wrapError(error);
+			return TPromise.wrapError<boolean>(error);
 		});
 	}
 

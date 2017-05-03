@@ -16,7 +16,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
-import { ITextFileService } from "vs/workbench/services/textfile/common/textfiles";
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class BackupRestorer implements IWorkbenchContribution {
 

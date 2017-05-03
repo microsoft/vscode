@@ -11,7 +11,7 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ViewLineData, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { WrappingIndent } from "vs/editor/common/config/editorOptions";
+import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
 export class OutputPosition {
 	_outputPositionBrand: void;
@@ -562,7 +562,13 @@ export class SplitLinesCollection {
 		eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 	}
 
-	public onModelLinesDeleted(eventsCollector: ViewEventsCollector, fromLineNumber: number, toLineNumber: number): void {
+	public onModelLinesDeleted(eventsCollector: ViewEventsCollector, versionId: number, fromLineNumber: number, toLineNumber: number): void {
+		if (versionId <= this._validModelVersionId) {
+			// Here we check for versionId in case the lines were reconstructed in the meantime.
+			// We don't want to apply stale change events on top of a newer read model state.
+			return;
+		}
+
 		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(fromLineNumber - 2) + 1);
 		let outputToLineNumber = this.prefixSumComputer.getAccumulatedValue(toLineNumber - 1);
 
@@ -572,7 +578,13 @@ export class SplitLinesCollection {
 		eventsCollector.emit(new viewEvents.ViewLinesDeletedEvent(outputFromLineNumber, outputToLineNumber));
 	}
 
-	public onModelLinesInserted(eventsCollector: ViewEventsCollector, fromLineNumber: number, toLineNumber: number, text: string[]): void {
+	public onModelLinesInserted(eventsCollector: ViewEventsCollector, versionId: number, fromLineNumber: number, toLineNumber: number, text: string[]): void {
+		if (versionId <= this._validModelVersionId) {
+			// Here we check for versionId in case the lines were reconstructed in the meantime.
+			// We don't want to apply stale change events on top of a newer read model state.
+			return;
+		}
+
 		let hiddenAreas = this.getHiddenAreas();
 		let isInHiddenArea = false;
 		let testPosition = new Position(fromLineNumber, 1);
@@ -605,7 +617,13 @@ export class SplitLinesCollection {
 		eventsCollector.emit(new viewEvents.ViewLinesInsertedEvent(outputFromLineNumber, outputFromLineNumber + totalOutputLineCount - 1));
 	}
 
-	public onModelLineChanged(eventsCollector: ViewEventsCollector, lineNumber: number, newText: string): boolean {
+	public onModelLineChanged(eventsCollector: ViewEventsCollector, versionId: number, lineNumber: number, newText: string): boolean {
+		if (versionId <= this._validModelVersionId) {
+			// Here we check for versionId in case the lines were reconstructed in the meantime.
+			// We don't want to apply stale change events on top of a newer read model state.
+			return false;
+		}
+
 		let lineIndex = lineNumber - 1;
 
 		let oldOutputLineCount = this.lines[lineIndex].getViewLineCount();

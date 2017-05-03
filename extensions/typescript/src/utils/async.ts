@@ -13,7 +13,7 @@ export class Delayer<T> {
 
 	public defaultDelay: number;
 	private timeout: any; // Timer
-	private completionPromise: Promise<T> | null;
+	private completionPromise: Promise<T | null> | null;
 	private onSuccess: ((value?: T | Thenable<T>) => void) | null;
 	private task: ITask<T> | null;
 
@@ -25,7 +25,7 @@ export class Delayer<T> {
 		this.task = null;
 	}
 
-	public trigger(task: ITask<T>, delay: number = this.defaultDelay): Promise<T> {
+	public trigger(task: ITask<T>, delay: number = this.defaultDelay): Promise<T | null> {
 		this.task = task;
 		if (delay >= 0) {
 			this.cancelTimeout();
@@ -55,7 +55,7 @@ export class Delayer<T> {
 		return this.completionPromise;
 	}
 
-	public forceDelivery(): Promise<T> | null {
+	public forceDelivery(): Promise<T | null> | null {
 		if (!this.completionPromise) {
 			return null;
 		}

@@ -3485,7 +3485,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string>(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])[ ]?(\[)([^\]]*+)(\])</string>
+					<string>(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])(\[)([^\]]*+)(\])</string>
 					<key>name</key>
 					<string>meta.link.reference.markdown</string>
 				</dict>

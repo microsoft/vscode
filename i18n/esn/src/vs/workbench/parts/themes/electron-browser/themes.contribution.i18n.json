@@ -14,5 +14,6 @@
 	"noIconThemeDesc": "Deshabilitar iconos de archivo",
 	"problemChangingIconTheme": "Problema al configurar el tema de icono: {0}",
 	"themes.selectIconTheme": "Seleccionar tema de icono de archivo",
-	"preferences": "Preferencias"
+	"preferences": "Preferencias",
+	"developer": "Desarrollador"
 }

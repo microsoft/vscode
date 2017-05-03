@@ -104,6 +104,16 @@ suite('Search-integration', () => {
 		doSearchTest(config, 4, done);
 	});
 
+	test('Text: GameOfLife (RegExp to EOL)', function (done: () => void) {
+		let config = {
+			rootFolders: rootfolders(),
+			filePattern: '*.js',
+			contentPattern: { pattern: 'GameOfLife.*', isRegExp: true }
+		};
+
+		doSearchTest(config, 4, done);
+	});
+
 	test('Text: GameOfLife (Word Match, Case Sensitive)', function (done: () => void) {
 		let config = {
 			rootFolders: rootfolders(),

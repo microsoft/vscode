@@ -2,11 +2,11 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light Default Colors",
 	"colors": {
-		"editorBackground": "#ffffff",
-		"editorForeground": "#000000",
-		"editorInactiveSelection": "#E5EBF1",
-		"editorIndentGuides": "#d3d3d3",
-		"editorSelectionHighlight": "#add6ff4d",
-		"editorSuggestWidgetBackground": "#F3F3F3"
+		"editor.background": "#ffffff",
+		"editor.foreground": "#000000",
+		"editor.inactiveSelectionBackground": "#E5EBF1",
+		"editorIndentGuide.background": "#d3d3d3",
+		"editor.selectionHighlightBackground": "#add6ff4d",
+		"editorSuggestWidget.background": "#F3F3F3"
 	}
 }

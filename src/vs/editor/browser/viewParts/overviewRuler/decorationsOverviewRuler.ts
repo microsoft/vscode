@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { OverviewRulerZone } from "vs/editor/common/view/overviewZoneManager";
+import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 
 function getThemeType(themeId: string): editorCommon.ThemeType {
 	if (themes.isHighContrastTheme(themeId)) {

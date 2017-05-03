@@ -237,7 +237,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 		let languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
 		if (!languageRegistration) {
 			// No TM grammar defined
-			return TPromise.wrapError(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
+			return TPromise.wrapError<ICreateGrammarResult>(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
 		}
 		let embeddedLanguages = this._resolveEmbeddedLanguages(languageRegistration.embeddedLanguages);
 		let languageId = this._modeService.getLanguageIdentifier(modeId).id;

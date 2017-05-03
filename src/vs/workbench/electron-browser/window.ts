@@ -49,7 +49,7 @@ import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron
 import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
 import { remote, ipcRenderer as ipc, webFrame } from 'electron';
-import { highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const dialog = remote.dialog;
 
@@ -134,17 +134,17 @@ export class ElectronWindow extends Themable {
 				// Find out if folders are dragged and show the appropiate feedback then
 				this.includesFolder(draggedExternalResources).done(includesFolder => {
 					if (includesFolder) {
-						const useOutline = this.isHighContrastTheme;
+						const hcOutline = this.getColor(activeContrastBorder);
 						dropOverlay = $(window.document.getElementById(this.partService.getWorkbenchElementId()))
 							.div({
 								id: 'monaco-workbench-drop-overlay'
 							})
 							.style({
 								backgroundColor: this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
-								outlineColor: useOutline ? this.getColor(highContrastOutline) : null,
-								outlineOffset: useOutline ? '-2px' : null,
-								outlineStyle: useOutline ? 'dashed' : null,
-								outlineWidth: useOutline ? '2px' : null
+								outlineColor: hcOutline,
+								outlineOffset: hcOutline ? '-2px' : null,
+								outlineStyle: hcOutline ? 'dashed' : null,
+								outlineWidth: hcOutline ? '2px' : null
 							})
 							.on(DOM.EventType.DROP, (e: DragEvent) => {
 								DOM.EventHelper.stop(e, true);
@@ -297,8 +297,8 @@ export class ElectronWindow extends Themable {
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:keyboardLayoutChanged', () => {
-			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
+		ipc.on('vscode:keyboardLayoutChanged', (event, isISOKeyboard: boolean) => {
+			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(isISOKeyboard);
 		});
 
 		// Configuration changes

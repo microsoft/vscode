@@ -7,7 +7,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { isFunction } from 'vs/base/common/types';
 import { ITree, IRenderer, IFilter, IDataSource, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { IModel } from 'vs/base/parts/quickopen/common/quickOpen';
-import { IQuickOpenStyles } from "vs/base/parts/quickopen/browser/quickOpenWidget";
+import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 
 export interface IModelProvider {
 	getModel<T>(): IModel<T>;

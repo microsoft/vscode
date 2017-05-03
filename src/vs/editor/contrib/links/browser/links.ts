@@ -24,8 +24,8 @@ import { getLinks, Link } from 'vs/editor/contrib/links/common/links';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorLinkForeground, editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { Position } from "vs/editor/common/core/position";
+import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Position } from 'vs/editor/common/core/position';
 
 class LinkOccurence {
 
@@ -349,9 +349,5 @@ registerThemingParticipant((theme, collector) => {
 	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
 	if (activeLinkForeground) {
 		collector.addRule(`.monaco-editor.${theme.selector} .detected-link-active { color: ${activeLinkForeground} !important; }`);
-	}
-	let linkForeground = theme.getColor(editorLinkForeground);
-	if (linkForeground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .detected-link { color: ${linkForeground} !important; }`);
 	}
 });

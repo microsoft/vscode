@@ -73,7 +73,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			nls.localize('yes', "Yes"),
 			nls.localize('no', "No")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, false)
+		return this.choiceService.choose(Severity.Info, message, options, 1, false)
 			.then<void>(value => {
 				const confirmed = value === 0;
 				telemetryData['confirmed'] = confirmed;

@@ -23,6 +23,7 @@ import gitei = require('vs/workbench/parts/git/browser/gitEditorInputs');
 import { getSelectedChanges, applyChangesToModel, getChangeRevertEdits } from 'vs/workbench/parts/git/common/stageRanges';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -115,7 +116,7 @@ class OpenInDiffAction extends baseeditor.EditorInputAction {
 		const viewState = editor ? editor.saveViewState() : null;
 
 		return this.gitService.getInput(this.getStatus()).then((input) => {
-			var promise = TPromise.as(null);
+			var promise = TPromise.as<IViewlet>(null);
 
 			if (this.partService.isVisible(Parts.SIDEBAR_PART)) {
 				promise = this.viewletService.openViewlet(gitcontrib.VIEWLET_ID, false);
@@ -656,7 +657,7 @@ class GlobalOpenChangeAction extends OpenChangeAction {
 		var viewState = editor ? editor.saveViewState() : null;
 
 		return this.gitService.getInput(status).then((input) => {
-			var promise = TPromise.as(null);
+			var promise = TPromise.as<IViewlet>(null);
 
 			if (this.partService.isVisible(Parts.SIDEBAR_PART)) {
 				promise = this.viewletService.openViewlet(gitcontrib.VIEWLET_ID, false);

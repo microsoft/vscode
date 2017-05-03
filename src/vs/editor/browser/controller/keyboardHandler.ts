@@ -6,20 +6,19 @@
 
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { GlobalScreenReaderNVDA } from 'vs/editor/common/config/commonEditorConfig';
-import { TextAreaHandler } from 'vs/editor/common/controller/textAreaHandler';
-import { TextAreaStrategy } from 'vs/editor/common/controller/textAreaState';
+import { TextAreaHandler, ITextAreaHandlerHost, TextAreaStrategy } from 'vs/editor/browser/controller/textAreaHandler';
+import { ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
-import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
-import { ViewController } from "vs/editor/browser/view/viewController";
+import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
+import { ViewController } from 'vs/editor/browser/view/viewController';
+import { EndOfLinePreference } from "vs/editor/common/editorCommon";
 
 export interface IKeyboardHandlerHelper {
 	viewDomNode: FastDomNode<HTMLElement>;
@@ -43,24 +42,28 @@ export class KeyboardHandler extends ViewEventHandler {
 
 	private _context: ViewContext;
 	private viewController: ViewController;
+	private textArea: FastDomNode<HTMLTextAreaElement>;
 	private viewHelper: IKeyboardHandlerHelper;
-	private textArea: TextAreaWrapper;
-	private textAreaHandler: TextAreaHandler;
+	private visiblePosition: TextAreaVisiblePosition;
 
 	private contentLeft: number;
 	private contentWidth: number;
 	private scrollLeft: number;
 	private scrollTop: number;
 
-	private visiblePosition: TextAreaVisiblePosition;
+	private _selections: Range[];
+	private _lastCopiedValue: string;
+	private _lastCopiedValueIsFromEmptySelection: boolean;
+
+	private textAreaHandler: TextAreaHandler;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IKeyboardHandlerHelper) {
 		super();
 
 		this._context = context;
 		this.viewController = viewController;
-		this.textArea = new TextAreaWrapper(viewHelper.textArea);
-		Configuration.applyFontInfo(this.textArea.actual, this._context.configuration.editor.fontInfo);
+		this.textArea = viewHelper.textArea;
+		Configuration.applyFontInfo(this.textArea, this._context.configuration.editor.fontInfo);
 		this.viewHelper = viewHelper;
 		this.visiblePosition = null;
 
@@ -69,11 +72,55 @@ export class KeyboardHandler extends ViewEventHandler {
 		this.scrollLeft = 0;
 		this.scrollTop = 0;
 
-		this.textAreaHandler = new TextAreaHandler(browser, this._getStrategy(), this.textArea, this._context.model);
+		this._selections = [new Range(1, 1, 1, 1)];
+		this._lastCopiedValue = null;
+		this._lastCopiedValueIsFromEmptySelection = false;
 
-		this._register(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(<IKeyboardEvent>e._actual)));
-		this._register(this.textAreaHandler.onKeyUp((e) => this.viewController.emitKeyUp(<IKeyboardEvent>e._actual)));
-		this._register(this.textAreaHandler.onPaste((e) => this.viewController.paste('keyboard', e.text, e.pasteOnNewLine)));
+		const textAreaHandlerHost: ITextAreaHandlerHost = {
+			getPlainTextToCopy: (): string => {
+				const whatToCopy = this._context.model.getPlainTextToCopy(this._selections, browser.enableEmptySelectionClipboard);
+
+				if (browser.enableEmptySelectionClipboard) {
+					if (browser.isFirefox) {
+						// When writing "LINE\r\n" to the clipboard and then pasting,
+						// Firefox pastes "LINE\n", so let's work around this quirk
+						this._lastCopiedValue = whatToCopy.replace(/\r\n/g, '\n');
+					} else {
+						this._lastCopiedValue = whatToCopy;
+					}
+
+					let selections = this._selections;
+					this._lastCopiedValueIsFromEmptySelection = (selections.length === 1 && selections[0].isEmpty());
+				}
+
+				return whatToCopy;
+			},
+			getHTMLToCopy: (): string => {
+				return this._context.model.getHTMLToCopy(this._selections, browser.enableEmptySelectionClipboard);
+			}
+		};
+		const simpleModel: ISimpleModel = {
+			getLineCount: (): number => {
+				return this._context.model.getLineCount();
+			},
+			getLineMaxColumn: (lineNumber: number): number => {
+				return this._context.model.getLineMaxColumn(lineNumber);
+			},
+			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
+				return this._context.model.getValueInRange(range, eol);
+			}
+		};
+		this.textAreaHandler = new TextAreaHandler(textAreaHandlerHost, this._getStrategy(), this.textArea, simpleModel);
+
+		this._register(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(e)));
+		this._register(this.textAreaHandler.onKeyUp((e) => this.viewController.emitKeyUp(e)));
+		this._register(this.textAreaHandler.onPaste((e) => {
+			let pasteOnNewLine = false;
+			if (browser.enableEmptySelectionClipboard) {
+				pasteOnNewLine = (e.text === this._lastCopiedValue && this._lastCopiedValueIsFromEmptySelection);
+			}
+			this.viewController.paste('keyboard', e.text, pasteOnNewLine);
+		}));
 		this._register(this.textAreaHandler.onCut((e) => this.viewController.cut('keyboard')));
 		this._register(this.textAreaHandler.onType((e) => {
 			if (e.replaceCharCnt) {
@@ -82,9 +129,9 @@ export class KeyboardHandler extends ViewEventHandler {
 				this.viewController.type('keyboard', e.text);
 			}
 		}));
-		this._register(this.textAreaHandler.onCompositionStart((e) => {
-			const lineNumber = e.showAtLineNumber;
-			const column = e.showAtColumn;
+		this._register(this.textAreaHandler.onCompositionStart(() => {
+			const lineNumber = this._selections[0].startLineNumber;
+			const column = this._selections[0].startColumn;
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, column, lineNumber, column),
@@ -100,12 +147,12 @@ export class KeyboardHandler extends ViewEventHandler {
 					this.viewHelper.getVerticalOffsetForLineNumber(lineNumber),
 					visibleRange.left
 				);
-				this.textArea.actual.setTop(this.visiblePosition.top - this.scrollTop);
-				this.textArea.actual.setLeft(this.contentLeft + this.visiblePosition.left - this.scrollLeft);
+				this.textArea.setTop(this.visiblePosition.top - this.scrollTop);
+				this.textArea.setLeft(this.contentLeft + this.visiblePosition.left - this.scrollLeft);
 			}
 
 			// Show the textarea
-			this.textArea.actual.setHeight(this._context.configuration.editor.lineHeight);
+			this.textArea.setHeight(this._context.configuration.editor.lineHeight);
 			this.viewHelper.viewDomNode.addClassName('ime-input');
 
 			this.viewController.compositionStart('keyboard');
@@ -115,30 +162,30 @@ export class KeyboardHandler extends ViewEventHandler {
 			if (browser.isEdgeOrIE) {
 				// Due to isEdgeOrIE (where the textarea was not cleared initially)
 				// we cannot assume the text consists only of the composited text
-				this.textArea.actual.setWidth(0);
+				this.textArea.setWidth(0);
 			} else {
 				// adjust width by its size
 				let canvasElem = <HTMLCanvasElement>document.createElement('canvas');
 				let context = canvasElem.getContext('2d');
-				let cs = dom.getComputedStyle(this.textArea.actual.domNode);
+				let cs = dom.getComputedStyle(this.textArea.domNode);
 				if (browser.isFirefox) {
 					// computedStyle.font is empty in Firefox...
 					context.font = `${cs.fontStyle} ${cs.fontVariant} ${cs.fontWeight} ${cs.fontStretch} ${cs.fontSize} / ${cs.lineHeight} ${cs.fontFamily}`;
 					let metrics = context.measureText(e.data);
-					this.textArea.actual.setWidth(metrics.width + 2); // +2 for Japanese...
+					this.textArea.setWidth(metrics.width + 2); // +2 for Japanese...
 				} else {
 					context.font = cs.font;
 					let metrics = context.measureText(e.data);
-					this.textArea.actual.setWidth(metrics.width);
+					this.textArea.setWidth(metrics.width);
 				}
 			}
 		}));
 
-		this._register(this.textAreaHandler.onCompositionEnd((e) => {
-			this.textArea.actual.unsetHeight();
-			this.textArea.actual.unsetWidth();
-			this.textArea.actual.setLeft(0);
-			this.textArea.actual.setTop(0);
+		this._register(this.textAreaHandler.onCompositionEnd(() => {
+			this.textArea.unsetHeight();
+			this.textArea.unsetWidth();
+			this.textArea.setLeft(0);
+			this.textArea.setTop(0);
 			this.viewHelper.viewDomNode.removeClassName('ime-input');
 
 			this.visiblePosition = null;
@@ -156,7 +203,6 @@ export class KeyboardHandler extends ViewEventHandler {
 	public dispose(): void {
 		this._context.removeEventHandler(this);
 		this.textAreaHandler.dispose();
-		this.textArea.dispose();
 		super.dispose();
 	}
 
@@ -179,7 +225,7 @@ export class KeyboardHandler extends ViewEventHandler {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
 		if (e.fontInfo) {
-			Configuration.applyFontInfo(this.textArea.actual, this._context.configuration.editor.fontInfo);
+			Configuration.applyFontInfo(this.textArea, this._context.configuration.editor.fontInfo);
 		}
 		if (e.viewInfo.experimentalScreenReader) {
 			this.textAreaHandler.setStrategy(this._getStrategy());
@@ -193,6 +239,7 @@ export class KeyboardHandler extends ViewEventHandler {
 
 	private _lastCursorSelectionChanged: viewEvents.ViewCursorSelectionChangedEvent = null;
 	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
+		this._selections = [e.selection].concat(e.secondarySelections);
 		this._lastCursorSelectionChanged = e;
 		return false;
 	}
@@ -206,8 +253,8 @@ export class KeyboardHandler extends ViewEventHandler {
 		this.scrollLeft = e.scrollLeft;
 		this.scrollTop = e.scrollTop;
 		if (this.visiblePosition) {
-			this.textArea.actual.setTop(this.visiblePosition.top - this.scrollTop);
-			this.textArea.actual.setLeft(this.contentLeft + this.visiblePosition.left - this.scrollLeft);
+			this.textArea.setTop(this.visiblePosition.top - this.scrollTop);
+			this.textArea.setLeft(this.contentLeft + this.visiblePosition.left - this.scrollLeft);
 		}
 		return false;
 	}

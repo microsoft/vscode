@@ -8,6 +8,7 @@
 	"mEdit": "&&Bearbeiten",
 	"mSelection": "&&Aktion auswählen",
 	"mView": "&&Anzeigen",
+	"mGoto": "Los",
 	"mDebug": "&&Debuggen",
 	"mWindow": "Fenster",
 	"mHelp": "&&Hilfe",
@@ -30,6 +31,7 @@
 	"miCloseWindow": "&&Fenster schließen",
 	"miCloseFolder": "&&Ordner schließen",
 	"miCloseEditor": "Editor s&&chließen",
+	"miExit": "Beenden",
 	"miOpenSettings": "&&Einstellungen",
 	"miOpenKeymap": "&&Tastenkombinationen",
 	"miOpenKeymapExtensions": "&&Erweiterte Tastenzuordnungen",
@@ -41,6 +43,7 @@
 	"miClearRecentOpen": "&&Zuletzt verwendete Dateien löschen",
 	"miUndo": "&&Rückgängig",
 	"miRedo": "&&Wiederholen",
+	"miCut": "Ausschneiden",
 	"miCopy": "&&Kopieren",
 	"miPaste": "&&Einfügen",
 	"miFind": "&&Suchen",
@@ -152,6 +155,6 @@
 	"miDownloadingUpdate": "Das Update wird heruntergeladen...",
 	"miInstallingUpdate": "Update wird installiert...",
 	"miCheckForUpdates": "Auf Updates überprüfen...",
-	"aboutDetail": "\\nVersion {0}\\nCommit {1}\\nDatum {2}\\nShell {3}\\nRenderer {4}\\nNode {5}",
+	"aboutDetail": "\nVersion {0}\nCommit {1}\nDatum {2}\nShell {3}\nRenderer {4}\nNode {5}",
 	"okButton": "OK"
 }

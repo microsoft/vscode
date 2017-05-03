@@ -23,6 +23,7 @@ import * as pfs from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 interface IEmmetConfiguration {
 	emmet: {
@@ -72,13 +73,17 @@ class LazyEmmet {
 	private static syntaxProfilesFromFile = {};
 	private static preferencesFromFile = {};
 	private static workspaceRoot = '';
+	private static emmetSupportedModes: string[];
 
 	public static withConfiguredEmmet(configurationService: IConfigurationService,
 		messageService: IMessageService,
+		telemetryService: ITelemetryService,
+		emmetSupportedModes: string[],
 		workspaceRoot: string,
 		callback: (_emmet: typeof emmet) => void): TPromise<void> {
 		LazyEmmet.workspaceRoot = workspaceRoot;
-		return LazyEmmet._INSTANCE.withEmmetPreferences(configurationService, messageService, callback);
+		LazyEmmet.emmetSupportedModes = emmetSupportedModes;
+		return LazyEmmet._INSTANCE.withEmmetPreferences(configurationService, messageService, telemetryService, callback);
 	}
 
 	private _emmetPromise: TPromise<typeof emmet>;
@@ -90,10 +95,11 @@ class LazyEmmet {
 
 	public withEmmetPreferences(configurationService: IConfigurationService,
 		messageService: IMessageService,
+		telemetryService: ITelemetryService,
 		callback: (_emmet: typeof emmet) => void): TPromise<void> {
 		return this._loadEmmet().then((_emmet: typeof emmet) => {
 			this._messageService = messageService;
-			this._withEmmetPreferences(configurationService, _emmet, callback);
+			this._withEmmetPreferences(configurationService, telemetryService, _emmet, callback);
 		}, (e) => {
 			callback(null);
 		});
@@ -108,17 +114,38 @@ class LazyEmmet {
 		return this._emmetPromise;
 	}
 
-	private updateEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet): TPromise<any> {
+	private updateEmmetPreferences(configurationService: IConfigurationService,
+		telemetryService: ITelemetryService,
+		_emmet: typeof emmet): TPromise<any> {
 		let emmetPreferences = configurationService.getConfiguration<IEmmetConfiguration>().emmet;
 		let loadEmmetSettings = () => {
 			let syntaxProfiles = { ...LazyEmmet.syntaxProfilesFromFile, ...emmetPreferences.syntaxProfiles };
 			let preferences = { ...LazyEmmet.preferencesFromFile, ...emmetPreferences.preferences };
 			let snippets = LazyEmmet.snippetsFromFile;
+			let mappedModes = [];
+			let outputProfileFromSettings = false;
+			for (let key in emmetPreferences.syntaxProfiles) {
+				if (LazyEmmet.emmetSupportedModes.indexOf(key) === -1) {
+					mappedModes.push(key);
+				} else {
+					outputProfileFromSettings = true;
+				}
+			}
 
 			try {
 				_emmet.loadPreferences(preferences);
 				_emmet.loadProfiles(syntaxProfiles);
 				_emmet.loadSnippets(snippets);
+
+				let emmetCustomizationTelemetry = {
+					emmetPreferencesFromFile: Object.keys(LazyEmmet.preferencesFromFile).length > 0,
+					emmetSyntaxProfilesFromFile: Object.keys(LazyEmmet.syntaxProfilesFromFile).length > 0,
+					emmetSnippetsFromFile: Object.keys(LazyEmmet.snippetsFromFile).length > 0,
+					emmetPreferencesFromSettings: Object.keys(emmetPreferences.preferences).length > 0,
+					emmetSyntaxProfilesFromSettings: outputProfileFromSettings,
+					emmetMappedModes: mappedModes
+				};
+				telemetryService.publicLog('emmetCustomizations', emmetCustomizationTelemetry);
 			} catch (err) {
 				// ignore
 			}
@@ -177,8 +204,11 @@ class LazyEmmet {
 		});
 	}
 
-	private _withEmmetPreferences(configurationService: IConfigurationService, _emmet: typeof emmet, callback: (_emmet: typeof emmet) => void): void {
-		this.updateEmmetPreferences(configurationService, _emmet).then(() => {
+	private _withEmmetPreferences(configurationService: IConfigurationService,
+		telemetryService: ITelemetryService,
+		_emmet: typeof emmet,
+		callback: (_emmet: typeof emmet) => void): void {
+		this.updateEmmetPreferences(configurationService, telemetryService, _emmet).then(() => {
 			try {
 				callback(_emmet);
 			} finally {
@@ -205,6 +235,14 @@ export interface IEmmetActionOptions extends IActionOptions {
 }
 
 export abstract class EmmetEditorAction extends EditorAction {
+
+	private actionMap = {
+		'editor.emmet.action.removeTag': 'emmet.removeTag',
+		'editor.emmet.action.updateTag': 'emmet.updateTag',
+		'editor.emmet.action.matchingPair': 'emmet.matchTag',
+		'editor.emmet.action.wrapWithAbbreviation': 'emmet.wrapWithAbbreviation',
+		'editor.emmet.action.expandAbbreviation': 'emmet.expandAbbreviation'
+	};
 
 	protected emmetActionName: string;
 
@@ -240,6 +278,12 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const contextService = accessor.get(IWorkspaceContextService);
 		const workspaceRoot = contextService.getWorkspace() ? contextService.getWorkspace().resource.fsPath : '';
 		const telemetryService = accessor.get(ITelemetryService);
+		const commandService = accessor.get(ICommandService);
+
+		let mappedCommand = this.actionMap[this.id];
+		if (mappedCommand && CommandsRegistry.getCommand(mappedCommand)) {
+			return commandService.executeCommand<void>(mappedCommand);
+		}
 
 		return this._withGrammarContributions(extensionService).then((grammarContributions) => {
 
@@ -257,7 +301,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 				return undefined;
 			}
 
-			return LazyEmmet.withConfiguredEmmet(configurationService, messageService, workspaceRoot, (_emmet) => {
+			return LazyEmmet.withConfiguredEmmet(configurationService, messageService, telemetryService, editorAccessor.getEmmetSupportedModes(), workspaceRoot, (_emmet) => {
 				if (!_emmet) {
 					this.noExpansionOccurred(editor);
 					return undefined;
@@ -267,7 +311,6 @@ export abstract class EmmetEditorAction extends EditorAction {
 					this.runEmmetAction(accessor, new EmmetActionContext(editor, _emmet, editorAccessor));
 				});
 				editorAccessor.onAfterEmmetAction();
-				telemetryService.publicLog('emmetActionCompleted', { action: this.emmetActionName });
 			});
 		});
 

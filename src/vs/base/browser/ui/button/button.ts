@@ -11,15 +11,44 @@ import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
+
+export interface IButtonOptions extends IButtonStyles {
+}
+
+export interface IButtonStyles {
+	buttonBackground?: Color;
+	buttonHoverBackground?: Color;
+	buttonForeground?: Color;
+}
+
+const defaultOptions: IButtonStyles = {
+	buttonBackground: Color.fromHex('#0E639C'),
+	buttonHoverBackground: Color.fromHex('#006BB3'),
+	buttonForeground: Color.white
+};
 
 export class Button extends EventEmitter {
 
 	private $el: Builder;
+	private options: IButtonOptions;
 
-	constructor(container: Builder);
-	constructor(container: HTMLElement);
-	constructor(container: any) {
+	private buttonBackground: Color;
+	private buttonHoverBackground: Color;
+	private buttonForeground: Color;
+
+	constructor(container: Builder, options?: IButtonOptions);
+	constructor(container: HTMLElement, options?: IButtonOptions);
+	constructor(container: any, options?: IButtonOptions) {
 		super();
+
+		this.options = options || Object.create(null);
+		mixin(this.options, defaultOptions, false);
+
+		this.buttonBackground = this.options.buttonBackground;
+		this.buttonHoverBackground = this.options.buttonHoverBackground;
+		this.buttonForeground = this.options.buttonForeground;
 
 		this.$el = $('a.monaco-button').attr({
 			'tabIndex': '0',
@@ -50,6 +79,39 @@ export class Button extends EventEmitter {
 				DOM.EventHelper.stop(event, true);
 			}
 		});
+
+		this.$el.on(DOM.EventType.MOUSE_OVER, (e: MouseEvent) => {
+			if (!this.$el.hasClass('disabled')) {
+				const hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
+				if (hoverBackground) {
+					this.$el.style('background-color', hoverBackground);
+				}
+			}
+		});
+
+		this.$el.on(DOM.EventType.MOUSE_OUT, (e: MouseEvent) => {
+			this.applyStyles(); // restore standard styles
+		});
+
+		this.applyStyles();
+	}
+
+	style(styles: IButtonStyles): void {
+		this.buttonForeground = styles.buttonForeground;
+		this.buttonBackground = styles.buttonBackground;
+		this.buttonHoverBackground = styles.buttonHoverBackground;
+
+		this.applyStyles();
+	}
+
+	private applyStyles(): void {
+		if (this.$el) {
+			const background = this.buttonBackground ? this.buttonBackground.toString() : null;
+			const foreground = this.buttonForeground ? this.buttonForeground.toString() : null;
+
+			this.$el.style('color', foreground);
+			this.$el.style('background-color', background);
+		}
 	}
 
 	getElement(): HTMLElement {

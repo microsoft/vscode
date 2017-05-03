@@ -4,13 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.scm {
-	background-image: url('icon-dark.svg');
-	background-size: 19px;
-	background-position: center;
-}
-
-.monaco-workbench > .activitybar.light > .content .monaco-action-bar .action-label.scm {
-	background-image: url('icon-light.svg');
+	-webkit-mask: url('icon-dark.svg') no-repeat 50% 50%;
+	-webkit-mask-size: 19px;
 }
 
 .scm-viewlet .monaco-list-row {
@@ -39,6 +34,10 @@
 .scm-viewlet .monaco-list-row > .resource {
 	display: flex;
 	height: 100%;
+}
+
+.scm-viewlet .monaco-list-row > .resource.faded {
+	opacity: 0.7;
 }
 
 .scm-viewlet .monaco-list-row > .resource > .name {

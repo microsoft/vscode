@@ -26,7 +26,7 @@
 	"wordWrap.on": "Las líneas se ajustarán en el ancho de la ventanilla.",
 	"wordWrap.wordWrapColumn": "Las líneas se ajustarán en \"editor.wordWrapColumn\".",
 	"wordWrap.bounded": "Las líneas se ajustarán al valor que sea inferior: el tamaño de la ventanilla o el valor de \"editor.wordWrapColumn\".",
-	"wordWrap": "Controla cómo se deben ajustar las líneas. Pueden ser:\\n - \"off\" (deshabilitar ajuste),\\n - \"on\" (ajuste de ventanilla),\\n - \"wordWrapColumn\" (ajustar en \"editor.wordWrapColumn\") o\\n - 'bounded' (ajustar en la parte mínima de la ventanilla y \"editor.wordWrapColumn\").",
+	"wordWrap": "Controla cómo se deben ajustar las líneas. Pueden ser:\n - \"off\" (deshabilitar ajuste),\n - \"on\" (ajuste de ventanilla),\n - \"wordWrapColumn\" (ajustar en \"editor.wordWrapColumn\") o\n - \"bounded\" (ajustar en la parte mínima de la ventanilla y \"editor.wordWrapColumn\").",
 	"wordWrapColumn": "Controls the wrapping column of the editor when `editor.wordWrap` is 'wordWrapColumn' or 'bounded'.",
 	"wrappingIndent": "Controla el sangrado de las líneas ajustadas. Puede ser uno los valores 'none', 'same' o 'indent'.",
 	"mouseWheelScrollSensitivity": "Se utilizará un multiplicador en los eventos de desplazamiento de la rueda del mouse `deltaX` y `deltaY`",

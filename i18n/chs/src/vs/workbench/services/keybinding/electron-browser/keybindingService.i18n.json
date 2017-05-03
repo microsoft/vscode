@@ -16,7 +16,7 @@
 	"vscode.extension.contributes.keybindings": "用于键绑定。",
 	"openDocumentation": "了解详细信息",
 	"keybindingMigration.ok": "确定",
-	"keybindingMigration.prompt": "已为你的键盘布局更改某些键盘快捷方式。",
+	"keybindingMigration.prompt": "已为你的键盘布局更改某些键盘快捷键。",
 	"invalid.keybindings": "无效的“contributes.{0}”: {1}",
 	"unboundCommands": "以下是其他可用命令:",
 	"keybindings.json.title": "键绑定配置",

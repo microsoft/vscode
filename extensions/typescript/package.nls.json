@@ -32,5 +32,7 @@
 	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens. Requires TypeScript >= 2.2.0.",
 	"typescript.openTsServerLog.title": "Open TS Server log file",
 	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version",
-	"jsDocCompletion.enabled": "Enable/disable auto JSDoc comments"
+	"jsDocCompletion.enabled": "Enable/disable auto JSDoc comments",
+	"javascript.implicitProjectConfig.checkJs": "Enable/disable semantic checking of JavaScript files. Existing jsconfig.json or tsconfig.json files override this setting. Requires TypeScript >=2.3.1.",
+	"typescript.check.npmIsInstalled": "Check if NPM is installed for automatic typings acquisition"
 }

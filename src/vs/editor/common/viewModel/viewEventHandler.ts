@@ -5,7 +5,7 @@
 'use strict';
 
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { Disposable } from "vs/base/common/lifecycle";
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export class ViewEventHandler extends Disposable {
 
@@ -70,7 +70,7 @@ export class ViewEventHandler extends Disposable {
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return false;
 	}
-	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean { // TODO@cursor
+	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
 		return false;
 	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {

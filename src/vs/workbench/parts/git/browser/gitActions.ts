@@ -1205,7 +1205,7 @@ export class SyncAction extends GitAction {
 		const message = nls.localize('sync is unpredictable', "This action will push and pull commits to and from '{0}'.", HEAD.upstream);
 		const options = [nls.localize('ok', "OK"), nls.localize('cancel', "Cancel"), nls.localize('never again', "OK, Never Show Again")];
 
-		return this.choiceService.choose(Severity.Warning, message, options).then(choice => {
+		return this.choiceService.choose(Severity.Warning, message, options, 1).then(choice => {
 			switch (choice) {
 				case 0:
 					return this.sync();

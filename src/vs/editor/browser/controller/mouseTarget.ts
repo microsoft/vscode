@@ -14,8 +14,8 @@ import * as browser from 'vs/base/browser/browser';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { EditorLayoutInfo } from "vs/editor/common/config/editorOptions";
-import { ViewLine } from "vs/editor/browser/viewParts/lines/viewLine";
+import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
+import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 
 export interface IViewZoneData {
 	viewZoneId: number;

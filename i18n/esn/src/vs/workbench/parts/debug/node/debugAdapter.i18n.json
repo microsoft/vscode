@@ -7,7 +7,7 @@
 	"debugAdapterBinNotFound": "El ejecutable del adaptador de depuración \"{0}\" no existe.",
 	"debugAdapterCannotDetermineExecutable": "No se puede determinar el ejecutable para el adaptador de depuración \"{0}\".",
 	"debugType": "Tipo de configuración.",
-	"node2NotSupported": "node2\" ya no se admite; use \"node\" en su lugar y establezca el atributo \"protocol\" en \"inspector\".",
+	"node2NotSupported": "\"node2\" ya no se admite; use \"node\" en su lugar y establezca el atributo \"protocol\" en \"inspector\".",
 	"debugName": "Nombre de la configuración. Aparece en el menú desplegable de la configuración de inicio.",
 	"debugRequest": "Tipo de solicitud de la configuración. Puede ser \"launch\" o \"attach\".",
 	"debugServer": "Solo para el desarrollo de extensiones de depuración: si se especifica un puerto, VS Code intenta conectarse a un adaptador de depuración que se ejecuta en modo servidor",
@@ -16,5 +16,5 @@
 	"debugWindowsConfiguration": "Atributos de configuración de inicio específicos de Windows.",
 	"debugOSXConfiguration": "Atributos de configuración de inicio específicos de OS X.",
 	"debugLinuxConfiguration": "Atributos de configuración de inicio específicos de Linux.",
-	"deprecatedVariables": "env.\", \"config.\" y \"command.\" están en desuso, utilice en su lugar \"env:\", \"config:\" y \"command:\"."
+	"deprecatedVariables": "\"env.\", \"config.\" y \"command.\" están en desuso, utilice en su lugar \"env:\", \"config:\" y \"command:\"."
 }

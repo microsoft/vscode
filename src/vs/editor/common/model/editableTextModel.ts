@@ -289,10 +289,14 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 		let mightContainRTL = this._mightContainRTL;
 		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
+		let canReduceOperations = true;
 
 		let operations: IValidatedEditOperation[] = [];
 		for (let i = 0; i < rawOperations.length; i++) {
 			let op = rawOperations[i];
+			if (canReduceOperations && op._isTracked) {
+				canReduceOperations = false;
+			}
 			let validatedRange = this.validateRange(op.range);
 			if (!mightContainRTL && op.text) {
 				// check if the new inserted text contains RTL
@@ -325,7 +329,9 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			}
 		}
 
-		operations = this._reduceOperations(operations);
+		if (canReduceOperations) {
+			operations = this._reduceOperations(operations);
+		}
 
 		let editableRange = this.getEditableRange();
 		let editableRangeStart = editableRange.getStartPosition();

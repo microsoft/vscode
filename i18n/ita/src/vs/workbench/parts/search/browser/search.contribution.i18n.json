@@ -11,6 +11,7 @@
 	"findInFiles": "Cerca nei file",
 	"openAnythingHandlerDescription": "Vai al file",
 	"openSymbolDescriptionNormal": "Vai al simbolo nell'area di lavoro",
+	"searchOutputChannelTitle": "Cerca",
 	"searchConfigurationTitle": "Cerca",
 	"exclude": "Consente di configurare i criteri GLOB per escludere file e cartelle nelle ricerche. Eredita tutti i criteri GLOB dall'impostazione files.exclude.",
 	"exclude.boolean": "Criterio GLOB da usare per trovare percorsi file. Impostare su True o False per abilitare o disabilitare il criterio.",

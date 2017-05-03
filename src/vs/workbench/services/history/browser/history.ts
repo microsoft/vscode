@@ -28,7 +28,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { ParsedExpression, parse, IExpression } from 'vs/base/common/glob';
-import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -248,17 +248,67 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	public forward(): void {
+	public forward(acrossEditors?: boolean): void {
 		if (this.stack.length > this.index + 1) {
-			this.index++;
-			this.navigate();
+			if (acrossEditors) {
+				this.doForwardAcrossEditors();
+			} else {
+				this.doForwardInEditors();
+			}
 		}
 	}
 
-	public back(): void {
+	private doForwardInEditors(): void {
+		this.index++;
+		this.navigate();
+	}
+
+	private doForwardAcrossEditors(): void {
+		let currentIndex = this.index;
+		const currentEntry = this.stack[this.index];
+
+		// Find the next entry that does not match our current entry
+		while (this.stack.length > currentIndex + 1) {
+			currentIndex++;
+
+			const previousEntry = this.stack[currentIndex];
+			if (!this.matches(currentEntry.input, previousEntry.input)) {
+				this.index = currentIndex;
+				this.navigate(true /* across editors */);
+				break;
+			}
+		}
+	}
+
+	public back(acrossEditors?: boolean): void {
 		if (this.index > 0) {
-			this.index--;
-			this.navigate();
+			if (acrossEditors) {
+				this.doBackAcrossEditors();
+			} else {
+				this.doBackInEditors();
+			}
+		}
+	}
+
+	private doBackInEditors(): void {
+		this.index--;
+		this.navigate();
+	}
+
+	private doBackAcrossEditors(): void {
+		let currentIndex = this.index;
+		const currentEntry = this.stack[this.index];
+
+		// Find the next previous entry that does not match our current entry
+		while (currentIndex > 0) {
+			currentIndex--;
+
+			const previousEntry = this.stack[currentIndex];
+			if (!this.matches(currentEntry.input, previousEntry.input)) {
+				this.index = currentIndex;
+				this.navigate(true /* across editors */);
+				break;
+			}
 		}
 	}
 
@@ -271,14 +321,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.recentlyClosedFiles = [];
 	}
 
-	private navigate(): void {
+	private navigate(acrossEditors?: boolean): void {
 		const entry = this.stack[this.index];
 
 		let options = entry.options;
-		if (options) {
-			options.revealIfVisible = true;
+		if (options && !acrossEditors /* ignore line/col options when going across editors */) {
+			options.revealIfOpened = true;
 		} else {
-			options = { revealIfVisible: true };
+			options = { revealIfOpened: true };
 		}
 
 		this.navigatingInStack = true;

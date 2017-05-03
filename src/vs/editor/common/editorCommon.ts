@@ -21,8 +21,9 @@ import {
 	ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent,
 	IModelLanguageChangedEvent, IModelOptionsChangedEvent
 } from 'vs/editor/common/model/textModelEvents';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursors } from 'vs/editor/common/controller/cursorCommon';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -291,6 +292,14 @@ export interface IEditOperationBuilder {
 	addEditOperation(range: Range, text: string): void;
 
 	/**
+	 * Add a new edit operation (a replace operation).
+	 * The inverse edits will be accessible in `ICursorStateComputerData.getInverseEditOperations()`
+	 * @param range The range to replace (delete). May be empty to represent a simple insert.
+	 * @param text The text to replace with. May be null to represent a simple delete.
+	 */
+	addTrackedEditOperation(range: Range, text: string): void;
+
+	/**
 	 * Track `selection` when applying edit operations.
 	 * A best effort will be made to not grow/expand the selection.
 	 * An empty selection will clamp to a nearby character.
@@ -383,6 +392,11 @@ export interface IIdentifiedSingleEditOperation {
 	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
 	 */
 	isAutoWhitespaceEdit?: boolean;
+	/**
+	 * This indicates that this operation is in a set of operations that are tracked and should not be "simplified".
+	 * @internal
+	 */
+	_isTracked?: boolean;
 }
 
 /**
@@ -1885,6 +1899,11 @@ export interface ICommonCodeEditor extends IEditor {
 	executeCommands(source: string, commands: ICommand[]): void;
 
 	/**
+	 * @internal
+	 */
+	_getCursors(): ICursors;
+
+	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
 	 */
 	getLineDecorations(lineNumber: number): IModelDecoration[];
@@ -2020,56 +2039,11 @@ export function isCommonDiffEditor(thing: any): thing is ICommonDiffEditor {
 
 /**
  * Built-in commands.
+ * @internal
  */
 export var Handler = {
 	ExecuteCommand: 'executeCommand',
 	ExecuteCommands: 'executeCommands',
-
-	CursorLeft: 'cursorLeft',
-	CursorLeftSelect: 'cursorLeftSelect',
-
-	CursorRight: 'cursorRight',
-	CursorRightSelect: 'cursorRightSelect',
-
-	CursorUp: 'cursorUp',
-	CursorUpSelect: 'cursorUpSelect',
-	CursorDown: 'cursorDown',
-	CursorDownSelect: 'cursorDownSelect',
-
-	CursorPageUp: 'cursorPageUp',
-	CursorPageUpSelect: 'cursorPageUpSelect',
-	CursorPageDown: 'cursorPageDown',
-	CursorPageDownSelect: 'cursorPageDownSelect',
-
-	CursorHome: 'cursorHome',
-	CursorHomeSelect: 'cursorHomeSelect',
-
-	CursorEnd: 'cursorEnd',
-	CursorEndSelect: 'cursorEndSelect',
-
-	ExpandLineSelection: 'expandLineSelection',
-
-	CursorTop: 'cursorTop',
-	CursorTopSelect: 'cursorTopSelect',
-	CursorBottom: 'cursorBottom',
-	CursorBottomSelect: 'cursorBottomSelect',
-
-	CursorColumnSelectLeft: 'cursorColumnSelectLeft',
-	CursorColumnSelectRight: 'cursorColumnSelectRight',
-	CursorColumnSelectUp: 'cursorColumnSelectUp',
-	CursorColumnSelectPageUp: 'cursorColumnSelectPageUp',
-	CursorColumnSelectDown: 'cursorColumnSelectDown',
-	CursorColumnSelectPageDown: 'cursorColumnSelectPageDown',
-
-	CursorMove: 'cursorMove',
-
-	AddCursorDown: 'addCursorDown',
-	AddCursorUp: 'addCursorUp',
-	MoveTo: 'moveTo',
-	MoveToSelect: 'moveToSelect',
-	ColumnSelect: 'columnSelect',
-	CreateCursor: 'createCursor',
-	LastCursorMoveToSelect: 'lastCursorMoveToSelect',
 
 	Type: 'type',
 	ReplacePreviousChar: 'replacePreviousChar',
@@ -2084,37 +2058,14 @@ export var Handler = {
 	DeleteLeft: 'deleteLeft',
 	DeleteRight: 'deleteRight',
 
-	RemoveSecondaryCursors: 'removeSecondaryCursors',
-	CancelSelection: 'cancelSelection',
-
 	Cut: 'cut',
 
 	Undo: 'undo',
 	Redo: 'redo',
 
-	WordSelect: 'wordSelect',
-	WordSelectDrag: 'wordSelectDrag',
-	LastCursorWordSelect: 'lastCursorWordSelect',
-
-	LineSelect: 'lineSelect',
-	LineSelectDrag: 'lineSelectDrag',
-	LastCursorLineSelect: 'lastCursorLineSelect',
-	LastCursorLineSelectDrag: 'lastCursorLineSelectDrag',
 	LineInsertBefore: 'lineInsertBefore',
 	LineInsertAfter: 'lineInsertAfter',
 	LineBreakInsert: 'lineBreakInsert',
-
-	SelectAll: 'selectAll',
-
-	EditorScroll: 'editorScroll',
-
-	ScrollLineUp: 'scrollLineUp',
-	ScrollLineDown: 'scrollLineDown',
-
-	ScrollPageUp: 'scrollPageUp',
-	ScrollPageDown: 'scrollPageDown',
-
-	RevealLine: 'revealLine'
 };
 
 /**

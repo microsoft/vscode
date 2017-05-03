@@ -19,6 +19,10 @@
 	height: 35px;
 }
 
+.monaco-workbench > .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
+	outline-offset: -2px;
+}
+
 /** Panel Switcher */
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {

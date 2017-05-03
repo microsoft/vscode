@@ -8,6 +8,7 @@
 	"extensions": "拡張機能",
 	"sort by installs": "並べ替え: インストール数",
 	"sort by rating": "並べ替え: 評価",
+	"sort by name": "並べ替え: 名前",
 	"no extensions found": "拡張機能が見つかりません",
 	"suggestProxyError": "Marketplace が 'ECONNREFUSED' を返しました。'http.proxy' 設定を確認してください。",
 	"outdatedExtensions": "{0} 古くなった拡張機能"

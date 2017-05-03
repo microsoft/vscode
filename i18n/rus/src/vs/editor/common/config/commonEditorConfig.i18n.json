@@ -26,7 +26,7 @@
 	"wordWrap.on": "Строки будут переноситься по ширине окна просмотра.",
 	"wordWrap.wordWrapColumn": "Строки будут переноситься по \"editor.wordWrapColumn\".",
 	"wordWrap.bounded": "Строки будут перенесены по минимальному значению из двух: ширина окна просмотра и \"editor.wordWrapColumn\".",
-	"wordWrap": "Определяет, как должны переноситься строки. Допустимые значения:\\n — \"off\" (отключить перенос);\\n — \"on\" (перенос окна просмотра);\\n — \"wordWrapColumn\" (перенос в \"editor.wordWrapColumn\");\\n — \"bounded\" (перенос при минимальной ширине окна просмотра и \"editor.wordWrapColumn\").",
+	"wordWrap": "Определяет, как должны переноситься строки. Допустимые значения:\n - \"off\" (отключить перенос);\n - \"on\" (перенос окна просмотра);\n - \"wordWrapColumn\" (перенос в \"editor.wordWrapColumn\");\n - \"bounded\" (перенос при минимальной ширине окна просмотра и \"editor.wordWrapColumn\").",
 	"wordWrapColumn": "Определяет столбец переноса редактора, если значение \"editor.wordWrap\" — \"wordWrapColumn\" или \"bounded\".",
 	"wrappingIndent": "Управляет отступом строк с переносом по словам. Допустимые значения: \"none\", \"same\" или \"indent\".",
 	"mouseWheelScrollSensitivity": "Множитель, используемый для параметров deltaX и deltaY событий прокрутки колесика мыши.",

@@ -38,7 +38,5 @@
 	"config.autorefresh": "是否啟用自動重新整理",
 	"config.autofetch": "是否啟用自動擷取",
 	"config.enableLongCommitWarning": "是否發出長認可訊息的警告",
-	"config.confirmSync": "請先確認再同步處理 GIT 存放庫",
-	"config.countBadge": "控制 GIT 徽章計數器",
-	"config.checkoutType": "控制要列出哪種類型的分支"
+	"config.confirmSync": "請先確認再同步處理 GIT 存放庫"
 }

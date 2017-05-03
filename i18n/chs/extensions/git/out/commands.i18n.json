@@ -16,7 +16,6 @@
 	"confirm discard": "确定要放弃 {0} 中更改吗?",
 	"confirm discard multiple": "是否确实要放弃 {0} 文件中的更改?",
 	"discard": "放弃更改",
-	"confirm discard all": "确定要放弃所有更改吗?",
 	"no changes": "没有要提交的更改。",
 	"commit message": "提交消息",
 	"provide commit message": "请提供提交消息",

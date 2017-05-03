@@ -410,6 +410,14 @@
 	color: #FFF;
 }
 
+.vs .search-viewlet .search-widget .toggle-replace-button:hover {
+	background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.vs-dark .search-viewlet .search-widget .toggle-replace-button:hover {
+	background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
 .vs .search-viewlet .search-widget .toggle-replace-button.collapse {
 	background-image: url('expando-collapsed.svg');
 }

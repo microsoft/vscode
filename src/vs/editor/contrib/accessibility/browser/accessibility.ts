@@ -25,8 +25,8 @@ import { editorAction, CommonEditorRegistry, EditorAction, EditorCommand, Comman
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
-import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { editorWidgetBackground, editorWidgetShadow, highContrastBorder } from "vs/platform/theme/common/colorRegistry";
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';
@@ -252,8 +252,8 @@ class ToggleExperimentalScreenReaderSupportCommand extends Command {
 		GlobalScreenReaderNVDA.setValue(!currentValue);
 	}
 }
-
-CommonEditorRegistry.registerEditorCommand(new ToggleExperimentalScreenReaderSupportCommand());
+const command = new ToggleExperimentalScreenReaderSupportCommand();
+KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 registerThemingParticipant((theme, collector) => {
 	let widgetBackground = theme.getColor(editorWidgetBackground);
@@ -261,12 +261,12 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
 	}
 
-	let widgetShadow = theme.getColor(editorWidgetShadow);
-	if (widgetShadow) {
-		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadow}; }`);
+	let widgetShadowColor = theme.getColor(widgetShadow);
+	if (widgetShadowColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 
-	let hcBorder = theme.getColor(highContrastBorder);
+	let hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
 		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
 	}

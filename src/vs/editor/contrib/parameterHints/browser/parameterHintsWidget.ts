@@ -22,8 +22,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
-import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
-import { ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 const $ = dom.$;
 

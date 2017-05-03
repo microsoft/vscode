@@ -18,7 +18,7 @@ import { IViewLines, HorizontalRange, LineVisibleRanges } from 'vs/editor/common
 import { IViewLayout, Viewport } from 'vs/editor/common/viewModel/viewModel';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
+import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 
 class LastRenderedData {
 

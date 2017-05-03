@@ -25,7 +25,7 @@
 	"TaskSystem.active": "既に実行中のタスクがあります。まずこのタスクを終了してから、別のタスクを実行してください。",
 	"TaskSystem.restartFailed": "タスク {0} を終了して再開できませんでした",
 	"TaskSystem.configurationErrors": "エラー: 指定したタスク構成に検証エラーがあり、使用できません。最初にエラーを修正してください。",
-	"TaskSystem.invalidTaskJson": "エラー: tasks.json ファイルの内容に構文エラーがあります。訂正してからタスクを実行してください。\\n",
+	"TaskSystem.invalidTaskJson": "エラー: tasks.json ファイルの内容に構文エラーがあります。訂正してからタスクを実行してください。\n",
 	"TaskSystem.runningTask": "実行中のタスクがあります。終了しますか?",
 	"TaskSystem.terminateTask": "タスクの終了(&&T)",
 	"TaskSystem.noProcess": "起動したタスクは既に存在しません。タスクを起動したバックグラウンド プロセスが VS コードで終了すると、プロセスが孤立することがあります。これを回避するには、待機フラグを設定して最後のバックグラウンド プロセスを開始します。",

@@ -21,8 +21,8 @@ import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/searc
 import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { IPosition } from "vs/editor/common/core/position";
-import { IRange } from "vs/editor/common/core/range";
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
 
 // --- adapter
 
@@ -457,7 +457,7 @@ class RenameAdapter {
 					rejectReason: err
 				};
 			}
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<modes.WorkspaceEdit>(err);
 		});
 	}
 }
@@ -716,7 +716,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	private _withAdapter<A, R>(handle: number, ctor: { new (...args: any[]): A }, callback: (adapter: A) => TPromise<R>): TPromise<R> {
 		let adapter = this._adapter.get(handle);
 		if (!(adapter instanceof ctor)) {
-			return TPromise.wrapError(new Error('no adapter found'));
+			return TPromise.wrapError<R>(new Error('no adapter found'));
 		}
 		return callback(<any>adapter);
 	}

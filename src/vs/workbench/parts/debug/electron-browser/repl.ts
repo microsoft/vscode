@@ -41,8 +41,8 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { attachListStyler } from "vs/platform/theme/common/styler";
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 

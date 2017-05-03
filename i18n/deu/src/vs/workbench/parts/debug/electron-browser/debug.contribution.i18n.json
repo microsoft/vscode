@@ -15,5 +15,6 @@
 	"allowBreakpointsEverywhere": "Ermöglicht das Festlegen von Haltepunkten für alle Dateien.",
 	"openExplorerOnEnd": "Hiermit wird am Ende einer Debugsitzung automatisch eine Explorer-Ansicht geöffnet.",
 	"inlineValues": "Variablenwerte beim Debuggen in Editor eingebunden anzeigen",
-	"hideActionBar": "Steuert, ob die unverankerte Debugaktionsleiste ausgeblendet werden soll"
+	"hideActionBar": "Steuert, ob die unverankerte Debugaktionsleiste ausgeblendet werden soll",
+	"launch": "Startkonfiguration für globales Debuggen. Sollte als Alternative zu \"launch.json\" verwendet werden, das übergreifend von mehreren Arbeitsbereichen genutzt wird"
 }

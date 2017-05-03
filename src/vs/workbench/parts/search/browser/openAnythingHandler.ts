@@ -77,7 +77,7 @@ interface ITelemetryData {
 
 // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler;
-import { IRange } from "vs/editor/common/core/range";
+import { IRange } from 'vs/editor/common/core/range';
 
 export class OpenAnythingHandler extends QuickOpenHandler {
 

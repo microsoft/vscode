@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { IRange } from "vs/editor/common/core/range";
+import { IRange } from 'vs/editor/common/core/range';
 
 /**
  * @internal

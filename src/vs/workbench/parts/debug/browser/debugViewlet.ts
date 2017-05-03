@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { SplitView, HeaderView } from 'vs/base/browser/ui/splitview/splitview';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Scope } from 'vs/workbench/common/memento';
 import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
@@ -23,6 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachHeaderViewStyler } from 'vs/platform/theme/common/styler';
 
 const DEBUG_VIEWS_WEIGHTS = 'debug.viewsweights';
 
@@ -73,6 +74,12 @@ export class DebugViewlet extends Viewlet {
 			actionRunner,
 			this.viewletSettings)
 		);
+
+		this.views.forEach(view => {
+			if (view instanceof HeaderView) {
+				attachHeaderViewStyler(view, this.themeService);
+			}
+		});
 
 		this.splitView = new SplitView(this.$el.getHTMLElement());
 		this.toDispose.push(this.splitView);

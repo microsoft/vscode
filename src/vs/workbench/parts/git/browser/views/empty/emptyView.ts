@@ -21,6 +21,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IGitService } from 'vs/workbench/parts/git/common/git';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 var $ = Builder.$;
 
@@ -50,7 +52,8 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 		@IGitService gitService: IGitService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super();
 
@@ -95,6 +98,7 @@ export class EmptyView extends EventEmitter.EventEmitter implements GitView.IVie
 
 		var initSection = $('.section').appendTo(this.$el);
 		this.initButton = new Button(initSection);
+		attachButtonStyler(this.initButton, this.themeService);
 		this.initButton.label = nls.localize('gitinit', 'Initialize Git Repository');
 		this.initButton.addListener('click', (e) => {
 			DOM.EventHelper.stop(e);

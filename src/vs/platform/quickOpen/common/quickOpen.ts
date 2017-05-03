@@ -67,6 +67,11 @@ export interface IInputOptions {
 	value?: string;
 
 	/**
+	 * the selection of value, default to the whole word
+	 */
+	valueSelection?: [number, number];
+
+	/**
 	 * the text to display underneath the input box
 	 */
 	prompt?: string;

@@ -15,7 +15,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
 
 export class MockCodeEditor extends CommonCodeEditor {
 	protected _createConfiguration(options: editorOptions.IEditorOptions): CommonEditorConfiguration {

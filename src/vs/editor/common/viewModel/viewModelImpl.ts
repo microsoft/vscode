@@ -21,9 +21,9 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import * as errors from 'vs/base/common/errors';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { WrappingIndent, IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
-import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from "vs/editor/common/controller/cursorEvents";
-import { Cursor } from "vs/editor/common/controller/cursor";
+import { WrappingIndent, IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from 'vs/editor/common/controller/cursorEvents';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 
 const ConfigurationChanged = 'configurationChanged';
 
@@ -303,9 +303,11 @@ export class ViewModel extends Disposable implements IViewModel {
 
 				case textModelEvents.TextModelEventType.ModelRawContentChanged2: {
 					const e = <textModelEvents.ModelRawContentChangedEvent>data;
+					const changes = e.changes;
+					const versionId = e.versionId;
 
-					for (let j = 0, lenJ = e.changes.length; j < lenJ; j++) {
-						const change = e.changes[j];
+					for (let j = 0, lenJ = changes.length; j < lenJ; j++) {
+						const change = changes[j];
 
 						switch (change.changeType) {
 							case textModelEvents.RawContentChangedType.Flush:
@@ -315,25 +317,21 @@ export class ViewModel extends Disposable implements IViewModel {
 								break;
 
 							case textModelEvents.RawContentChangedType.LinesDeleted:
-								this.lines.onModelLinesDeleted(eventsCollector, change.fromLineNumber, change.toLineNumber);
+								this.lines.onModelLinesDeleted(eventsCollector, versionId, change.fromLineNumber, change.toLineNumber);
 								hadOtherModelChange = true;
 								break;
 
 							case textModelEvents.RawContentChangedType.LinesInserted:
-								this.lines.onModelLinesInserted(eventsCollector, change.fromLineNumber, change.toLineNumber, change.detail.split('\n'));
+								this.lines.onModelLinesInserted(eventsCollector, versionId, change.fromLineNumber, change.toLineNumber, change.detail.split('\n'));
 								hadOtherModelChange = true;
 								break;
 
 							case textModelEvents.RawContentChangedType.LineChanged:
-								hadModelLineChangeThatChangedLineMapping = this.lines.onModelLineChanged(eventsCollector, change.lineNumber, change.detail);
+								hadModelLineChangeThatChangedLineMapping = this.lines.onModelLineChanged(eventsCollector, versionId, change.lineNumber, change.detail);
 								break;
-
-							default:
-								console.info('ViewModel received unknown event: ');
-								console.info(_e);
 						}
 					}
-					this.lines.acceptVersionId(e.versionId);
+					this.lines.acceptVersionId(versionId);
 
 					break;
 				}
@@ -541,17 +539,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this.decorations.getAllOverviewRulerDecorations();
 	}
 
-	public getEOL(): string {
-		return this.model.getEOL();
-	}
-
 	public getValueInRange(range: Range, eol: editorCommon.EndOfLinePreference): string {
 		var modelRange = this.coordinatesConverter.convertViewRangeToModelRange(range);
 		return this.model.getValueInRange(modelRange, eol);
-	}
-
-	public getModelLineContent(modelLineNumber: number): string {
-		return this.model.getLineContent(modelLineNumber);
 	}
 
 	public getModelLineMaxColumn(modelLineNumber: number): number {
@@ -563,14 +553,14 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
-		let newLineCharacter = this.getEOL();
+		let newLineCharacter = this.model.getEOL();
 
 		if (ranges.length === 1) {
 			let range: Range = ranges[0];
 			if (range.isEmpty()) {
 				if (enableEmptySelectionClipboard) {
 					let modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-					return this.getModelLineContent(modelLineNumber) + newLineCharacter;
+					return this.model.getLineContent(modelLineNumber) + newLineCharacter;
 				} else {
 					return '';
 				}

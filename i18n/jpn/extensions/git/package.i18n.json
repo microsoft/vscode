@@ -39,6 +39,6 @@
 	"config.autofetch": "自動フェッチが有効かどうか",
 	"config.enableLongCommitWarning": "長いコミット メッセージについて警告するかどうか",
 	"config.confirmSync": "Git リポジトリを同期する前に確認する",
-	"config.countBadge": "Git バッジ カウンターを制御する",
-	"config.checkoutType": "一覧表示するブランチの種類を制御する"
+	"config.ignoreLegacyWarning": "旧 Git の警告を無視します",
+	"config.ignoreLimitWarning": "リポジトリ内に変更が多い場合は警告を無視します"
 }

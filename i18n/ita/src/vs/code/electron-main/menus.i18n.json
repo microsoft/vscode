@@ -132,6 +132,7 @@
 	"miNewBreakpoint": "&&Nuovo punto di interruzione",
 	"miDisableAllBreakpoints": "Disabilita tutti i &&punti di interruzione",
 	"miRemoveAllBreakpoints": "Rimuovi &&tutti i punti di interruzione",
+	"miInstallAdditionalDebuggers": "&&Installa debugger aggiuntivi...",
 	"mMinimize": "Riduci a icona",
 	"mClose": "Chiudi",
 	"mBringToFront": "Porta tutto in primo piano",
@@ -154,6 +155,6 @@
 	"miDownloadingUpdate": "Download dell'aggiornamento...",
 	"miInstallingUpdate": "Installazione dell'aggiornamento...",
 	"miCheckForUpdates": "Verifica disponibilità aggiornamenti...",
-	"aboutDetail": "\\nVersione {0}\\nCommit {1}\\nData {2}\\nShell {3}\\nRenderer {4}\\nNode {5}",
+	"aboutDetail": "\nVersione {0}\nCommit {1}\nData {2}\nShell {3}\nRenderer {4}\nNode {5}",
 	"okButton": "OK"
 }

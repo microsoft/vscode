@@ -17,7 +17,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -513,6 +513,7 @@ export class EditorOptions implements IEditorOptions {
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
+		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 		options.inactive = settings.inactive;
@@ -528,6 +529,7 @@ export class EditorOptions implements IEditorOptions {
 			this.preserveFocus = other.preserveFocus;
 			this.forceOpen = other.forceOpen;
 			this.revealIfVisible = other.revealIfVisible;
+			this.revealIfOpened = other.revealIfOpened;
 			this.pinned = other.pinned;
 			this.index = other.index;
 			this.inactive = other.inactive;
@@ -551,6 +553,11 @@ export class EditorOptions implements IEditorOptions {
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
 	 */
 	public revealIfVisible: boolean;
+
+	/**
+	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 */
+	public revealIfOpened: boolean;
 
 	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
@@ -586,7 +593,7 @@ export class TextEditorOptions extends EditorOptions {
 	public static from(input: IBaseResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.viewState || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
+			if (input.options.selection || input.options.viewState || input.options.forceOpen || input.options.revealIfVisible || input.options.revealIfOpened || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
@@ -601,6 +608,10 @@ export class TextEditorOptions extends EditorOptions {
 
 			if (input.options.revealIfVisible) {
 				options.revealIfVisible = true;
+			}
+
+			if (input.options.revealIfOpened) {
+				options.revealIfOpened = true;
 			}
 
 			if (input.options.preserveFocus) {
@@ -639,6 +650,7 @@ export class TextEditorOptions extends EditorOptions {
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
+		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 		options.inactive = settings.inactive;
@@ -783,6 +795,7 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
+		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 

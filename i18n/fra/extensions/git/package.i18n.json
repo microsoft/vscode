@@ -39,6 +39,6 @@
 	"config.autofetch": "Indique si la récupération automatique est activée",
 	"config.enableLongCommitWarning": "Indique si les longs messages de validation doivent faire l'objet d'un avertissement",
 	"config.confirmSync": "Confirmer avant de synchroniser des dépôts git",
-	"config.countBadge": "Contrôle le compteur de badges git",
-	"config.checkoutType": "Contrôle le type des branches listées"
+	"config.ignoreLegacyWarning": "Ignore l'avertissement Git hérité",
+	"config.ignoreLimitWarning": "Ignore l'avertissement quand il y a trop de modifications dans un dépôt"
 }

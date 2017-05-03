@@ -546,8 +546,27 @@ export class ChordKeybinding {
 
 export type Keybinding = SimpleKeybinding | ChordKeybinding;
 
+export class ResolvedKeybindingPart {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+
+	readonly keyLabel: string;
+	readonly keyAriaLabel: string;
+
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, kbLabel: string, kbAriaLabel: string) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.keyLabel = kbLabel;
+		this.keyAriaLabel = kbAriaLabel;
+	}
+}
+
 /**
- * A resolved keybinding.
+ * A resolved keybinding. Can be a simple keybinding or a chord keybinding.
  */
 export abstract class ResolvedKeybinding {
 	/**
@@ -555,17 +574,9 @@ export abstract class ResolvedKeybinding {
 	 */
 	public abstract getLabel(): string;
 	/**
-	 * Returns the UI label of the binding without modifiers
-	 */
-	public abstract getLabelWithoutModifiers(): string;
-	/**
 	 * This prints the binding in a format suitable for ARIA.
 	 */
 	public abstract getAriaLabel(): string;
-	/**
-	 * Returns the ARIA label of the bindings without modifiers
-	 */
-	public abstract getAriaLabelWithoutModifiers(): string;
 	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
@@ -584,33 +595,14 @@ export abstract class ResolvedKeybinding {
 	 * Is the binding a chord?
 	 */
 	public abstract isChord(): boolean;
-	/**
-	 * Does this binding use the ctrl modifier key.
-	 * If it is a chord, it always returns false.
-	 */
-	public abstract hasCtrlModifier(): boolean;
-	/**
-	 * Does this binding use the shift modifier key.
-	 * If it is a chord, it always returns false.
-	 */
-	public abstract hasShiftModifier(): boolean;
-	/**
-	 * Does this binding use the alt modifier key.
-	 * If it is a chord, it always returns false.
-	 */
-	public abstract hasAltModifier(): boolean;
-	/**
-	 * Does this binding use the meta modifier key.
-	 * If it is a chord, it always returns false.
-	 */
-	public abstract hasMetaModifier(): boolean;
 
 	/**
 	 * Returns the firstPart, chordPart that should be used for dispatching.
 	 */
 	public abstract getDispatchParts(): [string, string];
 	/**
-	 * Returns the firstPart, chordPart of the keybinding
+	 * Returns the firstPart, chordPart of the keybinding.
+	 * For simple keybindings, the second element will be null.
 	 */
-	public abstract getParts(): [ResolvedKeybinding, ResolvedKeybinding];
+	public abstract getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart];
 }

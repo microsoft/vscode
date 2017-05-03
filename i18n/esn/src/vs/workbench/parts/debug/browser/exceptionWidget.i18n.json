@@ -6,10 +6,6 @@
 {
 	"debugExceptionWidgetBorder": "Color de borde del widget de excepciones.",
 	"debugExceptionWidgetBackground": "Color de fondo del widget de excepciones.",
-	"neverException": "Se ha producido una excepción controlada por el usuario: {0}",
-	"alwaysException": "Se ha producción una excepción de interrupción continua: {0}",
-	"unhandledException": "Se ha producido una excepción no controlada: {0}",
-	"userUnhandledException": "Se ha producido una excepción no controlada por el usuario: {0}",
 	"exceptionThrownWithId": "Se produjo una excepción: {0}",
 	"exceptionThrown": "Se produjo una excepción."
 }

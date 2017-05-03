@@ -16,7 +16,6 @@
 	"confirm discard": "Voulez-vous vraiment abandonner les changements apportés à {0} ?",
 	"confirm discard multiple": "Voulez-vous vraiment abandonner les changements apportés à {0} fichiers ?",
 	"discard": "Ignorer les modifications",
-	"confirm discard all": "Voulez-vous vraiment abandonner TOUS les changements ?",
 	"no changes": "Il n'existe aucun changement à valider.",
 	"commit message": "Message de validation",
 	"provide commit message": "Indiquez un message de validation",

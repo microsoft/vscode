@@ -107,7 +107,7 @@
 .monaco-shell.hc-black input[type="search"]:focus,
 .monaco-shell.hc-black input[type="checkbox"]:focus {
 	outline-style: solid;
-	outline-width: 2px;
+	outline-width: 1px;
 }
 
 .monaco-shell.hc-black .synthetic-focus input {
@@ -136,7 +136,7 @@
 }
 
 .monaco-shell.hc-black .monaco-tree.focused.no-focused-item:focus:before {
-	outline-width: 2px;
+	outline-width: 1px;
 	outline-offset: -2px;
 }
 

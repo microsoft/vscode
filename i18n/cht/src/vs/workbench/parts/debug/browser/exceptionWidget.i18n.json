@@ -6,10 +6,6 @@
 {
 	"debugExceptionWidgetBorder": "例外狀況小工具的框線色彩。",
 	"debugExceptionWidgetBackground": "例外狀況小工具的背景色彩。",
-	"neverException": "發生了使用者處理的例外狀況: {0}",
-	"alwaysException": "發生一律中斷例外狀況: {0}",
-	"unhandledException": "發生了未處理的例外狀況: {0}",
-	"userUnhandledException": "發生了使用者未處理的例外狀況: {0}",
 	"exceptionThrownWithId": "發生例外狀況: {0}",
 	"exceptionThrown": "發生了例外狀況"
 }

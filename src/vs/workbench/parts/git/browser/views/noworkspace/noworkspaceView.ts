@@ -17,6 +17,8 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { IActionRunner, IAction } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 const $ = builder.$;
 
 export class NoWorkspaceView
@@ -29,6 +31,7 @@ export class NoWorkspaceView
 	constructor(
 		private actionRunner: IActionRunner,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super();
 	}
@@ -50,6 +53,7 @@ export class NoWorkspaceView
 		].join('')).getHTMLElement();
 
 		this._openFolderButton = new Button(this._element);
+		attachButtonStyler(this._openFolderButton, this.themeService);
 		this._openFolderButton.label = nls.localize('openFolder', "Open Folder");
 		this._openFolderButton.addListener('click', () => {
 			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;

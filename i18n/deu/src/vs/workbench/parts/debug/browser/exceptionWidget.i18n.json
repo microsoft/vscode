@@ -6,10 +6,6 @@
 {
 	"debugExceptionWidgetBorder": "Widget-Rahmenfarbe bei einer Ausnahme. ",
 	"debugExceptionWidgetBackground": "Widget-Hintergrundfarbe bei einer Ausnahme. ",
-	"neverException": "Vom Benutzer behandelte Ausnahme: {0}",
-	"alwaysException": "Ausnahme mit unvermeidlicher Unterbrechung: {0}",
-	"unhandledException": "Ausnahmefehler: {0}",
-	"userUnhandledException": "Benutzerausnahmefehler: {0}",
 	"exceptionThrownWithId": "Ausnahme: {0}",
 	"exceptionThrown": "Ausnahme aufgetreten."
 }

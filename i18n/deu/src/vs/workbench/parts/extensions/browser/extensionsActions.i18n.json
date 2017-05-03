@@ -23,7 +23,7 @@
 	"disableAction": "Deaktivieren",
 	"checkForUpdates": "Nach Updates suchen",
 	"updateAll": "Alle Extensions aktualisieren",
-	"reloadAction": "Erneut laden",
+	"reloadAction": "Neu starten",
 	"postUpdateTooltip": "Zum Aktualisieren erneut laden",
 	"postUpdateMessage": "Dieses Fenster erneut laden, um die aktualisierte Erweiterung \"{0}\" zu aktivieren?",
 	"postEnableTooltip": "Zum Aktivieren erneut laden",

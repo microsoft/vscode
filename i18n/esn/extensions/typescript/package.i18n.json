@@ -11,8 +11,8 @@
 	"typescript.tsdk.desc": "Especifica la ruta de acceso de carpeta que contiene los archivos lib*.d.ts y tsserver que se van a usar.",
 	"typescript.disableAutomaticTypeAcquisition": "Deshabilita la adquisición automática de tipos. Requiere TypeScript >= 2.0.6 y es necesario reiniciar después de cambiarlo.",
 	"typescript.check.tscVersion": "Compruebe si un compilador de TypeScript de instalación global (p. ej., tsc) difiere del servicio de lenguaje de TypeScript usado.",
-	"typescript.tsserver.log": "Habilita el registro del servidor de TS en un archivo.",
-	"typescript.tsserver.trace": "Habilita el seguimiento de los mensajes enviados al servidor de TS.",
+	"typescript.tsserver.log": "votes Habilita los registros del servidor TS a un archivo. Este registro se puede utilizar para diagnosticar problemas en el servidor TS. Este registro puede contener rutas de acceso, código fuente y posiblemente otra información sensitiva acerca del proyecto.",
+	"typescript.tsserver.trace": "Habilita el seguimiento de mensajes al servidor TS. Este seguimiento se puede utilizar para diagnosticar problemas en el servidor TS. Este seguimiento puede contener rutas de acceso, código fuente y posiblemente otra información sensitiva acerca del proyecto.",
 	"typescript.tsserver.experimentalAutoBuild": "Permite la generación automática experimental. Requiere la versión de desarrollo 1.9 o tsserver 2.x y un reinicio de VS Code después de modificarlo.",
 	"typescript.validate.enable": "Habilita o deshabilita la validación de TypeScript.",
 	"typescript.format.enable": "Habilita o deshabilita el formateador predeterminado de TypeScript.",
@@ -25,6 +25,7 @@
 	"format.insertSpaceBeforeFunctionParenthesis": "Define el tratamiento del espacio delante de los paréntesis de los argumentos de las funciones. Requiere TypeScript >= 2.1.5.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Define el tratamiento del espacio después de los paréntesis de apertura y antes de los paréntesis de cierre con contenido.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Define el tratamiento del espacio después de los corchetes de apertura y antes de los corchetes de cierre con contenido.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Define el tratamiento del espacio después de la llave de apertura y antes de la llave de cierre. Requiere TypeScript >= 2.0.6.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Define el tratamiento del espacio después de la llave de apertura y antes de la llave de cierre de cadenas de plantilla. Requiere TypeScript >= 2.0.6.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Define el tratamiento del espacio después de la llave de apertura y antes de la llave de cierre de las expresiones JSX. Requiere TypeScript >= 2.0.6.",
 	"format.placeOpenBraceOnNewLineForFunctions": "Define si una llave de apertura se incluye en una nueva línea para las funciones o no.",
@@ -32,6 +33,11 @@
 	"javascript.validate.enable": "Habilita o deshabilita la validación de JavaScript.",
 	"typescript.goToProjectConfig.title": "Ir a configuración del proyecto",
 	"javascript.goToProjectConfig.title": "Ir a configuración del proyecto",
+	"typescript.referencesCodeLens.enabled": "Habilita o deshabilita referencias de CodeLens. Requiere TypeScript >= 2.0.6.",
+	"typescript.implementationsCodeLens.enabled": "Habilita o deshabilita implementaciones de CodeLens. Requiere TypeScript >= 2.2.0.",
 	"typescript.openTsServerLog.title": "Abrir archivo de registro del servidor de TS",
-	"typescript.selectTypeScriptVersion.title": "Seleccionar versión de TypeScript"
+	"typescript.selectTypeScriptVersion.title": "Seleccionar versión de TypeScript",
+	"jsDocCompletion.enabled": "Habilita o deshabilita comentarios automaticos de JSDoc",
+	"javascript.implicitProjectConfig.checkJs": "Habilita/deshabilita la comprobación semántica de los archivos JavaScript. Los archivos jsconfig.json o tsconfig.json reemplazan esta configuración. Se requiere TypeScript >=2.3.1.",
+	"typescript.check.npmIsInstalled": "Comprueba si NPM esta instalado para recibir adquisiciones automaticas de Typings"
 }

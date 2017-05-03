@@ -16,6 +16,14 @@ import pkg from 'vs/platform/node/package';
 
 // Enable this by default
 function getDefaultValue(): boolean {
+	const minorVersion = pkg.version.replace(/^(\d+\.\d+).*$/, '$1');
+	const forcedVersion = window.localStorage.getItem('forcedPreviewSCMVersion');
+
+	if (forcedVersion !== minorVersion) {
+		window.localStorage.setItem('forcedPreviewSCMVersion', minorVersion);
+		window.localStorage.setItem('enablePreviewSCM', 'true');
+	}
+
 	const value = window.localStorage.getItem('enablePreviewSCM');
 	return value !== 'false';
 }
@@ -36,7 +44,7 @@ export default class SCMPreview {
 export class EnableSCMPreviewAction extends Action {
 
 	static ID = 'enablescmpreview';
-	static LABEL = 'Enable Preview SCM';
+	static LABEL = 'Disable Legacy Git';
 
 	constructor(
 		id = EnableSCMPreviewAction.ID,
@@ -63,7 +71,7 @@ export class EnableSCMPreviewAction extends Action {
 export class DisableSCMPreviewAction extends Action {
 
 	static ID = 'disablescmpreview';
-	static LABEL = 'Disable Preview SCM';
+	static LABEL = 'Enable Legacy Git';
 
 	constructor(
 		id = DisableSCMPreviewAction.ID,

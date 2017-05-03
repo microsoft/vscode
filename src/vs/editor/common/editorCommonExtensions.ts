@@ -97,7 +97,12 @@ export function editorAction(ctor: { new (): EditorAction; }): void {
 }
 
 export function editorCommand(ctor: { new (): ConfigEditorCommand }): void {
-	CommonEditorRegistry.registerEditorCommand(new ctor());
+	registerEditorCommand(new ctor());
+}
+
+export function registerEditorCommand<T extends ConfigEditorCommand>(editorCommand: T): T {
+	CommonEditorRegistry.registerEditorCommand(editorCommand);
+	return editorCommand;
 }
 
 export function commonEditorContribution(ctor: ICommonEditorContributionCtor): void {
@@ -108,11 +113,14 @@ export module CommonEditorRegistry {
 
 	// --- Editor Actions
 
-	export function registerEditorAction(desc: EditorAction) {
-		EditorContributionRegistry.INSTANCE.registerEditorAction(desc);
+	export function registerEditorAction(editorAction: EditorAction) {
+		EditorContributionRegistry.INSTANCE.registerEditorAction(editorAction);
 	}
 	export function getEditorActions(): EditorAction[] {
 		return EditorContributionRegistry.INSTANCE.getEditorActions();
+	}
+	export function getEditorCommand(commandId: string): ConfigEditorCommand {
+		return EditorContributionRegistry.INSTANCE.getEditorCommand(commandId);
 	}
 
 	// --- Editor Contributions
@@ -127,8 +135,8 @@ export module CommonEditorRegistry {
 		return KeybindingsRegistry.WEIGHT.editorContrib(importance);
 	}
 
-	export function registerEditorCommand(desc: ConfigBasicCommand): void {
-		KeybindingsRegistry.registerCommandAndKeybindingRule(desc.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+	export function registerEditorCommand(editorCommand: ConfigEditorCommand): void {
+		EditorContributionRegistry.INSTANCE.registerEditorCommand(editorCommand);
 	}
 
 	export function registerLanguageCommand(id: string, handler: (accessor: ServicesAccessor, args: { [n: string]: any }) => any) {
@@ -169,10 +177,12 @@ class EditorContributionRegistry {
 
 	private editorContributions: ICommonEditorContributionCtor[];
 	private editorActions: EditorAction[];
+	private editorCommands: { [commandId: string]: ConfigEditorCommand; };
 
 	constructor() {
 		this.editorContributions = [];
 		this.editorActions = [];
+		this.editorCommands = Object.create(null);
 	}
 
 	public registerEditorContribution(ctor: ICommonEditorContributionCtor): void {
@@ -198,5 +208,15 @@ class EditorContributionRegistry {
 	public getEditorActions(): EditorAction[] {
 		return this.editorActions.slice(0);
 	}
+
+	public registerEditorCommand(editorCommand: ConfigEditorCommand) {
+		KeybindingsRegistry.registerCommandAndKeybindingRule(editorCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+		this.editorCommands[editorCommand.id] = editorCommand;
+	}
+
+	public getEditorCommand(commandId: string): ConfigEditorCommand {
+		return (this.editorCommands[commandId] || null);
+	}
+
 }
 Registry.add(Extensions.EditorCommonContributions, EditorContributionRegistry.INSTANCE);

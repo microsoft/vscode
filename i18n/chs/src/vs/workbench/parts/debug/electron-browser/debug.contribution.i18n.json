@@ -15,5 +15,6 @@
 	"allowBreakpointsEverywhere": "允许在任何文件中设置断点",
 	"openExplorerOnEnd": "调试会话结束时自动打开资源管理器视图",
 	"inlineValues": "调试时，在编辑器中显示变量值内联",
-	"hideActionBar": "控制是否应该隐藏浮点调试操作栏"
+	"hideActionBar": "控制是否应该隐藏浮点调试操作栏",
+	"launch": "全局的调试启动配置。应用作跨工作区共享的 \"launch.json\" 的替代。"
 }

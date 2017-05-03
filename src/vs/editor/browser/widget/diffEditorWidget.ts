@@ -32,12 +32,12 @@ import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
-import { registerThemingParticipant, IThemeService, ITheme } from "vs/platform/theme/common/themeService";
-import { registerColor } from "vs/platform/theme/common/colorRegistry";
-import { Color, RGBA } from "vs/base/common/color";
-import { OverviewRulerZone } from "vs/editor/common/view/overviewZoneManager";
-import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { registerThemingParticipant, IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { Color, RGBA } from 'vs/base/common/color';
+import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 interface IEditorDiffDecorations {
 	decorations: editorCommon.IModelDeltaDecoration[];
@@ -384,6 +384,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				scrollTop: e.scrollTop
 			});
 			this._isHandlingScrollEvent = false;
+
+			this._layoutOverviewViewport();
 		}));
 
 		this._register(this.originalEditor.onDidChangeViewZones(() => {
@@ -1952,10 +1954,10 @@ function createFakeLinesDiv(): HTMLElement {
 const defaultInsertColor = Color.fromRGBA(new RGBA(155, 185, 85, 255 * 0.2));
 const defaultRemoveColor = Color.fromRGBA(new RGBA(255, 0, 0, 255 * 0.2));
 
-export const diffInserted = registerColor('diffInserted', { dark: defaultInsertColor, light: defaultInsertColor, hc: null }, nls.localize('diffInserted', 'Background color for text that got inserted.'));
-export const diffRemoved = registerColor('diffRemoved', { dark: defaultRemoveColor, light: defaultRemoveColor, hc: null }, nls.localize('diffRemoved', 'Background color for text that got removed.'));
-export const diffInsertedOutline = registerColor('diffInsertedOutline', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffInsertedOutline', 'Outline color for the text that got inserted.'));
-export const diffRemovedOutline = registerColor('diffRemovedOutline', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffRemovedOutline', 'Outline color for text that got removed.'));
+export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: defaultInsertColor, light: defaultInsertColor, hc: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted.'));
+export const diffRemoved = registerColor('diffEditor.removedTextBackground', { dark: defaultRemoveColor, light: defaultRemoveColor, hc: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed.'));
+export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffEditorInsertedOutline', 'Outline color for the text that got inserted.'));
+export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
 
 
 registerThemingParticipant((theme, collector) => {

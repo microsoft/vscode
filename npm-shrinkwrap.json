@@ -293,9 +293,9 @@
       "resolved": "https://registry.npmjs.org/nan/-/nan-2.4.0.tgz"
     },
     "native-keymap": {
-      "version": "1.2.2",
-      "from": "native-keymap@1.2.2",
-      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-1.2.2.tgz"
+      "version": "1.2.3",
+      "from": "native-keymap@1.2.3",
+      "resolved": "https://registry.npmjs.org/native-keymap/-/native-keymap-1.2.3.tgz"
     },
     "normalize-path": {
       "version": "2.0.1",
@@ -338,9 +338,9 @@
       "resolved": "https://registry.npmjs.org/process-nextick-args/-/process-nextick-args-1.0.7.tgz"
     },
     "node-pty": {
-      "version": "0.6.3",
-      "from": "node-pty@0.6.3",
-      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.3.tgz",
+      "version": "0.6.4",
+      "from": "node-pty@0.6.4",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.6.4.tgz",
       "dependencies": {
         "nan": {
           "version": "2.5.0",
@@ -410,14 +410,14 @@
       "resolved": "git://github.com/jrieken/v8-profiler.git#bc0803a4d4b2150b8a1bbffa80270769007036c2"
     },
     "vscode-debugprotocol": {
-      "version": "1.18.0",
-      "from": "vscode-debugprotocol@1.18.0",
-      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.18.0.tgz"
+      "version": "1.19.0",
+      "from": "vscode-debugprotocol@1.19.0",
+      "resolved": "https://registry.npmjs.org/vscode-debugprotocol/-/vscode-debugprotocol-1.19.0.tgz"
     },
     "vscode-ripgrep": {
-      "version": "0.0.11",
-      "from": "vscode-ripgrep@0.0.11",
-      "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.0.11.tgz"
+      "version": "0.0.12",
+      "from": "vscode-ripgrep@0.0.12",
+      "resolved": "https://registry.npmjs.org/vscode-ripgrep/-/vscode-ripgrep-0.0.12.tgz"
     },
     "vscode-textmate": {
       "version": "3.1.4",
@@ -440,9 +440,9 @@
       "resolved": "https://registry.npmjs.org/winreg/-/winreg-1.2.0.tgz"
     },
     "xterm": {
-      "version": "2.4.0",
-      "from": "Tyriar/xterm.js#vscode-release/1.11",
-      "resolved": "git+https://github.com/Tyriar/xterm.js.git#18edbf652e8453227f1f680b8eda3d17b7c1ecc3"
+      "version": "2.5.0",
+      "from": "Tyriar/xterm.js#vscode-release/1.12",
+      "resolved": "git+https://github.com/Tyriar/xterm.js.git#dd94777309f3ce63952a7604b9c40e77370db3ca"
     },
     "yauzl": {
       "version": "2.3.1",

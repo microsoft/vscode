@@ -6,6 +6,5 @@
 {
 	"defineKeybinding.start": "Определить назначение клавиш",
 	"defineKeybinding.kbLayoutInfoMessage": "Для текущей раскладки клавиатуры нажмите ",
-	"defineKeybinding.kbLayoutErrorMessage": "Вы не сможете нажать это сочетание клавиш в текущей раскладке клавиатуры.",
-	"DefineKeybindingAction": "Определить назначение клавиш"
+	"defineKeybinding.kbLayoutErrorMessage": "Вы не сможете нажать это сочетание клавиш в текущей раскладке клавиатуры."
 }

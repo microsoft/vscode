@@ -35,8 +35,8 @@ import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWid
 import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService } from "vs/platform/theme/common/themeService";
-import { Position } from "vs/editor/common/core/position";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Position } from 'vs/editor/common/core/position';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -368,7 +368,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
 			focusedSf.thread.exceptionInfo.then(exceptionInfo => {
-				if (exceptionInfo) {
+				if (exceptionInfo && exceptionSf.lineNumber && exceptionSf.column) {
 					this.showExceptionWidget(exceptionInfo, exceptionSf.lineNumber, exceptionSf.column);
 				}
 			});

@@ -26,7 +26,7 @@
 	"wordWrap.on": "依檢視區寬度換行。",
 	"wordWrap.wordWrapColumn": "於 'editor.wordWrapColumn' 換行。",
 	"wordWrap.bounded": "當檢視區縮至最小並設定 'editor.wordWrapColumn' 時換行。",
-	"wordWrap": "控制是否自動換行。可以是: :\\n - [off] (停用換行)、\\n - [on] (檢視區換行)、\\n - [wordWrapColumn] (於  'editor.wordWrapColumn' 換行) 或\\n - [bounded] (當檢視區縮至最小並設定 'editor.wordWrapColumn' 時換行)。\\n",
+	"wordWrap": "控制是否自動換行。可以是:\n - 'off' (停用換行),\n - 'on' (檢視區換行),\n - 'wordWrapColumn' (於 'editor.wordWrapColumn' 換行`) 或\n - 'bounded' (當檢視區縮至最小並設定 'editor.wordWrapColumn' 時換行).",
 	"wordWrapColumn": "當 `editor.wordWrap` 為 [wordWrapColumn] 或 [bounded] 時，控制編輯器中的資料行換行。",
 	"wrappingIndent": "控制換行的縮排。可以是 [無]、[相同] 或 [縮排]。",
 	"mouseWheelScrollSensitivity": "滑鼠滾輪捲動事件的 'deltaX' 與 'deltaY' 所使用的乘數",

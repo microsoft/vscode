@@ -15,5 +15,6 @@
 	"allowBreakpointsEverywhere": "Permet de définir un point d'arrêt dans un fichier",
 	"openExplorerOnEnd": "Ouvrir automatiquement le mode explorateur à la fin d'une session de débogage",
 	"inlineValues": "Afficher les valeurs des variables inline dans l'éditeur pendant le débogage",
-	"hideActionBar": "Contrôle si la barre d'action de débogage flottante doit être masquée"
+	"hideActionBar": "Contrôle si la barre d'action de débogage flottante doit être masquée",
+	"launch": "Configuration du lancement du débogage global. Doit être utilisée comme alternative à 'launch.json' qui est partagé entre les espaces de travail"
 }

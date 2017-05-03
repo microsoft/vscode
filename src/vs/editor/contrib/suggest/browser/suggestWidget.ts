@@ -27,9 +27,9 @@ import { Context as SuggestContext } from './suggest';
 import { ICompletionItem, CompletionModel } from './completionModel';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachListStyler } from "vs/platform/theme/common/styler";
-import { IThemeService, ITheme, registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { registerColor, editorWidgetBackground, highContrastBorder, listFocusBackground, listFocusOutline } from "vs/platform/theme/common/colorRegistry";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor, editorWidgetBackground, contrastBorder, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const sticky = false; // for development purposes
 
@@ -47,9 +47,12 @@ interface ISuggestionTemplateData {
 /**
  * Suggest widget colors
  */
-export const editorSuggestWidgetBackground = registerColor('editorSuggestWidgetBackground', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
-export const editorSuggestWidgetBorder = registerColor('editorSuggestWidgetBorder', { dark: '#454545', light: '#C8C8C8', hc: highContrastBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
-export const editorSuggestMatchHighlight = registerColor('editorSuggestMatchHighlight', { dark: '#219AE4', light: '#186B9E', hc: '#219AE4' }, nls.localize('editorSuggestMatchHighlight', 'Color of the match highlight in the suggest widget.'));
+export const editorSuggestWidgetBackground = registerColor('editorSuggestWidget.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
+export const editorSuggestWidgetBorder = registerColor('editorSuggestWidget.border', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
+export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', { dark: editorForeground, light: editorForeground, hc: editorForeground }, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
+export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: listFocusBackground, light: listFocusBackground, hc: listFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
+export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
+
 
 const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
 function matchesColor(text: string) {
@@ -384,7 +387,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		});
 
 		this.toDispose = [
-			attachListStyler(this.list, themeService, { listInactiveFocusBackground: listFocusBackground, listInactiveFocusOutline: listFocusOutline }),
+			attachListStyler(this.list, themeService, {
+				listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
+				listInactiveFocusOutline: activeContrastBorder
+			}),
 			themeService.onThemeChange(t => this.onThemeChange(t)),
 			editor.onDidBlurEditorText(() => this.onEditorBlur()),
 			this.list.onSelectionChange(e => this.onListSelection(e)),
@@ -926,8 +932,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 }
 
 registerThemingParticipant((theme, collector) => {
-	let matchHighlight = theme.getColor(editorSuggestMatchHighlight);
+	let matchHighlight = theme.getColor(editorSuggestWidgetHighlightForeground);
 	if (matchHighlight) {
 		collector.addRule(`.monaco-editor.${theme.selector} .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
+	}
+	let foreground = theme.getColor(editorSuggestWidgetForeground);
+	if (foreground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .suggest-widget { color: ${foreground}; }`);
 	}
 });

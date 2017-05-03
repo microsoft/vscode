@@ -25,8 +25,8 @@ import DOM = require('vs/base/browser/dom');
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { Color } from "vs/base/common/color";
-import { mixin } from "vs/base/common/objects";
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
 export interface IQuickOpenCallbacks {
 	onOk: () => void;
@@ -52,6 +52,7 @@ export interface IQuickOpenStyles extends IInputBoxStyles, ITreeStyles {
 	borderColor?: Color;
 	pickerGroupForeground?: Color;
 	pickerGroupBorder?: Color;
+	widgetShadow?: Color;
 }
 
 export interface IShowOptions {
@@ -84,7 +85,8 @@ const defaultStyles = {
 	background: Color.fromHex('#1E1E1E'),
 	foreground: Color.fromHex('#CCCCCC'),
 	pickerGroupForeground: Color.fromHex('#0097FB'),
-	pickerGroupBorder: Color.fromHex('#3F3F46')
+	pickerGroupBorder: Color.fromHex('#3F3F46'),
+	widgetShadow: Color.fromHex('#000000')
 };
 
 const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picker. Type to narrow down results.");
@@ -168,7 +170,13 @@ export class QuickOpenWidget implements IModelProvider {
 					ariaLabel: DEFAULT_INPUT_ARIA_LABEL,
 					inputBackground: this.styles.inputBackground,
 					inputForeground: this.styles.inputForeground,
-					inputBorder: this.styles.inputBorder
+					inputBorder: this.styles.inputBorder,
+					inputValidationInfoBackground: this.styles.inputValidationInfoBackground,
+					inputValidationInfoBorder: this.styles.inputValidationInfoBorder,
+					inputValidationWarningBackground: this.styles.inputValidationWarningBackground,
+					inputValidationWarningBorder: this.styles.inputValidationWarningBorder,
+					inputValidationErrorBackground: this.styles.inputValidationErrorBackground,
+					inputValidationErrorBorder: this.styles.inputValidationErrorBorder
 				});
 
 				// ARIA
@@ -271,11 +279,12 @@ export class QuickOpenWidget implements IModelProvider {
 					// Select element when keys are pressed that signal it
 					const quickNavKeys = this.quickNavigateConfiguration.keybindings;
 					const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
-						if (k.isChord()) {
+						const [firstPart, chordPart] = k.getParts();
+						if (chordPart) {
 							return false;
 						}
 
-						if (k.hasShiftModifier() && keyCode === KeyCode.Shift) {
+						if (firstPart.shiftKey && keyCode === KeyCode.Shift) {
 							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
 								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
 							}
@@ -283,15 +292,15 @@ export class QuickOpenWidget implements IModelProvider {
 							return true;
 						}
 
-						if (k.hasAltModifier() && keyCode === KeyCode.Alt) {
+						if (firstPart.altKey && keyCode === KeyCode.Alt) {
 							return true;
 						}
 
-						if (k.hasCtrlModifier() && keyCode === KeyCode.Ctrl) {
+						if (firstPart.ctrlKey && keyCode === KeyCode.Ctrl) {
 							return true;
 						}
 
-						if (k.hasMetaModifier() && keyCode === KeyCode.Meta) {
+						if (firstPart.metaKey && keyCode === KeyCode.Meta) {
 							return true;
 						}
 
@@ -317,35 +326,43 @@ export class QuickOpenWidget implements IModelProvider {
 			this.layout(this.layoutDimensions);
 		}
 
-		this._applyStyles();
+		this.applyStyles();
 
 		return this.builder.getHTMLElement();
 	}
 
-	public style(styles: IQuickOpenStyles) {
+	public style(styles: IQuickOpenStyles): void {
 		this.styles = styles;
 
-		this._applyStyles();
+		this.applyStyles();
 	}
 
-	protected _applyStyles() {
+	protected applyStyles(): void {
 		if (this.builder) {
 			const foreground = this.styles.foreground ? this.styles.foreground.toString() : null;
 			const background = this.styles.background ? this.styles.background.toString() : null;
 			const borderColor = this.styles.borderColor ? this.styles.borderColor.toString() : null;
+			const widgetShadow = this.styles.widgetShadow ? this.styles.widgetShadow.toString() : null;
 
 			this.builder.style('color', foreground);
 			this.builder.style('background-color', background);
 			this.builder.style('border-color', borderColor);
 			this.builder.style('border-width', borderColor ? '2px' : null);
 			this.builder.style('border-style', borderColor ? 'solid' : null);
+			this.builder.style('box-shadow', widgetShadow ? `0 5px 8px ${widgetShadow}` : null);
 		}
 
 		if (this.inputBox) {
 			this.inputBox.style({
 				inputBackground: this.styles.inputBackground,
 				inputForeground: this.styles.inputForeground,
-				inputBorder: this.styles.inputBorder
+				inputBorder: this.styles.inputBorder,
+				inputValidationInfoBackground: this.styles.inputValidationInfoBackground,
+				inputValidationInfoBorder: this.styles.inputValidationInfoBorder,
+				inputValidationWarningBackground: this.styles.inputValidationWarningBackground,
+				inputValidationWarningBorder: this.styles.inputValidationWarningBorder,
+				inputValidationErrorBackground: this.styles.inputValidationErrorBackground,
+				inputValidationErrorBorder: this.styles.inputValidationErrorBorder
 			});
 		}
 
@@ -757,10 +774,13 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	public setValue(value: string, select: boolean): void {
+	public setValue(value: string, selection?: [number, number]): void {
 		if (this.inputBox) {
 			this.inputBox.value = value;
-			if (select) {
+			if (Array.isArray(selection)) {
+				const [start, end] = selection;
+				this.inputBox.select({ start, end });
+			} else {
 				this.inputBox.select();
 			}
 		}

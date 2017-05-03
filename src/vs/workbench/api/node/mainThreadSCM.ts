@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -10,7 +11,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource, SCMGroupFeatures } from './extHost.protocol';
@@ -46,7 +47,7 @@ class MainThreadSCMResource implements ISCMResource {
 		public sourceUri: URI,
 		public command: Command | undefined,
 		public resourceGroup: ISCMResourceGroup,
-		public decorations
+		public decorations: ISCMResourceDecorations
 	) { }
 
 	toJSON(): any {
@@ -144,13 +145,14 @@ class MainThreadSCMProvider implements ISCMProvider {
 		}
 
 		group.resources = resources.map(rawResource => {
-			const [handle, sourceUri, command, icons, strikeThrough] = rawResource;
+			const [handle, sourceUri, command, icons, strikeThrough, faded] = rawResource;
 			const icon = icons[0];
 			const iconDark = icons[1] || icon;
 			const decorations = {
 				icon: icon && URI.parse(icon),
 				iconDark: iconDark && URI.parse(iconDark),
-				strikeThrough
+				strikeThrough,
+				faded
 			};
 
 			return new MainThreadSCMResource(

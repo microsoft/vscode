@@ -15,5 +15,6 @@
 	"allowBreakpointsEverywhere": "Permite establecer un punto de interrupción en cualquier archivo.",
 	"openExplorerOnEnd": "Abrir automáticamente la vista del explorador al final de una sesión de depuración",
 	"inlineValues": "Mostrar valores de variable en línea en el editor durante la depuración",
-	"hideActionBar": "Controla si debe ocultarse la barra flotante de acciones de depuración"
+	"hideActionBar": "Controla si debe ocultarse la barra flotante de acciones de depuración",
+	"launch": "Configuración de lanzamiento para depuración global. Debe utilizarse como una alternativa a “launch.json” en espacios de trabajo compartidos."
 }

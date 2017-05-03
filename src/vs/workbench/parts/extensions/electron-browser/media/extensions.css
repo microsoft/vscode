@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.extensions {
-	background: url('extensions-dark.svg') center center/22px no-repeat;
-}
-
-.monaco-workbench > .activitybar.light > .content .monaco-action-bar .action-label.extensions {
-	background: url('extensions-light.svg') center center/22px no-repeat;
+	-webkit-mask: url('extensions-dark.svg') no-repeat 50% 50%;
+	-webkit-mask-size: 22px;
 }

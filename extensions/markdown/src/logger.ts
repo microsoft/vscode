@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { OutputChannel, window, workspace } from "vscode";
+import { OutputChannel, window, workspace } from 'vscode';
 
 enum Trace {
 	Off,

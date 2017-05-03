@@ -17,10 +17,10 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { KeyboardHandler, IKeyboardHandlerHelper } from 'vs/editor/browser/controller/keyboardHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { ViewController, TriggerCursorHandler } from 'vs/editor/browser/view/viewController';
+import { ViewController, ExecCoreEditorCommandFunc } from 'vs/editor/browser/view/viewController';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
-import { LayoutProvider } from 'vs/editor/common/viewLayout/viewLayout';
+import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
 import { CurrentLineHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
 import { CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineMarginHighlight/currentLineMarginHighlight';
@@ -50,7 +50,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -66,7 +66,7 @@ export class View extends ViewEventHandler {
 
 	private eventDispatcher: ViewEventDispatcher;
 
-	private layoutProvider: LayoutProvider;
+	private layoutProvider: ViewLayout;
 	private _scrollbar: EditorScrollbar;
 	public _context: ViewContext;
 
@@ -102,14 +102,14 @@ export class View extends ViewEventHandler {
 		commandService: ICommandService,
 		configuration: Configuration,
 		model: IViewModel,
-		private triggerCursorHandler: TriggerCursorHandler
+		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
 	) {
 		super();
 		this._isDisposed = false;
 		this._renderAnimationFrame = null;
 		this.outgoingEvents = new ViewOutgoingEvents(model);
 
-		let viewController = new ViewController(model, triggerCursorHandler, this.outgoingEvents, commandService);
+		let viewController = new ViewController(model, execCoreEditorCommandFunc, this.outgoingEvents, commandService);
 
 		// The event dispatcher will always go through _renderOnce before dispatching any events
 		this.eventDispatcher = new ViewEventDispatcher((callback: () => void) => this._renderOnce(callback));
@@ -121,7 +121,7 @@ export class View extends ViewEventHandler {
 		// - scrolling (i.e. viewport / full size) & co.
 		// - whitespaces (a.k.a. view zones) management & co.
 		// - line heights updating & co.
-		this.layoutProvider = new LayoutProvider(configuration, model.getLineCount(), this.eventDispatcher);
+		this.layoutProvider = new ViewLayout(configuration, model.getLineCount(), this.eventDispatcher);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, model, this.eventDispatcher);

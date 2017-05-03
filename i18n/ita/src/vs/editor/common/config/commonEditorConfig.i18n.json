@@ -26,7 +26,7 @@
 	"wordWrap.on": "Verrà eseguito il wrapping delle righe in base alla larghezza del viewport.",
 	"wordWrap.wordWrapColumn": "Verrà eseguito il wrapping delle righe alla posizione corrispondente a `editor.wordWrapColumn`.",
 	"wordWrap.bounded": "Verrà eseguito il wrapping delle righe alla posizione minima del viewport e di `editor.wordWrapColumn`.",
-	"wordWrap": "Controlla il wrapping delle righe. Valori possibili:\\n - 'off' (disabilita il wrapping),\\n - 'on' (wrapping del viewport),\\n - 'wordWrapColumn' (esegue il wrapping alla posizione corrispondente a `editor.wordWrapColumn`) o\\n - 'bounded' (esegue il wrapping alla posizione minima del viewport e di `editor.wordWrapColumn`).",
+	"wordWrap": "Controlla il wrapping delle righe. Valori possibili:\n - 'off' (disabilita il wrapping),\n - 'on' (wrapping del viewport),\n - 'wordWrapColumn' (esegue il wrapping alla posizione corrispondente a `editor.wordWrapColumn`) o\n - 'bounded' (esegue il wrapping alla posizione minima del viewport e di `editor.wordWrapColumn`).",
 	"wordWrapColumn": "Controlla la colonna di wrapping dell'editor quando il valore di `editor.wordWrap` è 'wordWrapColumn' o 'bounded'.",
 	"wrappingIndent": "Controlla il rientro delle righe con ritorno a capo. Può essere uno dei valori seguenti: 'none', 'same' o 'indent'.",
 	"mouseWheelScrollSensitivity": "Moltiplicatore da usare sui valori `deltaX` e `deltaY` degli eventi di scorrimento della rotellina del mouse",

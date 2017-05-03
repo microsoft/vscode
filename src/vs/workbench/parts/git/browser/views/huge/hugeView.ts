@@ -16,6 +16,8 @@ import * as dom from 'vs/base/browser/dom';
 import { IGitService } from 'vs/workbench/parts/git/common/git';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -24,7 +26,7 @@ export class HugeView extends ee.EventEmitter implements view.IView {
 	ID = 'huge';
 	private _element: HTMLElement;
 
-	constructor( @IGitService private gitService: IGitService) {
+	constructor( @IGitService private gitService: IGitService, @IThemeService private themeService: IThemeService) {
 		super();
 	}
 
@@ -49,6 +51,7 @@ export class HugeView extends ee.EventEmitter implements view.IView {
 		pre.textContent = 'git.allowLargeRepositories';
 
 		const button = new Button(this._element);
+		attachButtonStyler(button, this.themeService);
 		button.label = nls.localize('allo', "Allow large repositories");
 		button.addListener('click', (e) => {
 			dom.EventHelper.stop(e);

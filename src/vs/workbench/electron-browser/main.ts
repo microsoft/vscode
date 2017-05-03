@@ -28,6 +28,7 @@ import gracefulFs = require('graceful-fs');
 import { IPath, IOpenFileRequest } from 'vs/workbench/electron-browser/common';
 import { IInitData } from 'vs/workbench/services/timer/common/timerService';
 import { TimerService } from 'vs/workbench/services/timer/node/timerService';
+import { KeyboardMapperFactory } from "vs/workbench/services/keybinding/electron-browser/keybindingService";
 
 import { webFrame } from 'electron';
 
@@ -35,6 +36,12 @@ import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+
+	/**
+	 * The physical keyboard is of ISO type (on OSX)
+	 */
+	isISOKeyboard?: boolean;
+
 	appRoot: string;
 	execPath: string;
 
@@ -52,6 +59,8 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	browser.setZoomFactor(webFrame.getZoomFactor());
 	browser.setZoomLevel(webFrame.getZoomLevel());
 	browser.setFullscreen(!!configuration.fullscreen);
+
+	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(configuration.isISOKeyboard);
 
 	// Setup Intl
 	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));

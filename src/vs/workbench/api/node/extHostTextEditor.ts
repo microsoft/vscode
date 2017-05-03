@@ -16,8 +16,8 @@ import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from
 import * as TypeConverters from './extHostTypeConverters';
 import { MainThreadEditorsShape } from './extHost.protocol';
 import * as vscode from 'vscode';
-import { TextEditorCursorStyle } from "vs/editor/common/config/editorOptions";
-import { IRange } from "vs/editor/common/core/range";
+import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 
@@ -38,7 +38,7 @@ export class TextEditorDecorationType implements vscode.TextEditorDecorationType
 }
 
 export interface ITextEditOperation {
-	range: Range;
+	range: vscode.Range;
 	text: string;
 	forceMoveMarkers: boolean;
 }
@@ -53,13 +53,15 @@ export interface IEditData {
 
 export class TextEditorEdit {
 
-	private _documentVersionId: number;
+	private readonly _document: vscode.TextDocument;
+	private readonly _documentVersionId: number;
 	private _collectedEdits: ITextEditOperation[];
 	private _setEndOfLine: EndOfLine;
-	private _undoStopBefore: boolean;
-	private _undoStopAfter: boolean;
+	private readonly _undoStopBefore: boolean;
+	private readonly _undoStopAfter: boolean;
 
 	constructor(document: vscode.TextDocument, options: { undoStopBefore: boolean; undoStopAfter: boolean; }) {
+		this._document = document;
 		this._documentVersionId = document.version;
 		this._collectedEdits = [];
 		this._setEndOfLine = 0;
@@ -88,19 +90,11 @@ export class TextEditorEdit {
 			throw new Error('Unrecognized location');
 		}
 
-		this._collectedEdits.push({
-			range: range,
-			text: value,
-			forceMoveMarkers: false
-		});
+		this._pushEdit(range, value, false);
 	}
 
 	insert(location: Position, value: string): void {
-		this._collectedEdits.push({
-			range: new Range(location, location),
-			text: value,
-			forceMoveMarkers: true
-		});
+		this._pushEdit(new Range(location, location), value, true);
 	}
 
 	delete(location: Range | Selection): void {
@@ -112,10 +106,15 @@ export class TextEditorEdit {
 			throw new Error('Unrecognized location');
 		}
 
+		this._pushEdit(range, null, true);
+	}
+
+	private _pushEdit(range: Range, text: string, forceMoveMarkers: boolean): void {
+		let validRange = this._document.validateRange(range);
 		this._collectedEdits.push({
-			range: range,
-			text: null,
-			forceMoveMarkers: true
+			range: validRange,
+			text: text,
+			forceMoveMarkers: forceMoveMarkers
 		});
 	}
 
@@ -462,6 +461,36 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	private _applyEdit(editBuilder: TextEditorEdit): TPromise<boolean> {
 		let editData = editBuilder.finalize();
 
+		// check that the edits are not overlapping (i.e. illegal)
+		let editRanges = editData.edits.map(edit => edit.range);
+
+		// sort ascending (by end and then by start)
+		editRanges.sort((a, b) => {
+			if (a.end.line === b.end.line) {
+				if (a.end.character === b.end.character) {
+					if (a.start.line === b.start.line) {
+						return a.start.character - b.start.character;
+					}
+					return a.start.line - b.start.line;
+				}
+				return a.end.character - b.end.character;
+			}
+			return a.end.line - b.end.line;
+		});
+
+		// check that no edits are overlapping
+		for (let i = 0, count = editRanges.length - 1; i < count; i++) {
+			const rangeEnd = editRanges[i].end;
+			const nextRangeStart = editRanges[i + 1].start;
+
+			if (nextRangeStart.isBefore(rangeEnd)) {
+				// overlapping ranges
+				return TPromise.wrapError<boolean>(
+					new Error('Overlapping ranges are not allowed!')
+				);
+			}
+		}
+
 		// prepare data for serialization
 		let edits: ISingleEditOperation[] = editData.edits.map((edit) => {
 			return {
@@ -513,7 +542,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 	private _runOnProxy(callback: () => TPromise<any>, silent: boolean): TPromise<ExtHostTextEditor> {
 		if (this._disposed) {
 			if (!silent) {
-				return TPromise.wrapError(silent);
+				return TPromise.wrapError<ExtHostTextEditor>(silent);
 			} else {
 				console.warn('TextEditor is closed/disposed');
 				return TPromise.as(undefined);
@@ -521,7 +550,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		}
 		return callback().then(() => this, err => {
 			if (!silent) {
-				return TPromise.wrapError(silent);
+				return TPromise.wrapError<ExtHostTextEditor>(silent);
 			}
 			console.warn(err);
 			return undefined;

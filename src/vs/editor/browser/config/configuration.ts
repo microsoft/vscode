@@ -15,7 +15,7 @@ import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserve
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 class CSSBasedConfigurationCache {
 

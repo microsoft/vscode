@@ -63,7 +63,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { IMessageService, IChoiceService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { ChoiceChannel } from 'vs/platform/message/common/messageIpc';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
@@ -104,7 +104,7 @@ import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { foreground, focus } from 'vs/platform/theme/common/colorRegistry';
+import { foreground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 
 /**
  * Services that we require for the Shell
@@ -183,7 +183,7 @@ export class WorkbenchShell {
 			onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
 
 				// run workbench started logic
-				this.onWorkbenchStarted(info);
+				this.onWorkbenchStarted(instantiationService, info);
 
 				// start cached data manager
 				instantiationService.createInstance(NodeCachedDataManager);
@@ -206,7 +206,7 @@ export class WorkbenchShell {
 		return workbenchContainer;
 	}
 
-	private onWorkbenchStarted(info: IWorkbenchStartedInfo): void {
+	private onWorkbenchStarted(instantiationService: IInstantiationService, info: IWorkbenchStartedInfo): void {
 
 		// Telemetry: workspace info
 		const { filesToOpen, filesToCreate, filesToDiff } = this.options;
@@ -230,6 +230,12 @@ export class WorkbenchShell {
 		this.timerService.restoreViewletDuration = info.restoreViewletDuration;
 		this.extensionService.onReady().done(() => {
 			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
+
+			// Check for negative performance numbers (insiders only)
+			// TODO@Ben remove me
+			if (product.quality !== 'stable' && this.timerService.startupMetrics.ellapsed < 0) {
+				this.handleNegativePerformanceNumbers(instantiationService, this.timerService.startupMetrics.ellapsed);
+			}
 		});
 
 		// Telemetry: workspace tags
@@ -245,11 +251,9 @@ export class WorkbenchShell {
 		const { profileStartup } = this.environmentService;
 		if (profileStartup) {
 			this.extensionService.onReady().then(() => stopProfiling(profileStartup.dir, profileStartup.prefix)).then(() => {
-
 				readdir(profileStartup.dir).then(files => {
 					return files.filter(value => value.indexOf(profileStartup.prefix) === 0);
 				}).then(files => {
-
 					const profileFiles = files.reduce((prev, cur) => `${prev}${join(profileStartup.dir, cur)}\n`, '\n');
 
 					const primaryButton = this.messageService.confirm({
@@ -260,12 +264,12 @@ export class WorkbenchShell {
 						secondaryButton: nls.localize('prof.restart', "Restart")
 					});
 
-					let createIssue = TPromise.as(undefined);
+					let createIssue = TPromise.as<void>(void 0);
 					if (primaryButton) {
 						const action = this.workbench.getInstantiationService().createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
 
 						createIssue = action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`).then(() => {
-							return this.windowsService.showItemInFolder(profileFiles[0]);
+							return this.windowsService.showItemInFolder(join(profileStartup.dir, files[0]));
 						});
 					}
 					createIssue.then(() => this.windowsService.relaunch({ removeArgs: ['--prof-startup'] }));
@@ -273,6 +277,16 @@ export class WorkbenchShell {
 
 			}, err => console.error(err));
 		}
+	}
+
+	private handleNegativePerformanceNumbers(i: IInstantiationService, time: number): void {
+		this.messageService.show(Severity.Warning, {
+			message: nls.localize('handleNegativePerformanceNumbers', "Something went wrong measuring startup performance numbers (ellapsed: {0}ms). We would like to learn more about this issue.", time),
+			actions: [
+				i.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL),
+				CloseAction
+			]
+		});
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
@@ -511,14 +525,25 @@ export class WorkbenchShell {
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Foreground
 	const windowForeground = theme.getColor(foreground);
 	if (windowForeground) {
 		collector.addRule(`.monaco-shell { color: ${windowForeground}; }`);
 	}
 
-	// TODO@Ben the workbench background color is not really surfacing anywhere but on Windows
-	// not setting it will cause many part of the worbench to not use subpixel-antialiasing causing
-	// these parts to look fuzzy on higher resolution displays.
+	// List highlight
+	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
+	if (listHighlightForegroundColor) {
+		collector.addRule(`
+			.monaco-shell .monaco-tree .monaco-tree-row .monaco-highlighted-label .highlight,
+			.monaco-shell .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
+				color: ${listHighlightForegroundColor};
+			}
+		`);
+	}
+
+	// We need to set the workbench background color so that on Windows we get subpixel-antialiasing.
 	let workbenchBackground: string;
 	switch (theme.type) {
 		case 'dark':
@@ -530,10 +555,55 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		default:
 			workbenchBackground = '#000000';
 	}
-
 	collector.addRule(`.monaco-workbench { background-color: ${workbenchBackground}; }`);
 
-	const focusOutline = theme.getColor(focus);
+	// Scrollbars
+	const scrollbarShadowColor = theme.getColor(scrollbarShadow);
+	if (scrollbarShadowColor) {
+		collector.addRule(`
+			.monaco-shell .monaco-scrollable-element > .shadow.top {
+				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+			}
+
+			.monaco-shell .monaco-scrollable-element > .shadow.left {
+				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+			}
+
+			.monaco-shell .monaco-scrollable-element > .shadow.top.left {
+				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
+			}
+		`);
+	}
+
+	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
+	if (scrollbarSliderBackgroundColor) {
+		collector.addRule(`
+			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider {
+				background: ${scrollbarSliderBackgroundColor};
+			}
+		`);
+	}
+
+	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
+	if (scrollbarSliderHoverBackgroundColor) {
+		collector.addRule(`
+			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider:hover {
+				background: ${scrollbarSliderHoverBackgroundColor};
+			}
+		`);
+	}
+
+	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
+	if (scrollbarSliderActiveBackgroundColor) {
+		collector.addRule(`
+			.monaco-shell .monaco-scrollable-element > .scrollbar > .slider.active {
+				background: ${scrollbarSliderActiveBackgroundColor};
+			}
+		`);
+	}
+
+	// Focus outline
+	const focusOutline = theme.getColor(focusBorder);
 	if (focusOutline) {
 		collector.addRule(`
 			.monaco-shell [tabindex="0"]:focus,
@@ -542,6 +612,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
 			.monaco-shell input[type="button"]:focus,
 			.monaco-shell input[type="text"]:focus,
+			.monaco-shell button:focus,
 			.monaco-shell textarea:focus,
 			.monaco-shell input[type="search"]:focus,
 			.monaco-shell input[type="checkbox"]:focus {

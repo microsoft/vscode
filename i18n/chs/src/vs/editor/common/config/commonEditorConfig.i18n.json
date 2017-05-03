@@ -26,7 +26,7 @@
 	"wordWrap.on": "将在视区宽度处换行。",
 	"wordWrap.wordWrapColumn": "将在 \"editor.wordWrapColumn\" 处换行。",
 	"wordWrap.bounded": "将在最小视区和 \"editor.wordWrapColumn\" 处换行。",
-	"wordWrap": "控制换行方式。可以选择:\\n - \"off\" (禁用换行)，\\n - \"on\" (视区换行)，\\n - \"wordWrapColumn\" (在 \"editor.wordWrapColumn\" 处换行)或\\n - \"bounded\" (在最小视区和 \"editor.wordWrapColumn\" 处换行)。",
+	"wordWrap": "控制换行方式。可以选择：\n - “off” (禁用换行)，\n - “on” (视区换行)，\n - “wordWrapColumn” (在 \"editor.wordWrapColumn\" 处换行`) 或\n - “bounded” (在视区和 \"editor.wordWrapColumn\" 中的最小值处换行)。",
 	"wordWrapColumn": "在 \"editor.wordWrap\" 为 \"wordWrapColumn\" 或 \"bounded\" 时控制编辑器列的换行。",
 	"wrappingIndent": "控制换行的行的缩进。可以是\\\\\"none\\\\\"、 \\\\\"same\\\\\" 或 \\\\\"indent\\\\\"。",
 	"mouseWheelScrollSensitivity": "要对鼠标滚轮滚动事件的 \"deltaX\" 和 \"deltaY\" 使用的乘数 ",

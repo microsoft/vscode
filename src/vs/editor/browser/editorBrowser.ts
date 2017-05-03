@@ -11,9 +11,9 @@ import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instant
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
-import { OverviewRulerZone } from "vs/editor/common/view/overviewZoneManager";
-import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.

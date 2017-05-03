@@ -11,6 +11,7 @@
 	"findInFiles": "Buscar en archivos",
 	"openAnythingHandlerDescription": "Ir al archivo",
 	"openSymbolDescriptionNormal": "Ir al símbolo en el área de trabajo",
+	"searchOutputChannelTitle": "Buscar",
 	"searchConfigurationTitle": "Buscar",
 	"exclude": "Configure patrones globales para excluir archivos y carpetas de las búsquedas. Hereda todos los patrones globales de la configuración files.exclude.",
 	"exclude.boolean": "El patrón global con el que se harán coincidir las rutas de acceso de los archivos. Establézcalo en true o false para habilitarlo o deshabilitarlo.",

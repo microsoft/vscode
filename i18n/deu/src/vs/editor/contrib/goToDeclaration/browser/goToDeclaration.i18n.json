@@ -12,10 +12,12 @@
 	"actions.previewDecl.label": "Peek-Definition",
 	"goToImplementation.noResultWord": "Keine Implementierung gefunden für \"{0}\"",
 	"goToImplementation.generic.noResults": "Keine Implementierung gefunden",
+	"meta.implementations.title": "{0} Implementierungen",
 	"actions.goToImplementation.label": "Zur Implementierung wechseln",
 	"actions.peekImplementation.label": "Vorschau der Implementierung anzeigen",
 	"goToTypeDefinition.noResultWord": "Keine Typendefinition gefunden für \"{0}\"",
 	"goToTypeDefinition.generic.noResults": "Keine Typendefinition gefunden",
+	"meta.typeDefinitions.title": "{0} Typdefinitionen",
 	"actions.goToTypeDefinition.label": "Zur Typdefinition wechseln",
 	"actions.peekTypeDefinition.label": "Vorschau der Typdefinition anzeigen",
 	"multipleResults": "Klicken Sie, um {0} Definitionen anzuzeigen."

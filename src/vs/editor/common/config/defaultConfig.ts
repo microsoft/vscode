@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export interface IConfiguration {
 	editor: IEditorOptions;
@@ -106,6 +106,7 @@ class ConfigClass implements IConfiguration {
 			codeLens: true,
 			referenceInfos: true,
 			folding: true,
+			hideFoldIcons: true,
 			renderWhitespace: 'none',
 			renderControlCharacters: false,
 			renderIndentGuides: false,

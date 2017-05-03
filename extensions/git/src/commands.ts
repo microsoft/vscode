@@ -6,10 +6,10 @@
 'use strict';
 
 import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState } from 'vscode';
-import { Ref, RefType, Git } from './git';
+import { Ref, RefType, Git, GitErrorCodes } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import * as staging from './staging';
+import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
 import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -243,16 +243,47 @@ export class CommandCenter {
 	}
 
 	@command('git.openFile')
-	async openFile(resource?: Resource): Promise<void> {
-		if (!resource) {
+	async openFile(arg?: Resource | Uri): Promise<void> {
+		let uri: Uri | undefined;
+
+		if (arg instanceof Uri) {
+			if (arg.scheme === 'git') {
+				uri = Uri.file(fromGitUri(arg).path);
+			} else if (arg.scheme === 'file') {
+				uri = arg;
+			}
+		} else {
+			let resource = arg;
+
+			if (!(resource instanceof Resource)) {
+				// can happen when called from a keybinding
+				resource = this.getSCMResource();
+			}
+
+			if (resource) {
+				uri = resource.resourceUri;
+			}
+		}
+
+		if (!uri) {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', resource.resourceUri);
+		return await commands.executeCommand<void>('vscode.open', uri);
 	}
 
 	@command('git.openChange')
-	async openChange(resource?: Resource): Promise<void> {
+	async openChange(arg?: Resource | Uri): Promise<void> {
+		let resource: Resource | undefined = undefined;
+
+		if (arg instanceof Resource) {
+			resource = arg;
+		} else if (arg instanceof Uri) {
+			resource = this.getSCMResource(arg);
+		} else {
+			resource = this.getSCMResource();
+		}
+
 		if (!resource) {
 			return;
 		}
@@ -263,28 +294,27 @@ export class CommandCenter {
 	@command('git.openFileFromUri')
 	async openFileFromUri(uri?: Uri): Promise<void> {
 		const resource = this.getSCMResource(uri);
+		let uriToOpen: Uri | undefined;
 
-		if (!resource) {
+		if (resource) {
+			uriToOpen = resource.resourceUri;
+		} else if (uri && uri.scheme === 'git') {
+			const { path } = fromGitUri(uri);
+			uriToOpen = Uri.file(path);
+		} else if (uri && uri.scheme === 'file') {
+			uriToOpen = uri;
+		}
+
+		if (!uriToOpen) {
 			return;
 		}
 
-		return await commands.executeCommand<void>('vscode.open', resource.resourceUri);
-	}
-
-	@command('git.openChangeFromUri')
-	async openChangeFromUri(uri?: Uri): Promise<void> {
-		const resource = this.getSCMResource(uri);
-
-		if (!resource) {
-			return;
-		}
-
-		return await this._openResource(resource);
+		return await commands.executeCommand<void>('vscode.open', uriToOpen);
 	}
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		if (resourceStates.length === 0) {
+		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
 			if (!resource) {
@@ -326,20 +356,17 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selections = textEditor.selections;
-		const selectedDiffs = diffs.filter(diff => {
-			const modifiedRange = diff.modifiedEndLineNumber === 0
-				? new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.end, modifiedDocument.lineAt(diff.modifiedStartLineNumber).range.start)
-				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
-
-			return selections.some(selection => !!selection.intersection(modifiedRange));
-		});
+		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+		const selectedDiffs = diffs
+			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
+			.filter(d => !!d) as LineChange[];
 
 		if (!selectedDiffs.length) {
 			return;
 		}
 
-		const result = staging.applyChanges(originalDocument, modifiedDocument, selectedDiffs);
+		const result = applyLineChanges(originalDocument, modifiedDocument, selectedDiffs);
+
 		await this.model.stage(modifiedUri, result);
 	}
 
@@ -382,7 +409,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const result = staging.applyChanges(originalDocument, modifiedDocument, selectedDiffs);
+		const result = applyLineChanges(originalDocument, modifiedDocument, selectedDiffs);
 		const edit = new WorkspaceEdit();
 		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
 		workspace.applyEdit(edit);
@@ -390,7 +417,7 @@ export class CommandCenter {
 
 	@command('git.unstage')
 	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		if (resourceStates.length === 0) {
+		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
 			if (!resource) {
@@ -426,39 +453,36 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const modifiedUri = modifiedDocument.uri;
 
-		if (modifiedUri.scheme !== 'git' || modifiedUri.query !== '') {
+		if (modifiedUri.scheme !== 'git') {
+			return;
+		}
+
+		const { ref } = fromGitUri(modifiedUri);
+
+		if (ref !== '') {
 			return;
 		}
 
 		const originalUri = toGitUri(modifiedUri, 'HEAD');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selections = textEditor.selections;
-		const selectedDiffs = diffs.filter(diff => {
-			const modifiedRange = diff.modifiedEndLineNumber === 0
-				? new Range(diff.modifiedStartLineNumber - 1, 0, diff.modifiedStartLineNumber - 1, 0)
-				: new Range(modifiedDocument.lineAt(diff.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(diff.modifiedEndLineNumber - 1).range.end);
-
-			return selections.some(selection => !!selection.intersection(modifiedRange));
-		});
+		const selectedLines = toLineRanges(textEditor.selections, modifiedDocument);
+		const selectedDiffs = diffs
+			.map(diff => selectedLines.reduce<LineChange | null>((result, range) => result || intersectDiffWithRange(modifiedDocument, diff, range), null))
+			.filter(d => !!d) as LineChange[];
 
 		if (!selectedDiffs.length) {
 			return;
 		}
 
-		const invertedDiffs = selectedDiffs.map(c => ({
-			modifiedStartLineNumber: c.originalStartLineNumber,
-			modifiedEndLineNumber: c.originalEndLineNumber,
-			originalStartLineNumber: c.modifiedStartLineNumber,
-			originalEndLineNumber: c.modifiedEndLineNumber
-		}));
+		const invertedDiffs = selectedDiffs.map(invertLineChange);
+		const result = applyLineChanges(modifiedDocument, originalDocument, invertedDiffs);
 
-		const result = staging.applyChanges(modifiedDocument, originalDocument, invertedDiffs);
 		await this.model.stage(modifiedUri, result);
 	}
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		if (resourceStates.length === 0) {
+		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
 			const resource = this.getSCMResource();
 
 			if (!resource) {
@@ -491,8 +515,8 @@ export class CommandCenter {
 
 	@command('git.cleanAll')
 	async cleanAll(): Promise<void> {
-		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes?");
-		const yes = localize('discard', "Discard Changes");
+		const message = localize('confirm discard all', "Are you sure you want to discard ALL changes? This is IRREVERSIBLE!");
+		const yes = localize('discardAll', "Discard ALL Changes");
 		const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 		if (pick !== yes) {
@@ -503,7 +527,7 @@ export class CommandCenter {
 	}
 
 	private async smartCommit(
-		getCommitMessage: () => Promise<string>,
+		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
 		if (!opts) {
@@ -623,7 +647,11 @@ export class CommandCenter {
 	}
 
 	@command('git.checkout')
-	async checkout(): Promise<void> {
+	async checkout(treeish: string): Promise<void> {
+		if (typeof treeish === 'string') {
+			return await this.model.checkout(treeish);
+		}
+
 		const config = workspace.getConfiguration('git');
 		const checkoutType = config.get<string>('checkoutType') || 'all';
 		const includeTags = checkoutType === 'all' || checkoutType === 'tags';
@@ -795,8 +823,11 @@ export class CommandCenter {
 				let message: string;
 
 				switch (err.gitErrorCode) {
-					case 'DirtyWorkTree':
+					case GitErrorCodes.DirtyWorkTree:
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
+						break;
+					case GitErrorCodes.PushRejected:
+						message = localize('cant push', "Can't push refs to remote. Run 'Pull' first to integrate your changes.");
 						break;
 					default:
 						const hint = (err.stderr || err.message || String(err))
