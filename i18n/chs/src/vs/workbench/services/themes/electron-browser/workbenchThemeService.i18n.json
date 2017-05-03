@@ -26,5 +26,7 @@
 	"iconTheme": "Specifies the icon theme used in the workbench.",
 	"noIconThemeDesc": "No file icons",
 	"iconThemeError": "File icon theme is unknown or not installed.",
-	"workbenchColors": "覆盖当前所选颜色主题的颜色。 此为实验性设置，因为下一版本中将更改颜色名称。"
+	"workbenchColors": "覆盖当前所选颜色主题的颜色。",
+	"workbenchColors.deprecated": "该设置不再是实验性设置，并已重命名为“workbench.colorCustomizations”",
+	"workbenchColors.deprecatedDescription": "改用“workbench.colorCustomizations”"
 }

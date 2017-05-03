@@ -34,6 +34,7 @@
 	"editConditionalBreakpoint": "编辑断点...",
 	"setValue": "设置值",
 	"addWatchExpression": "添加表达式",
+	"editWatchExpression": "编辑表达式",
 	"addToWatchExpressions": "添加到监视",
 	"removeWatchExpression": "删除表达式",
 	"removeAllWatchExpressions": "删除所有表达式",

@@ -14,5 +14,7 @@
 	"noIconThemeDesc": "Désactiver les icônes de fichiers",
 	"problemChangingIconTheme": "Problème de définition du thème d'icône : {0}",
 	"themes.selectIconTheme": "Sélectionner un thème d'icône de fichier",
-	"preferences": "Préférences"
+	"generateColorTheme.label": "Générer le thème de couleur à partir des paramètres actuels",
+	"preferences": "Préférences",
+	"developer": "Développeur"
 }

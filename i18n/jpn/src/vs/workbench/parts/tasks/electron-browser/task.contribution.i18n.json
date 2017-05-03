@@ -9,6 +9,7 @@
 	"ConfigureTaskRunnerAction.quickPick.template": "タスク ランナーを選択",
 	"ConfigureTaskRunnerAction.autoDetecting": "{0} のタスクを自動検出",
 	"ConfigureTaskRunnerAction.autoDetect": "タスク システムの自動検出が失敗しました。既定のテンプレートを使用しています。詳細については、タスク出力を参照してください",
+	"ConfigureTaskRunnerAction.autoDetectError": "タスク システムの自動検出でエラーが発生しました。詳細については、タスク出力を参照してください。",
 	"ConfigureTaskRunnerAction.failed": "'.vscode' フォルダー内に 'tasks.json' ファイルを作成できません。詳細については、タスク出力を参照してください。",
 	"ConfigureTaskRunnerAction.label": "タスク ランナーの構成",
 	"ConfigureBuildTaskAction.label": "ビルド タスクを構成します",

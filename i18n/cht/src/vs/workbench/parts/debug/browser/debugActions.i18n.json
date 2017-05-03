@@ -34,6 +34,7 @@
 	"editConditionalBreakpoint": "編輯中斷點...",
 	"setValue": "設定值",
 	"addWatchExpression": "加入運算式",
+	"editWatchExpression": "編輯運算式",
 	"addToWatchExpressions": "加入監看",
 	"removeWatchExpression": "移除運算式",
 	"removeAllWatchExpressions": "移除所有運算式",
