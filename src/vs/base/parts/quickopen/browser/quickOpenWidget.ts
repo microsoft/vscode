@@ -279,11 +279,12 @@ export class QuickOpenWidget implements IModelProvider {
 					// Select element when keys are pressed that signal it
 					const quickNavKeys = this.quickNavigateConfiguration.keybindings;
 					const wasTriggerKeyPressed = keyCode === KeyCode.Enter || quickNavKeys.some((k) => {
-						if (k.isChord()) {
+						const [firstPart, chordPart] = k.getParts();
+						if (chordPart) {
 							return false;
 						}
 
-						if (k.hasShiftModifier() && keyCode === KeyCode.Shift) {
+						if (firstPart.shiftKey && keyCode === KeyCode.Shift) {
 							if (keyboardEvent.ctrlKey || keyboardEvent.altKey || keyboardEvent.metaKey) {
 								return false; // this is an optimistic check for the shift key being used to navigate back in quick open
 							}
@@ -291,15 +292,15 @@ export class QuickOpenWidget implements IModelProvider {
 							return true;
 						}
 
-						if (k.hasAltModifier() && keyCode === KeyCode.Alt) {
+						if (firstPart.altKey && keyCode === KeyCode.Alt) {
 							return true;
 						}
 
-						if (k.hasCtrlModifier() && keyCode === KeyCode.Ctrl) {
+						if (firstPart.ctrlKey && keyCode === KeyCode.Ctrl) {
 							return true;
 						}
 
-						if (k.hasMetaModifier() && keyCode === KeyCode.Meta) {
+						if (firstPart.metaKey && keyCode === KeyCode.Meta) {
 							return true;
 						}
 

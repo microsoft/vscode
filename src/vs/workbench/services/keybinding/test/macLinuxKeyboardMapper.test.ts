@@ -67,16 +67,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⌘A',
 				ariaLabel: 'Command+A',
-				labelWithoutModifiers: 'A',
-				ariaLabelWithoutModifiers: 'A',
 				electronAccelerator: 'Cmd+A',
 				userSettingsLabel: 'cmd+a',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: ['meta+[KeyA]', null],
 			}]
 		);
@@ -88,16 +82,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⌘B',
 				ariaLabel: 'Command+B',
-				labelWithoutModifiers: 'B',
-				ariaLabelWithoutModifiers: 'B',
 				electronAccelerator: 'Cmd+B',
 				userSettingsLabel: 'cmd+b',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: ['meta+[KeyB]', null],
 			}]
 		);
@@ -109,16 +97,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⌘Z',
 				ariaLabel: 'Command+Z',
-				labelWithoutModifiers: 'Z',
-				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Cmd+Z',
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: ['meta+[KeyY]', null],
 			}]
 		);
@@ -138,16 +120,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			{
 				label: '⌘Z',
 				ariaLabel: 'Command+Z',
-				labelWithoutModifiers: 'Z',
-				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Cmd+Z',
 				userSettingsLabel: 'cmd+z',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: ['meta+[KeyY]', null],
 			}
 		);
@@ -159,16 +135,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⌃⌥⌘6',
 				ariaLabel: 'Control+Alt+Command+6',
-				labelWithoutModifiers: '6',
-				ariaLabelWithoutModifiers: '6',
 				electronAccelerator: 'Ctrl+Alt+Cmd+6',
 				userSettingsLabel: 'ctrl+alt+cmd+6',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: true,
-				hasMetaModifier: true,
 				dispatchParts: ['ctrl+alt+meta+[Digit6]', null],
 			}]
 		);
@@ -188,16 +158,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			{
 				label: '⌘¨',
 				ariaLabel: 'Command+¨',
-				labelWithoutModifiers: '¨',
-				ariaLabelWithoutModifiers: '¨',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+[BracketRight]',
 				isWYSIWYG: false,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: ['meta+[BracketRight]', null],
 			}
 		);
@@ -209,16 +173,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⌃⌥9',
 				ariaLabel: 'Control+Alt+9',
-				labelWithoutModifiers: '9',
-				ariaLabelWithoutModifiers: '9',
 				electronAccelerator: 'Ctrl+Alt+9',
 				userSettingsLabel: 'ctrl+alt+9',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: true,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+alt+[Digit9]', null],
 			}]
 		);
@@ -230,16 +188,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⇧⌘7',
 				ariaLabel: 'Shift+Command+7',
-				labelWithoutModifiers: '7',
-				ariaLabelWithoutModifiers: '7',
 				electronAccelerator: 'Shift+Cmd+7',
 				userSettingsLabel: 'shift+cmd+7',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: true,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: ['shift+meta+[Digit7]', null],
 			}]
 		);
@@ -251,16 +203,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⇧⌘\'',
 				ariaLabel: 'Shift+Command+\'',
-				labelWithoutModifiers: '\'',
-				ariaLabelWithoutModifiers: '\'',
 				electronAccelerator: null,
 				userSettingsLabel: 'shift+cmd+[Minus]',
 				isWYSIWYG: false,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: true,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: ['shift+meta+[Minus]', null],
 			}]
 		);
@@ -272,16 +218,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⌘K ⌃⇧⌥⌘7',
 				ariaLabel: 'Command+K Control+Shift+Alt+Command+7',
-				labelWithoutModifiers: 'K 7',
-				ariaLabelWithoutModifiers: 'K 7',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+k ctrl+shift+alt+cmd+7',
 				isWYSIWYG: true,
 				isChord: true,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['meta+[KeyK]', 'ctrl+shift+alt+meta+[Digit7]'],
 			}]
 		);
@@ -293,16 +233,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⌘K ⇧⌘0',
 				ariaLabel: 'Command+K Shift+Command+0',
-				labelWithoutModifiers: 'K 0',
-				ariaLabelWithoutModifiers: 'K 0',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+k shift+cmd+0',
 				isWYSIWYG: true,
 				isChord: true,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['meta+[KeyK]', 'shift+meta+[Digit0]'],
 			}]
 		);
@@ -314,16 +248,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⌘↓',
 				ariaLabel: 'Command+DownArrow',
-				labelWithoutModifiers: '↓',
-				ariaLabelWithoutModifiers: 'DownArrow',
 				electronAccelerator: 'Cmd+Down',
 				userSettingsLabel: 'cmd+down',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: ['meta+[ArrowDown]', null],
 			}]
 		);
@@ -335,16 +263,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⌘NumPad0',
 				ariaLabel: 'Command+NumPad0',
-				labelWithoutModifiers: 'NumPad0',
-				ariaLabelWithoutModifiers: 'NumPad0',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+numpad0',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: ['meta+[Numpad0]', null],
 			}]
 		);
@@ -356,16 +278,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⌘Home',
 				ariaLabel: 'Command+Home',
-				labelWithoutModifiers: 'Home',
-				ariaLabelWithoutModifiers: 'Home',
 				electronAccelerator: 'Cmd+Home',
 				userSettingsLabel: 'cmd+home',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: ['meta+[Home]', null],
 			}]
 		);
@@ -385,16 +301,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			{
 				label: '⌘Home',
 				ariaLabel: 'Command+Home',
-				labelWithoutModifiers: 'Home',
-				ariaLabelWithoutModifiers: 'Home',
 				electronAccelerator: 'Cmd+Home',
 				userSettingsLabel: 'cmd+home',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: ['meta+[Home]', null],
 			}
 		);
@@ -408,16 +318,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			[{
 				label: '⌘, ⇧⌘7',
 				ariaLabel: 'Command+, Shift+Command+7',
-				labelWithoutModifiers: ', 7',
-				ariaLabelWithoutModifiers: ', 7',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+[Comma] shift+cmd+7',
 				isWYSIWYG: false,
 				isChord: true,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['meta+[Comma]', 'shift+meta+[Digit7]'],
 			}]
 		);
@@ -437,16 +341,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			{
 				label: '⌘',
 				ariaLabel: 'Command+',
-				labelWithoutModifiers: '',
-				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: [null, null],
 			}
 		);
@@ -466,16 +364,10 @@ suite('keyboardMapper - MAC de_ch', () => {
 			{
 				label: '⌘',
 				ariaLabel: 'Command+',
-				labelWithoutModifiers: '',
-				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: [null, null],
 			}
 		);
@@ -505,16 +397,10 @@ suite('keyboardMapper - MAC en_us', () => {
 			[{
 				label: '⌘, ⌘/',
 				ariaLabel: 'Command+, Command+/',
-				labelWithoutModifiers: ', /',
-				ariaLabelWithoutModifiers: ', /',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+, cmd+/',
 				isWYSIWYG: true,
 				isChord: true,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['meta+[Comma]', 'meta+[Slash]'],
 			}]
 		);
@@ -534,16 +420,10 @@ suite('keyboardMapper - MAC en_us', () => {
 			{
 				label: '⌘',
 				ariaLabel: 'Command+',
-				labelWithoutModifiers: '',
-				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: [null, null],
 			}
 		);
@@ -563,16 +443,10 @@ suite('keyboardMapper - MAC en_us', () => {
 			{
 				label: '⌘',
 				ariaLabel: 'Command+',
-				labelWithoutModifiers: '',
-				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'cmd+',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: true,
 				dispatchParts: [null, null],
 			}
 		);
@@ -623,16 +497,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			[{
 				label: 'Ctrl+A',
 				ariaLabel: 'Control+A',
-				labelWithoutModifiers: 'A',
-				ariaLabelWithoutModifiers: 'A',
 				electronAccelerator: 'Ctrl+A',
 				userSettingsLabel: 'ctrl+a',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[KeyA]', null],
 			}]
 		);
@@ -644,16 +512,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			[{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
-				labelWithoutModifiers: 'Z',
-				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[KeyY]', null],
 			}]
 		);
@@ -673,16 +535,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
-				labelWithoutModifiers: 'Z',
-				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[KeyY]', null],
 			}
 		);
@@ -709,16 +565,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			{
 				label: 'Ctrl+¨',
 				ariaLabel: 'Control+¨',
-				labelWithoutModifiers: '¨',
-				ariaLabelWithoutModifiers: '¨',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+[BracketRight]',
 				isWYSIWYG: false,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[BracketRight]', null],
 			}
 		);
@@ -730,30 +580,18 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			[{
 				label: 'Ctrl+Alt+0',
 				ariaLabel: 'Control+Alt+0',
-				labelWithoutModifiers: '0',
-				ariaLabelWithoutModifiers: '0',
 				electronAccelerator: 'Ctrl+Alt+0',
 				userSettingsLabel: 'ctrl+alt+0',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: true,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+alt+[Digit0]', null],
 			}, {
 				label: 'Ctrl+Alt+$',
 				ariaLabel: 'Control+Alt+$',
-				labelWithoutModifiers: '$',
-				ariaLabelWithoutModifiers: '$',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+alt+[Backslash]',
 				isWYSIWYG: false,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: true,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+alt+[Backslash]', null],
 			}]
 		);
@@ -765,16 +603,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			[{
 				label: 'Ctrl+Shift+7',
 				ariaLabel: 'Control+Shift+7',
-				labelWithoutModifiers: '7',
-				ariaLabelWithoutModifiers: '7',
 				electronAccelerator: 'Ctrl+Shift+7',
 				userSettingsLabel: 'ctrl+shift+7',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: true,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+shift+[Digit7]', null],
 			}]
 		);
@@ -786,16 +618,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			[{
 				label: 'Ctrl+Shift+\'',
 				ariaLabel: 'Control+Shift+\'',
-				labelWithoutModifiers: '\'',
-				ariaLabelWithoutModifiers: '\'',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+shift+[Minus]',
 				isWYSIWYG: false,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: true,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+shift+[Minus]', null],
 			}]
 		);
@@ -814,16 +640,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			[{
 				label: 'Ctrl+K Ctrl+Shift+0',
 				ariaLabel: 'Control+K Control+Shift+0',
-				labelWithoutModifiers: 'K 0',
-				ariaLabelWithoutModifiers: 'K 0',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+shift+0',
 				isWYSIWYG: true,
 				isChord: true,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[KeyK]', 'ctrl+shift+[Digit0]'],
 			}]
 		);
@@ -835,16 +655,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			[{
 				label: 'Ctrl+DownArrow',
 				ariaLabel: 'Control+DownArrow',
-				labelWithoutModifiers: 'DownArrow',
-				ariaLabelWithoutModifiers: 'DownArrow',
 				electronAccelerator: 'Ctrl+Down',
 				userSettingsLabel: 'ctrl+down',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[ArrowDown]', null],
 			}]
 		);
@@ -856,16 +670,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			[{
 				label: 'Ctrl+NumPad0',
 				ariaLabel: 'Control+NumPad0',
-				labelWithoutModifiers: 'NumPad0',
-				ariaLabelWithoutModifiers: 'NumPad0',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+numpad0',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Numpad0]', null],
 			}]
 		);
@@ -877,16 +685,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			[{
 				label: 'Ctrl+Home',
 				ariaLabel: 'Control+Home',
-				labelWithoutModifiers: 'Home',
-				ariaLabelWithoutModifiers: 'Home',
 				electronAccelerator: 'Ctrl+Home',
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Home]', null],
 			}]
 		);
@@ -906,16 +708,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			{
 				label: 'Ctrl+Home',
 				ariaLabel: 'Control+Home',
-				labelWithoutModifiers: 'Home',
-				ariaLabelWithoutModifiers: 'Home',
 				electronAccelerator: 'Ctrl+Home',
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Home]', null],
 			}
 		);
@@ -935,16 +731,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			{
 				label: 'Ctrl+X',
 				ariaLabel: 'Control+X',
-				labelWithoutModifiers: 'X',
-				ariaLabelWithoutModifiers: 'X',
 				electronAccelerator: 'Ctrl+X',
 				userSettingsLabel: 'ctrl+x',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[KeyX]', null],
 			}
 		);
@@ -958,16 +748,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			[{
 				label: 'Ctrl+, Ctrl+Shift+7',
 				ariaLabel: 'Control+, Control+Shift+7',
-				labelWithoutModifiers: ', 7',
-				ariaLabelWithoutModifiers: ', 7',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+[Comma] ctrl+shift+7',
 				isWYSIWYG: false,
 				isChord: true,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Comma]', 'ctrl+shift+[Digit7]'],
 			}]
 		);
@@ -987,16 +771,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			{
 				label: 'Ctrl+',
 				ariaLabel: 'Control+',
-				labelWithoutModifiers: '',
-				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: [null, null],
 			}
 		);
@@ -1016,16 +794,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 			{
 				label: 'Ctrl+',
 				ariaLabel: 'Control+',
-				labelWithoutModifiers: '',
-				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: [null, null],
 			}
 		);
@@ -1057,16 +829,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+A',
 				ariaLabel: 'Control+A',
-				labelWithoutModifiers: 'A',
-				ariaLabelWithoutModifiers: 'A',
 				electronAccelerator: 'Ctrl+A',
 				userSettingsLabel: 'ctrl+a',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[KeyA]', null],
 			}]
 		);
@@ -1078,16 +844,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
-				labelWithoutModifiers: 'Z',
-				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[KeyZ]', null],
 			}]
 		);
@@ -1107,16 +867,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			{
 				label: 'Ctrl+Z',
 				ariaLabel: 'Control+Z',
-				labelWithoutModifiers: 'Z',
-				ariaLabelWithoutModifiers: 'Z',
 				electronAccelerator: 'Ctrl+Z',
 				userSettingsLabel: 'ctrl+z',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[KeyZ]', null],
 			}
 		);
@@ -1128,16 +882,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+]',
 				ariaLabel: 'Control+]',
-				labelWithoutModifiers: ']',
-				ariaLabelWithoutModifiers: ']',
 				electronAccelerator: 'Ctrl+]',
 				userSettingsLabel: 'ctrl+]',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[BracketRight]', null],
 			}]
 		);
@@ -1157,16 +905,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			{
 				label: 'Ctrl+]',
 				ariaLabel: 'Control+]',
-				labelWithoutModifiers: ']',
-				ariaLabelWithoutModifiers: ']',
 				electronAccelerator: 'Ctrl+]',
 				userSettingsLabel: 'ctrl+]',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[BracketRight]', null],
 			}
 		);
@@ -1178,16 +920,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Shift+]',
 				ariaLabel: 'Shift+]',
-				labelWithoutModifiers: ']',
-				ariaLabelWithoutModifiers: ']',
 				electronAccelerator: 'Shift+]',
 				userSettingsLabel: 'shift+]',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: false,
-				hasShiftModifier: true,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['shift+[BracketRight]', null],
 			}]
 		);
@@ -1199,16 +935,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+/',
 				ariaLabel: 'Control+/',
-				labelWithoutModifiers: '/',
-				ariaLabelWithoutModifiers: '/',
 				electronAccelerator: 'Ctrl+/',
 				userSettingsLabel: 'ctrl+/',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Slash]', null],
 			}]
 		);
@@ -1220,16 +950,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+Shift+/',
 				ariaLabel: 'Control+Shift+/',
-				labelWithoutModifiers: '/',
-				ariaLabelWithoutModifiers: '/',
 				electronAccelerator: 'Ctrl+Shift+/',
 				userSettingsLabel: 'ctrl+shift+/',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: true,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+shift+[Slash]', null],
 			}]
 		);
@@ -1241,16 +965,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+K Ctrl+\\',
 				ariaLabel: 'Control+K Control+\\',
-				labelWithoutModifiers: 'K \\',
-				ariaLabelWithoutModifiers: 'K \\',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+\\',
 				isWYSIWYG: true,
 				isChord: true,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[KeyK]', 'ctrl+[Backslash]'],
 			}]
 		);
@@ -1262,16 +980,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+K Ctrl+=',
 				ariaLabel: 'Control+K Control+=',
-				labelWithoutModifiers: 'K =',
-				ariaLabelWithoutModifiers: 'K =',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+k ctrl+=',
 				isWYSIWYG: true,
 				isChord: true,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[KeyK]', 'ctrl+[Equal]'],
 			}]
 		);
@@ -1283,16 +995,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+DownArrow',
 				ariaLabel: 'Control+DownArrow',
-				labelWithoutModifiers: 'DownArrow',
-				ariaLabelWithoutModifiers: 'DownArrow',
 				electronAccelerator: 'Ctrl+Down',
 				userSettingsLabel: 'ctrl+down',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[ArrowDown]', null],
 			}]
 		);
@@ -1304,16 +1010,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+NumPad0',
 				ariaLabel: 'Control+NumPad0',
-				labelWithoutModifiers: 'NumPad0',
-				ariaLabelWithoutModifiers: 'NumPad0',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+numpad0',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Numpad0]', null],
 			}]
 		);
@@ -1325,16 +1025,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+Home',
 				ariaLabel: 'Control+Home',
-				labelWithoutModifiers: 'Home',
-				ariaLabelWithoutModifiers: 'Home',
 				electronAccelerator: 'Ctrl+Home',
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Home]', null],
 			}]
 		);
@@ -1354,16 +1048,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			{
 				label: 'Ctrl+Home',
 				ariaLabel: 'Control+Home',
-				labelWithoutModifiers: 'Home',
-				ariaLabelWithoutModifiers: 'Home',
 				electronAccelerator: 'Ctrl+Home',
 				userSettingsLabel: 'ctrl+home',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Home]', null],
 			}
 		);
@@ -1375,30 +1063,18 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+Shift+,',
 				ariaLabel: 'Control+Shift+,',
-				labelWithoutModifiers: ',',
-				ariaLabelWithoutModifiers: ',',
 				electronAccelerator: 'Ctrl+Shift+,',
 				userSettingsLabel: 'ctrl+shift+,',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: true,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+shift+[Comma]', null],
 			}, {
 				label: 'Ctrl+<',
 				ariaLabel: 'Control+<',
-				labelWithoutModifiers: '<',
-				ariaLabelWithoutModifiers: '<',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+[IntlBackslash]',
 				isWYSIWYG: false,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[IntlBackslash]', null],
 			}]
 		);
@@ -1410,16 +1086,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+Enter',
 				ariaLabel: 'Control+Enter',
-				labelWithoutModifiers: 'Enter',
-				ariaLabelWithoutModifiers: 'Enter',
 				electronAccelerator: 'Ctrl+Enter',
 				userSettingsLabel: 'ctrl+enter',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Enter]', null],
 			}]
 		);
@@ -1439,16 +1109,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			{
 				label: 'Ctrl+Enter',
 				ariaLabel: 'Control+Enter',
-				labelWithoutModifiers: 'Enter',
-				ariaLabelWithoutModifiers: 'Enter',
 				electronAccelerator: 'Ctrl+Enter',
 				userSettingsLabel: 'ctrl+enter',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Enter]', null],
 			}
 		);
@@ -1462,16 +1126,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+, Ctrl+/',
 				ariaLabel: 'Control+, Control+/',
-				labelWithoutModifiers: ', /',
-				ariaLabelWithoutModifiers: ', /',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+, ctrl+/',
 				isWYSIWYG: true,
 				isChord: true,
-				hasCtrlModifier: false,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Comma]', 'ctrl+[Slash]'],
 			}]
 		);
@@ -1485,16 +1143,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			[{
 				label: 'Ctrl+,',
 				ariaLabel: 'Control+,',
-				labelWithoutModifiers: ',',
-				ariaLabelWithoutModifiers: ',',
 				electronAccelerator: 'Ctrl+,',
 				userSettingsLabel: 'ctrl+,',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Comma]', null],
 			}]
 		);
@@ -1514,16 +1166,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			{
 				label: 'Ctrl+',
 				ariaLabel: 'Control+',
-				labelWithoutModifiers: '',
-				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: [null, null],
 			}
 		);
@@ -1543,16 +1189,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 			{
 				label: 'Ctrl+',
 				ariaLabel: 'Control+',
-				labelWithoutModifiers: '',
-				ariaLabelWithoutModifiers: '',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: [null, null],
 			}
 		);
@@ -1584,16 +1224,10 @@ suite('keyboardMapper', () => {
 			{
 				label: 'Ctrl+`',
 				ariaLabel: 'Control+`',
-				labelWithoutModifiers: '`',
-				ariaLabelWithoutModifiers: '`',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+`',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Backquote]', null],
 			}
 		);
@@ -1616,16 +1250,10 @@ suite('keyboardMapper', () => {
 				{
 					label: label,
 					ariaLabel: label,
-					labelWithoutModifiers: label,
-					ariaLabelWithoutModifiers: label,
 					electronAccelerator: electronAccelerator,
 					userSettingsLabel: userSettingsLabel,
 					isWYSIWYG: true,
 					isChord: false,
-					hasCtrlModifier: false,
-					hasShiftModifier: false,
-					hasAltModifier: false,
-					hasMetaModifier: false,
 					dispatchParts: [dispatch, null],
 				}
 			);
@@ -1661,16 +1289,10 @@ suite('keyboardMapper', () => {
 				{
 					label: label,
 					ariaLabel: label,
-					labelWithoutModifiers: label,
-					ariaLabelWithoutModifiers: label,
 					electronAccelerator: electronAccelerator,
 					userSettingsLabel: userSettingsLabel,
 					isWYSIWYG: true,
 					isChord: false,
-					hasCtrlModifier: false,
-					hasShiftModifier: false,
-					hasAltModifier: false,
-					hasMetaModifier: false,
 					dispatchParts: [dispatch, null],
 				}
 			);
@@ -1730,16 +1352,10 @@ suite('keyboardMapper', () => {
 			{
 				label: '⌃§',
 				ariaLabel: 'Control+§',
-				labelWithoutModifiers: '§',
-				ariaLabelWithoutModifiers: '§',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+[IntlBackslash]',
 				isWYSIWYG: false,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[IntlBackslash]', null],
 			}
 		);
@@ -1757,16 +1373,10 @@ suite('keyboardMapper', () => {
 			{
 				label: '⌃`',
 				ariaLabel: 'Control+`',
-				labelWithoutModifiers: '`',
-				ariaLabelWithoutModifiers: '`',
 				electronAccelerator: null,
 				userSettingsLabel: 'ctrl+`',
 				isWYSIWYG: true,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[Backquote]', null],
 			}
 		);
@@ -1799,16 +1409,10 @@ suite('keyboardMapper - LINUX ru', () => {
 			[{
 				label: 'Ctrl+ы',
 				ariaLabel: 'Control+ы',
-				labelWithoutModifiers: 'ы',
-				ariaLabelWithoutModifiers: 'ы',
 				electronAccelerator: 'Ctrl+S',
 				userSettingsLabel: 'ctrl+s',
 				isWYSIWYG: false,
 				isChord: false,
-				hasCtrlModifier: true,
-				hasShiftModifier: false,
-				hasAltModifier: false,
-				hasMetaModifier: false,
 				dispatchParts: ['ctrl+[KeyS]', null],
 			}]
 		);
