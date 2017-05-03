@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "semver": "4.3.6",
-    "vscode-extension-telemetry": "^0.0.6",
+    "vscode-extension-telemetry": "^0.0.7",
     "vscode-nls": "^2.0.1"
   },
   "devDependencies": {
@@ -34,12 +34,9 @@
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
-    "onCommand:typescript.openTsServerLog",
-    "workspaceContains:jsconfig.json",
-    "workspaceContains:tsconfig.json"
+    "onCommand:typescript.openTsServerLog"
   ],
   "main": "./out/typescriptMain",
-  "enableProposedApi": true,
   "contributes": {
     "languages": [
       {
@@ -104,6 +101,11 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.check.tscVersion%"
+        },
+        "typescript.check.npmIsInstalled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.check.npmIsInstalled%"
         },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
@@ -191,6 +193,11 @@
           "default": false,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
         },
+        "typescript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%"
+        },
         "typescript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
           "type": "boolean",
           "default": false,
@@ -261,6 +268,11 @@
           "default": false,
           "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%"
         },
+        "javascript.format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": {
+          "type": "boolean",
+          "default": true,
+          "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%"
+        },
         "javascript.format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": {
           "type": "boolean",
           "default": false,
@@ -285,6 +297,11 @@
           "type": "boolean",
           "default": true,
           "description": "%jsDocCompletion.enabled%"
+        },
+        "javascript.implicitProjectConfig.checkJs": {
+          "type": "boolean",
+          "default": false,
+          "description": "%javascript.implicitProjectConfig.checkJs%"
         }
       }
     },
@@ -384,6 +401,14 @@
         "url": "./schemas/tsconfig.schema.json"
       },
       {
+        "fileMatch": "tsconfig.*.json",
+        "url": "http://json.schemastore.org/tsconfig"
+      },
+      {
+        "fileMatch": "tsconfig.*.json",
+        "url": "./schemas/tsconfig.schema.json"
+      },
+      {
         "fileMatch": "typings.json",
         "url": "http://json.schemastore.org/typings"
       }
@@ -404,14 +429,20 @@
         "name": "tsc",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "${cwd}"],
-	      "pattern": "$tsc"
+        "fileLocation": [
+          "relative",
+          "${cwd}"
+        ],
+        "pattern": "$tsc"
       },
       {
         "name": "tsc-watch",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "${cwd}"],
+        "fileLocation": [
+          "relative",
+          "${cwd}"
+        ],
         "pattern": "$tsc",
         "watching": {
           "activeOnStart": true,

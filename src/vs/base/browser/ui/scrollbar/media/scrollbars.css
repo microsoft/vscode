@@ -123,7 +123,7 @@
 }
 
 .vs-dark .monaco-scrollable-element .shadow.top {
-	box-shadow: #000 0 6px 6px -6px inset;
+	box-shadow: none;
 }
 
 .vs-dark .monaco-scrollable-element .shadow.left {
@@ -132,4 +132,16 @@
 
 .vs-dark .monaco-scrollable-element .shadow.top.left {
 	box-shadow: #000 6px 6px 6px -6px inset;
+}
+
+.hc-black .monaco-scrollable-element .shadow.top {
+	box-shadow: none;
+}
+
+.hc-black .monaco-scrollable-element .shadow.left {
+	box-shadow: none;
+}
+
+.hc-black .monaco-scrollable-element .shadow.top.left {
+	box-shadow: none;
 }

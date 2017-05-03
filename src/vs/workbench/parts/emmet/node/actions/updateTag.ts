@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import { EmmetEditorAction, EmmetActionContext } from 'vs/workbench/parts/emmet/node/emmetActions';
 
 import { ServicesAccessor, editorAction } from 'vs/editor/common/editorCommonExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IQuickOpenService, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
 
 @editorAction
@@ -20,7 +20,8 @@ class UpdateTagAction extends EmmetEditorAction {
 			id: 'editor.emmet.action.updateTag',
 			label: nls.localize('updateTag', "Emmet: Update Tag"),
 			alias: 'Emmet: Update Tag',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable,
+			actionName: 'update_tag'
 		});
 	}
 

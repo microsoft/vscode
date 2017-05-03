@@ -297,7 +297,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// We need an editor descriptor for the input
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(input);
 		if (!descriptor) {
-			return TPromise.wrapError(new Error(strings.format('Can not find a registered editor for the input {0}', input)));
+			return TPromise.wrapError<BaseEditor>(new Error(strings.format('Can not find a registered editor for the input {0}', input)));
 		}
 
 		// Opened to the side
@@ -453,7 +453,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				return TPromise.as(arg);
 			}
 
-			return TPromise.wrapError(arg);
+			return TPromise.wrapError<BaseEditor | Error>(arg);
 		};
 
 		const instantiateEditorPromise = editorInstantiationService.createInstance(<EditorDescriptor>descriptor).then(onInstantiate, onInstantiate);
@@ -1329,7 +1329,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Respect option to reveal an editor if it is open (not necessarily visible)
 		const skipRevealIfOpen = (options && options.index) || arg1 === true /* open to side */ || typeof arg1 === 'number' /* open specific group */;
-		if (!skipRevealIfOpen && this.revealIfOpen) {
+		if (!skipRevealIfOpen && (this.revealIfOpen || (options && options.revealIfOpened))) {
 			const group = this.stacks.findGroup(input);
 			if (group) {
 				return this.stacks.positionOfGroup(group);

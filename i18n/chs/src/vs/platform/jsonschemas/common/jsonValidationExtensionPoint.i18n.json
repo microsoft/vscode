@@ -7,8 +7,8 @@
 	"contributes.jsonValidation": "用于 json 架构配置。",
 	"contributes.jsonValidation.fileMatch": "要匹配的文件模式，例如 \"package.json\" 或 \"*.launch\"。",
 	"contributes.jsonValidation.url": "到扩展文件夹('./')的架构 URL (\"http:\"、\"https:\")或相对路径。",
-	"invalid.fileMatch": "必须定义 \"configuration.jsonValidation.fileMatch\" ",
 	"invalid.jsonValidation": "configuration.jsonValidation 必须是数组",
+	"invalid.fileMatch": "必须定义 \"configuration.jsonValidation.fileMatch\" ",
 	"invalid.url": "configuration.jsonValidation.url 必须是 URL 或相对路径",
 	"invalid.url.fileschema": "configuration.jsonValidation.url 是无效的相对 URL: {0}",
 	"invalid.url.schema": "configuration.jsonValidation.url 必须以 \"http:\"、\"https:\" 或 \"./\" 开头以引用位于扩展中的架构。"

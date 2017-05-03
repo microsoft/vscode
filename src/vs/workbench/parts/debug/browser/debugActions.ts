@@ -610,6 +610,20 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 }
 
+export class EditWatchExpressionAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.editWatchExpression';
+	static LABEL = nls.localize('editWatchExpression', "Edit Expression");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, undefined, debugService, keybindingService);
+	}
+
+	public run(expression: Expression): TPromise<any> {
+		this.debugService.getViewModel().setSelectedExpression(expression);
+		return TPromise.as(null);
+	}
+}
+
 export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	static ID = 'workbench.debug.viewlet.action.addToWatchExpressions';
 	static LABEL = nls.localize('addToWatchExpressions', "Add to Watch");

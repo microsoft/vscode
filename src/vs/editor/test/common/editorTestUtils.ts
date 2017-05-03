@@ -5,11 +5,11 @@
 'use strict';
 
 import { Model } from 'vs/editor/common/model/model';
-import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModel } from 'vs/editor/common/editorCommon';
+import { IViewModelHelper } from 'vs/editor/common/controller/cursorCommon';
 
 export function withEditorModel(text: string[], callback: (model: Model) => void): void {
 	var model = Model.createFromString(text.join('\n'));
@@ -51,6 +51,13 @@ export function viewModelHelper(model: IModel): IViewModelHelper {
 			},
 		},
 
+		getScrollTop: (): number => 0,
+
 		getCompletelyVisibleViewRange: () => null,
+
+		getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number) => null,
+
+		getVerticalOffsetForViewLineNumber: (viewLineNumber: number) => 0
+
 	};
 }

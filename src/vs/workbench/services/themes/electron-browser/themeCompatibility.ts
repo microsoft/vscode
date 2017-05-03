@@ -57,8 +57,6 @@ addSettingMapping('selectionHighlightColor', colorRegistry.editorSelectionHighli
 addSettingMapping('findMatchHighlight', colorRegistry.editorFindMatchHighlight);
 addSettingMapping('currentFindMatchHighlight', colorRegistry.editorFindMatch);
 addSettingMapping('hoverHighlight', editorHoverHighlight);
-addSettingMapping('hoverHighlight', editorHoverHighlight);
-addSettingMapping('linkForeground', colorRegistry.editorLinkForeground);
 addSettingMapping('wordHighlight', wordHighlighter.editorWordHighlight);
 addSettingMapping('wordHighlightStrong', wordHighlighter.editorWordHighlightStrong);
 addSettingMapping('findRangeHighlight', colorRegistry.editorFindRangeHighlight);

@@ -26,7 +26,7 @@ export class OpenerService implements IOpenerService {
 
 	open(resource: URI, options?: { openToSide?: boolean }): TPromise<any> {
 
-		const {scheme, path, query, fragment} = resource;
+		const { scheme, path, query, fragment } = resource;
 		let promise: TPromise<any>;
 		if (scheme === Schemas.http || scheme === Schemas.https) {
 			// open http

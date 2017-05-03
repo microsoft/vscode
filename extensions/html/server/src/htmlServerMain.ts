@@ -10,6 +10,7 @@ import { TextDocument, Diagnostic, DocumentLink, Range, SymbolInformation } from
 import { getLanguageModes, LanguageModes } from './modes/languageModes';
 
 import { format } from './modes/formatting';
+import { pushAll } from './utils/arrays';
 
 import * as url from 'url';
 import * as path from 'path';
@@ -165,14 +166,6 @@ function validateTextDocument(textDocument: TextDocument): void {
 	connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 }
 
-function pushAll<T>(to: T[], from: T[]) {
-	if (from) {
-		for (var i = 0; i < from.length; i++) {
-			to.push(from[i]);
-		}
-	}
-}
-
 connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
@@ -254,12 +247,16 @@ connection.onDocumentRangeFormatting(formatParams => {
 connection.onDocumentLinks(documentLinkParam => {
 	let document = documents.get(documentLinkParam.textDocument.uri);
 	let documentContext: DocumentContext = {
-		resolveReference: ref => {
+		resolveReference: (ref, base) => {
+			if (base) {
+				ref = url.resolve(base, ref);
+			}
 			if (workspacePath && ref[0] === '/') {
 				return uri.file(path.join(workspacePath, ref)).toString();
 			}
 			return url.resolve(document.uri, ref);
-		}
+		},
+
 	};
 	let links: DocumentLink[] = [];
 	languageModes.getAllModesInDocument(document).forEach(m => {

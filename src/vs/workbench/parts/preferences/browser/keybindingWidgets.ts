@@ -144,7 +144,7 @@ export class DefineKeybindingWidget extends Widget {
 
 	define(): TPromise<string> {
 		this._keybindingInputWidget.reset();
-		return new TPromise((c, e) => {
+		return new TPromise<string>((c, e) => {
 			if (!this._isVisible) {
 				this._isVisible = true;
 				this._domNode.setDisplay('block');

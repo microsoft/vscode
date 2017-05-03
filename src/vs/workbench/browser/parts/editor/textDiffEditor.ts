@@ -14,7 +14,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import types = require('vs/base/common/types');
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/editorCommon';
+import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TextEditorOptions, TextDiffEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IFileEditorInput } from 'vs/workbench/common/editor';
 import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
@@ -163,7 +163,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			this.diffNavigator = new DiffNavigator(diffEditor, {
 				alwaysRevealFirst: autoRevealFirstChange
 			});
-			this.diffNavigator.addListener2(DiffNavigator.Events.UPDATED, () => {
+			this.diffNavigator.addListener(DiffNavigator.Events.UPDATED, () => {
 				this.nextDiffAction.updateEnablement();
 				this.previousDiffAction.updateEnablement();
 			});

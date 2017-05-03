@@ -85,11 +85,14 @@
 	flex-wrap: wrap;
 	overflow: hidden;
 	flex: 1;
+	min-width: 0;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .name {
 	font-weight: bold;
-	min-width: fit-content;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .version {

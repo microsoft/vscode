@@ -26,23 +26,29 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 
 registerSingleton(ITreeExplorerService, TreeExplorerService);
 
-const explorerSchema: IJSONSchema = {
-	description: localize('vscode.extension.contributes.explorer', 'Contributes custom tree explorer viewlet to the sidebar'),
+const viewSchema: IJSONSchema = {
+	description: localize('vscode.extension.contributes.view', 'Contributes custom view'),
 	type: 'object',
 	properties: {
-		treeExplorerNodeProviderId: {
-			description: localize('vscode.extension.contributes.explorer.treeExplorerNodeProviderId', 'Unique id used to identify provider registered through vscode.workspace.registerTreeExplorerNodeProvider'),
+		id: {
+			description: localize('vscode.extension.contributes.view.id', 'Unique id used to identify view created through vscode.workspace.createTreeView'),
 			type: 'string'
 		},
-		treeLabel: {
-			description: localize('vscode.extension.contributes.explorer.treeLabel', 'Human readable string used to render the custom tree explorer'),
+		label: {
+			description: localize('vscode.extension.contributes.view.label', 'Human readable string used to render the view'),
 			type: 'string'
 		},
 		icon: {
-			description: localize('vscode.extension.contributes.explorer.icon', 'Path to the viewlet icon on the activity bar'),
+			description: localize('vscode.extension.contributes.view.icon', 'Path to the view icon'),
 			type: 'string'
 		}
 	}
+};
+
+const viewsSchema: IJSONSchema = {
+	description: localize('vscode.extension.contributes.views', 'Contributes custom views'),
+	type: 'object',
+	items: viewSchema
 };
 
 export class OpenViewletAction extends ToggleViewletAction {
@@ -64,48 +70,48 @@ export class ExtensionExplorersContribtion implements IWorkbenchContribution {
 	}
 
 	public getId(): string {
-		return 'vs.explorers.extensionExplorers';
+		return 'vs.extension.view';
 	}
 
 	private init() {
-		ExtensionsRegistry.registerExtensionPoint<ITreeExplorer>('explorer', [], explorerSchema).setHandler(extensions => {
+		ExtensionsRegistry.registerExtensionPoint<ITreeExplorer[]>('views', [], viewsSchema).setHandler(extensions => {
 			for (let extension of extensions) {
-				const { treeExplorerNodeProviderId, treeLabel, icon } = extension.value;
+				for (const { id, label, icon } of extension.value) {
+					if (!isValidViewletId(id)) {
+						console.warn(`Tree view extension '${label}' has invalid id and failed to activate.`);
+						continue;
+					}
 
-				if (!isValidViewletId(treeExplorerNodeProviderId)) {
-					console.warn(`Tree Explorer extension '${treeLabel}' has invalid id and failed to activate.`);
-					continue;
+					const viewletId = toViewletId(id);
+					const viewletCSSClass = toViewletCSSClass(id);
+
+					// Generate CSS to show the icon in the activity bar
+					if (icon) {
+						const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${viewletCSSClass}`;
+						const iconPath = join(extension.description.extensionFolderPath, icon);
+
+						createCSSRule(iconClass, `-webkit-mask: url('${iconPath}') no-repeat 50% 50%`);
+					}
+
+					// Register action to open the viewlet
+					const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+					registry.registerWorkbenchAction(
+						new SyncActionDescriptor(OpenViewletAction, viewletId, localize('showViewlet', "Show {0}", label)),
+						'View: Show {0}',
+						localize('view', "View")
+					);
+
+					// Register as viewlet
+					Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
+						'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
+						'TreeExplorerViewlet',
+						viewletId,
+						label,
+						viewletCSSClass,
+						-1,
+						extension.description.id
+					));
 				}
-
-				const viewletId = toViewletId(treeExplorerNodeProviderId);
-				const viewletCSSClass = toViewletCSSClass(treeExplorerNodeProviderId);
-
-				// Generate CSS to show the icon in the activity bar
-				if (icon) {
-					const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${viewletCSSClass}`;
-					const iconPath = join(extension.description.extensionFolderPath, icon);
-
-					createCSSRule(iconClass, `background-image: url('${iconPath}')`);
-				}
-
-				// Register action to open the viewlet
-				const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-				registry.registerWorkbenchAction(
-					new SyncActionDescriptor(OpenViewletAction, viewletId, localize('showViewlet', "Show {0}", treeLabel)),
-					'View: Show {0}',
-					localize('view', "View")
-				);
-
-				// Register as viewlet
-				Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-					'vs/workbench/parts/explorers/browser/treeExplorerViewlet',
-					'TreeExplorerViewlet',
-					viewletId,
-					treeLabel,
-					viewletCSSClass,
-					-1,
-					extension.description.id
-				));
 			}
 		});
 	}

@@ -21,6 +21,7 @@ import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol, Command } 
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeLensData, getCodeLensData } from '../common/codelens';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
@@ -227,7 +228,7 @@ class CodeLens {
 		this._data = data;
 		this._decorationIds = new Array<string>(this._data.length);
 
-		let range: editorCommon.IRange;
+		let range: Range;
 		this._data.forEach((codeLensData, i) => {
 
 			helper.addDecoration({
@@ -237,13 +238,13 @@ class CodeLens {
 
 			// the range contains all lenses on this line
 			if (!range) {
-				range = codeLensData.symbol.range;
+				range = Range.lift(codeLensData.symbol.range);
 			} else {
 				range = Range.plusRange(range, codeLensData.symbol.range);
 			}
 		});
 
-		this._contentWidget = new CodeLensContentWidget(editor, Range.lift(range), commandService, messageService);
+		this._contentWidget = new CodeLensContentWidget(editor, range, commandService, messageService);
 		this._viewZone = new CodeLensViewZone(range.startLineNumber - 1, updateCallabck);
 
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
@@ -352,7 +353,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 		this._globalToDispose.push(this._editor.onDidChangeModel(() => this.onModelChange()));
 		this._globalToDispose.push(this._editor.onDidChangeModelLanguage(() => this.onModelChange()));
-		this._globalToDispose.push(this._editor.onDidChangeConfiguration((e: editorCommon.IConfigurationChangedEvent) => {
+		this._globalToDispose.push(this._editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this._editor.getConfiguration().contribInfo.codeLens;
 			if (prevIsEnabled !== this._isEnabled) {
@@ -445,46 +446,39 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		}, 250);
 		this._localToDispose.push(scheduler);
 		this._localToDispose.push(this._detectVisibleLenses);
-		this._localToDispose.push(model.addBulkListener((events) => {
-			let hadChange = false;
-			for (let i = 0; i < events.length; i++) {
-				const eventType = events[i].getType();
-				if (eventType === editorCommon.EventType.ModelRawContentChanged) {
-					hadChange = true;
-					break;
-				}
-			}
-			if (hadChange) {
-				this._editor.changeDecorations((changeAccessor) => {
-					this._editor.changeViewZones((viewAccessor) => {
-						const toDispose: CodeLens[] = [];
-						this._lenses.forEach((lens) => {
-							if (lens.isValid()) {
-								lens.update(viewAccessor);
-							} else {
-								toDispose.push(lens);
-							}
-						});
-
-						let helper = new CodeLensHelper();
-						toDispose.forEach((l) => {
-							l.dispose(helper, viewAccessor);
-							this._lenses.splice(this._lenses.indexOf(l), 1);
-						});
-						helper.commit(changeAccessor);
+		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
+			this._editor.changeDecorations((changeAccessor) => {
+				this._editor.changeViewZones((viewAccessor) => {
+					const toDispose: CodeLens[] = [];
+					this._lenses.forEach((lens) => {
+						if (lens.isValid()) {
+							lens.update(viewAccessor);
+						} else {
+							toDispose.push(lens);
+						}
 					});
-				});
 
-				// Compute new `visible` code lenses
-				this._detectVisibleLenses.schedule();
-				// Ask for all references again
-				scheduler.schedule();
-			}
+					let helper = new CodeLensHelper();
+					toDispose.forEach((l) => {
+						l.dispose(helper, viewAccessor);
+						this._lenses.splice(this._lenses.indexOf(l), 1);
+					});
+					helper.commit(changeAccessor);
+				});
+			});
+
+			// Compute new `visible` code lenses
+			this._detectVisibleLenses.schedule();
+			// Ask for all references again
+			scheduler.schedule();
 		}));
-		this._localToDispose.push(this._editor.onDidScrollChange((e) => {
+		this._localToDispose.push(this._editor.onDidScrollChange(e => {
 			if (e.scrollTopChanged) {
 				this._detectVisibleLenses.schedule();
 			}
+		}));
+		this._localToDispose.push(this._editor.onDidLayoutChange(e => {
+			this._detectVisibleLenses.schedule();
 		}));
 		this._localToDispose.push({
 			dispose: () => {

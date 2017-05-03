@@ -19,7 +19,7 @@ import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel'
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IFileOperationResult, FileOperationResult, FileChangesEvent, IFileService, isEqual } from 'vs/platform/files/common/files';
+import { IFileOperationResult, FileOperationResult, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -123,7 +123,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			const hasInput = !!this.input;
 			const modelDisposed = textFileModel.isDisposed();
-			const inputChanged = hasInput && !isEqual(this.input.getResource().fsPath, textFileModel.getResource().fsPath);
+			const inputChanged = hasInput && this.input.getResource().toString() !== textFileModel.getResource().toString();
 			if (
 				!hasInput ||		// editor got hidden meanwhile
 				modelDisposed || 	// input got disposed meanwhile
@@ -162,7 +162,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Offer to create a file from the error if we have a file not found and the name is valid
 			if ((<IFileOperationResult>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && paths.isValidBasename(paths.basename(input.getResource().fsPath))) {
-				return TPromise.wrapError(errors.create(toErrorMessage(error), {
+				return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
 					actions: [
 						new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), null, true, () => {
 							return this.fileService.updateContent(input.getResource(), '').then(() => {
@@ -182,7 +182,7 @@ export class TextFileEditor extends BaseTextEditor {
 			}
 
 			// Otherwise make sure the error bubbles up
-			return TPromise.wrapError(error);
+			return TPromise.wrapError<void>(error);
 		});
 	}
 

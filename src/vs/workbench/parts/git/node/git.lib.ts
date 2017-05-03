@@ -324,7 +324,7 @@ export class Repository {
 		const child = this.show(object);
 
 		if (!child.stdout) {
-			return TPromise.wrapError(localize('errorBuffer', "Can't open file from git"));
+			return TPromise.wrapError<string>(localize('errorBuffer', "Can't open file from git"));
 		}
 
 		return detectMimesFromStream(child.stdout, null).then(result => {

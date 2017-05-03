@@ -74,7 +74,7 @@ export interface IChoiceService {
 	 * `Cancel` option is returned. If there is no such option then promise with
 	 * `0` index is returned.
 	 */
-	choose(severity: Severity, message: string, options: string[], modal?: boolean): TPromise<number>;
+	choose(severity: Severity, message: string, options: string[], cancelId: number, modal?: boolean): TPromise<number>;
 }
 
 export import Severity = Severity;

@@ -15,8 +15,8 @@ import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { attachSelectBoxStyler } from "vs/platform/theme/common/styler";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
@@ -259,18 +259,19 @@ export class RunSelectedTextInTerminalAction extends Action {
 			return TPromise.as(void 0);
 		}
 		let editor = this.codeEditorService.getFocusedCodeEditor();
-		if (editor) {
-			let selection = editor.getSelection();
-			let text: string;
-			if (selection.isEmpty()) {
-				text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
-			} else {
-				let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
-				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
-			}
-			instance.sendText(text, true);
+		if (!editor) {
+			return TPromise.as(void 0);
 		}
-		return TPromise.as(void 0);
+		let selection = editor.getSelection();
+		let text: string;
+		if (selection.isEmpty()) {
+			text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
+		} else {
+			let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
+		}
+		instance.sendText(text, true);
+		return this.terminalService.showPanel();
 	}
 }
 
@@ -294,15 +295,16 @@ export class RunActiveFileInTerminalAction extends Action {
 			return TPromise.as(void 0);
 		}
 		const editor = this.codeEditorService.getFocusedCodeEditor();
-		if (editor) {
-			const uri = editor.getModel().uri;
-			if (uri.scheme === 'file') {
-				instance.sendText(uri.fsPath, true);
-			} else {
-				this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
-			}
+		if (!editor) {
+			return TPromise.as(void 0);
 		}
-		return TPromise.as(void 0);
+		const uri = editor.getModel().uri;
+		if (uri.scheme !== 'file') {
+			this.messageService.show(Severity.Warning, nls.localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
+			return TPromise.as(void 0);
+		}
+		instance.sendText(uri.fsPath, true);
+		return this.terminalService.showPanel();
 	}
 }
 

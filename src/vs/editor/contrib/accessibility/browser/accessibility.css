@@ -7,19 +7,3 @@
 	padding: 10px;
 	vertical-align: middle;
 }
-
-.monaco-editor .accessibilityHelpWidget {
-	background-color: #EFEFF2;
-	box-shadow: 0 2px 8px #A8A8A8;
-}
-
-.monaco-editor.vs-dark .accessibilityHelpWidget {
-	background-color: #2D2D30;
-	box-shadow: 0 2px 8px #000;
-}
-
-.monaco-editor.hc-black .accessibilityHelpWidget {
-	background-color: #000;
-	box-shadow: none;
-	outline: 2px solid #6FC3DF;
-}

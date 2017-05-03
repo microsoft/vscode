@@ -17,9 +17,9 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IDecorationOptions, IModelDecorationOptions, MouseTargetType, IModelDeltaDecoration, TrackedRangeStickiness, IPosition, Handler } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, Handler } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -35,6 +35,8 @@ import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWid
 import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { IListService } from 'vs/platform/list/browser/listService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Position } from 'vs/editor/common/core/position';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -57,7 +59,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private breakpointHintDecoration: string[];
 	private breakpointWidget: BreakpointWidget;
 	private breakpointWidgetVisible: IContextKey<boolean>;
-	private wordToLineNumbersMap: Map<string, IPosition[]>;
+	private wordToLineNumbersMap: Map<string, Position[]>;
 
 	private exceptionWidget: ExceptionWidget;
 
@@ -73,10 +75,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ICodeEditorService private codeEditorService: ICodeEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IListService listService: IListService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IThemeService themeService: IThemeService
 	) {
 		this.breakpointHintDecoration = [];
-		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, listService, this.instantiationService);
+		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, listService, this.instantiationService, themeService);
 		this.toDispose = [];
 		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
@@ -238,7 +241,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private marginFreeFromNonDebugDecorations(line: number): boolean {
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
-			for (const {options} of decorations) {
+			for (const { options } of decorations) {
 				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf('debug') === -1) {
 					return false;
 				}
@@ -365,7 +368,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
 			focusedSf.thread.exceptionInfo.then(exceptionInfo => {
-				if (exceptionInfo) {
+				if (exceptionInfo && exceptionSf.lineNumber && exceptionSf.column) {
 					this.showExceptionWidget(exceptionInfo, exceptionSf.lineNumber, exceptionSf.column);
 				}
 			});
@@ -402,7 +405,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	public addLaunchConfiguration(): TPromise<any> {
 		this.telemetryService.publicLog('debug/addLaunchConfiguration');
-		let configurationsArrayPosition: IPosition;
+		let configurationsArrayPosition: Position;
 		const model = this.editor.getModel();
 		let depthInArray = 0;
 		let lastProperty: string;
@@ -427,7 +430,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return this.commandService.executeCommand('editor.action.triggerSuggest');
 		}
 
-		const insertLine = (position: IPosition): TPromise<any> => {
+		const insertLine = (position: Position): TPromise<any> => {
 			// Check if there are more characters on a line after a "configurations": [, if yes enter a newline
 			if (this.editor.getModel().getLineLastNonWhitespaceColumn(position.lineNumber) > position.column) {
 				this.editor.setPosition(position);
@@ -556,9 +559,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		};
 	}
 
-	private getWordToPositionsMap(): Map<string, IPosition[]> {
+	private getWordToPositionsMap(): Map<string, Position[]> {
 		if (!this.wordToLineNumbersMap) {
-			this.wordToLineNumbersMap = new Map<string, IPosition[]>();
+			this.wordToLineNumbersMap = new Map<string, Position[]>();
 			const model = this.editor.getModel();
 			// For every word in every line, map its ranges for fast lookup
 			for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
@@ -585,7 +588,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								this.wordToLineNumbersMap.set(word, []);
 							}
 
-							this.wordToLineNumbersMap.get(word).push({ lineNumber, column: token.startOffset });
+							this.wordToLineNumbersMap.get(word).push(new Position(lineNumber, token.startOffset));
 						}
 					}
 				}

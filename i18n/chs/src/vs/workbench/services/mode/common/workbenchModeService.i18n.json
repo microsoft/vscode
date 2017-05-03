@@ -6,11 +6,11 @@
 {
 	"invalid": "无效的“contributes.{0}”。应为数组。",
 	"invalid.empty": "“contributes.{0}”的值为空",
-	"opt.aliases": "属性“{0}”可以省略，其类型必须是 \"string[]\"",
-	"opt.configuration": "属性“{0}”可以省略，其类型必须是“字符串”",
+	"require.id": "属性“{0}”是必需的，其类型必须是“字符串”",
 	"opt.extensions": "属性“{0}”可以省略，其类型必须是 \"string[]\"",
 	"opt.filenames": "属性“{0}”可以省略，其类型必须是 \"string[]\"",
 	"opt.firstLine": "属性“{0}”可以省略，其类型必须是“字符串”",
-	"opt.mimetypes": "属性“{0}”可以省略，其类型必须是 \"string[]\"",
-	"require.id": "属性“{0}”是必需的，其类型必须是“字符串”"
+	"opt.configuration": "属性“{0}”可以省略，其类型必须是“字符串”",
+	"opt.aliases": "属性“{0}”可以省略，其类型必须是 \"string[]\"",
+	"opt.mimetypes": "属性“{0}”可以省略，其类型必须是 \"string[]\""
 }

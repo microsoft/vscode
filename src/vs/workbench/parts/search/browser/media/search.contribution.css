@@ -5,5 +5,5 @@
 
 /* Activity Bar */
 .monaco-workbench > .activitybar .monaco-action-bar .action-label.search {
-	background-image: url('search-dark.svg');
+	-webkit-mask: url('search-dark.svg') no-repeat 50% 50%;
 }

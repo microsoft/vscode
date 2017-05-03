@@ -37,12 +37,12 @@ import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, LIGHT } from "vs/platform/theme/common/themeService";
+import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachListStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
 
 // TODO@Joao
@@ -117,6 +117,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 }
 
 interface ResourceTemplate {
+	element: HTMLElement;
 	name: HTMLElement;
 	fileLabel: FileLabel;
 	decorationIcon: HTMLElement;
@@ -170,7 +171,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 
 		const decorationIcon = append(element, $('.decoration-icon'));
 
-		return { name, fileLabel, decorationIcon, actionBar };
+		return { element, name, fileLabel, decorationIcon, actionBar };
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
@@ -179,6 +180,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		template.actionBar.context = resource;
 		template.actionBar.push(this.scmMenus.getResourceActions(resource));
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
+		toggleClass(template.element, 'faded', resource.decorations.faded);
 
 		const theme = this.themeService.getTheme();
 		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
@@ -302,6 +304,7 @@ export class SCMViewlet extends Viewlet {
 			keyboardSupport: false
 		});
 
+		this.disposables.push(attachListStyler(this.list, this.themeService));
 		this.disposables.push(this.listService.register(this.list));
 
 		chain(this.list.onOpen)

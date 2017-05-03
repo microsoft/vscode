@@ -14,7 +14,7 @@ import { ITextFileService, ModelState, StateChange } from 'vs/workbench/services
 import { workbenchInstantiationService, TestTextFileService, createFileInput, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { onError, toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { FileOperationResult, IFileOperationResult, IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
+import { FileOperationResult, IFileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 
 class ServiceAccessor {
@@ -228,35 +228,6 @@ suite('Files - TextFileEditorModel', () => {
 		}, error => onError(error, done));
 	});
 
-	test('Auto Save triggered when model changes', function (done) {
-		let eventCounter = 0;
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');
-
-		(<any>model).autoSaveAfterMillies = 10;
-		(<any>model).autoSaveAfterMilliesEnabled = true;
-
-		model.onDidStateChange(e => {
-			if (e === StateChange.DIRTY || e === StateChange.SAVED) {
-				eventCounter++;
-			}
-		});
-
-		model.load().done(() => {
-			model.textEditorModel.setValue('foo');
-
-			return TPromise.timeout(200).then(() => {
-				assert.ok(!model.isDirty());
-				assert.equal(eventCounter, 2);
-
-				model.dispose();
-
-				assert.ok(!accessor.modelService.getModel(model.getResource()));
-
-				done();
-			});
-		}, error => onError(error, done));
-	});
-
 	test('save() and isDirty() - proper with check for mtimes', function (done) {
 		const input1 = createFileInput(instantiationService, toResource.call(this, '/path/index_async2.txt'));
 		const input2 = createFileInput(instantiationService, toResource.call(this, '/path/index_async.txt'));
@@ -373,22 +344,6 @@ suite('Files - TextFileEditorModel', () => {
 				assert.ok(false);
 			});
 		}, error => onError(error, done));
-	});
-
-	test('Orphaned models - state and event', function (done) {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
-
-		model.onDidStateChange(e => {
-			if (e === StateChange.ORPHANED_CHANGE) {
-				done();
-			}
-		});
-
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.DELETED }]));
-		assert.ok(model.hasState(ModelState.ORPHAN));
-
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.ADDED }]));
-		assert.ok(!model.hasState(ModelState.ORPHAN));
 	});
 
 	test('SaveSequentializer - pending basics', function (done) {

@@ -58,7 +58,7 @@ export class StatusUpdater implements ext.IWorkbenchContribution {
 
 		this.toDispose = [];
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onGitServiceChange()));
-		this.toDispose.push(this.gitService.addBulkListener2(e => this.onGitServiceChange()));
+		this.toDispose.push(this.gitService.addBulkListener(e => this.onGitServiceChange()));
 	}
 
 	private onGitServiceChange(): void {

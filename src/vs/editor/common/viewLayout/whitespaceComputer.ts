@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IEditorWhitespace } from 'vs/editor/common/editorCommon';
+export interface IEditorWhitespace {
+	readonly id: number;
+	readonly afterLineNumber: number;
+	readonly heightInLines: number;
+}
 
 /**
  * Represent whitespaces in between lines and provide fast CRUD management methods.

@@ -14,7 +14,7 @@ import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_BACKGROUND, Themable } from
 
 // colors for theming
 
-export const STATUS_BAR_DEBUGGING_BACKGROUND = registerColor('statusBarDebuggingBackground', {
+export const STATUS_BAR_DEBUGGING_BACKGROUND = registerColor('statusBar.debuggingBackground', {
 	dark: '#CC6633',
 	light: '#CC6633',
 	hc: '#CC6633'

@@ -38,6 +38,8 @@ namespace schema {
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'view/title': return MenuId.ViewTitle;
+			case 'view/resource': return MenuId.ViewResource;
 		}
 
 		return void 0;
@@ -45,7 +47,7 @@ namespace schema {
 
 	export function isValidMenuItems(menu: IUserFriendlyMenuItem[], collector: ExtensionMessageCollector): boolean {
 		if (!Array.isArray(menu)) {
-			collector.error(localize('requirearry', "menu items must be an arry"));
+			collector.error(localize('requirearray', "menu items must be an array"));
 			return false;
 		}
 

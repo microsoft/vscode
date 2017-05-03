@@ -69,16 +69,23 @@ export abstract class TerminalService implements ITerminalService {
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	private _onWillShutdown(): boolean {
-		if (!this.configHelper.config.confirmOnExit) {
-			// Don't veto if configured to skip confirmation
-			return false;
-		}
 		if (this.terminalInstances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
 		}
-		// Veto based on response to message
-		return this._showTerminalCloseConfirmation();
+
+		if (this.configHelper.config.confirmOnExit) {
+			// veto if configured to show confirmation and the user choosed not to exit
+			if (this._showTerminalCloseConfirmation()) {
+				return true;
+			}
+		}
+
+		// Dispose all terminal instances and don't veto
+		this.terminalInstances.forEach(instance => {
+			instance.dispose();
+		});
+		return false;
 	}
 
 	public getInstanceLabels(): string[] {
@@ -110,6 +117,7 @@ export abstract class TerminalService implements ITerminalService {
 	public getActiveInstance(): ITerminalInstance {
 		if (this.activeTerminalInstanceIndex < 0 || this.activeTerminalInstanceIndex >= this.terminalInstances.length) {
 			return null;
+
 		}
 		return this.terminalInstances[this.activeTerminalInstanceIndex];
 	}

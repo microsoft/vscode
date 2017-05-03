@@ -17,7 +17,7 @@ import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EDITOR_SIDE_BY_SIDE_BORDER } from 'vs/workbench/common/theme';
+import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -134,7 +134,7 @@ export class SideBySideEditor extends BaseEditor {
 	private _createEditor(editorInput: EditorInput, container: HTMLElement): TPromise<BaseEditor> {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 		if (!descriptor) {
-			return TPromise.wrapError(new Error(strings.format('Can not find a registered editor for the input {0}', editorInput)));
+			return TPromise.wrapError<BaseEditor>(new Error(strings.format('Can not find a registered editor for the input {0}', editorInput)));
 		}
 		return this.instantiationService.createInstance(<EditorDescriptor>descriptor)
 			.then((editor: BaseEditor) => {
@@ -165,7 +165,7 @@ export class SideBySideEditor extends BaseEditor {
 		super.updateStyles();
 
 		if (this.masterEditorContainer) {
-			this.masterEditorContainer.style.boxShadow = `-6px 0 5px -5px ${this.getColor(EDITOR_SIDE_BY_SIDE_BORDER)}`;
+			this.masterEditorContainer.style.boxShadow = `-6px 0 5px -5px ${this.getColor(scrollbarShadow)}`;
 		}
 	}
 

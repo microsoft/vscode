@@ -5,7 +5,29 @@
 'use strict';
 
 import { Range } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/editorCommon';
+
+/**
+ * A selection in the editor.
+ * The selection is a range that has an orientation.
+ */
+export interface ISelection {
+	/**
+	 * The line number on which the selection has started.
+	 */
+	readonly selectionStartLineNumber: number;
+	/**
+	 * The column on `selectionStartLineNumber` where the selection has started.
+	 */
+	readonly selectionStartColumn: number;
+	/**
+	 * The line number on which the selection has ended.
+	 */
+	readonly positionLineNumber: number;
+	/**
+	 * The column on `positionLineNumber` where the selection has ended.
+	 */
+	readonly positionColumn: number;
+}
 
 /**
  * The direction of a selection.

@@ -9,6 +9,7 @@ import assert = require('assert');
 import os = require('os');
 import path = require('path');
 import fs = require('fs');
+import * as sinon from 'sinon';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -226,6 +227,75 @@ suite('WorkspaceConfigurationService - Node', () => {
 			});
 		});
 	});
+
+	test('workspace reload should triggers event if content changed', (done: () => void) => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
+			const workspaceContextService = new WorkspaceContextService({ resource: URI.file(workspaceDir) });
+			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
+			const service = new WorkspaceConfigurationService(workspaceContextService, environmentService);
+
+			return service.initialize().then(() => {
+				const settingsFile = path.join(workspaceDir, '.vscode', 'settings.json');
+				fs.writeFileSync(settingsFile, '{ "testworkbench.editor.icons": true }');
+
+				const target = sinon.stub();
+				service.onDidUpdateConfiguration(event => target());
+
+				fs.writeFileSync(settingsFile, '{ "testworkbench.editor.icons": false }');
+
+				service.reloadConfiguration().done(() => {
+					assert.ok(target.calledOnce);
+					service.dispose();
+
+					cleanUp(done);
+				});
+			});
+		});
+	});
+
+	test('workspace reload should not trigger event if nothing changed', (done: () => void) => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
+			const workspaceContextService = new WorkspaceContextService({ resource: URI.file(workspaceDir) });
+			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
+			const service = new WorkspaceConfigurationService(workspaceContextService, environmentService);
+
+			return service.initialize().then(() => {
+				const settingsFile = path.join(workspaceDir, '.vscode', 'settings.json');
+				fs.writeFileSync(settingsFile, '{ "testworkbench.editor.icons": true }');
+
+				service.reloadConfiguration().done(() => {
+					const target = sinon.stub();
+					service.onDidUpdateConfiguration(event => target());
+
+					service.reloadConfiguration().done(() => {
+						assert.ok(!target.called);
+						service.dispose();
+
+						cleanUp(done);
+					});
+				});
+			});
+		});
+	});
+
+	test('workspace reload should not trigger event if there is no model', (done: () => void) => {
+		createWorkspace((workspaceDir, globalSettingsFile, cleanUp) => {
+			const workspaceContextService = new WorkspaceContextService({ resource: URI.file(workspaceDir) });
+			const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
+			const service = new WorkspaceConfigurationService(workspaceContextService, environmentService);
+
+			return service.initialize().then(() => {
+				const target = sinon.stub();
+				service.onDidUpdateConfiguration(event => target());
+				service.reloadConfiguration().done(() => {
+					assert.ok(!target.called);
+					service.dispose();
+					cleanUp(done);
+				});
+			});
+		});
+	});
+
 
 	test('lookup', (done: () => void) => {
 		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);

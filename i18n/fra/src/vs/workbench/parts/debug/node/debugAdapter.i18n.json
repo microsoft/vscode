@@ -6,15 +6,15 @@
 {
 	"debugAdapterBinNotFound": "L'exécutable d'adaptateur de débogage '{0}' n'existe pas.",
 	"debugAdapterCannotDetermineExecutable": "Impossible de déterminer l'exécutable pour l'adaptateur de débogage '{0}'.",
-	"debugLinuxConfiguration": "Attributs de configuration de lancement spécifiques à Linux.",
+	"debugType": "Type de configuration.",
+	"node2NotSupported": "\"node2\" n'est plus pris en charge. Utilisez \"node\" à la place, et affectez la valeur \"inspector\" à l'attribut \"protocol\".",
 	"debugName": "Le nom de la configuration s'affiche dans le menu déroulant de la configuration de lancement.",
-	"debugOSXConfiguration": "Attributs de configuration de lancement spécifiques à OS X.",
-	"debugPrelaunchTask": "Tâche à exécuter avant le démarrage de la session de débogage.",
 	"debugRequest": "Type de requête de configuration. Il peut s'agir de \"launch\" ou \"attach\".",
 	"debugServer": "Pour le développement d'une extension de débogage uniquement : si un port est spécifié, VS Code tente de se connecter à un adaptateur de débogage s'exécutant en mode serveur",
-	"debugType": "Type de configuration.",
-	"debugWindowsConfiguration": "Attributs de configuration de lancement spécifiques à Windows.",
-	"deprecatedVariables": "env.', 'config.' et 'command.' sont déconseillés. Utilisez 'env:', 'config:' et 'command:' à la place.",
+	"debugPrelaunchTask": "Tâche à exécuter avant le démarrage de la session de débogage.",
 	"internalConsoleOptions": "Contrôle le comportement de la console de débogage interne.",
-	"node2NotSupported": "\"node2\" n'est plus pris en charge. Utilisez \"node\" à la place, et affectez la valeur \"inspector\" à l'attribut \"protocol\"."
+	"debugWindowsConfiguration": "Attributs de configuration de lancement spécifiques à Windows.",
+	"debugOSXConfiguration": "Attributs de configuration de lancement spécifiques à OS X.",
+	"debugLinuxConfiguration": "Attributs de configuration de lancement spécifiques à Linux.",
+	"deprecatedVariables": "env.', 'config.' et 'command.' sont déconseillés. Utilisez 'env:', 'config:' et 'command:' à la place."
 }

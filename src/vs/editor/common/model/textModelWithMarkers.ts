@@ -29,8 +29,8 @@ export class TextModelWithMarkers extends TextModelWithTokens implements ITextMo
 	private _markerIdGenerator: IdGenerator;
 	protected _markerIdToMarker: IMarkerIdToMarkerMap;
 
-	constructor(allowedEventTypes: string[], rawTextSource: IRawTextSource, creationOptions: ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
-		super(allowedEventTypes, rawTextSource, creationOptions, languageIdentifier);
+	constructor(rawTextSource: IRawTextSource, creationOptions: ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
+		super(rawTextSource, creationOptions, languageIdentifier);
 		this._markerIdGenerator = new IdGenerator((++_INSTANCE_COUNT) + ';');
 		this._markerIdToMarker = Object.create(null);
 	}

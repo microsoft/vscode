@@ -513,10 +513,10 @@ var editorResources = [
     { name: 'vs/platform', project: editorProject },
     { name: 'vs/editor/contrib', project: editorProject },
     { name: 'vs/editor', project: editorProject },
-    { name: 'vs/base', project: editorProject },
-    { name: 'vs/code', project: workbenchProject }
+    { name: 'vs/base', project: editorProject }
 ];
 var workbenchResources = [
+    { name: 'vs/code', project: workbenchProject },
     { name: 'vs/workbench', project: workbenchProject },
     { name: 'vs/workbench/parts/cli', project: workbenchProject },
     { name: 'vs/workbench/parts/codeEditor', project: workbenchProject },
@@ -889,11 +889,11 @@ function retrieveResource(language, resource, apiHostname, credentials) {
             method: 'GET'
         };
         var request = http.request(options, function (res) {
-            var xlfBuffer = '';
-            res.on('data', function (data) { return xlfBuffer += data; });
+            var xlfBuffer = [];
+            res.on('data', function (chunk) { return xlfBuffer.push(chunk); });
             res.on('end', function () {
                 if (res.statusCode === 200) {
-                    resolve(new File({ contents: new Buffer(xlfBuffer), path: project + "/" + iso639_2_to_3[language] + "/" + slug + ".xlf" }));
+                    resolve(new File({ contents: Buffer.concat(xlfBuffer), path: project + "/" + iso639_2_to_3[language] + "/" + slug + ".xlf" }));
                 }
                 reject(slug + " in " + project + " returned no data. Response code: " + res.statusCode + ".");
             });
@@ -905,9 +905,12 @@ function retrieveResource(language, resource, apiHostname, credentials) {
     });
 }
 function prepareJsonFiles() {
+    var parsePromises = [];
     return event_stream_1.through(function (xlf) {
         var stream = this;
-        XLF.parse(xlf.contents.toString()).then(function (resolvedFiles) {
+        var parsePromise = XLF.parse(xlf.contents.toString());
+        parsePromises.push(parsePromise);
+        parsePromise.then(function (resolvedFiles) {
             resolvedFiles.forEach(function (file) {
                 var messages = file.messages, translatedFile;
                 // ISL file path always starts with 'build/'
@@ -926,6 +929,11 @@ function prepareJsonFiles() {
         }, function (rejectReason) {
             throw new Error("XLF parsing error: " + rejectReason);
         });
+    }, function () {
+        var _this = this;
+        Promise.all(parsePromises)
+            .then(function () { _this.emit('end'); })
+            .catch(function (reason) { throw new Error(reason); });
     });
 }
 exports.prepareJsonFiles = prepareJsonFiles;
@@ -942,7 +950,6 @@ function createI18nFile(base, originalFilePath, messages) {
         contents: new Buffer(content, 'utf8')
     });
 }
-exports.createI18nFile = createI18nFile;
 var languageNames = {
     'chs': 'Simplified Chinese',
     'cht': 'Traditional Chinese',
@@ -1017,7 +1024,6 @@ function createIslFile(base, originalFilePath, messages, language) {
         contents: iconv.encode(new Buffer(content.join('\r\n'), 'utf8'), encodings[language])
     });
 }
-exports.createIslFile = createIslFile;
 function encodeEntities(value) {
     var result = [];
     for (var i = 0; i < value.length; i++) {
@@ -1041,4 +1047,3 @@ function encodeEntities(value) {
 function decodeEntities(value) {
     return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }
-exports.decodeEntities = decodeEntities;

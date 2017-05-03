@@ -14,6 +14,17 @@ import { Position } from 'vs/editor/common/core/position';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
+
+function getThemeType(themeId: string): editorCommon.ThemeType {
+	if (themes.isHighContrastTheme(themeId)) {
+		return editorCommon.ThemeType.HighContrast;
+	}
+	if (themes.isLightTheme(themeId)) {
+		return editorCommon.ThemeType.Light;
+	}
+	return editorCommon.ThemeType.Dark;
+}
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -37,8 +48,8 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private _hideCursor: boolean;
 	private _cursorPositions: Position[];
 
-	private _zonesFromDecorations: editorCommon.OverviewRulerZone[];
-	private _zonesFromCursors: editorCommon.OverviewRulerZone[];
+	private _zonesFromDecorations: OverviewRulerZone[];
+	private _zonesFromCursors: OverviewRulerZone[];
 
 	constructor(context: ViewContext, scrollHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
 		super(context);
@@ -54,7 +65,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		);
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
 		let theme = this._context.configuration.editor.viewInfo.theme;
-		this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
+		this._overviewRuler.setThemeType(getThemeType(theme), false);
 		this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
 
 		this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
@@ -123,7 +134,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		if (e.viewInfo.theme) {
 			let theme = this._context.configuration.editor.viewInfo.theme;
-			this._overviewRuler.setUseDarkColor(!themes.isLightTheme(theme), false);
+			this._overviewRuler.setThemeType(getThemeType(theme), false);
 			shouldRender = true;
 		}
 
@@ -173,38 +184,40 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return this._overviewRuler.getDomNode();
 	}
 
-	private _createZonesFromDecorations(): editorCommon.OverviewRulerZone[] {
+	private _createZonesFromDecorations(): OverviewRulerZone[] {
 		let decorations = this._context.model.getAllOverviewRulerDecorations();
-		let zones: editorCommon.OverviewRulerZone[] = [];
+		let zones: OverviewRulerZone[] = [];
 
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let dec = decorations[i];
-			let ovewviewRuler = dec.source.options.overviewRuler;
-			zones.push(new editorCommon.OverviewRulerZone(
+			let overviewRuler = dec.source.options.overviewRuler;
+			zones.push(new OverviewRulerZone(
 				dec.range.startLineNumber,
 				dec.range.endLineNumber,
-				ovewviewRuler.position,
+				overviewRuler.position,
 				0,
-				ovewviewRuler.color,
-				ovewviewRuler.darkColor
+				overviewRuler.color,
+				overviewRuler.darkColor,
+				overviewRuler.hcColor
 			));
 		}
 
 		return zones;
 	}
 
-	private _createZonesFromCursors(): editorCommon.OverviewRulerZone[] {
-		let zones: editorCommon.OverviewRulerZone[] = [];
+	private _createZonesFromCursors(): OverviewRulerZone[] {
+		let zones: OverviewRulerZone[] = [];
 
 		for (let i = 0, len = this._cursorPositions.length; i < len; i++) {
 			let cursor = this._cursorPositions[i];
 
-			zones.push(new editorCommon.OverviewRulerZone(
+			zones.push(new OverviewRulerZone(
 				cursor.lineNumber,
 				cursor.lineNumber,
 				editorCommon.OverviewRulerLane.Full,
 				2,
 				DecorationsOverviewRuler._CURSOR_COLOR,
+				DecorationsOverviewRuler._CURSOR_COLOR_DARK,
 				DecorationsOverviewRuler._CURSOR_COLOR_DARK
 			));
 		}
@@ -233,7 +246,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 				}
 			}
 
-			let allZones: editorCommon.OverviewRulerZone[] = [];
+			let allZones: OverviewRulerZone[] = [];
 			allZones = allZones.concat(this._zonesFromCursors);
 			allZones = allZones.concat(this._zonesFromDecorations);
 

@@ -615,7 +615,7 @@ function findAllMatches(patternLen: number, patternPos: number, wordPos: number,
 			if (score === 1) {
 				simpleMatchCount += 1;
 			} else {
-				total += simpleMatchCount * (score - 1);
+				total += 1 + (simpleMatchCount * (score - 1));
 				simpleMatchCount = 0;
 			}
 

@@ -43,20 +43,26 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 
 			const locations = response.body
 				.map(reference =>
+					// Only take first line on implementation: https://github.com/Microsoft/vscode/issues/23924
 					new Location(this.client.asUrl(reference.file),
-						new Range(
-							reference.start.line - 1, reference.start.offset - 1,
-							reference.end.line - 1, reference.end.offset - 1)))
+						reference.start.line === reference.end.line
+							? new Range(
+								reference.start.line - 1, reference.start.offset - 1,
+								reference.end.line - 1, reference.end.offset - 1)
+							: new Range(
+								reference.start.line - 1, reference.start.offset - 1,
+								reference.start.line, 0)))
 				// Exclude original from implementations
 				.filter(location =>
 					!(location.uri.fsPath === codeLens.document.fsPath &&
-						location.range.start.line === codeLens.range.start.line));
+						location.range.start.line === codeLens.range.start.line &&
+						location.range.start.character === codeLens.range.start.character));
 
 			codeLens.command = {
 				title: locations.length === 1
 					? localize('oneImplementationLabel', '1 implementation')
 					: localize('manyImplementationLabel', '{0} implementations', locations.length),
-				command: 'editor.action.showReferences',
+				command: locations.length ? 'editor.action.showReferences' : '',
 				arguments: [codeLens.document, codeLens.range.start, locations]
 			};
 			return codeLens;

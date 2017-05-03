@@ -98,7 +98,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		// group ids by pattern, like {**/*.md} -> [ext.foo1, ext.bar2]
 		this._availableRecommendations = Object.create(null);
 		forEach(extensionTips, entry => {
-			let {key: id, value: pattern} = entry;
+			let { key: id, value: pattern } = entry;
 			let ids = this._availableRecommendations[pattern];
 			if (!ids) {
 				this._availableRecommendations[pattern] = [id];
@@ -108,8 +108,8 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		});
 
 		forEach(product.extensionImportantTips, entry => {
-			let {key: id, value} = entry;
-			const {pattern} = value;
+			let { key: id, value } = entry;
+			const { pattern } = value;
 			let ids = this._availableRecommendations[pattern];
 			if (!ids) {
 				this._availableRecommendations[pattern] = [id];
@@ -138,7 +138,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		setImmediate(() => {
 
 			forEach(this._availableRecommendations, entry => {
-				let {key: pattern, value: ids} = entry;
+				let { key: pattern, value: ids } = entry;
 				if (match(pattern, uri.fsPath)) {
 					for (let id of ids) {
 						this._recommendations[id] = true;
@@ -171,7 +171,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 							localize('close', "Close")
 						];
 
-						this.choiceService.choose(Severity.Info, message, options).done(choice => {
+						this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 							switch (choice) {
 								case 0: return recommendationsAction.run();
 								case 1:
@@ -218,7 +218,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 					localize('close', "Close")
 				];
 
-				this.choiceService.choose(Severity.Info, message, options).done(choice => {
+				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 					switch (choice) {
 						case 0: return action.run();
 						case 1: return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
@@ -238,7 +238,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		const result = Object.create(null);
 
 		forEach(product.extensionTips || empty, entry => {
-			let {key: id, value: pattern} = entry;
+			let { key: id, value: pattern } = entry;
 
 			if (match(pattern, str)) {
 				result[id] = true;
@@ -246,7 +246,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		});
 
 		forEach(product.extensionImportantTips || empty, entry => {
-			let {key: id, value} = entry;
+			let { key: id, value } = entry;
 
 			if (match(value.pattern, str)) {
 				result[id] = true;

@@ -24,7 +24,11 @@
 }
 
 /* Activity Bar */
-.monaco-workbench > .activitybar .monaco-action-bar .action-label.git,
+.monaco-workbench > .activitybar .monaco-action-bar .action-label.git {
+	-webkit-mask: url('git-dark.svg') no-repeat 50% 50%;
+}
+
+/* Status / Quick Open */
 .monaco-shell .git-statusbar-group > .git-statusbar-branch-item,
 .vs-dark .monaco-workbench .quick-open-widget .quick-open-tree .quick-open-entry .quick-open-entry-icon.git {
 	background-image: url('git-dark.svg');

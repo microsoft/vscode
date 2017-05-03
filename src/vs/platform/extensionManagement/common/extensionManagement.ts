@@ -75,8 +75,8 @@ export interface ITheme {
 }
 
 export interface ITreeExplorer {
-	treeExplorerNodeProviderId: string;
-	treeLabel: string;
+	id: string;
+	label: string;
 	icon: string;
 }
 

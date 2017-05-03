@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { RenderMinimap, EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/editorCommon';
+import { RenderMinimap, EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
 
 export interface IEditorLayoutProviderOpts {
 	outerWidth: number;

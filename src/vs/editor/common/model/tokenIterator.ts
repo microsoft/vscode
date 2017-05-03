@@ -9,7 +9,21 @@ import { LineToken } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { StandardTokenType } from 'vs/editor/common/modes';
 
-class TokenInfo implements editorCommon.ITokenInfo {
+export interface ITokenInfo {
+	readonly type: StandardTokenType;
+	readonly lineNumber: number;
+	readonly startColumn: number;
+	readonly endColumn: number;
+}
+
+export interface ITokenIterator {
+	hasNext(): boolean;
+	next(): ITokenInfo;
+	hasPrev(): boolean;
+	prev(): ITokenInfo;
+}
+
+class TokenInfo implements ITokenInfo {
 	_tokenInfoBrand: void;
 
 	readonly _actual: LineToken;
@@ -67,7 +81,7 @@ function findClosestNonEmptyLine(model: editorCommon.ITokenizedModel, position: 
 	return null;
 }
 
-export class TokenIterator implements editorCommon.ITokenIterator {
+export class TokenIterator implements ITokenIterator {
 
 	private _model: editorCommon.ITokenizedModel;
 	private _lineCount: number;
@@ -139,7 +153,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		return this._next !== null;
 	}
 
-	public next(): editorCommon.ITokenInfo {
+	public next(): ITokenInfo {
 		const result = this._next;
 		this._advanceNext();
 		return result;
@@ -149,7 +163,7 @@ export class TokenIterator implements editorCommon.ITokenIterator {
 		return this._prev !== null;
 	}
 
-	public prev(): editorCommon.ITokenInfo {
+	public prev(): ITokenInfo {
 		const result = this._prev;
 		this._advancePrev();
 		return result;

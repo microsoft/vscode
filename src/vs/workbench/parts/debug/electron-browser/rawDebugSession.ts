@@ -149,9 +149,9 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 		return this.send(request, args);
 	}
 
-	protected send(command: string, args: any, cancelOnDisconnect = true): TPromise<DebugProtocol.Response> {
+	protected send<R extends DebugProtocol.Response>(command: string, args: any, cancelOnDisconnect = true): TPromise<R> {
 		return this.initServer().then(() => {
-			const promise = super.send(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
+			const promise = super.send<R>(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
 				const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
 				const errorMessage = errorResponse ? errorResponse.message : '';
 				const telemetryMessage = error ? debug.formatPII(error.format, true, error.variables) : errorMessage;
@@ -165,7 +165,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 				const userMessage = error ? debug.formatPII(error.format, false, error.variables) : errorMessage;
 				if (error && error.url) {
 					const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
-					return TPromise.wrapError(errors.create(userMessage, {
+					return TPromise.wrapError<R>(errors.create(userMessage, {
 						actions: [CloseAction, new Action('debug.moreInfo', label, null, true, () => {
 							window.open(error.url);
 							return TPromise.as(null);
@@ -173,7 +173,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 					}));
 				}
 
-				return errors.isPromiseCanceledError(errorResponse) ? undefined : TPromise.wrapError(new Error(userMessage));
+				return errors.isPromiseCanceledError(errorResponse) ? undefined : TPromise.wrapError<R>(new Error(userMessage));
 			});
 
 			if (cancelOnDisconnect) {
@@ -260,7 +260,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
-		return this.send('continue', args).then(response => {
+		return this.send<DebugProtocol.ContinueResponse>('continue', args).then(response => {
 			this.fireFakeContinued(args.threadId, this.allThreadsContinued);
 			return response;
 		});
@@ -271,7 +271,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	public setVariable(args: DebugProtocol.SetVariableArguments): TPromise<DebugProtocol.SetVariableResponse> {
-		return this.send('setVariable', args);
+		return this.send<DebugProtocol.SetVariableResponse>('setVariable', args);
 	}
 
 	public restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
@@ -282,7 +282,7 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	public completions(args: DebugProtocol.CompletionsArguments): TPromise<DebugProtocol.CompletionsResponse> {
-		return this.send('completions', args);
+		return this.send<DebugProtocol.CompletionsResponse>('completions', args);
 	}
 
 	public disconnect(restart = false, force = false): TPromise<DebugProtocol.DisconnectResponse> {
@@ -307,15 +307,15 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	public setBreakpoints(args: DebugProtocol.SetBreakpointsArguments): TPromise<DebugProtocol.SetBreakpointsResponse> {
-		return this.send('setBreakpoints', args);
+		return this.send<DebugProtocol.SetBreakpointsResponse>('setBreakpoints', args);
 	}
 
 	public setFunctionBreakpoints(args: DebugProtocol.SetFunctionBreakpointsArguments): TPromise<DebugProtocol.SetFunctionBreakpointsResponse> {
-		return this.send('setFunctionBreakpoints', args);
+		return this.send<DebugProtocol.SetFunctionBreakpointsResponse>('setFunctionBreakpoints', args);
 	}
 
 	public setExceptionBreakpoints(args: DebugProtocol.SetExceptionBreakpointsArguments): TPromise<DebugProtocol.SetExceptionBreakpointsResponse> {
-		return this.send('setExceptionBreakpoints', args);
+		return this.send<DebugProtocol.SetExceptionBreakpointsResponse>('setExceptionBreakpoints', args);
 	}
 
 	public configurationDone(): TPromise<DebugProtocol.ConfigurationDoneResponse> {
@@ -323,31 +323,31 @@ export class RawDebugSession extends v8.V8Protocol implements debug.ISession {
 	}
 
 	public stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse> {
-		return this.send('stackTrace', args);
+		return this.send<DebugProtocol.StackTraceResponse>('stackTrace', args);
 	}
 
 	public exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse> {
-		return this.send('exceptionInfo', args);
+		return this.send<DebugProtocol.ExceptionInfoResponse>('exceptionInfo', args);
 	}
 
 	public scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse> {
-		return this.send('scopes', args);
+		return this.send<DebugProtocol.ScopesResponse>('scopes', args);
 	}
 
 	public variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse> {
-		return this.send('variables', args);
+		return this.send<DebugProtocol.VariablesResponse>('variables', args);
 	}
 
 	public source(args: DebugProtocol.SourceArguments): TPromise<DebugProtocol.SourceResponse> {
-		return this.send('source', args);
+		return this.send<DebugProtocol.SourceResponse>('source', args);
 	}
 
 	public threads(): TPromise<DebugProtocol.ThreadsResponse> {
-		return this.send('threads', null);
+		return this.send<DebugProtocol.ThreadsResponse>('threads', null);
 	}
 
 	public evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse> {
-		return this.send('evaluate', args);
+		return this.send<DebugProtocol.EvaluateResponse>('evaluate', args);
 	}
 
 	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {

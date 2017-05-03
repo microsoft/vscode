@@ -42,11 +42,11 @@ export abstract class V8Protocol {
 		});
 	}
 
-	protected send(command: string, args: any): TPromise<DebugProtocol.Response> {
+	protected send<R extends DebugProtocol.Response>(command: string, args: any): TPromise<R> {
 		let errorCallback;
-		return new TPromise((completeDispatch, errorDispatch) => {
+		return new TPromise<R>((completeDispatch, errorDispatch) => {
 			errorCallback = errorDispatch;
-			this.doSend(command, args, (result: DebugProtocol.Response) => {
+			this.doSend(command, args, (result: R) => {
 				if (result.success) {
 					completeDispatch(result);
 				} else {

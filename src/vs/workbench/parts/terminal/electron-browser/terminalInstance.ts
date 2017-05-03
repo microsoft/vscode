@@ -43,7 +43,7 @@ class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 }
 
 export class TerminalInstance implements ITerminalInstance {
-	private static readonly EOL_REGEX = /\r?\n/g;
+	private static readonly WINDOWS_EOL_REGEX = /\r?\n/g;
 
 	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _lastKnownDimensions: Dimension = null;
@@ -153,10 +153,6 @@ export class TerminalInstance implements ITerminalInstance {
 		const font = this._configHelper.getFont();
 		this._cols = Math.floor(dimension.width / font.charWidth);
 		this._rows = Math.floor(dimension.height / font.charHeight);
-		// Caps cols at 159 on Windows due to #19665 (hopefully temporary)
-		if (platform.isWindows && this._cols >= 160) {
-			this._cols = 159;
-		}
 		return dimension.width;
 	}
 
@@ -369,8 +365,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {
-		if (addNewLine && text.substr(text.length - os.EOL.length) !== os.EOL) {
-			text += os.EOL;
+		text = this._sanitizeInput(text);
+		if (addNewLine && text.substr(text.length - 1) !== '\r') {
+			text += '\r';
 		}
 		this._process.send({
 			event: 'input',
@@ -427,7 +424,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _sanitizeInput(data: any) {
-		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
+		return typeof data === 'string' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
 	}
 
 	protected _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {

@@ -6,13 +6,15 @@
 'use strict';
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 export class Margin extends ViewPart {
+
+	public static CLASS_NAME = 'glyph-margin';
+
 	private _domNode: FastDomNode<HTMLElement>;
 	private _canUseTranslate3d: boolean;
 	private _contentLeft: number;
@@ -34,21 +36,21 @@ export class Margin extends ViewPart {
 		super.dispose();
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
 	}
 
 	private _createDomNode(): FastDomNode<HTMLElement> {
 		let domNode = createFastDomNode(document.createElement('div'));
-		domNode.setClassName(ClassNames.MARGIN + ' monaco-editor-background');
+		domNode.setClassName('margin' + ' monaco-editor-background');
 		domNode.setPosition('absolute');
 		domNode.setAttribute('role', 'presentation');
 		domNode.setAttribute('aria-hidden', 'true');
 
 		this._glyphMarginBackgroundDomNode = createFastDomNode(document.createElement('div'));
-		this._glyphMarginBackgroundDomNode.setClassName(ClassNames.GLYPH_MARGIN);
+		this._glyphMarginBackgroundDomNode.setClassName(Margin.CLASS_NAME);
 
-		domNode.domNode.appendChild(this._glyphMarginBackgroundDomNode.domNode);
+		domNode.appendChild(this._glyphMarginBackgroundDomNode);
 		return domNode;
 	}
 

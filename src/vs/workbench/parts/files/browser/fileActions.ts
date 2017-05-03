@@ -37,18 +37,17 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IQuickOpenService, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IEditorInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { withFocussedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface IEditableData {
 	action: IAction;
@@ -194,7 +193,7 @@ export class TriggerRenameFileAction extends BaseFileAction {
 		this.tree.refresh(stat, false).then(() => {
 			this.tree.setHighlight(stat);
 
-			const unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+			const unbind = this.tree.addListener(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 				if (!e.highlight) {
 					viewletState.clearEditable(stat);
 					this.tree.refresh(stat).done(null, errors.onUnexpectedError);
@@ -277,7 +276,6 @@ class RenameFileAction extends BaseRenameAction {
 		@IFileService fileService: IFileService,
 		@IMessageService messageService: IMessageService,
 		@ITextFileService textFileService: ITextFileService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, fileService, messageService, textFileService);
@@ -323,7 +321,7 @@ class RenameFileAction extends BaseRenameAction {
 
 			// 4.) resolve those that were dirty to load their previous dirty contents from disk
 			.then(() => {
-				return TPromise.join(dirtyRenamed.map(t => this.textModelResolverService.createModelReference(t)));
+				return TPromise.join(dirtyRenamed.map(t => this.textFileService.models.loadOrCreate(t)));
 			});
 	}
 }
@@ -409,7 +407,7 @@ export class BaseNewAction extends BaseFileAction {
 						return this.tree.reveal(stat, 0.5).then(() => {
 							this.tree.setHighlight(stat);
 
-							const unbind = this.tree.addListener2(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
+							const unbind = this.tree.addListener(CommonEventType.HIGHLIGHT, (e: IHighlightEvent) => {
 								if (!e.highlight) {
 									stat.destroy();
 									this.tree.refresh(folder).done(null, errors.onUnexpectedError);
@@ -517,16 +515,13 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const input = this.untitledEditorService.createOrGet();
-
-		return this.editorService.openEditor(input, { pinned: true }); // untitled are always pinned
+		return this.editorService.openEditor({ options: { pinned: true } } as IUntitledResourceInput); // untitled are always pinned
 	}
 }
 
@@ -848,7 +843,7 @@ export class ImportFileAction extends BaseFileAction {
 							// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 							// of the target file would replace the contents of the imported file. since we already
 							// confirmed the overwrite before, this is OK.
-							let revertPromise = TPromise.as(null);
+							let revertPromise = TPromise.as<any>(null);
 							if (this.textFileService.isDirty(targetFile)) {
 								revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
 							}
@@ -968,7 +963,7 @@ export class PasteFileAction extends BaseFileAction {
 
 		// Find target
 		let target: FileStat;
-		if (isEqual(this.element.resource.fsPath, fileToCopy.resource.fsPath)) {
+		if (this.element.resource.toString() === fileToCopy.resource.toString()) {
 			target = this.element.parent;
 		} else {
 			target = this.element.isDirectory ? this.element : this.element.parent;
@@ -1275,7 +1270,7 @@ export class CompareResourcesAction extends Action {
 		}
 
 		// Check if target is identical to source
-		if (isEqual(this.resource.fsPath, globalResourceToCompare.fsPath)) {
+		if (this.resource.toString() === globalResourceToCompare.toString()) {
 			return false;
 		}
 
@@ -1370,7 +1365,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 				const editor = getCodeEditor(activeEditor);
 				if (editor) {
 					const activeResource = toResource(activeEditor.input, { supportSideBySide: true, filter: ['file', 'untitled'] });
-					if (activeResource && isEqual(activeResource.fsPath, source.fsPath)) {
+					if (activeResource && activeResource.toString() === source.toString()) {
 						viewStateOfSource = editor.saveViewState();
 					}
 				}

@@ -76,7 +76,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
 			// to pass any kind of parameters around
-			return this.$executeContributedCommand(id, ...args);
+			return this.$executeContributedCommand<T>(id, ...args);
 
 		} else {
 			// automagically convert some argument types
@@ -96,7 +96,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 				}
 			});
 
-			return this._proxy.$executeCommand(id, args);
+			return this._proxy.$executeCommand<T>(id, args);
 		}
 
 	}
@@ -181,7 +181,7 @@ export class CommandsConverter {
 			title: command.title
 		};
 
-		if (!isFalsyOrEmpty(command.arguments)) {
+		if (command.command && !isFalsyOrEmpty(command.arguments)) {
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 

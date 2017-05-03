@@ -22,7 +22,7 @@ import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/brow
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ResolvedKeybinding, KeyCode, KeyMod, createKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { toResource } from 'vs/workbench/common/editor';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -431,15 +431,11 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
-	public static get KEY_BINDING(): number {
-		return KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter;
-	}
-
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
 		@IReplaceService private replaceService: IReplaceService,
-		@IKeybindingService keyBindingService2: IKeybindingService,
+		@IKeybindingService keyBindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
-		super('file-action-replace-all', appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), ReplaceAllAction.KEY_BINDING, keyBindingService2), 'action-replace-all');
+		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
 	}
 
 	public run(): TPromise<any> {
@@ -457,16 +453,12 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
-	public static get KEY_BINDING(): number {
-		return KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.KEY_1;
-	}
-
 	constructor(private viewer: ITree, private element: Match, private viewlet: SearchViewlet,
 		@IReplaceService private replaceService: IReplaceService,
-		@IKeybindingService keyBindingService2: IKeybindingService,
+		@IKeybindingService keyBindingService: IKeybindingService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
-		super('action-replace', appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), ReplaceAction.KEY_BINDING, keyBindingService2), 'action-replace');
+		super(Constants.ReplaceActionId, appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
 	}
 
 	public run(): TPromise<any> {

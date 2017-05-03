@@ -41,8 +41,8 @@ const nodeModules = ['electron', 'original-fs']
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.12.2' },
-	{ name: 'ms-vscode.node-debug2', version: '1.12.0' }
+	{ name: 'ms-vscode.node-debug', version: '1.13.0' },
+	{ name: 'ms-vscode.node-debug2', version: '1.12.4' }
 ];
 
 const vscodeEntryPoints = _.flatten([
@@ -363,7 +363,7 @@ const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
 const apiToken = process.env.TRANSIFEX_API_TOKEN;
 
-gulp.task('vscode-translations-push', function() {
+gulp.task('vscode-translations-push', ['optimize-vscode'], function() {
 	const pathToMetadata = './out-vscode/nls.metadata.json';
 	const pathToExtensions = './extensions/**/*.nls.json';
 	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';

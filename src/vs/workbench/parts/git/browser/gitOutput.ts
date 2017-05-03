@@ -22,7 +22,7 @@ export class GitOutput implements IWorkbenchContribution {
 		this.gitService = gitService;
 		this.outputService = outputService;
 
-		const listener = gitService.addListener2(ServiceEvents.OPERATION_START, () => {
+		const listener = gitService.addListener(ServiceEvents.OPERATION_START, () => {
 			this.outputListener = this.gitService.onOutput(output => this.onOutput(output));
 			listener.dispose();
 		});

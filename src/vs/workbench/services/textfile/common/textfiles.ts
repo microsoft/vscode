@@ -141,6 +141,11 @@ export interface IRawTextContent extends IBaseStat {
 	encoding: string;
 }
 
+export interface IModelLoadOrCreateOptions {
+	encoding?: string;
+	reload?: boolean;
+}
+
 export interface ITextFileEditorModelManager {
 
 	onModelDisposed: Event<URI>;
@@ -162,7 +167,9 @@ export interface ITextFileEditorModelManager {
 
 	getAll(resource?: URI): ITextFileEditorModel[];
 
-	loadOrCreate(resource: URI, preferredEncoding?: string, refresh?: boolean): TPromise<ITextEditorModel>;
+	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextEditorModel>;
+
+	disposeModel(model: ITextFileEditorModel): void;
 }
 
 export interface IModelSaveOptions {
@@ -298,12 +305,6 @@ export interface ITextFileService extends IDisposable {
 	 * confirming for all dirty resources.
 	 */
 	confirmSave(resources?: URI[]): ConfirmResult;
-
-	/**
-	 * Brings up an informational message about how exit now being enabled by default. This message
-	 * is temporary and will eventually be removed.
-	 */
-	showHotExitMessage(): void;
 
 	/**
 	 * Convinient fast access to the current auto save mode.

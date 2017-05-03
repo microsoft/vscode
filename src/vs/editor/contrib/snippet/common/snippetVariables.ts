@@ -37,7 +37,7 @@ export class SnippetVariablesResolver implements ISnippetVariableResolver {
 	}
 
 	private _tmCurrentLine(): string {
-		const {positionLineNumber} = this._editor.getSelection();
+		const { positionLineNumber } = this._editor.getSelection();
 		return this._editor.getModel().getValueInRange({ startLineNumber: positionLineNumber, startColumn: 1, endLineNumber: positionLineNumber, endColumn: Number.MAX_VALUE });
 	}
 

@@ -9,12 +9,12 @@ import severity from 'vs/base/common/severity';
 import Event from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IModel as EditorIModel, IEditorContribution, IRange } from 'vs/editor/common/editorCommon';
+import { IModel as EditorIModel, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -308,6 +308,7 @@ export interface IEnvConfig {
 	request: string;
 	internalConsoleOptions?: string;
 	preLaunchTask?: string;
+	__restart?: boolean;
 	debugServer?: number;
 	noDebug?: boolean;
 	port?: number;

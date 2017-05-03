@@ -1122,7 +1122,29 @@
 		}
 	},
 	{
-		"c": "    std::unique_ptr",
+		"c": "    std",
+		"t": "source.cpp meta.block.c",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.cpp meta.block.c punctuation.separator.namespace.access.cpp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "unique_ptr",
 		"t": "source.cpp meta.block.c",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

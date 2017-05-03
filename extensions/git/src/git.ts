@@ -9,11 +9,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
+import { EventEmitter } from 'events';
+import iconv = require('iconv-lite');
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp } from './util';
-import { EventEmitter, Event } from 'vscode';
-import * as nls from 'vscode-nls';
 
-const localize = nls.loadMessageBundle();
 const readdir = denodeify<string[]>(fs.readdir);
 const readfile = denodeify<string>(fs.readFile);
 
@@ -159,7 +158,7 @@ export interface IExecutionResult {
 	stderr: string;
 }
 
-export async function exec(child: cp.ChildProcess): Promise<IExecutionResult> {
+async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecutionResult> {
 	const disposables: IDisposable[] = [];
 
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
@@ -172,20 +171,23 @@ export async function exec(child: cp.ChildProcess): Promise<IExecutionResult> {
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
+	let encoding = options.encoding || 'utf8';
+	encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+
 	const [exitCode, stdout, stderr] = await Promise.all<any>([
 		new Promise<number>((c, e) => {
 			once(child, 'error', e);
 			once(child, 'exit', c);
 		}),
 		new Promise<string>(c => {
-			const buffers: string[] = [];
+			const buffers: Buffer[] = [];
 			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(buffers.join('')));
+			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
 		}),
 		new Promise<string>(c => {
-			const buffers: string[] = [];
+			const buffers: Buffer[] = [];
 			on(child.stderr, 'data', b => buffers.push(b));
-			once(child.stderr, 'close', () => c(buffers.join('')));
+			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 		})
 	]);
 
@@ -274,14 +276,34 @@ export const GitErrorCodes = {
 	RepositoryIsLocked: 'RepositoryIsLocked'
 };
 
+function getGitErrorCode(stderr: string): string | undefined {
+	if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(stderr)) {
+		return GitErrorCodes.RepositoryIsLocked;
+	} else if (/Authentication failed/.test(stderr)) {
+		return GitErrorCodes.AuthenticationFailed;
+	} else if (/Not a git repository/.test(stderr)) {
+		return GitErrorCodes.NotAGitRepository;
+	} else if (/bad config file/.test(stderr)) {
+		return GitErrorCodes.BadConfigFile;
+	} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(stderr)) {
+		return GitErrorCodes.CantCreatePipe;
+	} else if (/Repository not found/.test(stderr)) {
+		return GitErrorCodes.RepositoryNotFound;
+	} else if (/unable to access/.test(stderr)) {
+		return GitErrorCodes.CantAccessRemote;
+	}
+
+	return void 0;
+}
+
 export class Git {
 
 	private gitPath: string;
 	private version: string;
 	private env: any;
 
-	private _onOutput = new EventEmitter<string>();
-	get onOutput(): Event<string> { return this._onOutput.event; }
+	private _onOutput = new EventEmitter();
+	get onOutput(): EventEmitter { return this._onOutput; }
 
 	constructor(options: IGitOptions) {
 		this.gitPath = options.gitPath;
@@ -329,37 +351,19 @@ export class Git {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		const result = await exec(child);
+		const result = await exec(child, options);
+
+		if (options.log !== false && result.stderr.length > 0) {
+			this.log(`${result.stderr}\n`);
+		}
 
 		if (result.exitCode) {
-			let gitErrorCode: string | undefined = void 0;
-
-			if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.RepositoryIsLocked;
-			} else if (/Authentication failed/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.AuthenticationFailed;
-			} else if (/Not a git repository/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.NotAGitRepository;
-			} else if (/bad config file/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.BadConfigFile;
-			} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.CantCreatePipe;
-			} else if (/Repository not found/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.RepositoryNotFound;
-			} else if (/unable to access/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.CantAccessRemote;
-			}
-
-			if (options.log !== false) {
-				this.log(`${result.stderr}\n`);
-			}
-
 			return Promise.reject<IExecutionResult>(new GitError({
 				message: 'Failed to execute git',
 				stdout: result.stdout,
 				stderr: result.stderr,
 				exitCode: result.exitCode,
-				gitErrorCode,
+				gitErrorCode: getGitErrorCode(result.stderr),
 				gitCommand: args[0]
 			}));
 		}
@@ -394,13 +398,79 @@ export class Git {
 	}
 
 	private log(output: string): void {
-		this._onOutput.fire(output);
+		this._onOutput.emit('log', output);
 	}
 }
 
 export interface Commit {
 	hash: string;
 	message: string;
+}
+
+export class GitStatusParser {
+
+	private lastRaw = '';
+	private result: IFileStatus[] = [];
+
+	get status(): IFileStatus[] {
+		return this.result;
+	}
+
+	update(raw: string): void {
+		let i = 0;
+		let nextI: number | undefined;
+
+		raw = this.lastRaw + raw;
+
+		while ((nextI = this.parseEntry(raw, i)) !== undefined) {
+			i = nextI;
+		}
+
+		this.lastRaw = raw.substr(i);
+	}
+
+	private parseEntry(raw: string, i: number): number | undefined {
+		if (i + 4 >= raw.length) {
+			return;
+		}
+
+		let lastIndex: number;
+		const entry: IFileStatus = {
+			x: raw.charAt(i++),
+			y: raw.charAt(i++),
+			rename: undefined,
+			path: ''
+		};
+
+		// space
+		i++;
+
+		if (entry.x === 'R') {
+			lastIndex = raw.indexOf('\0', i);
+
+			if (lastIndex === -1) {
+				return;
+			}
+
+			entry.rename = raw.substring(i, lastIndex);
+			i = lastIndex + 1;
+		}
+
+		lastIndex = raw.indexOf('\0', i);
+
+		if (lastIndex === -1) {
+			return;
+		}
+
+		entry.path = raw.substring(i, lastIndex);
+
+		// If path ends with slash, it must be a nested git repo
+		if (entry.path[entry.path.length - 1] !== '/') {
+			this.result.push(entry);
+		}
+
+		return lastIndex + 1;
+	}
 }
 
 export class Repository {
@@ -448,14 +518,23 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async buffer(object: string): Promise<string> {
+	async buffer(object: string, encoding: string = 'utf8'): Promise<string> {
 		const child = this.stream(['show', object]);
 
 		if (!child.stdout) {
-			return Promise.reject<string>(localize('errorBuffer', "Can't open file from git"));
+			return Promise.reject<string>('Can\'t open file from git');
 		}
 
-		return await this.doBuffer(object);
+		const { exitCode, stdout } = await exec(child, { encoding });
+
+		if (exitCode) {
+			return Promise.reject<string>(new GitError({
+				message: 'Could not show object.',
+				exitCode
+			}));
+		}
+
+		return stdout;
 
 		// TODO@joao
 		// return new Promise((c, e) => {
@@ -472,20 +551,6 @@ export class Repository {
 		// 	}
 		// });
 		// });
-	}
-
-	private async doBuffer(object: string): Promise<string> {
-		const child = this.stream(['show', object]);
-		const { exitCode, stdout } = await exec(child);
-
-		if (exitCode) {
-			return Promise.reject<string>(new GitError({
-				message: 'Could not buffer object.',
-				exitCode
-			}));
-		}
-
-		return stdout;
 	}
 
 	async add(paths: string[]): Promise<void> {
@@ -717,44 +782,48 @@ export class Repository {
 		}
 	}
 
-	async getStatus(): Promise<IFileStatus[]> {
-		const executionResult = await this.run(['status', '-z', '-u']);
-		const status = executionResult.stdout;
-		const result: IFileStatus[] = [];
-		let current: IFileStatus;
-		let i = 0;
+	getStatus(limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
+		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
+			const parser = new GitStatusParser();
+			const child = this.stream(['status', '-z', '-u']);
 
-		function readName(): string {
-			const start = i;
-			let c: string;
-			while ((c = status.charAt(i)) !== '\u0000') { i++; }
-			return status.substring(start, i++);
-		}
+			const onExit = exitCode => {
+				if (exitCode !== 0) {
+					const stderr = stderrData.join('');
+					return e(new GitError({
+						message: 'Failed to execute git',
+						stderr,
+						exitCode,
+						gitErrorCode: getGitErrorCode(stderr),
+						gitCommand: 'status'
+					}));
+				}
 
-		while (i < status.length) {
-			current = {
-				x: status.charAt(i++),
-				y: status.charAt(i++),
-				path: ''
+				c({ status: parser.status, didHitLimit: false });
 			};
 
-			i++;
+			const onStdoutData = (raw: string) => {
+				parser.update(raw);
 
-			if (current.x === 'R') {
-				current.rename = readName();
-			}
+				if (parser.status.length > 5000) {
+					child.removeListener('exit', onExit);
+					child.stdout.removeListener('data', onStdoutData);
+					child.kill();
 
-			current.path = readName();
+					c({ status: parser.status.slice(0, 5000), didHitLimit: true });
+				}
+			};
 
-			// If path ends with slash, it must be a nested git repo
-			if (current.path[current.path.length - 1] === '/') {
-				continue;
-			}
+			child.stdout.setEncoding('utf8');
+			child.stdout.on('data', onStdoutData);
 
-			result.push(current);
-		}
+			const stderrData: string[] = [];
+			child.stderr.setEncoding('utf8');
+			child.stderr.on('data', raw => stderrData.push(raw as string));
 
-		return result;
+			child.on('error', e);
+			child.on('exit', onExit);
+		});
 	}
 
 	async getHEAD(): Promise<Ref> {

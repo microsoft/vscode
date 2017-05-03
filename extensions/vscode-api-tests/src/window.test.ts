@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
 import { join } from 'path';
-import { cleanUp, pathEquals } from './utils';
+import { cleanUp, pathEquals, createRandomFile } from './utils';
 
 suite('window namespace tests', () => {
 
@@ -108,6 +108,25 @@ suite('window namespace tests', () => {
 				registration1.dispose();
 			});
 		});
+	});
+
+	test('issue #25801 - default column when opening a file', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, ViewColumn.One);
+		await window.showTextDocument(docB, ViewColumn.Two);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === docB);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+
+		await window.showTextDocument(docC);
+		assert.ok(window.activeTextEditor!.document === docC);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
 	});
 
 	test('issue #5362 - Incorrect TextEditor passed by onDidChangeTextEditorSelection', (done) => {
