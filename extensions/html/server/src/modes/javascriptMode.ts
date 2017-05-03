@@ -30,9 +30,10 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			scriptFileVersion++;
 		}
 	}
-	let host = {
+	const host: ts.LanguageServiceHost = {
 		getCompilationSettings: () => compilerOptions,
 		getScriptFileNames: () => [FILE_NAME, JQUERY_D_TS],
+		getScriptKind: () => ts.ScriptKind.JS,
 		getScriptVersion: (fileName: string) => {
 			if (fileName === FILE_NAME) {
 				return String(scriptFileVersion);
