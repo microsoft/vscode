@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { KeyCode, KeyCodeUtils, ResolvedKeybinding, Keybinding, SimpleKeybinding, KeybindingType, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, ResolvedKeybinding, Keybinding, SimpleKeybinding, KeybindingType, USER_SETTINGS, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider, NO_MODIFIERS } from 'vs/platform/keybinding/common/keybindingLabels';
@@ -235,8 +235,26 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		return this._firstPart.metaKey;
 	}
 
-	public getParts(): [ResolvedKeybinding, ResolvedKeybinding] {
-		return [new WindowsNativeResolvedKeybinding(this._mapper, this._firstPart, null), this._chordPart ? new WindowsNativeResolvedKeybinding(this._mapper, this._chordPart, null) : null];
+	public getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart] {
+		return [
+			this._toResolvedKeybindingPart(this._firstPart),
+			this._toResolvedKeybindingPart(this._chordPart)
+		];
+	}
+
+	private _toResolvedKeybindingPart(keybinding: SimpleKeybinding): ResolvedKeybindingPart {
+		if (!keybinding) {
+			return null;
+		}
+
+		return new ResolvedKeybindingPart(
+			keybinding.ctrlKey,
+			keybinding.shiftKey,
+			keybinding.altKey,
+			keybinding.metaKey,
+			this._getUILabelForKeybinding(keybinding),
+			this._getAriaLabelForKeybinding(keybinding)
+		);
 	}
 
 	public getDispatchParts(): [string, string] {

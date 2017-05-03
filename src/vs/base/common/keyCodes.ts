@@ -546,8 +546,27 @@ export class ChordKeybinding {
 
 export type Keybinding = SimpleKeybinding | ChordKeybinding;
 
+export class ResolvedKeybindingPart {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+
+	readonly kbLabel: string;
+	readonly kbAriaLabel: string;
+
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, kbLabel: string, kbAriaLabel: string) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.kbLabel = kbLabel;
+		this.kbAriaLabel = kbAriaLabel;
+	}
+}
+
 /**
- * A resolved keybinding.
+ * A resolved keybinding. Can be a simple keybinding or a chord keybinding.
  */
 export abstract class ResolvedKeybinding {
 	/**
@@ -612,5 +631,5 @@ export abstract class ResolvedKeybinding {
 	/**
 	 * Returns the firstPart, chordPart of the keybinding
 	 */
-	public abstract getParts(): [ResolvedKeybinding, ResolvedKeybinding];
+	public abstract getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart];
 }

@@ -8,7 +8,7 @@ import 'vs/css!./keybindingLabel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { ResolvedKeybinding } from 'vs/base/common/keycodes';
+import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { UILabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import * as dom from 'vs/base/browser/dom';
 
@@ -72,21 +72,21 @@ export class KeybindingLabel implements IDisposable {
 		this.didEverRender = true;
 	}
 
-	private renderPart(parent: HTMLElement, part: ResolvedKeybinding, match: PartMatches) {
+	private renderPart(parent: HTMLElement, part: ResolvedKeybindingPart, match: PartMatches) {
 		const modifierLabels = UILabelProvider.modifierLabels[this.os];
-		if (part.hasCtrlModifier()) {
+		if (part.ctrlKey) {
 			this.renderKey(parent, modifierLabels.ctrlKey, match && match.ctrlKey, modifierLabels.separator);
 		}
-		if (part.hasShiftModifier()) {
+		if (part.shiftKey) {
 			this.renderKey(parent, modifierLabels.shiftKey, match && match.shiftKey, modifierLabels.separator);
 		}
-		if (part.hasAltModifier()) {
+		if (part.altKey) {
 			this.renderKey(parent, modifierLabels.altKey, match && match.altKey, modifierLabels.separator);
 		}
-		if (part.hasMetaModifier()) {
+		if (part.metaKey) {
 			this.renderKey(parent, modifierLabels.metaKey, match && match.metaKey, modifierLabels.separator);
 		}
-		const keyLabel = part.getLabelWithoutModifiers();
+		const keyLabel = part.kbLabel;
 		if (keyLabel) {
 			this.renderKey(parent, keyLabel, match && match.keyCode, '');
 		}

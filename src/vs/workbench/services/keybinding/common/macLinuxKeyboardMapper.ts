@@ -6,7 +6,7 @@
 'use strict';
 
 import { OperatingSystem } from 'vs/base/common/platform';
-import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType, USER_SETTINGS } from 'vs/base/common/keyCodes';
+import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType, USER_SETTINGS, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, ElectronAcceleratorLabelProvider, NO_MODIFIERS } from 'vs/platform/keybinding/common/keybindingLabels';
@@ -222,8 +222,26 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 		return this._firstPart.metaKey;
 	}
 
-	public getParts(): [ResolvedKeybinding, ResolvedKeybinding] {
-		return [new NativeResolvedKeybinding(this._mapper, this._OS, this._firstPart, null), this._chordPart ? new NativeResolvedKeybinding(this._mapper, this._OS, this._chordPart, null) : null];
+	public getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart] {
+		return [
+			this._toResolvedKeybindingPart(this._firstPart),
+			this._toResolvedKeybindingPart(this._chordPart)
+		];
+	}
+
+	private _toResolvedKeybindingPart(binding: ScanCodeBinding): ResolvedKeybindingPart {
+		if (!binding) {
+			return null;
+		}
+
+		return new ResolvedKeybindingPart(
+			binding.ctrlKey,
+			binding.shiftKey,
+			binding.altKey,
+			binding.metaKey,
+			this._getUILabelForScanCodeBinding(binding),
+			this._getAriaLabelForScanCodeBinding(binding)
+		);
 	}
 
 	public getDispatchParts(): [string, string] {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ResolvedKeybinding, KeyCode, KeyCodeUtils, USER_SETTINGS, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, ResolvedKeybindingPart, KeyCode, KeyCodeUtils, USER_SETTINGS, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider, NO_MODIFIERS } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 
@@ -185,8 +185,26 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		return this._firstPart.metaKey;
 	}
 
-	public getParts(): [ResolvedKeybinding, ResolvedKeybinding] {
-		return [new USLayoutResolvedKeybinding(this._firstPart, this._os), this._chordPart ? new USLayoutResolvedKeybinding(this._chordPart, this._os) : null];
+	public getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart] {
+		return [
+			this._toResolvedKeybindingPart(this._firstPart),
+			this._toResolvedKeybindingPart(this._chordPart)
+		];
+	}
+
+	private _toResolvedKeybindingPart(keybinding: SimpleKeybinding): ResolvedKeybindingPart {
+		if (!keybinding) {
+			return null;
+		}
+
+		return new ResolvedKeybindingPart(
+			keybinding.ctrlKey,
+			keybinding.shiftKey,
+			keybinding.altKey,
+			keybinding.metaKey,
+			this._getUILabelForKeybinding(keybinding),
+			this._getAriaLabelForKeybinding(keybinding)
+		);
 	}
 
 	public getDispatchParts(): [string, string] {
