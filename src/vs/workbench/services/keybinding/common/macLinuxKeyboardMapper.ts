@@ -561,7 +561,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
 			const keyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
 			if (keyCode !== -1) {
-				this._registerAllCombos1(false, false, false, scanCode, keyCode);
+				this._registerAllCombos(0, 0, 0, scanCode, keyCode);
 				this._scanCodeToLabel[scanCode] = KeyCodeUtils.toString(keyCode);
 
 				if (keyCode === KeyCode.Unknown || keyCode === KeyCode.Ctrl || keyCode === KeyCode.Meta || keyCode === KeyCode.Alt || keyCode === KeyCode.Shift) {
@@ -629,16 +629,19 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			}
 			const kb = MacLinuxKeyboardMapper._charCodeToKb(withShiftAltGr);
 			if (!kb) {
-				this._registerAllCombos1(true, true, true, scanCode, KeyCode.Unknown);
+				this._registerAllCombos(1, 1, 1, scanCode, KeyCode.Unknown);
 				continue;
 			}
 			const kbShiftKey = kb.shiftKey;
 			const keyCode = kb.keyCode;
 
-			this._registerAllCombos2(
-				true, true, true, scanCode,
-				kbShiftKey, keyCode
-			);
+			if (kbShiftKey) {
+				// Ctrl+Shift+Alt+ScanCode => Shift+KeyCode
+				this._registerIfUnknown(1, 1, 1, scanCode, 0, 1, 0, keyCode); //       Ctrl+Alt+ScanCode =>          Shift+KeyCode
+			} else {
+				// Ctrl+Shift+Alt+ScanCode => KeyCode
+				this._registerIfUnknown(1, 1, 1, scanCode, 0, 0, 0, keyCode); //       Ctrl+Alt+ScanCode =>                KeyCode
+			}
 		}
 		// Handle all `withAltGr` entries
 		for (let i = mappings.length - 1; i >= 0; i--) {
@@ -651,16 +654,19 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			}
 			const kb = MacLinuxKeyboardMapper._charCodeToKb(withAltGr);
 			if (!kb) {
-				this._registerAllCombos1(true, false, true, scanCode, KeyCode.Unknown);
+				this._registerAllCombos(1, 0, 1, scanCode, KeyCode.Unknown);
 				continue;
 			}
 			const kbShiftKey = kb.shiftKey;
 			const keyCode = kb.keyCode;
 
-			this._registerAllCombos2(
-				true, false, true, scanCode,
-				kbShiftKey, keyCode
-			);
+			if (kbShiftKey) {
+				// Ctrl+Alt+ScanCode => Shift+KeyCode
+				this._registerIfUnknown(1, 0, 1, scanCode, 0, 1, 0, keyCode); //       Ctrl+Alt+ScanCode =>          Shift+KeyCode
+			} else {
+				// Ctrl+Alt+ScanCode => KeyCode
+				this._registerIfUnknown(1, 0, 1, scanCode, 0, 0, 0, keyCode); //       Ctrl+Alt+ScanCode =>                KeyCode
+			}
 		}
 		// Handle all `withShift` entries
 		for (let i = mappings.length - 1; i >= 0; i--) {
@@ -673,16 +679,29 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			}
 			const kb = MacLinuxKeyboardMapper._charCodeToKb(withShift);
 			if (!kb) {
-				this._registerAllCombos1(false, true, false, scanCode, KeyCode.Unknown);
+				this._registerAllCombos(0, 1, 0, scanCode, KeyCode.Unknown);
 				continue;
 			}
 			const kbShiftKey = kb.shiftKey;
 			const keyCode = kb.keyCode;
 
-			this._registerAllCombos2(
-				false, true, false, scanCode,
-				kbShiftKey, keyCode
-			);
+			if (kbShiftKey) {
+				// Shift+ScanCode => Shift+KeyCode
+				this._registerIfUnknown(0, 1, 0, scanCode, 0, 1, 0, keyCode); //          Shift+ScanCode =>          Shift+KeyCode
+				this._registerIfUnknown(0, 1, 1, scanCode, 0, 1, 1, keyCode); //      Shift+Alt+ScanCode =>      Shift+Alt+KeyCode
+				this._registerIfUnknown(1, 1, 0, scanCode, 1, 1, 0, keyCode); //     Ctrl+Shift+ScanCode =>     Ctrl+Shift+KeyCode
+				this._registerIfUnknown(1, 1, 1, scanCode, 1, 1, 1, keyCode); // Ctrl+Shift+Alt+ScanCode => Ctrl+Shift+Alt+KeyCode
+			} else {
+				// Shift+ScanCode => KeyCode
+				this._registerIfUnknown(0, 1, 0, scanCode, 0, 0, 0, keyCode); //          Shift+ScanCode =>                KeyCode
+				this._registerIfUnknown(0, 1, 0, scanCode, 0, 1, 0, keyCode); //          Shift+ScanCode =>          Shift+KeyCode
+				this._registerIfUnknown(0, 1, 1, scanCode, 0, 0, 1, keyCode); //      Shift+Alt+ScanCode =>            Alt+KeyCode
+				this._registerIfUnknown(0, 1, 1, scanCode, 0, 1, 1, keyCode); //      Shift+Alt+ScanCode =>      Shift+Alt+KeyCode
+				this._registerIfUnknown(1, 1, 0, scanCode, 1, 0, 0, keyCode); //     Ctrl+Shift+ScanCode =>           Ctrl+KeyCode
+				this._registerIfUnknown(1, 1, 0, scanCode, 1, 1, 0, keyCode); //     Ctrl+Shift+ScanCode =>     Ctrl+Shift+KeyCode
+				this._registerIfUnknown(1, 1, 1, scanCode, 1, 0, 1, keyCode); // Ctrl+Shift+Alt+ScanCode =>       Ctrl+Alt+KeyCode
+				this._registerIfUnknown(1, 1, 1, scanCode, 1, 1, 1, keyCode); // Ctrl+Shift+Alt+ScanCode => Ctrl+Shift+Alt+KeyCode
+			}
 		}
 		// Handle all `value` entries
 		for (let i = mappings.length - 1; i >= 0; i--) {
@@ -690,28 +709,41 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			const scanCode = mapping.scanCode;
 			const kb = MacLinuxKeyboardMapper._charCodeToKb(mapping.value);
 			if (!kb) {
-				this._registerAllCombos1(false, false, false, scanCode, KeyCode.Unknown);
+				this._registerAllCombos(0, 0, 0, scanCode, KeyCode.Unknown);
 				continue;
 			}
 			const kbShiftKey = kb.shiftKey;
 			const keyCode = kb.keyCode;
 
-			this._registerAllCombos2(
-				false, false, false, scanCode,
-				kbShiftKey, keyCode
-			);
+			if (kbShiftKey) {
+				// ScanCode => Shift+KeyCode
+				this._registerIfUnknown(0, 0, 0, scanCode, 0, 1, 0, keyCode); //                ScanCode =>          Shift+KeyCode
+				this._registerIfUnknown(0, 0, 1, scanCode, 0, 1, 1, keyCode); //            Alt+ScanCode =>      Shift+Alt+KeyCode
+				this._registerIfUnknown(1, 0, 0, scanCode, 1, 1, 0, keyCode); //           Ctrl+ScanCode =>     Ctrl+Shift+KeyCode
+				this._registerIfUnknown(1, 0, 1, scanCode, 1, 1, 1, keyCode); //       Ctrl+Alt+ScanCode => Ctrl+Shift+Alt+KeyCode
+			} else {
+				// ScanCode => KeyCode
+				this._registerIfUnknown(0, 0, 0, scanCode, 0, 0, 0, keyCode); //                ScanCode =>                KeyCode
+				this._registerIfUnknown(0, 0, 1, scanCode, 0, 0, 1, keyCode); //            Alt+ScanCode =>            Alt+KeyCode
+				this._registerIfUnknown(0, 1, 0, scanCode, 0, 1, 0, keyCode); //          Shift+ScanCode =>          Shift+KeyCode
+				this._registerIfUnknown(0, 1, 1, scanCode, 0, 1, 1, keyCode); //      Shift+Alt+ScanCode =>      Shift+Alt+KeyCode
+				this._registerIfUnknown(1, 0, 0, scanCode, 1, 0, 0, keyCode); //           Ctrl+ScanCode =>           Ctrl+KeyCode
+				this._registerIfUnknown(1, 0, 1, scanCode, 1, 0, 1, keyCode); //       Ctrl+Alt+ScanCode =>       Ctrl+Alt+KeyCode
+				this._registerIfUnknown(1, 1, 0, scanCode, 1, 1, 0, keyCode); //     Ctrl+Shift+ScanCode =>     Ctrl+Shift+KeyCode
+				this._registerIfUnknown(1, 1, 1, scanCode, 1, 1, 1, keyCode); // Ctrl+Shift+Alt+ScanCode => Ctrl+Shift+Alt+KeyCode
+			}
 		}
 		// Handle all left-over available digits
-		this._registerAllCombos1(false, false, false, ScanCode.Digit1, KeyCode.KEY_1);
-		this._registerAllCombos1(false, false, false, ScanCode.Digit2, KeyCode.KEY_2);
-		this._registerAllCombos1(false, false, false, ScanCode.Digit3, KeyCode.KEY_3);
-		this._registerAllCombos1(false, false, false, ScanCode.Digit4, KeyCode.KEY_4);
-		this._registerAllCombos1(false, false, false, ScanCode.Digit5, KeyCode.KEY_5);
-		this._registerAllCombos1(false, false, false, ScanCode.Digit6, KeyCode.KEY_6);
-		this._registerAllCombos1(false, false, false, ScanCode.Digit7, KeyCode.KEY_7);
-		this._registerAllCombos1(false, false, false, ScanCode.Digit8, KeyCode.KEY_8);
-		this._registerAllCombos1(false, false, false, ScanCode.Digit9, KeyCode.KEY_9);
-		this._registerAllCombos1(false, false, false, ScanCode.Digit0, KeyCode.KEY_0);
+		this._registerAllCombos(0, 0, 0, ScanCode.Digit1, KeyCode.KEY_1);
+		this._registerAllCombos(0, 0, 0, ScanCode.Digit2, KeyCode.KEY_2);
+		this._registerAllCombos(0, 0, 0, ScanCode.Digit3, KeyCode.KEY_3);
+		this._registerAllCombos(0, 0, 0, ScanCode.Digit4, KeyCode.KEY_4);
+		this._registerAllCombos(0, 0, 0, ScanCode.Digit5, KeyCode.KEY_5);
+		this._registerAllCombos(0, 0, 0, ScanCode.Digit6, KeyCode.KEY_6);
+		this._registerAllCombos(0, 0, 0, ScanCode.Digit7, KeyCode.KEY_7);
+		this._registerAllCombos(0, 0, 0, ScanCode.Digit8, KeyCode.KEY_8);
+		this._registerAllCombos(0, 0, 0, ScanCode.Digit9, KeyCode.KEY_9);
+		this._registerAllCombos(0, 0, 0, ScanCode.Digit0, KeyCode.KEY_0);
 
 		// Ensure letters are mapped
 		this._registerLetterIfMissing(producesLetter, CharCode.A, ScanCode.KeyA, KeyCode.KEY_A);
@@ -746,7 +778,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 	private _registerLetterIfMissing(producesLetter: boolean[], charCode: CharCode, scanCode: ScanCode, keyCode: KeyCode): void {
 		if (!producesLetter[charCode]) {
-			this._registerAllCombos1(false, false, false, scanCode, keyCode);
+			this._registerAllCombos(0, 0, 0, scanCode, keyCode);
 		}
 	}
 
@@ -853,66 +885,25 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 	}
 
 	private _registerIfUnknown(
-		hwCtrlKey: boolean, hwShiftKey: boolean, hwAltKey: boolean, scanCode: ScanCode,
-		kbCtrlKey: boolean, kbShiftKey: boolean, kbAltKey: boolean, keyCode: KeyCode,
+		hwCtrlKey: 0 | 1, hwShiftKey: 0 | 1, hwAltKey: 0 | 1, scanCode: ScanCode,
+		kbCtrlKey: 0 | 1, kbShiftKey: 0 | 1, kbAltKey: 0 | 1, keyCode: KeyCode,
 	): void {
 		this._scanCodeKeyCodeMapper.registerIfUnknown(
-			new ScanCodeCombo(hwCtrlKey, hwShiftKey, hwAltKey, scanCode),
-			new KeyCodeCombo(kbCtrlKey, kbShiftKey, kbAltKey, keyCode)
+			new ScanCodeCombo(hwCtrlKey ? true : false, hwShiftKey ? true : false, hwAltKey ? true : false, scanCode),
+			new KeyCodeCombo(kbCtrlKey ? true : false, kbShiftKey ? true : false, kbAltKey ? true : false, keyCode)
 		);
 	}
 
-	private _registerAllCombos1(
-		_ctrlKey: boolean, _shiftKey: boolean, _altKey: boolean, scanCode: ScanCode,
+	private _registerAllCombos(
+		_ctrlKey: 0 | 1, _shiftKey: 0 | 1, _altKey: 0 | 1, scanCode: ScanCode,
 		keyCode: KeyCode,
 	): void {
-		for (let _ctrl = (_ctrlKey ? 1 : 0); _ctrl <= 1; _ctrl++) {
-			const ctrlKey = (_ctrl ? true : false);
-			for (let _shift = (_shiftKey ? 1 : 0); _shift <= 1; _shift++) {
-				const shiftKey = (_shift ? true : false);
-				for (let _alt = (_altKey ? 1 : 0); _alt <= 1; _alt++) {
-					const altKey = (_alt ? true : false);
+		for (let ctrlKey = _ctrlKey; ctrlKey <= 1; ctrlKey++) {
+			for (let shiftKey = _shiftKey; shiftKey <= 1; shiftKey++) {
+				for (let altKey = _altKey; altKey <= 1; altKey++) {
 					this._registerIfUnknown(
 						ctrlKey, shiftKey, altKey, scanCode,
 						ctrlKey, shiftKey, altKey, keyCode
-					);
-				}
-			}
-		}
-	}
-
-	private _registerAllCombos2(
-		hwCtrlKey: boolean, hwShiftKey: boolean, hwAltKey: boolean, scanCode: ScanCode,
-		kbShiftKey: boolean, keyCode: KeyCode,
-	): void {
-		this._registerIfUnknown(
-			hwCtrlKey, hwShiftKey, hwAltKey, scanCode,
-			false, kbShiftKey, false, keyCode
-		);
-
-		if (!kbShiftKey) {
-			for (let _ctrl = (hwCtrlKey ? 1 : 0); _ctrl <= 1; _ctrl++) {
-				const ctrlKey = (_ctrl ? true : false);
-				for (let _alt = (hwAltKey ? 1 : 0); _alt <= 1; _alt++) {
-					const altKey = (_alt ? true : false);
-					this._registerIfUnknown(
-						ctrlKey, hwShiftKey, altKey, scanCode,
-						ctrlKey, kbShiftKey, altKey, keyCode
-					);
-					this._registerIfUnknown(
-						ctrlKey, true, altKey, scanCode,
-						ctrlKey, true, altKey, keyCode
-					);
-				}
-			}
-		} else {
-			for (let _ctrl = (hwCtrlKey ? 1 : 0); _ctrl <= 1; _ctrl++) {
-				const ctrlKey = (_ctrl ? true : false);
-				for (let _alt = (hwAltKey ? 1 : 0); _alt <= 1; _alt++) {
-					const altKey = (_alt ? true : false);
-					this._registerIfUnknown(
-						ctrlKey, hwShiftKey, altKey, scanCode,
-						ctrlKey, kbShiftKey, altKey, keyCode
 					);
 				}
 			}
