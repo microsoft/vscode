@@ -650,6 +650,11 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async deleteBranch(name: string): Promise<void> {
+		const args = ['branch', '-d', name];
+		await this.run(args);
+	}
+
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths, p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
