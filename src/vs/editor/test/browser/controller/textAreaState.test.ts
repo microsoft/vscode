@@ -41,7 +41,7 @@ export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper 
 		return this._selectionEnd;
 	}
 
-	public setSelectionRange(selectionStart: number, selectionEnd: number): void {
+	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {
 		if (selectionStart < 0) {
 			selectionStart = 0;
 		}
@@ -113,7 +113,7 @@ suite('TextAreaState', () => {
 		textArea.dispose();
 	});
 
-	function testDeduceInput(prevState: TextAreaState, value: string, selectionStart: number, selectionEnd: number, expected: string, expectedCharReplaceCnt: number): void {
+	function testDeduceInput(prevState: TextAreaState, value: string, selectionStart: number, selectionEnd: number, isDoingComposition: boolean, expected: string, expectedCharReplaceCnt: number): void {
 		prevState = prevState || TextAreaState.EMPTY;
 
 		let textArea = new MockTextAreaWrapper();
@@ -122,7 +122,7 @@ suite('TextAreaState', () => {
 		textArea._selectionEnd = selectionEnd;
 
 		let newState = prevState.readFromTextArea(textArea);
-		let actual = TextAreaState.deduceInput(prevState, newState);
+		let actual = TextAreaState.deduceInput(prevState, newState, isDoingComposition);
 
 		assert.equal(actual.text, expected);
 		assert.equal(actual.replaceCharCnt, expectedCharReplaceCnt);
@@ -143,7 +143,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			TextAreaState.EMPTY,
 			'ｓ',
-			0, 1,
+			0, 1, true,
 			'ｓ', 0
 		);
 
@@ -153,7 +153,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('ｓ', 0, 1, 0),
 			'せ',
-			0, 1,
+			0, 1, true,
 			'せ', 1
 		);
 
@@ -163,7 +163,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('せ', 0, 1, 0),
 			'せｎ',
-			0, 2,
+			0, 2, true,
 			'せｎ', 1
 		);
 
@@ -173,7 +173,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('せｎ', 0, 2, 0),
 			'せん',
-			0, 2,
+			0, 2, true,
 			'せん', 2
 		);
 
@@ -183,7 +183,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('せん', 0, 2, 0),
 			'せんｓ',
-			0, 3,
+			0, 3, true,
 			'せんｓ', 2
 		);
 
@@ -193,7 +193,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('せんｓ', 0, 3, 0),
 			'せんせ',
-			0, 3,
+			0, 3, true,
 			'せんせ', 3
 		);
 
@@ -203,7 +203,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('せんせ', 0, 3, 0),
 			'せんせ',
-			0, 3,
+			0, 3, true,
 			'せんせ', 3
 		);
 
@@ -213,7 +213,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('せんせ', 0, 3, 0),
 			'せんせい',
-			0, 4,
+			0, 4, true,
 			'せんせい', 3
 		);
 
@@ -223,7 +223,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('せんせい', 0, 4, 0),
 			'せんせい',
-			4, 4,
+			4, 4, true,
 			'', 0
 		);
 	});
@@ -242,7 +242,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('せんせい', 0, 4, 0),
 			'せんせい',
-			0, 4,
+			0, 4, true,
 			'せんせい', 4
 		);
 
@@ -252,7 +252,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('せんせい', 0, 4, 0),
 			'先生',
-			0, 2,
+			0, 2, true,
 			'先生', 4
 		);
 
@@ -262,7 +262,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('先生', 0, 2, 0),
 			'先生',
-			2, 2,
+			2, 2, true,
 			'', 0
 		);
 	});
@@ -271,7 +271,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			null,
 			'a',
-			0, 1,
+			0, 1, false,
 			'a', 0
 		);
 	});
@@ -280,7 +280,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState(']\n', 1, 2, 0),
 			']\n',
-			2, 2,
+			2, 2, false,
 			'\n', 0
 		);
 	});
@@ -289,7 +289,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			null,
 			'a',
-			1, 1,
+			1, 1, false,
 			'a', 0
 		);
 	});
@@ -298,7 +298,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			TextAreaState.EMPTY,
 			'a',
-			0, 1,
+			0, 1, false,
 			'a', 0
 		);
 	});
@@ -307,7 +307,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			TextAreaState.EMPTY,
 			'a',
-			1, 1,
+			1, 1, false,
 			'a', 0
 		);
 	});
@@ -316,7 +316,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('Hello world!', 0, 12, 0),
 			'H',
-			1, 1,
+			1, 1, false,
 			'H', 0
 		);
 	});
@@ -325,7 +325,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('Hello world!', 12, 12, 0),
 			'Hello world!a',
-			13, 13,
+			13, 13, false,
 			'a', 0
 		);
 	});
@@ -334,7 +334,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('Hello world!', 0, 0, 0),
 			'aHello world!',
-			1, 1,
+			1, 1, false,
 			'a', 0
 		);
 	});
@@ -343,7 +343,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('Hello world!', 6, 11, 0),
 			'Hello other!',
-			11, 11,
+			11, 11, false,
 			'other', 0
 		);
 	});
@@ -352,7 +352,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			TextAreaState.EMPTY,
 			'これは',
-			3, 3,
+			3, 3, true,
 			'これは', 0
 		);
 	});
@@ -361,7 +361,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('Hello world!', 0, 0, 0),
 			'Aello world!',
-			1, 1,
+			1, 1, false,
 			'A', 0
 		);
 	});
@@ -370,7 +370,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('Hello world!', 5, 5, 0),
 			'Hellö world!',
-			4, 5,
+			4, 5, false,
 			'ö', 0
 		);
 	});
@@ -379,7 +379,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('Hello world!', 5, 5, 0),
 			'Hellöö world!',
-			5, 5,
+			5, 5, false,
 			'öö', 1
 		);
 	});
@@ -388,7 +388,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('Hello world!', 5, 5, 0),
 			'Helöö world!',
-			5, 5,
+			5, 5, false,
 			'öö', 2
 		);
 	});
@@ -397,8 +397,26 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState('Hello world!', 5, 5, 0),
 			'Hellö world!',
-			5, 5,
+			5, 5, false,
 			'ö', 1
+		);
+	});
+
+	test('issue #25101 - First key press ignored', () => {
+		testDeduceInput(
+			new TextAreaState('a', 0, 1, 0),
+			'a',
+			1, 1, false,
+			'a', 0
+		);
+	});
+
+	test('issue #16520 - Cmd-d of single character followed by typing same character as has no effect', () => {
+		testDeduceInput(
+			new TextAreaState('x x', 0, 1, 0),
+			'x x',
+			1, 1, false,
+			'x', 0
 		);
 	});
 

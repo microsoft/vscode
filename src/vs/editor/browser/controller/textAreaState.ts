@@ -15,7 +15,7 @@ export interface ITextAreaWrapper {
 
 	getSelectionStart(): number;
 	getSelectionEnd(): number;
-	setSelectionRange(selectionStart: number, selectionEnd: number): void;
+	setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void;
 }
 
 export interface ISimpleModel {
@@ -73,7 +73,7 @@ export class TextAreaState {
 		// console.log(Date.now() + ': applyToTextArea ' + reason + ': ' + this.toString());
 		textArea.setValue(reason, this.value);
 		if (select) {
-			textArea.setSelectionRange(this.selectionStart, this.selectionEnd);
+			textArea.setSelectionRange(reason, this.selectionStart, this.selectionEnd);
 		}
 	}
 
@@ -81,7 +81,7 @@ export class TextAreaState {
 		return new TextAreaState(text, 0, text.length, 0);
 	}
 
-	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState): ITypeData {
+	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, isDoingComposition: boolean): ITypeData {
 		if (!previousState) {
 			// This is the EMPTY state
 			return {
@@ -92,7 +92,7 @@ export class TextAreaState {
 
 		// console.log('------------------------deduceInput');
 		// console.log('CURRENT STATE: ' + currentState.toString());
-		// console.log('PREVIOUS STATE: ' + prevState.toString());
+		// console.log('PREVIOUS STATE: ' + previousState.toString());
 
 		let previousValue = previousState.value;
 		let previousSelectionStart = previousState.selectionStart;
@@ -102,15 +102,15 @@ export class TextAreaState {
 		let currentSelectionEnd = currentState.selectionEnd;
 
 		// Strip the previous suffix from the value (without interfering with the current selection)
-		let previousSuffix = previousValue.substring(previousSelectionEnd);
-		let currentSuffix = currentValue.substring(currentSelectionEnd);
-		let suffixLength = commonSuffixLength(previousSuffix, currentSuffix);
+		const previousSuffix = previousValue.substring(previousSelectionEnd);
+		const currentSuffix = currentValue.substring(currentSelectionEnd);
+		const suffixLength = commonSuffixLength(previousSuffix, currentSuffix);
 		currentValue = currentValue.substring(0, currentValue.length - suffixLength);
 		previousValue = previousValue.substring(0, previousValue.length - suffixLength);
 
-		let previousPrefix = previousValue.substring(0, previousSelectionStart);
-		let currentPrefix = currentValue.substring(0, currentSelectionStart);
-		let prefixLength = commonPrefixLength(previousPrefix, currentPrefix);
+		const previousPrefix = previousValue.substring(0, previousSelectionStart);
+		const currentPrefix = currentValue.substring(0, currentSelectionStart);
+		const prefixLength = commonPrefixLength(previousPrefix, currentPrefix);
 		currentValue = currentValue.substring(prefixLength);
 		previousValue = previousValue.substring(prefixLength);
 		currentSelectionStart -= prefixLength;
@@ -125,7 +125,8 @@ export class TextAreaState {
 			// composition accept case
 			// [blahblah] => blahblah|
 			if (
-				previousValue === currentValue
+				isDoingComposition
+				&& previousValue === currentValue
 				&& previousSelectionStart === 0
 				&& previousSelectionEnd === previousValue.length
 				&& currentSelectionStart === currentValue.length
@@ -138,7 +139,7 @@ export class TextAreaState {
 			}
 
 			// no current selection
-			let replacePreviousCharacters = (previousPrefix.length - prefixLength);
+			const replacePreviousCharacters = (previousPrefix.length - prefixLength);
 			// console.log('REMOVE PREVIOUS: ' + (previousPrefix.length - prefixLength) + ' chars');
 
 			return {
@@ -148,7 +149,7 @@ export class TextAreaState {
 		}
 
 		// there is a current selection => composition case
-		let replacePreviousCharacters = previousSelectionEnd - previousSelectionStart;
+		const replacePreviousCharacters = previousSelectionEnd - previousSelectionStart;
 		return {
 			text: currentValue,
 			replaceCharCnt: replacePreviousCharacters
