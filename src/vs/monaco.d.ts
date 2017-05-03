@@ -2956,8 +2956,8 @@ declare module monaco.editor {
 		 */
 		folding?: boolean;
 		/**
-		 * Enable automatic hiding of non-collapsed fold icons in the gutter
-		 * Defaults to true
+		 * Enable automatic hiding of non-collapsed fold icons in the gutter.
+		 * Defaults to true.
 		 */
 		hideFoldIcons?: boolean;
 		/**
