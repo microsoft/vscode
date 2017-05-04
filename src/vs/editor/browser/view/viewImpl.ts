@@ -93,7 +93,6 @@ export class View extends ViewEventHandler {
 	private overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
-	private hasFocus: boolean;
 	private _isDisposed: boolean;
 
 	private _renderAnimationFrame: IDisposable;
@@ -136,8 +135,6 @@ export class View extends ViewEventHandler {
 		// Pointer handler
 		this.pointerHandler = new PointerHandler(this._context, viewController, this.createPointerHandlerHelper());
 
-		this.hasFocus = false;
-
 		this._register(model.addEventListener((events: viewEvents.ViewEvent[]) => {
 			this.eventDispatcher.emitMany(events);
 		}));
@@ -160,9 +157,6 @@ export class View extends ViewEventHandler {
 
 		this.textArea.setTop(0);
 		this.textArea.setLeft(0);
-
-		this._register(dom.addDisposableListener(this.textArea.domNode, 'focus', () => this._setHasFocus(true)));
-		this._register(dom.addDisposableListener(this.textArea.domNode, 'blur', () => this._setHasFocus(false)));
 
 		// On top of the text area, we position a dom node to cover it up
 		// (there have been reports of tiny blinking cursors)
@@ -391,9 +385,6 @@ export class View extends ViewEventHandler {
 		if (e.viewInfo.editorClassName) {
 			this.domNode.setClassName(this._context.configuration.editor.viewInfo.editorClassName);
 		}
-		if (e.viewInfo.ariaLabel) {
-			this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
-		}
 		if (e.layoutInfo) {
 			this._setLayout();
 		}
@@ -537,13 +528,6 @@ export class View extends ViewEventHandler {
 		}
 	}
 
-	private _setHasFocus(newHasFocus: boolean): void {
-		if (this.hasFocus !== newHasFocus) {
-			this.hasFocus = newHasFocus;
-			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(this.hasFocus));
-		}
-	}
-
 	// --- BEGIN CodeEditor helpers
 
 	public getScrollWidth(): number {
@@ -683,17 +667,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public setAriaActiveDescendant(id: string): void {
-		if (id) {
-			this.textArea.setAttribute('role', 'combobox');
-			if (this.textArea.getAttribute('aria-activedescendant') !== id) {
-				this.textArea.setAttribute('aria-haspopup', 'true');
-				this.textArea.setAttribute('aria-activedescendant', id);
-			}
-		} else {
-			this.textArea.setAttribute('role', 'textbox');
-			this.textArea.removeAttribute('aria-activedescendant');
-			this.textArea.removeAttribute('aria-haspopup');
-		}
+		this.keyboardHandler.setAriaActiveDescendant(id);
 	}
 
 	public saveState(): editorCommon.IViewState {
@@ -706,15 +680,10 @@ export class View extends ViewEventHandler {
 
 	public focus(): void {
 		this.keyboardHandler.focusTextArea();
-
-		// IE does not trigger the focus event immediately, so we must help it a little bit
-		if (document.activeElement === this.textArea.domNode) {
-			this._setHasFocus(true);
-		}
 	}
 
 	public isFocused(): boolean {
-		return this.hasFocus;
+		return this.keyboardHandler.isFocused();
 	}
 
 	public addContentWidget(widgetData: IContentWidgetData): void {

@@ -48,6 +48,12 @@ export interface ITextAreaInputHost {
  */
 export class TextAreaInput extends Disposable {
 
+	private _onFocus = this._register(new Emitter<void>());
+	public onFocus: Event<void> = this._onFocus.event;
+
+	private _onBlur = this._register(new Emitter<void>());
+	public onBlur: Event<void> = this._onBlur.event;
+
 	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
@@ -274,6 +280,9 @@ export class TextAreaInput extends Disposable {
 				this._nextCommand = ReadFromTextArea.Paste;
 			}
 		}));
+
+		this._register(dom.addDisposableListener(textArea.domNode, 'focus', () => this._setHasFocus(true)));
+		this._register(dom.addDisposableListener(textArea.domNode, 'blur', () => this._setHasFocus(false)));
 	}
 
 	public dispose(): void {
@@ -282,17 +291,21 @@ export class TextAreaInput extends Disposable {
 
 	public focusTextArea(): void {
 		// Setting this._hasFocus and writing the screen reader content
-		// will result in a set selection range in the textarea
-		this._hasFocus = true;
-		this.writeScreenReaderContent('focusTextArea');
+		// will result in a focus() and setSelectionRange() in the textarea
+		this._setHasFocus(true);
 	}
 
-	public setHasFocus(isFocused: boolean): void {
-		if (this._hasFocus === isFocused) {
+	public isFocused(): boolean {
+		return this._hasFocus;
+	}
+
+	private _setHasFocus(newHasFocus: boolean): void {
+		if (this._hasFocus === newHasFocus) {
 			// no change
 			return;
 		}
-		this._hasFocus = isFocused;
+		this._hasFocus = newHasFocus;
+
 		if (this._hasFocus) {
 			if (browser.isEdge) {
 				// Edge has a bug where setting the selection range while the focus event
@@ -301,6 +314,12 @@ export class TextAreaInput extends Disposable {
 			} else {
 				this.writeScreenReaderContent('focusgain');
 			}
+		}
+
+		if (this._hasFocus) {
+			this._onFocus.fire();
+		} else {
+			this._onBlur.fire();
 		}
 	}
 

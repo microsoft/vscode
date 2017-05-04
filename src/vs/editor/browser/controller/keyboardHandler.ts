@@ -230,6 +230,14 @@ export class KeyboardHandler extends ViewEventHandler {
 			this._viewController.compositionEnd('keyboard');
 		}));
 
+		this._register(this._textAreaInput.onFocus(() => {
+			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(true));
+		}));
+
+		this._register(this._textAreaInput.onBlur(() => {
+			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(false));
+		}));
+
 		this._context.addEventHandler(this);
 	}
 
@@ -243,6 +251,10 @@ export class KeyboardHandler extends ViewEventHandler {
 			return TextAreaStrategy.NVDA;
 		}
 		return TextAreaStrategy.IENarrator;
+	}
+
+	public isFocused(): boolean {
+		return this._textAreaInput.isFocused();
 	}
 
 	public focusTextArea(): void {
@@ -263,16 +275,14 @@ export class KeyboardHandler extends ViewEventHandler {
 			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 		}
+		if (e.viewInfo.ariaLabel) {
+			this._textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
+		}
 		return false;
 	}
 
 	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
 		this._selections = [e.selection].concat(e.secondarySelections);
-		return false;
-	}
-
-	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		this._textAreaInput.setHasFocus(e.isFocused);
 		return false;
 	}
 
@@ -288,7 +298,25 @@ export class KeyboardHandler extends ViewEventHandler {
 
 	// --- end event handlers
 
+	// --- begin view API
+
 	public writeToTextArea(): void {
 		this._textAreaInput.writeScreenReaderContent('selection changed');
 	}
+
+	public setAriaActiveDescendant(id: string): void {
+		if (id) {
+			this._textArea.setAttribute('role', 'combobox');
+			if (this._textArea.getAttribute('aria-activedescendant') !== id) {
+				this._textArea.setAttribute('aria-haspopup', 'true');
+				this._textArea.setAttribute('aria-activedescendant', id);
+			}
+		} else {
+			this._textArea.setAttribute('role', 'textbox');
+			this._textArea.removeAttribute('aria-activedescendant');
+			this._textArea.removeAttribute('aria-haspopup');
+		}
+	}
+
+	// --- end view API
 }

@@ -120,13 +120,6 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let handler = new TextAreaInput(textAreaInputHost, createFastDomNode(input));
 
-	input.onfocus = () => {
-		handler.setHasFocus(true);
-	};
-	input.onblur = () => {
-		handler.setHasFocus(false);
-	};
-
 	let output = document.createElement('pre');
 	output.className = 'output';
 	container.appendChild(output);
