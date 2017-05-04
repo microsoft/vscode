@@ -552,16 +552,16 @@ export class ResolvedKeybindingPart {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 
-	readonly kbLabel: string;
-	readonly kbAriaLabel: string;
+	readonly keyLabel: string;
+	readonly keyAriaLabel: string;
 
 	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, kbLabel: string, kbAriaLabel: string) {
 		this.ctrlKey = ctrlKey;
 		this.shiftKey = shiftKey;
 		this.altKey = altKey;
 		this.metaKey = metaKey;
-		this.kbLabel = kbLabel;
-		this.kbAriaLabel = kbAriaLabel;
+		this.keyLabel = kbLabel;
+		this.keyAriaLabel = kbAriaLabel;
 	}
 }
 

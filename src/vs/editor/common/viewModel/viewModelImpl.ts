@@ -539,17 +539,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this.decorations.getAllOverviewRulerDecorations();
 	}
 
-	public getEOL(): string {
-		return this.model.getEOL();
-	}
-
 	public getValueInRange(range: Range, eol: editorCommon.EndOfLinePreference): string {
 		var modelRange = this.coordinatesConverter.convertViewRangeToModelRange(range);
 		return this.model.getValueInRange(modelRange, eol);
-	}
-
-	public getModelLineContent(modelLineNumber: number): string {
-		return this.model.getLineContent(modelLineNumber);
 	}
 
 	public getModelLineMaxColumn(modelLineNumber: number): number {
@@ -561,14 +553,14 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string {
-		let newLineCharacter = this.getEOL();
+		let newLineCharacter = this.model.getEOL();
 
 		if (ranges.length === 1) {
 			let range: Range = ranges[0];
 			if (range.isEmpty()) {
 				if (enableEmptySelectionClipboard) {
 					let modelLineNumber = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(range.startLineNumber, 1)).lineNumber;
-					return this.getModelLineContent(modelLineNumber) + newLineCharacter;
+					return this.model.getLineContent(modelLineNumber) + newLineCharacter;
 				} else {
 					return '';
 				}

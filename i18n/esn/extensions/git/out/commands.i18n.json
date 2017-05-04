@@ -16,6 +16,8 @@
 	"confirm discard": "¿Está seguro de que quiere descartar los cambios de {0}?",
 	"confirm discard multiple": "¿Está seguro de que quiere descartar los cambios de {0} archivos?",
 	"discard": "Descartar cambios",
+	"confirm discard all": "¿Está seguro de que quiere descartar TODOS los cambios? Esta acción es irreversible.",
+	"discardAll": "Descartar cambios",
 	"no changes": "No hay cambios para confirmar.",
 	"commit message": "Mensaje de confirmación",
 	"provide commit message": "Proporcione un mensaje de confirmación",
@@ -31,6 +33,7 @@
 	"no remotes to publish": "El repositorio no tiene remotos configurados en los que publicar.",
 	"disabled": "GIT está deshabilitado o no se admite en esta área de trabajo",
 	"clean repo": "Limpie el árbol de trabajo del repositorio antes de la desprotección.",
+	"cant push": " No puede ejecutar la solicitud de inserción remotamente. Solicite un Pull para integrar los cambios.",
 	"git error details": "GIT: {0}",
 	"git error": "Error de GIT",
 	"open git log": "Abrir registro de GIT"

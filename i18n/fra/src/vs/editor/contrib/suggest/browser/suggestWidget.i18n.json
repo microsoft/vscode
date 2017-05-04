@@ -6,6 +6,9 @@
 {
 	"editorSuggestWidgetBackground": "Couleur d'arrière-plan du widget de suggestion.",
 	"editorSuggestWidgetBorder": "Couleur de bordure du widget de suggestion.",
+	"editorSuggestWidgetForeground": "Couleur de premier plan du widget de suggestion.",
+	"editorSuggestWidgetSelectedBackground": "Couleur d'arrière-plan de l'entrée sélectionnée dans le widget de suggestion.",
+	"editorSuggestWidgetHighlightForeground": "Couleur de la surbrillance des correspondances dans le widget de suggestion.",
 	"readMore": "En savoir plus...{0}",
 	"suggestionWithDetailsAriaLabel": "{0}, suggestion, avec détails",
 	"suggestionAriaLabel": "{0}, suggestion",

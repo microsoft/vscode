@@ -25,7 +25,7 @@ registerThemingParticipant((theme, collector) => {
 
 	let background = theme.getColor(editorBackground);
 	if (background) {
-		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-background { background-color: ${background}; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-background, .monaco-editor.${theme.selector} .inputarea { background-color: ${background}; }`);
 	}
 	let foreground = theme.getColor(editorForeground);
 	if (foreground) {

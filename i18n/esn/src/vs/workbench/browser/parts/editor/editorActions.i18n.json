@@ -44,6 +44,8 @@
 	"openPreviousRecentlyUsedEditorInGroup": "Abrir el editor recientemente usado anterior en el grupo",
 	"openNextRecentlyUsedEditorInGroup": "Abrir el siguiente editor recientemente usado en el grupo",
 	"navigateEditorHistoryByInput": "Abrir el editor anterior desde el historial",
+	"openNextRecentlyUsedEditor": "Abrir el siguiente editor recientemente usado",
+	"openPreviousRecentlyUsedEditor": "Abrir el anterior editor recientemente usado",
 	"clearEditorHistory": "Borrar historial del editor",
 	"focusLastEditorInStack": "Abrir el último editor del grupo",
 	"moveEditorLeft": "Mover el editor a la izquierda",

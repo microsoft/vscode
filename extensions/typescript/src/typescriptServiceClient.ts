@@ -153,7 +153,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private lastError: Error | null;
 	private reader: Reader<Proto.Response>;
 	private sequenceNumber: number;
-	private exitRequested: boolean;
 	private firstStart: number;
 	private lastStart: number;
 	private numberRestarts: number;
@@ -187,7 +186,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.servicePromise = null;
 		this.lastError = null;
 		this.sequenceNumber = 0;
-		this.exitRequested = false;
 		this.firstStart = Date.now();
 		this.numberRestarts = 0;
 
@@ -522,6 +520,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					this.globalState.update(doGlobalVersionCheckKey, true);
 				}
 
+				this.sequenceNumber = 0;
+				this.requestQueue = [];
+				this.pendingResponses = 0;
+				this.lastError = null;
+
 				try {
 					let options: electron.IForkOptions = {
 						execArgv: [] // [`--debug-brk=5859`]
@@ -851,7 +854,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			this.callbacks[parseInt(key)].e(new Error('Service died.'));
 		});
 		this.callbacks = Object.create(null);
-		if (!this.exitRequested && restart) {
+		if (restart) {
 			let diff = Date.now() - this.lastStart;
 			this.numberRestarts++;
 			let startService = true;

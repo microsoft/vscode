@@ -1,0 +1,42 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .inputarea {
+	/*Chrome cannot handle typing in a 0x0 textarea*/
+	width: 1px;
+	height: 1px;
+	min-width: 0;
+	min-height: 0;
+	margin: 0;
+	padding: 0;
+	position: absolute;
+	outline: none !important;
+	resize: none;
+	border: none;
+	overflow: hidden;
+}
+/*.monaco-editor .inputarea {
+	position: fixed !important;
+	width: 800px !important;
+	height: 500px !important;
+	top: initial !important;
+	left: initial !important;
+	bottom: 0 !important;
+	right: 0 !important;
+}*/
+.monaco-editor.ff .inputarea,
+.monaco-editor.ie .inputarea {
+	width: 0;
+	height: 0;
+}
+.monaco-editor .ime-input.inputarea {
+	z-index: 10;
+}
+.monaco-editor .ime-input.inputarea {
+	background: rgba(255, 255, 255, 0.85);
+}
+.monaco-editor.vs-dark .ime-input.inputarea {
+	background: rgba(0, 0, 0, 0.65);
+}

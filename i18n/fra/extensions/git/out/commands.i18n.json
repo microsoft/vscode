@@ -16,6 +16,8 @@
 	"confirm discard": "Voulez-vous vraiment abandonner les changements apportés à {0} ?",
 	"confirm discard multiple": "Voulez-vous vraiment abandonner les changements apportés à {0} fichiers ?",
 	"discard": "Ignorer les modifications",
+	"confirm discard all": "Voulez-vous vraiment ignorer TOUTES les modifications ? Cette action est IRRÉVERSIBLE.",
+	"discardAll": "Ignorer TOUTES les modifications",
 	"no changes": "Il n'existe aucun changement à valider.",
 	"commit message": "Message de validation",
 	"provide commit message": "Indiquez un message de validation",
@@ -31,6 +33,7 @@
 	"no remotes to publish": "Votre dépôt n'a aucun dépôt distant configuré pour une publication.",
 	"disabled": "Git est désactivé ou non pris en charge dans cet espace de travail",
 	"clean repo": "Nettoyez l'arborescence de travail de votre dépôt avant l'extraction.",
+	"cant push": "Push impossible des références vers la branche distante. Exécutez d'abord 'Extraire' pour intégrer vos modifications.",
 	"git error details": "Git : {0}",
 	"git error": "Erreur Git",
 	"open git log": "Ouvrir le journal Git"

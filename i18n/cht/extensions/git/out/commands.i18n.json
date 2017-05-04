@@ -16,6 +16,8 @@
 	"confirm discard": "確定要捨棄 {0} 中的變更嗎?",
 	"confirm discard multiple": "確定要捨棄 {0} 檔案中的變更嗎?",
 	"discard": "捨棄變更",
+	"confirm discard all": "確定要捨棄所有變更嗎? 此動作無法復原!",
+	"discardAll": "捨棄所有變更",
 	"no changes": "沒有任何變更要認可。",
 	"commit message": "認可訊息",
 	"provide commit message": "請提供認可訊息",
@@ -31,6 +33,7 @@
 	"no remotes to publish": "您的存放庫未設定要發行的目標遠端。",
 	"disabled": "Git 已停用，或在此工作區不受支援",
 	"clean repo": "請先清除您的存放庫工作樹狀再簽出。",
+	"cant push": "無法將參考推送到遠端。請先執行 [提取] 以整合您的變更。",
 	"git error details": "Git: {0}",
 	"git error": "Git 錯誤",
 	"open git log": "開啟 Git 記錄"

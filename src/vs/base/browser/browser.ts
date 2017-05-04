@@ -124,10 +124,10 @@ export const isChrome = (userAgent.indexOf('Chrome') >= 0);
 export const isSafari = (userAgent.indexOf('Chrome') === -1) && (userAgent.indexOf('Safari') >= 0);
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
 
-const isChromev56 = (
-	navigator.userAgent.indexOf('Chrome/56.') >= 0
+export const isChromev56 = (
+	userAgent.indexOf('Chrome/56.') >= 0
 	// Edge likes to impersonate Chrome sometimes
-	&& navigator.userAgent.indexOf('Edge/') === -1
+	&& userAgent.indexOf('Edge/') === -1
 );
 
 export const supportsTranslate3d = !isFirefox;

@@ -15,6 +15,8 @@
 	"learnMore": "深入了解",
 	"selectTsVersion": "選取 JavaScript 與 TypeScript 功能使用的 TypeScript 版本",
 	"typescript.openTsServerLog.notSupported": "TS 伺服器的記錄功能需要 TS 2.2.2+",
+	"typescript.openTsServerLog.loggingNotEnabled": "TS 伺服器記錄功能已關閉。請設定 `typescript.tsserver.log` 並重新啟動 TS 伺服器，以啟用記錄功能",
+	"typescript.openTsServerLog.enableAndReloadOption": "啟用記錄功能並重新啟動 TS 伺服器",
 	"typescript.openTsServerLog.noLogFile": "TS 伺服器尚未開始記錄。",
 	"openTsServerLog.openFileFailedFailed": "無法開啟 TS 伺服器記錄檔",
 	"serverDiedAfterStart": "TypeScript 語言服務在啟動後立即中止 5 次。服務將不會重新啟動。",

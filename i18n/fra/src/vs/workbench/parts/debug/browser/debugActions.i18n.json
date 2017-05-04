@@ -34,6 +34,7 @@
 	"editConditionalBreakpoint": "Modifier un point d'arrêt...",
 	"setValue": "Définir la valeur",
 	"addWatchExpression": "Ajouter une expression",
+	"editWatchExpression": "Modifier l'expression",
 	"addToWatchExpressions": "Ajouter à la fenêtre Espion",
 	"removeWatchExpression": "Supprimer une expression",
 	"removeAllWatchExpressions": "Supprimer toutes les expressions",

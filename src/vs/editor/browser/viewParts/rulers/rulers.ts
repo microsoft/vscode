@@ -46,7 +46,7 @@ export class Rulers extends ViewPart {
 		return false;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return super.onScrollChanged(e) || e.scrollHeightChanged;
+		return e.scrollHeightChanged;
 	}
 
 	// --- end event handlers

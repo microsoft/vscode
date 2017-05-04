@@ -1419,6 +1419,45 @@ suite('keyboardMapper - LINUX ru', () => {
 	});
 });
 
+suite('keyboardMapper - LINUX en_uk', () => {
+
+	let mapper: MacLinuxKeyboardMapper;
+
+	suiteSetup((done) => {
+		createKeyboardMapper(false, 'linux_en_uk', OperatingSystem.Linux).then((_mapper) => {
+			mapper = _mapper;
+			done();
+		}, done);
+	});
+
+	test('mapping', (done) => {
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'linux_en_uk.txt', done);
+	});
+
+	test('issue #24522: resolveKeyboardEvent Ctrl+Alt+[Minus]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: true,
+				metaKey: false,
+				keyCode: -1,
+				code: 'Minus'
+			},
+			{
+				label: 'Ctrl+Alt+-',
+				ariaLabel: 'Control+Alt+-',
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+alt+[Minus]',
+				isWYSIWYG: false,
+				isChord: false,
+				dispatchParts: ['ctrl+alt+[Minus]', null],
+			}
+		);
+	});
+});
+
 function _assertKeybindingTranslation(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, kb: number, _expected: string | string[]): void {
 	let expected: string[];
 	if (typeof _expected === 'string') {

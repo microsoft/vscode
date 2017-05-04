@@ -44,6 +44,8 @@
 	"openPreviousRecentlyUsedEditorInGroup": "打开组中上一个最近使用的编辑器",
 	"openNextRecentlyUsedEditorInGroup": "打开组中下一个最近使用的编辑器",
 	"navigateEditorHistoryByInput": "从历史记录里打开上一个编辑器",
+	"openNextRecentlyUsedEditor": "打开下一个最近使用的编辑器",
+	"openPreviousRecentlyUsedEditor": "打开上一个最近使用的编辑器",
 	"clearEditorHistory": "清除编辑器历史记录",
 	"focusLastEditorInStack": "打开组中上一个编辑器",
 	"moveEditorLeft": "向左移动编辑器",

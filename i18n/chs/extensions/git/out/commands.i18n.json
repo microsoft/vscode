@@ -16,6 +16,8 @@
 	"confirm discard": "确定要放弃 {0} 中更改吗?",
 	"confirm discard multiple": "是否确实要放弃 {0} 文件中的更改?",
 	"discard": "放弃更改",
+	"confirm discard all": "确定要放弃所有更改吗？此操作不可撤销！",
+	"discardAll": "放弃所有更改",
 	"no changes": "没有要提交的更改。",
 	"commit message": "提交消息",
 	"provide commit message": "请提供提交消息",
@@ -31,6 +33,7 @@
 	"no remotes to publish": "存储库未配置任何要发布到的远程存储库。",
 	"disabled": "此工作区已禁用或不支持 GIT",
 	"clean repo": "在签出前，请清理存储库工作树。",
+	"cant push": "无法推送 refs 到远端。请先运行“拉取”功能以整合你的更改。",
 	"git error details": "Git:{0}",
 	"git error": "Git 错误",
 	"open git log": "打开 GIT 日志"

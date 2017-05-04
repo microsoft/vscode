@@ -23,6 +23,7 @@
 	"format.insertSpaceBeforeFunctionParenthesis": "Определяет метод обработки пробелов перед скобками аргумента функции. Требует TypeScript >= 2.1.5.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Определяет метод обработки пробелов после открытия и до закрытия непустых круглых скобок.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Определяет метод обработки пробелов после открытия и до закрытия непустых квадратных скобок.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Определяет метод обработки пробелов после открытия и до закрытия непустых скобок. Требуется TypeScript 2.3.0 или более поздней версии.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Определяет метод обработки пробелов после открытия и до закрытия скобок в строке шаблона. Требуется TypeScript 2.0.6 или более поздней версии.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Определяет метод обработки пробелов после открытия и до закрытия скобок выражения JSX. Требуется TypeScript 2.0.6 или более поздней версии.",
 	"format.placeOpenBraceOnNewLineForFunctions": "Определяет, ставится ли открывающая фигурная скобка с новой строки в функциях.",
@@ -34,5 +35,7 @@
 	"typescript.implementationsCodeLens.enabled": "Включить или отключить CodeLens для реализаций. Требуется TypeScript >= 2.2.0.",
 	"typescript.openTsServerLog.title": "Открытие файла журнала сервера TS",
 	"typescript.selectTypeScriptVersion.title": "Выберите версию TypeScript.",
-	"jsDocCompletion.enabled": "Включить или отключить JSDoc коментарии"
+	"jsDocCompletion.enabled": "Включить или отключить JSDoc коментарии",
+	"javascript.implicitProjectConfig.checkJs": "Включает/отключает семантическую проверку файлов JavaScript. Этот параметр может переопределяться в файле jsconfig.json или tsconfig.json. Требуется TypeScript 2.3.1 или более поздней версии.",
+	"typescript.check.npmIsInstalled": "Проверяет, установлен ли NPM для автоматического получения типов"
 }

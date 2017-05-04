@@ -540,6 +540,9 @@ export class CallStackRenderer implements IRenderer {
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
 		if (stackFrame.lineNumber !== undefined) {
 			data.lineNumber.textContent = `${stackFrame.lineNumber}`;
+			if (stackFrame.column) {
+				data.lineNumber.textContent += `:${stackFrame.column}`;
+			}
 			dom.removeClass(data.lineNumber, 'unavailable');
 		} else {
 			dom.addClass(data.lineNumber, 'unavailable');

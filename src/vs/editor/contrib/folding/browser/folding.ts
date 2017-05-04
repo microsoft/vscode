@@ -8,6 +8,7 @@
 
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
+import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -35,6 +36,7 @@ export class FoldingController implements IFoldingController {
 
 	private editor: ICodeEditor;
 	private _isEnabled: boolean;
+	private _hideFoldIcons: boolean;
 	private globalToDispose: IDisposable[];
 
 	private computeToken: number;
@@ -47,6 +49,7 @@ export class FoldingController implements IFoldingController {
 	constructor(editor: ICodeEditor) {
 		this.editor = editor;
 		this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
+		this._hideFoldIcons = this.editor.getConfiguration().contribInfo.hideFoldIcons;
 
 		this.globalToDispose = [];
 		this.localToDispose = [];
@@ -60,6 +63,11 @@ export class FoldingController implements IFoldingController {
 			if (oldIsEnabled !== this._isEnabled) {
 				this.onModelChanged();
 			}
+			let oldHideFoldIcons = this._hideFoldIcons;
+			this._hideFoldIcons = this.editor.getConfiguration().contribInfo.hideFoldIcons;
+			if (oldHideFoldIcons !== this._hideFoldIcons) {
+				this.updateHideFoldIconClass();
+			}
 		}));
 
 		this.onModelChanged();
@@ -72,6 +80,13 @@ export class FoldingController implements IFoldingController {
 	public dispose(): void {
 		this.cleanState();
 		this.globalToDispose = dispose(this.globalToDispose);
+	}
+
+	private updateHideFoldIconClass(): void {
+		let domNode = this.editor.getDomNode();
+		if (domNode) {
+			dom.toggleClass(domNode, 'alwaysShowFoldIcons', this._hideFoldIcons === false);
+		}
 	}
 
 	/**
@@ -190,6 +205,7 @@ export class FoldingController implements IFoldingController {
 
 	private onModelChanged(): void {
 		this.cleanState();
+		this.updateHideFoldIconClass();
 
 		let model = this.editor.getModel();
 		if (!this._isEnabled || !model) {
