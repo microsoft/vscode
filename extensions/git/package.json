@@ -609,10 +609,10 @@
           "description": "%config.ignoreLimitWarning%",
           "default": false
         },
-        "git.cloneDirectory": {
+        "git.defaultCloneDirectory": {
           "type": "string",
           "default": null,
-          "description": "%config.cloneDirectory%"
+          "description": "%config.defaultCloneDirectory%"
         }
       }
     }
