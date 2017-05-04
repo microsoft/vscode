@@ -157,8 +157,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				JSON.stringify(Object.keys(this._recommendations)),
 				StorageScope.GLOBAL
 			);
-			const ignoreSuggestions = this.getIgnoreRecommendationsConfig();
-			if (ignoreSuggestions) {
+
+			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+
+			if (config.ignoreRecommendations) {
 				return;
 			}
 
@@ -205,11 +207,11 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			return;
 		}
 
-		const ignoreSuggestions = this.getIgnoreRecommendationsConfig();
-		if (ignoreSuggestions) {
+		const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+
+		if (config.ignoreRecommendations) {
 			return;
 		}
-
 		this.getWorkspaceRecommendations().done(allRecommendations => {
 			if (!allRecommendations.length) {
 				return;
@@ -250,7 +252,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			localize('cancel', "Cancel")
 		];
 
-		this.choiceService.choose(Severity.Info, message, options).done(choice => {
+		this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 			switch (choice) {
 				case 0:	// If the user ignores the current message and selects different file type
 					// we should hide all the stacked up messages as he has selected Yes, Ignore All
@@ -271,11 +273,6 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 			this.storageService.store(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
 		}
-	}
-
-	getIgnoreRecommendationsConfig(): boolean {
-		const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
-		return config.ignoreRecommendations ? true : false;
 	}
 
 	getKeywordsForExtension(extension: string): string[] {
