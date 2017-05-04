@@ -589,7 +589,8 @@ export class VariablesActionProvider implements IActionProvider {
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
-		return element instanceof Variable;
+		// Only show context menu on "real" variables. Not on array chunk nodes.
+		return element instanceof Variable && !!element.value;
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
