@@ -16,5 +16,7 @@
 	"markdown.previewSide.title": "在一側開啟預覽",
 	"markdown.showSource.title": "顯示來源",
 	"markdown.styles.dec": "可從 Markdown 預覽使用之 CSS 樣式表的 URL 或本機路徑清單。相對路徑是相對於在總管中開啟的資料夾來進行解釋。若沒有開啟資料夾，路徑則是相對於 Markdown 檔案的位置來進行解釋。所有 '\\' 都必須寫成 '\\\\'。",
-	"markdown.showPreviewSecuritySelector.title": "變更 Markdown 預覽安全性設定"
+	"markdown.showPreviewSecuritySelector.title": "變更 Markdown 預覽安全性設定",
+	"markdown.preview.enableExperimentalExtensionApi.desc": "[實驗性] 允許延伸模組延伸 Markdown 預覽。",
+	"markdown.trace.desc": "允許 Markdown 延伸模組進行偵錯記錄。"
 }

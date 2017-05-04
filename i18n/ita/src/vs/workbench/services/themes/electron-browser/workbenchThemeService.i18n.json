@@ -25,5 +25,8 @@
 	"colorThemeError": "Theme is unknown or not installed.",
 	"iconTheme": "Specifies the icon theme used in the workbench.",
 	"noIconThemeDesc": "No file icons",
-	"iconThemeError": "File icon theme is unknown or not installed."
+	"iconThemeError": "File icon theme is unknown or not installed.",
+	"workbenchColors": "Sostituisce i colori del tema colori attualmente selezionato.",
+	"workbenchColors.deprecated": "L'impostazione non è più sperimentale ed è stata rinominata in 'workbench.colorCustomizations'",
+	"workbenchColors.deprecatedDescription": "In alternativa, usare 'workbench.colorCustomizations'"
 }

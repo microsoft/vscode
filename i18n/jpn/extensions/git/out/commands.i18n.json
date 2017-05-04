@@ -33,6 +33,7 @@
 	"no remotes to publish": "リポジトリには、発行先として構成されているリモートがありません。",
 	"disabled": "このワークスペースでは、Git が無効になっているか、サポートされていません",
 	"clean repo": "チェックアウトの前に、リポジトリの作業ツリーを消去してください。",
+	"cant push": "参照仕様をリモートにプッシュできません。最初に 'Pull' を実行して変更を統合してください。",
 	"git error details": "Git: {0}",
 	"git error": "Git エラー",
 	"open git log": "Git ログを開く"

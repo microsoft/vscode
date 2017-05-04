@@ -9,6 +9,7 @@
 	"ConfigureTaskRunnerAction.quickPick.template": "Seleziona strumento di esecuzione attività",
 	"ConfigureTaskRunnerAction.autoDetecting": "Rilevamento automatico delle attività per {0}",
 	"ConfigureTaskRunnerAction.autoDetect": "Il rilevamento automatico del sistema dell'attività non è riuscito. Verrà usato il modello predefinito. Per i dettagli, vedere l'output dell'attività.",
+	"ConfigureTaskRunnerAction.autoDetectError": "Il rilevamento automatico del sistema dell'attività ha restituito errori. Per i dettagli, vedere l'output dell'attività.",
 	"ConfigureTaskRunnerAction.failed": "Non è possibile creare il file 'tasks.json' all'interno della cartella '.vscode'. Per dettagli, vedere l'output dell'attività.",
 	"ConfigureTaskRunnerAction.label": "Configura esecuzione attività",
 	"ConfigureBuildTaskAction.label": "Configura attività di compilazione",

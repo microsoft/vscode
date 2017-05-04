@@ -40,6 +40,7 @@
 	"config.enableLongCommitWarning": "長いコミット メッセージについて警告するかどうか",
 	"config.confirmSync": "Git リポジトリを同期する前に確認する",
 	"config.countBadge": "Git バッジ カウンターを制御します。`all`  はすべての変更をカウントします。 `tracked` は追跡している変更のみカウントします。 `off` はカウントをオフします。",
+	"config.checkoutType": "`Checkout to...` を実行するときに表示されるブランチの種類を制御します。`all` はすべての参照を表示します。`local` はローカル ブランチのみ、`tags`  はタグのみ、`remote` はリモート ブランチのみを表示します。 ",
 	"config.ignoreLegacyWarning": "旧 Git の警告を無視します",
 	"config.ignoreLimitWarning": "リポジトリ内に変更が多い場合は警告を無視します"
 }

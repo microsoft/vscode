@@ -6,6 +6,9 @@
 {
 	"editorSuggestWidgetBackground": "Hintergrundfarbe des Vorschlagswidgets.",
 	"editorSuggestWidgetBorder": "Rahmenfarbe des Vorschlagswidgets.",
+	"editorSuggestWidgetForeground": "Vordergrundfarbe des Vorschlagswidgets.",
+	"editorSuggestWidgetSelectedBackground": "Hintergrundfarbe des ausgewählten Eintrags im Vorschlagswidget.",
+	"editorSuggestWidgetHighlightForeground": "Farbe der Trefferhervorhebung im Vorschlagswidget.",
 	"readMore": "Mehr anzeigen...{0}",
 	"suggestionWithDetailsAriaLabel": "{0}, Vorschlag, hat Details",
 	"suggestionAriaLabel": "{0}, Vorschlag",

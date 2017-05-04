@@ -9,6 +9,7 @@
 	"ConfigureTaskRunnerAction.quickPick.template": "選取工作執行器",
 	"ConfigureTaskRunnerAction.autoDetecting": "自動偵測 {0} 的工作",
 	"ConfigureTaskRunnerAction.autoDetect": "自動偵測工作系統失敗。正在使用預設範本。如需詳細資料，請參閱工作輸出。",
+	"ConfigureTaskRunnerAction.autoDetectError": "自動偵測工作系統產生錯誤。如需詳細資料，請參閱工作輸出。",
 	"ConfigureTaskRunnerAction.failed": "無法在 '.vscode' 資料夾中建立 'tasks.json' 檔案。如需詳細資訊，請參閱工作輸出。",
 	"ConfigureTaskRunnerAction.label": "設定工作執行器",
 	"ConfigureBuildTaskAction.label": "設定建置工作",

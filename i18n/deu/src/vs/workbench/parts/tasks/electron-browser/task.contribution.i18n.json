@@ -9,6 +9,7 @@
 	"ConfigureTaskRunnerAction.quickPick.template": "Taskausführung auswählen",
 	"ConfigureTaskRunnerAction.autoDetecting": "Tasks für {0} werden automatisch erkannt.",
 	"ConfigureTaskRunnerAction.autoDetect": "Fehler bei der automatischen Erkennung des Tasksystems. Die Standardvorlage wird verwendet. Einzelheiten finden Sie in der Taskausgabe.",
+	"ConfigureTaskRunnerAction.autoDetectError": "Bei der automatischen Erkennung des Tasksystems sind Fehler aufgetreten. Einzelheiten finden Sie in der Taskausgabe.",
 	"ConfigureTaskRunnerAction.failed": "Die Datei \"tasks.json\" kann nicht im Ordner \".vscode\" erstellt werden. Einzelheiten finden Sie in der Taskausgabe.",
 	"ConfigureTaskRunnerAction.label": "Taskausführung konfigurieren",
 	"ConfigureBuildTaskAction.label": "Buildtask konfigurieren",

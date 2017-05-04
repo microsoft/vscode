@@ -9,6 +9,7 @@
 	"ConfigureTaskRunnerAction.quickPick.template": "Выбрать средство выполнения задач",
 	"ConfigureTaskRunnerAction.autoDetecting": "Автообнаружение задач для {0}",
 	"ConfigureTaskRunnerAction.autoDetect": "Не удалось автоматически определить систему задачи, используется шаблон по умолчанию. Подробности см. в выходных данных задачи.",
+	"ConfigureTaskRunnerAction.autoDetectError": "При определении системы задачи возникли ошибки. Дополнительные сведения см. в выходных данных задачи.",
 	"ConfigureTaskRunnerAction.failed": "Не удается создать файл tasks.json в папке .vscode. Подробности см. в выходных данных задачи.",
 	"ConfigureTaskRunnerAction.label": "Настроить средство выполнения задач",
 	"ConfigureBuildTaskAction.label": "Настроить задачу сборки",
