@@ -68,7 +68,7 @@ export class View extends ViewEventHandler {
 
 	private layoutProvider: ViewLayout;
 	private _scrollbar: EditorScrollbar;
-	public _context: ViewContext;
+	private _context: ViewContext;
 
 	// The view lines
 	private viewLines: ViewLines;
@@ -88,7 +88,7 @@ export class View extends ViewEventHandler {
 	// Dom nodes
 	private linesContent: FastDomNode<HTMLElement>;
 	public domNode: FastDomNode<HTMLElement>;
-	public textArea: FastDomNode<HTMLTextAreaElement>;
+	private textArea: FastDomNode<HTMLTextAreaElement>;
 	private textAreaCover: FastDomNode<HTMLElement>;
 	private overflowGuardContainer: FastDomNode<HTMLElement>;
 

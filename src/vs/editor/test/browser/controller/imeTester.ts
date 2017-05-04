@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextAreaInput, ITextAreaInputHost, TextAreaStrategy } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
+import { TextAreaInput, ITextAreaInputHost } from 'vs/editor/browser/controller/textAreaInput';
+import { ISimpleModel, TextAreaState, IENarratorStrategy, NVDAPagedStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
+import * as browser from 'vs/base/browser/browser';
+import { TextAreaStrategy } from "vs/editor/browser/controller/keyboardHandler";
 
 // To run this test, open imeTester.html
 
@@ -62,6 +64,9 @@ class TestView {
 }
 
 function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr: string, expectedStr: string): HTMLElement {
+	let cursorOffset: number = 0;
+	let cursorLength: number = 0;
+
 	let container = document.createElement('div');
 	container.className = 'container';
 
@@ -95,10 +100,25 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	const textAreaInputHost: ITextAreaInputHost = {
 		getPlainTextToCopy: (): string => '',
-		getHTMLToCopy: (): string => ''
+		getHTMLToCopy: (): string => '',
+		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
+
+			if (browser.isIPad) {
+				// Do not place anything in the textarea for the iPad
+				return TextAreaState.EMPTY;
+			}
+
+			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
+
+			if (strategy === TextAreaStrategy.IENarrator) {
+				return IENarratorStrategy.fromEditorSelection(currentState, model, selection);
+			}
+
+			return NVDAPagedStrategy.fromEditorSelection(currentState, model, selection);
+		}
 	};
 
-	let handler = new TextAreaInput(textAreaInputHost, strategy, createFastDomNode(input), model);
+	let handler = new TextAreaInput(textAreaInputHost, createFastDomNode(input));
 
 	input.onfocus = () => {
 		handler.setHasFocus(true);
@@ -121,13 +141,10 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let view = new TestView(model);
 
-
-	let cursorOffset: number;
-	let cursorLength: number;
 	let updatePosition = (off: number, len: number) => {
 		cursorOffset = off;
 		cursorLength = len;
-		handler.setCursorSelections(new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength), []);
+		handler.writeScreenReaderContent('selection changed');
 		handler.focusTextArea();
 	};
 

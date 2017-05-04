@@ -9,25 +9,19 @@ import * as strings from 'vs/base/common/strings';
 import Event, { Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ISimpleModel, ITypeData, TextAreaState, ITextAreaWrapper, IENarratorStrategy, NVDAPagedStrategy } from 'vs/editor/browser/controller/textAreaState';
-import { Range } from 'vs/editor/common/core/range';
+import { ITypeData, TextAreaState, ITextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
 import { FastDomNode } from "vs/base/browser/fastDomNode";
 
-export interface ICompositionEvent {
+export interface ICompositionData {
 	data: string;
 }
 
 export const CopyOptions = {
 	forceCopyWithSyntaxHighlighting: false
 };
-
-export const enum TextAreaStrategy {
-	IENarrator,
-	NVDA
-}
 
 const enum ReadFromTextArea {
 	Type,
@@ -41,6 +35,7 @@ export interface IPasteData {
 export interface ITextAreaInputHost {
 	getPlainTextToCopy(): string;
 	getHTMLToCopy(): string;
+	getScreenReaderContent(currentState: TextAreaState): TextAreaState;
 }
 
 /**
@@ -71,8 +66,8 @@ export class TextAreaInput extends Disposable {
 	private _onCompositionStart = this._register(new Emitter<void>());
 	public onCompositionStart: Event<void> = this._onCompositionStart.event;
 
-	private _onCompositionUpdate = this._register(new Emitter<ICompositionEvent>());
-	public onCompositionUpdate: Event<ICompositionEvent> = this._onCompositionUpdate.event;
+	private _onCompositionUpdate = this._register(new Emitter<ICompositionData>());
+	public onCompositionUpdate: Event<ICompositionData> = this._onCompositionUpdate.event;
 
 	private _onCompositionEnd = this._register(new Emitter<void>());
 	public onCompositionEnd: Event<void> = this._onCompositionEnd.event;
@@ -81,34 +76,25 @@ export class TextAreaInput extends Disposable {
 
 	private readonly _host: ITextAreaInputHost;
 	private readonly _textArea: TextAreaWrapper;
-	private readonly _model: ISimpleModel;
-
-	private _textAreaStrategy: TextAreaStrategy;
-	private _selection: Range;
-	private _hasFocus: boolean;
-
 	private readonly _asyncTriggerCut: RunOnceScheduler;
 
 	private _textAreaState: TextAreaState;
-	private _isDoingComposition: boolean;
 
+	private _hasFocus: boolean;
+	private _isDoingComposition: boolean;
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(host: ITextAreaInputHost, strategy: TextAreaStrategy, textArea: FastDomNode<HTMLTextAreaElement>, model: ISimpleModel) {
+	constructor(host: ITextAreaInputHost, textArea: FastDomNode<HTMLTextAreaElement>) {
 		super();
 		this._host = host;
 		this._textArea = this._register(new TextAreaWrapper(textArea));
-		this._model = model;
-
-		this._textAreaStrategy = strategy;
-		this._selection = new Range(1, 1, 1, 1);
-		this._hasFocus = false;
-
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
 
 		this._textAreaState = TextAreaState.EMPTY;
-		this._isDoingComposition = false;
+		this.writeScreenReaderContent('ctor');
 
+		this._hasFocus = false;
+		this._isDoingComposition = false;
 		this._nextCommand = ReadFromTextArea.Type;
 
 		this._register(dom.addStandardDisposableListener(textArea.domNode, 'keydown', (e: IKeyboardEvent) => {
@@ -230,7 +216,7 @@ export class TextAreaInput extends Disposable {
 					this._textAreaState = newState;
 
 					this._onType.fire(typeInput);
-					let e: ICompositionEvent = {
+					let e: ICompositionData = {
 						data: typeInput.text
 					};
 					this._onCompositionUpdate.fire(e);
@@ -288,28 +274,17 @@ export class TextAreaInput extends Disposable {
 				this._nextCommand = ReadFromTextArea.Paste;
 			}
 		}));
-
-		this._writeScreenReaderContent('ctor');
 	}
 
 	public dispose(): void {
 		super.dispose();
 	}
 
-	public setStrategy(strategy: TextAreaStrategy): void {
-		if (this._textAreaStrategy === strategy) {
-			// no change
-			return;
-		}
-		this._textAreaStrategy = strategy;
-		this._writeScreenReaderContent('strategy changed');
-	}
-
 	public focusTextArea(): void {
 		// Setting this._hasFocus and writing the screen reader content
 		// will result in a set selection range in the textarea
 		this._hasFocus = true;
-		this._writeScreenReaderContent('focusTextArea');
+		this.writeScreenReaderContent('focusTextArea');
 	}
 
 	public setHasFocus(isFocused: boolean): void {
@@ -324,14 +299,9 @@ export class TextAreaInput extends Disposable {
 				// is dispatching doesn't work. To reproduce, "tab into" the editor.
 				this._setAndWriteTextAreaState('focusgain', TextAreaState.EMPTY);
 			} else {
-				this._writeScreenReaderContent('focusgain');
+				this.writeScreenReaderContent('focusgain');
 			}
 		}
-	}
-
-	public setCursorSelections(primary: Range, secondary: Range[]): void {
-		this._selection = primary;
-		this._writeScreenReaderContent('selection changed');
 	}
 
 	private _setAndWriteTextAreaState(reason: string, textAreaState: TextAreaState): void {
@@ -343,27 +313,13 @@ export class TextAreaInput extends Disposable {
 		this._textAreaState = textAreaState;
 	}
 
-	private _writeScreenReaderContent(reason: string): void {
+	public writeScreenReaderContent(reason: string): void {
 		if (this._isDoingComposition) {
 			// Do not write to the text area when doing composition
 			return;
 		}
 
-		if (browser.isIPad) {
-			// Do not place anything in the textarea for the iPad
-			this._setAndWriteTextAreaState(reason, TextAreaState.EMPTY);
-
-		} else if (this._textAreaStrategy === TextAreaStrategy.IENarrator) {
-
-			const newState = IENarratorStrategy.fromEditorSelection(this._textAreaState, this._model, this._selection);
-			this._setAndWriteTextAreaState(reason, newState);
-
-		} else {
-
-			const newState = NVDAPagedStrategy.fromEditorSelection(this._textAreaState, this._model, this._selection);
-			this._setAndWriteTextAreaState(reason, newState);
-
-		}
+		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent(this._textAreaState));
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
@@ -462,21 +418,34 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 	}
 
 	public setSelectionRange(reason: string, selectionStart: number, selectionEnd: number): void {
-		// console.log('reason: ' + reason + ', setSelectionRange: ' + selectionStart + ' -> ' + selectionEnd);
 		const textArea = this._actual.domNode;
-		if (document.activeElement === textArea) {
+
+		const currentIsFocused = (document.activeElement === textArea);
+		const currentSelectionStart = textArea.selectionStart;
+		const currentSelectionEnd = textArea.selectionEnd;
+
+		if (currentIsFocused && currentSelectionStart === selectionStart && currentSelectionEnd === selectionEnd) {
+			// No change
+			return;
+		}
+
+		// console.log('reason: ' + reason + ', setSelectionRange: ' + selectionStart + ' -> ' + selectionEnd);
+
+		if (currentIsFocused) {
+			// No need to focus, only need to change the selection range
 			textArea.setSelectionRange(selectionStart, selectionEnd);
-		} else {
-			// If the focus is outside the textarea, browsers will try really hard to reveal the textarea.
-			// Here, we try to undo the browser's desperate reveal.
-			try {
-				const scrollState = dom.saveParentsScrollTop(textArea);
-				textArea.focus();
-				textArea.setSelectionRange(selectionStart, selectionEnd);
-				dom.restoreParentsScrollTop(textArea, scrollState);
-			} catch (e) {
-				// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
-			}
+			return;
+		}
+
+		// If the focus is outside the textarea, browsers will try really hard to reveal the textarea.
+		// Here, we try to undo the browser's desperate reveal.
+		try {
+			const scrollState = dom.saveParentsScrollTop(textArea);
+			textArea.focus();
+			textArea.setSelectionRange(selectionStart, selectionEnd);
+			dom.restoreParentsScrollTop(textArea, scrollState);
+		} catch (e) {
+			// Sometimes IE throws when setting selection (e.g. textarea is off-DOM)
 		}
 	}
 }
