@@ -250,15 +250,13 @@ export class Variable extends ExpressionContainer implements IExpression {
 
 	// Used to show the error message coming from the adapter when setting the value #7807
 	public errorMessage: string;
-	private static NOT_PROPERTY_SYNTAX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-	private static ARRAY_ELEMENT_SYNTAX = /\[.*\]$/;
 
 	constructor(
 		process: IProcess,
 		public parent: IExpressionContainer,
 		reference: number,
 		public name: string,
-		private _evaluateName: string,
+		public evaluateName: string,
 		value: string,
 		namedVariables: number,
 		indexedVariables: number,
@@ -268,35 +266,6 @@ export class Variable extends ExpressionContainer implements IExpression {
 	) {
 		super(process, reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = value;
-	}
-
-	public get evaluateName(): string {
-		if (this._evaluateName) {
-			return this._evaluateName;
-		}
-
-		// TODO@Isidor get rid of this ugly heuristic
-		let names = [this.name];
-		let v = this.parent;
-		while (v instanceof Variable || v instanceof Expression) {
-			names.push((<Variable>v).name);
-			v = (<Variable>v).parent;
-		}
-		names = names.reverse();
-
-		let result = null;
-		names.forEach(name => {
-			if (!result) {
-				result = name;
-			} else if (Variable.ARRAY_ELEMENT_SYNTAX.test(name) || (this.process.configuration.type === 'node' && !Variable.NOT_PROPERTY_SYNTAX.test(name))) {
-				// use safe way to access node properties a['property_name']. Also handles array elements.
-				result = name && name.indexOf('[') === 0 ? `${result}${name}` : `${result}['${name}']`;
-			} else {
-				result = `${result}.${name}`;
-			}
-		});
-
-		return result;
 	}
 
 	public setVariable(value: string): TPromise<any> {
