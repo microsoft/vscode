@@ -608,6 +608,11 @@
           "type": "boolean",
           "description": "%config.ignoreLimitWarning%",
           "default": false
+        },
+        "git.defaultCloneDirectory": {
+          "type": "string",
+          "default": null,
+          "description": "%config.defaultCloneDirectory%"
         }
       }
     }
