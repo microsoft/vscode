@@ -10,9 +10,13 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import * as browser from 'vs/base/browser/browser';
-import { TextAreaStrategy } from "vs/editor/browser/controller/textAreaHandler";
 
 // To run this test, open imeTester.html
+
+const enum TextAreaStrategy {
+	IENarrator,
+	NVDA
+}
 
 class SingleLineTestModel implements ISimpleModel {
 

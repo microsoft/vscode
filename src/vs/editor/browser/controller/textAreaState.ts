@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Constants } from 'vs/editor/common/core/uint';
+import * as strings from 'vs/base/common/strings';
 
 export interface ITextAreaWrapper {
 	getValue(): string;
@@ -81,7 +81,7 @@ export class TextAreaState {
 		return new TextAreaState(text, 0, text.length, 0);
 	}
 
-	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, isDoingComposition: boolean): ITypeData {
+	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState): ITypeData {
 		if (!previousState) {
 			// This is the EMPTY state
 			return {
@@ -104,13 +104,13 @@ export class TextAreaState {
 		// Strip the previous suffix from the value (without interfering with the current selection)
 		const previousSuffix = previousValue.substring(previousSelectionEnd);
 		const currentSuffix = currentValue.substring(currentSelectionEnd);
-		const suffixLength = commonSuffixLength(previousSuffix, currentSuffix);
+		const suffixLength = strings.commonSuffixLength(previousSuffix, currentSuffix);
 		currentValue = currentValue.substring(0, currentValue.length - suffixLength);
 		previousValue = previousValue.substring(0, previousValue.length - suffixLength);
 
 		const previousPrefix = previousValue.substring(0, previousSelectionStart);
 		const currentPrefix = currentValue.substring(0, currentSelectionStart);
-		const prefixLength = commonPrefixLength(previousPrefix, currentPrefix);
+		const prefixLength = strings.commonPrefixLength(previousPrefix, currentPrefix);
 		currentValue = currentValue.substring(prefixLength);
 		previousValue = previousValue.substring(prefixLength);
 		currentSelectionStart -= prefixLength;
@@ -122,20 +122,21 @@ export class TextAreaState {
 		// console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
 
 		if (currentSelectionStart === currentSelectionEnd) {
-			// composition accept case
+			// composition accept case (noticed in FF + Japanese)
 			// [blahblah] => blahblah|
 			if (
-				isDoingComposition
-				&& previousValue === currentValue
+				previousValue === currentValue
 				&& previousSelectionStart === 0
 				&& previousSelectionEnd === previousValue.length
 				&& currentSelectionStart === currentValue.length
 				&& currentValue.indexOf('\n') === -1
 			) {
-				return {
-					text: '',
-					replaceCharCnt: 0
-				};
+				if (strings.containsFullWidthCharacter(currentValue)) {
+					return {
+						text: '',
+						replaceCharCnt: 0
+					};
+				}
 			}
 
 			// no current selection

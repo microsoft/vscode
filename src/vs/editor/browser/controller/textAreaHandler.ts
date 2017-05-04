@@ -6,7 +6,6 @@
 
 import 'vs/css!./textAreaHandler';
 import * as browser from 'vs/base/browser/browser';
-import * as dom from 'vs/base/browser/dom';
 import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, ITypeData, TextAreaState, IENarratorStrategy, NVDAPagedStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
@@ -23,6 +22,7 @@ import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
 import { PartFingerprints, PartFingerprint } from "vs/editor/browser/view/viewPart";
 import { Margin } from "vs/editor/browser/viewParts/margin/margin";
 import { LineNumbersOverlay } from "vs/editor/browser/viewParts/lineNumbers/lineNumbers";
+import { BareFontInfo } from "vs/editor/common/config/fontInfo";
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
@@ -39,11 +39,6 @@ class TextAreaVisiblePosition {
 		this.top = top;
 		this.left = left;
 	}
-}
-
-export const enum TextAreaStrategy {
-	IENarrator,
-	NVDA
 }
 
 export class TextAreaHandler extends ViewEventHandler {
@@ -163,14 +158,13 @@ export class TextAreaHandler extends ViewEventHandler {
 					return TextAreaState.EMPTY;
 				}
 
-				const strategy = this._getStrategy();
 				const selection = this._selections[0];
 
-				if (strategy === TextAreaStrategy.IENarrator) {
-					return IENarratorStrategy.fromEditorSelection(currentState, simpleModel, selection);
+				if (this._context.configuration.editor.viewInfo.experimentalScreenReader) {
+					return NVDAPagedStrategy.fromEditorSelection(currentState, simpleModel, selection);
 				}
 
-				return NVDAPagedStrategy.fromEditorSelection(currentState, simpleModel, selection);
+				return IENarratorStrategy.fromEditorSelection(currentState, simpleModel, selection);
 			}
 		};
 
@@ -240,19 +234,7 @@ export class TextAreaHandler extends ViewEventHandler {
 				this.textArea.setWidth(0);
 			} else {
 				// adjust width by its size
-				let canvasElem = <HTMLCanvasElement>document.createElement('canvas');
-				let context = canvasElem.getContext('2d');
-				let cs = dom.getComputedStyle(this.textArea.domNode);
-				if (browser.isFirefox) {
-					// computedStyle.font is empty in Firefox...
-					context.font = `${cs.fontStyle} ${cs.fontVariant} ${cs.fontWeight} ${cs.fontStretch} ${cs.fontSize} / ${cs.lineHeight} ${cs.fontFamily}`;
-					let metrics = context.measureText(e.data);
-					this.textArea.setWidth(metrics.width + 2); // +2 for Japanese...
-				} else {
-					context.font = cs.font;
-					let metrics = context.measureText(e.data);
-					this.textArea.setWidth(metrics.width);
-				}
+				this.textArea.setWidth(measureText(e.data, this._context.configuration.editor.fontInfo));
 			}
 		}));
 
@@ -282,21 +264,6 @@ export class TextAreaHandler extends ViewEventHandler {
 	public dispose(): void {
 		this._context.removeEventHandler(this);
 		super.dispose();
-	}
-
-	private _getStrategy(): TextAreaStrategy {
-		if (this._context.configuration.editor.viewInfo.experimentalScreenReader) {
-			return TextAreaStrategy.NVDA;
-		}
-		return TextAreaStrategy.IENarrator;
-	}
-
-	public isFocused(): boolean {
-		return this._textAreaInput.isFocused();
-	}
-
-	public focusTextArea(): void {
-		this._textAreaInput.focusTextArea();
 	}
 
 	// --- begin event handlers
@@ -338,6 +305,14 @@ export class TextAreaHandler extends ViewEventHandler {
 
 	// --- begin view API
 
+	public isFocused(): boolean {
+		return this._textAreaInput.isFocused();
+	}
+
+	public focusTextArea(): void {
+		this._textAreaInput.focusTextArea();
+	}
+
 	public writeToTextArea(): void {
 		this._textAreaInput.writeScreenReaderContent('selection changed');
 	}
@@ -357,4 +332,30 @@ export class TextAreaHandler extends ViewEventHandler {
 	}
 
 	// --- end view API
+}
+
+function measureText(text: string, fontInfo: BareFontInfo): number {
+	// adjust width by its size
+	const canvasElem = <HTMLCanvasElement>document.createElement('canvas');
+	const context = canvasElem.getContext('2d');
+	context.font = createFontString(fontInfo);
+	const metrics = context.measureText(text);
+
+	if (browser.isFirefox) {
+		return metrics.width + 2; // +2 for Japanese...
+	} else {
+		return metrics.width;
+	}
+}
+
+function createFontString(bareFontInfo: BareFontInfo): string {
+	return doCreateFontString('normal', bareFontInfo.fontWeight, bareFontInfo.fontSize, bareFontInfo.lineHeight, bareFontInfo.fontFamily);
+}
+
+function doCreateFontString(fontStyle: string, fontWeight: string, fontSize: number, lineHeight: number, fontFamily: string): string {
+	// The full font syntax is:
+	// style | variant | weight | stretch | size/line-height | fontFamily
+	// (https://developer.mozilla.org/en-US/docs/Web/CSS/font)
+	// But it appears Edge and IE11 cannot properly parse `stretch`.
+	return `${fontStyle} normal ${fontWeight} ${fontSize}px / ${lineHeight}px ${fontFamily}`;
 }

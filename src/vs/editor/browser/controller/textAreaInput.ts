@@ -138,10 +138,10 @@ export class TextAreaInput extends Disposable {
 		/**
 		 * Deduce the typed input from a text area's value and the last observed state.
 		 */
-		const deduceInputFromTextAreaValue = (isDoingComposition: boolean): [TextAreaState, ITypeData] => {
+		const deduceInputFromTextAreaValue = (): [TextAreaState, ITypeData] => {
 			const oldState = this._textAreaState;
 			const newState = this._textAreaState.readFromTextArea(this._textArea);
-			return [newState, TextAreaState.deduceInput(oldState, newState, isDoingComposition)];
+			return [newState, TextAreaState.deduceInput(oldState, newState)];
 		};
 
 		/**
@@ -172,7 +172,7 @@ export class TextAreaInput extends Disposable {
 				// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
 				// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
 				// which breaks this path of code.
-				const [newState, typeInput] = deduceInputFromTextAreaValue(true);
+				const [newState, typeInput] = deduceInputFromTextAreaValue();
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 				this._onCompositionUpdate.fire(e);
@@ -189,7 +189,7 @@ export class TextAreaInput extends Disposable {
 			// console.log('onCompositionEnd: ' + e.data);
 			if (browser.isEdgeOrIE && e.locale === 'ja') {
 				// https://github.com/Microsoft/monaco-editor/issues/339
-				const [newState, typeInput] = deduceInputFromTextAreaValue(true);
+				const [newState, typeInput] = deduceInputFromTextAreaValue();
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 			}
@@ -231,7 +231,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			const [newState, typeInput] = deduceInputFromTextAreaValue(false);
+			const [newState, typeInput] = deduceInputFromTextAreaValue();
 			if (typeInput.replaceCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
 				// Ignore invalid input but keep it around for next time
 				return;
