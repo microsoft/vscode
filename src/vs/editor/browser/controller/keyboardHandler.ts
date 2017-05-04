@@ -7,7 +7,7 @@
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalScreenReaderNVDA } from 'vs/editor/common/config/commonEditorConfig';
-import { TextAreaHandler, ITextAreaHandlerHost, TextAreaStrategy } from 'vs/editor/browser/controller/textAreaHandler';
+import { TextAreaInput, ITextAreaInputHost, TextAreaStrategy } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
@@ -55,7 +55,7 @@ export class KeyboardHandler extends ViewEventHandler {
 	private _lastCopiedValue: string;
 	private _lastCopiedValueIsFromEmptySelection: boolean;
 
-	private textAreaHandler: TextAreaHandler;
+	private _textAreaInput: TextAreaInput;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IKeyboardHandlerHelper) {
 		super();
@@ -76,7 +76,7 @@ export class KeyboardHandler extends ViewEventHandler {
 		this._lastCopiedValue = null;
 		this._lastCopiedValueIsFromEmptySelection = false;
 
-		const textAreaHandlerHost: ITextAreaHandlerHost = {
+		const textAreaInputHost: ITextAreaInputHost = {
 			getPlainTextToCopy: (): string => {
 				const whatToCopy = this._context.model.getPlainTextToCopy(this._selections, browser.enableEmptySelectionClipboard);
 
@@ -110,26 +110,26 @@ export class KeyboardHandler extends ViewEventHandler {
 				return this._context.model.getValueInRange(range, eol);
 			}
 		};
-		this.textAreaHandler = new TextAreaHandler(textAreaHandlerHost, this._getStrategy(), this.textArea, simpleModel);
+		this._textAreaInput = new TextAreaInput(textAreaInputHost, this._getStrategy(), this.textArea, simpleModel);
 
-		this._register(this.textAreaHandler.onKeyDown((e) => this.viewController.emitKeyDown(e)));
-		this._register(this.textAreaHandler.onKeyUp((e) => this.viewController.emitKeyUp(e)));
-		this._register(this.textAreaHandler.onPaste((e) => {
+		this._register(this._textAreaInput.onKeyDown((e) => this.viewController.emitKeyDown(e)));
+		this._register(this._textAreaInput.onKeyUp((e) => this.viewController.emitKeyUp(e)));
+		this._register(this._textAreaInput.onPaste((e) => {
 			let pasteOnNewLine = false;
 			if (browser.enableEmptySelectionClipboard) {
 				pasteOnNewLine = (e.text === this._lastCopiedValue && this._lastCopiedValueIsFromEmptySelection);
 			}
 			this.viewController.paste('keyboard', e.text, pasteOnNewLine);
 		}));
-		this._register(this.textAreaHandler.onCut((e) => this.viewController.cut('keyboard')));
-		this._register(this.textAreaHandler.onType((e) => {
+		this._register(this._textAreaInput.onCut((e) => this.viewController.cut('keyboard')));
+		this._register(this._textAreaInput.onType((e) => {
 			if (e.replaceCharCnt) {
 				this.viewController.replacePreviousChar('keyboard', e.text, e.replaceCharCnt);
 			} else {
 				this.viewController.type('keyboard', e.text);
 			}
 		}));
-		this._register(this.textAreaHandler.onCompositionStart(() => {
+		this._register(this._textAreaInput.onCompositionStart(() => {
 			const lineNumber = this._selections[0].startLineNumber;
 			const column = this._selections[0].startColumn;
 
@@ -158,7 +158,7 @@ export class KeyboardHandler extends ViewEventHandler {
 			this.viewController.compositionStart('keyboard');
 		}));
 
-		this._register(this.textAreaHandler.onCompositionUpdate((e) => {
+		this._register(this._textAreaInput.onCompositionUpdate((e) => {
 			if (browser.isEdgeOrIE) {
 				// Due to isEdgeOrIE (where the textarea was not cleared initially)
 				// we cannot assume the text consists only of the composited text
@@ -181,7 +181,7 @@ export class KeyboardHandler extends ViewEventHandler {
 			}
 		}));
 
-		this._register(this.textAreaHandler.onCompositionEnd(() => {
+		this._register(this._textAreaInput.onCompositionEnd(() => {
 			this.textArea.unsetHeight();
 			this.textArea.unsetWidth();
 			this.textArea.setLeft(0);
@@ -193,7 +193,7 @@ export class KeyboardHandler extends ViewEventHandler {
 			this.viewController.compositionEnd('keyboard');
 		}));
 		this._register(GlobalScreenReaderNVDA.onChange((value) => {
-			this.textAreaHandler.setStrategy(this._getStrategy());
+			this._textAreaInput.setStrategy(this._getStrategy());
 		}));
 
 
@@ -202,7 +202,7 @@ export class KeyboardHandler extends ViewEventHandler {
 
 	public dispose(): void {
 		this._context.removeEventHandler(this);
-		this.textAreaHandler.dispose();
+		this._textAreaInput.dispose();
 		super.dispose();
 	}
 
@@ -217,7 +217,7 @@ export class KeyboardHandler extends ViewEventHandler {
 	}
 
 	public focusTextArea(): void {
-		this.textAreaHandler.focusTextArea();
+		this._textAreaInput.focusTextArea();
 	}
 
 	// --- begin event handlers
@@ -228,7 +228,7 @@ export class KeyboardHandler extends ViewEventHandler {
 			Configuration.applyFontInfo(this.textArea, this._context.configuration.editor.fontInfo);
 		}
 		if (e.viewInfo.experimentalScreenReader) {
-			this.textAreaHandler.setStrategy(this._getStrategy());
+			this._textAreaInput.setStrategy(this._getStrategy());
 		}
 		if (e.layoutInfo) {
 			this.contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
@@ -245,7 +245,7 @@ export class KeyboardHandler extends ViewEventHandler {
 	}
 
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		this.textAreaHandler.setHasFocus(e.isFocused);
+		this._textAreaInput.setHasFocus(e.isFocused);
 		return false;
 	}
 
@@ -265,7 +265,7 @@ export class KeyboardHandler extends ViewEventHandler {
 		if (this._lastCursorSelectionChanged) {
 			let e = this._lastCursorSelectionChanged;
 			this._lastCursorSelectionChanged = null;
-			this.textAreaHandler.setCursorSelections(e.selection, e.secondarySelections);
+			this._textAreaInput.setCursorSelections(e.selection, e.secondarySelections);
 		}
 	}
 

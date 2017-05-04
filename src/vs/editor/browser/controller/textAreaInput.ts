@@ -38,19 +38,20 @@ export interface IPasteData {
 	text: string;
 }
 
-// See https://github.com/Microsoft/monaco-editor/issues/320
-const isChromev55_v56 = (
-	(navigator.userAgent.indexOf('Chrome/55.') >= 0 || navigator.userAgent.indexOf('Chrome/56.') >= 0)
-	/* Edge likes to impersonate Chrome sometimes */
-	&& navigator.userAgent.indexOf('Edge/') === -1
-);
-
-export interface ITextAreaHandlerHost {
+export interface ITextAreaInputHost {
 	getPlainTextToCopy(): string;
 	getHTMLToCopy(): string;
 }
 
-export class TextAreaHandler extends Disposable {
+/**
+ * Writes screen reader content to the textarea and is able to analyze its input events to generate:
+ *  - onCut
+ *  - onPaste
+ *  - onType
+ *
+ * Composition events are generated for presentation purposes (composition input is reflected in onType).
+ */
+export class TextAreaInput extends Disposable {
 
 	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
@@ -78,7 +79,7 @@ export class TextAreaHandler extends Disposable {
 
 	// ---
 
-	private readonly _host: ITextAreaHandlerHost;
+	private readonly _host: ITextAreaInputHost;
 	private readonly _textArea: TextAreaWrapper;
 	private readonly _model: ISimpleModel;
 
@@ -93,7 +94,7 @@ export class TextAreaHandler extends Disposable {
 
 	private _nextCommand: ReadFromTextArea;
 
-	constructor(host: ITextAreaHandlerHost, strategy: TextAreaStrategy, textArea: FastDomNode<HTMLTextAreaElement>, model: ISimpleModel) {
+	constructor(host: ITextAreaInputHost, strategy: TextAreaStrategy, textArea: FastDomNode<HTMLTextAreaElement>, model: ISimpleModel) {
 		super();
 		this._host = host;
 		this._textArea = this._register(new TextAreaWrapper(textArea));
@@ -165,7 +166,7 @@ export class TextAreaHandler extends Disposable {
 		};
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
-			if (isChromev55_v56) {
+			if (browser.isChromev56) {
 				// See https://github.com/Microsoft/monaco-editor/issues/320
 				// where compositionupdate .data is broken in Chrome v55 and v56
 				// See https://bugs.chromium.org/p/chromium/issues/detail?id=677050#c9
@@ -224,7 +225,7 @@ export class TextAreaHandler extends Disposable {
 			// console.log('onInput: ' + this.textArea.getValue());
 			if (this._isDoingComposition) {
 				// See https://github.com/Microsoft/monaco-editor/issues/320
-				if (isChromev55_v56) {
+				if (browser.isChromev56) {
 					const [newState, typeInput] = deduceComposition(this._textArea.getValue());
 					this._textAreaState = newState;
 

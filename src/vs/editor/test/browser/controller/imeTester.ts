@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextAreaHandler, ITextAreaHandlerHost, TextAreaStrategy } from 'vs/editor/browser/controller/textAreaHandler';
+import { TextAreaInput, ITextAreaInputHost, TextAreaStrategy } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -93,12 +93,12 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let model = new SingleLineTestModel('some  text');
 
-	const textAreaHandlerHost: ITextAreaHandlerHost = {
+	const textAreaInputHost: ITextAreaInputHost = {
 		getPlainTextToCopy: (): string => '',
 		getHTMLToCopy: (): string => ''
 	};
 
-	let handler = new TextAreaHandler(textAreaHandlerHost, strategy, createFastDomNode(input), model);
+	let handler = new TextAreaInput(textAreaInputHost, strategy, createFastDomNode(input), model);
 
 	input.onfocus = () => {
 		handler.setHasFocus(true);
