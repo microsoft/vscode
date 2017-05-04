@@ -540,22 +540,18 @@ export class CommandCenter {
 
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
-			// prompt the user if we want to commit all or not
 
-			const message = localize('no staged changes', "There are no staged changes to commit. Would you like to stage all changes and commit them?");
+			// prompt the user if we want to commit all or not
+			const message = localize('no staged changes', "There are no staged changes to commit.\n\nWould you like to automatically stage all your changes and commit them directly?");
 			const yes = localize('yes', "Yes");
 			const always = localize('always', "Always");
 			const pick = await window.showWarningMessage(message, { modal: true }, yes, always);
 
 			if (pick === always) {
-				// update preference to enable smart commit always
-				config.update('enableSmartCommit', true, false);
+				config.update('enableSmartCommit', true, true);
+			} else if (pick !== yes) {
+				return false; // do not commit on cancel
 			}
-			else if (pick !== yes) {
-				// do not commit on cancel
-				return false;
-			}
-			// for yes or always, continue onto previous smart commit behavior
 		}
 
 		if (!opts) {
