@@ -10,7 +10,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { ArraySet } from 'vs/base/common/set';
 import { IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
@@ -475,14 +474,15 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 		return this.loadDependencies(toGet)
 			.then(loadedDependencies => {
-				const dependenciesSet = new ArraySet<string>();
+				const dependenciesSet = new Set<string>();
 				for (const dep of loadedDependencies) {
 					if (dep.properties.dependencies) {
-						dep.properties.dependencies.forEach(d => dependenciesSet.set(d));
+						dep.properties.dependencies.forEach(d => dependenciesSet.add(d));
 					}
 				}
 				result = distinct(result.concat(loadedDependencies), d => d.uuid);
-				const dependencies = dependenciesSet.elements.filter(d => !ExtensionGalleryService.hasExtensionByName(result, d));
+				const dependencies: string[] = [];
+				dependenciesSet.forEach(d => !ExtensionGalleryService.hasExtensionByName(result, d) && dependencies.push(d));
 				return this.getDependenciesReccursively(dependencies, result, root);
 			});
 	}
