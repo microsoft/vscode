@@ -534,12 +534,34 @@ export class CommandCenter {
 			opts = { all: this.model.indexGroup.resources.length === 0 };
 		}
 
-		if (
-			// no changes
-			(this.model.indexGroup.resources.length === 0 && this.model.workingTreeGroup.resources.length === 0)
-			// or no staged changes and not `all`
-			|| (!opts.all && this.model.indexGroup.resources.length === 0)
-		) {
+		const config = workspace.getConfiguration('git');
+		const commitType = config.get<string>('commitType');
+
+		var noChanges;
+		switch (commitType) {
+			case 'off':
+				//don't add anything. If there is nothing already staged, there is nothing to commit.
+				noChanges = (this.model.indexGroup.resources.length === 0);
+				break;
+			case 'tracked':
+				//only add files which are already tracked
+				noChanges = (
+					//no changes in tracked files
+					(this.model.indexGroup.resources.length === 0 && this.model.workingTreeGroup.resources.filter(r => r.type !== Status.UNTRACKED).length === 0)
+					// or no staged changes and not `all`
+					|| (!opts.all && this.model.indexGroup.resources.length === 0)
+				);
+				break;
+			default:
+				noChanges = (
+					// no changes
+					(this.model.indexGroup.resources.length === 0 && this.model.workingTreeGroup.resources.length === 0)
+					// or no staged changes and not `all`
+					|| (!opts.all && this.model.indexGroup.resources.length === 0)
+				);
+		}
+
+		if (noChanges) {
 			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
 			return false;
 		}

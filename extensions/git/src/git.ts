@@ -553,8 +553,8 @@ export class Repository {
 		// });
 	}
 
-	async add(paths: string[]): Promise<void> {
-		const args = ['add', '-A', '--'];
+	async add(paths: string[], update: boolean = false): Promise<void> {
+		const args = ['add', (update ? '-u' : '-A'), '--'];
 
 		if (paths && paths.length) {
 			args.push.apply(args, paths);
@@ -606,10 +606,6 @@ export class Repository {
 
 	async commit(message: string, opts: { all?: boolean, amend?: boolean, signoff?: boolean } = Object.create(null)): Promise<void> {
 		const args = ['commit', '--quiet', '--allow-empty-message', '--file', '-'];
-
-		if (opts.all) {
-			args.push('--all');
-		}
 
 		if (opts.amend) {
 			args.push('--amend');

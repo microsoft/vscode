@@ -411,7 +411,13 @@ export class Model implements Disposable {
 	async commit(message: string, opts: CommitOptions = Object.create(null)): Promise<void> {
 		await this.run(Operation.Commit, async () => {
 			if (opts.all) {
-				await this.repository.add([]);
+				const config = workspace.getConfiguration('git');
+				const commitType = config.get<string>('commitType');
+				switch (commitType) {
+					case 'off': break;
+					case 'tracked': await this.repository.add([], true); break;
+					default: await this.repository.add([]); break;
+				}
 			}
 
 			await this.repository.commit(message, opts);
