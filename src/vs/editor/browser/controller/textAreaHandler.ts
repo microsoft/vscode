@@ -9,6 +9,8 @@ import * as browser from 'vs/base/browser/browser';
 import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, ITypeData, TextAreaState, IENarratorStrategy, NVDAPagedStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Position } from 'vs/editor/common/core/position';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -55,6 +57,7 @@ export class TextAreaHandler extends ViewPart {
 
 	private _contentLeft: number;
 	private _contentWidth: number;
+	private _contentHeight: number;
 	private _scrollLeft: number;
 	private _scrollTop: number;
 	private _experimentalScreenReader: boolean;
@@ -65,7 +68,7 @@ export class TextAreaHandler extends ViewPart {
 	 * Defined only when the text area is visible (composition case).
 	 */
 	private _visibleTextArea: VisibleTextArea;
-	private _selections: Range[];
+	private _selections: Selection[];
 	private _lastCopiedValue: string;
 	private _lastCopiedValueIsFromEmptySelection: boolean;
 
@@ -82,6 +85,7 @@ export class TextAreaHandler extends ViewPart {
 
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+		this._contentHeight = this._context.configuration.editor.layoutInfo.contentHeight;
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
 		this._experimentalScreenReader = this._context.configuration.editor.viewInfo.experimentalScreenReader;
@@ -89,7 +93,7 @@ export class TextAreaHandler extends ViewPart {
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 
 		this._visibleTextArea = null;
-		this._selections = [new Range(1, 1, 1, 1)];
+		this._selections = [new Selection(1, 1, 1, 1)];
 		this._lastCopiedValue = null;
 		this._lastCopiedValueIsFromEmptySelection = false;
 
@@ -268,6 +272,7 @@ export class TextAreaHandler extends ViewPart {
 		if (e.layoutInfo) {
 			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
+			this._contentHeight = this._context.configuration.editor.layoutInfo.contentHeight;
 		}
 		if (e.viewInfo.ariaLabel) {
 			this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
@@ -277,16 +282,32 @@ export class TextAreaHandler extends ViewPart {
 		}
 		return true;
 	}
-
 	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
 		this._selections = [e.selection].concat(e.secondarySelections);
 		return true;
 	}
-
+	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
+		// true for inline decorations that can end up relayouting text
+		return true;
+	}
+	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
+		return true;
+	}
+	public onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean {
+		return true;
+	}
+	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
+		return true;
+	}
+	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
+		return true;
+	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this._scrollLeft = e.scrollLeft;
 		this._scrollTop = e.scrollTop;
-
+		return true;
+	}
+	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return true;
 	}
 
@@ -322,7 +343,11 @@ export class TextAreaHandler extends ViewPart {
 
 	// --- end view API
 
+	private _primaryCursorVisibleRange: HorizontalRange = null;
+
 	public prepareRender(ctx: RenderingContext): void {
+		const primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
+		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(primaryCursorPosition);
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
@@ -331,50 +356,88 @@ export class TextAreaHandler extends ViewPart {
 
 	private _render(): void {
 		if (this._visibleTextArea) {
-
 			// The text area is visible for composition reasons
-			this.textArea.setTop(this._visibleTextArea.top - this._scrollTop);
-			this.textArea.setLeft(this._contentLeft + this._visibleTextArea.left - this._scrollLeft);
-			this.textArea.setWidth(this._visibleTextArea.width);
-			this.textArea.setHeight(this._lineHeight);
+			this._renderInsideEditor(
+				this._visibleTextArea.top - this._scrollTop,
+				this._contentLeft + this._visibleTextArea.left - this._scrollLeft,
+				this._visibleTextArea.width,
+				this._lineHeight
+			);
+			return;
+		}
 
-			this.textAreaCover.setWidth(0);
-			this.textAreaCover.setHeight(0);
-			this.textAreaCover.setTop(0);
-			this.textAreaCover.setLeft(0);
+		if (!this._primaryCursorVisibleRange) {
+			// The primary cursor is outside the viewport => place textarea to the top left
+			this._renderAtTopLeft();
+			return;
+		}
 
+		const left = this._contentLeft + this._primaryCursorVisibleRange.left - this._scrollLeft;
+		if (left < this._contentLeft || left > this._contentLeft + this._contentWidth) {
+			// cursor is outside the viewport
+			this._renderAtTopLeft();
+			return;
+		}
+
+		const top = this._viewHelper.getVerticalOffsetForLineNumber(this._selections[0].positionLineNumber) - this._scrollTop;
+		if (top < 0 || top > this._contentHeight) {
+			// cursor is outside the viewport
+			this._renderAtTopLeft();
+			return;
+		}
+
+		// The primary cursor is in the viewport (at least vertically) => place textarea on the cursor
+		this._renderInsideEditor(top, left, canUseZeroSizeTextarea ? 0 : 1, canUseZeroSizeTextarea ? 0 : 1);
+	}
+
+	private _renderInsideEditor(top: number, left: number, width: number, height: number): void {
+		const ta = this.textArea;
+		const tac = this.textAreaCover;
+
+		ta.setTop(top);
+		ta.setLeft(left);
+		ta.setWidth(width);
+		ta.setHeight(height);
+
+		tac.setTop(0);
+		tac.setLeft(0);
+		tac.setWidth(0);
+		tac.setHeight(0);
+	}
+
+	private _renderAtTopLeft(): void {
+		const ta = this.textArea;
+		const tac = this.textAreaCover;
+
+		ta.setTop(0);
+		ta.setLeft(0);
+		tac.setTop(0);
+		tac.setLeft(0);
+
+		if (canUseZeroSizeTextarea) {
+			ta.setWidth(0);
+			ta.setHeight(0);
+			tac.setWidth(0);
+			tac.setHeight(0);
+			return;
+		}
+
+		// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
+		// specifically, when doing Korean IME, setting the textare to 0x0 breaks IME badly.
+
+		ta.setWidth(1);
+		ta.setHeight(1);
+		tac.setWidth(1);
+		tac.setHeight(1);
+
+		if (this._context.configuration.editor.viewInfo.glyphMargin) {
+			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.CLASS_NAME);
 		} else {
-
-			this.textArea.setTop(0);
-			this.textArea.setLeft(0);
-			this.textAreaCover.setTop(0);
-			this.textAreaCover.setLeft(0);
-
-			if (canUseZeroSizeTextarea) {
-				this.textArea.setWidth(0);
-				this.textArea.setHeight(0);
-				this.textAreaCover.setWidth(0);
-				this.textAreaCover.setHeight(0);
+			if (this._context.configuration.editor.viewInfo.renderLineNumbers) {
+				tac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);
 			} else {
-				// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
-				// specifically, when doing Korean IME, setting the textare to 0x0 breaks IME badly.
-
-				this.textArea.setWidth(1);
-				this.textArea.setHeight(1);
-				this.textAreaCover.setWidth(1);
-				this.textAreaCover.setHeight(1);
-
-				if (this._context.configuration.editor.viewInfo.glyphMargin) {
-					this.textAreaCover.setClassName('monaco-editor-background textAreaCover ' + Margin.CLASS_NAME);
-				} else {
-					if (this._context.configuration.editor.viewInfo.renderLineNumbers) {
-						this.textAreaCover.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);
-					} else {
-						this.textAreaCover.setClassName('monaco-editor-background textAreaCover');
-					}
-				}
+				tac.setClassName('monaco-editor-background textAreaCover');
 			}
-
 		}
 	}
 }
