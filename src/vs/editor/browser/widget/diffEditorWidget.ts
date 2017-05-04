@@ -34,7 +34,7 @@ import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { registerThemingParticipant, IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Color, RGBA } from 'vs/base/common/color';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
@@ -1978,5 +1978,9 @@ registerThemingParticipant((theme, collector) => {
 	let removedOutline = theme.getColor(diffRemovedOutline);
 	if (removedOutline) {
 		collector.addRule(`.monaco-editor .line-delete, .monaco-editor .char-delete { border: 1px dashed ${removedOutline}; }`);
+	}
+	let shadow = theme.getColor(scrollbarShadow);
+	if (shadow) {
+		collector.addRule(`.monaco-diff-editor.side-by-side .editor.modified { box-shadow: -6px 0 5px -5px ${shadow}; }`);
 	}
 });
