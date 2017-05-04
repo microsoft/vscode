@@ -613,6 +613,11 @@
           "type": "string",
           "default": null,
           "description": "%config.defaultCloneDirectory%"
+        },
+        "git.enableSmartCommit": {
+          "type": "boolean",
+          "description": "%config.enableSmartCommit%",
+          "default": false
         }
       }
     }

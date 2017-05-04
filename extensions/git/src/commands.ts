@@ -533,15 +533,40 @@ export class CommandCenter {
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
+		const config = workspace.getConfiguration('git');
+		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		const noStagedChanges = this.model.indexGroup.resources.length === 0;
+		const noUnstagedChanges = this.model.workingTreeGroup.resources.length === 0;
+
+		// no changes, and the user has not configured to commit all in this case
+		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
+			// prompt the user if we want to commit all or not
+
+			const message = localize('no staged changes', "There are no staged changes to commit. Would you like to stage all changes and commit them?");
+			const yes = localize('yes', "Yes");
+			const always = localize('always', "Always");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, always);
+
+			if (pick === always) {
+				// update preference to enable smart commit always
+				config.update('enableSmartCommit', true, false);
+			}
+			else if (pick !== yes) {
+				// do not commit on cancel
+				return false;
+			}
+			// for yes or always, continue onto previous smart commit behavior
+		}
+
 		if (!opts) {
-			opts = { all: this.model.indexGroup.resources.length === 0 };
+			opts = { all: noStagedChanges };
 		}
 
 		if (
 			// no changes
-			(this.model.indexGroup.resources.length === 0 && this.model.workingTreeGroup.resources.length === 0)
+			(noStagedChanges && noUnstagedChanges)
 			// or no staged changes and not `all`
-			|| (!opts.all && this.model.indexGroup.resources.length === 0)
+			|| (!opts.all && noStagedChanges)
 		) {
 			window.showInformationMessage(localize('no changes', "There are no changes to commit."));
 			return false;
