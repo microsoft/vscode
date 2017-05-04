@@ -186,7 +186,6 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
-			// console.log('onCompositionEnd: ' + e.data);
 			if (browser.isEdgeOrIE && e.locale === 'ja') {
 				// https://github.com/Microsoft/monaco-editor/issues/339
 				const [newState, typeInput] = deduceInputFromTextAreaValue();
@@ -214,7 +213,6 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'input', () => {
-			// console.log('onInput: ' + this.textArea.getValue());
 			if (this._isDoingComposition) {
 				// See https://github.com/Microsoft/monaco-editor/issues/320
 				if (browser.isChromev56) {
@@ -227,7 +225,6 @@ export class TextAreaInput extends Disposable {
 					};
 					this._onCompositionUpdate.fire(e);
 				}
-				// console.log('::ignoring input event because the textarea is shown at cursor: ' + this.textArea.getValue());
 				return;
 			}
 

@@ -123,8 +123,11 @@ export class View extends ViewEventHandler {
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, model, this.eventDispatcher);
 
+		this.viewParts = [];
+
 		// Keyboard handler
 		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this.createTextAreaHandlerHelper());
+		this.viewParts.push(this._textAreaHandler);
 
 		this.createViewParts();
 		this._setLayout();
@@ -149,8 +152,6 @@ export class View extends ViewEventHandler {
 		this.overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.overflowGuardContainer, PartFingerprint.OverflowGuard);
 		this.overflowGuardContainer.setClassName('overflow-guard');
-
-		this.viewParts = [];
 
 		this._scrollbar = new EditorScrollbar(this._context, this.layoutProvider.getScrollable(), this.linesContent, this.domNode, this.overflowGuardContainer);
 		this.viewParts.push(this._scrollbar);
@@ -392,7 +393,6 @@ export class View extends ViewEventHandler {
 		this.eventDispatcher.removeEventHandler(this);
 		this.outgoingEvents.dispose();
 
-		this._textAreaHandler.dispose();
 		this.pointerHandler.dispose();
 
 		this.viewLines.dispose();
