@@ -14,7 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { Configuration } from 'vs/editor/browser/config/configuration';
-import { KeyboardHandler, IKeyboardHandlerHelper } from 'vs/editor/browser/controller/keyboardHandler';
+import { TextAreaHandler, ITextAreaHandlerHelper } from 'vs/editor/browser/controller/textAreaHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ViewController, ExecCoreEditorCommandFunc } from 'vs/editor/browser/view/viewController';
@@ -80,16 +80,14 @@ export class View extends ViewEventHandler {
 	private viewCursors: ViewCursors;
 	private viewParts: ViewPart[];
 
-	private keyboardHandler: KeyboardHandler;
-	private pointerHandler: PointerHandler;
+	private readonly _textAreaHandler: TextAreaHandler;
+	private readonly pointerHandler: PointerHandler;
 
 	private outgoingEvents: ViewOutgoingEvents;
 
 	// Dom nodes
 	private linesContent: FastDomNode<HTMLElement>;
 	public domNode: FastDomNode<HTMLElement>;
-	private textArea: FastDomNode<HTMLTextAreaElement>;
-	private textAreaCover: FastDomNode<HTMLElement>;
 	private overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
@@ -125,12 +123,11 @@ export class View extends ViewEventHandler {
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, model, this.eventDispatcher);
 
-		this.createTextArea();
+		// Keyboard handler
+		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this.createTextAreaHandlerHelper());
+
 		this.createViewParts();
 		this._setLayout();
-
-		// Keyboard handler
-		this.keyboardHandler = new KeyboardHandler(this._context, viewController, this.createKeyboardHandlerHelper());
 
 		// Pointer handler
 		this.pointerHandler = new PointerHandler(this._context, viewController, this.createPointerHandlerHelper());
@@ -138,44 +135,6 @@ export class View extends ViewEventHandler {
 		this._register(model.addEventListener((events: viewEvents.ViewEvent[]) => {
 			this.eventDispatcher.emitMany(events);
 		}));
-	}
-
-	private createTextArea(): void {
-		// Text Area (The focus will always be in the textarea when the cursor is blinking)
-		this.textArea = createFastDomNode(document.createElement('textarea'));
-		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
-		this.textArea.setClassName('inputarea');
-		this.textArea.setAttribute('wrap', 'off');
-		this.textArea.setAttribute('autocorrect', 'off');
-		this.textArea.setAttribute('autocapitalize', 'off');
-		this.textArea.setAttribute('spellcheck', 'false');
-		this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
-		this.textArea.setAttribute('role', 'textbox');
-		this.textArea.setAttribute('aria-multiline', 'true');
-		this.textArea.setAttribute('aria-haspopup', 'false');
-		this.textArea.setAttribute('aria-autocomplete', 'both');
-
-		this.textArea.setTop(0);
-		this.textArea.setLeft(0);
-
-		// On top of the text area, we position a dom node to cover it up
-		// (there have been reports of tiny blinking cursors)
-		// (in WebKit the textarea is 1px by 1px because it cannot handle input to a 0x0 textarea)
-		this.textAreaCover = createFastDomNode(document.createElement('div'));
-		if (this._context.configuration.editor.viewInfo.glyphMargin) {
-			this.textAreaCover.setClassName('monaco-editor-background ' + Margin.CLASS_NAME + ' ' + 'textAreaCover');
-		} else {
-			if (this._context.configuration.editor.viewInfo.renderLineNumbers) {
-				this.textAreaCover.setClassName('monaco-editor-background ' + LineNumbersOverlay.CLASS_NAME + ' ' + 'textAreaCover');
-			} else {
-				this.textAreaCover.setClassName('monaco-editor-background ' + 'textAreaCover');
-			}
-		}
-		this.textAreaCover.setPosition('absolute');
-		this.textAreaCover.setWidth(1);
-		this.textAreaCover.setHeight(1);
-		this.textAreaCover.setTop(0);
-		this.textAreaCover.setLeft(0);
 	}
 
 	private createViewParts(): void {
@@ -268,8 +227,8 @@ export class View extends ViewEventHandler {
 		this.overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		this.overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
 		this.overflowGuardContainer.appendChild(this.overlayWidgets.getDomNode());
-		this.overflowGuardContainer.appendChild(this.textArea);
-		this.overflowGuardContainer.appendChild(this.textAreaCover);
+		this.overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
+		this.overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
 		this.overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this.overflowGuardContainer);
 		this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
@@ -341,10 +300,9 @@ export class View extends ViewEventHandler {
 		};
 	}
 
-	private createKeyboardHandlerHelper(): IKeyboardHandlerHelper {
+	private createTextAreaHandlerHelper(): ITextAreaHandlerHelper {
 		return {
 			viewDomNode: this.domNode,
-			textArea: this.textArea,
 			visibleRangeForPositionRelativeToEditor: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
 				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column));
@@ -435,7 +393,7 @@ export class View extends ViewEventHandler {
 		this.eventDispatcher.removeEventHandler(this);
 		this.outgoingEvents.dispose();
 
-		this.keyboardHandler.dispose();
+		this._textAreaHandler.dispose();
 		this.pointerHandler.dispose();
 
 		this.viewLines.dispose();
@@ -492,7 +450,7 @@ export class View extends ViewEventHandler {
 
 		if (!this.viewLines.shouldRender() && viewPartsToRender.length === 0) {
 			// Nothing to render
-			this.keyboardHandler.writeToTextArea();
+			this._textAreaHandler.writeToTextArea();
 			return;
 		}
 
@@ -503,14 +461,14 @@ export class View extends ViewEventHandler {
 
 		if (this.viewLines.shouldRender()) {
 			this.viewLines.renderText(viewportData, () => {
-				this.keyboardHandler.writeToTextArea();
+				this._textAreaHandler.writeToTextArea();
 			});
 			this.viewLines.onDidRender();
 
 			// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
 			viewPartsToRender = this._getViewPartsToRender();
 		} else {
-			this.keyboardHandler.writeToTextArea();
+			this._textAreaHandler.writeToTextArea();
 		}
 
 		let renderingContext = new RenderingContext(this.layoutProvider, viewportData, this.viewLines);
@@ -667,7 +625,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public setAriaActiveDescendant(id: string): void {
-		this.keyboardHandler.setAriaActiveDescendant(id);
+		this._textAreaHandler.setAriaActiveDescendant(id);
 	}
 
 	public saveState(): editorCommon.IViewState {
@@ -679,11 +637,11 @@ export class View extends ViewEventHandler {
 	}
 
 	public focus(): void {
-		this.keyboardHandler.focusTextArea();
+		this._textAreaHandler.focusTextArea();
 	}
 
 	public isFocused(): boolean {
-		return this.keyboardHandler.isFocused();
+		return this._textAreaHandler.isFocused();
 	}
 
 	public addContentWidget(widgetData: IContentWidgetData): void {
