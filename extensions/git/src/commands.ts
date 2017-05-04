@@ -608,6 +608,10 @@ export class CommandCenter {
 
 	@command('git.commitWithInput')
 	async commitWithInput(): Promise<void> {
+		if (!scm.inputBox.value) {
+			return;
+		}
+
 		const didCommit = await this.smartCommit(async () => scm.inputBox.value);
 
 		if (didCommit) {
