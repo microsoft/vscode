@@ -169,6 +169,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		}
 	});
 
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration({
+		id: 'extensions',
+		order: 30,
+		title: localize('extensionsConfigurationTitle', "Extensions"),
+		type: 'object',
+		properties: {
+			'extensions.ignoreRecommendations': {
+				type: 'boolean',
+				description: localize('extensionsIgnoreRecommendations', "Ignore extension recommendations"),
+				default: false
+			}
+		}
+	});
+
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigurationSchema);
 
