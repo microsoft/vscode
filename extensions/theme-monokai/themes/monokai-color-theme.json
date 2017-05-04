@@ -13,7 +13,7 @@
 		"list.inactiveSelectionBackground": "#414339",
 		"list.hoverBackground": "#272822",
 		"list.dropBackground": "#414339",
-		"list.highlightForeground": "#75715E",
+		"list.highlightForeground": "#f8f8f2",
 		"button.background": "#75715E",
 		"editor.background": "#272822",
 		"editor.foreground": "#f8f8f2",
