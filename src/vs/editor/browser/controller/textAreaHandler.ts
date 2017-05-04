@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'vs/css!./textAreaHandler';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData } from 'vs/editor/browser/controller/textAreaInput';
@@ -24,7 +25,6 @@ import { Margin } from "vs/editor/browser/viewParts/margin/margin";
 import { LineNumbersOverlay } from "vs/editor/browser/viewParts/lineNumbers/lineNumbers";
 
 export interface ITextAreaHandlerHelper {
-	viewDomNode: FastDomNode<HTMLElement>;
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 }
@@ -228,7 +228,7 @@ export class TextAreaHandler extends ViewEventHandler {
 
 			// Show the textarea
 			this.textArea.setHeight(this._context.configuration.editor.lineHeight);
-			this._viewHelper.viewDomNode.addClassName('ime-input');
+			this.textArea.setClassName('inputarea ime-input');
 
 			this._viewController.compositionStart('keyboard');
 		}));
@@ -261,7 +261,7 @@ export class TextAreaHandler extends ViewEventHandler {
 			this.textArea.unsetWidth();
 			this.textArea.setLeft(0);
 			this.textArea.setTop(0);
-			this._viewHelper.viewDomNode.removeClassName('ime-input');
+			this.textArea.setClassName('inputarea');
 
 			this._visiblePosition = null;
 

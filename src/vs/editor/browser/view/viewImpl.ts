@@ -83,7 +83,7 @@ export class View extends ViewEventHandler {
 	private readonly _textAreaHandler: TextAreaHandler;
 	private readonly pointerHandler: PointerHandler;
 
-	private outgoingEvents: ViewOutgoingEvents;
+	private readonly outgoingEvents: ViewOutgoingEvents;
 
 	// Dom nodes
 	private linesContent: FastDomNode<HTMLElement>;
@@ -302,7 +302,6 @@ export class View extends ViewEventHandler {
 
 	private createTextAreaHandlerHelper(): ITextAreaHandlerHelper {
 		return {
-			viewDomNode: this.domNode,
 			visibleRangeForPositionRelativeToEditor: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
 				let visibleRanges = this.viewLines.visibleRangesForRange2(new Range(lineNumber, column, lineNumber, column));

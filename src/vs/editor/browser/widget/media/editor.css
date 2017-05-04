@@ -15,7 +15,7 @@
 	color: inherit;
 }
 
-/* -------------------- Editor, inputarea and background -------------------- */
+/* -------------------- Editor -------------------- */
 
 .monaco-editor {
 	position: relative;
@@ -29,40 +29,8 @@
 	-webkit-font-feature-settings: "liga" on, "calt" on;
 	font-feature-settings: "liga" on, "calt" on;
 }
-.monaco-editor .inputarea {
-	/*Chrome cannot handle typing in a 0x0 textarea*/
-	width: 1px;
-	height: 1px;
-	min-width: 0;
-	min-height: 0;
-	margin: 0;
-	padding: 0;
-	position: absolute;
-	outline: none !important;
-	resize: none;
-	border: none;
-	overflow: hidden;
-}
-/*.monaco-editor .inputarea {
-	position: fixed !important;
-	width: 800px !important;
-	height: 200px !important;
-	top: initial !important;
-	left: initial !important;
-	bottom: 0 !important;
-	right: 0 !important;
-}*/
-.monaco-editor.ff .inputarea,
-.monaco-editor.ie .inputarea {
-	width: 0;
-	height: 0;
-}
-.monaco-editor.ime-input .inputarea {
-	z-index: 10;
-}
 
-.monaco-editor,
-.monaco-editor .inputarea {
+.monaco-editor {
 	color: #333;
 	/*
 	 * WORKAROUND:
@@ -71,22 +39,14 @@
 	 */
 	background: #fffffe;
 }
-.monaco-editor.ime-input .inputarea {
-	background: rgba(255, 255, 255, 0.85);
-}
 
 .monaco-editor.vs-dark,
-.monaco-editor.vs-dark .inputarea,
 .monaco-editor.vs-dark .zone-widget .monaco-editor {
 	color: #BBB;
 	background: #1E1E1E;
 }
-.monaco-editor.vs-dark.ime-input .inputarea {
-	background: rgba(0, 0, 0, 0.65);
-}
 
 .monaco-editor.hc-black,
-.monaco-editor.hc-black .inputarea,
 .monaco-editor.hc-black .zone-widget .monaco-editor {
 	color: #fff;
 	background: #000;
