@@ -6,5 +6,6 @@
 {
 	"schema.colors": "反白顯示語法時的色彩",
 	"schema.properties.name": "規則描述",
-	"schema.fontStyle": "規則的字型樣式:「斜體」、「粗體」或「底線」之一或其組合"
+	"schema.fontStyle": "規則的字型樣式:「斜體」、「粗體」或「底線」之一或其組合",
+	"schema.tokenColors.path": "tmTheme 檔案的路徑 (相對於目前檔案)。"
 }

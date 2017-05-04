@@ -41,5 +41,6 @@
 	"config.confirmSync": "請先確認再同步處理 GIT 存放庫",
 	"config.countBadge": "控制 git 徽章計數器。[全部] 會計算所有變更。[已追蹤] 只會計算追蹤的變更。[關閉] 會將其關閉。",
 	"config.checkoutType": "控制在執行 [簽出至...] 時，會列出那些類型的分支。[全部] 會顯示所有參考，[本機] 只會顯示本機分支，[標記] 只會顯示標記，[遠端] 只會顯示遠端分支。",
+	"config.ignoreLegacyWarning": "略過舊的 Git 警告",
 	"config.ignoreLimitWarning": "當存放庫中有過多變更時，略過警告。"
 }

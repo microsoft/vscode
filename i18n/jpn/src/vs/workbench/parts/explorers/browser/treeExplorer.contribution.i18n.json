@@ -6,6 +6,7 @@
 {
 	"vscode.extension.contributes.view": "カスタム ビューを提供します",
 	"vscode.extension.contributes.view.id": "vscode.workspace.createTreeView を介して生成した、ビューを認識するための一意の ID",
+	"vscode.extension.contributes.view.label": "ビューの表示に使用する、他人が解釈できる文字列",
 	"vscode.extension.contributes.view.icon": "ビュー アイコンへのパス",
 	"vscode.extension.contributes.views": "複数のカスタム ビューを提供します",
 	"showViewlet": "{0} を表示",

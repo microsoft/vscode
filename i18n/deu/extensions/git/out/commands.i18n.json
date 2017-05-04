@@ -16,6 +16,8 @@
 	"confirm discard": "Möchten Sie die Änderungen in {0} wirklich verwerfen?",
 	"confirm discard multiple": "Möchten Sie wirklich Änderungen in {0} Dateien verwerfen?",
 	"discard": "Änderungen verwerfen",
+	"confirm discard all": "Möchten Sie wirklich ALLE Änderungen verwerfen? Dieser Vorgang kann nicht rückgängig gemacht werden!",
+	"discardAll": "ALLE Änderungen verwerfen",
 	"no changes": "Keine Änderungen zum Speichern vorhanden.",
 	"commit message": "Commit-Nachricht",
 	"provide commit message": "Geben Sie eine Commit-Nachrichte ein.",
@@ -31,6 +33,7 @@
 	"no remotes to publish": "In Ihrem Repository wurden keine Remoteelemente für die Veröffentlichung konfiguriert.",
 	"disabled": "Git ist deaktiviert oder wird in diesem Arbeitsbereich nicht unterstützt.",
 	"clean repo": "Bereinigen Sie Ihre Repository-Arbeitsstruktur vor Auftragsabschluss.",
+	"cant push": "Verweise können nicht per Push an einen Remotespeicherort übertragen werden. Führen Sie zuerst \"Pull\" aus, um Ihre Änderungen zu integrieren.",
 	"git error details": "Git: {0}",
 	"git error": "Git-Fehler",
 	"open git log": "Git-Protokoll öffnen"

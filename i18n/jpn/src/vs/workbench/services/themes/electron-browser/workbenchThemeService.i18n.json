@@ -27,5 +27,6 @@
 	"noIconThemeDesc": "No file icons",
 	"iconThemeError": "File icon theme is unknown or not installed.",
 	"workbenchColors": "現在選択している配色テーマで配色を上書きします。",
+	"workbenchColors.deprecated": "この設定はもう試験的なものではなく、名前が 'workbench.colorCustomizations' に変更されています",
 	"workbenchColors.deprecatedDescription": "代わりに 'workbench.colorCustomizations' を使用してください"
 }

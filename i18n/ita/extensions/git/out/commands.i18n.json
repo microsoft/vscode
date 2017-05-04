@@ -16,6 +16,8 @@
 	"confirm discard": "Rimuovere le modifiche in {0}?",
 	"confirm discard multiple": "Rimuovere le modifiche in {0} file?",
 	"discard": "Rimuovi modifiche",
+	"confirm discard all": "Sei sicuro di voler annullare TUTTE le modifiche? Quest'azione è IRREVERSIBILE!",
+	"discardAll": "Rimuovi TUTTE le modifiche",
 	"no changes": "Non ci sono modifiche di cui eseguire il commit.",
 	"commit message": "Messaggio di commit",
 	"provide commit message": "Specificare un messaggio di commit",
@@ -31,6 +33,7 @@
 	"no remotes to publish": "Il repository non contiene elementi remoti configurati come destinazione della pubblicazione.",
 	"disabled": "GIT è disabilitato oppure non supportato in quest'area di lavoro",
 	"clean repo": "Pulire l'albero di lavoro del repository prima dell'estrazione.",
+	"cant push": "Impossibile effettuare il push in remoto. Effettua prima un 'pull' per integrare le tue modifiche.",
 	"git error details": "GIT: {0}",
 	"git error": "Errore GIT",
 	"open git log": "Apri log GIT"

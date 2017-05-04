@@ -14,6 +14,7 @@
 	"noIconThemeDesc": "Отключить значки файлов",
 	"problemChangingIconTheme": "Проблема при задании темы значка: {0}",
 	"themes.selectIconTheme": "Выбрать тему значка файла",
+	"generateColorTheme.label": "Создать цветовую тему на основе текущих параметров",
 	"preferences": "Параметры",
 	"developer": "Разработчик"
 }

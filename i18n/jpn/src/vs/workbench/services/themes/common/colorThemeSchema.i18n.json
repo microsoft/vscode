@@ -6,5 +6,6 @@
 {
 	"schema.colors": "構文の強調表示をする色",
 	"schema.properties.name": "ルールの説明",
-	"schema.fontStyle": "ルールのフォント スタイル: '斜体'、'太字'、'下線' のいずれかまたはこれらの組み合わせ"
+	"schema.fontStyle": "ルールのフォント スタイル: '斜体'、'太字'、'下線' のいずれかまたはこれらの組み合わせ",
+	"schema.tokenColors.path": "tmTheme ファイルへのパス (現在のファイルとの相対パス)"
 }
