@@ -447,24 +447,25 @@
 
 		// Workbench: Quick Open
 		"pickerGroup.foreground": "#2AA19899",
-		"pickerGroup.border": "#2AA19899"
+		"pickerGroup.border": "#2AA19899",
 
 		// Workbench: Terminal
-		// "terminal.ansiBlack": "",
-		// "terminal.ansiBlue": "",
-		// "terminal.ansiBrightBlack": "",
-		// "terminal.ansiBrightBlue": "",
-		// "terminal.ansiBrightCyan": "",
-		// "terminal.ansiBrightGreen": "",
-		// "terminal.ansiBrightMagenta": "",
-		// "terminal.ansiBrightRed": "",
-		// "terminal.ansiBrightWhite": "",
-		// "terminal.ansiBrightYellow": "",
-		// "terminal.ansiCyan": "",
-		// "terminal.ansiGreen": "",
-		// "terminal.ansiMagenta": "",
-		// "terminal.ansiRed": "",
-		// "terminal.ansiWhite": "",
-		// "terminal.ansiYellow": ""
+		// Colors sourced from the official palette http://ethanschoonover.com/solarized
+		"terminal.ansiBlack": "#262626",
+		"terminal.ansiBlue": "#0087ff",
+		"terminal.ansiBrightBlack": "#1c1c1c",
+		"terminal.ansiBrightBlue": "#808080",
+		"terminal.ansiBrightCyan": "#808080",
+		"terminal.ansiBrightGreen": "#585858",
+		"terminal.ansiBrightMagenta": "#5f5faf",
+		"terminal.ansiBrightRed": "#d75f00",
+		"terminal.ansiBrightWhite": "#808080",
+		"terminal.ansiBrightYellow": "#626262",
+		"terminal.ansiCyan": "#00afaf",
+		"terminal.ansiGreen": "#5f8700",
+		"terminal.ansiMagenta": "#af005f",
+		"terminal.ansiRed": "#d70000",
+		"terminal.ansiWhite": "#808080",
+		"terminal.ansiYellow": "#af8700"
 	}
 }
