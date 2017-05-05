@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, FileSystemWatcher, DiagnosticSeverity } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -418,7 +418,6 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
 	private languages: LanguageProvider[];
 	private languagePerId: ObjectMap<LanguageProvider>;
-	private configFileWatcher: FileSystemWatcher;
 	private readonly disposables: Disposable[] = [];
 
 	constructor(
@@ -460,7 +459,6 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 				obj.dispose();
 			}
 		}
-		this.configFileWatcher.dispose();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
