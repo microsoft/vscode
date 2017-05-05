@@ -69,8 +69,7 @@ import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // ca
 
 import 'vs/workbench/parts/welcome/page/electron-browser/welcomePage.contribution';
 
-import 'vs/workbench/parts/explorers/browser/treeExplorer.contribution';
-import 'vs/workbench/parts/explorers/browser/treeExplorerViewlet'; // can be packaged separately
+import 'vs/workbench/parts/explorers/browser/explorer.contribution';
 
 import 'vs/workbench/parts/output/browser/output.contribution';
 import 'vs/workbench/parts/output/browser/outputPanel'; // can be packaged separately
