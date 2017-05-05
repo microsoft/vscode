@@ -132,7 +132,7 @@ export class SuggestController implements IEditorContribution {
 				this._model.state === State.Auto
 				&& !item.suggestion.command
 				&& !item.suggestion.additionalTextEdits
-				&& !item.suggestion.snippetType
+				&& item.suggestion.snippetType !== 'textmate'
 				&& endColumn - startColumn === item.suggestion.insertText.length
 			) {
 				const oldText = this._editor.getModel().getValueInRange({
