@@ -230,9 +230,11 @@ export class TerminalPanel extends Panel {
 				let color = theme.getColor(colorId);
 				let rgba = color.transparent(0.996);
 				css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection,` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} *::selection { background-color: ${rgba}; }` +
 					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`;
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection,` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} *::selection { color: ${color}; }`;
 			}
 		});
 		const bgColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
