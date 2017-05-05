@@ -332,35 +332,21 @@ suite('SnippetParser', () => {
 
 	test('TextmateSnippet#placeholder', () => {
 		let snippet = SnippetParser.parse('te$1xt');
-		let placeholders = snippet.placeholders();
-		assert.equal(placeholders.size, 1);
-		let array = placeholders.get('1');
-		assert.equal(array.length, 1);
+		let placeholders = snippet.getPlaceholders();
+		assert.equal(placeholders.length, 1);
 
 		snippet = SnippetParser.parse('te$1xt$1');
-		placeholders = snippet.placeholders();
-		assert.equal(placeholders.size, 1);
-		array = placeholders.get('1');
-		assert.equal(array.length, 2);
+		placeholders = snippet.getPlaceholders();
+		assert.equal(placeholders.length, 2);
+
 
 		snippet = SnippetParser.parse('te$1xt$2');
-		placeholders = snippet.placeholders();
-		assert.equal(placeholders.size, 2);
-		array = placeholders.get('1');
-		assert.equal(array.length, 1);
-		array = placeholders.get('2');
-		assert.equal(array.length, 1);
+		placeholders = snippet.getPlaceholders();
+		assert.equal(placeholders.length, 2);
 
 		snippet = SnippetParser.parse('${1:bar${2:foo}bar}');
-		placeholders = snippet.placeholders();
-		assert.equal(placeholders.size, 2);
-		array = placeholders.get('1');
-		assert.equal(array.length, 1);
-		assert.equal(snippet.offset(array[0]), 0);
-
-		array = placeholders.get('2');
-		assert.equal(array.length, 1);
-		assert.equal(snippet.offset(array[0]), 3);
+		placeholders = snippet.getPlaceholders();
+		assert.equal(placeholders.length, 2);
 	});
 
 	test('TextmateSnippet#withIndentation', () => {

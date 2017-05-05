@@ -231,20 +231,16 @@ export class TextmateSnippet {
 		return pos;
 	}
 
-	placeholders(): Map<string, Placeholder[]> {
-		const map = new Map<string, Placeholder[]>();
+
+	getPlaceholders(): Placeholder[] {
+		const ret: Placeholder[] = [];
 		walk(this.marker, candidate => {
 			if (candidate instanceof Placeholder) {
-				let array = map.get(candidate.name);
-				if (!array) {
-					map.set(candidate.name, [candidate]);
-				} else {
-					array.push(candidate);
-				}
+				ret.push(candidate);
 			}
 			return true;
 		});
-		return map;
+		return ret;
 	}
 
 	get value() {
