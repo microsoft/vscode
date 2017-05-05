@@ -84,7 +84,7 @@ export function activate(context: ExtensionContext): void {
 			id: 'javascript',
 			diagnosticSource: 'js',
 			modeIds: [MODE_ID_JS, MODE_ID_JSX],
-			extensions: ['.js', '.jsx'],
+			extensions: ['.js', '.jsx', '.es6', '.mjs'],
 			configFile: 'jsconfig.json'
 		}
 	], context.storagePath, context.globalState, context.workspaceState);
