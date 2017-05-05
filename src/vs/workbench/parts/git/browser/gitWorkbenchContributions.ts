@@ -207,7 +207,7 @@ export function registerContributions(): void {
 			'git.autofetch': {
 				type: 'boolean',
 				description: nls.localize('gitAutoFetch', "Whether auto fetching is enabled."),
-				default: true
+				default: false
 			},
 			'git.enableLongCommitWarning': {
 				type: 'boolean',
