@@ -1006,7 +1006,7 @@ export class TestTheme implements ITheme {
 		throw new Error('Method not implemented.');
 	}
 
-	isDefault(color: string): boolean {
+	defines(color: string): boolean {
 		throw new Error('Method not implemented.');
 	}
 }
