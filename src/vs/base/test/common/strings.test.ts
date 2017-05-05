@@ -328,7 +328,13 @@ suite('Strings', () => {
 	test('getLeadingWhitespace', () => {
 		assert.equal(strings.getLeadingWhitespace('  foo'), '  ');
 		assert.equal(strings.getLeadingWhitespace('  foo', 2), '');
+		assert.equal(strings.getLeadingWhitespace('  foo', 1, 1), '');
+		assert.equal(strings.getLeadingWhitespace('  foo', 0, 1), ' ');
 		assert.equal(strings.getLeadingWhitespace('  '), '  ');
 		assert.equal(strings.getLeadingWhitespace('  ', 1), ' ');
+		assert.equal(strings.getLeadingWhitespace('  ', 0, 1), ' ');
+		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 1), '\t');
+		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 2), '\t\t');
+
 	});
 });
