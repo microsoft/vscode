@@ -287,6 +287,7 @@ export interface IExtensionTipsService {
 	_serviceBrand: any;
 	getRecommendations(): string[];
 	getWorkspaceRecommendations(): TPromise<string[]>;
+	addToWorkspaceRecommendations(extensionId: string): TPromise<void>;
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];
 	getRecommendationsForExtension(extension: string): string[];
