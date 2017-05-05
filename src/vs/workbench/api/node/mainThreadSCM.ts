@@ -137,6 +137,17 @@ class MainThreadSCMProvider implements ISCMProvider {
 		this._onDidChange.fire();
 	}
 
+	$updateGroupLabel(handle: number, label: string): void {
+		const group = this._groupsByHandle[handle];
+
+		if (!group) {
+			return;
+		}
+
+		group.label = label;
+		this._onDidChange.fire();
+	}
+
 	$updateGroupResourceStates(groupHandle: number, resources: SCMRawResource[]): void {
 		const group = this._groupsByHandle[groupHandle];
 
@@ -261,6 +272,16 @@ export class MainThreadSCM extends MainThreadSCMShape {
 		}
 
 		provider.$updateGroup(groupHandle, features);
+	}
+
+	$updateGroupLabel(sourceControlHandle: number, groupHandle: number, label: string): void {
+		const provider = this._sourceControls[sourceControlHandle];
+
+		if (!provider) {
+			return;
+		}
+
+		provider.$updateGroupLabel(groupHandle, label);
 	}
 
 	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void {
