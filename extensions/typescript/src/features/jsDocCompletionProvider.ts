@@ -32,7 +32,7 @@ class JsDocCompletionItem extends CompletionItem {
 	) {
 		super('/** */', CompletionItemKind.Snippet);
 		this.detail = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
-		this.insertText = '';
+		this.insertText = ' ';
 		this.sortText = '\0';
 		this.command = {
 			title: 'Try Complete JSDoc',
