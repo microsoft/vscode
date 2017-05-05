@@ -34,7 +34,8 @@ export const ToggleRegexKeybinding: IKeybindings = {
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
 };
 export const ToggleSearchScopeKeybinding: IKeybindings = {
-	primary: KeyMod.Alt | KeyCode.KEY_S
+	primary: KeyMod.Alt | KeyCode.KEY_L,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
 };
 export const ShowPreviousFindTermKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.UpArrow
