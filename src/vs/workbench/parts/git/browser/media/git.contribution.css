@@ -96,7 +96,7 @@
 
 /* Status bar */
 
-.monaco-shell .git-statusbar-group > a {
+.monaco-shell .git-statusbar-group a {
 	padding: 0 5px;
 }
 
@@ -114,7 +114,13 @@
 	font-size: 14px;
 }
 
-.monaco-shell .git-statusbar-group > .git-statusbar-sync-item:not(.empty) > span.octicon {
+.monaco-shell .git-statusbar-group > .git-statusbar-sync {
+	position: relative;
+	height: 100%;
+	display: inline-block;
+}
+
+.monaco-shell .git-statusbar-group > .git-statusbar-sync > .git-statusbar-sync-item:not(.empty) > span.octicon {
 	margin-right: 6px;
 }
 
@@ -123,12 +129,12 @@
 	to { transform: rotate(1080deg); }
 }
 
-.monaco-shell .git-statusbar-group > .git-statusbar-sync-item.syncing > .octicon {
+.monaco-shell .git-statusbar-group > .git-statusbar-sync > .git-statusbar-sync-item.syncing > .octicon {
 	animation: 2s ease-in-out infinite spin;
 }
 
-.monaco-shell .git-statusbar-group > .git-statusbar-sync-item.disabled > .ahead-behind,
-.monaco-shell .git-statusbar-group > .git-statusbar-sync-item.busy > .ahead-behind {
+.monaco-shell .git-statusbar-group > .git-statusbar-sync > .git-statusbar-sync-item.disabled > .ahead-behind,
+.monaco-shell .git-statusbar-group > .git-statusbar-sync > .git-statusbar-sync-item.busy > .ahead-behind {
 	cursor: default;
 }
 
@@ -152,4 +158,28 @@
 
 .monaco-shell .git-statusbar-group > .git-statusbar-branch-item.headless {
 	font-style: italic;
+}
+
+.monaco-shell .git-statusbar-group > .git-statusbar-sync > .git-statusbar-sync-info {
+	display: none;
+	position: absolute;
+	bottom: 22px;
+	left: 0;
+	color: #6C6C6C;
+	border: 1px solid #CCC;
+	border-bottom: none;
+	background-color: #F3F3F3;
+	padding: 4px 6px 3px 6px;
+	width: 120px;
+}
+
+.monaco-shell .git-statusbar-group > .git-statusbar-sync:hover > .git-statusbar-sync-info:not(:empty) {
+	display: block;
+}
+
+
+.vs-dark .monaco-workbench .git-statusbar-group > .git-statusbar-sync > .git-statusbar-sync-info {
+	color: #bbbbbb;
+	background-color: #2D2D30;
+	border-color: #555;
 }

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
 import { Delayer } from 'vs/base/common/async';
 import { $, append, show, hide, toggleClass } from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
@@ -39,6 +38,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 	private branchElement: HTMLElement;
 	private publishElement: HTMLElement;
 	private syncElement: HTMLElement;
+	private syncInfo: HTMLElement;
 	private syncLabelElement: HTMLElement;
 	private disablementDelayer: Delayer<void>;
 
@@ -86,10 +86,14 @@ export class GitStatusbarItem implements IStatusbarItem {
 		this.publishElement.title = nls.localize('publishBranch', "Publish Branch");
 		this.publishElement.onclick = () => this.onPublishClick();
 
-		this.syncElement = append(this.element, $('a.git-statusbar-sync-item'));
+		const syncContainer = append(this.element, $('span.git-statusbar-sync'));
+
+		this.syncElement = append(syncContainer, $('a.git-statusbar-sync-item'));
 		this.syncElement.title = nls.localize('syncBranch', "Synchronize Changes");
 		this.syncElement.onclick = () => this.onSyncClick();
 		append(this.syncElement, $('span.octicon.octicon-sync'));
+
+		this.syncInfo = append(syncContainer, $('.git-statusbar-sync-info'));
 
 		this.syncLabelElement = append(this.syncElement, $('span.ahead-behind'));
 
@@ -118,6 +122,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 		let className = 'git-statusbar-branch-item';
 		let textContent: string;
 		let aheadBehindLabel = '';
+		let aheadBehindInfoLabel = '';
 		let title = '';
 		let onclick: () => void = null;
 
@@ -144,7 +149,8 @@ export class GitStatusbarItem implements IStatusbarItem {
 				textContent = state.ps1;
 			} else {
 				textContent = state.ps1;
-				aheadBehindLabel = strings.format('{0}↓ {1}↑', HEAD.behind, HEAD.ahead);
+				aheadBehindLabel = `${ HEAD.behind }↓ ${ HEAD.ahead }↑`;
+				aheadBehindInfoLabel = nls.localize('commits', "Push {0} commits and pull {1} commits", HEAD.ahead, HEAD.behind);
 			}
 		}
 
@@ -153,6 +159,7 @@ export class GitStatusbarItem implements IStatusbarItem {
 		this.branchElement.textContent = textContent;
 		this.branchElement.onclick = onclick;
 		this.syncLabelElement.textContent = aheadBehindLabel;
+		this.syncInfo.textContent = aheadBehindInfoLabel;
 
 		if (isGitDisabled) {
 			hide(this.branchElement);

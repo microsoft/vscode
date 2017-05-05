@@ -9,7 +9,6 @@
 	height: 22px;
 	font-size: 12px;
 	padding: 0 10px;
-	overflow: hidden;
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-item {
