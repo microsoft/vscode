@@ -213,7 +213,11 @@ export class TextAreaHandler extends ViewPart {
 			const visibleRange = this._viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
 
 			if (visibleRange) {
-				this._visibleTextArea = new VisibleTextArea(this._viewHelper.getVerticalOffsetForLineNumber(lineNumber), visibleRange.left, 0);
+				this._visibleTextArea = new VisibleTextArea(
+					this._viewHelper.getVerticalOffsetForLineNumber(lineNumber),
+					visibleRange.left,
+					canUseZeroSizeTextarea ? 0 : 1
+				);
 				this._render();
 			}
 
