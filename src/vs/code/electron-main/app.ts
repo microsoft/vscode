@@ -20,8 +20,6 @@ import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { UpdateService } from 'vs/platform/update/electron-main/updateService';
 import { Server as ElectronIPCServer } from 'vs/base/parts/ipc/electron-main/ipc.electron-main';
 import { Server, connect, Client } from 'vs/base/parts/ipc/node/ipc.net';
-import { AskpassChannel } from 'vs/workbench/parts/git/common/gitIpc';
-import { GitAskpassService } from 'vs/workbench/parts/git/electron-main/askpassService';
 import { SharedProcess } from 'vs/code/electron-main/sharedProcess';
 import { Mutex } from 'windows-mutex';
 import { LaunchService, LaunchChannel, ILaunchService } from './launch';
@@ -137,11 +135,6 @@ export class VSCodeApplication {
 		if (platform.isWindows && product.win32AppUserModelId) {
 			app.setAppUserModelId(product.win32AppUserModelId);
 		}
-
-		// Register Main IPC connections
-		const askpassService = new GitAskpassService();
-		const askpassChannel = new AskpassChannel(askpassService);
-		this.mainIpcServer.registerChannel('askpass', askpassChannel);
 
 		// Create Electron IPC Server
 		this.electronIpcServer = new ElectronIPCServer();
