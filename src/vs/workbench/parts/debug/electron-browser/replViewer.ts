@@ -86,11 +86,13 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private width: number;
 	private characterWidth: number;
 
+	private linkDetector: LinkDetector;
+
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		// noop
+		this.linkDetector = this.instantiationService.createInstance(LinkDetector);
 	}
 
 	public getHeight(tree: ITree, element: any): number {
@@ -319,8 +321,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 						// flush text buffer if we have any
 						if (buffer) {
-							const linkDetector = this.instantiationService.createInstance(LinkDetector);
-							this.insert(linkDetector.handleLinks(buffer), currentToken || tokensContainer);
+							this.insert(this.linkDetector.handleLinks(buffer), currentToken || tokensContainer);
 							buffer = '';
 						}
 
@@ -340,8 +341,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		// flush remaining text buffer if we have any
 		if (buffer) {
-			const linkDetector = this.instantiationService.createInstance(LinkDetector);
-			let res = linkDetector.handleLinks(buffer);
+			let res = this.linkDetector.handleLinks(buffer);
 			if (typeof res !== 'string' || currentToken) {
 				if (!tokensContainer) {
 					tokensContainer = document.createElement('span');

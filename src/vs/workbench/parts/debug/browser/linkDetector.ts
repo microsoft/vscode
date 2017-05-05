@@ -15,7 +15,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 export class LinkDetector {
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
 		// group 0: full path with line and column
-		// group 1: full path without line and column, matched by `*.*` in the end to work only on paths with extensions in the end (s.t. http://test.com:8000 would not match)
+		// group 1: full path without line and column, matched by `*.*` in the end to work only on paths with extensions in the end (s.t. node:10352 would not match)
 		// group 2: drive letter on windows with trailing backslash or leading slash on mac/linux
 		// group 3: line number, matched by (:(\d+))
 		// group 4: column number, matched by ((?::(\d+))?)
