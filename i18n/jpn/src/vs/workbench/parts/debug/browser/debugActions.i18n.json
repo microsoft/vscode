@@ -34,6 +34,7 @@
 	"editConditionalBreakpoint": "ブレークポイントの編集...",
 	"setValue": "値の設定",
 	"addWatchExpression": "式の追加",
+	"editWatchExpression": "式の編集",
 	"addToWatchExpressions": "ウォッチに追加",
 	"removeWatchExpression": "式の削除",
 	"removeAllWatchExpressions": "すべての式を削除する",

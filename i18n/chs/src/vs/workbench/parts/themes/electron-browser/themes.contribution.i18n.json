@@ -14,6 +14,7 @@
 	"noIconThemeDesc": "禁用文件图标",
 	"problemChangingIconTheme": "设置图标主题时出现问题: {0}",
 	"themes.selectIconTheme": "选择文件图标主题",
+	"generateColorTheme.label": "使用当前设置生成颜色主题",
 	"preferences": "首选项",
 	"developer": "开发者"
 }

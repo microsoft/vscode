@@ -1282,8 +1282,14 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		// Drag enter
 		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
 		this.toUnbind.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
-			if (!TitleControl.getDraggedEditor() && !extractResources(e).length) {
-				return; // invalid DND
+			if (!TitleControl.getDraggedEditor()) {
+				// we used to check for the dragged resources here (via dnd.extractResources()) but this
+				// seems to be not possible on Linux and Windows where during DRAG_ENTER the resources
+				// are always undefined up until they are dropped when dragged from the tree. The workaround
+				// is to check for a datatransfer type being set. See https://github.com/Microsoft/vscode/issues/25789
+				if (!e.dataTransfer.types.length) {
+					return; // invalid DND
+				}
 			}
 
 			counter++;

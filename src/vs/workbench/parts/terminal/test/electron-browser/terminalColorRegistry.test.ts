@@ -20,7 +20,7 @@ function getMockTheme(type: ThemeType): ITheme {
 		label: '',
 		type: type,
 		getColor: (colorId) => themingRegistry.resolveDefaultColor(colorId, theme),
-		isDefault: () => true
+		defines: () => true
 	};
 	return theme;
 }

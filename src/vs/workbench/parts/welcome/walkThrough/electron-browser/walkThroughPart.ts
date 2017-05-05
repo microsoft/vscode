@@ -33,7 +33,6 @@ import { Scope } from 'vs/workbench/common/memento';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
-import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { isObject } from 'vs/base/common/types';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
@@ -430,7 +429,9 @@ export class WalkThroughPart extends BaseEditor {
 
 	private updateMarkerClasses() {
 		const innerContent = this.content.firstElementChild;
-		if (SCMPreview.enabled && innerContent) {
+
+		// TODO@christof
+		if (true && innerContent) {
 			innerContent.classList.add('scmEnabled');
 		}
 	}

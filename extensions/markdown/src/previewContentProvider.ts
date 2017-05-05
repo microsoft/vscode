@@ -73,6 +73,7 @@ class MarkdownPreviewConfig {
 		this.scrollPreviewWithEditorSelection = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditorSelection', true);
 		this.scrollEditorWithPreview = !!markdownConfig.get<boolean>('preview.scrollEditorWithPreview', true);
 		this.doubleClickToSwitchToEditor = !!markdownConfig.get<boolean>('preview.doubleClickToSwitchToEditor', true);
+		this.markEditorSelection = !!markdownConfig.get<boolean>('preview.markEditorSelection', true);
 
 		this.fontFamily = markdownConfig.get<string | undefined>('preview.fontFamily', undefined);
 		this.fontSize = +markdownConfig.get<number>('preview.fontSize', NaN);

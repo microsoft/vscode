@@ -34,6 +34,7 @@
 	"editConditionalBreakpoint": "Editar punto de interrupción...",
 	"setValue": "Establecer valor",
 	"addWatchExpression": "Agregar expresión",
+	"editWatchExpression": "Editar expresión",
 	"addToWatchExpressions": "Agregar a inspección",
 	"removeWatchExpression": "Quitar expresión",
 	"removeAllWatchExpressions": "Quitar todas las expresiones",

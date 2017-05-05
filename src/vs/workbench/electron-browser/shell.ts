@@ -97,7 +97,6 @@ import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/T
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
-import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { readdir } from 'vs/base/node/pfs';
 import { join } from 'path';
 import 'vs/platform/opener/browser/opener.contribution';
@@ -386,9 +385,7 @@ export class WorkbenchShell {
 
 		this.timerService.beforeExtensionLoad = Date.now();
 
-		// TODO@Joao: remove
-		const disabledExtensions = SCMPreview.enabled ? [] : ['vscode.git'];
-		this.extensionService = instantiationService.createInstance(MainProcessExtensionService, disabledExtensions);
+		this.extensionService = instantiationService.createInstance(MainProcessExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
 		extensionHostProcessWorker.start(this.extensionService);
 		this.extensionService.onReady().done(() => {

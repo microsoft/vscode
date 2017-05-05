@@ -14,6 +14,7 @@
 	"noIconThemeDesc": "Disabilita le icone dei file",
 	"problemChangingIconTheme": "Problema durante l'impostazione del tema dell'icona: {0}",
 	"themes.selectIconTheme": "Seleziona il tema dell'icona file",
+	"generateColorTheme.label": "Genera tema colore da impostazioni correnti",
 	"preferences": "Preferenze",
 	"developer": "Sviluppatore"
 }

@@ -56,13 +56,8 @@ export class ColorThemeData implements IColorTheme {
 		return colorRegistry.resolveDefaultColor(colorId, this);
 	}
 
-	public isDefault(colorId: ColorIdentifier): boolean {
-		let color = this.colorMap[colorId];
-		if (types.isUndefined(color)) {
-			return true;
-		}
-		let defaultValue = this.getDefault(colorId);
-		return color === null ? defaultValue === null : color.equals(defaultValue);
+	public defines(colorId: ColorIdentifier): boolean {
+		return this.customColorMap.hasOwnProperty(colorId) || this.colorMap.hasOwnProperty(colorId);
 	}
 
 	public setCustomColors(colors: IColorCustomizations) {

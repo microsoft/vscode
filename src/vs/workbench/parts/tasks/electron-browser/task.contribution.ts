@@ -577,7 +577,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					? ExecutionEngine.Process
 					: ExecutionEngine.Unknown;
 			if (currentExecutionEngine !== this.getExecutionEngine()) {
-				this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires to restart VS Code. The change is ignored.'));
+				this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires restarting VS Code. The change is ignored.'));
 			}
 		});
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));

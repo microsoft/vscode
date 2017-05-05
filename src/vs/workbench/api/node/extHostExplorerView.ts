@@ -5,27 +5,28 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { TreeView, TreeDataProvider } from 'vscode';
+import { View, TreeDataProvider } from 'vscode';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, ExtHostTreeViewShape, MainThreadTreeViewShape } from './extHost.protocol';
-import { InternalTreeNode } from 'vs/workbench/parts/explorers/common/treeExplorerViewModel';
+import { MainContext, ExtHostExplorerViewShape, MainThreadExplorerViewShape, ITreeNode } from './extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
 import * as modes from 'vs/editor/common/modes';
 
-class InternalTreeNodeImpl implements InternalTreeNode {
+class TreeNodeImpl implements ITreeNode {
 
 	readonly id: string;
 	label: string;
 	hasChildren: boolean;
 	clickCommand: string = null;
+	contextKey: string;
 
 	constructor(readonly providerId: string, node: any, provider: TreeDataProvider<any>) {
 		this.id = defaultGenerator.nextId();
 		this.label = provider.getLabel ? provider.getLabel(node) : node.toString();
 		this.hasChildren = provider.getHasChildren ? provider.getHasChildren(node) : true;
+		this.contextKey = provider.getContextKey ? provider.getContextKey(node) : null;
 		if (provider.getClickCommand) {
 			const command = provider.getClickCommand(node);
 			if (command) {
@@ -35,13 +36,13 @@ class InternalTreeNodeImpl implements InternalTreeNode {
 	}
 }
 
-export class ExtHostTreeView extends ExtHostTreeViewShape {
-	private _proxy: MainThreadTreeViewShape;
+export class ExtHostExplorerView extends ExtHostExplorerViewShape {
+	private _proxy: MainThreadExplorerViewShape;
 
 	private _extNodeProviders: { [providerId: string]: TreeDataProvider<any> };
-	private _extViews: Map<string, TreeView<any>> = new Map<string, TreeView<any>>();
-	private _extNodeMaps: { [providerId: string]: { [id: string]: InternalTreeNode } };
-	private _mainNodesMap: Map<string, Map<any, InternalTreeNode>>;
+	private _extViews: Map<string, View<any>> = new Map<string, View<any>>();
+	private _extNodeMaps: { [providerId: string]: { [id: string]: ITreeNode } };
+	private _mainNodesMap: Map<string, Map<any, ITreeNode>>;
 	private _childrenNodesMap: Map<string, Map<any, any[]>>;
 
 	constructor(
@@ -50,11 +51,11 @@ export class ExtHostTreeView extends ExtHostTreeViewShape {
 	) {
 		super();
 
-		this._proxy = threadService.get(MainContext.MainThreadExplorers);
+		this._proxy = threadService.get(MainContext.MainThreadExplorerViews);
 
 		this._extNodeProviders = Object.create(null);
 		this._extNodeMaps = Object.create(null);
-		this._mainNodesMap = new Map<string, Map<any, InternalTreeNode>>();
+		this._mainNodesMap = new Map<string, Map<any, ITreeNode>>();
 		this._childrenNodesMap = new Map<string, Map<any, any[]>>();
 
 		commands.registerArgumentProcessor({
@@ -68,39 +69,39 @@ export class ExtHostTreeView extends ExtHostTreeViewShape {
 		});
 	}
 
-	createTreeView<T>(providerId: string, provider: TreeDataProvider<T>): TreeView<T> {
-		this._proxy.$registerTreeDataProvider(providerId);
-		this._extNodeProviders[providerId] = provider;
-		this._mainNodesMap.set(providerId, new Map<any, InternalTreeNode>());
-		this._childrenNodesMap.set(providerId, new Map<any, any>());
+	createExplorerView<T>(viewId: string, viewName: string, provider: TreeDataProvider<T>): View<T> {
+		this._proxy.$registerView(viewId, viewName);
+		this._extNodeProviders[viewId] = provider;
+		this._mainNodesMap.set(viewId, new Map<any, ITreeNode>());
+		this._childrenNodesMap.set(viewId, new Map<any, any>());
 
-		const treeView: TreeView<T> = {
+		const treeView: View<T> = {
 			refresh: (node: T) => {
-				const mainThreadNode = this._mainNodesMap.get(providerId).get(node);
-				this._proxy.$refresh(providerId, mainThreadNode);
+				const mainThreadNode = this._mainNodesMap.get(viewId).get(node);
+				this._proxy.$refresh(viewId, mainThreadNode);
 			},
 			dispose: () => {
-				delete this._extNodeProviders[providerId];
-				delete this._extNodeProviders[providerId];
-				this._mainNodesMap.delete(providerId);
-				this._childrenNodesMap.delete(providerId);
-				this._extViews.delete(providerId);
+				delete this._extNodeProviders[viewId];
+				delete this._extNodeProviders[viewId];
+				this._mainNodesMap.delete(viewId);
+				this._childrenNodesMap.delete(viewId);
+				this._extViews.delete(viewId);
 			}
 		};
-		this._extViews.set(providerId, treeView);
+		this._extViews.set(viewId, treeView);
 		return treeView;
 	}
 
-	$provideRootNode(providerId: string): TPromise<InternalTreeNode> {
+	$provideRootNode(providerId: string): TPromise<ITreeNode> {
 		const provider = this._extNodeProviders[providerId];
 		if (!provider) {
 			const errMessage = localize('treeExplorer.notRegistered', 'No TreeExplorerNodeProvider with id \'{0}\' registered.', providerId);
-			return TPromise.wrapError<InternalTreeNode>(errMessage);
+			return TPromise.wrapError<ITreeNode>(errMessage);
 		}
 
 		return asWinJsPromise(() => provider.provideRootNode()).then(extRootNode => {
-			const extNodeMap: { [id: string]: InternalTreeNode } = Object.create(null);
-			const internalRootNode = new InternalTreeNodeImpl(providerId, extRootNode, provider);
+			const extNodeMap: { [id: string]: ITreeNode } = Object.create(null);
+			const internalRootNode = new TreeNodeImpl(providerId, extRootNode, provider);
 
 			extNodeMap[internalRootNode.id] = extRootNode;
 			this._extNodeMaps[providerId] = extNodeMap;
@@ -110,15 +111,15 @@ export class ExtHostTreeView extends ExtHostTreeViewShape {
 			return internalRootNode;
 		}, err => {
 			const errMessage = localize('treeExplorer.failedToProvideRootNode', 'TreeExplorerNodeProvider \'{0}\' failed to provide root node.', providerId);
-			return TPromise.wrapError<InternalTreeNode>(errMessage);
+			return TPromise.wrapError<ITreeNode>(errMessage);
 		});
 	}
 
-	$resolveChildren(providerId: string, mainThreadNode: InternalTreeNode): TPromise<InternalTreeNode[]> {
+	$resolveChildren(providerId: string, mainThreadNode: ITreeNode): TPromise<ITreeNode[]> {
 		const provider = this._extNodeProviders[providerId];
 		if (!provider) {
 			const errMessage = localize('treeExplorer.notRegistered', 'No TreeExplorerNodeProvider with id \'{0}\' registered.', providerId);
-			return TPromise.wrapError<InternalTreeNode[]>(errMessage);
+			return TPromise.wrapError<ITreeNode[]>(errMessage);
 		}
 
 		const extNodeMap = this._extNodeMaps[providerId];
@@ -133,7 +134,7 @@ export class ExtHostTreeView extends ExtHostTreeViewShape {
 
 		return asWinJsPromise(() => provider.resolveChildren(extNode)).then(children => {
 			return children.map(extChild => {
-				const internalChild = new InternalTreeNodeImpl(providerId, extChild, provider);
+				const internalChild = new TreeNodeImpl(providerId, extChild, provider);
 				extNodeMap[internalChild.id] = extChild;
 				this._mainNodesMap.get(providerId).set(extChild, internalChild);
 				return internalChild;
@@ -142,7 +143,7 @@ export class ExtHostTreeView extends ExtHostTreeViewShape {
 	}
 
 	// Convert the command on the ExtHost side so we can pass the original externalNode to the registered handler
-	$getInternalCommand(providerId: string, mainThreadNode: InternalTreeNode): TPromise<modes.Command> {
+	$getInternalCommand(providerId: string, mainThreadNode: ITreeNode): TPromise<modes.Command> {
 		const commandConverter = this.commands.converter;
 
 		if (mainThreadNode.clickCommand) {

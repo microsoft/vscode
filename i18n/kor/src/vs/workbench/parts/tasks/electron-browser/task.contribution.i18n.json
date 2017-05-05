@@ -9,6 +9,7 @@
 	"ConfigureTaskRunnerAction.quickPick.template": "Task Runner 선택",
 	"ConfigureTaskRunnerAction.autoDetecting": "{0} 작업을 자동 검색 중",
 	"ConfigureTaskRunnerAction.autoDetect": "작업 시스템을 자동으로 감지하지 못했습니다. 기본 템플릿을 사용하는 중입니다. 자세한 내용은 작업 출력을 참조하세요.",
+	"ConfigureTaskRunnerAction.autoDetectError": "작업 시스템을 자동으로 감지하는 중 오류가 발생했습니다. 자세한 내용은 작업 출력을 참조하세요.",
 	"ConfigureTaskRunnerAction.failed": "'.vscode' 폴더 내에 'tasks.json' 파일을 만들 수 없습니다. 자세한 내용은 작업 출력을 참조하세요.",
 	"ConfigureTaskRunnerAction.label": "Task Runner 구성",
 	"ConfigureBuildTaskAction.label": "빌드 작업 구성",

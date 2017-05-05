@@ -52,28 +52,6 @@ export const TabFocus: ITabFocus = new class {
 	}
 };
 
-/**
- * Experimental screen reader support toggle
- */
-export class GlobalScreenReaderNVDA {
-
-	private static _value = false;
-	private static _onChange = new Emitter<boolean>();
-	public static onChange: Event<boolean> = GlobalScreenReaderNVDA._onChange.event;
-
-	public static getValue(): boolean {
-		return this._value;
-	}
-
-	public static setValue(value: boolean): void {
-		if (this._value === value) {
-			return;
-		}
-		this._value = value;
-		this._onChange.fire(this._value);
-	}
-}
-
 export class ConfigurationWithDefaults {
 
 	private _editor: editorOptions.IEditorOptions;

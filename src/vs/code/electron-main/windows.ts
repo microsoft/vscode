@@ -253,11 +253,8 @@ export class WindowsManager implements IWindowsMainService {
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
 
-		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout((isISOKeyboard: boolean) => {
-			WindowsManager.WINDOWS.forEach((window) => {
-				window.sendWhenReady('vscode:keyboardLayoutChanged', isISOKeyboard);
-			});
-		});
+		// Keyboard layout changes
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(isISOKeyboard => this.sendToAll('vscode:keyboardLayoutChanged', isISOKeyboard));
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:

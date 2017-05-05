@@ -198,7 +198,7 @@ class GenerateColorThemeAction extends Action {
 			colors: resultingColors,
 			tokenColors: theme.tokenColors
 		}, null, '\t');
-		return this.editorService.openEditor({ contents, language: 'json', filePath: 'custom-color-theme.json' });
+		return this.editorService.openEditor({ contents, language: 'json' });
 	}
 }
 

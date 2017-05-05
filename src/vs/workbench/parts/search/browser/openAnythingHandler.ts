@@ -338,7 +338,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			sortedResultDuration: telemetry.sortedResultTime - startTime,
 			resultCount: telemetry.resultCount,
 			symbols: telemetry.symbols,
-			files: this.createFileEventData(startTime, telemetry.files)
+			files: telemetry.files && this.createFileEventData(startTime, telemetry.files)
 		};
 	}
 

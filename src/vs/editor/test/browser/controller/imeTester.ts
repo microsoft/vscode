@@ -4,13 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextAreaHandler, ITextAreaHandlerHost } from 'vs/editor/browser/controller/textAreaHandler';
-import { TextAreaStrategy, ISimpleModel } from 'vs/editor/browser/controller/textAreaState';
+import { TextAreaInput, ITextAreaInputHost } from 'vs/editor/browser/controller/textAreaInput';
+import { ISimpleModel, TextAreaState, IENarratorStrategy, NVDAPagedStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
+import * as browser from 'vs/base/browser/browser';
 
 // To run this test, open imeTester.html
+
+const enum TextAreaStrategy {
+	IENarrator,
+	NVDA
+}
 
 class SingleLineTestModel implements ISimpleModel {
 
@@ -62,12 +68,26 @@ class TestView {
 }
 
 function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr: string, expectedStr: string): HTMLElement {
+	let cursorOffset: number = 0;
+	let cursorLength: number = 0;
+
 	let container = document.createElement('div');
 	container.className = 'container';
 
 	let title = document.createElement('div');
 	title.className = 'title';
-	title.innerHTML = TextAreaStrategy[strategy] + ' strategy: ' + description + '. Type <strong>' + inputStr + '</strong>';
+
+	const toStr = (value: TextAreaStrategy): string => {
+		if (value === TextAreaStrategy.IENarrator) {
+			return 'IENarrator';
+		}
+		if (value === TextAreaStrategy.NVDA) {
+			return 'NVDA';
+		}
+		return '???';
+	};
+
+	title.innerHTML = toStr(strategy) + ' strategy: ' + description + '. Type <strong>' + inputStr + '</strong>';
 	container.appendChild(title);
 
 	let startBtn = document.createElement('button');
@@ -82,19 +102,27 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let model = new SingleLineTestModel('some  text');
 
-	const textAreaHandlerHost: ITextAreaHandlerHost = {
+	const textAreaInputHost: ITextAreaInputHost = {
 		getPlainTextToCopy: (): string => '',
-		getHTMLToCopy: (): string => ''
+		getHTMLToCopy: (): string => '',
+		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
+
+			if (browser.isIPad) {
+				// Do not place anything in the textarea for the iPad
+				return TextAreaState.EMPTY;
+			}
+
+			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
+
+			if (strategy === TextAreaStrategy.IENarrator) {
+				return IENarratorStrategy.fromEditorSelection(currentState, model, selection);
+			}
+
+			return NVDAPagedStrategy.fromEditorSelection(currentState, model, selection);
+		}
 	};
 
-	let handler = new TextAreaHandler(textAreaHandlerHost, strategy, createFastDomNode(input), model);
-
-	input.onfocus = () => {
-		handler.setHasFocus(true);
-	};
-	input.onblur = () => {
-		handler.setHasFocus(false);
-	};
+	let handler = new TextAreaInput(textAreaInputHost, createFastDomNode(input));
 
 	let output = document.createElement('pre');
 	output.className = 'output';
@@ -110,13 +138,10 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let view = new TestView(model);
 
-
-	let cursorOffset: number;
-	let cursorLength: number;
 	let updatePosition = (off: number, len: number) => {
 		cursorOffset = off;
 		cursorLength = len;
-		handler.setCursorSelections(new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength), []);
+		handler.writeScreenReaderContent('selection changed');
 		handler.focusTextArea();
 	};
 

@@ -20,6 +20,7 @@
 	"showVersions": "Mostra le versioni delle estensioni installate, quando si usa --list-extension.",
 	"installExtension": "Installa un'estensione.",
 	"uninstallExtension": "Disinstalla un'estensione.",
+	"experimentalApis": "Abilita funzionalità di API proposte per un'estensione specifica.",
 	"disableExtensions": "Disabilita tutte le estensioni installate.",
 	"disableGPU": "Disabilita l'accelerazione hardware della GPU.",
 	"version": "Visualizza la versione.",

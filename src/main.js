@@ -222,13 +222,12 @@ var nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
 	}
 });
 
-// Load our code once ready
-app.once('ready', function () {
-	global.perfAppReady = Date.now();
-	var nlsConfig = getNLSConfiguration();
-	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+var nlsConfig = getNLSConfiguration();
+process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 
-	nodeCachedDataDir.then(function () {
-		require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
-	}, console.error);
+var bootstrap = require('./bootstrap-amd');
+nodeCachedDataDir.then(function () {
+	bootstrap.bootstrap('vs/code/electron-main/main');
+}, function (err) {
+	console.error(err);
 });

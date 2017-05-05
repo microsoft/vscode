@@ -447,6 +447,9 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 					if (first.uri.toString() !== second.uri.toString()) {
 						return paths.basename(first.uri.fsPath).localeCompare(paths.basename(second.uri.fsPath));
 					}
+					if (first.lineNumber === second.lineNumber) {
+						return first.column - second.column;
+					}
 
 					return first.lineNumber - second.lineNumber;
 				}

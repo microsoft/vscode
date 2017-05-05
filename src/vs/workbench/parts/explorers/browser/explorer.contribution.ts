@@ -3,21 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.git-viewlet > .notroot-view {
-	padding: 0 20px 0 20px;
-}
+import { IExplorerViewsService } from 'vs/workbench/parts/explorers/common/explorer';
+import { ExplorerViewsService } from 'vs/workbench/parts/explorers/browser/explorerView';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-.git-viewlet > .notroot-view > p {
-	line-height: 1.5em;
-}
-
-.git-viewlet > .notroot-view .code {
-	display: inline;
-}
-
-.git-viewlet > .notroot-view a
-{
-	color: inherit;
-	font-weight: bold;
-	text-decoration: underline;
-}
+registerSingleton(IExplorerViewsService, ExplorerViewsService);

@@ -16,6 +16,8 @@
 	"confirm discard": "{0}의 변경 내용을 취소하시겠습니까?",
 	"confirm discard multiple": "{0}개 파일의 변경 내용을 취소하시겠습니까?",
 	"discard": "변경 내용 취소",
+	"confirm discard all": "모든 변경 내용을 취소하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+	"discardAll": "모든 변경 내용 취소",
 	"no changes": "커밋할 변경 내용이 없습니다.",
 	"commit message": "커밋 메시지",
 	"provide commit message": "커밋 메시지를 제공하세요.",
@@ -31,6 +33,7 @@
 	"no remotes to publish": "리포지토리에 게시하도록 구성된 원격이 없습니다.",
 	"disabled": "Git은 이 작업 영역에서 사용하지 않도록 설정되어 있거나 지원되지 않습니다.",
 	"clean repo": "체크 아웃하기 전에 리포지토리 작업 트리를 정리하세요.",
+	"cant push": "참조를 원격에 푸시할 수 없습니다. 먼저 '풀'을 실행하여 변경 내용을 통합하세요.",
 	"git error details": "Git: {0}",
 	"git error": "Git 오류",
 	"open git log": "Git 로그 열기"

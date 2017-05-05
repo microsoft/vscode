@@ -3,7 +3,9 @@
 	"scopeName": "source.js",
 	"fileTypes": [
 		".js",
-		".jsx"
+		".jsx",
+		".es6",
+		".mjs"
 	],
 	"uuid": "805375ec-d614-41f5-8993-5843fe63ea82",
 	"patterns": [

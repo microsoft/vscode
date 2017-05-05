@@ -6,5 +6,6 @@
 {
 	"default": "預設",
 	"user": "使用者",
+	"meta": "中繼",
 	"option": "選項"
 }

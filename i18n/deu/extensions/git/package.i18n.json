@@ -39,6 +39,8 @@
 	"config.autofetch": "Gibt an, ob automatischer Abruf aktiviert ist.",
 	"config.enableLongCommitWarning": "Gibt an, ob Warnungen zu langen Commitnachrichten erfolgen sollen.",
 	"config.confirmSync": "Vor dem Synchronisieren von Git-Repositorys bestätigen.",
+	"config.countBadge": "Steuert die Git-Badgeanzahl. \"Alle\" zählt alle Änderungen. \"tracked\" (Nachverfolgt) zählt nur die nachverfolgten Änderungen. \"off\" (Aus) deaktiviert dies.",
+	"config.checkoutType": "Steuert, welcher Branchtyp beim Ausführen von \"Auschecken an...\" aufgelistet wird. \"Alle\" zeigt alle Verweise an, \"Lokal\" nur die lokalen Branches, \"Tags\" zeigt nur Tags an, und \"Remote\" zeigt nur Remotebranches an.",
 	"config.ignoreLegacyWarning": "Ignoriert die Legacy-Git-Warnung.",
 	"config.ignoreLimitWarning": "Ignoriert Warnung bei zu hoher Anzahl von Änderungen in einem Repository"
 }

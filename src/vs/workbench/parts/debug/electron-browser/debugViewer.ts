@@ -540,6 +540,9 @@ export class CallStackRenderer implements IRenderer {
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
 		if (stackFrame.lineNumber !== undefined) {
 			data.lineNumber.textContent = `${stackFrame.lineNumber}`;
+			if (stackFrame.column) {
+				data.lineNumber.textContent += `:${stackFrame.column}`;
+			}
 			dom.removeClass(data.lineNumber, 'unavailable');
 		} else {
 			dom.addClass(data.lineNumber, 'unavailable');
@@ -586,7 +589,8 @@ export class VariablesActionProvider implements IActionProvider {
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
-		return element instanceof Variable;
+		// Only show context menu on "real" variables. Not on array chunk nodes.
+		return element instanceof Variable && !!element.value;
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
