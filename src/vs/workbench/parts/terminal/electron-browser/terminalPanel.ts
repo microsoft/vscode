@@ -172,6 +172,15 @@ export class TerminalPanel extends Panel {
 					} else {
 						terminal.paste();
 					}
+					// Clear selection after all click event bubbling is finished on Mac to prevent
+					// right-click selecting a word which is seemed cannot be disabled. There is a
+					// flicker when pasting but this appears to give the best experience if the
+					// setting is enabled.
+					if (platform.isMacintosh) {
+						setTimeout(() => {
+							terminal.clearSelection();
+						}, 0);
+					}
 					this._cancelContextMenu = true;
 				}
 			}
