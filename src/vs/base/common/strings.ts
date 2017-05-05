@@ -293,14 +293,14 @@ export function firstNonWhitespaceIndex(str: string): number {
  * Returns the leading whitespace of the string.
  * If the string contains only whitespaces, returns entire string
  */
-export function getLeadingWhitespace(str: string, from: number = 0): string {
-	for (let i = from, len = str.length; i < len; i++) {
+export function getLeadingWhitespace(str: string, start: number = 0, end: number = str.length): string {
+	for (let i = start; i < end; i++) {
 		let chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
-			return str.substring(from, i);
+			return str.substring(start, i);
 		}
 	}
-	return str.substr(from);
+	return str.substring(start, end);
 }
 
 /**
