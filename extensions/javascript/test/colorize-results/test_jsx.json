@@ -2157,10 +2157,10 @@
 	},
 	{
 		"c": "ToggleText",
-		"t": "source.js meta.tag.js entity.name.tag.js",
+		"t": "source.js meta.tag.js entity.name.tag.js support.class.component.js",
 		"r": {
-			"dark_plus": "entity.name.tag: #569CD6",
-			"light_plus": "entity.name.tag: #800000",
+			"dark_plus": "support.class: #4EC9B0",
+			"light_plus": "support.class: #267F99",
 			"dark_vs": "entity.name.tag: #569CD6",
 			"light_vs": "entity.name.tag: #800000",
 			"hc_black": "entity.name.tag: #569CD6"
