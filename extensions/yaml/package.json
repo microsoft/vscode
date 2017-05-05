@@ -10,7 +10,7 @@
 		"languages": [{
 			"id": "yaml",
 			"aliases": ["YAML", "yaml"],
-			"extensions": [".eyaml", ".eyml", ".yaml", ".yml", ".stylelintrc"],
+			"extensions": [".eyaml", ".eyml", ".yaml", ".yml"],
 			"firstLine": "^#cloud-config",
 			"configuration": "./language-configuration.json"
 		}],
