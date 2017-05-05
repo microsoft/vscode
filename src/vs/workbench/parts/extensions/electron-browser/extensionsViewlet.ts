@@ -273,7 +273,10 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => e.type === LocalExtensionType.User && !(e.disabledForWorkspace || e.disabledGlobally) && e.name.toLowerCase().indexOf(value) > -1);
+				.filter(e => e.type === LocalExtensionType.User &&
+					!(e.disabledForWorkspace || e.disabledGlobally) &&
+					e.name.toLowerCase().indexOf(value) > -1
+				);
 
 			return new PagedModel(result);
 		}
