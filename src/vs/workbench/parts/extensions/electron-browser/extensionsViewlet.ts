@@ -31,7 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extensionsList';
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
 import {
-	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
+	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction, ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
@@ -194,6 +194,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	getSecondaryActions(): IAction[] {
 		if (!this.secondaryActions) {
 			this.secondaryActions = [
+				this.instantiationService.createInstance(ShowEnabledExtensionsAction, ShowEnabledExtensionsAction.ID, ShowEnabledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowOutdatedExtensionsAction, ShowOutdatedExtensionsAction.ID, ShowOutdatedExtensionsAction.LABEL),
 				this.instantiationService.createInstance(ShowDisabledExtensionsAction, ShowDisabledExtensionsAction.ID, ShowDisabledExtensionsAction.LABEL),
@@ -265,7 +266,19 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
-		if (!value || /@installed/i.test(value)) {
+		if (!value || /@enabled/i.test(value)) {
+			value = value ? value.replace(/@enabled/g, '').trim().toLowerCase() : '';
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(e => e.type === LocalExtensionType.User && !(e.disabledForWorkspace || e.disabledGlobally) && e.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
+		}
+
+		if (/@installed/i.test(value)) {
 			// Show installed extensions
 			value = value ? value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
 
