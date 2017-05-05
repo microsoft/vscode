@@ -266,22 +266,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
 		}
 
-		if (!value || /@enabled/i.test(value)) {
-			value = value ? value.replace(/@enabled/g, '').trim().toLowerCase() : '';
-
-			const local = await this.extensionsWorkbenchService.queryLocal();
-
-			const result = local
-				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => e.type === LocalExtensionType.User &&
-					!(e.disabledForWorkspace || e.disabledGlobally) &&
-					e.name.toLowerCase().indexOf(value) > -1
-				);
-
-			return new PagedModel(result);
-		}
-
-		if (/@installed/i.test(value)) {
+		if (!value || /@installed/i.test(value)) {
 			// Show installed extensions
 			value = value ? value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
 
@@ -320,8 +305,9 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			return new PagedModel(result);
 		}
 
-		if (/@disabled/i.test(value)) {
-			value = value.replace(/@disabled/g, '').trim().toLowerCase();
+
+		if (/(@disabled|@enabled:false)/i.test(value)) {
+			value = value.replace(/(@disabled|@enabled:false)/g, '').trim().toLowerCase();
 
 			const local = await this.extensionsWorkbenchService.queryLocal();
 			const runningExtensions = await this.extensionService.getExtensions();
@@ -329,6 +315,21 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
+
+			return new PagedModel(result);
+		}
+
+		if (/@enabled(:true)?/i.test(value)) {
+			value = value ? value.replace(/@enabled(:true)?/g, '').trim().toLowerCase() : '';
+
+			const local = await this.extensionsWorkbenchService.queryLocal();
+
+			const result = local
+				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
+				.filter(e => e.type === LocalExtensionType.User &&
+					!(e.disabledForWorkspace || e.disabledGlobally) &&
+					e.name.toLowerCase().indexOf(value) > -1
+				);
 
 			return new PagedModel(result);
 		}
