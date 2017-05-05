@@ -17,20 +17,14 @@ import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
-class CheckoutBasicItem implements QuickPickItem {
-	get label(): string { return this.ref.name || ''; }
-	get description(): string { return this.ref.name || ''; }
-
-	constructor(protected ref: Ref) { }
-}
-
-
-class CheckoutItem extends CheckoutBasicItem {
+class CheckoutItem implements QuickPickItem {
 
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
 	protected get treeish(): string | undefined { return this.ref.name; }
 	get label(): string { return this.ref.name || this.shortCommit; }
 	get description(): string { return this.shortCommit; }
+
+	constructor(protected ref: Ref) { }
 
 	async run(model: Model): Promise<void> {
 		const ref = this.treeish;
@@ -64,6 +58,14 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 		const match = /^[^/]+\/(.*)$/.exec(this.ref.name);
 		return match ? match[1] : this.ref.name;
 	}
+}
+
+class MergeItem implements QuickPickItem {
+
+	get label(): string { return this.ref.name || ''; }
+	get description(): string { return this.ref.name || ''; }
+
+	constructor(protected ref: Ref) { }
 }
 
 interface Command {
@@ -651,7 +653,7 @@ export class CommandCenter {
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
 		const picks = [...heads, ...tags, ...remoteHeads];
-		const placeHolder = 'Select a ref to checkout';
+		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
 		const choice = await window.showQuickPick<CheckoutItem>(picks, { placeHolder });
 
 		if (!choice) {
@@ -684,14 +686,14 @@ export class CommandCenter {
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
 
 		const heads = this.model.refs.filter(ref => ref.type === RefType.Head)
-			.map(ref => new CheckoutItem(ref));
+			.map(ref => new MergeItem(ref));
 
 		const remoteHeads = (includeRemotes ? this.model.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-			.map(ref => new CheckoutRemoteHeadItem(ref));
+			.map(ref => new MergeItem(ref));
 
 		const picks = [...heads, ...remoteHeads];
-		const placeHolder = 'Select a ref to checkout';
-		const choice = await window.showQuickPick<CheckoutBasicItem>(picks, { placeHolder });
+		const placeHolder = localize('select a branch to merge from', 'Select a branch to merge from');
+		const choice = await window.showQuickPick<MergeItem>(picks, { placeHolder });
 
 		if (!choice) {
 			return;
