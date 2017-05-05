@@ -17,7 +17,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { IRange } from "vs/editor/common/core/range";
+import { IRange } from 'vs/editor/common/core/range';
 
 export const GOTO_LINE_PREFIX = ':';
 

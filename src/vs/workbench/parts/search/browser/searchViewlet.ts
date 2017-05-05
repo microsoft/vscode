@@ -13,7 +13,6 @@ import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCo
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
-import { IExpression } from 'vs/base/common/glob';
 import env = require('vs/base/common/platform');
 import { Delayer } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
@@ -60,9 +59,9 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
-import { attachListStyler } from "vs/platform/theme/common/styler";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 
 export class SearchViewlet extends Viewlet {
 
@@ -179,9 +178,7 @@ export class SearchViewlet extends Viewlet {
 		const useIgnoreFiles = typeof this.viewletSettings['query.useIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useIgnoreFiles'] :
 			this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault;
-		const useExcludeSettings = typeof this.viewletSettings['query.useExcludeSettings'] === 'boolean' ?
-			this.viewletSettings['query.useExcludeSettings'] :
-			true;
+		const useExcludeSettings = true;
 
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
@@ -895,7 +892,7 @@ export class SearchViewlet extends Viewlet {
 		const workspaceRelativePath = this.contextService.toWorkspaceRelativePath(resource);
 		if (workspaceRelativePath) {
 			this.inputPatternIncludes.setIsGlobPattern(false);
-			this.inputPatternIncludes.setValue(workspaceRelativePath);
+			this.inputPatternIncludes.setValue('./' + workspaceRelativePath);
 			this.searchWidget.focus(false);
 		}
 	}
@@ -922,7 +919,6 @@ export class SearchViewlet extends Viewlet {
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
 		this.viewletSettings['query.includesUsePattern'] = includesUsePattern;
 		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
-		this.viewletSettings['query.useExcludeSettings'] = useExcludeSettings;
 
 		if (!rerunQuery) {
 			return;
@@ -953,17 +949,18 @@ export class SearchViewlet extends Viewlet {
 			isWordMatch: isWholeWords
 		};
 
-		const excludes: IExpression = this.inputPatternExclusions.getGlob();
-		const includes: IExpression = this.inputPatternIncludes.getGlob();
+		const { expression: excludePattern } = this.inputPatternExclusions.getGlob();
+		const { expression: includePattern, searchPaths } = this.inputPatternIncludes.getGlob();
 
 		const options: IQueryOptions = {
 			folderResources: this.contextService.hasWorkspace() ? [this.contextService.getWorkspace().resource] : [],
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
-			excludePattern: excludes,
+			excludePattern,
+			includePattern,
 			maxResults: SearchViewlet.MAX_TEXT_RESULTS,
-			includePattern: includes,
 			disregardIgnoreFiles: !useIgnoreFiles,
-			disregardExcludeSettings: !useExcludeSettings
+			disregardExcludeSettings: !useExcludeSettings,
+			searchPaths
 		};
 
 		this.onQueryTriggered(this.queryBuilder.text(content, options), patternExcludes, patternIncludes);

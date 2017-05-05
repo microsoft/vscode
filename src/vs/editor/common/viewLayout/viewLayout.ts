@@ -12,9 +12,9 @@ import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/co
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 
-export class LayoutProvider extends Disposable implements IViewLayout {
+export class ViewLayout extends Disposable implements IViewLayout {
 
 	static LINES_HORIZONTAL_EXTRA_PX = 30;
 
@@ -129,7 +129,7 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 	private _computeScrollWidth(maxLineWidth: number, viewportWidth: number): number {
 		let isViewportWrapping = this._configuration.editor.wrappingInfo.isViewportWrapping;
 		if (!isViewportWrapping) {
-			return Math.max(maxLineWidth + LayoutProvider.LINES_HORIZONTAL_EXTRA_PX, viewportWidth);
+			return Math.max(maxLineWidth + ViewLayout.LINES_HORIZONTAL_EXTRA_PX, viewportWidth);
 		}
 		return Math.max(maxLineWidth, viewportWidth);
 	}
@@ -196,6 +196,17 @@ export class LayoutProvider extends Disposable implements IViewLayout {
 	public getLinesViewportData(): IPartialViewLinesViewportData {
 		const visibleBox = this.getCurrentViewport();
 		return this._linesLayout.getLinesViewportData(visibleBox.top, visibleBox.top + visibleBox.height);
+	}
+	public getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData {
+		// do some minimal validations on scrollTop
+		const scrollState = this._scrollable.getState();
+		if (scrollTop + scrollState.height > scrollState.scrollHeight) {
+			scrollTop = scrollState.scrollHeight - scrollState.height;
+		}
+		if (scrollTop < 0) {
+			scrollTop = 0;
+		}
+		return this._linesLayout.getLinesViewportData(scrollTop, scrollTop + scrollState.height);
 	}
 	public getWhitespaceViewportData(): IViewWhitespaceViewportData[] {
 		const visibleBox = this.getCurrentViewport();

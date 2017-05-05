@@ -13,16 +13,18 @@ export class Askpass implements Disposable {
 
 	private server: http.Server;
 	private portPromise: Promise<number>;
+	private enabled = true;
 
 	constructor() {
 		this.server = http.createServer((req, res) => this.onRequest(req, res));
-		this.server.listen(0, 'localhost');
 
-		this.portPromise = new Promise(c => {
-			this.server.on('listening', () => c(this.server.address().port));
-		});
-
-		this.server.on('error', err => console.error(err));
+		try {
+			this.server.listen(0);
+			this.portPromise = new Promise<number>(c => this.server.on('listening', () => c(this.server.address().port)));
+			this.server.on('error', err => console.error(err));
+		} catch (err) {
+			this.enabled = false;
+		}
 	}
 
 	private onRequest(req: http.ServerRequest, res: http.ServerResponse): void {
@@ -53,14 +55,20 @@ export class Askpass implements Disposable {
 		return await window.showInputBox(options) || '';
 	}
 
-	getEnv(): Promise<any> {
-		return this.portPromise.then(port => ({
+	async getEnv(): Promise<any> {
+		if (!this.enabled) {
+			return {
+				GIT_ASKPASS: path.join(__dirname, 'askpass-empty.sh')
+			};
+		}
+
+		return {
 			ELECTRON_RUN_AS_NODE: '1',
 			GIT_ASKPASS: path.join(__dirname, 'askpass.sh'),
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
 			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js'),
-			VSCODE_GIT_ASKPASS_PORT: String(port)
-		}));
+			VSCODE_GIT_ASKPASS_PORT: String(await this.portPromise)
+		};
 	}
 
 	dispose(): void {

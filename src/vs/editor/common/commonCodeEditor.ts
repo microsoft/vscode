@@ -14,8 +14,7 @@ import { IContextKey, IContextKeyServiceTarget, IContextKeyService } from 'vs/pl
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
-import { IViewModelHelper } from 'vs/editor/common/controller/oneCursor';
+import { CursorColumns, IViewModelHelper, ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
@@ -29,10 +28,9 @@ import {
 	IModelContentChangedEvent, IModelDecorationsChangedEvent,
 	IModelLanguageChangedEvent, IModelOptionsChangedEvent, TextModelEventType
 } from 'vs/editor/common/model/textModelEvents';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
-import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent } from "vs/editor/common/controller/cursorEvents";
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 let EDITOR_ID = 0;
 
@@ -89,12 +87,10 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	private readonly _onDidPaste: Emitter<Range> = this._register(new Emitter<Range>());
 	public readonly onDidPaste = this._onDidPaste.event;
 
-	protected domElement: IContextKeyServiceTarget;
 
-	protected id: number;
-
-	protected _lifetimeDispose: IDisposable[];
-	protected _configuration: CommonEditorConfiguration;
+	protected readonly domElement: IContextKeyServiceTarget;
+	protected readonly id: number;
+	protected readonly _configuration: CommonEditorConfiguration;
 
 	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
 	protected _actions: { [key: string]: editorCommon.IEditorAction; };
@@ -107,8 +103,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	protected viewModel: ViewModel;
 	protected cursor: Cursor;
 
-	protected _instantiationService: IInstantiationService;
-	protected _contextKeyService: IContextKeyService;
+	protected readonly _instantiationService: IInstantiationService;
+	protected readonly _contextKeyService: IContextKeyService;
 
 	/**
 	 * map from "parent" decoration type to live decoration ids.
@@ -125,13 +121,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	) {
 		super();
 		this.domElement = domElement;
-
 		this.id = (++EDITOR_ID);
-
-		// listeners that are kept during the whole editor lifetime
-		this._lifetimeDispose = [];
-
-
 		this._decorationTypeKeysToIds = {};
 		this._decorationTypeSubtypes = {};
 
@@ -139,9 +129,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (typeof options.ariaLabel === 'undefined') {
 			options.ariaLabel = DefaultConfig.editor.ariaLabel;
 		}
-
-		this._configuration = this._createConfiguration(options);
-		this._lifetimeDispose.push(this._configuration.onDidChange((e) => {
+		this._configuration = this._register(this._createConfiguration(options));
+		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
 
 			if (e.layoutInfo) {
@@ -149,9 +138,9 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			}
 		}));
 
-		this._contextKeyService = contextKeyService.createScoped(this.domElement);
-		this._lifetimeDispose.push(new EditorContextKeysManager(this, this._contextKeyService));
-		this._lifetimeDispose.push(new EditorModeContext(this, this._contextKeyService));
+		this._contextKeyService = this._register(contextKeyService.createScoped(this.domElement));
+		this._register(new EditorContextKeysManager(this, this._contextKeyService));
+		this._register(new EditorModeContext(this, this._contextKeyService));
 
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
 
@@ -176,8 +165,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	}
 
 	public dispose(): void {
-		this._lifetimeDispose = dispose(this._lifetimeDispose);
-
 		let keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			let contributionId = keys[i];
@@ -189,8 +176,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._actions = {};
 
 		this._postDetachModelCleanup(this._detachModel());
-		this._configuration.dispose();
-		this._contextKeyService.dispose();
 
 		this._onDidDispose.fire();
 
@@ -258,6 +243,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	public abstract getCenteredRangeInViewport(): Range;
 
 	protected abstract _getCompletelyVisibleViewRange(): Range;
+	protected abstract _getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+	protected abstract _getVerticalOffsetForViewLineNumber(viewLineNumber: number): number;
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
 		if (!this.model) {
@@ -304,14 +291,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 		let validatedRange = this.model.validateRange(range);
 
-		let revealRangeEvent: ICursorRevealRangeEvent = {
-			range: validatedRange,
-			viewRange: null,
-			verticalType: verticalType,
-			revealHorizontal: revealHorizontal,
-			revealCursor: false
-		};
-		this.cursor.emit(CursorEventType.CursorRevealRange, revealRangeEvent);
+		this.cursor.emitCursorRevealRange(validatedRange, null, verticalType, revealHorizontal);
 	}
 
 	public revealLine(lineNumber: number): void {
@@ -624,6 +604,10 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 	}
 
+	public _getCursors(): ICursors {
+		return this.cursor;
+	}
+
 	public executeCommand(source: string, command: editorCommon.ICommand): void {
 		if (!this.cursor) {
 			return;
@@ -797,8 +781,17 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			let viewModelHelper: IViewModelHelper = {
 				viewModel: this.viewModel,
 				coordinatesConverter: this.viewModel.coordinatesConverter,
+				getScrollTop: (): number => {
+					return this.getScrollTop();
+				},
 				getCompletelyVisibleViewRange: (): Range => {
 					return this._getCompletelyVisibleViewRange();
+				},
+				getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number): Range => {
+					return this._getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+				},
+				getVerticalOffsetForViewLineNumber: (viewLineNumber: number): number => {
+					return this._getVerticalOffsetForViewLineNumber(viewLineNumber);
 				}
 			};
 
@@ -948,12 +941,12 @@ class EditorContextKeysManager extends Disposable {
 		this._editor = editor;
 
 		this._editorId = contextKeyService.createKey('editorId', editor.getId());
-		this._editorFocus = EditorContextKeys.Focus.bindTo(contextKeyService);
-		this._editorTextFocus = EditorContextKeys.TextFocus.bindTo(contextKeyService);
-		this._editorTabMovesFocus = EditorContextKeys.TabMovesFocus.bindTo(contextKeyService);
-		this._editorReadonly = EditorContextKeys.ReadOnly.bindTo(contextKeyService);
-		this._hasMultipleSelections = EditorContextKeys.HasMultipleSelections.bindTo(contextKeyService);
-		this._hasNonEmptySelection = EditorContextKeys.HasNonEmptySelection.bindTo(contextKeyService);
+		this._editorFocus = EditorContextKeys.focus.bindTo(contextKeyService);
+		this._editorTextFocus = EditorContextKeys.textFocus.bindTo(contextKeyService);
+		this._editorTabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
+		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
+		this._hasMultipleSelections = EditorContextKeys.hasMultipleSelections.bindTo(contextKeyService);
+		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
 
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
 		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));

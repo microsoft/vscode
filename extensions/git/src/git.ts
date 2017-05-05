@@ -10,6 +10,7 @@ import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
+import iconv = require('iconv-lite');
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp } from './util';
 
 const readdir = denodeify<string[]>(fs.readdir);
@@ -157,7 +158,7 @@ export interface IExecutionResult {
 	stderr: string;
 }
 
-export async function exec(child: cp.ChildProcess): Promise<IExecutionResult> {
+async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecutionResult> {
 	const disposables: IDisposable[] = [];
 
 	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
@@ -170,20 +171,23 @@ export async function exec(child: cp.ChildProcess): Promise<IExecutionResult> {
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
+	let encoding = options.encoding || 'utf8';
+	encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+
 	const [exitCode, stdout, stderr] = await Promise.all<any>([
 		new Promise<number>((c, e) => {
 			once(child, 'error', e);
 			once(child, 'exit', c);
 		}),
 		new Promise<string>(c => {
-			const buffers: string[] = [];
+			const buffers: Buffer[] = [];
 			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(buffers.join('')));
+			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
 		}),
 		new Promise<string>(c => {
-			const buffers: string[] = [];
+			const buffers: Buffer[] = [];
 			on(child.stderr, 'data', b => buffers.push(b));
-			once(child.stderr, 'close', () => c(buffers.join('')));
+			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 		})
 	]);
 
@@ -272,6 +276,26 @@ export const GitErrorCodes = {
 	RepositoryIsLocked: 'RepositoryIsLocked'
 };
 
+function getGitErrorCode(stderr: string): string | undefined {
+	if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(stderr)) {
+		return GitErrorCodes.RepositoryIsLocked;
+	} else if (/Authentication failed/.test(stderr)) {
+		return GitErrorCodes.AuthenticationFailed;
+	} else if (/Not a git repository/.test(stderr)) {
+		return GitErrorCodes.NotAGitRepository;
+	} else if (/bad config file/.test(stderr)) {
+		return GitErrorCodes.BadConfigFile;
+	} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(stderr)) {
+		return GitErrorCodes.CantCreatePipe;
+	} else if (/Repository not found/.test(stderr)) {
+		return GitErrorCodes.RepositoryNotFound;
+	} else if (/unable to access/.test(stderr)) {
+		return GitErrorCodes.CantAccessRemote;
+	}
+
+	return void 0;
+}
+
 export class Git {
 
 	private gitPath: string;
@@ -327,37 +351,19 @@ export class Git {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		const result = await exec(child);
+		const result = await exec(child, options);
+
+		if (options.log !== false && result.stderr.length > 0) {
+			this.log(`${result.stderr}\n`);
+		}
 
 		if (result.exitCode) {
-			let gitErrorCode: string | undefined = void 0;
-
-			if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.RepositoryIsLocked;
-			} else if (/Authentication failed/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.AuthenticationFailed;
-			} else if (/Not a git repository/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.NotAGitRepository;
-			} else if (/bad config file/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.BadConfigFile;
-			} else if (/cannot make pipe for command substitution|cannot create standard input pipe/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.CantCreatePipe;
-			} else if (/Repository not found/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.RepositoryNotFound;
-			} else if (/unable to access/.test(result.stderr)) {
-				gitErrorCode = GitErrorCodes.CantAccessRemote;
-			}
-
-			if (options.log !== false) {
-				this.log(`${result.stderr}\n`);
-			}
-
 			return Promise.reject<IExecutionResult>(new GitError({
 				message: 'Failed to execute git',
 				stdout: result.stdout,
 				stderr: result.stderr,
 				exitCode: result.exitCode,
-				gitErrorCode,
+				gitErrorCode: getGitErrorCode(result.stderr),
 				gitCommand: args[0]
 			}));
 		}
@@ -512,14 +518,23 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async buffer(object: string): Promise<string> {
+	async buffer(object: string, encoding: string = 'utf8'): Promise<string> {
 		const child = this.stream(['show', object]);
 
 		if (!child.stdout) {
 			return Promise.reject<string>('Can\'t open file from git');
 		}
 
-		return await this.doBuffer(object);
+		const { exitCode, stdout } = await exec(child, { encoding });
+
+		if (exitCode) {
+			return Promise.reject<string>(new GitError({
+				message: 'Could not show object.',
+				exitCode
+			}));
+		}
+
+		return stdout;
 
 		// TODO@joao
 		// return new Promise((c, e) => {
@@ -536,20 +551,6 @@ export class Repository {
 		// 	}
 		// });
 		// });
-	}
-
-	private async doBuffer(object: string): Promise<string> {
-		const child = this.stream(['show', object]);
-		const { exitCode, stdout } = await exec(child);
-
-		if (exitCode) {
-			return Promise.reject<string>(new GitError({
-				message: 'Could not buffer object.',
-				exitCode
-			}));
-		}
-
-		return stdout;
 	}
 
 	async add(paths: string[]): Promise<void> {
@@ -788,18 +789,25 @@ export class Repository {
 
 			const onExit = exitCode => {
 				if (exitCode !== 0) {
-					e(new GitError({ message: 'Could not get git status.', exitCode }));
+					const stderr = stderrData.join('');
+					return e(new GitError({
+						message: 'Failed to execute git',
+						stderr,
+						exitCode,
+						gitErrorCode: getGitErrorCode(stderr),
+						gitCommand: 'status'
+					}));
 				}
 
 				c({ status: parser.status, didHitLimit: false });
 			};
 
-			const onData = (raw: string) => {
+			const onStdoutData = (raw: string) => {
 				parser.update(raw);
 
 				if (parser.status.length > 5000) {
 					child.removeListener('exit', onExit);
-					child.stdout.removeListener('data', onData);
+					child.stdout.removeListener('data', onStdoutData);
 					child.kill();
 
 					c({ status: parser.status.slice(0, 5000), didHitLimit: true });
@@ -807,7 +815,12 @@ export class Repository {
 			};
 
 			child.stdout.setEncoding('utf8');
-			child.stdout.on('data', onData);
+			child.stdout.on('data', onStdoutData);
+
+			const stderrData: string[] = [];
+			child.stderr.setEncoding('utf8');
+			child.stderr.on('data', raw => stderrData.push(raw as string));
+
 			child.on('error', e);
 			child.on('exit', onExit);
 		});

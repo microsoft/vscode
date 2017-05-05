@@ -14,7 +14,8 @@ import { IResolvedTextEditorConfiguration, ISelectionChangeEvent } from 'vs/work
 import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData } from './extHost.protocol';
+import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 export class ExtHostEditors extends ExtHostEditorsShape {
@@ -55,8 +56,32 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		return this._extHostDocumentsAndEditors.allEditors();
 	}
 
-	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor> {
-		return this._proxy.$tryShowTextDocument(<URI>document.uri, TypeConverters.fromViewColumn(column), preserveFocus).then(id => {
+	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): TPromise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+		let options: ITextDocumentShowOptions;
+		if (typeof columnOrOptions === 'number') {
+			options = {
+				position: TypeConverters.fromViewColumn(columnOrOptions),
+				preserveFocus: preserveFocus,
+				pinned: true
+			};
+		} else if (typeof columnOrOptions === 'object') {
+			options = {
+				position: TypeConverters.fromViewColumn(columnOrOptions.viewColumn),
+				preserveFocus: columnOrOptions.preserveFocus,
+				pinned: columnOrOptions.preview === undefined ? true : !columnOrOptions.preview
+			};
+		} else {
+			options = {
+				position: EditorPosition.ONE,
+				preserveFocus: false,
+				pinned: true
+			};
+		}
+
+		return this._proxy.$tryShowTextDocument(<URI>document.uri, options).then(id => {
 			let editor = this._extHostDocumentsAndEditors.getEditor(id);
 			if (editor) {
 				return editor;

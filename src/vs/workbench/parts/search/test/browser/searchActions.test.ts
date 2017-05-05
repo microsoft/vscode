@@ -131,7 +131,7 @@ suite('Search Actions', () => {
 			resource: URI.file('somepath' + ++counter),
 			lineMatches: []
 		};
-		return instantiationService.createInstance(FileMatch, null, null, rawMatch);
+		return instantiationService.createInstance(FileMatch, null, null, null, rawMatch);
 	}
 
 	function aMatch(fileMatch: FileMatch): Match {

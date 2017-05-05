@@ -30,11 +30,7 @@
       {
         "command": "git.init",
         "title": "%command.init%",
-        "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/git.svg",
-          "dark": "resources/icons/dark/git.svg"
-        }
+        "category": "Git"
       },
       {
         "command": "git.refresh",
@@ -56,24 +52,6 @@
       },
       {
         "command": "git.openFile",
-        "title": "%command.openFile%",
-        "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/open-file.svg",
-          "dark": "resources/icons/dark/open-file.svg"
-        }
-      },
-      {
-        "command": "git.openChangeFromUri",
-        "title": "%command.openChange%",
-        "category": "Git",
-        "icon": {
-          "light": "resources/icons/light/open-change.svg",
-          "dark": "resources/icons/dark/open-change.svg"
-        }
-      },
-      {
-        "command": "git.openFileFromUri",
         "title": "%command.openFile%",
         "category": "Git",
         "icon": {
@@ -245,19 +223,11 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
-          "command": "git.openChange",
-          "when": "false"
-        },
-        {
           "command": "git.openFile",
-          "when": "false"
-        },
-        {
-          "command": "git.openChangeFromUri",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
-          "command": "git.openFileFromUri",
+          "command": "git.openChange",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
@@ -550,14 +520,29 @@
       ],
       "editor/title": [
         {
-          "command": "git.openFileFromUri",
+          "command": "git.openFile",
           "group": "navigation",
           "when": "config.git.enabled && scmProvider == git && isInDiffEditor && resourceScheme != extension"
         },
         {
-          "command": "git.openChangeFromUri",
+          "command": "git.openChange",
           "group": "navigation",
           "when": "config.git.enabled && scmProvider == git && !isInDiffEditor && resourceScheme != extension"
+        },
+        {
+          "command": "git.stageSelectedRanges",
+          "group": "2_git@1",
+          "when": "config.git.enabled && scmProvider == git && isInDiffEditor"
+        },
+        {
+          "command": "git.unstageSelectedRanges",
+          "group": "2_git@2",
+          "when": "config.git.enabled && scmProvider == git && isInDiffEditor"
+        },
+        {
+          "command": "git.revertSelectedRanges",
+          "group": "2_git@3",
+          "when": "config.git.enabled && scmProvider == git && isInDiffEditor"
         }
       ]
     },
@@ -623,11 +608,22 @@
           "type": "boolean",
           "description": "%config.ignoreLimitWarning%",
           "default": false
+        },
+        "git.defaultCloneDirectory": {
+          "type": "string",
+          "default": null,
+          "description": "%config.defaultCloneDirectory%"
+        },
+        "git.enableSmartCommit": {
+          "type": "boolean",
+          "description": "%config.enableSmartCommit%",
+          "default": false
         }
       }
     }
   },
   "dependencies": {
+    "iconv-lite": "0.4.15",
     "vscode-extension-telemetry": "^0.0.7",
     "vscode-nls": "^2.0.1"
   },

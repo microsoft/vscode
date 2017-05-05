@@ -38,6 +38,7 @@ export interface IQueryOptions {
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
+	searchPaths?: string[];
 }
 
 export interface ISearchQuery extends IQueryOptions {

@@ -77,6 +77,10 @@ export interface IWindowConfiguration extends ParsedArgs {
 
 	userEnv: platform.IProcessEnvironment;
 
+	/**
+	 * The physical keyboard is of ISO type (on OSX)
+	 */
+	isISOKeyboard?: boolean;
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
@@ -353,16 +357,16 @@ export class VSCodeWindow {
 		return this._readyState;
 	}
 
-	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward') {
+	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
 		this._win.on(command, (e, cmd) => {
 			if (this.readyState !== ReadyState.READY) {
 				return; // window must be ready
 			}
 
 			if (cmd === back) {
-				this.send('vscode:runAction', 'workbench.action.navigateBack');
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
 			} else if (cmd === forward) {
-				this.send('vscode:runAction', 'workbench.action.navigateForward');
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
 			}
 		});
 	}
@@ -393,7 +397,7 @@ export class VSCodeWindow {
 		});
 
 		// App commands support
-		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward');
+		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward', false);
 
 		// Handle code that wants to open links
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
@@ -457,7 +461,7 @@ export class VSCodeWindow {
 		if (platform.isMacintosh) {
 			const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
 			if (config && config.workbench && config.workbench.editor && config.workbench.editor.swipeToNavigate) {
-				this.registerNavigationListenerOn('swipe', 'left', 'right');
+				this.registerNavigationListenerOn('swipe', 'left', 'right', true);
 			} else {
 				this._win.removeAllListeners('swipe');
 			}

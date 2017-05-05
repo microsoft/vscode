@@ -9,12 +9,13 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { EditorContextKeys, IEditorContribution, ICommonCodeEditor, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ICommonCodeEditor, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
-import { EditorState, CodeEditorStateFlag } from "vs/editor/common/core/editorState";
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 
 @commonEditorContribution
 class InPlaceReplaceController implements IEditorContribution {
@@ -137,9 +138,9 @@ class InPlaceReplaceUp extends EditorAction {
 			id: 'editor.action.inPlaceReplace.up',
 			label: nls.localize('InPlaceReplaceAction.previous.label', "Replace with Previous Value"),
 			alias: 'Replace with Previous Value',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_COMMA
 			}
 		});
@@ -162,9 +163,9 @@ class InPlaceReplaceDown extends EditorAction {
 			id: 'editor.action.inPlaceReplace.down',
 			label: nls.localize('InPlaceReplaceAction.next.label', "Replace with Next Value"),
 			alias: 'Replace with Next Value',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_DOT
 			}
 		});

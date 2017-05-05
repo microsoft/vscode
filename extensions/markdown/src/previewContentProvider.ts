@@ -14,7 +14,7 @@ import { Logger } from "./logger";
 const localize = nls.loadMessageBundle();
 
 export interface ContentSecurityPolicyArbiter {
-	isEnhancedSecurityDisableForWorkspace(): boolean;
+	isEnhancedSecurityDisableForWorkspace(rootPath: string): boolean;
 
 	addTrustedWorkspace(rootPath: string): Thenable<void>;
 
@@ -33,7 +33,15 @@ export function isMarkdownFile(document: vscode.TextDocument) {
 }
 
 export function getMarkdownUri(uri: vscode.Uri) {
-	return uri.with({ scheme: 'markdown', path: uri.fsPath + '.rendered', query: uri.toString() });
+	if (uri.scheme === 'markdown') {
+		return uri;
+	}
+
+	return uri.with({
+		scheme: 'markdown',
+		path: uri.fsPath + '.rendered',
+		query: uri.toString()
+	});
 }
 
 class MarkdownPreviewConfig {
@@ -59,12 +67,13 @@ class MarkdownPreviewConfig {
 		const markdownConfig = vscode.workspace.getConfiguration('markdown');
 
 		this.scrollBeyondLastLine = editorConfig.get<boolean>('scrollBeyondLastLine', false);
-		this.wordWrap = editorConfig.get<boolean>('wordWrap', false);
+		this.wordWrap = editorConfig.get<string>('wordWrap', 'off') !== 'off';
 
 		this.previewFrontMatter = markdownConfig.get<string>('previewFrontMatter', 'hide');
 		this.scrollPreviewWithEditorSelection = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditorSelection', true);
 		this.scrollEditorWithPreview = !!markdownConfig.get<boolean>('preview.scrollEditorWithPreview', true);
 		this.doubleClickToSwitchToEditor = !!markdownConfig.get<boolean>('preview.doubleClickToSwitchToEditor', true);
+		this.markEditorSelection = !!markdownConfig.get<boolean>('preview.markEditorSelection', true);
 
 		this.fontFamily = markdownConfig.get<string | undefined>('preview.fontFamily', undefined);
 		this.fontSize = +markdownConfig.get<number>('preview.fontSize', NaN);
@@ -217,7 +226,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 			// Content Security Policy
 			const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 			let csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; child-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:; font-src 'self' http: https: data:;">`;
-			if (this.cspArbiter.isEnhancedSecurityDisableForWorkspace()) {
+			if (this.cspArbiter.isEnhancedSecurityDisableForWorkspace(vscode.workspace.rootPath || sourceUri.toString())) {
 				csp = '';
 			}
 

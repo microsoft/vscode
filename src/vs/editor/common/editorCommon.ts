@@ -16,14 +16,14 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { IndentRange } from 'vs/editor/common/model/indentRanges';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import {
 	ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent,
 	IModelLanguageChangedEvent, IModelOptionsChangedEvent
 } from 'vs/editor/common/model/textModelEvents';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursors } from 'vs/editor/common/controller/cursorCommon';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -292,6 +292,14 @@ export interface IEditOperationBuilder {
 	addEditOperation(range: Range, text: string): void;
 
 	/**
+	 * Add a new edit operation (a replace operation).
+	 * The inverse edits will be accessible in `ICursorStateComputerData.getInverseEditOperations()`
+	 * @param range The range to replace (delete). May be empty to represent a simple insert.
+	 * @param text The text to replace with. May be null to represent a simple delete.
+	 */
+	addTrackedEditOperation(range: Range, text: string): void;
+
+	/**
 	 * Track `selection` when applying edit operations.
 	 * A best effort will be made to not grow/expand the selection.
 	 * An empty selection will clamp to a nearby character.
@@ -384,6 +392,11 @@ export interface IIdentifiedSingleEditOperation {
 	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
 	 */
 	isAutoWhitespaceEdit?: boolean;
+	/**
+	 * This indicates that this operation is in a set of operations that are tracked and should not be "simplified".
+	 * @internal
+	 */
+	_isTracked?: boolean;
 }
 
 /**
@@ -1886,6 +1899,11 @@ export interface ICommonCodeEditor extends IEditor {
 	executeCommands(source: string, commands: ICommand[]): void;
 
 	/**
+	 * @internal
+	 */
+	_getCursors(): ICursors;
+
+	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
 	 */
 	getLineDecorations(lineNumber: number): IModelDecoration[];
@@ -2021,57 +2039,11 @@ export function isCommonDiffEditor(thing: any): thing is ICommonDiffEditor {
 
 /**
  * Built-in commands.
+ * @internal
  */
 export var Handler = {
 	ExecuteCommand: 'executeCommand',
 	ExecuteCommands: 'executeCommands',
-
-	CursorLeft: 'cursorLeft',
-	CursorLeftSelect: 'cursorLeftSelect',
-
-	CursorRight: 'cursorRight',
-	CursorRightSelect: 'cursorRightSelect',
-
-	CursorUp: 'cursorUp',
-	CursorUpSelect: 'cursorUpSelect',
-	CursorDown: 'cursorDown',
-	CursorDownSelect: 'cursorDownSelect',
-
-	CursorPageUp: 'cursorPageUp',
-	CursorPageUpSelect: 'cursorPageUpSelect',
-	CursorPageDown: 'cursorPageDown',
-	CursorPageDownSelect: 'cursorPageDownSelect',
-
-	CursorHome: 'cursorHome',
-	CursorHomeSelect: 'cursorHomeSelect',
-
-	CursorEnd: 'cursorEnd',
-	CursorEndSelect: 'cursorEndSelect',
-
-	ExpandLineSelection: 'expandLineSelection',
-
-	CursorTop: 'cursorTop',
-	CursorTopSelect: 'cursorTopSelect',
-	CursorBottom: 'cursorBottom',
-	CursorBottomSelect: 'cursorBottomSelect',
-
-	CursorColumnSelectLeft: 'cursorColumnSelectLeft',
-	CursorColumnSelectRight: 'cursorColumnSelectRight',
-	CursorColumnSelectUp: 'cursorColumnSelectUp',
-	CursorColumnSelectPageUp: 'cursorColumnSelectPageUp',
-	CursorColumnSelectDown: 'cursorColumnSelectDown',
-	CursorColumnSelectPageDown: 'cursorColumnSelectPageDown',
-
-	CursorMove: 'cursorMove',
-
-	AddCursorDown: 'addCursorDown',
-	AddCursorUp: 'addCursorUp',
-	CursorUndo: 'cursorUndo',
-	MoveTo: 'moveTo',
-	MoveToSelect: 'moveToSelect',
-	ColumnSelect: 'columnSelect',
-	CreateCursor: 'createCursor',
-	LastCursorMoveToSelect: 'lastCursorMoveToSelect',
 
 	Type: 'type',
 	ReplacePreviousChar: 'replacePreviousChar',
@@ -2086,160 +2058,15 @@ export var Handler = {
 	DeleteLeft: 'deleteLeft',
 	DeleteRight: 'deleteRight',
 
-	RemoveSecondaryCursors: 'removeSecondaryCursors',
-	CancelSelection: 'cancelSelection',
-
 	Cut: 'cut',
 
 	Undo: 'undo',
 	Redo: 'redo',
 
-	WordSelect: 'wordSelect',
-	WordSelectDrag: 'wordSelectDrag',
-	LastCursorWordSelect: 'lastCursorWordSelect',
-
-	LineSelect: 'lineSelect',
-	LineSelectDrag: 'lineSelectDrag',
-	LastCursorLineSelect: 'lastCursorLineSelect',
-	LastCursorLineSelectDrag: 'lastCursorLineSelectDrag',
 	LineInsertBefore: 'lineInsertBefore',
 	LineInsertAfter: 'lineInsertAfter',
 	LineBreakInsert: 'lineBreakInsert',
-
-	SelectAll: 'selectAll',
-
-	EditorScroll: 'editorScroll',
-
-	ScrollLineUp: 'scrollLineUp',
-	ScrollLineDown: 'scrollLineDown',
-
-	ScrollPageUp: 'scrollPageUp',
-	ScrollPageDown: 'scrollPageDown',
-
-	RevealLine: 'revealLine'
 };
-
-/**
- * @internal
- */
-export namespace EditorContextKeys {
-	/**
-	 * A context key that is set when the editor's text has focus (cursor is blinking).
-	 * @internal
-	 */
-	export const TextFocus = new RawContextKey<boolean>('editorTextFocus', false);
-	/**
-	 * A context key that is set when the editor's text or an editor's widget has focus.
-	 * @internal
-	 */
-	export const Focus = new RawContextKey<boolean>('editorFocus', false);
-	/**
-	 * A context key that is set when the editor's text is readonly.
-	 * @internal
-	 */
-	export const ReadOnly = new RawContextKey<boolean>('editorReadonly', false);
-	/**
-	 * @internal
-	 */
-	export const Writable: ContextKeyExpr = ReadOnly.toNegated();
-	/**
-	 * A context key that is set when the editor has a non-collapsed selection.
-	 * @internal
-	 */
-	export const HasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false);
-	/**
-	 * @internal
-	 */
-	export const HasOnlyEmptySelection: ContextKeyExpr = HasNonEmptySelection.toNegated();
-	/**
-	 * A context key that is set when the editor has multiple selections (multiple cursors).
-	 * @internal
-	 */
-	export const HasMultipleSelections = new RawContextKey<boolean>('editorHasMultipleSelections', false);
-	/**
-	 * @internal
-	 */
-	export const HasSingleSelection: ContextKeyExpr = HasMultipleSelections.toNegated();
-	/**
-	 * @internal
-	 */
-	export const TabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
-	/**
-	 * @internal
-	 */
-	export const TabDoesNotMoveFocus: ContextKeyExpr = TabMovesFocus.toNegated();
-	/**
-	 * A context key that is set to the language associated with the model associated with the editor.
-	 * @internal
-	 */
-	export const LanguageId = new RawContextKey<string>('editorLangId', undefined);
-};
-
-/**
- * @internal
- */
-export namespace ModeContextKeys {
-	/**
-	 * @internal
-	 */
-	export const hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCompletionItemProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasCodeActionsProvider = new RawContextKey<boolean>('editorHasCodeActionsProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasCodeLensProvider = new RawContextKey<boolean>('editorHasCodeLensProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDefinitionProvider = new RawContextKey<boolean>('editorHasDefinitionProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasImplementationProvider = new RawContextKey<boolean>('editorHasImplementationProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasTypeDefinitionProvider = new RawContextKey<boolean>('editorHasTypeDefinitionProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasHoverProvider = new RawContextKey<boolean>('editorHasHoverProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentHighlightProvider = new RawContextKey<boolean>('editorHasDocumentHighlightProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentSymbolProvider = new RawContextKey<boolean>('editorHasDocumentSymbolProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasReferenceProvider = new RawContextKey<boolean>('editorHasReferenceProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasRenameProvider = new RawContextKey<boolean>('editorHasRenameProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
-	/**
-	 * @internal
-	 */
-	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', undefined);
-}
 
 /**
  * @internal

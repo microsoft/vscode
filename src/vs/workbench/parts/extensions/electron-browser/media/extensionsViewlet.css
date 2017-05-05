@@ -82,10 +82,11 @@
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header {
 	display: flex;
 	align-items: baseline;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	overflow: hidden;
 	flex: 1;
 	min-width: 0;
+
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .name {
@@ -155,7 +156,7 @@
 
 .extensions-viewlet > .extensions .extension.disabled > .icon,
 .extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
-.extensions-viewlet > .extensions .extension.disabled > .details > .description,
+.extensions-viewlet > .extensions .extension.disabled > .details > .description
 .extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author {
 	opacity: 0.5;
 }

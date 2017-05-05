@@ -27,7 +27,7 @@ export class MainThreadStorage extends MainThreadStorageShape {
 			value = JSON.parse(jsonValue);
 			return TPromise.as(value);
 		} catch (err) {
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<T>(err);
 		}
 	}
 

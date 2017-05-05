@@ -67,13 +67,8 @@ class StandaloneTheme implements IStandaloneTheme {
 		return color;
 	}
 
-	public isDefault(colorId: ColorIdentifier): boolean {
-		if (!this.colors.hasOwnProperty(colorId)) {
-			return true;
-		}
-		let color = this.colors[colorId];
-		let defaultValue = this.getDefault(colorId);
-		return color ? !!defaultValue : color.equals(defaultValue);
+	public defines(colorId: ColorIdentifier): boolean {
+		return this.colors.hasOwnProperty(colorId);
 	}
 
 	public get type() {

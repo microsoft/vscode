@@ -14,8 +14,8 @@ import _ = require('vs/base/parts/tree/browser/tree');
 import { INavigator, MappedNavigator } from 'vs/base/common/iterator';
 import Event, { Emitter } from 'vs/base/common/event';
 import Lifecycle = require('vs/base/common/lifecycle');
-import { Color } from "vs/base/common/color";
-import { mixin } from "vs/base/common/objects";
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
 export class TreeContext implements _.ITreeContext {
 

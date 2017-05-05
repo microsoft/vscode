@@ -20,7 +20,7 @@ import { compareAnything, compareByScore as doCompareByScore } from 'vs/base/com
 import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import DOM = require('vs/base/browser/dom');
-import { IQuickOpenStyles } from "vs/base/parts/quickopen/browser/quickOpenWidget";
+import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 
 export interface IContext {
 	event: any;

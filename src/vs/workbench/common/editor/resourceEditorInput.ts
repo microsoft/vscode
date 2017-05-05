@@ -20,7 +20,7 @@ export class ResourceEditorInput extends EditorInput {
 
 	static ID: string = 'workbench.editors.resourceEditorInput';
 
-	private modelReference: TPromise<IReference<ResourceEditorModel>>;
+	private modelReference: TPromise<IReference<ITextEditorModel>>;
 	private resource: URI;
 	private name: string;
 	private description: string;
@@ -86,7 +86,7 @@ export class ResourceEditorInput extends EditorInput {
 			if (!(model instanceof ResourceEditorModel)) {
 				ref.dispose();
 				this.modelReference = null;
-				return TPromise.wrapError(`Unexpected model for ResourceInput: ${this.resource}`); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
+				return TPromise.wrapError<ITextEditorModel>(`Unexpected model for ResourceInput: ${this.resource}`); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
 			}
 
 			return model;

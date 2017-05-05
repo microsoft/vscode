@@ -8,9 +8,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { MouseHandler, IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
-import { IViewController, IMouseTarget } from 'vs/editor/browser/editorBrowser';
+import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
+import { ViewController } from 'vs/editor/browser/view/viewController';
 
 interface IThrottledGestureEvent {
 	translationX: number;
@@ -37,7 +38,7 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 	private _lastPointerType: string;
 	private _installGestureHandlerTimeout: number;
 
-	constructor(context: ViewContext, viewController: IViewController, viewHelper: IPointerHandlerHelper) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.viewHelper.linesContentDomNode.style.msTouchAction = 'none';
@@ -83,7 +84,7 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 		let e = new EditorMouseEvent(<MouseEvent><any>rawEvent, this.viewHelper.viewDomNode);
 		let t = this._createMouseTarget(e, false);
 		if (t.position) {
-			this.viewController.moveTo('mouse', t.position);
+			this.viewController.moveTo(t.position);
 		}
 		// IE does not want to focus when coming in from the browser's address bar
 		if ((<any>e.browserEvent).fromElement) {
@@ -118,7 +119,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 	private _lastPointerType: string;
 	private _installGestureHandlerTimeout: number;
 
-	constructor(context: ViewContext, viewController: IViewController, viewHelper: IPointerHandlerHelper) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.viewHelper.linesContentDomNode.style.touchAction = 'none';
@@ -164,7 +165,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 		let e = new EditorMouseEvent(<MouseEvent><any>rawEvent, this.viewHelper.viewDomNode);
 		let t = this._createMouseTarget(e, false);
 		if (t.position) {
-			this.viewController.moveTo('mouse', t.position);
+			this.viewController.moveTo(t.position);
 		}
 		// IE does not want to focus when coming in from the browser's address bar
 		if ((<any>e.browserEvent).fromElement) {
@@ -195,7 +196,7 @@ class TouchHandler extends MouseHandler {
 
 	private gesture: Gesture;
 
-	constructor(context: ViewContext, viewController: IViewController, viewHelper: IPointerHandlerHelper) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super(context, viewController, viewHelper);
 
 		this.gesture = new Gesture(this.viewHelper.linesContentDomNode);
@@ -219,7 +220,7 @@ class TouchHandler extends MouseHandler {
 		let target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
-			this.viewController.moveTo('mouse', target.position);
+			this.viewController.moveTo(target.position);
 		}
 	}
 
@@ -234,7 +235,7 @@ class TouchHandler extends MouseHandler {
 export class PointerHandler implements IDisposable {
 	private handler: MouseHandler;
 
-	constructor(context: ViewContext, viewController: IViewController, viewHelper: IPointerHandlerHelper) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		if (window.navigator.msPointerEnabled) {
 			this.handler = new MsPointerHandler(context, viewController, viewHelper);
 		} else if ((<any>window).TouchEvent) {

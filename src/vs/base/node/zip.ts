@@ -51,7 +51,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions): Promise {
 	return new Promise((c, e) => {
 		const throttler = new SimpleThrottler();
-		let last = TPromise.as(null);
+		let last = TPromise.as<any>(null);
 
 		zipfile.once('error', e);
 		zipfile.once('close', () => last.then(c, e));

@@ -12,7 +12,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
 export class ContentHoverWidget extends Widget implements editorBrowser.IContentWidget {
 

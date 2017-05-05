@@ -12,14 +12,14 @@ import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILi
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { TextEditorRevealType, MainThreadTextEditor, IApplyEditsOptions, IUndoStopOptions, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditor';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals as objectEquals } from 'vs/base/common/objects';
-import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData } from './extHost.protocol';
-import { IRange } from "vs/editor/common/core/range";
-import { ISelection } from "vs/editor/common/core/selection";
+import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData } from './extHost.protocol';
+import { IRange } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 
 export class MainThreadEditors extends MainThreadEditorsShape {
 
@@ -104,14 +104,18 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	// --- from extension host process
 
-	$tryShowTextDocument(resource: URI, position: EditorPosition, preserveFocus: boolean): TPromise<string> {
+	$tryShowTextDocument(resource: URI, options: ITextDocumentShowOptions): TPromise<string> {
+		const editorOptions: IEditorOptions = {
+			preserveFocus: options.preserveFocus,
+			pinned: options.pinned
+		};
 
 		const input = {
 			resource,
-			options: { preserveFocus, pinned: true }
+			options: editorOptions
 		};
 
-		return this._workbenchEditorService.openEditor(input, position).then(editor => {
+		return this._workbenchEditorService.openEditor(input, options.position).then(editor => {
 			if (!editor) {
 				return undefined;
 			}
@@ -184,14 +188,14 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError('TextEditor disposed');
+			return TPromise.wrapError<boolean>('TextEditor disposed');
 		}
 		return TPromise.as(this._documentsAndEditors.getEditor(id).applyEdits(modelVersionId, edits, opts));
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: IRange[], opts: IUndoStopOptions): TPromise<boolean> {
 		if (!this._documentsAndEditors.getEditor(id)) {
-			return TPromise.wrapError('TextEditor disposed');
+			return TPromise.wrapError<boolean>('TextEditor disposed');
 		}
 		return TPromise.as(this._documentsAndEditors.getEditor(id).insertSnippet(template, ranges, opts));
 	}
@@ -208,7 +212,7 @@ export class MainThreadEditors extends MainThreadEditorsShape {
 		const editor = this._documentsAndEditors.getEditor(id);
 
 		if (!editor) {
-			return TPromise.wrapError('No such TextEditor');
+			return TPromise.wrapError<ILineChange[]>('No such TextEditor');
 		}
 
 		const codeEditor = editor.getCodeEditor();

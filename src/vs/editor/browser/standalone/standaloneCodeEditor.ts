@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { empty as emptyDisposable, IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { empty as emptyDisposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,8 +23,8 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
-import { IDiffEditorOptions, IEditorOptions } from "vs/editor/common/config/editorOptions";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 /**
  * The options to create an editor.
@@ -131,7 +131,8 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
 		const run = (): TPromise<void> => {
-			return TPromise.as(_descriptor.run(this));
+			const r = _descriptor.run(this);
+			return r ? r : TPromise.as(void 0);
 		};
 
 
@@ -193,7 +194,6 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	private _contextViewService: IEditorContextViewService;
 	private _standaloneThemeService: IStandaloneThemeService;
 	private _ownsModel: boolean;
-	private _toDispose2: IDisposable[];
 
 	constructor(
 		domElement: HTMLElement,
@@ -216,7 +216,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 		this._standaloneThemeService = standaloneThemeService;
-		this._toDispose2 = [toDispose];
+		this._register(toDispose);
 
 		let model: IModel = null;
 		if (typeof options.model === 'undefined') {
@@ -240,7 +240,6 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 	public dispose(): void {
 		super.dispose();
-		this._toDispose2 = dispose(this._toDispose2);
 	}
 
 	public destroy(): void {
@@ -275,7 +274,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 	private _contextViewService: IEditorContextViewService;
 	private _standaloneThemeService: IStandaloneThemeService;
 	private _standaloneKeybindingService: StandaloneKeybindingService;
-	private _toDispose2: IDisposable[];
 
 	constructor(
 		domElement: HTMLElement,
@@ -304,14 +302,13 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 		this._standaloneThemeService = standaloneColorService;
 
-		this._toDispose2 = [toDispose];
+		this._register(toDispose);
 
 		this._contextViewService.setContainer(this._containerDomElement);
 	}
 
 	public dispose(): void {
 		super.dispose();
-		this._toDispose2 = dispose(this._toDispose2);
 	}
 
 	public destroy(): void {

@@ -513,10 +513,10 @@ var editorResources = [
     { name: 'vs/platform', project: editorProject },
     { name: 'vs/editor/contrib', project: editorProject },
     { name: 'vs/editor', project: editorProject },
-    { name: 'vs/base', project: editorProject },
-    { name: 'vs/code', project: workbenchProject }
+    { name: 'vs/base', project: editorProject }
 ];
 var workbenchResources = [
+    { name: 'vs/code', project: workbenchProject },
     { name: 'vs/workbench', project: workbenchProject },
     { name: 'vs/workbench/parts/cli', project: workbenchProject },
     { name: 'vs/workbench/parts/codeEditor', project: workbenchProject },

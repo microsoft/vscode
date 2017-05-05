@@ -16,9 +16,9 @@ import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'v
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISnippetVariableResolver, ICodeSnippet, CodeSnippet } from './snippet';
 import { SnippetVariablesResolver } from './snippetVariables';
-import EditorContextKeys = editorCommon.EditorContextKeys;
-import { Position } from "vs/editor/common/core/position";
-import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { Position } from 'vs/editor/common/core/position';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 export class InsertSnippetController {
 
@@ -725,7 +725,7 @@ CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	handler: x => x.jumpToNextPlaceholder(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(30),
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Tab
 	}
 }));
@@ -735,7 +735,7 @@ CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	handler: x => x.jumpToPrevPlaceholder(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(30),
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
 }));
@@ -745,7 +745,7 @@ CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	handler: x => x.acceptSnippet(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(30),
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Enter
 	}
 }));
@@ -755,7 +755,7 @@ CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	handler: x => x.leaveSnippet(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(30),
-		kbExpr: EditorContextKeys.TextFocus,
+		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}

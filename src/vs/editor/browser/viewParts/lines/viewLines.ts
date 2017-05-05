@@ -9,7 +9,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { VisibleLinesCollection, IVisibleLinesHost } from 'vs/editor/browser/view/viewLayer';
 import { ViewLineOptions, DomReadingContext, ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { Configuration } from 'vs/editor/browser/config/configuration';
@@ -19,7 +18,7 @@ import { IViewLines, HorizontalRange, LineVisibleRanges } from 'vs/editor/common
 import { IViewLayout, Viewport } from 'vs/editor/common/viewModel/viewModel';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { VerticalRevealType } from "vs/editor/common/controller/cursorEvents";
+import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 
 class LastRenderedData {
 
@@ -83,7 +82,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._viewLineOptions = new ViewLineOptions(this._context.configuration);
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
-		this.domNode.setClassName(ClassNames.VIEW_LINES);
+		this.domNode.setClassName('view-lines');
 		Configuration.applyFontInfo(this.domNode, this._context.configuration.editor.fontInfo);
 
 		// --- width & height
@@ -249,7 +248,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 
 	private _getViewLineDomNode(node: HTMLElement): HTMLElement {
 		while (node && node.nodeType === 1) {
-			if (node.className === ClassNames.VIEW_LINE) {
+			if (node.className === ViewLine.CLASS_NAME) {
 				return node;
 			}
 			node = node.parentElement;

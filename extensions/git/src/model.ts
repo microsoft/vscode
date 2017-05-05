@@ -5,8 +5,8 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, window, workspace } from 'vscode';
-import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes, GitError } from './git';
+import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace } from 'vscode';
+import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
 import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { watch } from './watch';
@@ -125,20 +125,30 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_DELETED:
 			case Status.DELETED_BY_THEM:
 			case Status.DELETED_BY_US:
+			case Status.INDEX_DELETED:
 				return true;
 			default:
 				return false;
 		}
 	}
 
+	@memoize
+	private get faded(): boolean {
+		const workspaceRootPath = this.workspaceRoot.fsPath;
+		return this.resourceUri.fsPath.substr(0, workspaceRootPath.length) !== workspaceRootPath;
+	}
+
 	get decorations(): SourceControlResourceDecorations {
 		const light = { iconPath: this.getIconPath('light') };
 		const dark = { iconPath: this.getIconPath('dark') };
+		const strikeThrough = this.strikeThrough;
+		const faded = this.faded;
 
-		return { strikeThrough: this.strikeThrough, light, dark };
+		return { strikeThrough, faded, light, dark };
 	}
 
 	constructor(
+		private workspaceRoot: Uri,
 		private _resourceGroup: ResourceGroup,
 		private _resourceUri: Uri,
 		private _type: Status,
@@ -350,6 +360,7 @@ export class Model implements Disposable {
 		this._onDidChangeResources.fire();
 	}
 
+	private workspaceRoot: Uri;
 	private onWorkspaceChange: Event<Uri>;
 	private isRepositoryHuge = false;
 	private didWarnAboutLimit = false;
@@ -358,8 +369,10 @@ export class Model implements Disposable {
 
 	constructor(
 		private _git: Git,
-		private workspaceRootPath: string
+		workspaceRootPath: string
 	) {
+		this.workspaceRoot = Uri.file(workspaceRootPath);
+
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
 		this.disposables.push(fsWatcher);
@@ -373,7 +386,7 @@ export class Model implements Disposable {
 			return;
 		}
 
-		await this._git.init(this.workspaceRootPath);
+		await this._git.init(this.workspaceRoot.fsPath);
 		await this.status();
 	}
 
@@ -486,16 +499,10 @@ export class Model implements Disposable {
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			const result = await this.repository.git.exec(this.repository.root, ['show', `${ref}:${relativePath}`]);
+			const configFiles = workspace.getConfiguration('files');
+			const encoding = configFiles.get<string>('encoding');
 
-			if (result.exitCode !== 0) {
-				throw new GitError({
-					message: localize('cantshow', "Could not show object"),
-					exitCode: result.exitCode
-				});
-			}
-
-			return result.stdout;
+			return await this.repository.buffer(`${ref}:${relativePath}`, encoding);
 		});
 	}
 
@@ -537,7 +544,7 @@ export class Model implements Disposable {
 		};
 
 		return shouldShowProgress(operation)
-			? window.withScmProgress(run)
+			? window.withProgress({ location: ProgressLocation.SourceControl }, run)
 			: run();
 	}
 
@@ -572,7 +579,7 @@ export class Model implements Disposable {
 		this.repositoryDisposable.dispose();
 
 		const disposables: Disposable[] = [];
-		const repositoryRoot = await this._git.getRepositoryRoot(this.workspaceRootPath);
+		const repositoryRoot = await this._git.getRepositoryRoot(this.workspaceRoot.fsPath);
 		this.repository = this._git.open(repositoryRoot);
 
 		const dotGitPath = path.join(repositoryRoot, '.git');
@@ -645,30 +652,30 @@ export class Model implements Disposable {
 			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
 
 			switch (raw.x + raw.y) {
-				case '??': return workingTree.push(new Resource(this.workingTreeGroup, uri, Status.UNTRACKED));
-				case '!!': return workingTree.push(new Resource(this.workingTreeGroup, uri, Status.IGNORED));
-				case 'DD': return merge.push(new Resource(this.mergeGroup, uri, Status.BOTH_DELETED));
-				case 'AU': return merge.push(new Resource(this.mergeGroup, uri, Status.ADDED_BY_US));
-				case 'UD': return merge.push(new Resource(this.mergeGroup, uri, Status.DELETED_BY_THEM));
-				case 'UA': return merge.push(new Resource(this.mergeGroup, uri, Status.ADDED_BY_THEM));
-				case 'DU': return merge.push(new Resource(this.mergeGroup, uri, Status.DELETED_BY_US));
-				case 'AA': return merge.push(new Resource(this.mergeGroup, uri, Status.BOTH_ADDED));
-				case 'UU': return merge.push(new Resource(this.mergeGroup, uri, Status.BOTH_MODIFIED));
+				case '??': return workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.UNTRACKED));
+				case '!!': return workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.IGNORED));
+				case 'DD': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.BOTH_DELETED));
+				case 'AU': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.ADDED_BY_US));
+				case 'UD': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.DELETED_BY_THEM));
+				case 'UA': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.ADDED_BY_THEM));
+				case 'DU': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.DELETED_BY_US));
+				case 'AA': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.BOTH_ADDED));
+				case 'UU': return merge.push(new Resource(this.workspaceRoot, this.mergeGroup, uri, Status.BOTH_MODIFIED));
 			}
 
 			let isModifiedInIndex = false;
 
 			switch (raw.x) {
-				case 'M': index.push(new Resource(this.indexGroup, uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
-				case 'A': index.push(new Resource(this.indexGroup, uri, Status.INDEX_ADDED)); break;
-				case 'D': index.push(new Resource(this.indexGroup, uri, Status.INDEX_DELETED)); break;
-				case 'R': index.push(new Resource(this.indexGroup, uri, Status.INDEX_RENAMED, renameUri)); break;
-				case 'C': index.push(new Resource(this.indexGroup, uri, Status.INDEX_COPIED)); break;
+				case 'M': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
+				case 'A': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_ADDED)); break;
+				case 'D': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_DELETED)); break;
+				case 'R': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_RENAMED, renameUri)); break;
+				case 'C': index.push(new Resource(this.workspaceRoot, this.indexGroup, uri, Status.INDEX_COPIED)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(this.workingTreeGroup, uri, Status.MODIFIED, renameUri)); break;
-				case 'D': workingTree.push(new Resource(this.workingTreeGroup, uri, Status.DELETED, renameUri)); break;
+				case 'M': workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.MODIFIED, renameUri)); break;
+				case 'D': workingTree.push(new Resource(this.workspaceRoot, this.workingTreeGroup, uri, Status.DELETED, renameUri)); break;
 			}
 		});
 

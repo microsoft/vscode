@@ -5,6 +5,7 @@
 'use strict';
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import URI from 'vs/base/common/uri';
 import { ISearchService, QueryType } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -45,7 +46,7 @@ export class MainThreadWorkspace extends MainThreadWorkspaceShape {
 		this._textModelResolverService = textModelResolverService;
 	}
 
-	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<Uri[]> {
+	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace) {
 			return undefined;

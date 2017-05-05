@@ -94,7 +94,7 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 				return this._documentsAndEditors.getDocument(uri.toString());
 			}, err => {
 				this._documentLoader.delete(uri.toString());
-				return TPromise.wrapError(err);
+				return TPromise.wrapError<ExtHostDocumentData>(err);
 			});
 			this._documentLoader.set(uri.toString(), promise);
 		}

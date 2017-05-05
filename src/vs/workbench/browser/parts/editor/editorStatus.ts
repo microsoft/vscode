@@ -46,7 +46,7 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { getCodeEditor as getEditorWidget } from 'vs/editor/common/services/codeEditorService';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
-import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {

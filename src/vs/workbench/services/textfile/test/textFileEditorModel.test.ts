@@ -228,35 +228,6 @@ suite('Files - TextFileEditorModel', () => {
 		}, error => onError(error, done));
 	});
 
-	test('Auto Save triggered when model changes', function (done) {
-		let eventCounter = 0;
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index.txt'), 'utf8');
-
-		(<any>model).autoSaveAfterMillies = 10;
-		(<any>model).autoSaveAfterMilliesEnabled = true;
-
-		model.onDidStateChange(e => {
-			if (e === StateChange.DIRTY || e === StateChange.SAVED) {
-				eventCounter++;
-			}
-		});
-
-		model.load().done(() => {
-			model.textEditorModel.setValue('foo');
-
-			return TPromise.timeout(200).then(() => {
-				assert.ok(!model.isDirty());
-				assert.equal(eventCounter, 2);
-
-				model.dispose();
-
-				assert.ok(!accessor.modelService.getModel(model.getResource()));
-
-				done();
-			});
-		}, error => onError(error, done));
-	});
-
 	test('save() and isDirty() - proper with check for mtimes', function (done) {
 		const input1 = createFileInput(instantiationService, toResource.call(this, '/path/index_async2.txt'));
 		const input2 = createFileInput(instantiationService, toResource.call(this, '/path/index_async.txt'));
@@ -374,26 +345,6 @@ suite('Files - TextFileEditorModel', () => {
 			});
 		}, error => onError(error, done));
 	});
-
-	// TODO@Ben unreliable test
-	// test('Orphaned models - state and event', function (done) {
-	// 	const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
-
-	// 	const unbind = model.onDidStateChange(e => {
-	// 		if (e === StateChange.ORPHANED_CHANGE) {
-	// 			unbind.dispose();
-	// 			done();
-	// 		}
-	// 	});
-
-	// 	accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.DELETED }]));
-	// 	return TPromise.timeout(110).then(() => {
-	// 		assert.ok(model.hasState(ModelState.ORPHAN));
-
-	// 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: model.getResource(), type: FileChangeType.ADDED }]));
-	// 		assert.ok(!model.hasState(ModelState.ORPHAN));
-	// 	});
-	// });
 
 	test('SaveSequentializer - pending basics', function (done) {
 		const sequentializer = new SaveSequentializer();

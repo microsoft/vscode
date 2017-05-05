@@ -144,16 +144,16 @@ export interface ICursorRevealRangeEvent {
 	 * If false: there should be just a vertical revealing
 	 */
 	readonly revealHorizontal: boolean;
-	/**
-	 * If true: cursor is revealed if outside viewport
-	 */
-	readonly revealCursor: boolean;
 }
 
 /**
  * @internal
  */
-export interface ICursorScrollRequestEvent {
-	readonly deltaLines: number;
-	readonly revealCursor: boolean;
+export class CursorScrollRequest {
+
+	public readonly desiredScrollTop: number;
+
+	constructor(desiredScrollTop: number) {
+		this.desiredScrollTop = desiredScrollTop;
+	}
 }

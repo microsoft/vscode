@@ -240,7 +240,7 @@ export class TextFileEditorModelManager implements ITextFileEditorModelManager {
 			// Remove from pending loads
 			this.mapResourceToPendingModelLoaders.delete(resource);
 
-			return TPromise.wrapError(error);
+			return TPromise.wrapError<ITextFileEditorModel>(error);
 		});
 	}
 

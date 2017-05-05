@@ -120,7 +120,7 @@ export class FileMatch extends Disposable {
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 
-	constructor(private _query: IPatternInfo, private _parent: SearchResult, private rawMatch: IFileMatch,
+	constructor(private _query: IPatternInfo, private _maxResults: number, private _parent: SearchResult, private rawMatch: IFileMatch,
 		@IModelService private modelService: IModelService, @IReplaceService private replaceService: IReplaceService) {
 		super();
 		this._resource = this.rawMatch.resource;
@@ -187,7 +187,7 @@ export class FileMatch extends Disposable {
 		}
 		this._matches = new LinkedMap<string, Match>();
 		let matches = this._model
-			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch, false);
+			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch, false, this._maxResults);
 
 		this.updateMatches(matches, true);
 	}
@@ -202,7 +202,7 @@ export class FileMatch extends Disposable {
 		const oldMatches = this._matches.values().filter(match => match.range().startLineNumber === lineNumber);
 		oldMatches.forEach(match => this._matches.delete(match.id()));
 
-		const matches = this._model.findMatches(this._query.pattern, range, this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch, false);
+		const matches = this._model.findMatches(this._query.pattern, range, this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch, false, this._maxResults);
 		this.updateMatches(matches, modelChange);
 	}
 
@@ -330,6 +330,7 @@ export class SearchResult extends Disposable {
 	private _fileMatches: LinkedMap<URI, FileMatch>;
 	private _unDisposedFileMatches: LinkedMap<URI, FileMatch>;
 	private _query: IPatternInfo = null;
+	private _maxResults: number;
 	private _showHighlights: boolean;
 	private _replacingAll: boolean = false;
 
@@ -347,6 +348,10 @@ export class SearchResult extends Disposable {
 		this._query = query;
 	}
 
+	public set maxResults(maxResults: number) {
+		this._maxResults = maxResults;
+	}
+
 	public get searchModel(): SearchModel {
 		return this._searchModel;
 	}
@@ -355,7 +360,7 @@ export class SearchResult extends Disposable {
 		let changed: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
 			if (!this._fileMatches.has(rawFileMatch.resource)) {
-				let fileMatch = this.instantiationService.createInstance(FileMatch, this._query, this, rawFileMatch);
+				let fileMatch = this.instantiationService.createInstance(FileMatch, this._query, this._maxResults, this, rawFileMatch);
 				this.doAdd(fileMatch);
 				changed.push(fileMatch);
 				let disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
@@ -550,6 +555,7 @@ export class SearchModel extends Disposable {
 		this.searchResult.clear();
 
 		this._searchResult.query = this._searchQuery.contentPattern;
+		this._searchResult.maxResults = this._searchQuery.maxResults;
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
 		const onDone = fromPromise(this.currentRequest);

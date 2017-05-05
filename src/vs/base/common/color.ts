@@ -106,7 +106,7 @@ export class HSLA {
 /**
  * Converts an Hex color value to RGB.
  * returns r, g, and b are contained in the set [0, 255]
- * @param hex string (#RRGGBB or #RRGGBBAA).
+ * @param hex string (#RGB, #RGBA, #RRGGBB or #RRGGBBAA).
  */
 function hex2rgba(hex: string): RGBA {
 	if (!hex) {
@@ -163,28 +163,10 @@ function hex2rgba(hex: string): RGBA {
 	return null;
 }
 
+const colorPattern = /^#[0-9A-Fa-f]{3,8}$/i;
+
 export function isValidHexColor(hex: string): boolean {
-	if (/^#[0-9a-f]{6}$/i.test(hex)) {
-		// #rrggbb
-		return true;
-	}
-
-	if (/^#[0-9a-f]{8}$/i.test(hex)) {
-		// #rrggbbaa
-		return true;
-	}
-
-	if (/^#[0-9a-f]{3}$/i.test(hex)) {
-		// #rgb
-		return true;
-	}
-
-	if (/^#[0-9a-f]{4}$/i.test(hex)) {
-		// #rgba
-		return true;
-	}
-
-	return false;
+	return colorPattern.test(hex) && hex.length !== 6 && hex.length !== 8;
 }
 
 function _parseHexDigit(charCode: CharCode): number {
@@ -398,6 +380,10 @@ export class Color {
 	public transparent(factor: number): Color {
 		const p = this.rgba;
 		return new Color(new RGBA(p.r, p.g, p.b, Math.round(p.a * factor)));
+	}
+
+	public isTransparent(): boolean {
+		return this.rgba.a === 0;
 	}
 
 	public opposite(): Color {

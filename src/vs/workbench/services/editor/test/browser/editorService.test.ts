@@ -12,12 +12,11 @@ import { Position, Direction, IEditor } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
-import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
-import { StringEditorModel } from 'vs/workbench/common/editor/stringEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { workbenchInstantiationService, TestThemeService } from 'vs/workbench/test/workbenchTestServices';
 import { DelegatingWorkbenchEditorService, WorkbenchEditorService, IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
-import { UntitledEditorInput } from "vs/workbench/common/editor/untitledEditorInput";
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+import { ResourceEditorInput } from "vs/workbench/common/editor/resourceEditorInput";
 
 let activeEditor: BaseEditor = <any>{
 	getSelection: function () {
@@ -48,7 +47,7 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as([]);
 	}
 
-	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: any }[]): TPromise<IEditor[]> {
+	public replaceEditors(editors: { toReplace: EditorInput, replaceWith: EditorInput, options?: any }[]): TPromise<BaseEditor[]> {
 		return TPromise.as([]);
 	}
 
@@ -176,20 +175,6 @@ suite('WorkbenchEditorService', () => {
 			const untitledInput = openedEditorInput as UntitledEditorInput;
 			assert.ok(untitledInput.hasAssociatedFilePath);
 		});
-
-		// Resolve Editor Model (Typed EditorInput)
-		let input = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
-		input.resolve(true).then((model: StringEditorModel) => {
-			assert(model instanceof StringEditorModel);
-
-			assert(model.isResolved());
-
-			input.resolve().then((otherModel) => {
-				assert(model === otherModel);
-
-				input.dispose();
-			});
-		});
 	});
 
 	test('caching', function () {
@@ -274,7 +259,7 @@ suite('WorkbenchEditorService', () => {
 		}
 		let ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
-		let inp = instantiationService.createInstance(StringEditorInput, 'name', 'description', 'hello world', 'text/plain', false);
+		let inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.from('my://resource'));
 		let delegate = instantiationService.createInstance(DelegatingWorkbenchEditorService);
 		delegate.setEditorOpenHandler((input, options?) => {
 			assert.strictEqual(input, inp);

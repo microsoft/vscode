@@ -126,7 +126,7 @@ class SyncStatusBar {
 		}
 
 		if (this.state.isSyncRunning) {
-			text = '';
+			icon = '$(sync~spin)';
 			command = '';
 			tooltip = localize('syncing changes', "Synchronizing changes...");
 		}

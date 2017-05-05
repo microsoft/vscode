@@ -1,40 +1,45 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 declare module monaco {
 
-    interface Thenable<T> {
-        /**
-         * Attaches callbacks for the resolution and/or rejection of the Promise.
-         * @param onfulfilled The callback to execute when the Promise is resolved.
-         * @param onrejected The callback to execute when the Promise is rejected.
-         * @returns A Promise for the completion of which ever callback is executed.
-         */
-        then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
-        then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
-    }
+	interface Thenable<T> {
+		/**
+		 * Attaches callbacks for the resolution and/or rejection of the Promise.
+		 * @param onfulfilled The callback to execute when the Promise is resolved.
+		 * @param onrejected The callback to execute when the Promise is rejected.
+		 * @returns A Promise for the completion of which ever callback is executed.
+		 */
+		then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => TResult | Thenable<TResult>): Thenable<TResult>;
+		then<TResult>(onfulfilled?: (value: T) => TResult | Thenable<TResult>, onrejected?: (reason: any) => void): Thenable<TResult>;
+	}
 
-    export interface IDisposable {
-        dispose(): void;
-    }
+	export interface IDisposable {
+		dispose(): void;
+	}
 
-    export interface IEvent<T> {
-        (listener: (e: T) => any, thisArg?: any): IDisposable;
-    }
+	export interface IEvent<T> {
+		(listener: (e: T) => any, thisArg?: any): IDisposable;
+	}
 
-    /**
-     * A helper that allows to emit and listen to typed events
-     */
-    export class Emitter<T> {
-        constructor();
-        readonly event: Event<T>;
-        fire(event?: T): void;
-        dispose(): void;
-    }
+	/**
+	 * A helper that allows to emit and listen to typed events
+	 */
+	export class Emitter<T> {
+		constructor();
+		readonly event: Event<T>;
+		fire(event?: T): void;
+		dispose(): void;
+	}
 
-    export enum Severity {
-        Ignore = 0,
-        Info = 1,
-        Warning = 2,
-        Error = 3,
-    }
+	export enum Severity {
+		Ignore = 0,
+		Info = 1,
+		Warning = 2,
+		Error = 3,
+	}
 
 #include(vs/base/common/winjs.base.d.ts): TValueCallback, ProgressCallback, TPromise
 #include(vs/base/common/cancellation): CancellationTokenSource, CancellationToken
@@ -58,7 +63,7 @@ declare module monaco.editor {
 #include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
 #include(vs/editor/browser/standalone/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {
-    (...args:any[]): void;
+	(...args:any[]): void;
 }
 #include(vs/platform/contextkey/common/contextkey): IContextKey
 #include(vs/editor/browser/standalone/standaloneServices): IEditorOverrideServices

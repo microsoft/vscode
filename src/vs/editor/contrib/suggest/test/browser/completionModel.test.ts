@@ -5,14 +5,14 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ISuggestion, ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
+import { ISuggestion, ISuggestResult, ISuggestSupport, SuggestionType } from 'vs/editor/common/modes';
 import { ISuggestionItem } from 'vs/editor/contrib/suggest/browser/suggest';
 import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
-import { IPosition } from "vs/editor/common/core/position";
+import { IPosition } from 'vs/editor/common/core/position';
 
 suite('CompletionModel', function () {
 
-	function createSuggestItem(label: string, overwriteBefore: number, incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
+	function createSuggestItem(label: string, overwriteBefore: number, type: SuggestionType = 'property', incomplete: boolean = false, position: IPosition = { lineNumber: 1, column: 1 }): ISuggestionItem {
 
 		return new class implements ISuggestionItem {
 
@@ -22,7 +22,7 @@ suite('CompletionModel', function () {
 				label,
 				overwriteBefore,
 				insertText: label,
-				type: 'property'
+				type
 			};
 
 			container: ISuggestResult = {
@@ -79,7 +79,7 @@ suite('CompletionModel', function () {
 		assert.equal(model.incomplete, false);
 
 		let incompleteModel = new CompletionModel([
-			createSuggestItem('foo', 3, true),
+			createSuggestItem('foo', 3, undefined, true),
 			createSuggestItem('foo', 2),
 		], 1, {
 				leadingLineContent: 'foo',
@@ -90,8 +90,8 @@ suite('CompletionModel', function () {
 
 	test('replaceIncomplete', function () {
 
-		const completeItem = createSuggestItem('foobar', 1, false, { lineNumber: 1, column: 2 });
-		const incompleteItem = createSuggestItem('foofoo', 1, true, { lineNumber: 1, column: 2 });
+		const completeItem = createSuggestItem('foobar', 1, undefined, false, { lineNumber: 1, column: 2 });
+		const incompleteItem = createSuggestItem('foofoo', 1, undefined, true, { lineNumber: 1, column: 2 });
 
 		const model = new CompletionModel([completeItem, incompleteItem], 2, { leadingLineContent: '', characterCountDelta: 0 });
 		assert.equal(model.incomplete, true);
@@ -127,4 +127,58 @@ suite('CompletionModel', function () {
 		assert.equal(d.suggestion.label, 'p');
 	});
 
+	test('keep snippet sorting with prefix: top, #25495', function () {
+
+		model = new CompletionModel([
+			createSuggestItem('Snippet1', 1, 'snippet'),
+			createSuggestItem('tnippet2', 1, 'snippet'),
+			createSuggestItem('semver', 1, 'property'),
+		], 1, {
+				leadingLineContent: 's',
+				characterCountDelta: 0
+			}, 'top');
+
+		assert.equal(model.items.length, 2);
+		const [a, b] = model.items;
+		assert.equal(a.suggestion.label, 'Snippet1');
+		assert.equal(b.suggestion.label, 'semver');
+		assert.ok(a.score < b.score); // snippet really promoted
+
+	});
+
+	test('keep snippet sorting with prefix: bottom, #25495', function () {
+
+		model = new CompletionModel([
+			createSuggestItem('snippet1', 1, 'snippet'),
+			createSuggestItem('tnippet2', 1, 'snippet'),
+			createSuggestItem('Semver', 1, 'property'),
+		], 1, {
+				leadingLineContent: 's',
+				characterCountDelta: 0
+			}, 'bottom');
+
+		assert.equal(model.items.length, 2);
+		const [a, b] = model.items;
+		assert.equal(a.suggestion.label, 'Semver');
+		assert.equal(b.suggestion.label, 'snippet1');
+		assert.ok(a.score < b.score); // snippet really demoted
+	});
+
+	test('keep snippet sorting with prefix: inline, #25495', function () {
+
+		model = new CompletionModel([
+			createSuggestItem('snippet1', 1, 'snippet'),
+			createSuggestItem('tnippet2', 1, 'snippet'),
+			createSuggestItem('Semver', 1, 'property'),
+		], 1, {
+				leadingLineContent: 's',
+				characterCountDelta: 0
+			}, 'inline');
+
+		assert.equal(model.items.length, 2);
+		const [a, b] = model.items;
+		assert.equal(a.suggestion.label, 'snippet1');
+		assert.equal(b.suggestion.label, 'Semver');
+		assert.ok(a.score > b.score); // snippet really demoted
+	});
 });

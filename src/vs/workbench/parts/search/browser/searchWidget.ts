@@ -27,8 +27,9 @@ import { isSearchViewletFocussed, appendKeyBindingLabel } from 'vs/workbench/par
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/common/findController';
 import { HistoryNavigator } from 'vs/base/common/history';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { attachInputBoxStyler, attachFindInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachFindInputBoxStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -202,6 +203,10 @@ export class SearchWidget extends Widget {
 
 	private renderToggleReplaceButton(parent: HTMLElement): void {
 		this.toggleReplaceButton = this._register(new Button(parent));
+		attachButtonStyler(this.toggleReplaceButton, this.themeService, {
+			buttonBackground: SIDE_BAR_BACKGROUND,
+			buttonHoverBackground: SIDE_BAR_BACKGROUND
+		});
 		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
 		this.toggleReplaceButton.addListener('click', () => this.onToggleReplaceButton());
 		this.toggleReplaceButton.getElement().title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");

@@ -26,10 +26,10 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { ResourceMap } from 'vs/base/common/map';
-import { IEditorGroupService } from "vs/workbench/services/group/common/groupService";
-import { DiffEditorInput } from "vs/workbench/common/editor/diffEditorInput";
-import { ResourceEditorInput } from "vs/workbench/common/editor/resourceEditorInput";
-import { IContextKeyService, IContextKey, RawContextKey } from "vs/platform/contextkey/common/contextkey";
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';

@@ -1006,7 +1006,7 @@ class ConfigurationParser {
 				let task: Tasks.Task = {
 					_id: UUID.generateUuid(),
 					name: globals.command.name,
-					identifier: UUID.generateUuid(),
+					identifier: globals.command.name,
 					group: Tasks.TaskGroup.Build,
 					command: undefined,
 					isBackground: isBackground,

@@ -15,13 +15,16 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/node/product';
-import { IChoiceService } from 'vs/platform/message/common/message';
+import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -47,7 +50,10 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		@IExtensionManagementService private extensionsService: IExtensionManagementService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IFileService private fileService: IFileService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
+		@IMessageService private messageService: IMessageService
 	) {
 		if (!this._galleryService.isEnabled()) {
 			return;
@@ -152,6 +158,12 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				StorageScope.GLOBAL
 			);
 
+			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+
+			if (config.ignoreRecommendations) {
+				return;
+			}
+
 			this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
 				Object.keys(this.importantRecommendations)
 					.filter(id => this.importantRecommendationsIgnoreList.indexOf(id) === -1)
@@ -171,17 +183,16 @@ export class ExtensionTipsService implements IExtensionTipsService {
 							localize('close', "Close")
 						];
 
-						this.choiceService.choose(Severity.Info, message, options).done(choice => {
+						this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 							switch (choice) {
 								case 0: return recommendationsAction.run();
-								case 1:
-									this.importantRecommendationsIgnoreList.push(id);
-
-									return this.storageService.store(
+								case 1: this.importantRecommendationsIgnoreList.push(id);
+									this.storageService.store(
 										'extensionsAssistant/importantRecommendationsIgnore',
 										JSON.stringify(this.importantRecommendationsIgnoreList),
 										StorageScope.GLOBAL
 									);
+									return this.ignoreExtensionRecommendations();
 							}
 						});
 					});
@@ -196,6 +207,11 @@ export class ExtensionTipsService implements IExtensionTipsService {
 			return;
 		}
 
+		const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+
+		if (config.ignoreRecommendations) {
+			return;
+		}
 		this.getWorkspaceRecommendations().done(allRecommendations => {
 			if (!allRecommendations.length) {
 				return;
@@ -218,7 +234,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 					localize('close', "Close")
 				];
 
-				this.choiceService.choose(Severity.Info, message, options).done(choice => {
+				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 					switch (choice) {
 						case 0: return action.run();
 						case 1: return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
@@ -226,6 +242,37 @@ export class ExtensionTipsService implements IExtensionTipsService {
 				});
 			});
 		});
+	}
+
+	private ignoreExtensionRecommendations() {
+		const message = localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations ?");
+		const options = [
+			localize('ignoreAll', "Yes, Ignore All"),
+			localize('no', "No"),
+			localize('cancel', "Cancel")
+		];
+
+		this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+			switch (choice) {
+				case 0:	// If the user ignores the current message and selects different file type
+					// we should hide all the stacked up messages as he has selected Yes, Ignore All
+					this.messageService.hideAll();
+					return this.setIgnoreRecommendationsConfig(true);
+				case 1: return this.setIgnoreRecommendationsConfig(false);
+			}
+		});
+	}
+
+	private setIgnoreRecommendationsConfig(configVal: boolean) {
+		let target = ConfigurationTarget.USER;
+		const configKey = 'extensions.ignoreRecommendations';
+		this.configurationEditingService.writeConfiguration(target, { key: configKey, value: configVal }).then(null, error => {
+			this.messageService.show(Severity.Error, error);
+		});
+		if (configVal) {
+			const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
+			this.storageService.store(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
+		}
 	}
 
 	getKeywordsForExtension(extension: string): string[] {

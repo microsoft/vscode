@@ -25,7 +25,7 @@ import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/com
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { ClassName } from "vs/editor/common/model/textModelWithDecorations";
+import { ClassName } from 'vs/editor/common/model/textModelWithDecorations';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();

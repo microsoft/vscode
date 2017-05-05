@@ -11,7 +11,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
-import { IConfigurationChangedEvent, IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export class EmbeddedCodeEditorWidget extends CodeEditor {
 
@@ -35,7 +35,7 @@ export class EmbeddedCodeEditorWidget extends CodeEditor {
 		// Overwrite parent's options
 		super.updateOptions(this._overwriteOptions);
 
-		this._lifetimeDispose.push(parentEditor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
+		this._register(parentEditor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => this._onParentConfigurationChanged(e)));
 	}
 
 	public getParentEditor(): ICodeEditor {

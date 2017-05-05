@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "console",
-		"t": "source.ts support.class.console.ts",
+		"t": "source.ts meta.function-call.ts support.class.console.ts",
 		"r": {
 			"dark_plus": "support.class: #4EC9B0",
 			"light_plus": "support.class: #267F99",
@@ -166,7 +166,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.ts punctuation.accessor.ts",
+		"t": "source.ts meta.function-call.ts punctuation.accessor.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -177,7 +177,7 @@
 	},
 	{
 		"c": "log",
-		"t": "source.ts support.function.console.ts",
+		"t": "source.ts meta.function-call.ts support.function.console.ts",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",

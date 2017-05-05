@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker } from 'vs/editor/contrib/snippet/common/snippetParser';
+import { Scanner, TokenType, SnippetParser, Text, Placeholder, Variable, Marker, walk } from 'vs/editor/contrib/snippet/common/snippetParser';
 
 
 suite('SnippetParser', () => {
@@ -293,5 +293,102 @@ suite('SnippetParser', () => {
 
 		actual = new SnippetParser(true, false).escape('${1:foo:bar}');
 		assert.equal(actual, 'foo:bar');
+	});
+
+	test('marker#len', () => {
+
+		function assertLen(template: string, ...lengths: number[]): void {
+			const { marker } = SnippetParser.parse(template);
+			walk(marker, m => {
+				const expected = lengths.shift();
+				assert.equal(m.len(), expected);
+				return true;
+			});
+			assert.equal(lengths.length, 0);
+		}
+
+		assertLen('text', 4);
+		assertLen('$1text', 0, 4);
+		assertLen('te$1xt', 2, 0, 2);
+		assertLen('errorContext: `${1:err}`, error: $0', 15, 0, 3, 10, 0);
+		assertLen('errorContext: `${1:err}`, error: $1', 15, 0, 3, 10, 0, 3);
+		assertLen('$TM_SELECTED_TEXT', 0);
+		assertLen('${TM_SELECTED_TEXT:def}', 0, 3);
+	});
+
+	test('TextmateSnippet#offset', () => {
+		let snippet = SnippetParser.parse('te$1xt');
+		assert.equal(snippet.offset(snippet.marker[0]), 0);
+		assert.equal(snippet.offset(snippet.marker[1]), 2);
+		assert.equal(snippet.offset(snippet.marker[2]), 2);
+
+		snippet = SnippetParser.parse('${TM_SELECTED_TEXT:def}');
+		assert.equal(snippet.offset(snippet.marker[0]), 0);
+		assert.equal(snippet.offset((<Variable>snippet.marker[0]).defaultValue[0]), 0);
+
+		// forgein marker
+		assert.equal(snippet.offset(new Text('foo')), -1);
+	});
+
+	test('TextmateSnippet#placeholder', () => {
+		let snippet = SnippetParser.parse('te$1xt');
+		let placeholders = snippet.placeholders();
+		assert.equal(placeholders.size, 1);
+		let array = placeholders.get('1');
+		assert.equal(array.length, 1);
+
+		snippet = SnippetParser.parse('te$1xt$1');
+		placeholders = snippet.placeholders();
+		assert.equal(placeholders.size, 1);
+		array = placeholders.get('1');
+		assert.equal(array.length, 2);
+
+		snippet = SnippetParser.parse('te$1xt$2');
+		placeholders = snippet.placeholders();
+		assert.equal(placeholders.size, 2);
+		array = placeholders.get('1');
+		assert.equal(array.length, 1);
+		array = placeholders.get('2');
+		assert.equal(array.length, 1);
+
+		snippet = SnippetParser.parse('${1:bar${2:foo}bar}');
+		placeholders = snippet.placeholders();
+		assert.equal(placeholders.size, 2);
+		array = placeholders.get('1');
+		assert.equal(array.length, 1);
+		assert.equal(snippet.offset(array[0]), 0);
+
+		array = placeholders.get('2');
+		assert.equal(array.length, 1);
+		assert.equal(snippet.offset(array[0]), 3);
+	});
+
+	test('TextmateSnippet#withIndentation', () => {
+		let snippet = SnippetParser.parse('foo\n  bar');
+		assert.equal(snippet.value, 'foo\n  bar');
+		let snippet1 = snippet.withIndentation(s => s.replace(/  /, '\t'));
+		let snippet2 = snippet.withIndentation(s => s.replace(/  /, ' '));
+		assert.equal(snippet.value, 'foo\n  bar');
+		assert.equal(snippet1.value, 'foo\n\tbar');
+		assert.equal(snippet2.value, 'foo\n bar');
+
+		snippet = SnippetParser.parse('foo\n  bar');
+		assert.equal(snippet.value, 'foo\n  bar');
+		let newSnippet = snippet.withIndentation(s => s.replace(/  /, '\t'));
+		assert.equal(snippet.value, 'foo\n  bar');
+		assert.equal(newSnippet.value, 'foo\n\tbar');
+
+		snippet = SnippetParser.parse('foo\r\n  bar\r\n  far');
+		assert.equal(snippet.value, 'foo\r\n  bar\r\n  far');
+		newSnippet = snippet.withIndentation(s => s.replace(/  /, '\t'));
+		assert.equal(snippet.value, 'foo\r\n  bar\r\n  far');
+		assert.equal(newSnippet.value, 'foo\r\n\tbar\r\n\tfar');
+
+		snippet = SnippetParser.parse('foo${1:bar\r  far\r  boo}');
+		assert.equal(snippet.value, 'foobar\r  far\r  boo');
+		newSnippet = snippet.withIndentation(s => s.replace(/  /, '\t'));
+		assert.equal(snippet.value, 'foobar\r  far\r  boo');
+		assert.equal(newSnippet.value, 'foobar\r\tfar\r\tboo');
+
 	});
 });

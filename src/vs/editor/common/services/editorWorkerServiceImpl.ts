@@ -17,9 +17,10 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
-import { IRange } from "vs/editor/common/core/range";
+import { IConfigurationService, IConfigurationOptions } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IRange } from 'vs/editor/common/core/range';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -31,31 +32,30 @@ const STOP_SYNC_MODEL_DELTA_TIME_MS = 60 * 1000;
  */
 const STOP_WORKER_DELTA_TIME_MS = 5 * 60 * 1000;
 
-export class EditorWorkerServiceImpl implements IEditorWorkerService {
+export class EditorWorkerServiceImpl extends Disposable implements IEditorWorkerService {
 	public _serviceBrand: any;
 
 	private readonly _workerManager: WorkerManager;
-	private readonly _registrations: IDisposable[];
 
 	constructor(
 		@IModelService modelService: IModelService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IModeService modeService: IModeService
 	) {
-		this._workerManager = new WorkerManager(modelService);
+		super();
+		this._workerManager = this._register(new WorkerManager(modelService));
 
 		// todo@joh make sure this happens only once
-		const linkProvider = modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
+		this._register(modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
 			provideLinks: (model, token) => {
 				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
 			}
-		});
-		const completionProvider = modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService));
-		this._registrations = [linkProvider, completionProvider];
+		}));
+		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, modeService)));
 	}
 
 	public dispose(): void {
-		this._workerManager.dispose();
-		dispose(this._registrations);
+		super.dispose();
 	}
 
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.ILineChange[]> {
@@ -83,15 +83,18 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	private readonly _workerManager: WorkerManager;
 	private readonly _configurationService: IConfigurationService;
+	private readonly _modeService: IModeService;
 
-	constructor(workerManager: WorkerManager, configurationService: IConfigurationService) {
+	constructor(workerManager: WorkerManager, configurationService: IConfigurationService, modeService: IModeService) {
 		this._workerManager = workerManager;
 		this._configurationService = configurationService;
+		this._modeService = modeService;
 	}
 
 	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
-
-		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>('editor');
+		const { language } = this._modeService.getLanguageIdentifier(model.getLanguageIdAtPosition(position.lineNumber, position.column));
+		const options = <IConfigurationOptions>{ section: 'editor', overrideIdentifier: language };
+		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>(options);
 		if (!wordBasedSuggestions) {
 			return undefined;
 		}

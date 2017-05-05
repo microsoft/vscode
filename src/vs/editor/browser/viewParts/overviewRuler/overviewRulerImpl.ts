@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import { OverviewZoneManager, ColorZone, OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { Color } from 'vs/base/common/color';
-import { OverviewRulerPosition } from "vs/editor/common/config/editorOptions";
+import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
 
 export class OverviewRulerImpl {
 

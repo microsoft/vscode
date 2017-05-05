@@ -9,7 +9,7 @@ import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewMod
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { MockCodeEditorCreationOptions } from "vs/editor/test/common/mocks/mockCodeEditor";
+import { MockCodeEditorCreationOptions } from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 export function testViewModel(text: string[], options: MockCodeEditorCreationOptions, callback: (viewModel: ViewModel, model: Model) => void): void {
 	const EDITOR_ID = 1;

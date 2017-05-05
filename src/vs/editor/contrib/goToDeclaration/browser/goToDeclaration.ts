@@ -9,11 +9,11 @@ import 'vs/css!./goToDeclaration';
 import * as nls from 'vs/nls';
 import { Throttler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { MarkedString } from 'vs/base/common/htmlContent';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
-import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -35,12 +35,11 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { MessageController } from './messageController';
 import * as corePosition from 'vs/editor/common/core/position';
-import ModeContextKeys = editorCommon.ModeContextKeys;
-import EditorContextKeys = editorCommon.EditorContextKeys;
-import { ICursorSelectionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { EditorState, CodeEditorStateFlag } from "vs/editor/common/core/editorState";
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 
 
 export class DefinitionActionConfig {
@@ -122,6 +121,10 @@ export class DefinitionAction extends EditorAction {
 	}
 
 	private _onResult(editorService: IEditorService, editor: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
+
+		const msg = model.getAriaMessage();
+		alert(msg);
+
 		if (this._configuration.openInPeek) {
 			this._openInPeek(editorService, editor, model);
 		} else {
@@ -182,10 +185,10 @@ export class GoToDefinitionAction extends DefinitionAction {
 			label: nls.localize('actions.goToDecl.label', "Go to Definition"),
 			alias: 'Go to Definition',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasDefinitionProvider,
-				ModeContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.hasDefinitionProvider,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: goToDeclarationKb
 			},
 			menuOpts: {
@@ -207,10 +210,10 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 			label: nls.localize('actions.goToDeclToSide.label', "Open Definition to the Side"),
 			alias: 'Open Definition to the Side',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasDefinitionProvider,
-				ModeContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.hasDefinitionProvider,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, goToDeclarationKb)
 			}
 		});
@@ -225,11 +228,11 @@ export class PeekDefinitionAction extends DefinitionAction {
 			label: nls.localize('actions.previewDecl.label', "Peek Definition"),
 			alias: 'Peek Definition',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasDefinitionProvider,
+				EditorContextKeys.hasDefinitionProvider,
 				PeekContext.notInPeekEditor,
-				ModeContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Alt | KeyCode.F12,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F10 }
 			},
@@ -268,10 +271,10 @@ export class GoToImplementationAction extends ImplementationAction {
 			label: nls.localize('actions.goToImplementation.label', "Go to Implementation"),
 			alias: 'Go to Implementation',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasImplementationProvider,
-				ModeContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.hasImplementationProvider,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F12
 			},
 			menuOpts: {
@@ -293,10 +296,10 @@ export class PeekImplementationAction extends ImplementationAction {
 			label: nls.localize('actions.peekImplementation.label', "Peek Implementation"),
 			alias: 'Peek Implementation',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasImplementationProvider,
-				ModeContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.hasImplementationProvider,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.F12
 			}
 		});
@@ -330,10 +333,10 @@ export class GoToTypeDefintionAction extends TypeDefinitionAction {
 			label: nls.localize('actions.goToTypeDefinition.label', "Go to Type Definition"),
 			alias: 'Go to Type Definition',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasTypeDefinitionProvider,
-				ModeContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.hasTypeDefinitionProvider,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: 0
 			},
 			menuOpts: {
@@ -355,10 +358,10 @@ export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 			label: nls.localize('actions.peekTypeDefinition.label', "Peek Type Definition"),
 			alias: 'Peek Type Definition',
 			precondition: ContextKeyExpr.and(
-				ModeContextKeys.hasTypeDefinitionProvider,
-				ModeContextKeys.isInEmbeddedEditor.toNegated()),
+				EditorContextKeys.hasTypeDefinitionProvider,
+				EditorContextKeys.isInEmbeddedEditor.toNegated()),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: 0
 			}
 		});
@@ -375,7 +378,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	static TRIGGER_MODIFIER = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 	static TRIGGER_SIDEBYSIDE_KEY_VALUE = KeyCode.Alt;
 	static TRIGGER_KEY_VALUE = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
-	static MAX_SOURCE_PREVIEW_LINES = 7;
+	static MAX_SOURCE_PREVIEW_LINES = 8;
 
 	private editor: ICodeEditor;
 	private toUnhook: IDisposable[];
@@ -475,59 +478,41 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 				}
 
 				this.textModelResolverService.createModelReference(result.uri).then(ref => {
-					const model = ref.object;
-					let hoverMessage: MarkedString;
-					if (model && model.textEditorModel) {
-						const editorModel = model.textEditorModel;
-						let from = Math.max(1, result.range.startLineNumber);
-						let to: number;
 
-						// if we have a range, take that into consideration for the "to" position, otherwise fallback to MAX_SOURCE_PREVIEW_LINES
-						if (!Range.isEmpty(result.range)) {
-							to = Math.min(result.range.endLineNumber, result.range.startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES, editorModel.getLineCount());
-						} else {
-							to = Math.min(from + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES, editorModel.getLineCount());
-						}
-
-						let source = editorModel.getValueInRange({
-							startLineNumber: from,
-							startColumn: 1,
-							endLineNumber: to,
-							endColumn: editorModel.getLineMaxColumn(to)
-						}).trim();
-
-						// remove common leading whitespace
-						let min = Number.MAX_VALUE,
-							regexp = /^[ \t]*/,
-							match: RegExpExecArray,
-							contents: string;
-
-						while (from <= to && min > 0) {
-							contents = editorModel.getLineContent(from++);
-							if (contents.trim().length === 0) {
-								// empty or whitespace only
-								continue;
-							}
-							match = regexp.exec(contents);
-							min = Math.min(min, match[0].length);
-						}
-
-						source = source.replace(new RegExp(`^([ \\t]{${min}})`, 'gm'), strings.empty);
-
-						if (to < editorModel.getLineCount()) {
-							source += '\n\u2026';
-						}
-
-						const language = this.modeService.getModeIdByFilenameOrFirstLine(editorModel.uri.fsPath);
-						hoverMessage = {
-							language,
-							value: source
-						};
+					if (!ref.object || !ref.object.textEditorModel) {
+						ref.dispose();
+						return;
 					}
 
-					ref.dispose();
+					const { object: { textEditorModel } } = ref;
+					const { startLineNumber } = result.range;
 
-					this.addDecoration(new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn), hoverMessage);
+					if (textEditorModel.getLineMaxColumn(startLineNumber) === 0) {
+						ref.dispose();
+						return;
+					}
+
+					const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
+					const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
+					let endLineNumber = startLineNumber + 1;
+					let minIndent = startIndent;
+
+					for (; endLineNumber < maxLineNumber; endLineNumber++) {
+						let endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
+						minIndent = Math.min(minIndent, endIndent);
+						if (startIndent === endIndent) {
+							break;
+						}
+					}
+
+					const previewRange = new Range(startLineNumber, 1, endLineNumber + 1, 1);
+					const value = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
+
+					this.addDecoration(new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn), {
+						language: this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath),
+						value
+					});
+					ref.dispose();
 				});
 			}
 		}).done(undefined, onUnexpectedError);

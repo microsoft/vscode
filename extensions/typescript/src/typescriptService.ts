@@ -61,6 +61,10 @@ export class API {
 	public has222Features(): boolean {
 		return semver.gte(this._version, '2.2.2');
 	}
+
+	public has230Features(): boolean {
+		return semver.gte(this._version, '2.3.0');
+	}
 }
 
 export interface ITypescriptServiceClient {

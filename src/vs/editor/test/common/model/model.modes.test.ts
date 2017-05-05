@@ -13,7 +13,7 @@ import { Model } from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { TokenIterator } from "vs/editor/common/model/tokenIterator";
+import { TokenIterator } from 'vs/editor/common/model/tokenIterator';
 
 // --------- utils
 

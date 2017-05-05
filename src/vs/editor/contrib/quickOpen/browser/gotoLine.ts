@@ -10,13 +10,13 @@ import * as nls from 'vs/nls';
 import { IContext, QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Position } from "vs/editor/common/core/position";
-import { Range } from "vs/editor/common/core/range";
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 
 interface ParseResult {
 	position: Position;
@@ -151,7 +151,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 			alias: 'Go to Line...',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
 			}

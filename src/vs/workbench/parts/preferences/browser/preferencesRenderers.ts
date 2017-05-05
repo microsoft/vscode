@@ -31,7 +31,7 @@ import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers'
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	preferencesModel: IPreferencesEditorModel<T>;

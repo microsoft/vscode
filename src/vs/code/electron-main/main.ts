@@ -63,7 +63,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const environmentService = accessor.get(IEnvironmentService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
-		let promise = TPromise.as(null);
+		let promise = TPromise.as<void>(void 0);
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {
@@ -90,7 +90,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 			return server;
 		}, err => {
 			if (err.code !== 'EADDRINUSE') {
-				return TPromise.wrapError(err);
+				return TPromise.wrapError<Server>(err);
 			}
 
 			// Since we are the second instance, we do not want to show the dock
@@ -102,12 +102,12 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 			return connect(environmentService.mainIPCHandle, 'main').then(
 				client => {
 
-					// Tests from CLI require to be the only instance currently (TODO@Ben support multiple instances and output)
+					// Tests from CLI require to be the only instance currently
 					if (environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break) {
 						const msg = 'Running extension tests from the command line is currently only supported if no other instance of Code is running.';
 						console.error(msg);
 						client.dispose();
-						return TPromise.wrapError(msg);
+						return TPromise.wrapError<Server>(msg);
 					}
 
 					logService.log('Sending env to running instance...');
@@ -118,11 +118,11 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					return allowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env))
 						.then(() => client.dispose())
-						.then(() => TPromise.wrapError('Sent env to running instance. Terminating...'));
+						.then(() => TPromise.wrapError<Server>('Sent env to running instance. Terminating...'));
 				},
 				err => {
 					if (!retry || platform.isWindows || err.code !== 'ECONNREFUSED') {
-						return TPromise.wrapError(err);
+						return TPromise.wrapError<Server>(err);
 					}
 
 					// it happens on Linux and OS X that the pipe is left behind
@@ -132,7 +132,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						fs.unlinkSync(environmentService.mainIPCHandle);
 					} catch (e) {
 						logService.log('Fatal error deleting obsolete instance handle', e);
-						return TPromise.wrapError(e);
+						return TPromise.wrapError<Server>(e);
 					}
 
 					return setup(false);
@@ -199,4 +199,16 @@ function main() {
 	}).done(null, err => instantiationService.invokeFunction(quit, err));
 }
 
-main();
+// Get going once we are ready
+// TODO@Joh,Joao there more more potential here
+// we should check for other instances etc while
+// waiting for getting ready
+if (app.isReady()) {
+	global.perfAppReady = Date.now();
+	main();
+} else {
+	app.once('ready', () => {
+		global.perfAppReady = Date.now();
+		main();
+	});
+}

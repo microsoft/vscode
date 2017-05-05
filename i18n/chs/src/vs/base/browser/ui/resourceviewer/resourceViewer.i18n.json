@@ -6,12 +6,12 @@
 {
 	"imgMeta": "{0}x{1} {2}",
 	"largeImageError": "图像太大，无法在编辑器中显示。 ",
-	"nativeBinaryError": "因为此文件是二进制文件，或文件过大，或使用了不受支持的文本编码，将不会在编辑器中显示。",
 	"resourceOpenExternalButton": "打开图像",
 	"resourceOpenExternalText": " 是否使用外部程序?",
+	"nativeBinaryError": "文件将不在编辑器中显示，因为它是二进制文件、非常大或使用不支持的文本编码。",
 	"sizeB": "{0} B",
-	"sizeGB": "{0} GB",
 	"sizeKB": "{0} KB",
 	"sizeMB": "{0} MB",
+	"sizeGB": "{0} GB",
 	"sizeTB": "{0} TB"
 }

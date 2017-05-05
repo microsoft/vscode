@@ -16,9 +16,9 @@ import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
-import { IThemeService } from "vs/platform/theme/common/themeService";
-import { attachSelectBoxStyler } from "vs/platform/theme/common/styler";
-import { SIDE_BAR_BACKGROUND } from "vs/workbench/common/theme";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 const $ = dom.$;
 
@@ -173,10 +173,13 @@ export class FocusProcessActionItem extends SelectActionItem {
 			}
 		});
 
-		this.debugService.getModel().onDidChangeCallStack(() => {
-			const process = this.debugService.getViewModel().focusedProcess;
-			const names = this.debugService.getModel().getProcesses().map(p => p.name);
-			this.setOptions(names, process ? names.indexOf(process.name) : undefined);
-		});
+		this.debugService.getModel().onDidChangeCallStack(() => this.update());
+		this.update();
+	}
+
+	private update() {
+		const process = this.debugService.getViewModel().focusedProcess;
+		const names = this.debugService.getModel().getProcesses().map(p => p.name);
+		this.setOptions(names, process ? names.indexOf(process.name) : undefined);
 	}
 }

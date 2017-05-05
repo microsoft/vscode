@@ -10,7 +10,7 @@ import * as objects from 'vs/base/common/objects';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommonDiffEditor, ILineChange } from 'vs/editor/common/editorCommon';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 interface IDiffRange {
 	rhs: boolean;

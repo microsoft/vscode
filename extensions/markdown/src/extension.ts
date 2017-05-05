@@ -163,7 +163,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewSecuritySelector', (resource: string | undefined) => {
-		previewSecuritySelector.showSecutitySelectorForWorkspace(resource);
+		previewSecuritySelector.showSecutitySelectorForWorkspace(resource ? vscode.Uri.parse(resource).query : undefined);
 	}));
 
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
@@ -280,5 +280,3 @@ function getPackageInfo(): IPackageInfo | null {
 	}
 	return null;
 }
-
-

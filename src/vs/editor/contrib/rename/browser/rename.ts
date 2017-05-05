@@ -16,18 +16,19 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { ICommonCodeEditor, EditorContextKeys, ModeContextKeys, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { BulkEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import RenameInputField from './renameInputField';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
 import { WorkspaceEdit, RenameProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Range } from "vs/editor/common/core/range";
+import { Range } from 'vs/editor/common/core/range';
 
 
 export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
@@ -197,7 +198,7 @@ class RenameController implements IEditorContribution {
 
 		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
 			if (result.rejectReason) {
-				return TPromise.wrapError(result.rejectReason);
+				return TPromise.wrapError<BulkEdit>(result.rejectReason);
 			}
 			edit.add(result.edits);
 			return edit;
@@ -215,9 +216,9 @@ export class RenameAction extends EditorAction {
 			id: 'editor.action.rename',
 			label: nls.localize('rename.label', "Rename Symbol"),
 			alias: 'Rename Symbol',
-			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, ModeContextKeys.hasRenameProvider),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasRenameProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyCode.F2
 			},
 			menuOpts: {
@@ -244,7 +245,7 @@ CommonEditorRegistry.registerEditorCommand(new RenameCommand({
 	handler: x => x.acceptRenameInput(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(99),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Enter
 	}
 }));
@@ -255,7 +256,7 @@ CommonEditorRegistry.registerEditorCommand(new RenameCommand({
 	handler: x => x.cancelRenameInput(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(99),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}

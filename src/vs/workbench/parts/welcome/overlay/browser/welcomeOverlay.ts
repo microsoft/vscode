@@ -17,7 +17,6 @@ import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -50,7 +49,7 @@ const keys: Key[] = [
 		id: 'git',
 		arrow: '&larr;',
 		label: localize('welcomeOverlay.git', "Source code management"),
-		command: SCMPreview.enabled ? 'workbench.view.scm' : 'workbench.view.git'
+		command: 'workbench.view.scm'
 	},
 	{
 		id: 'debug',

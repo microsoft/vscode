@@ -400,32 +400,32 @@ declare module 'vscode' {
 		 */
 		env?: { [key: string]: string };
 	} | {
-		/**
-		 * The current working directory of the executed shell.
-		 * If omitted VSCode's current workspace root is used.
-		 */
-		cwd: string;
+			/**
+			 * The current working directory of the executed shell.
+			 * If omitted VSCode's current workspace root is used.
+			 */
+			cwd: string;
 
-		/**
-		 * The additional environment of the executed shell. If omitted
-		 * the parent process' environment is used. If provided it is merged with
-		 * the parent process' environment.
-		 */
-		env?: { [key: string]: string };
-	} | {
-		/**
-		 * The current working directory of the executed shell.
-		 * If omitted VSCode's current workspace root is used.
-		 */
-		cwd?: string;
+			/**
+			 * The additional environment of the executed shell. If omitted
+			 * the parent process' environment is used. If provided it is merged with
+			 * the parent process' environment.
+			 */
+			env?: { [key: string]: string };
+		} | {
+			/**
+			 * The current working directory of the executed shell.
+			 * If omitted VSCode's current workspace root is used.
+			 */
+			cwd?: string;
 
-		/**
-		 * The additional environment of the executed shell. If omitted
-		 * the parent process' environment is used. If provided it is merged with
-		 * the parent process' environment.
-		 */
-		env: { [key: string]: string };
-	};
+			/**
+			 * The additional environment of the executed shell. If omitted
+			 * the parent process' environment is used. If provided it is merged with
+			 * the parent process' environment.
+			 */
+			env: { [key: string]: string };
+		};
 
 	/**
 	 * A task that executes a shell command.
@@ -524,44 +524,49 @@ declare module 'vscode' {
 
 	export namespace window {
 
-		/**
-		 * Show window-wide progress, e.g. in the status bar, for the provided task. The task is
-		 * considering running as long as the promise it returned isn't resolved or rejected.
-		 *
-		 * @param task A function callback that represents a long running operation.
-		 */
-		export function withWindowProgress<R>(title: string, task: (progress: Progress<string>, token: CancellationToken) => Thenable<R>): Thenable<R>;
-
 		export function sampleFunction(): Thenable<any>;
 	}
 
 	export namespace window {
 
 		/**
-		 * Register a [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
+		 * Create a new explorer view.
 		 *
-		 * @param providerId A unique id that identifies the provider.
-		 * @param provider A [TreeExplorerNodeProvider](#TreeExplorerNodeProvider).
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 * @param id View id.
+		 * @param name View name.
+		 * @param dataProvider A [TreeDataProvider](#TreeDataProvider).
+		 * @return An instance of [View](#View).
 		 */
-		export function registerTreeExplorerNodeProvider(providerId: string, provider: TreeExplorerNodeProvider<any>): Disposable;
+		export function createExplorerView<T>(id: string, name: string, dataProvider: TreeDataProvider<T>): View<T>;
 	}
 
 	/**
-	 * A node provider for a tree explorer contribution.
+	 * A view to interact with nodes
+	 */
+	export interface View<T> {
+
+		/**
+		 * Refresh the given nodes
+		 */
+		refresh(...nodes: T[]): void;
+
+		/**
+		 * Dispose this view
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * A data provider for a tree view contribution.
 	 *
-	 * Providers are registered through (#window.registerTreeExplorerNodeProvider) with a
-	 * `providerId` that corresponds to the `treeExplorerNodeProviderId` in the extension's
-	 * `contributes.explorer` section.
-	 *
-	 * The contributed tree explorer will ask the corresponding provider to provide the root
+	 * The contributed tree view will ask the corresponding provider to provide the root
 	 * node and resolve children for each node. In addition, the provider could **optionally**
 	 * provide the following information for each node:
 	 * - label: A human-readable label used for rendering the node.
 	 * - hasChildren: Whether the node has children and is expandable.
 	 * - clickCommand: A command to execute when the node is clicked.
 	 */
-	export interface TreeExplorerNodeProvider<T> {
+	export interface TreeDataProvider<T> {
 
 		/**
 		 * Provide the root node. This function will be called when the tree explorer is activated
@@ -578,7 +583,7 @@ declare module 'vscode' {
 		 * @param node The node from which the provider resolves children.
 		 * @return Children of `node`.
 		 */
-		resolveChildren(node: T): T[] | Thenable<T[]>;
+		resolveChildren?(node: T): T[] | Thenable<T[]>;
 
 		/**
 		 * Provide a human-readable string that will be used for rendering the node. Default to use
@@ -598,6 +603,14 @@ declare module 'vscode' {
 		getHasChildren?(node: T): boolean;
 
 		/**
+		 * Provider a context key to be set for the node. This can be used to describe actions for each node.
+		 *
+		 * @param node The node from which the provider computes context key.
+		 * @return A context key.
+		 */
+		getContextKey?(node: T): string;
+
+		/**
 		 * Get the command to execute when `node` is clicked.
 		 *
 		 * Commands can be registered through [registerCommand](#commands.registerCommand). `node` will be provided
@@ -606,7 +619,7 @@ declare module 'vscode' {
 		 * @param node The node that the command is associated with.
 		 * @return The command to execute when `node` is clicked.
 		 */
-		getClickCommand?(node: T): string;
+		getClickCommand?(node: T): Command;
 	}
 
 	/**

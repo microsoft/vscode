@@ -34,8 +34,8 @@ import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import * as editorOptions from "vs/editor/common/config/editorOptions";
-import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 /**
  * @internal
@@ -368,7 +368,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		FindMatch: <any>editorCommon.FindMatch,
 
 		// vars
-		EditorType: editorCommon.EditorType,
-		Handler: editorCommon.Handler,
+		EditorType: editorCommon.EditorType
 	};
 }

@@ -26,7 +26,6 @@
 	font-weight: bold;
 	text-transform: uppercase;
 	padding-left: 20px;
-	background: rgba(128, 128, 128, 0.2);
 	overflow: hidden;
 	display: flex;
 }
@@ -84,11 +83,6 @@
 	transition-property: width;
 	-webkit-transition-property: width;
 	-moz-transition-property: width;
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-split-view > .split-view-view:not(:first-child) > .header {
-	border-top: 1px solid #6FC3DF;
 }
 
 .hc-black .split-view-view .action-label {

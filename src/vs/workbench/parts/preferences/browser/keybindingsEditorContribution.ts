@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { ServicesAccessor, registerEditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
@@ -26,8 +26,8 @@ import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/pref
 import { parseTree, Node } from 'vs/base/common/json';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { EditorCommand } from 'vs/editor/common/config/config';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_INFO_MESSAGE = nls.localize('defineKeybinding.kbLayoutInfoMessage', "For your current keyboard layout press ");
@@ -99,7 +99,7 @@ export class KeybindingEditorRenderer extends Disposable {
 		@IInstantiationService private _instantiationService: IInstantiationService
 	) {
 		super();
-		this._launchWidget = this._register(this._instantiationService.createInstance(FloatingClickWidget, this._editor, NLS_LAUNCH_MESSAGE, DefineKeybindingAction.ID));
+		this._launchWidget = this._register(this._instantiationService.createInstance(FloatingClickWidget, this._editor, NLS_LAUNCH_MESSAGE, DefineKeybindingCommand.ID));
 		this._register(this._launchWidget.onClick(() => this.showDefineKeybindingWidget()));
 		this._defineWidget = this._register(this._instantiationService.createInstance(DefineKeybindingOverlayWidget, this._editor));
 
@@ -301,25 +301,22 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 }
 
-@editorAction
-export class DefineKeybindingAction extends EditorAction {
+class DefineKeybindingCommand extends EditorCommand {
 
 	static ID = 'editor.action.defineKeybinding';
 
 	constructor() {
 		super({
-			id: DefineKeybindingAction.ID,
-			label: nls.localize('DefineKeybindingAction', "Define Keybinding"),
-			alias: 'Define Keybinding',
-			precondition: ContextKeyExpr.and(EditorContextKeys.Writable, EditorContextKeys.LanguageId.isEqualTo('json')),
+			id: DefineKeybindingCommand.ID,
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.languageId.isEqualTo('json')),
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K)
 			}
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
 		if (!isInterestingEditorModel(editor)) {
 			return;
 		}
@@ -341,3 +338,5 @@ function isInterestingEditorModel(editor: editorCommon.ICommonCodeEditor): boole
 	let url = model.uri.toString();
 	return INTERESTING_FILE.test(url);
 }
+
+registerEditorCommand(new DefineKeybindingCommand());

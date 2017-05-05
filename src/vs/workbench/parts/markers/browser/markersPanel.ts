@@ -39,7 +39,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
 import { debounceEvent } from 'vs/base/common/event';
-import { attachListStyler } from "vs/platform/theme/common/styler";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
 
 export class MarkersPanel extends Panel {
 

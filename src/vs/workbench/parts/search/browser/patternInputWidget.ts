@@ -6,6 +6,7 @@
 import nls = require('vs/nls');
 import * as dom from 'vs/base/browser/dom';
 import strings = require('vs/base/common/strings');
+import collections = require('vs/base/common/collections');
 import { $ } from 'vs/base/browser/builder';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IExpression, splitGlobAware } from 'vs/base/common/glob';
@@ -101,30 +102,49 @@ export class PatternInputWidget extends Widget {
 		}
 	}
 
-	public getGlob(): IExpression {
+	public getGlob(): { expression?: IExpression, searchPaths?: string[] } {
 		const pattern = this.getValue();
 		const isGlobPattern = this.isGlobPattern();
 
 		if (!pattern) {
-			return void 0;
+			return {};
 		}
 
-		const glob: IExpression = Object.create(null);
+		const isSearchPath = segment => segment.match(/^\.\//);
 
-		let segments: string[];
+		let exprSegments: string[];
+		let searchPaths: string[];
 		if (isGlobPattern) {
-			segments = splitGlobAware(pattern, ',').map(s => s.trim()).filter(s => !!s.length);
-		} else {
-			segments = pattern.split(',').map(s => strings.trim(s.trim(), '/')).filter(s => !!s.length).map(p => {
-				if (p[0] === '.') {
-					p = '*' + p; // convert ".js" to "*.js"
-				}
+			const segments = splitGlobAware(pattern, ',')
+				.map(s => s.trim())
+				.filter(s => !!s.length);
 
-				return strings.format('{{0}/**,**/{1}}', p, p); // convert foo to {foo/**,**/foo} to cover files and folders
-			});
+			const groups = collections.groupBy(segments,
+				segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
+			searchPaths = groups.searchPaths || [];
+			exprSegments = groups.exprSegments || [];
+		} else {
+			const segments = pattern.split(',')
+				.map(s => strings.trim(s.trim(), '/'))
+				.filter(s => !!s.length);
+
+			const groups = collections.groupBy(segments,
+				segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
+			searchPaths = groups.searchPaths || [];
+			exprSegments = groups.exprSegments || [];
+
+			exprSegments = exprSegments
+				.map(p => {
+					if (p[0] === '.') {
+						p = '*' + p; // convert ".js" to "*.js"
+					}
+
+					return strings.format('{{0}/**,**/{1}}', p, p); // convert foo to {foo/**,**/foo} to cover files and folders
+				});
 		}
 
-		return segments.reduce((prev, cur) => { glob[cur] = true; return glob; }, glob);
+		const expression = exprSegments.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null));
+		return { expression, searchPaths };
 	}
 
 	public select(): void {

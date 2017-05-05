@@ -230,7 +230,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 			loaderConfiguration = (<any>self).requirejs.s.contexts._.config;
 		}
 
-		this._lazyProxy = new TPromise((c, e, p) => {
+		this._lazyProxy = new TPromise<T>((c, e, p) => {
 			lazyProxyFulfill = c;
 			lazyProxyReject = e;
 		}, () => { /* no cancel */ });

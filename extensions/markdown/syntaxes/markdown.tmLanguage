@@ -1965,7 +1965,7 @@
 				<key>fenced_code_block_js</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)(\s*)([`~]{3,})\s*((js|jsx|javascript)(\s+[^`~]*)?$)</string>
+					<string>(^|\G)(\s*)([`~]{3,})\s*((js|jsx|javascript|es6|mjs)(\s+[^`~]*)?$)</string>
 					<key>name</key>
 					<string>markup.fenced_code.block.markdown</string>
 					<key>end</key>
@@ -3485,7 +3485,7 @@
 						</dict>
 					</dict>
 					<key>match</key>
-					<string>(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])[ ]?(\[)([^\]]*+)(\])</string>
+					<string>(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])(\[)([^\]]*+)(\])</string>
 					<key>name</key>
 					<string>meta.link.reference.markdown</string>
 				</dict>

@@ -91,7 +91,7 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 				return TPromise.wrapError(err);
 			});
 		});
-		return wireCancellationToken(token, promise, true);
+		return wireCancellationToken<Item>(token, promise, true);
 	}
 
 	$onItemSelected(handle: number): void {

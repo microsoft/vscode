@@ -34,12 +34,9 @@
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
-    "onCommand:typescript.openTsServerLog",
-    "workspaceContains:jsconfig.json",
-    "workspaceContains:tsconfig.json"
+    "onCommand:typescript.openTsServerLog"
   ],
   "main": "./out/typescriptMain",
-  "enableProposedApi": true,
   "contributes": {
     "languages": [
       {
@@ -104,6 +101,11 @@
           "type": "boolean",
           "default": true,
           "description": "%typescript.check.tscVersion%"
+        },
+        "typescript.check.npmIsInstalled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.check.npmIsInstalled%"
         },
         "typescript.referencesCodeLens.enabled": {
           "type": "boolean",
@@ -295,6 +297,11 @@
           "type": "boolean",
           "default": true,
           "description": "%jsDocCompletion.enabled%"
+        },
+        "javascript.implicitProjectConfig.checkJs": {
+          "type": "boolean",
+          "default": false,
+          "description": "%javascript.implicitProjectConfig.checkJs%"
         }
       }
     },
@@ -393,7 +400,7 @@
         "fileMatch": "tsconfig.json",
         "url": "./schemas/tsconfig.schema.json"
       },
-       {
+      {
         "fileMatch": "tsconfig.*.json",
         "url": "http://json.schemastore.org/tsconfig"
       },
@@ -422,14 +429,20 @@
         "name": "tsc",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "${cwd}"],
-	      "pattern": "$tsc"
+        "fileLocation": [
+          "relative",
+          "${cwd}"
+        ],
+        "pattern": "$tsc"
       },
       {
         "name": "tsc-watch",
         "owner": "typescript",
         "applyTo": "closedDocuments",
-        "fileLocation": ["relative", "${cwd}"],
+        "fileLocation": [
+          "relative",
+          "${cwd}"
+        ],
         "pattern": "$tsc",
         "watching": {
           "activeOnStart": true,

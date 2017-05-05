@@ -42,10 +42,10 @@ suite('ExtensionsActions Test', () => {
 
 
 	suiteSetup(() => {
-		installEvent = new Emitter();
-		didInstallEvent = new Emitter();
-		uninstallEvent = new Emitter();
-		didUninstallEvent = new Emitter();
+		installEvent = new Emitter<InstallExtensionEvent>();
+		didInstallEvent = new Emitter<DidInstallExtensionEvent>();
+		uninstallEvent = new Emitter<string>();
+		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
 
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });

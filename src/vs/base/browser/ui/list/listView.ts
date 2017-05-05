@@ -13,8 +13,8 @@ import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { RangeMap, IRange, relativeComplement, each } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
-import { isWindows } from "vs/base/common/platform";
-import { canUseTranslate3d } from "vs/base/browser/browser";
+import { isWindows } from 'vs/base/common/platform';
+import { canUseTranslate3d } from 'vs/base/browser/browser';
 
 interface IItem<T> {
 	id: string;

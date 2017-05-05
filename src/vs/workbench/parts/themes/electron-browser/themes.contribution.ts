@@ -22,6 +22,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Delayer } from 'vs/base/common/async';
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class SelectColorThemeAction extends Action {
 
@@ -167,6 +169,39 @@ function findInMarketplacePick(viewletService: IViewletService, query: string, l
 	};
 }
 
+class GenerateColorThemeAction extends Action {
+
+	static ID = 'workbench.action.generateColorTheme';
+	static LABEL = localize('generateColorTheme.label', "Generate Color Theme From Current Settings");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<any> {
+		let theme = this.themeService.getColorTheme();
+		let colorRegistry = <IColorRegistry>Registry.as(ColorRegistryExtensions.ColorContribution);
+		let resultingColors = {};
+		colorRegistry.getColors().map(c => {
+			let color = theme.getColor(c.id, false);
+			if (color) {
+				resultingColors[c.id] = color.toRGBAHex(true);
+			}
+		});
+		let contents = JSON.stringify({
+			type: theme.type,
+			colors: resultingColors,
+			tokenColors: theme.tokenColors
+		}, null, '\t');
+		return this.editorService.openEditor({ contents, language: 'json' });
+	}
+}
+
 const category = localize('preferences', "Preferences");
 
 const colorThemeDescriptor = new SyncActionDescriptor(SelectColorThemeAction, SelectColorThemeAction.ID, SelectColorThemeAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_T) });
@@ -174,3 +209,9 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkb
 
 const iconThemeDescriptor = new SyncActionDescriptor(SelectIconThemeAction, SelectIconThemeAction.ID, SelectIconThemeAction.LABEL);
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(iconThemeDescriptor, 'Preferences: File Icon Theme', category);
+
+
+const developerCategory = localize('developer', "Developer");
+
+const generateColorThemeDescriptor = new SyncActionDescriptor(GenerateColorThemeAction, GenerateColorThemeAction.ID, GenerateColorThemeAction.LABEL);
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(generateColorThemeDescriptor, 'Developer: Generate Color Theme From Current Settings', developerCategory);

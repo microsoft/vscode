@@ -24,6 +24,7 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { CoreCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('Editor - Range decorations', () => {
 
@@ -110,7 +111,7 @@ suite('Editor - Range decorations', () => {
 
 	test('highlight is removed on cursor position change', function () {
 		testObject.highlightRange({ resource: model.uri, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 } });
-		cursor.trigger('mouse', editorCommon.Handler.MoveTo, {
+		cursor.trigger('mouse', CoreCommands.MoveTo.id, {
 			position: new Position(2, 1)
 		});
 

@@ -112,10 +112,8 @@ export interface IViewModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineRenderLineNumber(lineNumber: number): string;
 	getAllOverviewRulerDecorations(): ViewModelDecoration[];
-	getEOL(): string;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
-	getModelLineContent(modelLineNumber: number): string;
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
 

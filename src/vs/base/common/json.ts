@@ -232,7 +232,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 					break;
 				} else {
 					scanError = ScanError.InvalidCharacter;
-					break;
+					// mark as error but continue with string
 				}
 			}
 			pos++;

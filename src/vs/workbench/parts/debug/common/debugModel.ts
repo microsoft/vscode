@@ -24,7 +24,6 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const MAX_REPL_LENGTH = 10000;
-const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
 export abstract class AbstractOutputElement implements ITreeElement {
 	private static ID_COUNTER = 0;
@@ -251,15 +250,13 @@ export class Variable extends ExpressionContainer implements IExpression {
 
 	// Used to show the error message coming from the adapter when setting the value #7807
 	public errorMessage: string;
-	private static NOT_PROPERTY_SYNTAX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-	private static ARRAY_ELEMENT_SYNTAX = /\[.*\]$/;
 
 	constructor(
 		process: IProcess,
 		public parent: IExpressionContainer,
 		reference: number,
 		public name: string,
-		private _evaluateName: string,
+		public evaluateName: string,
 		value: string,
 		namedVariables: number,
 		indexedVariables: number,
@@ -269,35 +266,6 @@ export class Variable extends ExpressionContainer implements IExpression {
 	) {
 		super(process, reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = value;
-	}
-
-	public get evaluateName(): string {
-		if (this._evaluateName) {
-			return this._evaluateName;
-		}
-
-		// TODO@Isidor get rid of this ugly heuristic
-		let names = [this.name];
-		let v = this.parent;
-		while (v instanceof Variable || v instanceof Expression) {
-			names.push((<Variable>v).name);
-			v = (<Variable>v).parent;
-		}
-		names = names.reverse();
-
-		let result = null;
-		names.forEach(name => {
-			if (!result) {
-				result = name;
-			} else if (Variable.ARRAY_ELEMENT_SYNTAX.test(name) || (this.process.configuration.type === 'node' && !Variable.NOT_PROPERTY_SYNTAX.test(name))) {
-				// use safe way to access node properties a['property_name']. Also handles array elements.
-				result = name && name.indexOf('[') === 0 ? `${result}${name}` : `${result}['${name}']`;
-			} else {
-				result = `${result}.${name}`;
-			}
-		});
-
-		return result;
 	}
 
 	public setVariable(value: string): TPromise<any> {
@@ -388,7 +356,7 @@ export class StackFrame implements IStackFrame {
 
 	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
 
-		return this.source.name === UNKNOWN_SOURCE_LABEL ? TPromise.as(null) : editorService.openEditor({
+		return !this.source.available ? TPromise.as(null) : editorService.openEditor({
 			resource: this.source.uri,
 			description: this.source.origin,
 			options: {
@@ -466,10 +434,7 @@ export class Thread implements IThread {
 			}
 
 			return response.body.stackFrames.map((rsf, level) => {
-				if (!rsf) {
-					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, rsf.presentationHint), nls.localize('unknownStack', "Unknown stack location"), null, null);
-				}
-				let source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint) : new Source({ name: UNKNOWN_SOURCE_LABEL }, rsf.presentationHint);
+				let source = new Source(rsf.source, rsf.source ? rsf.source.presentationHint : rsf.presentationHint);
 				if (this.process.sources.has(source.uri.toString())) {
 					const alreadyCreatedSource = this.process.sources.get(source.uri.toString());
 					alreadyCreatedSource.presenationHint = source.presenationHint;
@@ -857,7 +822,7 @@ export class Model implements IModel {
 			const bpData = data[bp.getId()];
 			if (bpData) {
 				bp.lineNumber = bpData.line ? bpData.line : bp.lineNumber;
-				bp.column = bpData.column ? bpData.column : bp.column;
+				bp.column = bpData.column;
 				bp.verified = bpData.verified;
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;
@@ -936,7 +901,7 @@ export class Model implements IModel {
 				if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
 					previousOutput.value += toAdd.shift().value;
 				}
-				if (previousOutput && previousOutput.value === '') {
+				if (previousOutput && previousOutput.value === '' && previousOutput.severity !== severity) {
 					// remove potential empty lines between different output types
 					this.replElements.pop();
 				}

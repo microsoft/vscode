@@ -7,7 +7,7 @@
 
 import { fuzzyScore } from 'vs/base/common/filters';
 import { ISuggestSupport } from 'vs/editor/common/modes';
-import { ISuggestionItem } from './suggest';
+import { ISuggestionItem, SnippetConfig } from './suggest';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
@@ -29,18 +29,25 @@ export class LineContext {
 
 export class CompletionModel {
 
-	private _lineContext: LineContext;
-	private _column: number;
-	private _items: ISuggestionItem[];
+	private readonly _column: number;
+	private readonly _items: ISuggestionItem[];
+	private readonly _snippetCompareFn = CompletionModel._compareCompletionItems;
 
+	private _lineContext: LineContext;
 	private _filteredItems: ICompletionItem[];
 	private _isIncomplete: boolean;
 	private _stats: ICompletionStats;
 
-	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext) {
+	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, snippetConfig?: SnippetConfig) {
 		this._items = items;
 		this._column = column;
 		this._lineContext = lineContext;
+
+		if (snippetConfig === 'top') {
+			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsUp;
+		} else if (snippetConfig === 'bottom') {
+			this._snippetCompareFn = CompletionModel._compareCompletionItemsSnippetsDown;
+		}
 	}
 
 	get lineContext(): LineContext {
@@ -143,10 +150,10 @@ export class CompletionModel {
 			}
 		}
 
-		this._filteredItems.sort(CompletionModel._compareCompletionItems);
+		this._filteredItems.sort(this._snippetCompareFn);
 	}
 
-	private static _compareCompletionItems(a: ICompletionItem, b: ICompletionItem) {
+	private static _compareCompletionItems(a: ICompletionItem, b: ICompletionItem): number {
 		if (a.score > b.score) {
 			return -1;
 		} else if (a.score < b.score) {
@@ -158,5 +165,27 @@ export class CompletionModel {
 		} else {
 			return 0;
 		}
+	}
+
+	private static _compareCompletionItemsSnippetsDown(a: ICompletionItem, b: ICompletionItem): number {
+		if (a.suggestion.type !== b.suggestion.type) {
+			if (a.suggestion.type === 'snippet') {
+				return 1;
+			} else if (b.suggestion.type === 'snippet') {
+				return -1;
+			}
+		}
+		return CompletionModel._compareCompletionItems(a, b);
+	}
+
+	private static _compareCompletionItemsSnippetsUp(a: ICompletionItem, b: ICompletionItem): number {
+		if (a.suggestion.type !== b.suggestion.type) {
+			if (a.suggestion.type === 'snippet') {
+				return -1;
+			} else if (b.suggestion.type === 'snippet') {
+				return 1;
+			}
+		}
+		return CompletionModel._compareCompletionItems(a, b);
 	}
 }

@@ -66,37 +66,6 @@ export const virtualMachineHint: { value(): number } = new class {
 	}
 };
 
-
-const mac = new class {
-
-	private _value: string;
-
-	get value(): string {
-		if (this._value === void 0) {
-			this._initValue();
-		}
-		return this._value;
-	}
-
-	private _initValue(): void {
-		this._value = null;
-		const interfaces = networkInterfaces();
-		for (let key in interfaces) {
-			for (const i of interfaces[key]) {
-				if (!i.internal) {
-					this._value = crypto.createHash('sha256').update(i.mac, 'utf8').digest('hex');
-					return;
-				}
-			}
-		}
-		this._value = `missing-${uuid.generateUuid()}`;
-	}
-};
-
-export function _futureMachineIdExperiment(): string {
-	return mac.value;
-}
-
 let machineId: TPromise<string>;
 export function getMachineId(): TPromise<string> {
 	return machineId || (machineId = getMacMachineId()

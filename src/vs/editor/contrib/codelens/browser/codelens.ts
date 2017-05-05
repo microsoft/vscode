@@ -21,7 +21,7 @@ import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol, Command } 
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeLensData, getCodeLensData } from '../common/codelens';
-import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
@@ -472,10 +472,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			// Ask for all references again
 			scheduler.schedule();
 		}));
-		this._localToDispose.push(this._editor.onDidScrollChange((e) => {
+		this._localToDispose.push(this._editor.onDidScrollChange(e => {
 			if (e.scrollTopChanged) {
 				this._detectVisibleLenses.schedule();
 			}
+		}));
+		this._localToDispose.push(this._editor.onDidLayoutChange(e => {
+			this._detectVisibleLenses.schedule();
 		}));
 		this._localToDispose.push({
 			dispose: () => {

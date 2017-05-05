@@ -699,6 +699,29 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents options to configure the behavior of showing a [document](#TextDocument) in an [editor](#TextEditor).
+	 */
+	export interface TextDocumentShowOptions {
+		/**
+		 * An optional view column in which the [editor](#TextEditor) should be shown.
+		 * The default is the [one](#ViewColumn.One), other values are adjusted to
+		 * be __Min(column, columnCount + 1)__.
+		 */
+		viewColumn?: ViewColumn;
+
+		/**
+		 * An optional flag that when `true` will stop the [editor](#TextEditor) from taking focus.
+		 */
+		preserveFocus?: boolean;
+
+		/**
+		 * An optional flag that controls if an [editor](#TextEditor)-tab will be replaced
+		 * with the next editor or if it will be kept.
+		 */
+		preview?: boolean;
+	}
+
+	/**
 	 * Represents theme specific rendering styles for a [text editor decoration](#TextEditorDecorationType).
 	 */
 	export interface ThemableDecorationRenderOptions {
@@ -922,7 +945,7 @@ declare module 'vscode' {
 		/**
 		 * Overwrite options for dark themes.
 		 */
-		dark?: ThemableDecorationInstanceRenderOptions
+		dark?: ThemableDecorationInstanceRenderOptions;
 	}
 
 	/**
@@ -1466,6 +1489,14 @@ declare module 'vscode' {
 		value?: string;
 
 		/**
+		 * Selection of the prefilled [`value`](#InputBoxOptions.value). Defined as tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
+		 * word will be selected, when empty (start equals end) only the cursor will be set,
+		 * otherwise the defined range will be selected.
+		 */
+		valueSelection?: [number, number];
+
+		/**
 		 * The text to display underneath the input box.
 		 */
 		prompt?: string;
@@ -1502,7 +1533,7 @@ declare module 'vscode' {
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
 	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕project.json' }`
+	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕package.json' }`
 	 */
 	export interface DocumentFilter {
 
@@ -1562,7 +1593,7 @@ declare module 'vscode' {
 	 * }
 	 * ```
 	 */
-	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>
+	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
 
 	/**
 	 * Contains additional diagnostic information about the context in which
@@ -3286,7 +3317,7 @@ declare module 'vscode' {
 		 * Report a progress update.
 		 * @param value A progress item, like a message or an updated percentage value
 		 */
-		report(value: T): void
+		report(value: T): void;
 	}
 
 	/**
@@ -3652,6 +3683,16 @@ declare module 'vscode' {
 		export function showTextDocument(document: TextDocument, column?: ViewColumn, preserveFocus?: boolean): Thenable<TextEditor>;
 
 		/**
+		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided
+		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
+		 *
+		 * @param document A text document to be shown.
+		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @return A promise that resolves to an [editor](#TextEditor).
+		 */
+		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
+
+		/**
 		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.
 		 *
 		 * @param options Rendering options for the decoration type.
@@ -3868,15 +3909,27 @@ declare module 'vscode' {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * Show progress in the Source Control viewlet while running the given callback and while
-		 * its returned promise isn't resolve or rejected.
+		 * @deprecated This function **deprecated**. Use `withProgress` instead.
+		 *
+		 * ~~Show progress in the Source Control viewlet while running the given callback and while
+		 * its returned promise isn't resolve or rejected.~~
 		 *
 		 * @param task A callback returning a promise. Progress increments can be reported with
 		 * the provided [progress](#Progress)-object.
-		 * @return The thenable the task did return.
+		 * @return The thenable the task did rseturn.
 		 */
 		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
 
+		/**
+		 * Show progress in the editor. Progress is shown while running the given callback
+		 * and while the promise it returned isn't resolved nor rejected. The location at which
+		 * progress should show (and other details) is defined via the passed [`ProgressOptions`](#ProgressOptions).
+		 *
+		 * @param task A callback returning a promise. Progress state can be reported with
+		 * the provided [progress](#Progress)-object.
+		 * @return The thenable the task-callback returned.
+		 */
+		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; }>) => Thenable<R>): Thenable<R>;
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
@@ -3909,7 +3962,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Value-object describing what options formatting should use.
+	 * Value-object describing what options a terminal should use.
 	 */
 	export interface TerminalOptions {
 		/**
@@ -3926,6 +3979,41 @@ declare module 'vscode' {
 		 * Args for the custom shell executable, this does not work on Windows (see #8429)
 		 */
 		shellArgs?: string[];
+	}
+
+	/**
+	 * A location in the editor at which progress information can be shown. It depends on the
+	 * location how progress is visually represented.
+	 */
+	export enum ProgressLocation {
+
+		/**
+		 * Show progress for the source control viewlet, as overlay for the icon and as progress bar
+		 * inside the viewlet (when visible).
+		 */
+		SourceControl = 1,
+
+		/**
+		 * Show progress in the status bar of the editor.
+		 */
+		Window = 10
+	}
+
+	/**
+	 * Value-object describing where and how progress should show.
+	 */
+	export interface ProgressOptions {
+
+		/**
+		 * The location at which progress should show.
+		 */
+		location: ProgressLocation;
+
+		/**
+		 * A human-readable string which will be used to describe the
+		 * operation.
+		 */
+		title?: string;
 	}
 
 	/**
@@ -4593,6 +4681,12 @@ declare module 'vscode' {
 		readonly strikeThrough?: boolean;
 
 		/**
+		 * Whether the [source control resource state](#SourceControlResourceState) should
+		 * be faded in the UI.
+		 */
+		readonly faded?: boolean;
+
+		/**
 		 * The light theme decorations.
 		 */
 		readonly light?: SourceControlResourceThemableDecorations;
@@ -4641,7 +4735,7 @@ declare module 'vscode' {
 		/**
 		 * The label of this source control resource group.
 		 */
-		readonly label: string;
+		label: string;
 
 		/**
 		 * Whether this source control resource group is hidden when it contains

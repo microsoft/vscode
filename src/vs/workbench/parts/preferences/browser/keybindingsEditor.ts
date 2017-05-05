@@ -38,7 +38,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { attachListStyler } from "vs/platform/theme/common/styler";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
 
 let $ = DOM.$;
 

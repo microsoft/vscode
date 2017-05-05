@@ -17,18 +17,16 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { GlobalScreenReaderNVDA } from 'vs/editor/common/config/commonEditorConfig';
-import { ICommonCodeEditor, IEditorContribution, EditorContextKeys } from 'vs/editor/common/editorCommon';
-import { editorAction, CommonEditorRegistry, EditorAction, EditorCommand, Command } from 'vs/editor/common/editorCommonExtensions';
+import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { editorAction, CommonEditorRegistry, EditorAction, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/common/toggleTabFocusMode';
-import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { editorWidgetBackground, editorWidgetShadow, highContrastBorder } from "vs/platform/theme/common/colorRegistry";
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
-const TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID = 'toggleExperimentalScreenReaderSupport';
 
 @editorContribution
 class AccessibilityHelpController extends Disposable implements IEditorContribution {
@@ -206,7 +204,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			alias: 'Show Accessibility Help',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Alt | KeyCode.F1
 			}
 		});
@@ -228,31 +226,10 @@ CommonEditorRegistry.registerEditorCommand(new AccessibilityHelpCommand({
 	handler: x => x.hide(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(100),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
-
-class ToggleExperimentalScreenReaderSupportCommand extends Command {
-	constructor() {
-		super({
-			id: TOGGLE_EXPERIMENTAL_SCREEN_READER_SUPPORT_COMMAND_ID,
-			precondition: null,
-			kbOpts: {
-				weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-				kbExpr: null,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R
-			}
-		});
-	}
-
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		let currentValue = GlobalScreenReaderNVDA.getValue();
-		GlobalScreenReaderNVDA.setValue(!currentValue);
-	}
-}
-
-CommonEditorRegistry.registerEditorCommand(new ToggleExperimentalScreenReaderSupportCommand());
 
 registerThemingParticipant((theme, collector) => {
 	let widgetBackground = theme.getColor(editorWidgetBackground);
@@ -260,12 +237,12 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
 	}
 
-	let widgetShadow = theme.getColor(editorWidgetShadow);
-	if (widgetShadow) {
-		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadow}; }`);
+	let widgetShadowColor = theme.getColor(widgetShadow);
+	if (widgetShadowColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 
-	let hcBorder = theme.getColor(highContrastBorder);
+	let hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
 		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
 	}

@@ -56,6 +56,16 @@ export function getEditOperation(model: editorCommon.IModel, command: editorComm
 			});
 		},
 
+		addTrackedEditOperation: (range: Range, text: string) => {
+			operations.push({
+				identifier: null,
+				range: range,
+				text: text,
+				forceMoveMarkers: false
+			});
+		},
+
+
 		trackSelection: (selection: Selection) => {
 			return null;
 		}

@@ -29,8 +29,8 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { attachListStyler } from "vs/platform/theme/common/styler";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 function renderViewTree(container: HTMLElement): HTMLElement {
 	const treeContainer = document.createElement('div');
@@ -446,6 +446,9 @@ export class BreakpointsView extends AdaptiveCollapsibleViewletView {
 
 					if (first.uri.toString() !== second.uri.toString()) {
 						return paths.basename(first.uri.fsPath).localeCompare(paths.basename(second.uri.fsPath));
+					}
+					if (first.lineNumber === second.lineNumber) {
+						return first.column - second.column;
 					}
 
 					return first.lineNumber - second.lineNumber;

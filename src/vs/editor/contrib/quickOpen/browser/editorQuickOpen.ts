@@ -12,8 +12,8 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { QuickOpenEditorWidget } from './quickOpenEditorWidget';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IThemeService } from "vs/platform/theme/common/themeService";
-import { Range } from "vs/editor/common/core/range";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Range } from 'vs/editor/common/core/range';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;

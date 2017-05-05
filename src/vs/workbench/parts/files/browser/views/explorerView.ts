@@ -41,8 +41,8 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { isLinux } from 'vs/base/common/platform';
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { attachListStyler } from "vs/platform/theme/common/styler";
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { attachListStyler } from 'vs/platform/theme/common/styler';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -265,7 +265,7 @@ export class ExplorerView extends CollapsibleViewletView {
 			if (visible) {
 
 				// If a refresh was requested and we are now visible, run it
-				let refreshPromise = TPromise.as(null);
+				let refreshPromise = TPromise.as<void>(null);
 				if (this.shouldRefresh) {
 					refreshPromise = this.doRefresh();
 					this.shouldRefresh = false; // Reset flag

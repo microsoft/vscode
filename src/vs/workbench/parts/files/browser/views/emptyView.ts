@@ -16,12 +16,15 @@ import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CollapsibleView } from 'vs/base/browser/ui/splitview/splitview';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/fileActions';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class EmptyView extends CollapsibleView {
 	private openFolderButton: Button;
 
 	constructor(
 		private actionRunner: IActionRunner,
+		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super({
@@ -44,6 +47,7 @@ export class EmptyView extends CollapsibleView {
 		let section = $('div.section').appendTo(container);
 
 		this.openFolderButton = new Button(section);
+		attachButtonStyler(this.openFolderButton, this.themeService);
 		this.openFolderButton.label = nls.localize('openFolder', "Open Folder");
 		this.openFolderButton.addListener('click', () => {
 			const actionClass = env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;

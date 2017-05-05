@@ -25,8 +25,8 @@ import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/acti
 import { Action } from 'vs/base/common/actions';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Position } from "vs/editor/common/core/position";
-import { ICursorPositionChangedEvent } from "vs/editor/common/controller/cursorEvents";
+import { Position } from 'vs/editor/common/core/position';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 

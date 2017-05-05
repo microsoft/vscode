@@ -42,17 +42,22 @@ class SyncedBuffer {
 	}
 
 	public open(): void {
-		let args: Proto.OpenRequestArgs = {
+		const args: Proto.OpenRequestArgs = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
 		};
+
 		if (this.client.apiVersion.has203Features()) {
 			const scriptKind = Mode2ScriptKind[this.document.languageId];
 			if (scriptKind) {
 				args.scriptKindName = scriptKind;
 			}
-
 		}
+
+		if (workspace.rootPath && this.client.apiVersion.has230Features()) {
+			args.projectRootPath = workspace.rootPath;
+		}
+
 		this.client.execute('open', args, false);
 	}
 

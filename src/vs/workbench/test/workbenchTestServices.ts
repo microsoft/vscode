@@ -158,7 +158,7 @@ export class TestTextFileService extends TextFileService {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
 
-			return TPromise.wrapError(error);
+			return TPromise.wrapError<IRawTextContent>(error);
 		}
 
 		return this.fileService.resolveContent(resource, options).then((content) => {
@@ -1006,7 +1006,7 @@ export class TestTheme implements ITheme {
 		throw new Error('Method not implemented.');
 	}
 
-	isDefault(color: string): boolean {
+	defines(color: string): boolean {
 		throw new Error('Method not implemented.');
 	}
 }

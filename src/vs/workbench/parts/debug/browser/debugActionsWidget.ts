@@ -26,15 +26,15 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Themable } from "vs/workbench/common/theme";
-import { IThemeService } from "vs/platform/theme/common/themeService";
-import { registerColor, highContrastBorder } from "vs/platform/theme/common/colorRegistry";
-import { localize } from "vs/nls";
+import { Themable } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from 'vs/nls';
 
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 
-export const debugToolBarBackground = registerColor('debugToolBarBackground', {
+export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	dark: '#333333',
 	light: '#F3F3F3',
 	hc: '#000000'
@@ -145,9 +145,14 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		if (this.$el) {
 			this.$el.style('background-color', this.getColor(debugToolBarBackground));
-			this.$el.style('border-style', this.isHighContrastTheme ? 'solid' : null);
-			this.$el.style('border-width', this.isHighContrastTheme ? '1px' : null);
-			this.$el.style('border-color', this.isHighContrastTheme ? this.getColor(highContrastBorder) : null);
+
+			const widgetShadowColor = this.getColor(widgetShadow);
+			this.$el.style('box-shadow', widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null);
+
+			const hcBorder = this.getColor(contrastBorder);
+			this.$el.style('border-style', hcBorder ? 'solid' : null);
+			this.$el.style('border-width', hcBorder ? '1px' : null);
+			this.$el.style('border-color', hcBorder);
 		}
 	}
 

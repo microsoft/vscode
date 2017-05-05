@@ -157,7 +157,7 @@ export class WindowsManager implements IWindowsMainService {
 	onWindowReload: CommonEvent<number> = this._onWindowReload.event;
 
 	private _onPathsOpen = new Emitter<IPath[]>();
-	onPathsOpen: CommonEvent<IPath> = this._onPathsOpen.event;
+	onPathsOpen: CommonEvent<IPath[]> = this._onPathsOpen.event;
 
 	constructor(
 		@ILogService private logService: ILogService,
@@ -253,11 +253,8 @@ export class WindowsManager implements IWindowsMainService {
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
 
-		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
-			WindowsManager.WINDOWS.forEach((window) => {
-				window.sendWhenReady('vscode:keyboardLayoutChanged');
-			});
-		});
+		// Keyboard layout changes
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(isISOKeyboard => this.sendToAll('vscode:keyboardLayoutChanged', isISOKeyboard));
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -343,7 +340,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
 
 			let data = JSON.parse(payload);
-			this.storageService.setItem(VSCodeWindow.themeStorageKey, data.baseTheme);
+			this.storageService.setItem(VSCodeWindow.themeStorageKey, data.id);
 			this.storageService.setItem(VSCodeWindow.themeBackgroundStorageKey, data.background);
 		}
 	}
@@ -733,6 +730,7 @@ export class WindowsManager implements IWindowsMainService {
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
 		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
+		configuration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
 
 		return configuration;
 	}
@@ -1329,21 +1327,57 @@ class KeyboardLayoutMonitor {
 
 	public static INSTANCE = new KeyboardLayoutMonitor();
 
-	private _emitter: Emitter<void>;
+	private _emitter: Emitter<boolean>;
 	private _registered: boolean;
+	private _isISOKeyboard: boolean;
 
 	private constructor() {
-		this._emitter = new Emitter<void>();
+		this._emitter = new Emitter<boolean>();
 		this._registered = false;
+		this._isISOKeyboard = this._readIsISOKeyboard();
 	}
 
-	public onDidChangeKeyboardLayout(callback: () => void): IDisposable {
+	public onDidChangeKeyboardLayout(callback: (isISOKeyboard: boolean) => void): IDisposable {
 		if (!this._registered) {
 			this._registered = true;
+
 			nativeKeymap.onDidChangeKeyboardLayout(() => {
-				this._emitter.fire();
+				this._emitter.fire(this._isISOKeyboard);
 			});
+
+			if (platform.isMacintosh) {
+				// See https://github.com/Microsoft/vscode/issues/24153
+				// On OSX, on ISO keyboards, Chromium swaps the scan codes
+				// of IntlBackslash and Backquote.
+				//
+				// The C++ methods can give the current keyboard type (ISO or not)
+				// only after a NSEvent was handled.
+				//
+				// We therefore poll.
+				setInterval(() => {
+					let newValue = this._readIsISOKeyboard();
+					if (this._isISOKeyboard === newValue) {
+						// no change
+						return;
+					}
+
+					this._isISOKeyboard = newValue;
+					this._emitter.fire(this._isISOKeyboard);
+
+				}, 3000);
+			}
 		}
 		return this._emitter.event(callback);
+	}
+
+	private _readIsISOKeyboard(): boolean {
+		if (platform.isMacintosh) {
+			return nativeKeymap.isISOKeyboard();
+		}
+		return false;
+	}
+
+	public isISOKeyboard(): boolean {
+		return this._isISOKeyboard;
 	}
 }

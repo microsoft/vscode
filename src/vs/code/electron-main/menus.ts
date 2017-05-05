@@ -1064,11 +1064,11 @@ export class VSCodeMenu {
 			// the keybinding is not native so we cannot show it as part of the accelerator of
 			// the menu item. we fallback to a different strategy so that we always display it
 			else {
-				const bindingIndex = options.label.indexOf('(');
+				const bindingIndex = options.label.indexOf('[');
 				if (bindingIndex >= 0) {
-					options.label = `${options.label.substr(0, bindingIndex)} (${binding.label})`;
+					options.label = `${options.label.substr(0, bindingIndex)} [${binding.label}]`;
 				} else {
-					options.label = `${options.label} (${binding.label})`;
+					options.label = `${options.label} [${binding.label}]`;
 				}
 			}
 		}
