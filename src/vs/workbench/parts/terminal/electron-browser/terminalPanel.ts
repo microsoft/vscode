@@ -228,7 +228,6 @@ export class TerminalPanel extends Panel {
 		});
 		const bgColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
 		if (bgColor) {
-			console.log('set bgColor to: ' + bgColor);
 			css += `.monaco-workbench .panel.integrated-terminal .terminal-outer-container { background-color: ${bgColor}; }`;
 		}
 		const fgColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
