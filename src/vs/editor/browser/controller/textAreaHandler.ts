@@ -111,8 +111,6 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('aria-haspopup', 'false');
 		this.textArea.setAttribute('aria-autocomplete', 'both');
 
-		Configuration.applyFontInfo(this.textArea, this._fontInfo);
-
 		this.textAreaCover = createFastDomNode(document.createElement('div'));
 		this.textAreaCover.setPosition('absolute');
 
@@ -267,7 +265,6 @@ export class TextAreaHandler extends ViewPart {
 		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
 		if (e.fontInfo) {
 			this._fontInfo = this._context.configuration.editor.fontInfo;
-			Configuration.applyFontInfo(this.textArea, this._fontInfo);
 		}
 		if (e.viewInfo.experimentalScreenReader) {
 			this._experimentalScreenReader = this._context.configuration.editor.viewInfo.experimentalScreenReader;
@@ -365,7 +362,8 @@ export class TextAreaHandler extends ViewPart {
 				this._visibleTextArea.top - this._scrollTop,
 				this._contentLeft + this._visibleTextArea.left - this._scrollLeft,
 				this._visibleTextArea.width,
-				this._lineHeight
+				this._lineHeight,
+				true
 			);
 			return;
 		}
@@ -391,12 +389,23 @@ export class TextAreaHandler extends ViewPart {
 		}
 
 		// The primary cursor is in the viewport (at least vertically) => place textarea on the cursor
-		this._renderInsideEditor(top, left, canUseZeroSizeTextarea ? 0 : 1, canUseZeroSizeTextarea ? 0 : 1);
+		this._renderInsideEditor(
+			top, left,
+			canUseZeroSizeTextarea ? 0 : 1, canUseZeroSizeTextarea ? 0 : 1,
+			false
+		);
 	}
 
-	private _renderInsideEditor(top: number, left: number, width: number, height: number): void {
+	private _renderInsideEditor(top: number, left: number, width: number, height: number, useEditorFont: boolean): void {
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
+
+		if (useEditorFont) {
+			Configuration.applyFontInfo(ta, this._fontInfo);
+		} else {
+			ta.setFontSize(1);
+			ta.setLineHeight(1);
+		}
 
 		ta.setTop(top);
 		ta.setLeft(left);
