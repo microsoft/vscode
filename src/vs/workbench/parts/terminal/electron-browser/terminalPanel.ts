@@ -16,7 +16,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { ansiColorIdentifiers } from './terminalColorRegistry';
+import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from './terminalColorRegistry';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
@@ -226,6 +226,14 @@ export class TerminalPanel extends Panel {
 					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`;
 			}
 		});
+		const bgColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
+		if (bgColor) {
+			css += `.monaco-workbench .panel.integrated-terminal .terminal-outer-container { background-color: ${bgColor}; }`;
+		}
+		const fgColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
+		if (bgColor) {
+			css += `.monaco-workbench .panel.integrated-terminal .xterm { color: ${fgColor}; }`;
+		}
 
 		this._themeStyleElement.innerHTML = css;
 	}

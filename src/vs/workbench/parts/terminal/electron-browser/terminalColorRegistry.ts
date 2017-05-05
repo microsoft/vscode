@@ -13,6 +13,9 @@ import { registerColor, ColorIdentifier } from 'vs/platform/theme/common/colorRe
  */
 export const ansiColorIdentifiers: ColorIdentifier[] = [];
 
+export const TERMINAL_BACKGROUND_COLOR = registerColor('terminal.background', null, nls.localize('terminal.background', 'The background color of the terminal, this allows coloring the terminal differently to the panel.'));
+export const TERMINAL_FOREGROUND_COLOR = registerColor('terminal.foreground', null, nls.localize('terminal.foreground', 'The foreground color of the terminal.'));
+
 const ansiColorMap = {
 	'terminal.ansiBlack': {
 		index: 0,
@@ -150,4 +153,5 @@ export function registerColors(): void {
 		let colorName = id.substring(13);
 		ansiColorIdentifiers[entry.index] = registerColor(id, entry.defaults, nls.localize('terminal.ansiColor', '\'{0}\' ansi color in the terminal.', colorName));
 	}
+
 }
