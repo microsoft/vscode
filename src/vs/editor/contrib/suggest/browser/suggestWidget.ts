@@ -61,7 +61,7 @@ function canExpandCompletionItem(item: ICompletionItem) {
 	if (suggestion.documentation) {
 		return true;
 	}
-	return (suggestion.detail !== suggestion.label);
+	return (suggestion.detail && suggestion.detail !== suggestion.label);
 }
 
 class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
