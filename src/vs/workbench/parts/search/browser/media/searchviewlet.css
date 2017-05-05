@@ -188,10 +188,15 @@
 }
 
 .search-viewlet .linematch {
-	overflow: hidden;
-	text-overflow: ellipsis;
 	position: relative;
 	line-height: 22px;
+	display: flex;
+}
+
+.search-viewlet .linematch > .match {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .search-viewlet .linematch.changedOrRemoved {
@@ -222,6 +227,35 @@
 
 .search-viewlet .query-clear {
 	background: url("action-query-clear.svg") center center no-repeat;
+}
+
+.search-viewlet .monaco-tree .monaco-tree-row .monaco-action-bar {
+	line-height: 1em;
+	display: none;
+	padding: 0 0.8em 0 0.4em;
+}
+
+.search-viewlet .monaco-tree .monaco-tree-row .monaco-action-bar .action-item {
+	margin: 0;
+}
+
+.search-viewlet .monaco-tree .monaco-tree-row.focused .monaco-action-bar {
+	width: 0; /* in order to support a11y with keyboard, we use width: 0 to hide the actions, which still allows to "Tab" into the actions */
+	display: block;
+}
+
+.search-viewlet .monaco-tree .monaco-tree-row:hover:not(.highlighted) .monaco-action-bar,
+.search-viewlet .monaco-tree .monaco-tree-row.focused .monaco-action-bar {
+	width: inherit;
+	display: block;
+}
+
+.search-viewlet .monaco-tree .monaco-tree-row .monaco-action-bar .action-label {
+	margin-right: 0.2em;
+	margin-top: 4px;
+	background-repeat: no-repeat;
+	width: 16px;
+	height: 16px;
 }
 
 .search-viewlet .action-remove {
@@ -257,16 +291,6 @@
 .search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .monaco-count-badge,
 .search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-count-badge {
 	display: none;
-}
-
-.vs .search-viewlet input.disabled,
-.vs .search-viewlet .file-types.disabled .monaco-inputbox {
-	background-color: #E1E1E1;
-}
-
-.vs-dark .search-viewlet input.disabled,
-.vs-dark .search-viewlet .file-types.disabled .monaco-inputbox {
-	background-color: #333;
 }
 
 .search-viewlet .focused .monaco-tree-row.selected:not(.highlighted) > .content.actions .action-remove,
@@ -371,11 +395,6 @@
 	text-decoration: underline;
 }
 
-.search-viewlet .global-exclude input.disabled,
-.search-viewlet .file-types.disabled.global-exclude .monaco-inputbox {
-	background: none;
-}
-
 /* Theming */
 
 .search-viewlet .highlight {
@@ -389,6 +408,14 @@
 
 .vs .search-viewlet .monaco-tree.focused .monaco-tree-row.selected .filematch .name {
 	color: #FFF;
+}
+
+.vs .search-viewlet .search-widget .toggle-replace-button:hover {
+	background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.vs-dark .search-viewlet .search-widget .toggle-replace-button:hover {
+	background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .vs .search-viewlet .search-widget .toggle-replace-button.collapse {
@@ -415,10 +442,6 @@
 .vs-dark .search-viewlet .message {
 	color: #FFF;
 	opacity: .5;
-}
-
-.vs-dark .search-viewlet .global-exclude input.disabled {
-	opacity: .5 !important;
 }
 
 .vs-dark .search-viewlet .filematch {

@@ -109,7 +109,7 @@ export class ExtHostDocumentsAndEditors extends ExtHostDocumentsAndEditorsShape 
 		if (delta.removedEditors || delta.addedEditors) {
 			this._onDidChangeVisibleTextEditors.fire(this.allEditors());
 		}
-		if (delta.newActiveEditor) {
+		if (delta.newActiveEditor !== undefined) {
 			this._onDidChangeActiveTextEditor.fire(this.activeEditor());
 		}
 

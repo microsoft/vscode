@@ -12,7 +12,7 @@ import uri from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IModel, ICommonCodeEditor, EditorType } from 'vs/editor/common/editorCommon';
+import { IModel, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/platform';
@@ -398,8 +398,8 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 
 		const editor = this.editorService.getActiveEditor();
 		if (editor) {
-			const codeEditor = <ICommonCodeEditor>editor.getControl();
-			if (codeEditor && codeEditor.getEditorType() === EditorType.ICodeEditor) {
+			const codeEditor = editor.getControl();
+			if (isCommonCodeEditor(codeEditor)) {
 				const model = codeEditor.getModel();
 				const language = model ? model.getLanguageIdentifier().language : undefined;
 				const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);

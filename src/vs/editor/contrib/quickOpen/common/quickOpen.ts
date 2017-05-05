@@ -64,7 +64,7 @@ function flatten(bucket: SymbolInformation[], entries: SymbolInformation[], over
 
 
 CommonEditorRegistry.registerLanguageCommand('_executeDocumentSymbolProvider', function (accessor, args) {
-	const {resource} = args;
+	const { resource } = args;
 	if (!(resource instanceof URI)) {
 		throw illegalArgument('resource');
 	}

@@ -3,16 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
+
+const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
 export class Source {
 
 	public uri: uri;
 
 	constructor(public raw: DebugProtocol.Source, public presenationHint: string) {
-		const path = raw.path || raw.name;
-		this.uri = raw.sourceReference > 0 ? uri.parse(`${DEBUG_SCHEME}:${path}`) : uri.file(path);
+		if (!raw) {
+			this.raw = { name: UNKNOWN_SOURCE_LABEL };
+		}
+		const path = this.raw.path || this.raw.name;
+		this.uri = this.raw.sourceReference > 0 ? uri.parse(`${DEBUG_SCHEME}:${path}`) : uri.file(path);
 	}
 
 	public get name() {
@@ -25,6 +31,10 @@ export class Source {
 
 	public get reference() {
 		return this.raw.sourceReference;
+	}
+
+	public get available() {
+		return this.raw.name !== UNKNOWN_SOURCE_LABEL;
 	}
 
 	public get inMemory() {

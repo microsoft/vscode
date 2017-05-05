@@ -167,4 +167,22 @@ suite('Emmet', () => {
 			});
 		});
 	});
+
+	test('emmet replace range', () => {
+		withMockCodeEditor(['This is line 1'], {}, (editor) => {
+			let editorAccessor = new EditorAccessor(null, editor, null, [], new MockGrammarContributions(''), 'expand_abbreviation');
+			editor.getModel().setValue('This is line 1');
+			assert.equal(editorAccessor.getRangeToReplace('line', 8, 12), null);
+
+			editor.getModel().setValue('This is line 1');
+			assert.equal(editorAccessor.getRangeToReplace('line${0}', 8, 12), null);
+
+			editor.getModel().setValue('This is line 1');
+			let range = editorAccessor.getRangeToReplace('some other text', 8, 12);
+			assert.equal(range.startLineNumber, 1);
+			assert.equal(range.endLineNumber, 1);
+			assert.equal(range.startColumn, 9);
+			assert.equal(range.endColumn, 13);
+		});
+	});
 });

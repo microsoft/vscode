@@ -142,7 +142,7 @@ suite('SnippetParser', () => {
 		assertEscapeAndMarker('foo${1:bar\\}${2:foo}}', 'foobar}foo', Text, Placeholder);
 
 		let [, placeholder] = new SnippetParser(true, false).parse('foo${1:bar\\}${2:foo}}');
-		let {defaultValue} = (<Placeholder>placeholder);
+		let { defaultValue } = (<Placeholder>placeholder);
 
 		assert.equal((<Placeholder>placeholder).name, '1');
 		assert.ok(defaultValue[0] instanceof Text);

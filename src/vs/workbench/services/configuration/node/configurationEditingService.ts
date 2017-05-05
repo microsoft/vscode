@@ -72,7 +72,9 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	private writeToBuffer(model: editorCommon.IModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
 		const edit = this.getEdits(model, operation)[0];
 		if (this.applyEditsToBuffer(edit, model) && save) {
-			return this.textFileService.save(operation.resource);
+			return this.textFileService.save(operation.resource)
+				// Reload the configuration so that we make sure all parties are updated
+				.then(() => this.configurationService.reloadConfiguration());
 		}
 		return TPromise.as(null);
 	}
@@ -127,9 +129,9 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	}
 
 	private getEdits(model: editorCommon.IModel, edit: IConfigurationEditOperation): Edit[] {
-		const {tabSize, insertSpaces} = model.getOptions();
+		const { tabSize, insertSpaces } = model.getOptions();
 		const eol = model.getEOL();
-		const {key, value, overrideIdentifier} = edit;
+		const { key, value, overrideIdentifier } = edit;
 
 		// Without key, the entire settings file is being replaced, so we just use JSON.stringify
 		if (!key) {

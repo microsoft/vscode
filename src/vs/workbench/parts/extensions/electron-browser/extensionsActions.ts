@@ -15,8 +15,8 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { remote } from 'electron';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IFileService } from "vs/platform/files/common/files";
-import URI from "vs/base/common/uri";
+import { IFileService } from 'vs/platform/files/common/files';
+import URI from 'vs/base/common/uri';
 
 const dialog = remote.dialog;
 

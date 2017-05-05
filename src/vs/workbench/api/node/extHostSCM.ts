@@ -115,8 +115,9 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 			}
 
 			const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
+			const faded = r.decorations && !!r.decorations.faded;
 
-			return [handle, sourceUri, command, icons, strikeThrough] as SCMRawResource;
+			return [handle, sourceUri, command, icons, strikeThrough, faded] as SCMRawResource;
 		});
 
 		this._proxy.$updateGroupResourceStates(this._sourceControlHandle, this._handle, rawResources);
@@ -310,7 +311,7 @@ export class ExtHostSCM {
 		return sourceControl;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> {
+	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<vscode.Uri> {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl || !sourceControl.quickDiffProvider) {

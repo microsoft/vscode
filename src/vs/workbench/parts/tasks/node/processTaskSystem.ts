@@ -191,11 +191,11 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 			let toUnbind: IDisposable[] = [];
 			let event: TaskEvent = { taskId: task._id, taskName: task.name, type: TaskType.Watching };
 			let eventCounter: number = 0;
-			toUnbind.push(watchingProblemMatcher.addListener2(ProblemCollectorEvents.WatchingBeginDetected, () => {
+			toUnbind.push(watchingProblemMatcher.addListener(ProblemCollectorEvents.WatchingBeginDetected, () => {
 				eventCounter++;
 				this.emit(TaskSystemEvents.Active, event);
 			}));
-			toUnbind.push(watchingProblemMatcher.addListener2(ProblemCollectorEvents.WatchingEndDetected, () => {
+			toUnbind.push(watchingProblemMatcher.addListener(ProblemCollectorEvents.WatchingEndDetected, () => {
 				eventCounter--;
 				this.emit(TaskSystemEvents.Inactive, event);
 			}));

@@ -140,7 +140,7 @@ suite('AbstractKeybindingService', () => {
 				}
 			};
 
-			let resolver = new KeybindingResolver(items, [], false);
+			let resolver = new KeybindingResolver(items, []);
 
 			return new TestKeybindingService(resolver, contextKeyService, commandService, messageService, statusbarService);
 		};

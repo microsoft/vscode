@@ -17,6 +17,7 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class ExtHostApiCommands {
 
@@ -190,7 +191,7 @@ export class ExtHostApiCommands {
 				description: 'Open a folder in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder unless the newWindow parameter is set to true.',
 				args: [
 					{ name: 'uri', description: '(optional) Uri of the folder to open. If not provided, a native dialog will ask the user for the folder', constraint: value => value === void 0 || value instanceof URI },
-					{ name: 'newWindow', description: '(optional) Wether to open the folder in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
+					{ name: 'newWindow', description: '(optional) Whether to open the folder in a new window or the same. Defaults to opening in the same window.', constraint: value => value === void 0 || typeof value === 'boolean' }
 				]
 			});
 
@@ -203,14 +204,30 @@ export class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.diff', (left: URI, right: URI, label: string) => {
-			return this._commands.executeCommand('_workbench.diff', [left, right, label]);
+		this._register('vscode.diff', (left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions) => {
+
+			let editorOptions: IEditorOptions;
+			if (options) {
+				editorOptions = {
+					pinned: !options.preview,
+					preserveFocus: options.preserveFocus
+				};
+			}
+
+			return this._commands.executeCommand('_workbench.diff', [
+				left, right,
+				label,
+				undefined,
+				editorOptions,
+				options ? typeConverters.fromViewColumn(options.viewColumn) : undefined
+			]);
 		}, {
 				description: 'Opens the provided resources in the diff editor to compare their contents.',
 				args: [
 					{ name: 'left', description: 'Left-hand side resource of the diff editor', constraint: URI },
 					{ name: 'right', description: 'Right-hand side resource of the diff editor', constraint: URI },
-					{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' }
+					{ name: 'title', description: '(optional) Human readable title for the diff editor', constraint: v => v === void 0 || typeof v === 'string' },
+					{ name: 'options', description: '(optional) Editor options, see vscode.TextDocumentShowOptions' }
 				]
 			});
 
@@ -326,7 +343,7 @@ export class ExtHostApiCommands {
 				return undefined;
 			}
 			if (value.rejectReason) {
-				return TPromise.wrapError(value.rejectReason);
+				return TPromise.wrapError<types.WorkspaceEdit>(value.rejectReason);
 			}
 			let workspaceEdit = new types.WorkspaceEdit();
 			for (let edit of value.edits) {

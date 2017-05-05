@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "electronVersion": "1.6.6",
-  "distro": "f2a689be5af1e70b68eb7432643f1ce01e5d26a5",
+  "distro": "c1989b3e8a8516b92a46c359eba624fb9f812201",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -31,15 +31,15 @@
     "iconv-lite": "0.4.15",
     "jschardet": "^1.4.2",
     "minimist": "1.2.0",
-    "native-keymap": "1.2.2",
-    "node-pty": "0.6.2",
+    "native-keymap": "1.2.3",
+    "node-pty": "0.6.4",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
-    "vscode-debugprotocol": "1.18.0",
-    "vscode-ripgrep": "0.0.11",
-    "vscode-textmate": "^3.1.3",
+    "vscode-debugprotocol": "1.19.0",
+    "vscode-ripgrep": "0.0.12",
+    "vscode-textmate": "^3.1.4",
     "winreg": "1.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.11",
+    "xterm": "Tyriar/xterm.js#vscode-release/1.12",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
@@ -100,7 +100,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^4.3.1",
-    "typescript": "2.1.5",
+    "typescript": "2.3.2",
     "typescript-formatter": "4.0.1",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",

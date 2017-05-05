@@ -69,25 +69,27 @@ export class MainThreadMessageService extends MainThreadMessageServiceShape {
 	}
 
 	private showModalMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Thenable<number> {
-		let hasCloseAffordance = false;
+		let cancelId: number | undefined = void 0;
 
 		const options = commands.map((command, index) => {
 			if (command.isCloseAffordance === true) {
-				hasCloseAffordance = true;
+				cancelId = index;
 			}
 
 			return command.title;
 		});
 
-		if (!hasCloseAffordance) {
+		if (cancelId === void 0) {
 			if (options.length > 0) {
 				options.push(nls.localize('cancel', "Cancel"));
 			} else {
 				options.push(nls.localize('ok', "OK"));
 			}
+
+			cancelId = options.length - 1;
 		}
 
-		return this._choiceService.choose(severity, message, options, true)
+		return this._choiceService.choose(severity, message, options, cancelId, true)
 			.then(result => result === commands.length ? undefined : commands[result].handle);
 	}
 }

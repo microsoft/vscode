@@ -16,6 +16,7 @@ import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
@@ -76,10 +77,15 @@ export interface IWindowConfiguration extends ParsedArgs {
 
 	userEnv: platform.IProcessEnvironment;
 
+	/**
+	 * The physical keyboard is of ISO type (on OSX)
+	 */
+	isISOKeyboard?: boolean;
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
 	baseTheme?: string;
+	backgroundColor?: string;
 	accessibilitySupport?: boolean;
 
 	isInitialStartup?: boolean;
@@ -129,6 +135,7 @@ interface IConfiguration {
 export class VSCodeWindow {
 
 	public static themeStorageKey = 'theme';
+	public static themeBackgroundStorageKey = 'themeBackground';
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
@@ -170,11 +177,6 @@ export class VSCodeWindow {
 		// Load window state
 		this.restoreWindowState(config.state);
 
-		// For VS theme we can show directly because background is white
-		const baseTheme = this.getBaseTheme();
-		const usesLightTheme = 'vs' === baseTheme;
-		const usesHighContrastTheme = 'hc-black' === baseTheme || (platform.isWindows && systemPreferences.isInvertedColorScheme());
-
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
 
@@ -183,7 +185,7 @@ export class VSCodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: usesHighContrastTheme ? '#000000' : usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
+			backgroundColor: this.getBackgroundColor(),
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
@@ -255,7 +257,7 @@ export class VSCodeWindow {
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 
 		// respect configured menu bar visibility
-		this.onConfigurationUpdated(this.configurationService.getConfiguration<IConfiguration>());
+		this.onConfigurationUpdated();
 
 		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
 		// a request that needs them. chances are low
@@ -355,6 +357,20 @@ export class VSCodeWindow {
 		return this._readyState;
 	}
 
+	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
+		this._win.on(command, (e, cmd) => {
+			if (this.readyState !== ReadyState.READY) {
+				return; // window must be ready
+			}
+
+			if (cmd === back) {
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
+			} else if (cmd === forward) {
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
+			}
+		});
+	}
+
 	private registerListeners(): void {
 
 		// Remember that we loaded
@@ -381,18 +397,7 @@ export class VSCodeWindow {
 		});
 
 		// App commands support
-		this._win.on('app-command', (e, cmd) => {
-			if (this.readyState !== ReadyState.READY) {
-				return; // window must be ready
-			}
-
-			// Support navigation via mouse buttons 4/5
-			if (cmd === 'browser-backward') {
-				this.send('vscode:runAction', 'workbench.action.navigateBack');
-			} else if (cmd === 'browser-forward') {
-				this.send('vscode:runAction', 'workbench.action.navigateForward');
-			}
-		});
+		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward', false);
 
 		// Handle code that wants to open links
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
@@ -442,14 +447,24 @@ export class VSCodeWindow {
 		}
 
 		// Handle configuration changes
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
 	}
 
-	private onConfigurationUpdated(config: IConfiguration): void {
-		const newMenuBarVisibility = this.getMenuBarVisibility(config);
+	private onConfigurationUpdated(): void {
+		const newMenuBarVisibility = this.getMenuBarVisibility();
 		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
+		}
+
+		// Swipe command support (macOS)
+		if (platform.isMacintosh) {
+			const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+			if (config && config.workbench && config.workbench.editor && config.workbench.editor.swipeToNavigate) {
+				this.registerNavigationListenerOn('swipe', 'left', 'right', true);
+			} else {
+				this._win.removeAllListeners('swipe');
+			}
 		}
 	};
 
@@ -540,6 +555,7 @@ export class VSCodeWindow {
 
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
+		windowConfiguration.backgroundColor = this.getBackgroundColor();
 
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;
@@ -561,8 +577,25 @@ export class VSCodeWindow {
 	}
 
 	private getBaseTheme(): string {
+		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+			return 'hc-black';
+		}
 		const theme = this.storageService.getItem<string>(VSCodeWindow.themeStorageKey, 'vs-dark');
 		return theme.split(' ')[0];
+	}
+
+	private getBackgroundColor(): string {
+		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+			return '#000000';
+		}
+
+		let background = this.storageService.getItem<string>(VSCodeWindow.themeBackgroundStorageKey, null);
+		if (!background) {
+			let baseTheme = this.getBaseTheme();
+			return baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : (platform.isMacintosh ? '#171717' : '#1E1E1E')); // https://github.com/electron/electron/issues/5150
+		}
+
+		return background;
 	}
 
 	public serializeWindowState(): IWindowState {
@@ -715,9 +748,8 @@ export class VSCodeWindow {
 		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
 	}
 
-	private getMenuBarVisibility(configuration: IConfiguration): MenuBarVisibility {
+	private getMenuBarVisibility(): MenuBarVisibility {
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
 			return 'default';
 		}

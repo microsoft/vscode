@@ -205,17 +205,10 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		].join('\n');
 
 		withSplitLinesCollection(text, (model, linesCollection) => {
-			linesCollection.setHiddenAreas(new ViewEventsCollector(), [{
-				startLineNumber: 1,
-				startColumn: 1,
-				endLineNumber: 3,
-				endColumn: 1
-			}, {
-				startLineNumber: 5,
-				startColumn: 1,
-				endLineNumber: 6,
-				endColumn: 1
-			}]);
+			linesCollection.setHiddenAreas(new ViewEventsCollector(), [
+				new Range(1, 1, 3, 1),
+				new Range(5, 1, 6, 1)
+			]);
 
 			let viewLineCount = linesCollection.getViewLineCount();
 			assert.equal(viewLineCount, 1, 'getOutputLineCount()');

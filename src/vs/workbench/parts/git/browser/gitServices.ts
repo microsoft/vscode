@@ -74,7 +74,7 @@ class EditorInputCache {
 		this.cache = {};
 		this.toDispose = [];
 
-		this.toDispose.push(this.gitService.getModel().addListener2('fileStatus:dispose', (fileStatus: IFileStatus) => this.onFileStatusDispose(fileStatus)));
+		this.toDispose.push(this.gitService.getModel().addListener('fileStatus:dispose', (fileStatus: IFileStatus) => this.onFileStatusDispose(fileStatus)));
 	}
 
 	getInput(status: IFileStatus): TPromise<EditorInput> {
@@ -111,7 +111,7 @@ class EditorInputCache {
 				if (!rightInput) {
 					var error = new Error(localize('cantOpen', "Can't open this git resource."));
 					(<IGitServiceError>error).gitErrorCode = GitErrorCodes.CantOpenResource;
-					return TPromise.wrapError(error);
+					return TPromise.wrapError<EditorInput>(error);
 				}
 
 				return TPromise.as(rightInput);
@@ -135,7 +135,7 @@ class EditorInputCache {
 
 			return editorInput;
 		}, (errs) => {
-			return TPromise.wrapError(Array.isArray(errs) ? errs[0] || errs[1] : errs);
+			return TPromise.wrapError<EditorInput>(Array.isArray(errs) ? errs[0] || errs[1] : errs);
 		});
 	}
 
@@ -193,10 +193,10 @@ class EditorInputCache {
 					resource = URI.file(paths.join(model.getRepositoryRoot(), indexStatus.getRename()));
 				}
 
-				return this.editorService.createInput({ resource });
+				return TPromise.as(this.editorService.createInput({ resource }) as EditorInput);
 
 			case Status.BOTH_MODIFIED:
-				return this.editorService.createInput({ resource });
+				return TPromise.as(this.editorService.createInput({ resource }) as EditorInput);
 
 			default:
 				return TPromise.as(null);
@@ -296,7 +296,7 @@ export class AutoFetcher implements IAutoFetcher, IDisposable {
 			return;
 		}
 
-		this.gitServiceStateDisposable = this.gitService.addListener2(ServiceEvents.STATE_CHANGED, (e) => this.onGitServiceStateChange(e));
+		this.gitServiceStateDisposable = this.gitService.addListener(ServiceEvents.STATE_CHANGED, (e) => this.onGitServiceStateChange(e));
 		this._state = AutoFetcherState.Active;
 		this.onGitServiceStateChange(this.gitService.getState());
 	}
@@ -696,7 +696,7 @@ export class GitService extends EventEmitter
 
 	clone(url: string, parentPath: string): TPromise<string> {
 		return this.raw.clone(url, parentPath)
-			.then(null, e => this.wrapGitError(e));
+			.then(null, e => this.wrapGitError<string>(e));
 	}
 
 	private run(operationId: string, fn: () => TPromise<IRawStatus>): TPromise<IModel> {
@@ -749,7 +749,7 @@ export class GitService extends EventEmitter
 			onDone(e);
 
 			if (isPromiseCanceledError(e)) {
-				return TPromise.wrapError(e);
+				return TPromise.wrapError<IModel>(e);
 			}
 
 			var gitErrorCode: string = e.gitErrorCode || null;
@@ -776,7 +776,7 @@ export class GitService extends EventEmitter
 				return TPromise.as(null);
 			}
 
-			return this.wrapGitError(e);
+			return this.wrapGitError<IModel>(e);
 		});
 	}
 
@@ -793,7 +793,7 @@ export class GitService extends EventEmitter
 		(<any>error).stdout = e.stdout;
 		(<any>error).stderr = e.stderr;
 
-		return TPromise.wrapError(error);
+		return TPromise.wrapError<T>(error);
 	}
 
 	private transition(state: ServiceState): void {
@@ -837,7 +837,7 @@ export class GitService extends EventEmitter
 			//
 			// Our solution now is to detect binary files and immediately return an input that is flagged as binary unknown mime type.
 			if (mime.isBinaryMime(mime.guessMimeTypes(path)) || mimetypes.indexOf(mime.MIME_BINARY) >= 0) {
-				return TPromise.wrapError(new Error('The resource seems to be binary and cannot be displayed'));
+				return TPromise.wrapError<EditorInput>(new Error('The resource seems to be binary and cannot be displayed'));
 			}
 
 			// Text
@@ -852,7 +852,7 @@ export class GitService extends EventEmitter
 				return TPromise.as(null);
 			}
 
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<EditorInput>(err);
 		});
 	}
 

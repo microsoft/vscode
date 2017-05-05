@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
@@ -76,9 +76,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	protected createEditor(parent: Builder): void {
 		this._container = document.createElement('div');
-		this._container.style.paddingLeft = '20px';
 		this._container.style.position = 'absolute';
-		this._container.style.zIndex = '300';
 		parent.getHTMLElement().appendChild(this._container);
 	}
 
@@ -132,10 +130,12 @@ export class HtmlPreviewPart extends BaseEditor {
 	}
 
 	public layout(dimension: Dimension): void {
-		const {width, height} = dimension;
-		// we take the padding we set on create into account
-		this._container.style.width = `${Math.max(width - 20, 0)}px`;
+		const { width, height } = dimension;
+		this._container.style.width = `${width}px`;
 		this._container.style.height = `${height}px`;
+		if (this._webview) {
+			this._webview.layout();
+		}
 	}
 
 	public focus(): void {

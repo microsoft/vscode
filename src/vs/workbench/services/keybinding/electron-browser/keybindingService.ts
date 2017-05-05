@@ -34,16 +34,13 @@ import { WindowsKeyboardMapper, IWindowsKeyboardMapping, windowsKeyboardMappingE
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
-import Severity from 'vs/base/common/severity';
 import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class KeyboardMapperFactory {
 	public static INSTANCE = new KeyboardMapperFactory();
 
+	private _isISOKeyboard: boolean;
 	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo;
 	private _rawMapping: nativeKeymap.IKeyboardMapping;
 	private _keyboardMapper: IKeyboardMapper;
@@ -53,21 +50,25 @@ export class KeyboardMapperFactory {
 	public onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	private constructor() {
+		this._isISOKeyboard = false;
 		this._layoutInfo = null;
 		this._rawMapping = null;
 		this._keyboardMapper = null;
 		this._initialized = false;
 	}
 
-	public _onKeyboardLayoutChanged(): void {
+	public _onKeyboardLayoutChanged(isISOKeyboard: boolean): void {
+		isISOKeyboard = !!isISOKeyboard;
 		if (this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+		} else {
+			this._isISOKeyboard = isISOKeyboard;
 		}
 	}
 
 	public getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
 		if (!this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		if (dispatchConfig === DispatchConfig.KeyCode) {
 			// Forcefully set to use keyCode
@@ -78,13 +79,9 @@ export class KeyboardMapperFactory {
 
 	public getCurrentKeyboardLayout(): nativeKeymap.IKeyboardLayoutInfo {
 		if (!this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		return this._layoutInfo;
-	}
-
-	public isUSStandard(): boolean {
-		return KeyboardMapperFactory._isUSStandard(this.getCurrentKeyboardLayout());
 	}
 
 	private static _isUSStandard(_kbInfo: nativeKeymap.IKeyboardLayoutInfo): boolean {
@@ -108,27 +105,27 @@ export class KeyboardMapperFactory {
 
 	public getRawKeyboardMapping(): nativeKeymap.IKeyboardMapping {
 		if (!this._initialized) {
-			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		return this._rawMapping;
 	}
 
-	private _setKeyboardData(layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): void {
+	private _setKeyboardData(isISOKeyboard: boolean, layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): void {
 		this._layoutInfo = layoutInfo;
 
-		if (this._initialized && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
+		if (this._initialized && this._isISOKeyboard === isISOKeyboard && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
 			// nothing to do...
 			return;
 		}
 
 		this._initialized = true;
-
+		this._isISOKeyboard = isISOKeyboard;
 		this._rawMapping = rawMapping;
-		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(KeyboardMapperFactory._isUSStandard(this._layoutInfo), this._rawMapping);
+		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._isISOKeyboard, this._layoutInfo, this._rawMapping);
 		this._onDidChangeKeyboardMapper.fire();
 	}
 
-	private static _createKeyboardMapper(isUSStandard: boolean, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+	private static _createKeyboardMapper(isISOKeyboard: boolean, layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
 		if (OS === OperatingSystem.Windows) {
 			return new WindowsKeyboardMapper(<IWindowsKeyboardMapping>rawMapping);
 		}
@@ -138,7 +135,16 @@ export class KeyboardMapperFactory {
 			return new MacLinuxFallbackKeyboardMapper(OS);
 		}
 
-		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
+		if (OS === OperatingSystem.Macintosh) {
+			const kbInfo = <nativeKeymap.IMacKeyboardLayoutInfo>layoutInfo;
+			if (kbInfo.id === 'com.apple.keylayout.DVORAK-QWERTYCMD') {
+				// Use keyCode based dispatching for DVORAK - QWERTY ⌘
+				return new MacLinuxFallbackKeyboardMapper(OS);
+			}
+		}
+
+		const isUSStandard = KeyboardMapperFactory._isUSStandard(layoutInfo);
+		return new MacLinuxKeyboardMapper(isISOKeyboard, isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
 	}
 
 	private static _equals(a: nativeKeymap.IKeyboardMapping, b: nativeKeymap.IKeyboardMapping): boolean {
@@ -237,43 +243,6 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 	]
 });
 
-interface IStorageData {
-	dontShowPrompt: boolean;
-}
-
-class KeybindingsMigrationsStorage {
-	private static KEY = 'keybindingsMigration';
-
-	private _storageService: IStorageService;
-	private _value: IStorageData;
-
-	constructor(storageService: IStorageService) {
-		this._storageService = storageService;
-		this._value = this._read();
-	}
-
-	private _read(): IStorageData {
-		let jsonValue = this._storageService.get(KeybindingsMigrationsStorage.KEY, StorageScope.GLOBAL);
-		if (!jsonValue) {
-			return null;
-		}
-		try {
-			return JSON.parse(jsonValue);
-		} catch (err) {
-			return null;
-		}
-	}
-
-	public get(): IStorageData {
-		return this._value;
-	}
-
-	public set(data: IStorageData): void {
-		this._value = data;
-		this._storageService.store(KeybindingsMigrationsStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
-	}
-}
-
 export const enum DispatchConfig {
 	Code,
 	KeyCode
@@ -299,7 +268,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMessageService private messageService: IMessageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IStorageService private storageService: IStorageService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
@@ -358,52 +326,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		let data = KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
 		telemetryService.publicLog('keyboardLayout', {
 			currentKeyboardLayout: data
-		});
-
-		if (OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux) {
-			const isUSStandard = KeyboardMapperFactory.INSTANCE.isUSStandard();
-			if (!isUSStandard) {
-				this._promptIfNeeded();
-			}
-		}
-	}
-
-	private _promptIfNeeded(): void {
-		const storage = new KeybindingsMigrationsStorage(this.storageService);
-		const storedData = storage.get();
-		if (storedData && storedData.dontShowPrompt) {
-			// Do not prompt stored
-			return;
-		}
-
-		storage.set({
-			dontShowPrompt: true
-		});
-
-		this._prompt();
-	}
-
-	private _prompt(): void {
-		const openDocumentation = new Action(
-			'keybindingMigration.openDocumentation',
-			nls.localize('openDocumentation', 'Learn More'),
-			'',
-			true,
-			() => {
-				window.open('https://go.microsoft.com/fwlink/?linkid=846147'); // Don't change link.
-				return TPromise.as(true);
-			}
-		);
-		const okAction = new Action(
-			'keybindingMigration.ok',
-			nls.localize('keybindingMigration.ok', "OK"),
-			null,
-			true,
-			() => TPromise.as(true)
-		);
-		this.messageService.show(Severity.Info, {
-			message: nls.localize('keybindingMigration.prompt', "Some keyboard shortcuts have changed for your keyboard layout."),
-			actions: [openDocumentation, okAction]
 		});
 	}
 

@@ -31,6 +31,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachHeaderViewStyler } from 'vs/platform/theme/common/styler';
 
 export class ExplorerViewlet extends Viewlet {
 	private viewletContainer: Builder;
@@ -143,6 +144,8 @@ export class ExplorerViewlet extends Viewlet {
 
 	private addOpenEditorsView(): void {
 		this.openEditorsView = this.instantiationService.createInstance(OpenEditorsView, this.getActionRunner(), this.viewletSettings);
+		attachHeaderViewStyler(this.openEditorsView, this.themeService);
+
 		this.splitView.addView(this.openEditorsView);
 
 		this.views.push(this.openEditorsView);
@@ -188,11 +191,13 @@ export class ExplorerViewlet extends Viewlet {
 
 			const headerSize = this.openEditorsVisible ? undefined : 0; // If open editors are not visible set header size explicitly to 0, otherwise const it be computed by super class.
 			this.explorerView = explorerOrEmptyView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
+			attachHeaderViewStyler(this.explorerView, this.themeService);
 		}
 
 		// No workspace
 		else {
 			this.emptyView = explorerOrEmptyView = this.instantiationService.createInstance(EmptyView, this.getActionRunner());
+			attachHeaderViewStyler(this.emptyView, this.themeService);
 		}
 
 		if (this.openEditorsVisible) {

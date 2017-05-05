@@ -12,7 +12,6 @@ import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { IEditorOptions, IEditorViewState } from 'vs/editor/common/editorCommon';
 import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
@@ -36,9 +35,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { once } from 'vs/base/common/event';
 import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { isObject } from 'vs/base/common/types';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { Parts, IPartService } from "vs/workbench/services/part/common/partService";
+import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -50,7 +51,7 @@ interface IViewState {
 	scrollLeft: number;
 }
 
-interface IWalkThroughEditorViewState extends IEditorViewState {
+interface IWalkThroughEditorViewState {
 	viewState: IViewState;
 }
 
@@ -102,6 +103,7 @@ export class WalkThroughPart extends BaseEditor {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
+		@IMessageService private messageService: IMessageService,
 		@IPartService private partService: IPartService
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService);
@@ -208,6 +210,10 @@ export class WalkThroughPart extends BaseEditor {
 				uri: uri.toString(true),
 				from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
 			});
+		}
+		if (uri.scheme === 'command' && uri.path === 'git.clone' && !CommandsRegistry.getCommand('git.clone')) {
+			this.messageService.show(Severity.Info, localize('walkThrough.gitNotFound', "It looks like Git is not installed on your system."));
+			return;
 		}
 		this.openerService.open(this.addFrom(uri));
 	}
@@ -431,7 +437,7 @@ export class WalkThroughPart extends BaseEditor {
 
 	private style(div: HTMLElement) {
 		const styleElement = this.partService.getContainer(Parts.EDITOR_PART); // TODO@theme styles should come in via theme registry
-		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(styleElement);
+		const { color, backgroundColor, fontFamily, fontWeight, fontSize } = window.getComputedStyle(styleElement);
 		div.style.color = color;
 		div.style.backgroundColor = backgroundColor;
 		div.style.fontFamily = fontFamily;

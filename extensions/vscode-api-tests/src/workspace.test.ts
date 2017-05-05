@@ -60,7 +60,7 @@ suite('workspace-namespace', () => {
 
 	test('openTextDocument', () => {
 		let len = workspace.textDocuments.length;
-		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => {
+		return workspace.openTextDocument(join(workspace.rootPath || '', './simple.txt')).then(doc => {
 			assert.ok(doc);
 			assert.equal(workspace.textDocuments.length, len + 1);
 		});
@@ -75,13 +75,16 @@ suite('workspace-namespace', () => {
 	});
 
 	test('openTextDocument, untitled is dirty', function () {
-		if (process.platform === 'win32') {
-			return; // TODO@Joh this test fails on windows
-		}
-
 		return workspace.openTextDocument(Uri.parse('untitled:' + join(workspace.rootPath || '', './newfile.txt'))).then(doc => {
 			assert.equal(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
+		});
+	});
+
+	test('openTextDocument, untitled with host', function () {
+		const uri = Uri.parse('untitled://localhost/c%24/Users/jrieken/code/samples/foobar.txt');
+		return workspace.openTextDocument(uri).then(doc => {
+			assert.equal(doc.uri.scheme, 'untitled');
 		});
 	});
 

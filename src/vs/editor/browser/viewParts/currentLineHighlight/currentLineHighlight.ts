@@ -43,6 +43,7 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	public dispose(): void {
 		this._context.removeEventHandler(this);
 		this._context = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
@@ -138,6 +139,9 @@ registerThemingParticipant((theme, collector) => {
 		let lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
 		if (lineHighlightBorder) {
 			collector.addRule(`.monaco-editor.${theme.selector} .view-overlays .current-line { border: 2px solid ${lineHighlightBorder}; }`);
+		}
+		if (theme.type === 'hc') {
+			collector.addRule(`.monaco-editor.${theme.selector} .view-overlays .current-line { border-width: 1px; }`);
 		}
 	}
 });

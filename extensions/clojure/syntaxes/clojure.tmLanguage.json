@@ -240,8 +240,18 @@
 			]
 		},
 		"regexp": {
-			"begin": "#\\\"",
-			"end": "\\\"",
+			"begin": "#\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.regexp.begin.clojure"
+				}
+			},
+			"end": "\"",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.regexp.end.clojure"
+				}
+			},
 			"name": "string.regexp.clojure",
 			"patterns": [
 				{
@@ -301,7 +311,7 @@
 			"name": "meta.expression.clojure",
 			"patterns": [
 				{
-					"begin": "(?<=\\()(ns|def|def-|defn|defn-|defvar|defvar-|defmacro|defmacro-|deftest)\\s+",
+					"begin": "(?<=\\()(ns|declare|def[\\w\\d._:+=><!?*-]*|[\\w._:+=><!?*-][\\w\\d._:+=><!?*-]*/def[\\w\\d._:+=><!?*-]*)\\s+",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.clojure"
@@ -444,5 +454,5 @@
 			"name": "invalid.trailing-whitespace"
 		}
 	},
-	"version": "https://github.com/atom/language-clojure/commit/9a79169ec89e25476214c42fe2d5702dfa9ebb83"
+	"version": "https://github.com/atom/language-clojure/commit/82ff056df3bf2682c90b679d0a9bc1555bea0510"
 }

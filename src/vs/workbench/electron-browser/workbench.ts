@@ -23,9 +23,8 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IOptions } from 'vs/workbench/common/options';
-import { Position as EditorPosition, IResourceInput, IResourceDiffInput } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
@@ -39,7 +38,6 @@ import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbe
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { WorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -106,6 +104,7 @@ interface WorkbenchParams {
 interface IZenModeSettings {
 	fullScreen: boolean;
 	hideTabs: boolean;
+	hideActivityBar: boolean;
 	hideStatusBar: boolean;
 	restore: boolean;
 }
@@ -200,7 +199,6 @@ export class Workbench implements IPartService {
 		options: IOptions,
 		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -314,7 +312,7 @@ export class Workbench implements IPartService {
 			// Load Editors
 			const editorRestoreStopWatch = StopWatch.create();
 			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputs => {
-				let editorOpenPromise: TPromise<BaseEditor[]>;
+				let editorOpenPromise: TPromise<IEditor[]>;
 				if (inputs.length) {
 					editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
 				} else {
@@ -382,14 +380,14 @@ export class Workbench implements IPartService {
 
 			// Otherwise: Open/Create files
 			else {
-				const filesToCreateInputs: IResourceInput[] = filesToCreate.map(resourceInput => {
-					return <IResourceInput>{
-						resource: this.untitledEditorService.createOrGet(resourceInput.resource).getResource(),
+				const filesToCreateInputs: IUntitledResourceInput[] = filesToCreate.map(resourceInput => {
+					return <IUntitledResourceInput>{
+						filePath: resourceInput.resource.fsPath,
 						options: { pinned: true }
 					};
 				});
 
-				return TPromise.as(filesToOpen.concat(filesToCreateInputs));
+				return TPromise.as([].concat(filesToOpen).concat(filesToCreateInputs));
 			}
 		}
 
@@ -400,7 +398,7 @@ export class Workbench implements IPartService {
 					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
 				}
 
-				return TPromise.as([<IResourceInput>{ resource: this.untitledEditorService.createOrGet().getResource() }]);
+				return TPromise.as([<IUntitledResourceInput>{}]);
 			});
 		}
 
@@ -699,7 +697,7 @@ export class Workbench implements IPartService {
 			this.workbench.removeClass('nosidebar');
 		}
 
-		let promise = TPromise.as(null);
+		let promise = TPromise.as<any>(null);
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
 			promise = this.sidebarPart.hideActiveViewlet().then(() => {
@@ -744,7 +742,7 @@ export class Workbench implements IPartService {
 			this.workbench.removeClass('nopanel');
 		}
 
-		let promise = TPromise.as(null);
+		let promise = TPromise.as<any>(null);
 		// If panel part becomes hidden, also hide the current active panel if any
 		if (hidden && this.panelPart.getActivePanel()) {
 			promise = this.panelPart.hideActivePanel().then(() => {
@@ -1099,7 +1097,9 @@ export class Workbench implements IPartService {
 			this.setPanelHidden(true, true).done(undefined, errors.onUnexpectedError);
 			this.setSideBarHidden(true, true).done(undefined, errors.onUnexpectedError);
 
-			this.setActivityBarHidden(true, true);
+			if (config.hideActivityBar) {
+				this.setActivityBarHidden(true, true);
+			}
 			if (config.hideStatusBar) {
 				this.setStatusBarHidden(true, true);
 			}

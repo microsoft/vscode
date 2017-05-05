@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 var fs = require("fs");
 var ts = require("typescript");
 var path = require("path");
+var tsfmt = require('../../tsfmt.json');
 var util = require('gulp-util');
 function log(message) {
     var rest = [];
@@ -147,9 +149,11 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration) {
                 if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
                     // console.log('BEFORE: ', result);
                     result = result.replace(memberText, '');
+                    // console.log('AFTER: ', result);
                 }
             }
             catch (err) {
+                // life..
             }
         });
     }
@@ -158,11 +162,10 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration) {
     return result;
 }
 function format(text) {
-    var options = getDefaultOptions();
     // Parse the source text
     var sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
     // Get the formatting edits on the input sources
-    var edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(options), options);
+    var edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
     // Apply the edits on the input code
     return applyEdits(text, edits);
     function getRuleProvider(options) {
@@ -182,25 +185,6 @@ function format(text) {
             result = head + change.newText + tail;
         }
         return result;
-    }
-    function getDefaultOptions() {
-        return {
-            indentSize: 4,
-            tabSize: 4,
-            newLineCharacter: '\r\n',
-            convertTabsToSpaces: true,
-            indentStyle: ts.IndentStyle.Block,
-            insertSpaceAfterCommaDelimiter: true,
-            insertSpaceAfterSemicolonInForStatements: true,
-            insertSpaceBeforeAndAfterBinaryOperators: true,
-            insertSpaceAfterKeywordsInControlFlowStatements: true,
-            insertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
-            insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
-            insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
-            insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
-            placeOpenBraceOnNewLineForFunctions: false,
-            placeOpenBraceOnNewLineForControlBlocks: false,
-        };
     }
 }
 function createReplacer(data) {

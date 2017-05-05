@@ -111,11 +111,19 @@
       },
       {
         "fileMatch": "jsconfig.json",
-        "url": "./schemas/jsconfig.schema.json"
+        "url": "http://json.schemastore.org/jsconfig"
       },
       {
         "fileMatch": "jsconfig.json",
+        "url": "./schemas/jsconfig.schema.json"
+      },
+      {
+        "fileMatch": "jsconfig.*.json",
         "url": "http://json.schemastore.org/jsconfig"
+      },
+      {
+        "fileMatch": "jsconfig.*.json",
+        "url": "./schemas/jsconfig.schema.json"
       }
     ]
   },

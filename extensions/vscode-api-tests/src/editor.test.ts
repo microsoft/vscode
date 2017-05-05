@@ -6,8 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { join } from 'path';
-import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, ViewColumn } from 'vscode';
+import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection } from 'vscode';
 import { createRandomFile, deleteFile, cleanUp } from './utils';
 
 suite('editor tests', () => {
@@ -110,66 +109,6 @@ suite('editor tests', () => {
 		});
 	});
 
-	test('issue #20867: vscode.window.visibleTextEditors returns closed document 1/2', () => {
-
-		return withRandomFileEditor('Hello world!', editor => {
-
-			const p = new Promise((resolve, reject) => {
-				const sub = workspace.onDidCloseTextDocument(doc => {
-					try {
-						sub.dispose();
-						assert.ok(window.activeTextEditor === undefined);
-						assert.equal(window.visibleTextEditors.length, 0);
-						resolve();
-					} catch (e) {
-						reject(e);
-					}
-				});
-			});
-
-			return Promise.all([
-				commands.executeCommand('workbench.action.closeAllEditors'),
-				p
-			]).then(() => undefined);
-		});
-	});
-
-	test('issue #20867: vscode.window.visibleTextEditors returns closed document 2/2', () => {
-
-		const file10Path = join(workspace.rootPath || '', './10linefile.ts');
-		const file30Path = join(workspace.rootPath || '', './30linefile.ts');
-
-		return Promise.all([
-			workspace.openTextDocument(file10Path),
-			workspace.openTextDocument(file30Path)
-		]).then(docs => {
-			return Promise.all([
-				window.showTextDocument(docs[0], ViewColumn.One),
-				window.showTextDocument(docs[1], ViewColumn.Two),
-			]);
-		}).then(editors => {
-
-			const p = new Promise((resolve, reject) => {
-				const sub = workspace.onDidCloseTextDocument(doc => {
-					try {
-						sub.dispose();
-						assert.ok(window.activeTextEditor === editors[1]);
-						assert.ok(window.visibleTextEditors[0] === editors[1]);
-						assert.equal(window.visibleTextEditors.length, 1);
-						resolve();
-					} catch (e) {
-						reject(e);
-					}
-				});
-			});
-
-			// hide doesn't what it means because it triggers a close event and because it
-			// detached the editor. For this test that's what we want.
-			editors[0].hide();
-			return p;
-		});
-	});
-
 	function executeReplace(editor: TextEditor, range: Range, text: string, undoStopBefore: boolean, undoStopAfter: boolean): Thenable<boolean> {
 		return editor.edit((builder) => {
 			builder.replace(range, text);
@@ -237,6 +176,25 @@ suite('editor tests', () => {
 			assert.equal(editor.options.lineNumbers, TextEditorLineNumbersStyle.On);
 
 			return Promise.resolve();
+		});
+	});
+
+	test('issue #20757: Overlapping ranges are not allowed!', () => {
+		return withRandomFileEditor('Hello world!\n\tHello world!', (editor, doc) => {
+			return editor.edit((builder) => {
+				// create two edits that overlap (i.e. are illegal)
+				builder.replace(new Range(0, 0, 0, 2), 'He');
+				builder.replace(new Range(0, 1, 0, 3), 'el');
+			}).then(
+
+				(applied) => {
+					assert.ok(false, 'edit with overlapping ranges should fail');
+				},
+
+				(err) => {
+					assert.ok(true, 'edit with overlapping ranges should fail');
+				}
+			);
 		});
 	});
 });

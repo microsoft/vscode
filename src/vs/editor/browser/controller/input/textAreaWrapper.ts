@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ITextAreaWrapper } from 'vs/editor/common/controller/textAreaState';
+import { IClipboardEvent, ICompositionEvent, IKeyboardEventWrapper, ITextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 
 class ClipboardEventWrapper implements IClipboardEvent {
@@ -78,6 +78,10 @@ class KeyboardEventWrapper implements IKeyboardEventWrapper {
 
 	public preventDefault(): void {
 		this._actual.preventDefault();
+	}
+
+	public stopPropagation(): void {
+		this._actual.stopPropagation();
 	}
 
 	public isDefaultPrevented(): boolean {

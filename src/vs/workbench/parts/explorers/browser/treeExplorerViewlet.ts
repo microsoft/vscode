@@ -8,17 +8,18 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IAction } from 'vs/base/common/actions';
-import { IViewletView, Viewlet } from 'vs/workbench/browser/viewlet';
+import { Viewlet } from 'vs/workbench/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeExplorerView } from 'vs/workbench/parts/explorers/browser/views/treeExplorerView';
 import { TreeExplorerViewletState } from 'vs/workbench/parts/explorers/browser/views/treeExplorerViewer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachHeaderViewStyler } from 'vs/platform/theme/common/styler';
 
 export class TreeExplorerViewlet extends Viewlet {
 
 	private viewletContainer: Builder;
-	private view: IViewletView;
+	private view: TreeExplorerView;
 
 	private viewletState: TreeExplorerViewletState;
 	private viewletId: string;
@@ -70,6 +71,7 @@ export class TreeExplorerViewlet extends Viewlet {
 		const headerSize = 0; // Hide header (root node) by default
 
 		this.view = this.instantiationService.createInstance(TreeExplorerView, this.viewletState, this.treeNodeProviderId, this.getActionRunner(), headerSize);
+		attachHeaderViewStyler(this.view, this.themeService);
 		this.view.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
 	}
 

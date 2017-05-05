@@ -173,7 +173,14 @@ const schema: IJSONSchema = {
 	type: 'object',
 	properties: {
 		colors: colorsSchema,
-		tokenColors: tokenColorsSchema
+		tokenColors: {
+			anyOf: [{
+				type: 'string',
+				description: nls.localize('schema.tokenColors.path', 'Path to a tmTheme file (relative to the current file)')
+			},
+				tokenColorsSchema
+			]
+		}
 	}
 };
 

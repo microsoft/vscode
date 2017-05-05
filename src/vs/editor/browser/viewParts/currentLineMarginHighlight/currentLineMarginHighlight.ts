@@ -37,6 +37,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	public dispose(): void {
 		this._context.removeEventHandler(this);
 		this._context = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
@@ -114,6 +115,9 @@ registerThemingParticipant((theme, collector) => {
 		let lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
 		if (lineHighlightBorder) {
 			collector.addRule(`.monaco-editor.${theme.selector} .margin-view-overlays .current-line-margin { border: 2px solid ${lineHighlightBorder}; }`);
+		}
+		if (theme.type === 'hc') {
+			collector.addRule(`.monaco-editor.${theme.selector} .margin-view-overlays .current-line-margin { border-width: 1px; }`);
 		}
 	}
 });

@@ -138,9 +138,14 @@ abstract class OpenTaskConfigurationAction extends Action {
 							value.stderr.forEach((line) => {
 								outputChannel.append(line + '\n');
 							});
-							this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
-							return selection.content;
-						} else if (config) {
+							if (config && (!config.tasks || config.tasks.length === 0)) {
+								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
+								return selection.content;
+							} else {
+								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetectError', 'Auto detecting the task system produced errors. Consult the task output for details.'));
+							}
+						}
+						if (config) {
 							if (value.stdout && value.stdout.length > 0) {
 								value.stdout.forEach(line => outputChannel.append(line + '\n'));
 							}
@@ -249,44 +254,48 @@ class ViewTerminalAction extends Action {
 	}
 }
 
-class StatusBarItem implements IStatusbarItem {
-
-	private panelService: IPanelService;
-	private markerService: IMarkerService;
-	private taskService: ITaskService;
-	private outputService: IOutputService;
-
+class StatusBarItem extends Themable implements IStatusbarItem {
 	private intervalToken: any;
 	private activeCount: number;
 	private static progressChars: string = '|/-\\';
+	private icons: HTMLElement[];
 
-	constructor( @IPanelService panelService: IPanelService,
-		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
-		@ITaskService taskService: ITaskService,
-		@IPartService private partService: IPartService) {
+	constructor(
+		@IPanelService private panelService: IPanelService,
+		@IMarkerService private markerService: IMarkerService,
+		@IOutputService private outputService: IOutputService,
+		@ITaskService private taskService: ITaskService,
+		@IPartService private partService: IPartService,
+		@IThemeService themeService: IThemeService
+	) {
+		super(themeService);
 
-		this.panelService = panelService;
-		this.markerService = markerService;
-		this.outputService = outputService;
-		this.taskService = taskService;
 		this.activeCount = 0;
+		this.icons = [];
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		this.icons.forEach(icon => {
+			icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
+		});
 	}
 
 	public render(container: HTMLElement): IDisposable {
+		let callOnDispose: IDisposable[] = [];
 
-		let callOnDispose: IDisposable[] = [],
-			element = document.createElement('div'),
-			// icon = document.createElement('a'),
-			progress = document.createElement('div'),
-			label = document.createElement('a'),
-			error = document.createElement('div'),
-			warning = document.createElement('div'),
-			info = document.createElement('div');
+		const element = document.createElement('div');
+		const progress = document.createElement('div');
+		const label = document.createElement('a');
+		const errorIcon = document.createElement('div');
+		const warningIcon = document.createElement('div');
+		const infoIcon = document.createElement('div');
+		const error = document.createElement('div');
+		const warning = document.createElement('div');
+		const info = document.createElement('div');
 
 		Dom.addClass(element, 'task-statusbar-item');
-
-		// dom.addClass(icon, 'task-statusbar-item-icon');
-		// element.appendChild(icon);
 
 		Dom.addClass(progress, 'task-statusbar-item-progress');
 		element.appendChild(progress);
@@ -297,21 +306,30 @@ class StatusBarItem implements IStatusbarItem {
 		element.appendChild(label);
 		element.title = nls.localize('problems', "Problems");
 
-		Dom.addClass(error, 'task-statusbar-item-label-error');
+		Dom.addClass(errorIcon, 'task-statusbar-item-label-error');
+		label.appendChild(errorIcon);
+		this.icons.push(errorIcon);
+
+		Dom.addClass(error, 'task-statusbar-item-label-counter');
 		error.innerHTML = '0';
 		label.appendChild(error);
 
-		Dom.addClass(warning, 'task-statusbar-item-label-warning');
+		Dom.addClass(warningIcon, 'task-statusbar-item-label-warning');
+		label.appendChild(warningIcon);
+		this.icons.push(warningIcon);
+
+		Dom.addClass(warning, 'task-statusbar-item-label-counter');
 		warning.innerHTML = '0';
 		label.appendChild(warning);
 
-		Dom.addClass(info, 'task-statusbar-item-label-info');
+		Dom.addClass(infoIcon, 'task-statusbar-item-label-info');
+		label.appendChild(infoIcon);
+		this.icons.push(infoIcon);
+		$(infoIcon).hide();
+
+		Dom.addClass(info, 'task-statusbar-item-label-counter');
 		label.appendChild(info);
 		$(info).hide();
-
-		//		callOnDispose.push(dom.addListener(icon, 'click', (e:MouseEvent) => {
-		//			this.outputService.showOutput(TaskService.OutputChannel, e.ctrlKey || e.metaKey, true);
-		//		}));
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
 			const panel = this.panelService.getActivePanel();
@@ -322,30 +340,31 @@ class StatusBarItem implements IStatusbarItem {
 			}
 		}));
 
-		let updateStatus = (element: HTMLDivElement, stats: number): boolean => {
+		let updateStatus = (element: HTMLDivElement, icon: HTMLDivElement, stats: number): boolean => {
 			if (stats > 0) {
 				element.innerHTML = stats.toString();
 				$(element).show();
+				$(icon).show();
 				return true;
 			} else {
 				$(element).hide();
+				$(icon).hide();
 				return false;
 			}
 		};
-
 
 		let manyMarkers = nls.localize('manyMarkers', "99+");
 		let updateLabel = (stats: MarkerStatistics) => {
 			error.innerHTML = stats.errors < 100 ? stats.errors.toString() : manyMarkers;
 			warning.innerHTML = stats.warnings < 100 ? stats.warnings.toString() : manyMarkers;
-			updateStatus(info, stats.infos);
+			updateStatus(info, infoIcon, stats.infos);
 		};
 
 		this.markerService.onMarkerChanged((changedResources) => {
 			updateLabel(this.markerService.getStatistics());
 		});
 
-		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Active, () => {
+		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Active, () => {
 			this.activeCount++;
 			if (this.activeCount === 1) {
 				let index = 1;
@@ -362,7 +381,7 @@ class StatusBarItem implements IStatusbarItem {
 			}
 		}));
 
-		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Inactive, (data: TaskServiceEventData) => {
+		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (data: TaskServiceEventData) => {
 			// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
 			// So try to treat them accordingly.
 			if (this.activeCount > 0) {
@@ -377,7 +396,7 @@ class StatusBarItem implements IStatusbarItem {
 			}
 		}));
 
-		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Terminated, () => {
+		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, () => {
 			if (this.activeCount !== 0) {
 				$(progress).hide();
 				if (this.intervalToken) {
@@ -389,6 +408,8 @@ class StatusBarItem implements IStatusbarItem {
 		}));
 
 		container.appendChild(element);
+
+		this.updateStyles();
 
 		return {
 			dispose: () => {
@@ -843,8 +864,8 @@ class TaskService extends EventEmitter implements ITaskService {
 			system.hasErrors(this._configHasErrors);
 			this._taskSystem = system;
 		}
-		this._taskSystemListeners.push(this._taskSystem.addListener2(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
-		this._taskSystemListeners.push(this._taskSystem.addListener2(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
+		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
+		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
 		return this._taskSystem;
 	}
 
@@ -1262,6 +1283,8 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from './jsonSchema_v1';
 import schemaVersion2 from './jsonSchema_v2';
+import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,

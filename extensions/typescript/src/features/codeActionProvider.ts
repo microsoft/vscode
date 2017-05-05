@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit, FormattingOptions, window } from 'vscode';
+import { CodeActionProvider, TextDocument, Range, CancellationToken, CodeActionContext, Command, commands, Uri, workspace, WorkspaceEdit, TextEdit, FormattingOptions, window, ProviderResult } from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -24,29 +24,24 @@ interface Source {
 export default class TypeScriptCodeActionProvider implements CodeActionProvider {
 	private commandId: string;
 
-	private supportedCodeActions: Promise<NumberSet>;
+	private _supportedCodeActions?: Thenable<NumberSet>;
 
 	constructor(
 		private readonly client: ITypescriptServiceClient,
 		mode: string
 	) {
 		this.commandId = `_typescript.applyCodeAction.${mode}`;
-		this.supportedCodeActions = client.execute('getSupportedCodeFixes', null, undefined)
-			.then(response => response.body || [])
-			.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
-			.then(codes =>
-				codes.reduce((obj, code) => {
-					obj[code] = true;
-					return obj;
-				}, Object.create(null)));
-
 		commands.registerCommand(this.commandId, this.onCodeAction, this);
 	}
 
-	public provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): Thenable<Command[]> {
+	public provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<Command[]> {
+		if (!this.client.apiVersion.has213Features()) {
+			return [];
+		}
+
 		const file = this.client.normalizePath(document.uri);
 		if (!file) {
-			return Promise.resolve<Command[]>([]);
+			return [];
 		}
 		let formattingOptions: FormattingOptions | undefined = undefined;
 		for (const editor of window.visibleTextEditors) {
@@ -61,7 +56,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			range: range,
 			formattingOptions: formattingOptions
 		};
-		return this.getSupportedCodeActions(context)
+		return this.getSupportedActionsForContext(context)
 			.then(supportedActions => {
 				if (!supportedActions.length) {
 					return [];
@@ -78,12 +73,25 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 			.then(codeActions => codeActions.map(action => this.actionToEdit(source, action)));
 	}
 
-	private getSupportedCodeActions(context: CodeActionContext): Thenable<number[]> {
-		return this.supportedCodeActions
-			.then(supportedActions =>
-				context.diagnostics
-					.map(diagnostic => +diagnostic.code)
-					.filter(code => supportedActions[code]));
+	private get supportedCodeActions(): Thenable<NumberSet> {
+		if (!this._supportedCodeActions) {
+			this._supportedCodeActions = this.client.execute('getSupportedCodeFixes', null, undefined)
+				.then(response => response.body || [])
+				.then(codes => codes.map(code => +code).filter(code => !isNaN(code)))
+				.then(codes =>
+					codes.reduce((obj, code) => {
+						obj[code] = true;
+						return obj;
+					}, Object.create(null)));
+		}
+		return this._supportedCodeActions;
+	}
+
+	private getSupportedActionsForContext(context: CodeActionContext) {
+		return this.supportedCodeActions.then(supportedActions =>
+			context.diagnostics
+				.map(diagnostic => +diagnostic.code)
+				.filter(code => supportedActions[code]));
 	}
 
 	private actionToEdit(source: Source, action: Proto.CodeAction): Command {

@@ -24,11 +24,10 @@ import { editorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCom
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { registerColor } from "vs/platform/theme/common/colorRegistry";
-import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
-import { Color } from "vs/base/common/color";
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { Color } from 'vs/base/common/color';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 class MarkerModel {
 
@@ -91,7 +90,16 @@ class MarkerModel {
 		let found = false;
 		const position = this._editor.getPosition();
 		for (let i = 0; i < this._markers.length; i++) {
-			if (Range.containsPosition(this._markers[i], position)) {
+			let range = Range.lift(this._markers[i]);
+
+			if (range.isEmpty()) {
+				const word = this._editor.getModel().getWordAtPosition(range.getStartPosition());
+				if (word) {
+					range = new Range(range.startLineNumber, word.startColumn, range.startLineNumber, word.endColumn);
+				}
+			}
+
+			if (range.containsPosition(position) || position.isBeforeOrEqual(range.getStartPosition())) {
 				this._nextIdx = i + (fwd ? 0 : -1);
 				found = true;
 				break;
@@ -142,7 +150,7 @@ class MarkerModel {
 		this.move(false);
 	}
 
-	public findMarkerAtPosition(pos: editorCommon.IPosition): IMarker {
+	public findMarkerAtPosition(pos: Position): IMarker {
 		for (const marker of this._markers) {
 			if (Range.containsPosition(marker, pos)) {
 				return marker;
@@ -234,7 +242,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 		}); // style() will trigger _applyStyles
 	}
 
-	protected _applyStyles() {
+	protected _applyStyles(): void {
 		if (this._parentContainer) {
 			this._parentContainer.style.backgroundColor = this._backgroundColor.toString();
 		}
@@ -267,7 +275,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 		this.editor.applyFontInfo(this._message.domNode);
 	}
 
-	public show(where: editorCommon.IPosition, heightInLines: number): void {
+	public show(where: Position, heightInLines: number): void {
 		super.show(where, heightInLines);
 		this.focus();
 	}
@@ -296,10 +304,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 			this._severity = marker.severity;
 			this._applyTheme(this._themeService.getTheme());
 
-			this.show({
-				lineNumber: marker.startLineNumber,
-				column: marker.startColumn
-			}, this.computeRequiredHeight());
+			this.show(new Position(marker.startLineNumber, marker.startColumn), this.computeRequiredHeight());
 		});
 	}
 
@@ -438,9 +443,9 @@ class NextMarkerAction extends MarkerNavigationAction {
 			id: 'editor.action.marker.next',
 			label: nls.localize('markerAction.next.label', "Go to Next Error or Warning"),
 			alias: 'Go to Next Error or Warning',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.F8
 			}
 		});
@@ -454,9 +459,9 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			id: 'editor.action.marker.prev',
 			label: nls.localize('markerAction.previous.label', "Go to Previous Error or Warning"),
 			alias: 'Go to Previous Error or Warning',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.Focus,
+				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyCode.F8
 			}
 		});
@@ -473,7 +478,7 @@ CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
 	handler: x => x.closeMarkersNavigation(),
 	kbOpts: {
 		weight: CommonEditorRegistry.commandWeight(50),
-		kbExpr: EditorContextKeys.Focus,
+		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
@@ -481,6 +486,6 @@ CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
 
 // theming
 
-export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError', { dark: '#ff5a5a', light: '#ff5a5a', hc: '#ff5a5a' }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
-export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning', { dark: '#5aac5a', light: '#5aac5a', hc: '#5aac5a' }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
-export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigationBackground', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));
+export const editorMarkerNavigationError = registerColor('editorMarkerNavigationError.background', { dark: '#ff5a5a', light: '#ff5a5a', hc: '#ff5a5a' }, nls.localize('editorMarkerNavigationError', 'Editor marker navigation widget error color.'));
+export const editorMarkerNavigationWarning = registerColor('editorMarkerNavigationWarning.background', { dark: '#5aac5a', light: '#5aac5a', hc: '#5aac5a' }, nls.localize('editorMarkerNavigationWarning', 'Editor marker navigation widget warning color.'));
+export const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: '#2D2D30', light: Color.white, hc: '#0C141F' }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));
