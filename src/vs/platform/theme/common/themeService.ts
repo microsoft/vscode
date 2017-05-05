@@ -20,6 +20,7 @@ export const HIGH_CONTRAST = 'hc';
 export type ThemeType = 'light' | 'dark' | 'hc';
 
 export interface ITheme {
+	readonly name: string;
 	readonly selector: string;
 	readonly type: ThemeType;
 

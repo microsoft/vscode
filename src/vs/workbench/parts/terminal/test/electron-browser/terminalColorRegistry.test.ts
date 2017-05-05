@@ -15,9 +15,9 @@ registerColors();
 
 let themingRegistry = <IColorRegistry>Registry.as(ThemeingExtensions.ColorContribution);
 function getMockTheme(type: ThemeType): ITheme {
-	let theme = {
+	let theme: ITheme = {
+		name: '',
 		selector: '',
-		label: '',
 		type: type,
 		getColor: (colorId) => themingRegistry.resolveDefaultColor(colorId, theme),
 		defines: () => true
