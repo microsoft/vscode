@@ -306,4 +306,11 @@ suite('Strings', () => {
 		assert(!regExpWithFlags.ignoreCase);
 		assert(regExpWithFlags.multiline);
 	});
+
+	test('getLeadingWhitespace', () => {
+		assert.equal(strings.getLeadingWhitespace('  foo'), '  ');
+		assert.equal(strings.getLeadingWhitespace('  foo', 2), '');
+		assert.equal(strings.getLeadingWhitespace('  '), '  ');
+		assert.equal(strings.getLeadingWhitespace('  ', 1), ' ');
+	});
 });

@@ -6,6 +6,7 @@
 'use strict';
 
 import { CharCode } from 'vs/base/common/charCode';
+import { getLeadingWhitespace } from 'vs/base/common/strings';
 
 export enum TokenType {
 	Dollar,
@@ -231,6 +232,28 @@ export class TextmateSnippet {
 			return true;
 		});
 		return map;
+	}
+
+	adjustIndentation(normalizer: (whitespace: string) => string): void {
+
+		walk(this.marker, candidate => {
+			if (candidate instanceof Text) {
+				//check for newline characters and adjust indent
+				let regex = /\r\n|\r|\n/g;
+				let match: RegExpMatchArray;
+				while (match = regex.exec(candidate.string)) {
+					let pos = regex.lastIndex;
+					let whitespace = getLeadingWhitespace(candidate.string, pos);
+					let normalized = normalizer(whitespace);
+					if (whitespace !== normalized) {
+						candidate.string = candidate.string.substr(0, pos)
+							+ normalized
+							+ candidate.string.substr(pos + whitespace.length);
+					}
+				}
+			}
+			return true;
+		});
 	}
 
 }

@@ -362,4 +362,22 @@ suite('SnippetParser', () => {
 		assert.equal(array.length, 1);
 		assert.equal(snippet.offset(array[0]), 3);
 	});
+
+	test('TextmateSnippet#adjustIndentation', () => {
+		let snippet = SnippetParser.parse('foo\n  bar');
+		assert.equal(Marker.toString(snippet.marker), 'foo\n  bar');
+		snippet.adjustIndentation(s => s.replace(/  /, '\t'));
+		assert.equal(Marker.toString(snippet.marker), 'foo\n\tbar');
+
+		snippet = SnippetParser.parse('foo\r\n  bar\r\n  far');
+		assert.equal(Marker.toString(snippet.marker), 'foo\r\n  bar\r\n  far');
+		snippet.adjustIndentation(s => s.replace(/  /, '\t'));
+		assert.equal(Marker.toString(snippet.marker), 'foo\r\n\tbar\r\n\tfar');
+
+		snippet = SnippetParser.parse('foo${1:bar\r  far\r  boo}');
+		assert.equal(Marker.toString(snippet.marker), 'foobar\r  far\r  boo');
+		snippet.adjustIndentation(s => s.replace(/  /, '\t'));
+		assert.equal(Marker.toString(snippet.marker), 'foobar\r\tfar\r\tboo');
+
+	});
 });
