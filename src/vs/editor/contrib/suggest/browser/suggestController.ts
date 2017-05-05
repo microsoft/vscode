@@ -130,6 +130,7 @@ export class SuggestController implements IEditorContribution {
 			let value = true;
 			if (
 				this._model.state === State.Auto
+				&& !item.suggestion.command
 				&& endColumn - startColumn === item.suggestion.insertText.length
 			) {
 				const oldText = this._editor.getModel().getValueInRange({
