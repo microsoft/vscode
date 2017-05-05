@@ -227,6 +227,13 @@ export class TypeOperations {
 		let commands: CommandResult[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
+			if (!cursor.selection.isEmpty()) {
+				// looks like https://github.com/Microsoft/vscode/issues/2773
+				// where a cursor operation occured before a canceled composition
+				// => ignore composition
+				commands[i] = null;
+				continue;
+			}
 			let pos = cursor.position;
 			let startColumn = Math.max(1, pos.column - replaceCharCnt);
 			let range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);

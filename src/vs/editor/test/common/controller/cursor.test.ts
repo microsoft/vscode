@@ -3145,6 +3145,32 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #2773: Accents (´`¨^, others?) are inserted in the wrong position (Mac)', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'hello',
+				'world'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			// Typing ` and pressing shift+down on the mac US intl kb layout
+			// Here we're just replaying what the cursor gets
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+			moveDown(cursor, true);
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '`' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '`' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), '`hello\nworld');
+			assertCursor(cursor, new Selection(1, 2, 2, 2));
+		});
+		mode.dispose();
+	});
+
 	test('issue #20891: All cursors should do the same thing', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({
