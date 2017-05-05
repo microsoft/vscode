@@ -151,6 +151,13 @@ export class Text extends Marker {
 	len(): number {
 		return this.string.length;
 	}
+	with(string: string): Text {
+		if (this.string !== string) {
+			return new Text(string);
+		} else {
+			return this;
+		}
+	}
 }
 
 export class Placeholder extends Marker {
@@ -159,6 +166,9 @@ export class Placeholder extends Marker {
 	}
 	toString() {
 		return Marker.toString(this.defaultValue);
+	}
+	with(defaultValue: Marker[]): Placeholder {
+		return new Placeholder(this.name, defaultValue);
 	}
 }
 
@@ -169,13 +179,16 @@ export class Variable extends Marker {
 	constructor(public name: string = '', public defaultValue: Marker[]) {
 		super();
 	}
-
 	get isDefined(): boolean {
 		return this.resolvedValue !== undefined;
 	}
-
 	toString() {
 		return this.isDefined ? this.resolvedValue : Marker.toString(this.defaultValue);
+	}
+	with(defaultValue: Marker[]): Variable {
+		let ret = new Variable(this.name, defaultValue);
+		ret.resolvedValue = this.resolvedValue;
+		return ret;
 	}
 }
 export function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
@@ -234,26 +247,41 @@ export class TextmateSnippet {
 		return map;
 	}
 
-	adjustIndentation(normalizer: (whitespace: string) => string): void {
+	withIndentation(normalizer: (whitespace: string) => string): TextmateSnippet {
+		// create a new snippet because this can be
+		// different for each and every cursor
+		const newMarker = [...this.marker];
+		TextmateSnippet._adjustIndentation(newMarker, normalizer);
+		return new TextmateSnippet(newMarker);
+	}
 
-		walk(this.marker, candidate => {
+	private static _adjustIndentation(marker: Marker[], normalizer: (whitespace: string) => string): void {
+		for (let i = 0; i < marker.length; i++) {
+			const candidate = marker[i];
 			if (candidate instanceof Text) {
 				//check for newline characters and adjust indent
 				let regex = /\r\n|\r|\n/g;
 				let match: RegExpMatchArray;
-				while (match = regex.exec(candidate.string)) {
+				let value = candidate.string;
+				while (match = regex.exec(value)) {
 					let pos = regex.lastIndex;
-					let whitespace = getLeadingWhitespace(candidate.string, pos);
+					let whitespace = getLeadingWhitespace(value, pos);
 					let normalized = normalizer(whitespace);
 					if (whitespace !== normalized) {
-						candidate.string = candidate.string.substr(0, pos)
+						value = value.substr(0, pos)
 							+ normalized
-							+ candidate.string.substr(pos + whitespace.length);
+							+ value.substr(pos + whitespace.length);
+
+						marker[i] = candidate.with(value);
 					}
 				}
+			} else if (candidate instanceof Placeholder || candidate instanceof Variable) {
+				// recurse with a copied array
+				let children = [...candidate.defaultValue];
+				TextmateSnippet._adjustIndentation(children, normalizer);
+				marker[i] = candidate.with(children);
 			}
-			return true;
-		});
+		}
 	}
 
 }
