@@ -366,6 +366,14 @@ suite('SnippetParser', () => {
 	test('TextmateSnippet#withIndentation', () => {
 		let snippet = SnippetParser.parse('foo\n  bar');
 		assert.equal(Marker.toString(snippet.marker), 'foo\n  bar');
+		let snippet1 = snippet.withIndentation(s => s.replace(/  /, '\t'));
+		let snippet2 = snippet.withIndentation(s => s.replace(/  /, ' '));
+		assert.equal(Marker.toString(snippet.marker), 'foo\n  bar');
+		assert.equal(Marker.toString(snippet1.marker), 'foo\n\tbar');
+		assert.equal(Marker.toString(snippet2.marker), 'foo\n bar');
+
+		snippet = SnippetParser.parse('foo\n  bar');
+		assert.equal(Marker.toString(snippet.marker), 'foo\n  bar');
 		let newSnippet = snippet.withIndentation(s => s.replace(/  /, '\t'));
 		assert.equal(Marker.toString(snippet.marker), 'foo\n  bar');
 		assert.equal(Marker.toString(newSnippet.marker), 'foo\n\tbar');
