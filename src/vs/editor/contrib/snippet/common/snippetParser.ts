@@ -247,6 +247,10 @@ export class TextmateSnippet {
 		return map;
 	}
 
+	get value() {
+		return Marker.toString(this.marker);
+	}
+
 	withIndentation(normalizer: (whitespace: string) => string): TextmateSnippet {
 		// create a new snippet because this can be
 		// different for each and every cursor

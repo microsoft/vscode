@@ -160,19 +160,25 @@ const _manualClassList = new class {
 
 const _nativeClassList = new class {
 	hasClass(node: HTMLElement, className: string): boolean {
-		return className && node.classList.contains(className);
+		return className && node.classList && node.classList.contains(className);
 	}
 
 	addClass(node: HTMLElement, className: string): void {
-		return className && node.classList.add(className);
+		if (className && node.classList) {
+			node.classList.add(className);
+		}
 	}
 
 	removeClass(node: HTMLElement, className: string): void {
-		return className && node.classList.remove(className);
+		if (className && node.classList) {
+			node.classList.remove(className);
+		}
 	}
 
 	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
-		node.classList.toggle(className, shouldHaveIt);
+		if (node.classList) {
+			node.classList.toggle(className, shouldHaveIt);
+		}
 	}
 };
 

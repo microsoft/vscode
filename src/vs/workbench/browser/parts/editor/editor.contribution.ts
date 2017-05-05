@@ -12,7 +12,6 @@ import { IEditorQuickOpenEntry, IQuickOpenRegistry, Extensions as QuickOpenExten
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, SideBySideEditorInput } from 'vs/workbench/common/editor';
-import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -47,7 +46,6 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 		'TextResourceEditor'
 	),
 	[
-		new SyncDescriptor(StringEditorInput),
 		new SyncDescriptor(UntitledEditorInput),
 		new SyncDescriptor(ResourceEditorInput)
 	]

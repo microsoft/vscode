@@ -14,7 +14,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
+import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
@@ -151,6 +151,20 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	public toggleRegex(): void {
 		this._state.change({ isRegex: !this._state.isRegex }, false);
+	}
+
+	public toggleSearchScope(): void {
+		if (this._state.searchScope) {
+			this._state.change({ searchScope: null }, true);
+		} else {
+			let selection = this._editor.getSelection();
+			if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
+				selection = selection.setEndPosition(selection.endLineNumber - 1, 1);
+			}
+			if (!selection.isEmpty()) {
+				this._state.change({ searchScope: selection }, true);
+			}
+		}
 	}
 
 	public setSearchString(searchString: string): void {
@@ -1061,6 +1075,20 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 		mac: ToggleRegexKeybinding.mac,
 		win: ToggleRegexKeybinding.win,
 		linux: ToggleRegexKeybinding.linux
+	}
+}));
+
+CommonEditorRegistry.registerEditorCommand(new FindCommand({
+	id: FIND_IDS.ToggleSearchScopeCommand,
+	precondition: null,
+	handler: x => x.toggleSearchScope(),
+	kbOpts: {
+		weight: CommonEditorRegistry.commandWeight(5),
+		kbExpr: EditorContextKeys.focus,
+		primary: ToggleSearchScopeKeybinding.primary,
+		mac: ToggleSearchScopeKeybinding.mac,
+		win: ToggleSearchScopeKeybinding.win,
+		linux: ToggleSearchScopeKeybinding.linux
 	}
 }));
 

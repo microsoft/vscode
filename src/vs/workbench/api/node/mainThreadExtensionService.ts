@@ -60,8 +60,6 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(
-		// TODO@Joao: remove!
-		forcedDisabledExtensions: string[],
 		@IThreadService threadService: IThreadService,
 		@IMessageService messageService: IMessageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -76,7 +74,6 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		this._extensionsStatus = {};
 
 		const disabledExtensions = [
-			...forcedDisabledExtensions,
 			...extensionEnablementService.getGloballyDisabledExtensions(),
 			...extensionEnablementService.getWorkspaceDisabledExtensions()
 		];
