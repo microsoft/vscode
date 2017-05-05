@@ -297,6 +297,7 @@ export abstract class MainThreadSCMShape {
 
 	$registerGroup(sourceControlHandle: number, handle: number, id: string, label: string): void { throw ni(); }
 	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void { throw ni(); }
+	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void { throw ni(); }
 	$updateGroupResourceStates(sourceControlHandle: number, groupHandle: number, resources: SCMRawResource[]): void { throw ni(); }
 	$unregisterGroup(sourceControlHandle: number, handle: number): void { throw ni(); }
 
