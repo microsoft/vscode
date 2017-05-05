@@ -14,11 +14,11 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 export class LinkDetector {
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
-		// group 0: the full thing :)
-		// group 1: absolute path
+		// group 0: full path with line and column
+		// group 1: full path without line and column, matched by `*.*` in the end to work only on paths with extensions in the end (s.t. http://test.com:8000 would not match)
 		// group 2: drive letter on windows with trailing backslash or leading slash on mac/linux
-		// group 3: line number
-		// group 4: column number
+		// group 3: line number, matched by (:(\d+))
+		// group 4: column number, matched by ((?::(\d+))?)
 		// eg: at Context.<anonymous> (c:\Users\someone\Desktop\mocha-runner\test\test.js:26:11)
 		/(?![\(])(?:file:\/\/)?((?:([a-zA-Z]+:)|[^\(\)<>\'\"\[\]:\s]+)(?:[\\/][^\(\)<>\'\"\[\]:]*)?\.[a-zA-Z]+[0-9]*):(\d+)(?::(\d+))?/g
 	];
@@ -30,6 +30,12 @@ export class LinkDetector {
 		// noop
 	}
 
+	/**
+	 * Matches and handles relative and absolute file links in the string provided.
+	 * Returns <span/> element that wraps the processed string, where matched links are replaced by <a/> and unmatched parts are surrounded by <span/> elements.
+	 * 'onclick' event is attached to all anchored links that opens them in the editor.
+	 * If no links were detected, returns the original string.
+	 */
 	public handleLinks(text: string): HTMLElement | string {
 		let linkContainer: HTMLElement;
 
