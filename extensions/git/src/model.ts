@@ -454,8 +454,8 @@ export class Model implements Disposable {
 		await this.run(Operation.Branch, () => this.repository.branch(name, true));
 	}
 
-	async deleteBranch(name: string): Promise<void> {
-		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name));
+	async deleteBranch(name: string, force?: boolean): Promise<void> {
+		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
 	}
 
 	async checkout(treeish: string): Promise<void> {
