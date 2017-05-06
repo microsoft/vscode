@@ -89,6 +89,7 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.enable,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.disable,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.report,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.built-in-status.user {
 	display: none;
 }
