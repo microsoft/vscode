@@ -726,13 +726,13 @@ export class CommandCenter {
 			const heads = this.model.refs.filter(ref => ref.type === RefType.Head && ref.name !== currentHead)
 				.map(ref => new BranchDeleteItem(ref));
 
-			const placeHolder = 'Select a branch to delete';
+			const placeHolder = localize('select branch to delete', 'Select a branch to delete');
 			const choice = await window.showQuickPick<BranchDeleteItem>(heads, { placeHolder });
 
-			if (!choice) {
+			if (!choice || !choice.branchName) {
 				return;
 			}
-			name = choice.branchName || '';
+			name = choice.branchName;
 			run = force => choice.run(this.model, force);
 		}
 
