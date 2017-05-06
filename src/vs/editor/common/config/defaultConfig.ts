@@ -58,7 +58,7 @@ class ConfigClass implements IConfiguration {
 			},
 			minimap: {
 				enabled: false,
-				renderCharacters: true,
+				renderCharacters: false,
 				maxColumn: 120
 			},
 			fixedOverflowWidgets: false,
