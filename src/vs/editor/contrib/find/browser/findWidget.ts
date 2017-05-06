@@ -109,6 +109,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 		let checkEditorWidth = () => {
 			let editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
+			let minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
 			let collapsedFindWidget = false;
 			let reducedFindWidget = false;
 			let narrowFindWidget = false;
@@ -118,7 +119,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			if (WIDGET_FIXED_WIDTH + 28 >= editorWidth) {
 				narrowFindWidget = true;
 			}
-			if (WIDGET_FIXED_WIDTH + MAX_MATCHES_COUNT_WIDTH + 28 >= editorWidth) {
+			if (WIDGET_FIXED_WIDTH + MAX_MATCHES_COUNT_WIDTH + 28 + minimapWidth >= editorWidth) {
 				reducedFindWidget = true;
 			}
 			dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
