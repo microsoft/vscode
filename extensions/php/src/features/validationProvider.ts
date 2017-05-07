@@ -12,6 +12,7 @@ import * as vscode from 'vscode';
 import { ThrottledDelayer } from './utils/async';
 
 import * as nls from 'vscode-nls';
+
 let localize = nls.loadMessageBundle();
 
 export class LineDecoder {
@@ -97,8 +98,9 @@ export default class PHPValidationProvider {
 	private diagnosticCollection: vscode.DiagnosticCollection;
 	private delayers: { [key: string]: ThrottledDelayer<void> };
 
+	private platform: string;
 	private runInShell: boolean = false;
-	private shellExecutable: string = 'C:\\Windows\\sysnative\\bash.exe';
+	private shellExecutable: string;
 	private shellArgs: string[] = ['-c'];
 
 	constructor(private workspaceStore: vscode.Memento) {
@@ -106,6 +108,7 @@ export default class PHPValidationProvider {
 		this.validationEnabled = true;
 		this.trigger = RunTrigger.onSave;
 		this.pauseValidation = false;
+		this.platform = process.platform;
 	}
 
 	public activate(subscriptions: vscode.Disposable[]) {
@@ -147,6 +150,11 @@ export default class PHPValidationProvider {
 			let shellSettings = section.get<any>('validate.runInShell');
 			if (typeof(shellSettings) === 'boolean') {
 				this.runInShell = shellSettings;
+				if (this.platform.toLowerCase() === 'win32') {
+					this.shellExecutable = 'C:\\Windows\\sysnative\\bash.exe';
+				} else {
+					this.shellExecutable = process.env.SHELL || '/bin/bash';
+				}
 			} else if (typeof(shellSettings) === 'object') {
 				this.runInShell = true;
 				if (shellSettings.shellExecutable && typeof(shellSettings.shellExecutable) === 'string') {
@@ -277,10 +285,12 @@ export default class PHPValidationProvider {
 				// Shell args
 				let executableArgs = args.slice(0);
 
-				// Transform Windows file path to Linux file path
-				let windowsPath = executableArgs.pop();
-				let linuxPath = windowsPath.trim().replace(/^([a-zA-Z]):\\/, '/mnt/$1/').replace(/\\/g, '/');
-				executableArgs.push(linuxPath);
+				// If win32 and bash.exe, transform Windows file path to Linux file path
+				if (this.platform === 'win32' && executable.indexOf('bash.exe') !== -1) {
+					let windowsPath = executableArgs.pop();
+					let linuxPath = windowsPath.trim().replace(/^([a-zA-Z]):\\/, '/mnt/$1/').replace(/\\/g, '/');
+					executableArgs.push(linuxPath);
+				}
 
 				// Finalize executable args
 				args = this.shellArgs.concat(['"', executableInShell, executableArgs.join(' '), '"']);
