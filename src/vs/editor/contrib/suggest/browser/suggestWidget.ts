@@ -248,14 +248,6 @@ class SuggestionDetails {
 		this.scrollUp(80);
 	}
 
-	setBackgroundColor(bgColor: string): void {
-		this.el.style.backgroundColor = bgColor;
-	}
-
-	setBorder(borderStyle: string): void {
-		this.el.style.border = borderStyle;
-	}
-
 	private configureFont() {
 		const configuration = this.editor.getConfiguration();
 		const fontFamily = configuration.fontInfo.fontFamily;
@@ -436,14 +428,13 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		let backgroundColor = theme.getColor(editorSuggestWidgetBackground);
 		if (backgroundColor) {
 			this.listElement.style.backgroundColor = backgroundColor.toString();
-			this.details.setBackgroundColor(backgroundColor.toString());
+			this.details.element.style.backgroundColor = backgroundColor.toString();
 		}
 		let borderColor = theme.getColor(editorSuggestWidgetBorder);
 		if (borderColor) {
 			let borderWidth = theme.type === 'hc' ? 2 : 1;
-			let borderStyle = `${borderWidth}px solid ${borderColor}`;
-			this.listElement.style.border = borderStyle;
-			this.details.setBorder(borderStyle);
+			this.listElement.style.border = `${borderWidth}px solid ${borderColor}`;
+			this.details.element.style.border = `${borderWidth}px solid ${borderColor}`;
 		}
 	}
 
