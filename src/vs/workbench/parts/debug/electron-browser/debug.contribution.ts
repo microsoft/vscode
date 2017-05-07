@@ -10,8 +10,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions } from 'vs/workbench/common/actionRegistry';
 import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -19,7 +18,7 @@ import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelD
 import { DebugViewRegistry } from 'vs/workbench/parts/debug/browser/debugViewRegistry';
 import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/debugViews';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from 'vs/workbench/parts/debug/common/debug';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { DebugEditorModelManager } from 'vs/workbench/parts/debug/browser/debugEditorModelManager';
@@ -35,6 +34,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as debugCommands from 'vs/workbench/parts/debug/electron-browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
+import { StatusBarColorProvider } from 'vs/workbench/parts/debug/electron-browser/statusbarColorProvider';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static ID = VIEWLET_ID;
@@ -107,6 +107,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(OpenDebugViewletAction
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugEditorModelManager);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugActionsWidget);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(StatusBarColorProvider);
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registry.registerWorkbenchAction(new SyncActionDescriptor(
@@ -170,6 +171,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'hideActionBar' }, "Controls if the floating debug action bar should be hidden"),
 			default: false
+		},
+		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+		'launch': {
+			type: 'object',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),
+			default: {}
 		}
 	}
 });

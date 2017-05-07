@@ -108,16 +108,6 @@ export interface IPartService {
 	getSideBarPosition(): Position;
 
 	/**
-	 * Adds a class to the workbench part.
-	 */
-	addClass(clazz: string): void;
-
-	/**
-	 * Removes a class from the workbench part.
-	 */
-	removeClass(clazz: string): void;
-
-	/**
 	 * Returns the identifier of the element that contains the workbench.
 	 */
 	getWorkbenchElementId(): string;
@@ -126,4 +116,9 @@ export interface IPartService {
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
 	toggleZenMode(): void;
+
+	/**
+	 * Resizes currently focused part on main access
+	 */
+	resizePart(part: Parts, sizeChange: number): void;
 }

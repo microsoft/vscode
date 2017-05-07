@@ -12,6 +12,7 @@ import events = require('vs/base/common/events');
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { equalsIgnoreCase, beginsWithIgnoreCase } from 'vs/base/common/strings';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -141,7 +142,7 @@ export interface IFileService {
 	/**
 	 * Returns the preferred encoding to use for a given resource.
 	 */
-	getEncoding(resource: URI): string;
+	getEncoding(resource: URI, preferredEncoding?: string): string;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -230,10 +231,10 @@ export class FileChangesEvent extends events.Event {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return isEqual(resource.fsPath, change.resource.fsPath) || isParent(resource.fsPath, change.resource.fsPath);
+				return isEqualOrParent(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
 			}
 
-			return isEqual(resource.fsPath, change.resource.fsPath);
+			return isEqual(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
 		});
 	}
 
@@ -290,30 +291,87 @@ export class FileChangesEvent extends events.Event {
 	}
 }
 
-export function isEqual(path1: string, path2: string): boolean {
-	const identityEquals = (path1 === path2);
-	if (isLinux || identityEquals) {
+export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boolean {
+	const identityEquals = (pathA === pathB);
+	if (!ignoreCase || identityEquals) {
 		return identityEquals;
 	}
 
-	if (path1.length !== path2.length) {
+	if (!pathA || !pathB) {
 		return false;
 	}
 
-	return path1.toLowerCase() === path2.toLowerCase();
+	return equalsIgnoreCase(pathA, pathB);
 }
 
-export function isParent(path: string, candidate: string): boolean {
-	if (!isLinux) {
-		path = path.toLowerCase();
-		candidate = candidate.toLowerCase();
+export function isParent(path: string, candidate: string, ignoreCase?: boolean): boolean {
+	if (!path || !candidate || path === candidate) {
+		return false;
 	}
 
-	return path.indexOf(candidate + paths.nativeSep) === 0;
+	if (candidate.length > path.length) {
+		return false;
+	}
+
+	if (candidate.charAt(candidate.length - 1) !== paths.nativeSep) {
+		candidate += paths.nativeSep;
+	}
+
+	if (ignoreCase) {
+		return beginsWithIgnoreCase(path, candidate);
+	}
+
+	return path.indexOf(candidate) === 0;
 }
 
-export function indexOf(path: string, candidate: string): number {
-	if (!isLinux) {
+export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean): boolean {
+	if (path === candidate) {
+		return true;
+	}
+
+	if (!path || !candidate) {
+		return false;
+	}
+
+	if (candidate.length > path.length) {
+		return false;
+	}
+
+	if (ignoreCase) {
+		const beginsWith = beginsWithIgnoreCase(path, candidate);
+		if (!beginsWith) {
+			return false;
+		}
+
+		if (candidate.length === path.length) {
+			return true; // same path, different casing
+		}
+
+		let sepOffset = candidate.length;
+		if (candidate.charAt(candidate.length - 1) === paths.nativeSep) {
+			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
+		}
+
+		return path.charAt(sepOffset) === paths.nativeSep;
+	}
+
+	if (candidate.charAt(candidate.length - 1) !== paths.nativeSep) {
+		candidate += paths.nativeSep;
+	}
+
+	return path.indexOf(candidate) === 0;
+}
+
+export function indexOf(path: string, candidate: string, ignoreCase?: boolean): number {
+	if (candidate.length > path.length) {
+		return -1;
+	}
+
+	if (path === candidate) {
+		return 0;
+	}
+
+	if (ignoreCase) {
 		path = path.toLowerCase();
 		candidate = candidate.toLowerCase();
 	}
@@ -437,6 +495,11 @@ export interface IResolveContentOptions {
 	 * the contents of the file.
 	 */
 	encoding?: string;
+
+	/**
+	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
+	 */
+	autoGuessEncoding?: boolean;
 }
 
 export interface IUpdateContentOptions {
@@ -517,6 +580,8 @@ export interface IFilesConfiguration {
 		exclude: glob.IExpression;
 		watcherExclude: { [filepattern: string]: boolean };
 		encoding: string;
+		autoGuessEncoding: boolean;
+		defaultLanguage: string;
 		trimTrailingWhitespace: boolean;
 		autoSave: string;
 		autoSaveDelay: number;
@@ -739,17 +804,17 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelShort: 'ISO 8859-11',
 		order: 42
 	},
-	'koi8-ru': {
+	koi8ru: {
 		labelLong: 'Cyrillic (KOI8-RU)',
 		labelShort: 'KOI8-RU',
 		order: 43
 	},
-	'koi8-t': {
+	koi8t: {
 		labelLong: 'Tajik (KOI8-T)',
 		labelShort: 'KOI8-T',
 		order: 44
 	},
-	GB2312: {
+	gb2312: {
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
 		order: 45

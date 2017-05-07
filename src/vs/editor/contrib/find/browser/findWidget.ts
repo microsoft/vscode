@@ -13,21 +13,20 @@ import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
+import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { IMessage as InputBoxMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/common/findState';
 import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CONTEXT_FIND_INPUT_FOCUSSED } from 'vs/editor/contrib/find/common/findController';
-
-import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, activeContrastBorder, contrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IFindController {
 	replace(): void;
@@ -90,7 +89,8 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		state: FindReplaceState,
 		contextViewProvider: IContextViewProvider,
 		keybindingService: IKeybindingService,
-		contextKeyService: IContextKeyService
+		contextKeyService: IContextKeyService,
+		themeService: IThemeService
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -109,6 +109,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 		let checkEditorWidth = () => {
 			let editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
+			let minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
 			let collapsedFindWidget = false;
 			let reducedFindWidget = false;
 			let narrowFindWidget = false;
@@ -118,7 +119,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			if (WIDGET_FIXED_WIDTH + 28 >= editorWidth) {
 				narrowFindWidget = true;
 			}
-			if (WIDGET_FIXED_WIDTH + MAX_MATCHES_COUNT_WIDTH + 28 >= editorWidth) {
+			if (WIDGET_FIXED_WIDTH + MAX_MATCHES_COUNT_WIDTH + 28 + minimapWidth >= editorWidth) {
 				reducedFindWidget = true;
 			}
 			dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
@@ -168,6 +169,9 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		});
 
 		this._codeEditor.addOverlayWidget(this);
+
+		this._applyTheme(themeService.getTheme());
+		this._register(themeService.onThemeChange(this._applyTheme.bind(this)));
 	}
 
 	// ----- IOverlayWidget API
@@ -344,6 +348,23 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		}
 	}
 
+	private _applyTheme(theme: ITheme) {
+		let inputStyles: IFindInputStyles = {
+			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputBackground: theme.getColor(inputBackground),
+			inputForeground: theme.getColor(inputForeground),
+			inputBorder: theme.getColor(inputBorder),
+			inputValidationInfoBackground: theme.getColor(inputValidationInfoBackground),
+			inputValidationInfoBorder: theme.getColor(inputValidationInfoBorder),
+			inputValidationWarningBackground: theme.getColor(inputValidationWarningBackground),
+			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
+			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
+		};
+		this._findInput.style(inputStyles);
+		this._replaceInputBox.style(inputStyles);
+	}
+
 	// ----- Public
 
 	public focusFindInput(): void {
@@ -364,60 +385,65 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.toKeybinding().value) {
-			case KeyCode.Enter:
-				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Enter)) {
+			this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().done(null, onUnexpectedError);
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.Shift | KeyCode.Enter:
-				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.Shift | KeyCode.Enter)) {
+			this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().done(null, onUnexpectedError);
+			e.preventDefault();
+			return;
+		}
 
-			case KeyCode.Tab:
-				if (this._isReplaceVisible) {
-					this._replaceInputBox.focus();
-				} else {
-					this._findInput.focusOnCaseSensitive();
-				}
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Tab)) {
+			if (this._isReplaceVisible) {
+				this._replaceInputBox.focus();
+			} else {
+				this._findInput.focusOnCaseSensitive();
+			}
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.DownArrow:
-				this._codeEditor.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
+			this._codeEditor.focus();
+			e.preventDefault();
+			return;
 		}
 	}
 
 	private _onReplaceInputKeyDown(e: IKeyboardEvent): void {
 
-		switch (e.toKeybinding().value) {
-			case KeyCode.Enter:
-				this._controller.replace();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Enter)) {
+			this._controller.replace();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.Enter:
-				this._controller.replaceAll();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.Enter)) {
+			this._controller.replaceAll();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyCode.Tab:
-				this._findInput.focusOnCaseSensitive();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyCode.Tab)) {
+			this._findInput.focusOnCaseSensitive();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.Shift | KeyCode.Tab:
-				this._findInput.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.Shift | KeyCode.Tab)) {
+			this._findInput.focus();
+			e.preventDefault();
+			return;
+		}
 
-			case KeyMod.CtrlCmd | KeyCode.DownArrow:
-				this._codeEditor.focus();
-				e.preventDefault();
-				return;
+		if (e.equals(KeyMod.CtrlCmd | KeyCode.DownArrow)) {
+			this._codeEditor.focus();
+			e.preventDefault();
+			return;
 		}
 	}
 
@@ -532,7 +558,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
 			className: 'close-fw',
 			onTrigger: () => {
-				this._state.change({ isRevealed: false }, false);
+				this._state.change({ isRevealed: false, searchScope: null }, false);
 			},
 			onKeyDown: (e) => {
 				if (e.equals(KeyCode.Tab)) {
@@ -773,14 +799,36 @@ class SimpleButton extends Widget {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	addBackgroundColorRule(theme, '.findMatch', theme.getColor(colorRegistry.editorFindMatchHighlight), collector);
-	addBackgroundColorRule(theme, '.currentFindMatch', theme.getColor(colorRegistry.editorCurrentFindMatchHighlight), collector);
-	addBackgroundColorRule(theme, '.findScope', theme.getColor(colorRegistry.editorFindRangeHighlight), collector);
+// theming
+
+registerThemingParticipant((theme, collector) => {
+	function addBackgroundColorRule(selector: string, color: Color): void {
+		if (color) {
+			collector.addRule(`.monaco-editor.${theme.selector} ${selector} { background-color: ${color}; }`);
+		}
+	}
+
+	addBackgroundColorRule('.findMatch', theme.getColor(editorFindMatchHighlight));
+	addBackgroundColorRule('.currentFindMatch', theme.getColor(editorFindMatch));
+	addBackgroundColorRule('.findScope', theme.getColor(editorFindRangeHighlight));
+
+	let widgetBackground = theme.getColor(editorWidgetBackground);
+	addBackgroundColorRule('.find-widget', widgetBackground);
+
+	let widgetShadowColor = theme.getColor(widgetShadow);
+	if (widgetShadowColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .find-widget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+	}
+
+	let hcOutline = theme.getColor(activeContrastBorder);
+	if (hcOutline) {
+		collector.addRule(`.monaco-editor.${theme.selector} .findScope { border: 1px dashed ${hcOutline.transparent(0.4)}; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .currentFindMatch { border: 2px solid ${hcOutline}; padding: 1px; -moz-box-sizing: border-box; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .findMatch { border: 1px dotted ${hcOutline}; -moz-box-sizing: border-box; box-sizing: border-box; }`);
+	}
+	let hcBorder = theme.getColor(contrastBorder);
+	if (hcBorder) {
+		collector.addRule(`.monaco-editor.${theme.selector} .find-widget { border: 2px solid ${hcBorder}; }`);
+	}
 });
 
-function addBackgroundColorRule(theme: ITheme, selector: string, color: Color, collector: ICssStyleCollector): void {
-	if (color) {
-		collector.addRule(`.monaco-editor.${theme.selector} ${selector} { background-color: ${color}; }`);
-	}
-}

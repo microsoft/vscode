@@ -18,30 +18,16 @@
 	font-weight: bold;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.exception-widget .message {
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .description,
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 }
 
-.monaco-editor .zone-widget-arrow.below.exception-widget {
-	border-bottom-color: rgb(163, 21, 21);
-}
-
-/* Light and Dark Theming */
-
-.monaco-editor .zone-widget .zone-widget-container.exception-widget {
-	background-color: rgba(163, 21, 21, 0.05);
-	border-top-color: rgb(163, 21, 21);
-	border-bottom-color: rgb(163, 21, 21);
-}
-
-.monaco-editor.vs-dark .zone-widget .zone-widget-container.exception-widget {
-	background-color: rgba(163, 21, 21, 0.25);
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
+	margin-top: 0.5em;
 }
 
 /* High Contrast Theming */
-.monaco-editor.hc-black .zone-widget .zone-widget-container.exception-widget {
-	background-color: rgba(163, 21, 21, 0.45);
-}
 
 .monaco-workbench.mac .zone-widget .zone-widget-container.exception-widget {
 	font-size: 11px;

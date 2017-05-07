@@ -8,8 +8,7 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Registry } from 'vs/platform/platform';
 import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeybindingsRegistry, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { OutputService } from 'vs/workbench/parts/output/browser/outputServices';
@@ -81,7 +80,7 @@ interface IActionDescriptor {
 
 function registerAction(desc: IActionDescriptor) {
 
-	const {id, handler, title, category, iconClass, f1, menu, keybinding} = desc;
+	const { id, handler, title, category, iconClass, f1, menu, keybinding } = desc;
 
 	// 1) register as command
 	CommandsRegistry.registerCommand(id, handler);
@@ -94,7 +93,7 @@ function registerAction(desc: IActionDescriptor) {
 
 	// 3) menus
 	if (menu) {
-		let {menuId, when, group} = menu;
+		let { menuId, when, group } = menu;
 		MenuRegistry.appendMenuItem(menuId, {
 			command,
 			when,
@@ -104,7 +103,7 @@ function registerAction(desc: IActionDescriptor) {
 
 	// 4) keybindings
 	if (keybinding) {
-		let {when, weight, keys} = keybinding;
+		let { when, weight, keys } = keybinding;
 		KeybindingsRegistry.registerKeybindingRule({
 			id,
 			when,

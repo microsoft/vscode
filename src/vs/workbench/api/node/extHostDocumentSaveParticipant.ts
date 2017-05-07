@@ -12,7 +12,7 @@ import { illegalState } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadWorkspaceShape, ExtHostDocumentSaveParticipantShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/node/extHostTypes';
-import { fromRange, TextDocumentSaveReason } from 'vs/workbench/api/node/extHostTypeConverters';
+import { fromRange, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -101,10 +101,10 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 
 	private _deliverEventAsync(listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): TPromise<any> {
 
-		const promises: TPromise<any | vscode.TextEdit[]>[] = [];
+		const promises: TPromise<vscode.TextEdit[]>[] = [];
 
-		const {document, reason} = stubEvent;
-		const {version} = document;
+		const { document, reason } = stubEvent;
+		const { version } = document;
 
 		const event = Object.freeze(<vscode.TextDocumentWillSaveEvent>{
 			document,
@@ -127,21 +127,23 @@ export class ExtHostDocumentSaveParticipant extends ExtHostDocumentSaveParticipa
 		// freeze promises after event call
 		Object.freeze(promises);
 
-		return new TPromise<any[]>((resolve, reject) => {
+		return new TPromise<vscode.TextEdit[][]>((resolve, reject) => {
 			// join on all listener promises, reject after timeout
 			const handle = setTimeout(() => reject(new Error('timeout')), this._thresholds.timeout);
 			return always(TPromise.join(promises), () => clearTimeout(handle)).then(resolve, reject);
 
 		}).then(values => {
 
-			const edits: IResourceEdit[] = [];
+			let edits: IResourceEdit[] = [];
+
 			for (const value of values) {
 				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
-					for (const {newText, range} of value) {
+					for (const { newText, newEol, range } of value) {
 						edits.push({
 							resource: <URI>document.uri,
-							range: fromRange(range),
-							newText
+							range: range && fromRange(range),
+							newText,
+							newEol: EndOfLine.from(newEol)
 						});
 					}
 				}

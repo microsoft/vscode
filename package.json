@@ -1,8 +1,8 @@
 {
   "name": "code-oss-dev",
-  "version": "1.11.0",
-  "electronVersion": "1.4.6",
-  "distro": "64f6f295b56a3512bf34dfb643f770160fd33ee8",
+  "version": "1.13.0",
+  "electronVersion": "1.6.6",
+  "distro": "bb676c1d1f91a0c6d3050d8ca8a49ba7743108c5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -19,7 +19,7 @@
     "precommit": "node build/gulpfile.hygiene.js"
   },
   "dependencies": {
-    "applicationinsights": "0.17.0",
+    "applicationinsights": "0.17.1",
     "chokidar": "bpasero/chokidar#vscode",
     "emmet": "ramya-rao-a/emmet#vscode",
     "fast-plist": "0.1.2",
@@ -29,16 +29,17 @@
     "http-proxy-agent": "0.2.7",
     "https-proxy-agent": "0.3.6",
     "iconv-lite": "0.4.15",
+    "jschardet": "^1.4.2",
     "minimist": "1.2.0",
-    "native-keymap": "0.4.0",
-    "node-pty": "0.6.2",
+    "native-keymap": "1.2.3",
+    "node-pty": "0.6.4",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
-    "vscode-debugprotocol": "1.17.0",
-    "vscode-ripgrep": "0.0.8",
-    "vscode-textmate": "^3.1.1",
+    "vscode-debugprotocol": "1.19.0",
+    "vscode-ripgrep": "0.0.12",
+    "vscode-textmate": "^3.1.4",
     "winreg": "1.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.11",
+    "xterm": "Tyriar/xterm.js#vscode-release/1.12",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
@@ -99,7 +100,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^4.3.1",
-    "typescript": "2.1.5",
+    "typescript": "2.3.2",
     "typescript-formatter": "4.0.1",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",

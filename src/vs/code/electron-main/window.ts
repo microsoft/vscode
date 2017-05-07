@@ -16,6 +16,7 @@ import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/code/electron-main/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
@@ -29,13 +30,13 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
+	display?: number;
 }
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
 	extensionDevelopmentPath?: string;
 	isExtensionTestHost?: boolean;
-	titleBarStyle?: 'native' | 'custom';
 }
 
 export enum WindowMode {
@@ -77,10 +78,15 @@ export interface IWindowConfiguration extends ParsedArgs {
 
 	userEnv: platform.IProcessEnvironment;
 
+	/**
+	 * The physical keyboard is of ISO type (on OSX)
+	 */
+	isISOKeyboard?: boolean;
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
 	baseTheme?: string;
+	backgroundColor?: string;
 	accessibilitySupport?: boolean;
 
 	isInitialStartup?: boolean;
@@ -130,6 +136,7 @@ interface IConfiguration {
 export class VSCodeWindow {
 
 	public static themeStorageKey = 'theme';
+	public static themeBackgroundStorageKey = 'themeBackground';
 
 	private static MIN_WIDTH = 200;
 	private static MIN_HEIGHT = 120;
@@ -171,11 +178,6 @@ export class VSCodeWindow {
 		// Load window state
 		this.restoreWindowState(config.state);
 
-		// For VS theme we can show directly because background is white
-		const baseTheme = this.getBaseTheme();
-		const usesLightTheme = 'vs' === baseTheme;
-		const usesHighContrastTheme = 'hc-black' === baseTheme || (platform.isWindows && systemPreferences.isInvertedColorScheme());
-
 		// in case we are maximized or fullscreen, only show later after the call to maximize/fullscreen (see below)
 		const isFullscreenOrMaximized = (this.currentWindowMode === WindowMode.Maximized || this.currentWindowMode === WindowMode.Fullscreen);
 
@@ -184,13 +186,14 @@ export class VSCodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			backgroundColor: usesHighContrastTheme ? '#000000' : usesLightTheme ? '#FFFFFF' : platform.isMacintosh ? '#171717' : '#1E1E1E', // https://github.com/electron/electron/issues/5150
+			backgroundColor: this.getBackgroundColor(),
 			minWidth: VSCodeWindow.MIN_WIDTH,
 			minHeight: VSCodeWindow.MIN_HEIGHT,
 			show: !isFullscreenOrMaximized,
 			title: product.nameLong,
 			webPreferences: {
-				'backgroundThrottling': false // by default if Code is in the background, intervals and timeouts get throttled
+				'backgroundThrottling': false, // by default if Code is in the background, intervals and timeouts get throttled,
+				disableBlinkFeatures: 'Auxclick' // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
 			}
 		};
 
@@ -198,12 +201,24 @@ export class VSCodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
+		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+
+		let useNativeTabs = false;
+		if (windowConfig && windowConfig.nativeTabs) {
+			options.tabbingIdentifier = product.nameShort; // this opts in to sierra tabs
+			useNativeTabs = true;
+		}
+
 		let useCustomTitleStyle = false;
-		if (platform.isMacintosh && (!this.options.titleBarStyle || this.options.titleBarStyle === 'custom')) {
+		if (platform.isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom')) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isDev) {
 				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
+		}
+
+		if (useNativeTabs) {
+			useCustomTitleStyle = false; // native tabs on sierra do not work with custom title style
 		}
 
 		if (useCustomTitleStyle) {
@@ -217,6 +232,15 @@ export class VSCodeWindow {
 
 		if (useCustomTitleStyle) {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
+		}
+
+		// Set relaunch command
+		if (platform.isWindows && product.win32AppUserModelId && typeof this._win.setAppDetails === 'function') {
+			this._win.setAppDetails({
+				appId: product.win32AppUserModelId,
+				relaunchCommand: `"${process.execPath}" -n`,
+				relaunchDisplayName: product.nameLong
+			});
 		}
 
 		if (isFullscreenOrMaximized) {
@@ -234,7 +258,7 @@ export class VSCodeWindow {
 		this._lastFocusTime = Date.now(); // since we show directly, we need to set the last focus time too
 
 		// respect configured menu bar visibility
-		this.onConfigurationUpdated(this.configurationService.getConfiguration<IConfiguration>());
+		this.onConfigurationUpdated();
 
 		// TODO@joao: hook this up to some initialization routine this causes a race between setting the headers and doing
 		// a request that needs them. chances are low
@@ -334,6 +358,20 @@ export class VSCodeWindow {
 		return this._readyState;
 	}
 
+	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
+		this._win.on(command, (e, cmd) => {
+			if (this.readyState !== ReadyState.READY) {
+				return; // window must be ready
+			}
+
+			if (cmd === back) {
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
+			} else if (cmd === forward) {
+				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
+			}
+		});
+	}
+
 	private registerListeners(): void {
 
 		// Remember that we loaded
@@ -360,18 +398,7 @@ export class VSCodeWindow {
 		});
 
 		// App commands support
-		this._win.on('app-command', (e, cmd) => {
-			if (this.readyState !== ReadyState.READY) {
-				return; // window must be ready
-			}
-
-			// Support navigation via mouse buttons 4/5
-			if (cmd === 'browser-backward') {
-				this.send('vscode:runAction', 'workbench.action.navigateBack');
-			} else if (cmd === 'browser-forward') {
-				this.send('vscode:runAction', 'workbench.action.navigateForward');
-			}
-		});
+		this.registerNavigationListenerOn('app-command', 'browser-backward', 'browser-forward', false);
 
 		// Handle code that wants to open links
 		this._win.webContents.on('new-window', (event: Event, url: string) => {
@@ -421,14 +448,24 @@ export class VSCodeWindow {
 		}
 
 		// Handle configuration changes
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config)));
+		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
 	}
 
-	private onConfigurationUpdated(config: IConfiguration): void {
-		const newMenuBarVisibility = this.getMenuBarVisibility(config);
+	private onConfigurationUpdated(): void {
+		const newMenuBarVisibility = this.getMenuBarVisibility();
 		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
+		}
+
+		// Swipe command support (macOS)
+		if (platform.isMacintosh) {
+			const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+			if (config && config.workbench && config.workbench.editor && config.workbench.editor.swipeToNavigate) {
+				this.registerNavigationListenerOn('swipe', 'left', 'right', true);
+			} else {
+				this._win.removeAllListeners('swipe');
+			}
 		}
 	};
 
@@ -519,6 +556,7 @@ export class VSCodeWindow {
 
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
+		windowConfiguration.backgroundColor = this.getBackgroundColor();
 
 		// Perf Counters
 		windowConfiguration.perfStartTime = global.perfStartTime;
@@ -540,14 +578,37 @@ export class VSCodeWindow {
 	}
 
 	private getBaseTheme(): string {
+		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+			return 'hc-black';
+		}
 		const theme = this.storageService.getItem<string>(VSCodeWindow.themeStorageKey, 'vs-dark');
 		return theme.split(' ')[0];
 	}
 
+	private getBackgroundColor(): string {
+		if (platform.isWindows && systemPreferences.isInvertedColorScheme()) {
+			return '#000000';
+		}
+
+		let background = this.storageService.getItem<string>(VSCodeWindow.themeBackgroundStorageKey, null);
+		if (!background) {
+			let baseTheme = this.getBaseTheme();
+			return baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : (platform.isMacintosh ? '#171717' : '#1E1E1E')); // https://github.com/electron/electron/issues/5150
+		}
+
+		return background;
+	}
+
 	public serializeWindowState(): IWindowState {
+
+		// fullscreen gets special treatment
 		if (this.win.isFullScreen()) {
+			const display = screen.getDisplayMatching(this.getBounds());
+
 			return {
 				mode: WindowMode.Fullscreen,
+				display: display ? display.id : void 0,
+
 				// still carry over window dimensions from previous sessions!
 				width: this.windowState.width,
 				height: this.windowState.height,
@@ -577,13 +638,12 @@ export class VSCodeWindow {
 
 		// only consider non-minimized window states
 		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
-			const pos = this.win.getPosition();
-			const size = this.win.getSize();
+			const bounds = this.getBounds();
 
-			state.x = pos[0];
-			state.y = pos[1];
-			state.width = size[0];
-			state.height = size[1];
+			state.x = bounds.x;
+			state.y = bounds.y;
+			state.width = bounds.width;
+			state.height = bounds.height;
 		}
 
 		return state;
@@ -659,7 +719,19 @@ export class VSCodeWindow {
 			return state;
 		}
 
-		// Multi Monitor: be less strict because metrics can be crazy
+		// Multi Montior (fullscreen): try to find the previously used display
+		if (state.display && state.mode === WindowMode.Fullscreen) {
+			const display = displays.filter(d => d.id === state.display)[0];
+			if (display && display.bounds && typeof display.bounds.x === 'number' && typeof display.bounds.y === 'number') {
+				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
+				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
+				defaults.y = display.bounds.y;
+
+				return defaults;
+			}
+		}
+
+		// Multi Monitor (non-fullscreen): be less strict because metrics can be crazy
 		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
 		const display = screen.getDisplayMatching(bounds);
 		if (display && display.bounds.x + display.bounds.width > bounds.x && display.bounds.y + display.bounds.height > bounds.y) {
@@ -694,9 +766,8 @@ export class VSCodeWindow {
 		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
 	}
 
-	private getMenuBarVisibility(configuration: IConfiguration): MenuBarVisibility {
+	private getMenuBarVisibility(): MenuBarVisibility {
 		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
-
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
 			return 'default';
 		}

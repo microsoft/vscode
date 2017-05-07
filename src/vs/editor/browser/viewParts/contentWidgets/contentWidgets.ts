@@ -7,18 +7,17 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ClassNames, ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
 interface IWidgetData {
 	allowEditorOverflow: boolean;
 	widget: IContentWidget;
-	position: editorCommon.IPosition;
+	position: IPosition;
 	preference: ContentWidgetPositionPreference[];
 	isVisible: boolean;
 	domNode: FastDomNode<HTMLElement>;
@@ -65,8 +64,8 @@ export class ViewContentWidgets extends ViewPart {
 	private _lineHeight: number;
 	private _renderData: IMyRenderData;
 
-	public domNode: HTMLElement;
-	public overflowingContentWidgetsDomNode: HTMLElement;
+	public domNode: FastDomNode<HTMLElement>;
+	public overflowingContentWidgetsDomNode: FastDomNode<HTMLElement>;
 	private _viewDomNode: FastDomNode<HTMLElement>;
 
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>) {
@@ -79,15 +78,15 @@ export class ViewContentWidgets extends ViewPart {
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderData = {};
 
-		this.domNode = document.createElement('div');
+		this.domNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.domNode, PartFingerprint.ContentWidgets);
-		this.domNode.className = ClassNames.CONTENT_WIDGETS;
-		this.domNode.style.position = 'absolute';
-		this.domNode.style.top = '0';
+		this.domNode.setClassName('contentWidgets');
+		this.domNode.setPosition('absolute');
+		this.domNode.setTop(0);
 
-		this.overflowingContentWidgetsDomNode = document.createElement('div');
+		this.overflowingContentWidgetsDomNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.overflowingContentWidgetsDomNode, PartFingerprint.OverflowingContentWidgets);
-		this.overflowingContentWidgetsDomNode.className = ClassNames.OVERFLOWING_CONTENT_WIDGETS;
+		this.overflowingContentWidgetsDomNode.setClassName('overflowingContentWidgets');
 	}
 
 	public dispose(): void {
@@ -107,7 +106,7 @@ export class ViewContentWidgets extends ViewPart {
 
 			if (this._contentWidth !== this._context.configuration.editor.layoutInfo.contentWidth) {
 				this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-				// update the maxWidth on widgets nodes, such that `onReadAfterForcedLayout`
+				// update the maxWidth on widgets nodes, such that `prepareRender`
 				// below can read out the adjusted width/height of widgets
 				let keys = Object.keys(this._widgets);
 				for (let i = 0, len = keys.length; i < len; i++) {
@@ -123,15 +122,9 @@ export class ViewContentWidgets extends ViewPart {
 		}
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		return false;
-	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
-		return true;//e.inlineDecorationsChanged;
+		return true;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
@@ -144,9 +137,6 @@ export class ViewContentWidgets extends ViewPart {
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
-	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		return false;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return true;
@@ -176,15 +166,15 @@ export class ViewContentWidgets extends ViewPart {
 		domNode.setAttribute('widgetId', widget.getId());
 
 		if (widgetData.allowEditorOverflow) {
-			this.overflowingContentWidgetsDomNode.appendChild(domNode.domNode);
+			this.overflowingContentWidgetsDomNode.appendChild(domNode);
 		} else {
-			this.domNode.appendChild(domNode.domNode);
+			this.domNode.appendChild(domNode);
 		}
 
 		this.setShouldRender();
 	}
 
-	public setWidgetPosition(widget: IContentWidget, position: editorCommon.IPosition, preference: ContentWidgetPositionPreference[]): void {
+	public setWidgetPosition(widget: IContentWidget, position: IPosition, preference: ContentWidgetPositionPreference[]): void {
 		let widgetData = this._widgets[widget.getId()];
 
 		widgetData.position = position;

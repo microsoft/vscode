@@ -6,14 +6,16 @@
 
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
+import { toThenable } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { TextEditorSelectionChangeKind } from './extHostTypes';
 import { IResolvedTextEditorConfiguration, ISelectionChangeEvent } from 'vs/workbench/api/node/mainThreadEditor';
 import * as TypeConverters from './extHostTypeConverters';
-import { TextEditorDecorationType } from './extHostTextEditor';
+import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextEditorPositionData } from './extHost.protocol';
+import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 export class ExtHostEditors extends ExtHostEditorsShape {
@@ -46,7 +48,7 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e));
 	}
 
-	getActiveTextEditor(): vscode.TextEditor {
+	getActiveTextEditor(): ExtHostTextEditor {
 		return this._extHostDocumentsAndEditors.activeEditor();
 	}
 
@@ -54,8 +56,32 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 		return this._extHostDocumentsAndEditors.allEditors();
 	}
 
-	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor> {
-		return this._proxy.$tryShowTextDocument(<URI>document.uri, TypeConverters.fromViewColumn(column), preserveFocus).then(id => {
+	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): TPromise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): TPromise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor>;
+	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions, preserveFocus?: boolean): TPromise<vscode.TextEditor> {
+		let options: ITextDocumentShowOptions;
+		if (typeof columnOrOptions === 'number') {
+			options = {
+				position: TypeConverters.fromViewColumn(columnOrOptions),
+				preserveFocus: preserveFocus,
+				pinned: true
+			};
+		} else if (typeof columnOrOptions === 'object') {
+			options = {
+				position: TypeConverters.fromViewColumn(columnOrOptions.viewColumn),
+				preserveFocus: columnOrOptions.preserveFocus,
+				pinned: columnOrOptions.preview === undefined ? true : !columnOrOptions.preview
+			};
+		} else {
+			options = {
+				position: EditorPosition.ONE,
+				preserveFocus: false,
+				pinned: true
+			};
+		}
+
+		return this._proxy.$tryShowTextDocument(<URI>document.uri, options).then(id => {
 			let editor = this._extHostDocumentsAndEditors.getEditor(id);
 			if (editor) {
 				return editor;
@@ -101,5 +127,9 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 				this._onDidChangeTextEditorViewColumn.fire({ textEditor, viewColumn });
 			}
 		}
+	}
+
+	getDiffInformation(id: string): Thenable<vscode.LineChange[]> {
+		return toThenable(this._proxy.$getDiffInformation(id));
 	}
 }

@@ -5,14 +5,14 @@
 
 'use strict';
 
-import { empty as emptyDisposable, IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
+import { empty as emptyDisposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions, IActionDescriptor, ICodeEditorWidgetCreationOptions, IDiffEditorOptions, IModel, IModelChangedEvent, EventType } from 'vs/editor/common/editorCommon';
+import { IActionDescriptor, IModel, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { StandaloneKeybindingService } from 'vs/editor/browser/standalone/simpleServices';
@@ -20,14 +20,20 @@ import { IEditorContextViewService } from 'vs/editor/browser/standalone/standalo
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
+import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 /**
  * The options to create an editor.
  */
-export interface IEditorConstructionOptions extends ICodeEditorWidgetCreationOptions {
+export interface IEditorConstructionOptions extends IEditorOptions {
+	/**
+	 * The initial model associated with this code editor.
+	 */
+	model?: IModel;
 	/**
 	 * The initial value of the auto created model in the editor.
 	 * To not create automatically a model, use `model: null`.
@@ -125,7 +131,8 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
 		const run = (): TPromise<void> => {
-			return TPromise.as(_descriptor.run(this));
+			const r = _descriptor.run(this);
+			return r ? r : TPromise.as(void 0);
 		};
 
 
@@ -185,9 +192,8 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 export class StandaloneEditor extends StandaloneCodeEditor implements IStandaloneCodeEditor {
 
 	private _contextViewService: IEditorContextViewService;
-	private _standaloneColorService: IStandaloneColorService;
+	private _standaloneThemeService: IStandaloneThemeService;
 	private _ownsModel: boolean;
-	private _toDispose2: IDisposable[];
 
 	constructor(
 		domElement: HTMLElement,
@@ -199,18 +205,18 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IStandaloneColorService standaloneColorService: IStandaloneColorService
+		@IStandaloneThemeService standaloneThemeService: IStandaloneThemeService
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
-			options.theme = standaloneColorService.setTheme(options.theme);
+			options.theme = standaloneThemeService.setTheme(options.theme);
 		}
 
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
-		this._standaloneColorService = standaloneColorService;
-		this._toDispose2 = [toDispose];
+		this._standaloneThemeService = standaloneThemeService;
+		this._register(toDispose);
 
 		let model: IModel = null;
 		if (typeof options.model === 'undefined') {
@@ -228,13 +234,12 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 				oldModelUrl: null,
 				newModelUrl: model.uri
 			};
-			this.emit(EventType.ModelChanged, e);
+			this._onDidChangeModel.fire(e);
 		}
 	}
 
 	public dispose(): void {
 		super.dispose();
-		this._toDispose2 = dispose(this._toDispose2);
 	}
 
 	public destroy(): void {
@@ -243,7 +248,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 	public updateOptions(newOptions: IEditorOptions): void {
 		if (typeof newOptions.theme === 'string') {
-			newOptions.theme = this._standaloneColorService.setTheme(newOptions.theme);
+			newOptions.theme = this._standaloneThemeService.setTheme(newOptions.theme);
 		}
 		super.updateOptions(newOptions);
 	}
@@ -267,9 +272,8 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private _contextViewService: IEditorContextViewService;
-	private _standaloneColorService: IStandaloneColorService;
+	private _standaloneThemeService: IStandaloneThemeService;
 	private _standaloneKeybindingService: StandaloneKeybindingService;
-	private _toDispose2: IDisposable[];
 
 	constructor(
 		domElement: HTMLElement,
@@ -279,31 +283,32 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IStandaloneColorService standaloneColorService: IStandaloneColorService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+		@IStandaloneThemeService standaloneColorService: IStandaloneThemeService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IThemeService themeService: IThemeService
 	) {
 		options = options || {};
 		if (typeof options.theme === 'string') {
 			options.theme = standaloneColorService.setTheme(options.theme);
 		}
 
-		super(domElement, options, editorWorkerService, contextKeyService, instantiationService);
+		super(domElement, options, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
 		}
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
-		this._standaloneColorService = standaloneColorService;
+		this._standaloneThemeService = standaloneColorService;
 
-		this._toDispose2 = [toDispose];
+		this._register(toDispose);
 
 		this._contextViewService.setContainer(this._containerDomElement);
 	}
 
 	public dispose(): void {
 		super.dispose();
-		this._toDispose2 = dispose(this._toDispose2);
 	}
 
 	public destroy(): void {
@@ -312,7 +317,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	public updateOptions(newOptions: IEditorOptions): void {
 		if (typeof newOptions.theme === 'string') {
-			newOptions.theme = this._standaloneColorService.setTheme(newOptions.theme);
+			newOptions.theme = this._standaloneThemeService.setTheme(newOptions.theme);
 		}
 		super.updateOptions(newOptions);
 	}

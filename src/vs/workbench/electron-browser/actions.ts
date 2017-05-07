@@ -677,10 +677,21 @@ export class ReportIssueAction extends Action {
 		super(id, label);
 	}
 
+	private _optimisticIsPure(): TPromise<boolean> {
+		let isPure = true;
+		let integrityPromise = this.integrityService.isPure().then(res => {
+			isPure = res.isPure;
+		});
+
+		return TPromise.any([TPromise.timeout(100), integrityPromise]).then(() => {
+			return isPure;
+		});
+	}
+
 	public run(): TPromise<boolean> {
-		return this.integrityService.isPure().then(res => {
+		return this._optimisticIsPure().then(isPure => {
 			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, extensions);
+				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions);
 
 				window.open(issueUrl);
 
@@ -719,11 +730,18 @@ Steps to Reproduce:
 			return `|${e.manifest.name}|${e.manifest.publisher}|${e.manifest.version}|`;
 		}).join('\n');
 
-		return `
+		const extensionTable = `
 
 ${tableHeader}\n${table};
 
 `;
+		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
+		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
+		if (encodeURIComponent(extensionTable).length > 1600) {
+			return 'the listing exceeds the lower minimum of browsers\' URL characters limit';
+		}
+
+		return extensionTable;
 	}
 }
 
@@ -1031,7 +1049,7 @@ export abstract class BaseNavigationAction extends Action {
 export class NavigateLeftAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateLeft';
-	public static LABEL = nls.localize('navigateLeft', "Move to the View Part on the Left");
+	public static LABEL = nls.localize('navigateLeft', "Move to the View on the Left");
 
 	constructor(
 		id: string,
@@ -1081,7 +1099,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 export class NavigateRightAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateRight';
-	public static LABEL = nls.localize('navigateRight', "Move to the View Part on the Right");
+	public static LABEL = nls.localize('navigateRight', "Move to the View on the Right");
 
 	constructor(
 		id: string,
@@ -1131,7 +1149,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 export class NavigateUpAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateUp';
-	public static LABEL = nls.localize('navigateUp', "Move to the View Part Above");
+	public static LABEL = nls.localize('navigateUp', "Move to the View Above");
 
 	constructor(
 		id: string,
@@ -1162,7 +1180,7 @@ export class NavigateUpAction extends BaseNavigationAction {
 export class NavigateDownAction extends BaseNavigationAction {
 
 	public static ID = 'workbench.action.navigateDown';
-	public static LABEL = nls.localize('navigateDown', "Move to the View Part Below");
+	public static LABEL = nls.localize('navigateDown', "Move to the View Below");
 
 	constructor(
 		id: string,
@@ -1186,5 +1204,78 @@ export class NavigateDownAction extends BaseNavigationAction {
 				}
 				return this.navigateToPanel();
 			});
+	}
+}
+
+// Resize focused view actions
+export abstract class BaseResizeViewAction extends Action {
+
+	// This is a media-size percentage
+	protected static RESIZE_INCREMENT = 6.5;
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService protected partService: IPartService
+	) {
+		super(id, label);
+	}
+
+	protected resizePart(sizeChange: number): void {
+		const isEditorFocus = this.partService.hasFocus(Parts.EDITOR_PART);
+		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
+		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
+
+		let part: Parts;
+		if (isSidebarFocus) {
+			part = Parts.SIDEBAR_PART;
+		} else if (isPanelFocus) {
+			part = Parts.PANEL_PART;
+		} else if (isEditorFocus) {
+			part = Parts.EDITOR_PART;
+		}
+
+		if (part) {
+			this.partService.resizePart(part, sizeChange);
+		}
+	}
+}
+
+export class IncreaseViewSizeAction extends BaseResizeViewAction {
+
+	public static ID = 'workbench.action.increaseViewSize';
+	public static LABEL = nls.localize('increaseViewSize', "Increase Current View Size");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService partService: IPartService
+	) {
+		super(id, label, partService);
+	}
+
+	public run(): TPromise<boolean> {
+		this.resizePart(BaseResizeViewAction.RESIZE_INCREMENT);
+		return TPromise.as(true);
+	}
+}
+
+export class DecreaseViewSizeAction extends BaseResizeViewAction {
+
+	public static ID = 'workbench.action.decreaseViewSize';
+	public static LABEL = nls.localize('decreaseViewSize', "Decrease Current View Size");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPartService partService: IPartService
+
+	) {
+		super(id, label, partService);
+	}
+
+	public run(): TPromise<boolean> {
+		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
+		return TPromise.as(true);
 	}
 }

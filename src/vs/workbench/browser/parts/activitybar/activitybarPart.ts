@@ -20,7 +20,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -29,7 +29,9 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
-import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 interface IViewletActivity {
 	badge: IBadge;
@@ -64,9 +66,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IStorageService private storageService: IStorageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(id, { hasTitle: false });
+		super(id, { hasTitle: false }, themeService);
 
 		this.viewletIdToActionItems = Object.create(null);
 		this.viewletIdToActions = Object.create(null);
@@ -77,14 +80,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const pinnedViewlets = this.memento[ActivitybarPart.PINNED_VIEWLETS] as string[];
 
 		if (pinnedViewlets) {
-			// TODO@Ben: Migrate git => scm viewlet
-
-			const map = SCMPreview.enabled
-				? (id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
-				: (id => id === 'workbench.view.scm' ? 'workbench.view.git' : id);
-
 			this.pinnedViewlets = pinnedViewlets
-				.map(map)
+				// TODO@Ben: Migrate git => scm viewlet
+				.map(id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
 				.filter(arrays.uniqueFilter<string>(str => str));
 
 		} else {
@@ -170,7 +168,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		} else {
 			// update
-			const [{badge, clazz}] = stack;
+			const [{ badge, clazz }] = stack;
 			action.setBadge(badge);
 			if (clazz) {
 				action.class = clazz;
@@ -208,6 +206,25 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		});
 
 		return $result;
+	}
+
+	public updateStyles(): void {
+		super.updateStyles();
+
+		// Part container
+		const container = this.getContainer();
+		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
+		container.style('background-color', background);
+
+		const hcBorder = this.getColor(contrastBorder);
+		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
+		container.style('box-sizing', hcBorder && isPositionLeft ? 'border-box' : null);
+		container.style('border-right-width', hcBorder && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', hcBorder && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', isPositionLeft ? hcBorder : null);
+		container.style('border-left-width', hcBorder && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', hcBorder && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', !isPositionLeft ? hcBorder : null);
 	}
 
 	private showContextMenu(e: MouseEvent): void {

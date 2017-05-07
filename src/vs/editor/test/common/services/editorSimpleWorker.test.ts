@@ -163,7 +163,7 @@ suite('EditorSimpleWorker', () => {
 		]);
 
 		return worker.textualSuggest(model.uri.toString(), { lineNumber: 2, column: 2 }, '[a-z]+', 'img').then((result) => {
-			const {suggestions} = result;
+			const { suggestions } = result;
 			assert.equal(suggestions.length, 1);
 			assert.equal(suggestions[0].label, 'foobar');
 		});

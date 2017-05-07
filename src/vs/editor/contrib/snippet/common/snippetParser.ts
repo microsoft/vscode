@@ -6,6 +6,7 @@
 'use strict';
 
 import { CharCode } from 'vs/base/common/charCode';
+import { getLeadingWhitespace } from 'vs/base/common/strings';
 
 export enum TokenType {
 	Dollar,
@@ -135,6 +136,9 @@ export abstract class Marker {
 	toString() {
 		return '';
 	}
+	len(): number {
+		return 0;
+	}
 }
 
 export class Text extends Marker {
@@ -143,6 +147,16 @@ export class Text extends Marker {
 	}
 	toString() {
 		return this.string;
+	}
+	len(): number {
+		return this.string.length;
+	}
+	with(string: string): Text {
+		if (this.string !== string) {
+			return new Text(string);
+		} else {
+			return this;
+		}
 	}
 }
 
@@ -153,6 +167,9 @@ export class Placeholder extends Marker {
 	toString() {
 		return Marker.toString(this.defaultValue);
 	}
+	with(defaultValue: Marker[]): Placeholder {
+		return new Placeholder(this.name, defaultValue);
+	}
 }
 
 export class Variable extends Marker {
@@ -162,17 +179,123 @@ export class Variable extends Marker {
 	constructor(public name: string = '', public defaultValue: Marker[]) {
 		super();
 	}
-
 	get isDefined(): boolean {
 		return this.resolvedValue !== undefined;
 	}
-
 	toString() {
 		return this.isDefined ? this.resolvedValue : Marker.toString(this.defaultValue);
 	}
+	with(defaultValue: Marker[]): Variable {
+		let ret = new Variable(this.name, defaultValue);
+		ret.resolvedValue = this.resolvedValue;
+		return ret;
+	}
+}
+export function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
+	const stack = [...marker];
+	while (stack.length > 0) {
+		const marker = stack.shift();
+		const recurse = visitor(marker);
+		if (!recurse) {
+			break;
+		}
+		if (marker instanceof Placeholder || marker instanceof Variable) {
+			stack.unshift(...marker.defaultValue);
+		}
+	}
+}
+
+export class TextmateSnippet {
+
+	readonly marker: Marker[];
+
+	constructor(marker: Marker[]) {
+		this.marker = marker;
+	}
+
+	offset(marker: Marker): number {
+		let pos = 0;
+		let found = false;
+		walk(this.marker, candidate => {
+			if (candidate === marker) {
+				found = true;
+				return false;
+			}
+			pos += candidate.len();
+			return true;
+		});
+
+		if (!found) {
+			return -1;
+		}
+		return pos;
+	}
+
+	placeholders(): Map<string, Placeholder[]> {
+		const map = new Map<string, Placeholder[]>();
+		walk(this.marker, candidate => {
+			if (candidate instanceof Placeholder) {
+				let array = map.get(candidate.name);
+				if (!array) {
+					map.set(candidate.name, [candidate]);
+				} else {
+					array.push(candidate);
+				}
+			}
+			return true;
+		});
+		return map;
+	}
+
+	get value() {
+		return Marker.toString(this.marker);
+	}
+
+	withIndentation(normalizer: (whitespace: string) => string): TextmateSnippet {
+		// create a new snippet because this can be
+		// different for each and every cursor
+		const newMarker = [...this.marker];
+		TextmateSnippet._adjustIndentation(newMarker, normalizer);
+		return new TextmateSnippet(newMarker);
+	}
+
+	private static _adjustIndentation(marker: Marker[], normalizer: (whitespace: string) => string): void {
+		for (let i = 0; i < marker.length; i++) {
+			const candidate = marker[i];
+			if (candidate instanceof Text) {
+				//check for newline characters and adjust indent
+				let regex = /\r\n|\r|\n/g;
+				let match: RegExpMatchArray;
+				let value = candidate.string;
+				while (match = regex.exec(value)) {
+					let pos = regex.lastIndex;
+					let whitespace = getLeadingWhitespace(value, pos);
+					let normalized = normalizer(whitespace);
+					if (whitespace !== normalized) {
+						value = value.substr(0, pos)
+							+ normalized
+							+ value.substr(pos + whitespace.length);
+
+						marker[i] = candidate.with(value);
+					}
+				}
+			} else if (candidate instanceof Placeholder || candidate instanceof Variable) {
+				// recurse with a copied array
+				let children = [...candidate.defaultValue];
+				TextmateSnippet._adjustIndentation(children, normalizer);
+				marker[i] = candidate.with(children);
+			}
+		}
+	}
+
 }
 
 export class SnippetParser {
+
+	static parse(template: string): TextmateSnippet {
+		const marker = new SnippetParser(true, false).parse(template);
+		return new TextmateSnippet(marker);
+	}
 
 	private _enableTextMate: boolean;
 	private _enableInternal: boolean;

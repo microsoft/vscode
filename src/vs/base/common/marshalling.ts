@@ -30,17 +30,15 @@ function replacer(key: string, value: any): any {
 	return value;
 }
 
-
 function reviver(key: string, value: any): any {
 	let marshallingConst: number;
 	if (value !== void 0 && value !== null) {
 		marshallingConst = (<MarshalledObject>value).$mid;
 	}
-	if (marshallingConst === 1) {
-		return URI.revive(value);
-	} else if (marshallingConst === 2) {
-		return new RegExp(value.source, value.flags);
-	} else {
-		return value;
+
+	switch (marshallingConst) {
+		case 1: return URI.revive(value);
+		case 2: return new RegExp(value.source, value.flags);
+		default: return value;
 	}
 }

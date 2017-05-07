@@ -43,7 +43,7 @@ export class MainThreadCommands extends MainThreadCommandsShape {
 	}
 
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> {
-		return this._commandService.executeCommand(id, ...args);
+		return this._commandService.executeCommand<T>(id, ...args);
 	}
 
 	$getCommands(): Thenable<string[]> {
@@ -59,7 +59,7 @@ CommandsRegistry.registerCommand('_generateCommandsDocumentation', function (acc
 		// add local commands
 		const commands = CommandsRegistry.getCommands();
 		for (let id in commands) {
-			let {description} = commands[id];
+			let { description } = commands[id];
 			if (description) {
 				result[id] = description;
 			}

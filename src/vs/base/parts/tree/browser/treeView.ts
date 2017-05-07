@@ -23,6 +23,7 @@ import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { KeyCode } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
+import { EmitterEvent } from 'vs/base/common/eventEmitter';
 
 export interface IRow {
 	element: HTMLElement;
@@ -115,7 +116,7 @@ export class ViewItem implements IViewItem {
 	public needsRender: boolean;
 	public uri: string;
 	public unbindDragStart: Lifecycle.IDisposable;
-	public loadingPromise: WinJS.Promise;
+	public loadingTimer: number;
 
 	public _styles: any;
 	private _draggable: boolean;
@@ -362,6 +363,9 @@ export class TreeView extends HeightMap {
 	static BINDING = 'monaco-tree-row';
 	static LOADING_DECORATION_DELAY = 800;
 
+	private static counter: number = 0;
+	private instance: number;
+
 	private static currentExternalDragAndDropData: _.IDragAndDropData = null;
 
 	private context: IViewContext;
@@ -371,6 +375,7 @@ export class TreeView extends HeightMap {
 	private viewListeners: Lifecycle.IDisposable[];
 	private domNode: HTMLElement;
 	private wrapper: HTMLElement;
+	private styleElement: HTMLStyleElement;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
 	private wrapperGesture: Touch.Gesture;
@@ -413,6 +418,9 @@ export class TreeView extends HeightMap {
 	constructor(context: _.ITreeContext, container: HTMLElement) {
 		super();
 
+		TreeView.counter++;
+		this.instance = TreeView.counter;
+
 		this.context = {
 			dataSource: context.dataSource,
 			renderer: context.renderer,
@@ -434,8 +442,10 @@ export class TreeView extends HeightMap {
 		this.items = {};
 
 		this.domNode = document.createElement('div');
-		this.domNode.className = 'monaco-tree no-focused-item';
+		this.domNode.className = `monaco-tree no-focused-item monaco-tree-instance-${this.instance}`;
 		this.domNode.tabIndex = 0;
+
+		this.styleElement = DOM.createStyleSheet(this.domNode);
 
 		// ARIA
 		this.domNode.setAttribute('role', 'tree');
@@ -488,6 +498,7 @@ export class TreeView extends HeightMap {
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mousedown', (e) => this.onMouseDown(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'mouseup', (e) => this.onMouseUp(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'click', (e) => this.onClick(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'auxclick', (e) => this.onClick(e))); // >= Chrome 56
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'contextmenu', (e) => this.onContextMenu(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Tap, (e) => this.onTap(e)));
 		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, Touch.EventType.Change, (e) => this.onTouchChange(e)));
@@ -539,6 +550,37 @@ export class TreeView extends HeightMap {
 		this.layout();
 
 		this.setupMSGesture();
+
+		this.applyStyles(context.options);
+	}
+
+	public applyStyles(styles: _.ITreeStyles): void {
+
+		// Indicate selection/focus via background color
+		if (!styles.listFocusOutline) {
+			this.styleElement.innerHTML = `
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted)						{ background-color: ${styles.listFocusBackground}; }
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 						{ background-color: ${styles.listActiveSelectionBackground}; color: ${styles.listActiveSelectionForeground}; }
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) 				{ background-color: ${styles.listFocusAndSelectionBackground}; color: ${styles.listFocusAndSelectionForeground}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)								{ background-color: ${styles.listInactiveSelectionBackground}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)	{ background-color: ${styles.listHoverBackground}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target												{ background-color: ${styles.listDropBackground} !important; }
+			`;
+		}
+
+		// Indicate selection/focus via outline
+		else {
+			this.styleElement.innerHTML = `
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row 														{ background: none !important; border: 1px solid transparent; }
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 						{ border: 1px dotted ${styles.listFocusOutline}; }
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 						{ border: 1px solid ${styles.listFocusOutline}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)  							{ border: 1px solid ${styles.listFocusOutline}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  	{ border: 1px dashed ${styles.listFocusOutline}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target												{ background: none !important; border: 1px dashed ${styles.listFocusOutline}; }
+			`;
+		}
 	}
 
 	protected createViewItem(item: Model.Item): IViewItem {
@@ -632,17 +674,17 @@ export class TreeView extends HeightMap {
 		this.releaseModel();
 		this.model = newModel;
 
-		this.modelListeners.push(this.model.addBulkListener2((e) => this.onModelEvents(e)));
+		this.modelListeners.push(this.model.addBulkListener((e) => this.onModelEvents(e)));
 	}
 
-	private onModelEvents(events: any[]): void {
+	private onModelEvents(events: EmitterEvent[]): void {
 		var elementsToRefresh: Model.Item[] = [];
 
 		for (var i = 0, len = events.length; i < len; i++) {
 			var event = events[i];
-			var data = event.getData();
+			var data = event.data;
 
-			switch (event.getType()) {
+			switch (event.type) {
 				case 'refreshing':
 					this.onRefreshing();
 					break;
@@ -815,10 +857,10 @@ export class TreeView extends HeightMap {
 		var viewItem = this.items[item.id];
 
 		if (viewItem) {
-			viewItem.loadingPromise = WinJS.TPromise.timeout(TreeView.LOADING_DECORATION_DELAY).then(() => {
-				viewItem.loadingPromise = null;
+			viewItem.loadingTimer = setTimeout(() => {
+				viewItem.loadingTimer = 0;
 				viewItem.loading = true;
-			});
+			}, TreeView.LOADING_DECORATION_DELAY);
 		}
 
 		if (!e.isNested) {
@@ -839,9 +881,9 @@ export class TreeView extends HeightMap {
 		var viewItem = this.items[item.id];
 
 		if (viewItem) {
-			if (viewItem.loadingPromise) {
-				viewItem.loadingPromise.cancel();
-				viewItem.loadingPromise = null;
+			if (viewItem.loadingTimer) {
+				clearTimeout(viewItem.loadingTimer);
+				viewItem.loadingTimer = 0;
 			}
 
 			viewItem.loading = false;

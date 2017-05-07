@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
+import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 
 export interface IResolveResult {
 	enterChord: boolean;
@@ -15,15 +17,14 @@ export interface IResolveResult {
 }
 
 export class KeybindingResolver {
-	private readonly _defaultKeybindings: NormalizedKeybindingItem[];
-	private readonly _shouldWarnOnConflict: boolean;
+	private readonly _defaultKeybindings: ResolvedKeybindingItem[];
+	private readonly _keybindings: ResolvedKeybindingItem[];
 	private readonly _defaultBoundCommands: Map<string, boolean>;
-	private readonly _map: Map<string, NormalizedKeybindingItem[]>;
-	private readonly _lookupMap: Map<string, NormalizedKeybindingItem[]>;
+	private readonly _map: Map<string, ResolvedKeybindingItem[]>;
+	private readonly _lookupMap: Map<string, ResolvedKeybindingItem[]>;
 
-	constructor(defaultKeybindings: NormalizedKeybindingItem[], overrides: NormalizedKeybindingItem[], shouldWarnOnConflict: boolean = true) {
+	constructor(defaultKeybindings: ResolvedKeybindingItem[], overrides: ResolvedKeybindingItem[]) {
 		this._defaultKeybindings = defaultKeybindings;
-		this._shouldWarnOnConflict = shouldWarnOnConflict;
 
 		this._defaultBoundCommands = new Map<string, boolean>();
 		for (let i = 0, len = defaultKeybindings.length; i < len; i++) {
@@ -31,12 +32,12 @@ export class KeybindingResolver {
 			this._defaultBoundCommands.set(command, true);
 		}
 
-		this._map = new Map<string, NormalizedKeybindingItem[]>();
-		this._lookupMap = new Map<string, NormalizedKeybindingItem[]>();
+		this._map = new Map<string, ResolvedKeybindingItem[]>();
+		this._lookupMap = new Map<string, ResolvedKeybindingItem[]>();
 
-		let allKeybindings = KeybindingResolver.combine(defaultKeybindings, overrides);
-		for (let i = 0, len = allKeybindings.length; i < len; i++) {
-			let k = allKeybindings[i];
+		this._keybindings = KeybindingResolver.combine(defaultKeybindings, overrides);
+		for (let i = 0, len = this._keybindings.length; i < len; i++) {
+			let k = this._keybindings[i];
 			if (k.keypressFirstPart === null) {
 				// unbound
 				continue;
@@ -46,7 +47,7 @@ export class KeybindingResolver {
 		}
 	}
 
-	private static _isTargetedForRemoval(defaultKb: NormalizedKeybindingItem, keypressFirstPart: string, keypressChordPart: string, command: string, when: ContextKeyExpr): boolean {
+	private static _isTargetedForRemoval(defaultKb: ResolvedKeybindingItem, keypressFirstPart: string, keypressChordPart: string, command: string, when: ContextKeyExpr): boolean {
 		if (defaultKb.command !== command) {
 			return false;
 		}
@@ -71,9 +72,9 @@ export class KeybindingResolver {
 	/**
 	 * Looks for rules containing -command in `overrides` and removes them directly from `defaults`.
 	 */
-	public static combine(defaults: NormalizedKeybindingItem[], rawOverrides: NormalizedKeybindingItem[]): NormalizedKeybindingItem[] {
+	public static combine(defaults: ResolvedKeybindingItem[], rawOverrides: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
 		defaults = defaults.slice(0);
-		let overrides: NormalizedKeybindingItem[] = [];
+		let overrides: ResolvedKeybindingItem[] = [];
 		for (let i = 0, len = rawOverrides.length; i < len; i++) {
 			const override = rawOverrides[i];
 			if (!override.command || override.command.length === 0 || override.command.charAt(0) !== '-') {
@@ -94,7 +95,7 @@ export class KeybindingResolver {
 		return defaults.concat(overrides);
 	}
 
-	private _addKeyPress(keypress: string, item: NormalizedKeybindingItem): void {
+	private _addKeyPress(keypress: string, item: ResolvedKeybindingItem): void {
 
 		const conflicts = this._map.get(keypress);
 
@@ -122,10 +123,6 @@ export class KeybindingResolver {
 
 			if (KeybindingResolver.whenIsEntirelyIncluded(true, conflict.when, item.when)) {
 				// `item` completely overwrites `conflict`
-				if (this._shouldWarnOnConflict && item.isDefault) {
-					console.warn('Conflict detected, command `' + conflict.command + '` cannot be triggered due to ' + item.command);
-				}
-
 				// Remove conflict from the lookupMap
 				this._removeFromLookupMap(conflict);
 			}
@@ -135,7 +132,7 @@ export class KeybindingResolver {
 		this._addToLookupMap(item);
 	}
 
-	private _addToLookupMap(item: NormalizedKeybindingItem): void {
+	private _addToLookupMap(item: ResolvedKeybindingItem): void {
 		if (!item.command) {
 			return;
 		}
@@ -149,7 +146,7 @@ export class KeybindingResolver {
 		}
 	}
 
-	private _removeFromLookupMap(item: NormalizedKeybindingItem): void {
+	private _removeFromLookupMap(item: ResolvedKeybindingItem): void {
 		let arr = this._lookupMap.get(item.command);
 		if (typeof arr === 'undefined') {
 			return;
@@ -200,25 +197,29 @@ export class KeybindingResolver {
 		return this._defaultBoundCommands;
 	}
 
-	public getDefaultKeybindings(): NormalizedKeybindingItem[] {
+	public getDefaultKeybindings(): ResolvedKeybindingItem[] {
 		return this._defaultKeybindings;
 	}
 
-	public lookupKeybindings(commandId: string): NormalizedKeybindingItem[] {
+	public getKeybindings(): ResolvedKeybindingItem[] {
+		return this._keybindings;
+	}
+
+	public lookupKeybindings(commandId: string): ResolvedKeybindingItem[] {
 		let items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return [];
 		}
 
 		// Reverse to get the most specific item first
-		let result: NormalizedKeybindingItem[] = [], resultLen = 0;
+		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (let i = items.length - 1; i >= 0; i--) {
 			result[resultLen++] = items[i];
 		}
 		return result;
 	}
 
-	public lookupPrimaryKeybinding(commandId: string): NormalizedKeybindingItem {
+	public lookupPrimaryKeybinding(commandId: string): ResolvedKeybindingItem {
 		let items = this._lookupMap.get(commandId);
 		if (typeof items === 'undefined' || items.length === 0) {
 			return null;
@@ -227,8 +228,8 @@ export class KeybindingResolver {
 		return items[items.length - 1];
 	}
 
-	public resolve(context: any, currentChord: string, keypress: string): IResolveResult {
-		let lookupMap: NormalizedKeybindingItem[] = null;
+	public resolve(context: IContext, currentChord: string, keypress: string): IResolveResult {
+		let lookupMap: ResolvedKeybindingItem[] = null;
 
 		if (currentChord !== null) {
 			// Fetch all chord bindings for `currentChord`
@@ -278,7 +279,7 @@ export class KeybindingResolver {
 		};
 	}
 
-	private _findCommand(context: any, matches: NormalizedKeybindingItem[]): NormalizedKeybindingItem {
+	private _findCommand(context: IContext, matches: ResolvedKeybindingItem[]): ResolvedKeybindingItem {
 		for (let i = matches.length - 1; i >= 0; i--) {
 			let k = matches[i];
 
@@ -292,10 +293,31 @@ export class KeybindingResolver {
 		return null;
 	}
 
-	public static contextMatchesRules(context: any, rules: ContextKeyExpr): boolean {
+	public static contextMatchesRules(context: IContext, rules: ContextKeyExpr): boolean {
 		if (!rules) {
 			return true;
 		}
 		return rules.evaluate(context);
+	}
+
+	public static getAllUnboundCommands(boundCommands: Map<string, boolean>): string[] {
+		const commands = CommandsRegistry.getCommands();
+		const unboundCommands: string[] = [];
+
+		for (let id in commands) {
+			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
+				continue;
+			}
+			if (typeof commands[id].description === 'object'
+				&& !isFalsyOrEmpty((<ICommandHandlerDescription>commands[id].description).args)) { // command with args
+				continue;
+			}
+			if (boundCommands.get(id) === true) {
+				continue;
+			}
+			unboundCommands.push(id);
+		}
+
+		return unboundCommands;
 	}
 }

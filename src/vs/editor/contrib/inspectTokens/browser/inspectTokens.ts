@@ -17,7 +17,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { TokenizationRegistry, LanguageIdentifier, FontStyle, StandardTokenType, ITokenizationSupport, IState } from 'vs/editor/common/modes';
 import { CharCode } from 'vs/base/common/charCode';
-import { IStandaloneColorService } from 'vs/editor/common/services/standaloneColorService';
+import { IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { NULL_STATE, nullTokenize, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { Token } from 'vs/editor/common/core/token';
 import { Color } from 'vs/base/common/color';
@@ -32,18 +32,18 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 	}
 
 	private _editor: ICodeEditor;
-	private _standaloneColorService: IStandaloneColorService;
+	private _standaloneThemeService: IStandaloneThemeService;
 	private _modeService: IModeService;
 	private _widget: InspectTokensWidget;
 
 	constructor(
 		editor: ICodeEditor,
-		@IStandaloneColorService standaloneColorService: IStandaloneColorService,
+		@IStandaloneThemeService standaloneColorService: IStandaloneThemeService,
 		@IModeService modeService: IModeService
 	) {
 		super();
 		this._editor = editor;
-		this._standaloneColorService = standaloneColorService;
+		this._standaloneThemeService = standaloneColorService;
 		this._modeService = modeService;
 		this._widget = null;
 
@@ -68,7 +68,7 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 		if (!this._editor.getModel()) {
 			return;
 		}
-		this._widget = new InspectTokensWidget(this._editor, this._standaloneColorService, this._modeService);
+		this._widget = new InspectTokensWidget(this._editor, this._standaloneThemeService, this._modeService);
 	}
 
 	public stop(): void {
@@ -166,7 +166,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 	public allowEditorOverflow = true;
 
 	private _editor: ICodeEditor;
-	private _standaloneColorService: IStandaloneColorService;
+	private _standaloneThemeService: IStandaloneThemeService;
 	private _modeService: IModeService;
 	private _tokenizationSupport: ITokenizationSupport;
 	private _model: IModel;
@@ -174,12 +174,12 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		standaloneColorService: IStandaloneColorService,
+		standaloneThemeService: IStandaloneThemeService,
 		modeService: IModeService
 	) {
 		super();
 		this._editor = editor;
-		this._standaloneColorService = standaloneColorService;
+		this._standaloneThemeService = standaloneThemeService;
 		this._modeService = modeService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');

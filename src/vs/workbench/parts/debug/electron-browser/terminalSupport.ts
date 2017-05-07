@@ -19,7 +19,7 @@ export class TerminalSupport {
 	public static runInTerminal(terminalService: ITerminalService, nativeTerminalService: IExternalTerminalService, configurationService: IConfigurationService, args: DebugProtocol.RunInTerminalRequestArguments, response: DebugProtocol.RunInTerminalResponse): TPromise<void> {
 
 		if (args.kind === 'external') {
-			return nativeTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env);
+			return nativeTerminalService.runInTerminal(args.title, args.cwd, args.args, args.env || {});
 		}
 
 		let delay = 0;

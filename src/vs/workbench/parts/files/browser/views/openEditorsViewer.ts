@@ -28,7 +28,7 @@ import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/file
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { keybindingForAction, SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction } from 'vs/workbench/parts/files/browser/fileActions';
+import { SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
@@ -112,7 +112,7 @@ export class Renderer implements IRenderer {
 
 			const editorGroupActions = this.actionProvider.getEditorGroupActions();
 			editorGroupActions.forEach(a => {
-				const key = keybindingForAction(a.id, this.keybindingService);
+				const key = this.keybindingService.lookupKeybinding(a.id);
 				editorGroupTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? key.getLabel() : void 0 });
 			});
 
@@ -125,7 +125,7 @@ export class Renderer implements IRenderer {
 
 		const openEditorActions = this.actionProvider.getOpenEditorActions();
 		openEditorActions.forEach(a => {
-			const key = keybindingForAction(a.id, this.keybindingService);
+			const key = this.keybindingService.lookupKeybinding(a.id);
 			editorTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? key.getLabel() : void 0 });
 		});
 
@@ -261,7 +261,7 @@ export class Controller extends DefaultController {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.actionProvider.getSecondaryActions(tree, element),
-			getKeyBinding: (action) => keybindingForAction(action.id, this.keybindingService),
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			onHide: (wasCancelled?: boolean) => {
 				if (wasCancelled) {
 					tree.DOMFocus();

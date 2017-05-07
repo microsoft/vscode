@@ -32,7 +32,6 @@ export interface IProductConfiguration {
 	welcomePage: string;
 	enableTelemetry: boolean;
 	aiConfig: {
-		key: string;
 		asimovKey: string;
 	};
 	sendASmile: {

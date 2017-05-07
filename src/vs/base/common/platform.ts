@@ -12,7 +12,6 @@ let _isLinux = false;
 let _isRootUser = false;
 let _isNative = false;
 let _isWeb = false;
-let _isQunit = false;
 let _locale: string = undefined;
 let _language: string = undefined;
 
@@ -68,7 +67,6 @@ if (typeof process === 'object') {
 	_isWeb = true;
 	_locale = navigator.language;
 	_language = _locale;
-	_isQunit = !!(<any>self).QUnit;
 }
 
 export enum Platform {
@@ -95,7 +93,6 @@ export const isLinux = _isLinux;
 export const isRootUser = _isRootUser;
 export const isNative = _isNative;
 export const isWeb = _isWeb;
-export const isQunit = _isQunit;
 export const platform = _platform;
 
 /**

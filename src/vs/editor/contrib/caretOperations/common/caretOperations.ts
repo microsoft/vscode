@@ -5,7 +5,8 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { ICommand, ICommonCodeEditor, EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IActionOptions, editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { MoveCaretCommand } from './moveCaretCommand';
 
@@ -39,7 +40,7 @@ class MoveCaretLeftAction extends MoveCaretAction {
 			id: 'editor.action.moveCarretLeftAction',
 			label: nls.localize('caret.moveLeft', "Move Caret Left"),
 			alias: 'Move Caret Left',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 }
@@ -51,7 +52,7 @@ class MoveCaretRightAction extends MoveCaretAction {
 			id: 'editor.action.moveCarretRightAction',
 			label: nls.localize('caret.moveRight', "Move Caret Right"),
 			alias: 'Move Caret Right',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 }

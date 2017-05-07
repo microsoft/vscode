@@ -358,28 +358,36 @@ suite('Debug - Model', () => {
 
 	test('repl output', () => {
 		model.appendToRepl('first line\n', severity.Error);
-		model.appendToRepl('second line', severity.Warning);
-		model.appendToRepl('second line', severity.Warning);
 		model.appendToRepl('second line', severity.Error);
+		model.appendToRepl('second line', severity.Error);
+		model.appendToRepl('third line', severity.Warning);
+		model.appendToRepl('third line', severity.Warning);
+		model.appendToRepl('fourth line', severity.Error);
 
 		let elements = <OutputElement[]>model.getReplElements();
-		assert.equal(elements.length, 3);
+		assert.equal(elements.length, 4);
 		assert.equal(elements[0].value, 'first line');
 		assert.equal(elements[0].counter, 1);
 		assert.equal(elements[0].severity, severity.Error);
 		assert.equal(elements[1].value, 'second line');
 		assert.equal(elements[1].counter, 2);
-		assert.equal(elements[1].severity, severity.Warning);
+		assert.equal(elements[1].severity, severity.Error);
+		assert.equal(elements[2].value, 'third line');
+		assert.equal(elements[2].counter, 2);
+		assert.equal(elements[2].severity, severity.Warning);
+		assert.equal(elements[3].value, 'fourth line');
+		assert.equal(elements[3].counter, 1);
+		assert.equal(elements[3].severity, severity.Error);
 
 		model.appendToRepl('1', severity.Warning);
 		elements = <OutputElement[]>model.getReplElements();
-		assert.equal(elements.length, 4);
-		assert.equal(elements[3].value, '1');
-		assert.equal(elements[3].severity, severity.Warning);
+		assert.equal(elements.length, 5);
+		assert.equal(elements[4].value, '1');
+		assert.equal(elements[4].severity, severity.Warning);
 
 		const keyValueObject = { 'key1': 2, 'key2': 'value' };
 		model.appendToRepl(new OutputNameValueElement('fake', keyValueObject), null);
-		const element = <OutputNameValueElement>model.getReplElements()[4];
+		const element = <OutputNameValueElement>model.getReplElements()[5];
 		assert.equal(element.value, 'Object');
 		assert.deepEqual(element.valueObj, keyValueObject);
 

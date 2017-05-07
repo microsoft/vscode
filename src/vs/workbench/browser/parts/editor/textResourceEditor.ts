@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions } from 'vs/editor/common/editorCommon';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TextEditorOptions, EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -89,7 +89,7 @@ export class TextResourceEditor extends BaseTextEditor {
 
 			// Assert Model instance
 			if (!(resolvedModel instanceof BaseTextEditorModel)) {
-				return TPromise.wrapError<void>('Invalid editor input. String editor requires a model instance of BaseTextEditorModel.');
+				return TPromise.wrapError<void>('Unable to open file as text');
 			}
 
 			// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile

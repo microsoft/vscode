@@ -3,32 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import strings = require('vs/base/common/strings');
-import platform = require('vs/base/common/platform');
-import errors = require('vs/base/common/errors');
-import paths = require('vs/base/common/paths');
-import dom = require('vs/base/browser/dom');
-import { $ } from 'vs/base/browser/builder';
+import * as nls from 'vs/nls';
+import * as paths from 'vs/base/common/paths';
+import * as DOM from 'vs/base/browser/dom';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
-import { LeftRightWidget, IRenderer } from 'vs/base/browser/ui/leftRightWidget/leftRightWidget';
-import { ITree, IElementCallback, IDataSource, ISorter, IAccessibilityProvider, IFilter } from 'vs/base/parts/tree/browser/tree';
-import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
-import { ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
+import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class SearchDataSource implements IDataSource {
+
+	private static AUTOEXPAND_CHILD_LIMIT = 10;
 
 	public getId(tree: ITree, element: any): string {
 		if (element instanceof FileMatch) {
@@ -42,16 +36,18 @@ export class SearchDataSource implements IDataSource {
 		return 'root';
 	}
 
-	public getChildren(tree: ITree, element: any): TPromise<any[]> {
-		let value: any[] = [];
-
+	private _getChildren(element: any): any[] {
 		if (element instanceof FileMatch) {
-			value = element.matches();
+			return element.matches();
 		} else if (element instanceof SearchResult) {
-			value = element.matches();
+			return element.matches();
 		}
 
-		return TPromise.as(value);
+		return [];
+	}
+
+	public getChildren(tree: ITree, element: any): TPromise<any[]> {
+		return TPromise.as(this._getChildren(element));
 	}
 
 	public hasChildren(tree: ITree, element: any): boolean {
@@ -68,6 +64,11 @@ export class SearchDataSource implements IDataSource {
 		}
 
 		return TPromise.as(value);
+	}
+
+	public shouldAutoexpand(tree: ITree, element: any): boolean {
+		const numChildren = this._getChildren(element).length;
+		return numChildren > 0 && numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT;
 	}
 }
 
@@ -86,111 +87,132 @@ export class SearchSorter implements ISorter {
 	}
 }
 
-class SearchActionProvider extends ContributableActionProvider {
+interface IFileMatchTemplate {
+	label: FileLabel;
+	badge: CountBadge;
+	actions: ActionBar;
+}
 
-	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
+interface IMatchTemplate {
+	parent: HTMLElement;
+	before: HTMLElement;
+	match: HTMLElement;
+	replace: HTMLElement;
+	after: HTMLElement;
+	actions: ActionBar;
+}
+
+export class SearchRenderer extends Disposable implements IRenderer {
+
+	private static FILE_MATCH_TEMPLATE_ID = 'fileMatch';
+	private static MATCH_TEMPLATE_ID = 'match';
+
+	constructor(actionRunner: IActionRunner, private viewlet: SearchViewlet, @IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 	}
 
-	public hasActions(tree: ITree, element: any): boolean {
-		let input = <SearchResult>tree.getInput();
-		return element instanceof FileMatch || (input.searchModel.isReplaceActive() || element instanceof Match) || super.hasActions(tree, element);
-	}
-
-	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
-		return super.getActions(tree, element).then(actions => {
-			let input = <SearchResult>tree.getInput();
-			if (element instanceof FileMatch) {
-				actions.unshift(new RemoveAction(tree, element));
-				if (input.searchModel.isReplaceActive() && element.count() > 0) {
-					actions.unshift(this.instantiationService.createInstance(ReplaceAllAction, tree, element, this.viewlet));
-				}
-			}
-			if (element instanceof Match) {
-				if (input.searchModel.isReplaceActive()) {
-					actions.unshift(this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet), new RemoveAction(tree, element));
-				}
-			}
-
-			return actions;
-		});
-	}
-}
-
-export class SearchRenderer extends ActionsRenderer {
-
-	constructor(actionRunner: IActionRunner, viewlet: SearchViewlet, @IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
-		super({
-			actionProvider: instantiationService.createInstance(SearchActionProvider, viewlet),
-			actionRunner: actionRunner
-		});
-	}
-
-	public getContentHeight(tree: ITree, element: any): number {
+	public getHeight(tree: ITree, element: any): number {
 		return 22;
 	}
 
-	public renderContents(tree: ITree, element: FileMatchOrMatch, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
-
-		// File
+	public getTemplateId(tree: ITree, element: any): string {
 		if (element instanceof FileMatch) {
-			let fileMatch = <FileMatch>element;
-			let container = $('.filematch');
-			let leftRenderer: IRenderer;
-			let rightRenderer: IRenderer;
-			let widget: LeftRightWidget;
+			return SearchRenderer.FILE_MATCH_TEMPLATE_ID;
+		} else if (element instanceof Match) {
+			return SearchRenderer.MATCH_TEMPLATE_ID;
+		}
+		return null;
+	}
 
-			leftRenderer = (left: HTMLElement): any => {
-				const label = this.instantiationService.createInstance(FileLabel, left, void 0);
-				label.setFile(fileMatch.resource());
-
-				return () => label.dispose();
-			};
-
-			rightRenderer = (right: HTMLElement) => {
-				let len = fileMatch.count();
-
-				new CountBadge(right, len, len > 1 ? nls.localize('searchMatches', "{0} matches found", len) : nls.localize('searchMatch', "{0} match found", len));
-				return null;
-			};
-
-			widget = new LeftRightWidget(container, leftRenderer, rightRenderer);
-
-			container.appendTo(domElement);
-
-			return widget.dispose.bind(widget);
+	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
+		if (templateId === SearchRenderer.FILE_MATCH_TEMPLATE_ID) {
+			return this.renderFileMatchTemplate(tree, templateId, container);
 		}
 
-		// Match
-		else if (element instanceof Match) {
-			dom.addClass(domElement, 'linematch');
-			let match = <Match>element;
-			let elements: string[] = [];
-			let preview = match.preview();
-
-			elements.push('<span>');
-			elements.push(strings.escape(preview.before));
-			let searchModel: SearchModel = (<SearchResult>tree.getInput()).searchModel;
-
-			let showReplaceText = searchModel.isReplaceActive() && !!searchModel.replaceString;
-			elements.push('</span><span class="' + (showReplaceText ? 'replace ' : '') + 'findInFileMatch">');
-			elements.push(strings.escape(preview.inside));
-			if (showReplaceText) {
-				elements.push('</span><span class="replaceMatch">');
-				elements.push(strings.escape(match.replaceString));
-			}
-			elements.push('</span><span>');
-			elements.push(strings.escape(preview.after));
-			elements.push('</span>');
-
-			$('a.plain')
-				.innerHtml(elements.join(strings.empty))
-				.title((preview.before + (showReplaceText ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999))
-				.appendTo(domElement);
+		if (templateId === SearchRenderer.MATCH_TEMPLATE_ID) {
+			return this.renderMatchTemplate(tree, templateId, container);
 		}
 
 		return null;
+	}
+
+	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
+		if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
+			this.renderFileMatch(tree, <FileMatch>element, <IFileMatchTemplate>templateData);
+		} else if (SearchRenderer.MATCH_TEMPLATE_ID === templateId) {
+			this.renderMatch(tree, <Match>element, <IMatchTemplate>templateData);
+		}
+	}
+
+
+	private renderFileMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileMatchTemplate {
+		let fileMatchElement = DOM.append(container, DOM.$('.filematch'));
+		const label = this.instantiationService.createInstance(FileLabel, fileMatchElement, void 0);
+		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
+		const actions = new ActionBar(fileMatchElement, { animated: false });
+		return { label, badge, actions };
+	}
+
+	private renderMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IMatchTemplate {
+		DOM.addClass(container, 'linematch');
+
+		const parent = DOM.append(container, DOM.$('a.plain.match'));
+		const before = DOM.append(parent, DOM.$('span'));
+		const match = DOM.append(parent, DOM.$('span.findInFileMatch'));
+		const replace = DOM.append(parent, DOM.$('span.replaceMatch'));
+		const after = DOM.append(parent, DOM.$('span'));
+		const actions = new ActionBar(container, { animated: false });
+
+		return {
+			parent,
+			before,
+			match,
+			replace,
+			after,
+			actions
+		};
+	}
+
+	private renderFileMatch(tree: ITree, fileMatch: FileMatch, templateData: IFileMatchTemplate): void {
+		templateData.label.setFile(fileMatch.resource());
+		let count = fileMatch.count();
+		templateData.badge.setCount(count);
+		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
+
+		let input = <SearchResult>tree.getInput();
+		templateData.actions.clear();
+
+		const actions: IAction[] = [];
+		if (input.searchModel.isReplaceActive() && count > 0) {
+			actions.push(this.instantiationService.createInstance(ReplaceAllAction, tree, fileMatch, this.viewlet));
+		}
+		actions.push(new RemoveAction(tree, fileMatch));
+		templateData.actions.push(actions, { icon: true, label: false });
+	}
+
+	private renderMatch(tree: ITree, match: Match, templateData: IMatchTemplate): void {
+		let preview = match.preview();
+		const searchModel: SearchModel = (<SearchResult>tree.getInput()).searchModel;
+		const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
+
+		templateData.before.textContent = preview.before;
+		templateData.match.textContent = preview.inside;
+		DOM.toggleClass(templateData.match, 'replace', replace);
+		templateData.replace.textContent = replace ? match.replaceString : '';
+		templateData.after.textContent = preview.after;
+		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
+
+		templateData.actions.clear();
+		if (searchModel.isReplaceActive()) {
+			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, tree, match, this.viewlet), new RemoveAction(tree, match)], { icon: true, label: false });
+		}
+	}
+
+	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
+		if (SearchRenderer.FILE_MATCH_TEMPLATE_ID === templateId) {
+			(<IFileMatchTemplate>templateData).label.dispose();
+		}
 	}
 }
 
@@ -216,84 +238,6 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			return nls.localize('searchResultAria', "{0}, Search result", match.text());
 		}
 		return undefined;
-	}
-}
-
-export class SearchController extends DefaultController {
-
-	constructor(private viewlet: SearchViewlet, @IInstantiationService private instantiationService: IInstantiationService) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: false });
-
-		// TODO@Rob these should be commands
-
-		// Up (from results to inputs)
-		this.downKeyBindingDispatcher.set(KeyCode.UpArrow, this.onUp.bind(this));
-
-		// Open to side
-		this.upKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.WinCtrl | KeyCode.Enter : KeyMod.CtrlCmd | KeyCode.Enter, this.onEnter.bind(this));
-
-		// Delete
-		this.downKeyBindingDispatcher.set(platform.isMacintosh ? KeyMod.CtrlCmd | KeyCode.Backspace : KeyCode.Delete, (tree: ITree, event: any) => { this.onDelete(tree, event); });
-
-		// Cancel search
-		this.downKeyBindingDispatcher.set(KeyCode.Escape, (tree: ITree, event: any) => { this.onEscape(tree, event); });
-
-		// Replace / Replace All
-		this.downKeyBindingDispatcher.set(ReplaceAllAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplaceAll(tree, event); });
-		this.downKeyBindingDispatcher.set(ReplaceAction.KEY_BINDING, (tree: ITree, event: any) => { this.onReplace(tree, event); });
-	}
-
-	protected onEscape(tree: ITree, event: IKeyboardEvent): boolean {
-		if (this.viewlet.cancelSearch()) {
-			return true;
-		}
-
-		return super.onEscape(tree, event);
-	}
-
-	private onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		let input = <SearchResult>tree.getInput();
-		let result = false;
-		let element = tree.getFocus();
-		if (element instanceof FileMatch ||
-			(element instanceof Match && input.searchModel.isReplaceActive())) {
-			new RemoveAction(tree, element).run().done(null, errors.onUnexpectedError);
-			result = true;
-		}
-
-		return result;
-	}
-
-	private onReplace(tree: ITree, event: IKeyboardEvent): boolean {
-		let input = <SearchResult>tree.getInput();
-		let result = false;
-		let element = tree.getFocus();
-		if (element instanceof Match && input.searchModel.isReplaceActive()) {
-			this.instantiationService.createInstance(ReplaceAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
-			result = true;
-		}
-
-		return result;
-	}
-
-	private onReplaceAll(tree: ITree, event: IKeyboardEvent): boolean {
-		let result = false;
-		let element = tree.getFocus();
-		if (element instanceof FileMatch && element.count() > 0) {
-			this.instantiationService.createInstance(ReplaceAllAction, tree, element, this.viewlet).run().done(null, errors.onUnexpectedError);
-			result = true;
-		}
-
-		return result;
-	}
-
-	protected onUp(tree: ITree, event: IKeyboardEvent): boolean {
-		if (tree.getNavigator().first() === tree.getFocus()) {
-			this.viewlet.moveFocusFromResults();
-			return true;
-		}
-
-		return false;
 	}
 }
 

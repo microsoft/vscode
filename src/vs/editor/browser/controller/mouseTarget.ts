@@ -6,8 +6,7 @@
 
 import { Position } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { EditorLayoutInfo, MouseTargetType } from 'vs/editor/common/editorCommon';
-import { ClassNames, IMouseTarget, IViewZoneData } from 'vs/editor/browser/editorBrowser';
+import { MouseTargetType, IMouseTarget } from 'vs/editor/browser/editorBrowser';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { EditorMouseEvent, PageCoordinates, ClientCoordinates, EditorPagePosition } from 'vs/editor/browser/editorDom';
@@ -15,6 +14,16 @@ import * as browser from 'vs/base/browser/browser';
 import { IViewCursorRenderData } from 'vs/editor/browser/viewParts/viewCursors/viewCursor';
 import { PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
+import { ViewLine } from 'vs/editor/browser/viewParts/lines/viewLine';
+
+export interface IViewZoneData {
+	viewZoneId: number;
+	positionBefore: Position;
+	positionAfter: Position;
+	position: Position;
+	afterLineNumber: number;
+}
 
 interface IETextRange {
 	boundingHeight: number;
@@ -159,6 +168,14 @@ class ElementPath {
 			path.length >= 2
 			&& path[0] === PartFingerprint.OverflowGuard
 			&& path[1] === PartFingerprint.ScrollableElement
+		);
+	}
+
+	public static isChildOfMinimap(path: Uint8Array): boolean {
+		return (
+			path.length >= 2
+			&& path[0] === PartFingerprint.OverflowGuard
+			&& path[1] === PartFingerprint.Minimap
 		);
 	}
 
@@ -437,6 +454,7 @@ export class MouseTargetFactory {
 
 		result = result || MouseTargetFactory._hitTestContentWidget(ctx, request);
 		result = result || MouseTargetFactory._hitTestOverlayWidget(ctx, request);
+		result = result || MouseTargetFactory._hitTestMinimap(ctx, request);
 		result = result || MouseTargetFactory._hitTestScrollbarSlider(ctx, request);
 		result = result || MouseTargetFactory._hitTestViewZone(ctx, request);
 		result = result || MouseTargetFactory._hitTestMargin(ctx, request);
@@ -594,6 +612,15 @@ export class MouseTargetFactory {
 		return this._createMouseTarget(ctx, request.withTarget(hitTestResult.hitTarget), true);
 	}
 
+	private static _hitTestMinimap(ctx: HitTestContext, request: HitTestRequest): MouseTarget {
+		if (ElementPath.isChildOfMinimap(request.targetPath)) {
+			const possibleLineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
+			const maxColumn = ctx.model.getLineMaxColumn(possibleLineNumber);
+			return request.fulfill(MouseTargetType.SCROLLBAR, new Position(possibleLineNumber, maxColumn));
+		}
+		return null;
+	}
+
 	private static _hitTestScrollbarSlider(ctx: HitTestContext, request: HitTestRequest): MouseTarget {
 		if (ElementPath.isChildOfScrollableElement(request.targetPath)) {
 			if (request.target && request.target.nodeType === 1) {
@@ -741,7 +768,7 @@ export class MouseTargetFactory {
 			let parent3 = parent2 ? parent2.parentNode : null; // expected to be the view line div
 			let parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : null;
 
-			if (parent3ClassName === ClassNames.VIEW_LINE) {
+			if (parent3ClassName === ViewLine.CLASS_NAME) {
 				let p = ctx.getPositionFromDOMInfo(<HTMLElement>parent1, range.startOffset);
 				return {
 					position: p,
@@ -756,7 +783,7 @@ export class MouseTargetFactory {
 			let parent2 = parent1 ? parent1.parentNode : null; // expected to be the view line div
 			let parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : null;
 
-			if (parent2ClassName === ClassNames.VIEW_LINE) {
+			if (parent2ClassName === ViewLine.CLASS_NAME) {
 				let p = ctx.getPositionFromDOMInfo(<HTMLElement>startContainer, (<HTMLElement>startContainer).textContent.length);
 				return {
 					position: p,
@@ -786,7 +813,7 @@ export class MouseTargetFactory {
 			let parent3 = parent2 ? parent2.parentNode : null; // expected to be the view line div
 			let parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : null;
 
-			if (parent3ClassName === ClassNames.VIEW_LINE) {
+			if (parent3ClassName === ViewLine.CLASS_NAME) {
 				let p = ctx.getPositionFromDOMInfo(<HTMLElement>hitResult.offsetNode.parentNode, hitResult.offset);
 				return {
 					position: p,
@@ -832,7 +859,7 @@ export class MouseTargetFactory {
 
 		let parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : '';
 
-		if (parent2ClassName === ClassNames.VIEW_LINE) {
+		if (parent2ClassName === ViewLine.CLASS_NAME) {
 			let rangeToContainEntireSpan = textRange.duplicate();
 			rangeToContainEntireSpan.moveToElementText(parentElement);
 			rangeToContainEntireSpan.setEndPoint('EndToStart', textRange);

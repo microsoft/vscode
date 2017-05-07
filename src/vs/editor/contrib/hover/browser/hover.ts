@@ -15,13 +15,14 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ModesContentHoverWidget } from './modesContentHover';
 import { ModesGlyphHoverWidget } from './modesGlyphHover';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 @editorContribution
 export class ModesHoverController implements editorCommon.IEditorContribution {
@@ -72,12 +73,12 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
 		var targetType = mouseEvent.target.type;
 
-		if (targetType === editorCommon.MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
+		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID) {
 			// mouse down on top of content hover widget
 			return;
 		}
 
-		if (targetType === editorCommon.MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
+		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID) {
 			// mouse down on top of overlay hover widget
 			return;
 		}
@@ -89,20 +90,20 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 		var targetType = mouseEvent.target.type;
 		var stopKey = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 
-		if (targetType === editorCommon.MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID && !mouseEvent.event[stopKey]) {
+		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID && !mouseEvent.event[stopKey]) {
 			// mouse moved on top of content hover widget
 			return;
 		}
 
-		if (targetType === editorCommon.MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID && !mouseEvent.event[stopKey]) {
+		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID && !mouseEvent.event[stopKey]) {
 			// mouse moved on top of overlay hover widget
 			return;
 		}
 
-		if (this._editor.getConfiguration().contribInfo.hover && targetType === editorCommon.MouseTargetType.CONTENT_TEXT) {
+		if (this._editor.getConfiguration().contribInfo.hover && targetType === MouseTargetType.CONTENT_TEXT) {
 			this._glyphWidget.hide();
 			this._contentWidget.startShowingAt(mouseEvent.target.range, false);
-		} else if (targetType === editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN) {
+		} else if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			this._contentWidget.hide();
 			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
 		} else {
@@ -154,7 +155,7 @@ class ShowHoverAction extends EditorAction {
 			alias: 'Show Hover',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_I)
 			}
 		});
@@ -170,3 +171,25 @@ class ShowHoverAction extends EditorAction {
 		controller.showContentHover(range, true);
 	}
 }
+
+// theming
+
+export const editorHoverHighlight = registerColor('editor.hoverHighlightBackground', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown.'));
+export const editorHoverBackground = registerColor('editorHoverWidget.background', { light: '#F3F3F3', dark: '#2D2D30', hc: '#0C141F' }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
+export const editorHoverBorder = registerColor('editorHoverWidget.border', { light: '#CCCCCC', dark: '#555555', hc: '#CCCCCC' }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
+
+registerThemingParticipant((theme, collector) => {
+	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
+	if (editorHoverHighlightColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
+	}
+	let hoverBackground = theme.getColor(editorHoverBackground);
+	if (hoverBackground) {
+		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover { background-color: ${hoverBackground}; }`);
+	}
+	let hoverBorder = theme.getColor(editorHoverBorder);
+	if (hoverBorder) {
+		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover { border: 1px solid ${hoverBorder}; }`);
+		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
+	}
+});

@@ -19,9 +19,13 @@ const electron = require('electron');
 const remote = electron.remote;
 const ipc = electron.ipcRenderer;
 
-
 process.lazyEnv = new Promise(function (resolve) {
+	const handle = setTimeout(function () {
+		resolve();
+		console.warn('renderer did not receive lazyEnv in time')
+	}, 2000);
 	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+		clearTimeout(handle);
 		assign(process.env, shellEnv);
 		resolve(process.env);
 	});
@@ -179,10 +183,10 @@ function main() {
 		const timers = window.MonacoEnvironment.timers = {
 			isInitialStartup: !!configuration.isInitialStartup,
 			hasAccessibilitySupport: !!configuration.accessibilitySupport,
-			start: new Date(configuration.perfStartTime),
-			appReady: new Date(configuration.perfAppReady),
-			windowLoad: new Date(configuration.perfWindowLoadTime),
-			beforeLoadWorkbenchMain: new Date()
+			start: configuration.perfStartTime,
+			appReady: configuration.perfAppReady,
+			windowLoad: configuration.perfWindowLoadTime,
+			beforeLoadWorkbenchMain: Date.now()
 		};
 
 		require([
@@ -190,7 +194,7 @@ function main() {
 			'vs/nls!vs/workbench/electron-browser/workbench.main',
 			'vs/css!vs/workbench/electron-browser/workbench.main'
 		], function () {
-			timers.afterLoadWorkbenchMain = new Date();
+			timers.afterLoadWorkbenchMain = Date.now();
 
 			process.lazyEnv.then(function () {
 				require('vs/workbench/electron-browser/main')

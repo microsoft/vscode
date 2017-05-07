@@ -11,6 +11,9 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+
 export class DecorationToRender {
 	_decorationToRenderBrand: void;
 
@@ -98,6 +101,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		this._context.removeEventHandler(this);
 		this._context = null;
 		this._renderResult = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
@@ -115,12 +119,6 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		}
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		return false;
-	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return true;
 	}
@@ -135,9 +133,6 @@ export class GlyphMarginOverlay extends DedupOverlay {
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
-	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		return false;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;
@@ -206,3 +201,10 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		return this._renderResult[lineIndex];
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let editorBackgroundColor = theme.getColor(editorBackground);
+	if (editorBackgroundColor) {
+		collector.addRule(`.monaco-editor.${theme.selector} .glyph-margin { background-color: ${editorBackgroundColor}; }`);
+	}
+});

@@ -100,8 +100,8 @@ export function copy(source: string, target: string, callback: (error: Error) =>
 
 		mkdirp(target, stat.mode & 511, (err) => {
 			readdir(source, (err, files) => {
-				loop(files, (file: string, clb: (error: Error) => void) => {
-					copy(paths.join(source, file), paths.join(target, file), clb, copiedSources);
+				loop(files, (file: string, clb: (error: Error, _result) => void) => {
+					copy(paths.join(source, file), paths.join(target, file), (error: Error) => clb(error, undefined), copiedSources);
 				}, callback);
 			});
 		});

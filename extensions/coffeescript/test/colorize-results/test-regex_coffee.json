@@ -55,62 +55,7 @@
 		}
 	},
 	{
-		"c": "Hello ",
-		"t": "source.coffee string.regexp.coffee",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
-		}
-	},
-	{
-		"c": "(",
-		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
-		}
-	},
-	{
-		"c": "\\d",
-		"t": "source.coffee string.regexp.coffee meta.group.regexp constant.character.character-class.regexp",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
-		}
-	},
-	{
-		"c": "+",
-		"t": "source.coffee string.regexp.coffee meta.group.regexp keyword.operator.quantifier.regexp",
-		"r": {
-			"dark_plus": "keyword.operator: #D4D4D4",
-			"light_plus": "keyword.operator: #000000",
-			"dark_vs": "keyword.operator: #D4D4D4",
-			"light_vs": "keyword.operator: #000000",
-			"hc_black": "keyword.operator: #D4D4D4"
-		}
-	},
-	{
-		"c": ")",
-		"t": "source.coffee string.regexp.coffee meta.group.regexp punctuation.definition.group.regexp",
-		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
-		}
-	},
-	{
-		"c": " #{user}",
+		"c": "Hello (\\d+) #{user}",
 		"t": "source.coffee string.regexp.coffee",
 		"r": {
 			"dark_plus": "string.regexp: #D16969",
@@ -276,29 +221,29 @@
 	},
 	{
 		"c": "/",
-		"t": "source.coffee string.regexp.coffee punctuation.definition.string.begin.coffee",
+		"t": "source.coffee keyword.operator.coffee",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
 		}
 	},
 	{
 		"c": "c ",
-		"t": "source.coffee string.regexp.coffee",
+		"t": "source.coffee",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "+",
-		"t": "source.coffee string.regexp.coffee keyword.operator.quantifier.regexp",
+		"t": "source.coffee keyword.operator.coffee",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -309,35 +254,35 @@
 	},
 	{
 		"c": " d",
-		"t": "source.coffee string.regexp.coffee",
+		"t": "source.coffee",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": "/",
-		"t": "source.coffee string.regexp.coffee punctuation.definition.string.end.coffee",
+		"t": "source.coffee keyword.operator.coffee",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
 		}
 	},
 	{
 		"c": "g",
-		"t": "source.coffee string.regexp.coffee",
+		"t": "source.coffee",
 		"r": {
-			"dark_plus": "string.regexp: #D16969",
-			"light_plus": "string.regexp: #811F3F",
-			"dark_vs": "string.regexp: #D16969",
-			"light_vs": "string.regexp: #811F3F",
-			"hc_black": "string.regexp: #D16969"
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{

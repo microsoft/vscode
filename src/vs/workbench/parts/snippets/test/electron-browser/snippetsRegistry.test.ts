@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { getNonWhitespacePrefix } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
-
+import { Position } from 'vs/editor/common/core/position';
 
 suite('getNonWhitespacePrefix', () => {
 
@@ -15,7 +15,7 @@ suite('getNonWhitespacePrefix', () => {
 		let model = {
 			getLineContent: (lineNumber: number) => line
 		};
-		let actual = getNonWhitespacePrefix(model, { lineNumber: 1, column: column });
+		let actual = getNonWhitespacePrefix(model, new Position(1, column));
 		assert.equal(actual, expected);
 	}
 

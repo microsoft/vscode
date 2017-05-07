@@ -329,10 +329,13 @@ declare module DebugProtocol {
 		arguments?: DisconnectArguments;
 	}
 
-	/** Arguments for 'disconnect' request.
-		The disconnect request has no standardized attributes.
-	*/
+	/** Arguments for 'disconnect' request. */
 	export interface DisconnectArguments {
+		/** Indicates whether the debuggee should be terminated when the debugger is disconnected.
+			If unspecified, the debug adapter is free to do whatever it thinks is best.
+			A client can only rely on this attribute being properly honored if a debug adapter returns true for the 'supportTerminateDebuggee' capability.
+		*/
+		terminateDebuggee?: boolean;
 	}
 
 	/** Response to 'disconnect' request. This is just an acknowledgement, so no body field is required. */
@@ -401,7 +404,7 @@ declare module DebugProtocol {
 	}
 
 	/** SetExceptionBreakpoints request; value of command field is 'setExceptionBreakpoints'.
-		The request configures the debuggers response to thrown exceptions. If an execption is configured to break, a StoppedEvent is fired (event type 'exception').
+		The request configures the debuggers response to thrown exceptions. If an exception is configured to break, a StoppedEvent is fired (event type 'exception').
 	*/
 	export interface SetExceptionBreakpointsRequest extends Request {
 		// command: 'setExceptionBreakpoints';
@@ -981,6 +984,8 @@ declare module DebugProtocol {
 		supportsValueFormattingOptions?: boolean;
 		/** The debug adapter supports the exceptionInfo request. */
 		supportsExceptionInfoRequest?: boolean;
+		/** The debug adapter supports the 'terminateDebuggee' attribute on the 'disconnect' request. */
+		supportTerminateDebuggee?: boolean;
 	}
 
 	/** An ExceptionBreakpointsFilter is shown in the UI as an option for configuring how exceptions are dealt with. */

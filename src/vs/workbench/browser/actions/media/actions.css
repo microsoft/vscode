@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .toggle-editor-layout {
+.vs .monaco-workbench .toggle-editor-layout {
 	background-image: url('editor-layout.svg');
 }
 
 .vs-dark .monaco-workbench .toggle-editor-layout,
 .hc-black .monaco-workbench .toggle-editor-layout {
-	background-image: url('editor-layout-inverse.svg');
+	background-image: url('editor-layout-inverse.svg') !important;
 }

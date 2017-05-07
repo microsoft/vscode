@@ -11,7 +11,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
-import { EditorContextKeys } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -52,7 +52,7 @@ function registerActiveEditorMoveCommand(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: EditorCommands.MoveActiveEditor,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: EditorContextKeys.TextFocus,
+		when: EditorContextKeys.textFocus,
 		primary: null,
 		handler: (accessor, args: any) => moveActiveEditor(args, accessor),
 		description: {

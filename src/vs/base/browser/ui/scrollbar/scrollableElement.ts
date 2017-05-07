@@ -225,7 +225,10 @@ export class ScrollableElement extends Widget {
 				[deltaY, deltaX] = [deltaX, deltaY];
 			}
 
-			if (this._options.scrollYToX && !deltaX) {
+			// Convert vertical scrolling to horizontal if shift is held, this
+			// is handled at a higher level on Mac
+			const shiftConvert = !Platform.isMacintosh && e.browserEvent.shiftKey;
+			if ((this._options.scrollYToX || shiftConvert) && !deltaX) {
 				deltaX = deltaY;
 				deltaY = 0;
 			}
@@ -398,7 +401,7 @@ export class DomScrollableElement extends ScrollableElement {
 
 function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableElementResolvedOptions {
 	let result: ScrollableElementResolvedOptions = {
-		canUseTranslate3d: opts.canUseTranslate3d && Browser.canUseTranslate3d,
+		canUseTranslate3d: opts.canUseTranslate3d && Browser.supportsTranslate3d,
 		lazyRender: (typeof opts.lazyRender !== 'undefined' ? opts.lazyRender : false),
 		className: (typeof opts.className !== 'undefined' ? opts.className : ''),
 		useShadows: (typeof opts.useShadows !== 'undefined' ? opts.useShadows : true),

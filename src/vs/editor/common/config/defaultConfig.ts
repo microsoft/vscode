@@ -5,9 +5,9 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { IEditorOptions } from 'vs/editor/common/editorCommon';
 import * as platform from 'vs/base/common/platform';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export interface IConfiguration {
 	editor: IEditorOptions;
@@ -86,7 +86,7 @@ class ConfigClass implements IConfiguration {
 			hover: true,
 			contextmenu: true,
 			mouseWheelScrollSensitivity: 1,
-			quickSuggestions: true,
+			quickSuggestions: { other: true, comments: false, strings: false },
 			quickSuggestionsDelay: 10,
 			parameterHints: true,
 			iconsInSuggestions: true,
@@ -98,7 +98,7 @@ class ConfigClass implements IConfiguration {
 			acceptSuggestionOnCommitCharacter: true,
 			snippetSuggestions: 'bottom',
 			emptySelectionClipboard: true,
-			wordBasedSuggestions: { other: true, strings: false, comments: false },
+			wordBasedSuggestions: true,
 			suggestFontSize: 0,
 			suggestLineHeight: 0,
 			selectionHighlight: true,
@@ -106,6 +106,7 @@ class ConfigClass implements IConfiguration {
 			codeLens: true,
 			referenceInfos: true,
 			folding: true,
+			hideFoldIcons: true,
 			renderWhitespace: 'none',
 			renderControlCharacters: false,
 			renderIndentGuides: false,

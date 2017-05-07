@@ -5,7 +5,7 @@
 'use strict';
 
 import { Emitter } from 'vs/base/common/event';
-import { SimpleKeybinding, KeyMod as ConstKeyMod, KeyChord } from 'vs/base/common/keyCodes';
+import { KeyMod as ConstKeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -210,6 +210,10 @@ export enum KeyCode {
 	NUMPAD_DECIMAL = 107,
 	NUMPAD_DIVIDE = 108,
 	/**
+	 * Cover all key codes when IME is processing input.
+	 */
+	KEY_IN_COMPOSITION = 109,
+	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
@@ -224,7 +228,6 @@ export function createMonacoBaseAPI(): typeof monaco {
 		Emitter: Emitter,
 		KeyCode: KeyCode,
 		KeyMod: KeyMod,
-		SimpleKeybinding: <any>SimpleKeybinding,
 		Position: Position,
 		Range: Range,
 		Selection: Selection,

@@ -108,9 +108,9 @@ LicenseNotAccepted=계약에 동의 안 함(&D)
 ; *** "Information" wizard pages
 WizardInfoBefore=정보
 InfoBeforeLabel=계속하기 전에 다음 중요한 정보를 읽어 보세요.
-InfoBeforeClickLabel=설치를 계속할 준비가 되면 [다음]을 클릭하세요.
+InfoBeforeClickLabel=설치를 계속 진행할 준비가 되면 [다음]을 클릭합니다.
 WizardInfoAfter=정보
-InfoAfterLabel=계속하기 전에 다음 중요 정보를 읽어 보세요.
+InfoAfterLabel=계속하기 전에 다음 중요한 정보를 읽어 보세요.
 InfoAfterClickLabel=설치를 계속 진행할 준비가 되면 [다음]을 클릭합니다.
 ; *** "User Information" wizard page
 WizardUserInfo=사용자 정보
@@ -127,11 +127,11 @@ SelectDirBrowseLabel=계속하려면 [다음]을 클릭하세요. 다른 폴더를 선택하려면 [찾�
 DiskSpaceMBLabel=적어도 [mb]MB의 여유 디스크 공간이 필요합니다.
 CannotInstallToNetworkDrive=설치 프로그램은 네트워크 드라이브에 설치할 수 없습니다.
 CannotInstallToUNCPath=설치 프로그램은 UNC 경로에 설치할 수 없습니다.
-InvalidPath=드라이브 문자와 함께 전체 경로를 입력해야 합니다. 예:%n%nC:\APP%n%n또는 다음 형태의 UNC 경로:%n%n\server\share
+InvalidPath=드라이브 문자와 함께 전체 경로를 입력해야 합니다. 예:%n%nC:\APP%n%n또는 다음 형태의 UNC 경로:%n%n\\server\share
 InvalidDrive=선택한 드라이브나 UNC 공유가 없거나 이 두 항목에 액세스할 수 없습니다. 다른 드라이브나 UNC 공유를 선택하세요.
 DiskSpaceWarningTitle=디스크 공간 부족
 DiskSpaceWarning=설치 프로그램을 설치하려면 여유 설치 공간이 적어도 %1KB가 필요하지만 선택한 드라이브의 가용 공간은 %2KB밖에 없습니다.%n%n그래도 계속하시겠습니까?
-DirNameTooLong=폴더 이름이나 경로가 너무 깁니다.
+DirNameTooLong=폴더 이름 또는 경로가 너무 깁니다.
 InvalidDirName=폴더 이름이 잘못되었습니다.
 BadDirName32=폴더 이름에는 %n%n%1 문자를 사용할 수 없습니다.
 DirExistsTitle=폴더 있음

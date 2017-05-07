@@ -67,7 +67,7 @@
 	},
 	{
 		"c": "Array",
-		"t": "source.tsx meta.var.expr.tsx support.class.builtin.tsx",
+		"t": "source.tsx meta.var.expr.tsx meta.function-call.tsx support.class.builtin.tsx",
 		"r": {
 			"dark_plus": "support.class: #4EC9B0",
 			"light_plus": "support.class: #267F99",
@@ -166,7 +166,7 @@
 	},
 	{
 		"c": "interface",
-		"t": "source.tsx meta.class.tsx storage.type.interface.tsx",
+		"t": "source.tsx meta.interface.tsx storage.type.interface.tsx",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -177,7 +177,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.tsx meta.class.tsx",
+		"t": "source.tsx meta.interface.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -188,7 +188,7 @@
 	},
 	{
 		"c": "egGenericsInArray",
-		"t": "source.tsx meta.class.tsx entity.name.type.class.tsx",
+		"t": "source.tsx meta.interface.tsx entity.name.type.interface.tsx",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -199,7 +199,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.tsx meta.class.tsx",
+		"t": "source.tsx meta.interface.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -210,7 +210,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.tsx meta.class.tsx punctuation.definition.block.tsx",
+		"t": "source.tsx meta.interface.tsx punctuation.definition.block.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -221,7 +221,7 @@
 	},
 	{
 		"c": "   ",
-		"t": "source.tsx meta.class.tsx",
+		"t": "source.tsx meta.interface.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -232,7 +232,7 @@
 	},
 	{
 		"c": "a",
-		"t": "source.tsx meta.class.tsx meta.field.declaration.tsx meta.definition.property.tsx variable.object.property.tsx",
+		"t": "source.tsx meta.interface.tsx meta.field.declaration.tsx meta.definition.property.tsx variable.object.property.tsx",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -243,7 +243,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.tsx meta.class.tsx meta.field.declaration.tsx meta.type.annotation.tsx keyword.operator.type.annotation.tsx",
+		"t": "source.tsx meta.interface.tsx meta.field.declaration.tsx meta.type.annotation.tsx keyword.operator.type.annotation.tsx",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -254,7 +254,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.tsx meta.class.tsx meta.field.declaration.tsx meta.type.annotation.tsx",
+		"t": "source.tsx meta.interface.tsx meta.field.declaration.tsx meta.type.annotation.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -265,7 +265,7 @@
 	},
 	{
 		"c": "Array",
-		"t": "source.tsx meta.class.tsx meta.field.declaration.tsx meta.type.annotation.tsx entity.name.type.tsx",
+		"t": "source.tsx meta.interface.tsx meta.field.declaration.tsx meta.type.annotation.tsx entity.name.type.tsx",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -276,7 +276,7 @@
 	},
 	{
 		"c": "<",
-		"t": "source.tsx meta.class.tsx meta.field.declaration.tsx meta.type.annotation.tsx meta.type.parameters.tsx punctuation.definition.typeparameters.begin.tsx",
+		"t": "source.tsx meta.interface.tsx meta.field.declaration.tsx meta.type.annotation.tsx meta.type.parameters.tsx punctuation.definition.typeparameters.begin.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -287,7 +287,7 @@
 	},
 	{
 		"c": "number",
-		"t": "source.tsx meta.class.tsx meta.field.declaration.tsx meta.type.annotation.tsx meta.type.parameters.tsx support.type.primitive.tsx",
+		"t": "source.tsx meta.interface.tsx meta.field.declaration.tsx meta.type.annotation.tsx meta.type.parameters.tsx support.type.primitive.tsx",
 		"r": {
 			"dark_plus": "support.type: #4EC9B0",
 			"light_plus": "support.type: #267F99",
@@ -298,7 +298,7 @@
 	},
 	{
 		"c": ">",
-		"t": "source.tsx meta.class.tsx meta.field.declaration.tsx meta.type.annotation.tsx meta.type.parameters.tsx punctuation.definition.typeparameters.end.tsx",
+		"t": "source.tsx meta.interface.tsx meta.field.declaration.tsx meta.type.annotation.tsx meta.type.parameters.tsx punctuation.definition.typeparameters.end.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -309,7 +309,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.tsx meta.class.tsx punctuation.terminator.statement.tsx",
+		"t": "source.tsx meta.interface.tsx punctuation.terminator.statement.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -320,7 +320,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.tsx meta.class.tsx punctuation.definition.block.tsx",
+		"t": "source.tsx meta.interface.tsx punctuation.definition.block.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

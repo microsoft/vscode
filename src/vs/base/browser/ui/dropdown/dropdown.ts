@@ -29,10 +29,8 @@ export interface IBaseDropdownOptions {
 }
 
 export class BaseDropdown extends ActionRunner {
-
-	/*protected*/ toDispose: IDisposable[];
-
-	/*protected*/ $el: Builder;
+	private _toDispose: IDisposable[];
+	private $el: Builder;
 	private $boxContainer: Builder;
 	private $action: Builder;
 	private $label: Builder;
@@ -41,7 +39,7 @@ export class BaseDropdown extends ActionRunner {
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
 		super();
 
-		this.toDispose = [];
+		this._toDispose = [];
 
 		this.$el = $('.dropdown').appendTo(container);
 
@@ -87,25 +85,37 @@ export class BaseDropdown extends ActionRunner {
 		let cleanupFn = labelRenderer(this.$label.getHTMLElement());
 
 		if (cleanupFn) {
-			this.toDispose.push(cleanupFn);
+			this._toDispose.push(cleanupFn);
 		}
 
-		this.toDispose.push(new Gesture(this.$label.getHTMLElement()));
+		this._toDispose.push(new Gesture(this.$label.getHTMLElement()));
+	}
+
+	public get toDispose(): IDisposable[] {
+		return this._toDispose;
+	}
+
+	public get element(): Builder {
+		return this.$el;
+	}
+
+	public get label(): Builder {
+		return this.$label;
 	}
 
 	public set tooltip(tooltip: string) {
 		this.$label.title(tooltip);
 	}
 
-	/*protected*/ show(): void {
+	public show(): void {
 		// noop
 	}
 
-	/*protected*/ public hide(): void {
+	public hide(): void {
 		// noop
 	}
 
-	/*protected*/ public onEvent(e: Event, activeElement: HTMLElement): void {
+	protected onEvent(e: Event, activeElement: HTMLElement): void {
 		this.hide();
 	}
 
@@ -113,7 +123,7 @@ export class BaseDropdown extends ActionRunner {
 		super.dispose();
 		this.hide();
 
-		this.toDispose = dispose(this.toDispose);
+		this._toDispose = dispose(this.toDispose);
 
 		if (this.$boxContainer) {
 			this.$boxContainer.destroy();
@@ -137,27 +147,19 @@ export interface IDropdownOptions extends IBaseDropdownOptions {
 }
 
 export class Dropdown extends BaseDropdown {
-
-	/*protected*/ _contextViewProvider: IContextViewProvider;
+	private contextViewProvider: IContextViewProvider;
 
 	constructor(container: HTMLElement, options: IDropdownOptions) {
 		super(container, options);
+
 		this.contextViewProvider = options.contextViewProvider;
 	}
 
-	/*protected*/ public set contextViewProvider(contextViewProvider: IContextViewProvider) {
-		this._contextViewProvider = contextViewProvider;
-	}
+	public show(): void {
+		this.element.addClass('active');
 
-	/*protected*/ public get contextViewProvider(): IContextViewProvider {
-		return this._contextViewProvider;
-	}
-
-	/*protected*/ show(): void {
-		this.$el.addClass('active');
-
-		this._contextViewProvider.showContextView({
-			getAnchor: () => this.$el.getHTMLElement(),
+		this.contextViewProvider.showContextView({
+			getAnchor: () => this.element.getHTMLElement(),
 
 			render: (container) => {
 				return this.renderContents(container);
@@ -168,18 +170,18 @@ export class Dropdown extends BaseDropdown {
 			},
 
 			onHide: () => {
-				this.$el.removeClass('active');
+				this.element.removeClass('active');
 			}
 		});
 	}
 
-	/*protected*/ public hide(): void {
-		if (this._contextViewProvider) {
-			this._contextViewProvider.hideContextView();
+	public hide(): void {
+		if (this.contextViewProvider) {
+			this.contextViewProvider.hideContextView();
 		}
 	}
 
-	/*protected*/ public renderContents(container: HTMLElement): IDisposable {
+	protected renderContents(container: HTMLElement): IDisposable {
 		return null;
 	}
 }
@@ -210,11 +212,10 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 }
 
 export class DropdownMenu extends BaseDropdown {
-
-	/*protected*/ _contextMenuProvider: IContextMenuProvider;
+	private _contextMenuProvider: IContextMenuProvider;
 	private _menuOptions: IMenuOptions;
-	/*protected*/ _actions: IAction[];
-	/*protected*/ actionProvider: IActionProvider;
+	private _actions: IAction[];
+	private actionProvider: IActionProvider;
 	private menuClassName: string;
 
 	constructor(container: HTMLElement, options: IDropdownMenuOptions) {
@@ -226,14 +227,6 @@ export class DropdownMenu extends BaseDropdown {
 		this.menuClassName = options.menuClassName || '';
 	}
 
-	/*protected*/ public set contextMenuProvider(contextMenuProvider: IContextMenuProvider) {
-		this._contextMenuProvider = contextMenuProvider;
-	}
-
-	/*protected*/ public get contextMenuProvider(): IContextMenuProvider {
-		return this._contextMenuProvider;
-	}
-
 	public set menuOptions(options: IMenuOptions) {
 		this._menuOptions = options;
 	}
@@ -242,7 +235,7 @@ export class DropdownMenu extends BaseDropdown {
 		return this._menuOptions;
 	}
 
-	/*protected*/ public get actions(): IAction[] {
+	private get actions(): IAction[] {
 		if (this.actionProvider) {
 			return this.actionProvider.getActions();
 		}
@@ -250,25 +243,25 @@ export class DropdownMenu extends BaseDropdown {
 		return this._actions;
 	}
 
-	/*protected*/ public set actions(actions: IAction[]) {
+	private set actions(actions: IAction[]) {
 		this._actions = actions;
 	}
 
-	/*protected*/ show(): void {
-		this.$el.addClass('active');
+	public show(): void {
+		this.element.addClass('active');
 
 		this._contextMenuProvider.showContextMenu({
-			getAnchor: () => this.$el.getHTMLElement(),
+			getAnchor: () => this.element.getHTMLElement(),
 			getActions: () => TPromise.as(this.actions),
 			getActionsContext: () => this.menuOptions ? this.menuOptions.context : null,
 			getActionItem: (action) => this.menuOptions && this.menuOptions.actionItemProvider ? this.menuOptions.actionItemProvider(action) : null,
 			getKeyBinding: (action: IAction) => this.menuOptions && this.menuOptions.getKeyBinding ? this.menuOptions.getKeyBinding(action) : null,
 			getMenuClassName: () => this.menuClassName,
-			onHide: () => this.$el.removeClass('active')
+			onHide: () => this.element.removeClass('active')
 		});
 	}
 
-	/*protected*/ public hide(): void {
+	public hide(): void {
 		// noop
 	}
 }

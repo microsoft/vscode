@@ -19,7 +19,7 @@ import { MainThreadDiagnostics } from './mainThreadDiagnostics';
 import { MainThreadDocuments } from './mainThreadDocuments';
 import { MainThreadEditors } from './mainThreadEditors';
 import { MainThreadErrors } from './mainThreadErrors';
-import { MainThreadTreeExplorers } from './mainThreadTreeExplorers';
+import { MainThreadExplorerView } from './mainThreadExplorerView';
 import { MainThreadLanguageFeatures } from './mainThreadLanguageFeatures';
 import { MainThreadLanguages } from './mainThreadLanguages';
 import { MainThreadMessageService } from './mainThreadMessageService';
@@ -33,6 +33,7 @@ import { MainThreadTerminalService } from './mainThreadTerminalService';
 import { MainThreadWorkspace } from './mainThreadWorkspace';
 import { MainProcessExtensionService } from './mainThreadExtensionService';
 import { MainThreadFileSystemEventService } from './mainThreadFileSystemEventService';
+import { MainThreadTask } from './mainThreadTask';
 import { MainThreadSCM } from './mainThreadSCM';
 
 // --- other interested parties
@@ -73,7 +74,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadDocuments).set(this.instantiationService.createInstance(MainThreadDocuments, documentsAndEditors));
 		col.define(MainContext.MainThreadEditors).set(this.instantiationService.createInstance(MainThreadEditors, documentsAndEditors));
 		col.define(MainContext.MainThreadErrors).set(create(MainThreadErrors));
-		col.define(MainContext.MainThreadExplorers).set(create(MainThreadTreeExplorers));
+		col.define(MainContext.MainThreadExplorerViews).set(create(MainThreadExplorerView));
 		col.define(MainContext.MainThreadLanguageFeatures).set(create(MainThreadLanguageFeatures));
 		col.define(MainContext.MainThreadLanguages).set(create(MainThreadLanguages));
 		col.define(MainContext.MainThreadMessageService).set(create(MainThreadMessageService));
@@ -86,6 +87,7 @@ export class ExtHostContribution implements IWorkbenchContribution {
 		col.define(MainContext.MainThreadTerminalService).set(create(MainThreadTerminalService));
 		col.define(MainContext.MainThreadWorkspace).set(create(MainThreadWorkspace));
 		col.define(MainContext.MainThreadSCM).set(create(MainThreadSCM));
+		col.define(MainContext.MainThreadTask).set(create(MainThreadTask));
 		if (this.extensionService instanceof MainProcessExtensionService) {
 			col.define(MainContext.MainProcessExtensionService).set(<MainProcessExtensionService>this.extensionService);
 		}

@@ -8,7 +8,7 @@
 import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
-import paths = require('vs/base/common/paths');
+import { join } from 'path';
 import { IRemoteCom } from 'vs/platform/extensions/common/ipcRemoteCom';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/common/extHostThreadService';
@@ -124,7 +124,7 @@ export class ExtensionHostMain {
 
 		const fileNames = Object.keys(desiredFilesMap);
 
-		return TPromise.join(fileNames.map(f => pfs.exists(paths.join(folderPath, f)))).then(exists => {
+		return TPromise.join(fileNames.map(f => pfs.exists(join(folderPath, f)))).then(exists => {
 			fileNames
 				.filter((f, i) => exists[i])
 				.forEach(fileName => {

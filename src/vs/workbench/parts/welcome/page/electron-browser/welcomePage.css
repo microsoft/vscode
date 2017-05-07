@@ -188,7 +188,6 @@
 	height: 5em;
 	font-size: 1.3em;
 	text-align: left;
-	outline: none;
 	cursor: pointer;
 	white-space: nowrap;
 }
@@ -228,19 +227,24 @@
 
 .vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button {
 	color: #828282;
-	background: #191919;
+	background: rgba(0, 0, 0, .2);
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover {
-	background: #2a2d2e;
+	background: rgba(200, 235, 255, .072);
 }
 
-.vs .monaco-workbench > .part.editor > .content .welcomePage .commands li button:focus {
-	outline: 1px solid rgba(0, 0, 0, .6);
+.vs-dark .monaco-workbench > .part.editor > .content .welcomePage.extra-dark .commands li button {
+	background: rgba(200, 235, 255, .042);
 }
 
-.vs-dark .monaco-workbench > .part.editor > .content .welcomePage .commands li button:focus {
-	outline: 1px solid rgba(255, 255, 255, .5);
+.vs-dark .monaco-workbench > .part.editor > .content .welcomePage.extra-dark .commands li button:hover {
+	background: rgba(200, 235, 255, .072);
+}
+
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button:focus {
+	outline-style: solid;
+	outline-width: 1px;
 }
 
 .hc-black .monaco-workbench > .part.editor > .content .welcomePage .commands li button {

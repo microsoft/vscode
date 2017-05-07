@@ -44,7 +44,7 @@ export function renderHtml(content: RenderableContent, options: RenderOptions = 
 
 function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}): Node {
 
-	let {codeBlockRenderer, actionCallback} = options;
+	let { codeBlockRenderer, actionCallback } = options;
 
 	if (content.isText) {
 		return document.createTextNode(content.text);
@@ -80,7 +80,7 @@ function _renderHtml(content: IHTMLContentElement, options: RenderOptions = {}):
 		// this is sort of legacy given that we have full
 		// support for markdown. Turn this into markdown
 		// and continue
-		let {language, value} = content.code;
+		let { language, value } = content.code;
 		content.markdown = '```' + language + '\n' + value + '\n```';
 	}
 	if (content.markdown) {

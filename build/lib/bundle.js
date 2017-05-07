@@ -115,6 +115,7 @@ function emitEntryPoints(modules, entryPoints) {
         }
     });
     return {
+        // TODO@TS 2.1.2
         files: extractStrings(removeDuplicateTSBoilerplate(result)),
         bundleData: bundleData
     };
@@ -207,7 +208,7 @@ function extractStrings(destFiles) {
 function removeDuplicateTSBoilerplate(destFiles) {
     // Taken from typescript compiler => emitFiles
     var BOILERPLATE = [
-        { start: /^var __extends/, end: /^};$/ },
+        { start: /^var __extends/, end: /^}\)\(\);$/ },
         { start: /^var __assign/, end: /^};$/ },
         { start: /^var __decorate/, end: /^};$/ },
         { start: /^var __metadata/, end: /^};$/ },

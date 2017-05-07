@@ -7,7 +7,6 @@
 
 import 'vs/css!./scrollDecoration';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -32,6 +31,10 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._domNode = createFastDomNode(document.createElement('div'));
 	}
 
+	public dispose(): void {
+		super.dispose();
+	}
+
 	private _updateShouldShow(): boolean {
 		let newShouldShow = (this._useShadows && this._scrollTop > 0);
 		if (this._shouldShow !== newShouldShow) {
@@ -41,8 +44,8 @@ export class ScrollDecorationViewPart extends ViewPart {
 		return false;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
 	}
 
 	private _updateWidth(): boolean {
@@ -80,6 +83,6 @@ export class ScrollDecorationViewPart extends ViewPart {
 
 	public render(ctx: RestrictedRenderingContext): void {
 		this._domNode.setWidth(this._width);
-		this._domNode.setClassName(this._shouldShow ? ClassNames.SCROLL_DECORATION : '');
+		this._domNode.setClassName(this._shouldShow ? 'scroll-decoration' : '');
 	}
 }

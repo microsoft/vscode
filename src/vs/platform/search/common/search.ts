@@ -35,6 +35,10 @@ export interface IQueryOptions {
 	sortByScore?: boolean;
 	cacheKey?: string;
 	fileEncoding?: string;
+	useRipgrep?: boolean;
+	disregardIgnoreFiles?: boolean;
+	disregardExcludeSettings?: boolean;
+	searchPaths?: string[];
 }
 
 export interface ISearchQuery extends IQueryOptions {
@@ -71,7 +75,11 @@ export interface IProgress {
 	worked?: number;
 }
 
-export interface ISearchProgressItem extends IFileMatch, IProgress {
+export interface ISearchLog {
+	message?: string;
+}
+
+export interface ISearchProgressItem extends IFileMatch, IProgress, ISearchLog {
 	// Marker interface to indicate the possible values for progress calls from the engine
 }
 
@@ -127,6 +135,8 @@ export class LineMatch implements ILineMatch {
 export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
 		exclude: IExpression;
+		useRipgrep: boolean;
+		useIgnoreFilesByDefault: boolean;
 	};
 }
 

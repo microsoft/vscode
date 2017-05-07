@@ -12,7 +12,7 @@ import { IMatch } from 'vs/base/common/filters';
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
-import { IWorkspaceProvider, getPathLabel } from 'vs/base/common/labels';
+import { IWorkspaceProvider, getPathLabel, IUserHomeProvider } from 'vs/base/common/labels';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -99,17 +99,17 @@ export class IconLabel {
 
 export class FileLabel extends IconLabel {
 
-	constructor(container: HTMLElement, file: uri, provider: IWorkspaceProvider) {
+	constructor(container: HTMLElement, file: uri, provider: IWorkspaceProvider, userHome?: IUserHomeProvider) {
 		super(container);
 
-		this.setFile(file, provider);
+		this.setFile(file, provider, userHome);
 	}
 
-	public setFile(file: uri, provider: IWorkspaceProvider): void {
+	public setFile(file: uri, provider: IWorkspaceProvider, userHome: IUserHomeProvider): void {
 		const path = getPath(file);
 		const parent = paths.dirname(path);
 
-		this.setValue(paths.basename(path), parent && parent !== '.' ? getPathLabel(parent, provider) : '', { title: path });
+		this.setValue(paths.basename(path), parent && parent !== '.' ? getPathLabel(parent, provider, userHome) : '', { title: path });
 	}
 }
 

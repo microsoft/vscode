@@ -165,6 +165,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsAutoUpdate', "Automatically update extensions"),
 				default: false
+			},
+			'extensions.ignoreRecommendations': {
+				type: 'boolean',
+				description: localize('extensionsIgnoreRecommendations', "Ignore extension recommendations"),
+				default: false
 			}
 		}
 	});

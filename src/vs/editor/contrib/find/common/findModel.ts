@@ -16,9 +16,10 @@ import { FindReplaceState, FindReplaceStateChangedEvent } from './findState';
 import { ReplaceAllCommand } from './replaceAllCommand';
 import { Selection } from 'vs/editor/common/core/selection';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IKeybindings } from 'vs/platform/keybinding/common/keybinding';
 import { Constants } from 'vs/editor/common/core/uint';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
+import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,
@@ -31,6 +32,10 @@ export const ToggleWholeWordKeybinding: IKeybindings = {
 export const ToggleRegexKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_R,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R }
+};
+export const ToggleSearchScopeKeybinding: IKeybindings = {
+	primary: KeyMod.Alt | KeyCode.KEY_L,
+	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_L }
 };
 export const ShowPreviousFindTermKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.UpArrow
@@ -54,6 +59,7 @@ export const FIND_IDS = {
 	ToggleCaseSensitiveCommand: 'toggleFindCaseSensitive',
 	ToggleWholeWordCommand: 'toggleFindWholeWord',
 	ToggleRegexCommand: 'toggleFindRegex',
+	ToggleSearchScopeCommand: 'toggleSearchScope',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
 	SelectAllMatchesAction: 'editor.action.selectAllMatches',
@@ -86,22 +92,22 @@ export class FindModelBoundToEditorModel {
 		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
 		this._toDispose.push(this._updateDecorationsScheduler);
 
-		this._toDispose.push(this._editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			if (
-				e.reason === editorCommon.CursorChangeReason.Explicit
-				|| e.reason === editorCommon.CursorChangeReason.Undo
-				|| e.reason === editorCommon.CursorChangeReason.Redo
+				e.reason === CursorChangeReason.Explicit
+				|| e.reason === CursorChangeReason.Undo
+				|| e.reason === CursorChangeReason.Redo
 			) {
 				this._decorations.setStartPosition(this._editor.getPosition());
 			}
 		}));
 
 		this._ignoreModelContentChanged = false;
-		this._toDispose.push(this._editor.onDidChangeModelRawContent((e: editorCommon.IModelContentChangedEvent) => {
+		this._toDispose.push(this._editor.onDidChangeModelContent((e) => {
 			if (this._ignoreModelContentChanged) {
 				return;
 			}
-			if (e.changeType === editorCommon.EventType.ModelRawContentChangedFlush) {
+			if (e.isFlush) {
 				// a model.setValue() was called
 				this._decorations.reset();
 			}

@@ -11,8 +11,8 @@ import DOM = require('vs/base/browser/dom');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
-import { Action, IAction } from 'vs/base/common/actions';
-import { BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action } from 'vs/base/common/actions';
+import { BaseActionItem, Separator, IBaseActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IActivityBarService, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -21,9 +21,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { dispose } from 'vs/base/common/lifecycle';
-import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IViewletService, } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IThemeService, ITheme, registerThemingParticipant, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { contrastBorder, activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class ActivityAction extends Action {
 	private badge: IBadge;
@@ -100,13 +102,33 @@ export class ViewletActivityAction extends ActivityAction {
 	}
 }
 
-export class ActivityActionItem extends BaseActionItem {
+export abstract class ThemableActivityActionItem extends BaseActionItem {
+
+	constructor(
+		action: ActivityAction,
+		options: IBaseActionItemOptions,
+		@IThemeService protected themeService: IThemeService
+	) {
+		super(null, action, options);
+
+		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
+	}
+
+	private onThemeChange(theme: ITheme): void {
+		this.updateStyles();
+	}
+
+	protected abstract updateStyles(): void;
+}
+
+export class ActivityActionItem extends ThemableActivityActionItem {
 
 	private static manageExtensionAction: ManageExtensionAction;
 	private static toggleViewletPinnedAction: ToggleViewletPinnedAction;
 	private static draggedViewlet: ViewletDescriptor;
 
-	private $e: Builder;
+	private $container: Builder;
+	private $label: Builder;
 	private name: string;
 	private _keybinding: string;
 	private cssClass: string;
@@ -120,9 +142,10 @@ export class ActivityActionItem extends BaseActionItem {
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IActivityBarService private activityBarService: IActivityBarService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(null, action, { draggable: true });
+		super(action, { draggable: true }, themeService);
 
 		this.cssClass = action.class;
 		this.name = viewlet.name;
@@ -139,6 +162,31 @@ export class ActivityActionItem extends BaseActionItem {
 		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
 	}
 
+	protected updateStyles(): void {
+		const theme = this.themeService.getTheme();
+
+		// Label
+		if (this.$label) {
+			const background = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+
+			this.$label.style('background-color', background ? background.toString() : null);
+		}
+
+		// Badge
+		if (this.$badgeContent) {
+			const badgeForeground = theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND);
+			const badgeBackground = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND);
+			const hcBorder = theme.getColor(contrastBorder);
+
+			this.$badgeContent.style('color', badgeForeground ? badgeForeground.toString() : null);
+			this.$badgeContent.style('background-color', badgeBackground ? badgeBackground.toString() : null);
+
+			this.$badgeContent.style('border-style', hcBorder ? 'solid' : null);
+			this.$badgeContent.style('border-width', hcBorder ? '1px' : null);
+			this.$badgeContent.style('border-color', hcBorder ? hcBorder.toString() : null);
+		}
+	}
+
 	private getKeybindingLabel(id: string): string {
 		const kb = this.keybindingService.lookupKeybinding(id);
 		if (kb) {
@@ -151,53 +199,35 @@ export class ActivityActionItem extends BaseActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 
-		this.$e = $('a.action-label').attr({
+		// Make the container tab-able for keyboard navigation
+		this.$container = $(container).attr({
 			tabIndex: '0',
 			role: 'button'
-		}).appendTo(this.builder);
-
-		// Try hard to prevent keyboard only focus feedback when using mouse
-		this.$e.on(DOM.EventType.MOUSE_DOWN, () => {
-			this.$e.addClass('clicked');
 		});
 
-		this.$e.on(DOM.EventType.MOUSE_UP, () => {
+		// Try hard to prevent keyboard only focus feedback when using mouse
+		this.$container.on(DOM.EventType.MOUSE_DOWN, () => {
+			this.$container.addClass('clicked');
+		});
+
+		this.$container.on(DOM.EventType.MOUSE_UP, () => {
 			if (this.mouseUpTimeout) {
 				clearTimeout(this.mouseUpTimeout);
 			}
 
 			this.mouseUpTimeout = setTimeout(() => {
-				this.$e.removeClass('clicked');
+				this.$container.removeClass('clicked');
 			}, 800); // delayed to prevent focus feedback from showing on mouse up
 		});
 
-		$(container).on('contextmenu', e => {
+		this.$container.on('contextmenu', e => {
 			DOM.EventHelper.stop(e, true);
 
 			this.showContextMenu(container);
 		});
 
-		if (this.cssClass) {
-			this.$e.addClass(this.cssClass);
-		}
-
-		this.$badge = this.builder.div({ 'class': 'badge' }, (badge: Builder) => {
-			this.$badgeContent = badge.div({ 'class': 'badge-content' });
-		});
-
-		this.$badge.hide();
-
-		this.keybinding = this._keybinding; // force update
-
-		// Activate on drag over to reveal targets
-		[this.$badge, this.$e].forEach(b => new DelayedDragHandler(b.getHTMLElement(), () => {
-			if (!ActivityActionItem.getDraggedViewlet() && !this.getAction().checked) {
-				this.getAction().run();
-			}
-		}));
-
 		// Allow to drag
-		$(container).on(DOM.EventType.DRAG_START, (e: DragEvent) => {
+		this.$container.on(DOM.EventType.DRAG_START, (e: DragEvent) => {
 			e.dataTransfer.effectAllowed = 'move';
 			this.setDraggedViewlet(this.viewlet);
 
@@ -209,48 +239,80 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Drag enter
 		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
-		$(container).on(DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
+		this.$container.on(DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
 			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
 				counter++;
-				DOM.addClass(container, 'dropfeedback');
+				this.updateFromDragging(container, true);
 			}
 		});
 
 		// Drag leave
-		$(container).on(DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+		this.$container.on(DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet) {
 				counter--;
 				if (counter === 0) {
-					DOM.removeClass(container, 'dropfeedback');
+					this.updateFromDragging(container, false);
 				}
 			}
 		});
 
 		// Drag end
-		$(container).on(DOM.EventType.DRAG_END, (e: DragEvent) => {
+		this.$container.on(DOM.EventType.DRAG_END, (e: DragEvent) => {
 			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet) {
 				counter = 0;
-				DOM.removeClass(container, 'dropfeedback');
+				this.updateFromDragging(container, false);
 
 				ActivityActionItem.clearDraggedViewlet();
 			}
 		});
 
 		// Drop
-		$(container).on(DOM.EventType.DROP, (e: DragEvent) => {
+		this.$container.on(DOM.EventType.DROP, (e: DragEvent) => {
 			DOM.EventHelper.stop(e, true);
 
 			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
 			if (draggedViewlet && draggedViewlet.id !== this.viewlet.id) {
-				DOM.removeClass(container, 'dropfeedback');
+				this.updateFromDragging(container, false);
 				ActivityActionItem.clearDraggedViewlet();
 
 				this.activityBarService.move(draggedViewlet.id, this.viewlet.id);
 			}
 		});
+
+		// Label
+		this.$label = $('a.action-label').appendTo(this.builder);
+		if (this.cssClass) {
+			this.$label.addClass(this.cssClass);
+		}
+
+		// Badge
+		this.$badge = this.builder.div({ 'class': 'badge' }, (badge: Builder) => {
+			this.$badgeContent = badge.div({ 'class': 'badge-content' });
+		});
+
+		this.$badge.hide();
+
+		// Keybinding
+		this.keybinding = this._keybinding; // force update
+
+		// Activate on drag over to reveal targets
+		[this.$badge, this.$label].forEach(b => new DelayedDragHandler(b.getHTMLElement(), () => {
+			if (!ActivityActionItem.getDraggedViewlet() && !this.getAction().checked) {
+				this.getAction().run();
+			}
+		}));
+
+		this.updateStyles();
+	}
+
+	private updateFromDragging(element: HTMLElement, isDragging: boolean): void {
+		const theme = this.themeService.getTheme();
+		const dragBackground = theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND);
+
+		element.style.backgroundColor = isDragging && dragBackground ? dragBackground.toString() : null;
 	}
 
 	public static getDraggedViewlet(): ViewletDescriptor {
@@ -287,7 +349,7 @@ export class ActivityActionItem extends BaseActionItem {
 	}
 
 	public focus(): void {
-		this.$e.domFocus();
+		this.$container.domFocus();
 	}
 
 	public setBadge(badge: IBadge): void {
@@ -297,7 +359,7 @@ export class ActivityActionItem extends BaseActionItem {
 	public set keybinding(keybinding: string) {
 		this._keybinding = keybinding;
 
-		if (!this.$e) {
+		if (!this.$label) {
 			return;
 		}
 
@@ -308,7 +370,7 @@ export class ActivityActionItem extends BaseActionItem {
 			title = this.name;
 		}
 
-		this.$e.title(title);
+		this.$label.title(title);
 		this.$badge.title(title);
 	}
 
@@ -342,7 +404,7 @@ export class ActivityActionItem extends BaseActionItem {
 				this.$badge.show();
 			}
 
-			this.$e.attr('aria-label', `${this.name} - ${badge.getDescription()}`);
+			this.$label.attr('aria-label', `${this.name} - ${badge.getDescription()}`);
 		}
 	}
 
@@ -357,9 +419,9 @@ export class ActivityActionItem extends BaseActionItem {
 
 	protected _updateChecked(): void {
 		if (this.getAction().checked) {
-			this.$e.addClass('active');
+			this.$container.addClass('active');
 		} else {
-			this.$e.removeClass('active');
+			this.$container.removeClass('active');
 		}
 	}
 
@@ -388,7 +450,7 @@ export class ActivityActionItem extends BaseActionItem {
 		}
 
 		this.$badge.destroy();
-		this.$e.destroy();
+		this.$label.destroy();
 	}
 }
 
@@ -407,8 +469,8 @@ export class ViewletOverflowActivityAction extends ActivityAction {
 	}
 }
 
-export class ViewletOverflowActivityActionItem extends BaseActionItem {
-	private $e: Builder;
+export class ViewletOverflowActivityActionItem extends ThemableActivityActionItem {
+	private $label: Builder;
 	private name: string;
 	private cssClass: string;
 	private actions: OpenViewletAction[];
@@ -421,22 +483,36 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 		@IViewletService private viewletService: IViewletService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(null, action);
+		super(action, null, themeService);
 
 		this.cssClass = action.class;
 		this.name = action.label;
 	}
 
+	protected updateStyles(): void {
+		const theme = this.themeService.getTheme();
+
+		// Label
+		if (this.$label) {
+			const background = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+
+			this.$label.style('background-color', background ? background.toString() : null);
+		}
+	}
+
 	public render(container: HTMLElement): void {
 		super.render(container);
 
-		this.$e = $('a.action-label').attr({
+		this.$label = $('a.action-label').attr({
 			tabIndex: '0',
 			role: 'button',
 			title: this.name,
 			class: this.cssClass
 		}).appendTo(this.builder);
+
+		this.updateStyles();
 	}
 
 	public showMenu(): void {
@@ -449,13 +525,9 @@ export class ViewletOverflowActivityActionItem extends BaseActionItem {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.builder.getHTMLElement(),
 			getActions: () => TPromise.as(this.actions),
-			getKeyBinding: (action) => this.getKeybinding(action),
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			onHide: () => dispose(this.actions)
 		});
-	}
-
-	private getKeybinding(action: IAction): ResolvedKeybinding {
-		return this.keybindingService.lookupKeybinding(action.id);
 	}
 
 	private getActions(): OpenViewletAction[] {
@@ -553,3 +625,67 @@ export class ToggleViewletPinnedAction extends Action {
 		return TPromise.as(true);
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Styling with Outline color (e.g. high contrast theme)
+	const outline = theme.getColor(activeContrastBorder);
+	if (outline) {
+		collector.addRule(`
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:before {
+				content: "";
+				position: absolute;
+				top: 9px;
+				left: 9px;
+				height: 32px;
+				width: 32px;
+				opacity: 0.6;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before {
+				outline: 1px solid;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
+				outline: 1px dashed;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
+				opacity: 1;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
+				border-left-color: ${outline};
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active:hover:before,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover:before {
+				outline-color: ${outline};
+			}
+		`);
+	}
+
+	// Styling without outline color
+	else {
+		const focusBorderColor = theme.getColor(focusBorder);
+
+		collector.addRule(`
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.active .action-label,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus .action-label,
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
+				opacity: 1;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label {
+				opacity: 0.6;
+			}
+
+			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
+				border-left-color: ${focusBorderColor};
+			}
+		`);
+	}
+});

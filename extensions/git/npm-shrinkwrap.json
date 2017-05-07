@@ -7,6 +7,11 @@
       "from": "applicationinsights@0.18.0",
       "resolved": "https://registry.npmjs.org/applicationinsights/-/applicationinsights-0.18.0.tgz"
     },
+    "iconv-lite": {
+      "version": "0.4.15",
+      "from": "iconv-lite@0.4.15",
+      "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.4.15.tgz"
+    },
     "vscode-extension-telemetry": {
       "version": "0.0.6",
       "from": "vscode-extension-telemetry@>=0.0.6 <0.0.7",

@@ -1,22 +1,22 @@
 {
 	"Insert bold text": {
 		"prefix": "bold",
-		"body": "**${1:text}**${}",
+		"body": "**${1:${TM_SELECTED_TEXT}}**$0",
 		"description": "Insert bold text"
 	},
 	"Insert italic text": {
 		"prefix": "italic",
-		"body": "*${1:text}*${}",
+		"body": "*${1:${TM_SELECTED_TEXT}}*$0",
 		"description": "Insert italic text"
 	},
 	"Insert quoted text": {
 		"prefix": "quote",
-		"body": "> ${1:text}",
+		"body": "> ${1:${TM_SELECTED_TEXT}}",
 		"description": "Insert quoted text"
 	},
 	"Insert code": {
 		"prefix": "code",
-		"body": "`${1:text}`${}",
+		"body": "`${1:${TM_SELECTED_TEXT}}`$0",
 		"description": "Insert code"
 	},
 	"Insert fenced code block": {
