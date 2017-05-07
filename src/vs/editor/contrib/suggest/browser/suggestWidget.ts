@@ -30,6 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorWidgetBackground, contrastBorder, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Position } from 'vs/editor/common/core/position';
 
 const sticky = false; // for development purposes
 
@@ -313,6 +314,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	readonly onDidFocus: Event<ICompletionItem> = this.onDidFocusEmitter.event;
 	readonly onDidHide: Event<this> = this.onDidHideEmitter.event;
 	readonly onDidShow: Event<this> = this.onDidShowEmitter.event;
+
+	private preferredPosition: Position;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -776,7 +779,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		return {
-			position: this.editor.getPosition(),
+			position: this.preferredPosition ? this.preferredPosition : this.editor.getPosition(),
 			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
 		};
 	}
@@ -807,17 +810,84 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.listElement.style.height = `${height}px`;
 		this.list.layout(height);
 
-		// Experimenting with columns left to the right of cursor to decide if the list & details must be swapped
-		let columnsLeft = this.editor.getLayoutInfo().viewportColumn - this.editor.getPosition().column;
-		if (columnsLeft < 50) {
-			addClass(this.element, 'list-right');
-		} else {
-			removeClass(this.element, 'list-right');
-		}
-
+		this.adjustWidgetWidth();
 		this.editor.layoutContentWidget(this);
 
 		return height;
+	}
+
+	private adjustWidgetWidth() {
+		const widgetWidth = 660;
+		const listWidth = 220;
+		const docsWidth = 440;
+		const perColumnWidth = this.editor.getLayoutInfo().contentWidth / this.editor.getLayoutInfo().viewportColumn;
+		const spaceOntheLeft = Math.floor(this.editor.getPosition().column * perColumnWidth) - this.editor.getScrollLeft();
+		const spaceOntheRight = this.editor.getLayoutInfo().contentWidth - spaceOntheLeft;
+
+		// Reset
+		this.preferredPosition = this.editor.getPosition();
+		this.details.element.style.width = `${docsWidth}px`;
+		this.element.style.width = `${widgetWidth}px`;
+		show(this.details.element);
+		removeClass(this.element, 'list-right');
+
+		if (spaceOntheRight > widgetWidth) {
+			// There is enough space on the right, so nothing to do here.
+			return;
+		}
+
+		if (spaceOntheRight > docsWidth) {
+			// There is enough space on the right for list and resized docs
+			this.adjustDocs(false, spaceOntheRight - listWidth, -1);
+			return;
+		}
+
+		if (spaceOntheLeft > docsWidth) {
+			// Docs on the left and list on the right of the cursor
+			let columnsOccupiedByDocs = Math.floor(docsWidth / perColumnWidth);
+			this.adjustDocs(true, null, this.editor.getPosition().column - columnsOccupiedByDocs);
+			return;
+		}
+
+		if (spaceOntheRight > listWidth && spaceOntheLeft > listWidth) {
+			// Resized docs on the left and list on the right of the cursor
+			let columnsOccupiedByDocs = Math.floor(spaceOntheLeft / perColumnWidth);
+			this.adjustDocs(true, spaceOntheLeft, this.editor.getPosition().column - columnsOccupiedByDocs);
+			return;
+		}
+
+		if (this.editor.getLayoutInfo().contentWidth > 440) {
+			// Resize docs. Swap only of there is enough space on the right for the list
+			this.adjustDocs(spaceOntheRight < listWidth, this.editor.getLayoutInfo().contentWidth - listWidth, -1);
+			return;
+		}
+
+		// Not enough space for docs, so hide it
+		hide(this.details.element);
+		this.element.style.width = `${listWidth}px`;
+	}
+
+	/**
+	 * Adjust the width of the docs widget, swaps docs/list and moves suggest widget if needed
+	 *
+	 * @swap boolean If true, then the docs and list are swapped
+	 * @resizedDocWidth number If not null, this number will be used to set the width of the docs
+	 * @moveToColumn If > -1, this is the column where the suggest widget should be moved to
+	 */
+	private adjustDocs(swap: boolean, resizedDocWidth: number, moveToColumn: number) {
+
+		if (swap) {
+			addClass(this.element, 'list-right');
+		}
+
+		if (resizedDocWidth !== null) {
+			this.details.element.style.width = `${resizedDocWidth}px`;
+			this.element.style.width = `${resizedDocWidth + 220}px`;
+		}
+
+		if (moveToColumn >= 0) {
+			this.preferredPosition = new Position(this.editor.getPosition().lineNumber, moveToColumn);
+		}
 	}
 
 	private renderDetails(): void {

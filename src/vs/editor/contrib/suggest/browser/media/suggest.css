@@ -23,7 +23,7 @@
 
 .monaco-editor .suggest-widget > .tree {
 	height: 100%;
-	width: 40%;
+	width: 220px;
 	float: left;
 	box-sizing: border-box;
 }
@@ -109,6 +109,8 @@
 	display: flex;
 	flex-direction: column;
 	cursor: default;
+	box-sizing: border-box;
+	width: 440px;
 }
 
 .monaco-editor .suggest-widget .details.no-docs {
