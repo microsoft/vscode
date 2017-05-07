@@ -94,17 +94,17 @@
 						"object"
 					],
 					"default": false,
-					"description":  "Do you want to validate your code with a shell?",
+					"description":  "%configuration.validate.runInShell%",
 					"properties": {
 						"shellArgs": {
 							"type": "array",
-							"default": ["-c"],
-							"description": "Arguments to pass to the shell"
+							"default": [],
+							"description": "%configuration.validate.shellArgs%"
 						},
 						"shellExecutable": {
 							"type": "string",
-							"default": "C:\\Windows\\sysnative\\bash.exe",
-							"description": "The shell executable path"
+							"default": "",
+							"description": "%configuration.validate.shellExecutable%"
 						}
 					}
 				}
