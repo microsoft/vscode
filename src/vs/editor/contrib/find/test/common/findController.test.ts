@@ -17,7 +17,6 @@ import {
 	NextMatchFindAction, StartFindAction, SelectHighlightsAction,
 	AddSelectionToNextFindMatchAction
 } from 'vs/editor/contrib/find/common/findController';
-import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -69,17 +68,18 @@ class TestFindController extends CommonFindController {
 	}
 }
 
+function fromRange(rng: Range): number[] {
+	return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
+}
+
 suite('FindController', () => {
-	let queryState = new FindReplaceState();
+	let queryState = {};
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, <any>{
 		get: (key) => queryState[key],
 		getBoolean: (key) => !!queryState[key],
 		store: (key: string, value: any) => { queryState[key] = value; }
 	});
-	function fromRange(rng: Range): number[] {
-		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
-	}
 
 	test('issue #1857: F3, Find Next, acts like "Find Under Cursor"', () => {
 		withMockCodeEditor([
@@ -683,6 +683,85 @@ suite('FindController', () => {
 				new Selection(4, 1, 4, 5),
 				new Selection(5, 1, 5, 5),
 			]);
+		});
+	});
+});
+
+suite('FindController query options persistence', () => {
+	let queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': false };
+	let serviceCollection = new ServiceCollection();
+	serviceCollection.set(IStorageService, <any>{
+		get: (key) => queryState[key],
+		getBoolean: (key) => !!queryState[key],
+		store: (key: string, value: any) => { queryState[key] = value; }
+	});
+
+	test('matchCase', () => {
+		withMockCodeEditor([
+			'abc',
+			'ABC',
+			'XYZ',
+			'ABC'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			queryState = { 'editor.isRegex': false, 'editor.matchCase': true, 'editor.wholeWord': false };
+			// The cursor is at the very top, of the file, at the first ABC
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findState = findController.getState();
+			let startFindAction = new StartFindAction();
+
+			// I hit Ctrl+F to show the Find dialog
+			startFindAction.run(null, editor);
+
+			// I type ABC.
+			findState.change({ searchString: 'ABC' }, true);
+			// The second ABC is highlighted as matchCase is true.
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 2, 4]);
+
+			findController.dispose();
+		});
+	});
+
+	queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
+
+	test('wholeWord', () => {
+		withMockCodeEditor([
+			'ABC',
+			'AB',
+			'XYZ',
+			'ABC'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
+			// The cursor is at the very top, of the file, at the first ABC
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findState = findController.getState();
+			let startFindAction = new StartFindAction();
+
+			// I hit Ctrl+F to show the Find dialog
+			startFindAction.run(null, editor);
+
+			// I type AB.
+			findState.change({ searchString: 'AB' }, true);
+			// The second AB is highlighted as wholeWord is true.
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 2, 3]);
+
+			findController.dispose();
+		});
+	});
+
+	test('toggling options is saved', () => {
+		withMockCodeEditor([
+			'ABC',
+			'AB',
+			'XYZ',
+			'ABC'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
+			// The cursor is at the very top, of the file, at the first ABC
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			findController.toggleRegex();
+			assert.equal(queryState['editor.isRegex'], true);
+
+			findController.dispose();
 		});
 	});
 });
