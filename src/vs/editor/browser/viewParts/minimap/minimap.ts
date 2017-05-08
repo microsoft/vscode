@@ -27,6 +27,8 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import * as platform from 'vs/base/common/platform';
 import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
+import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
+import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarShadow } from "vs/platform/theme/common/colorRegistry";
 
 const enum RenderMinimap {
 	None = 0,
@@ -854,3 +856,22 @@ export class Minimap extends ViewPart {
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let sliderBackground = theme.getColor(scrollbarSliderBackground);
+	if (sliderBackground) {
+		collector.addRule(`.monaco-editor .minimap-slider { background: ${sliderBackground}; }`);
+	}
+	let sliderHoverBackground = theme.getColor(scrollbarSliderHoverBackground);
+	if (sliderHoverBackground) {
+		collector.addRule(`.monaco-editor .minimap-slider:hover { background: ${sliderHoverBackground}; }`);
+	}
+	let sliderActiveBackground = theme.getColor(scrollbarSliderActiveBackground);
+	if (sliderActiveBackground) {
+		collector.addRule(`.monaco-editor .minimap-slider.active { background: ${sliderActiveBackground}; }`);
+	}
+	let shadow = theme.getColor(scrollbarShadow);
+	if (shadow) {
+		collector.addRule(`.monaco-editor .minimap-shadow-visible { box-shadow: ${shadow} -6px 0 6px -6px inset; }`);
+	}
+});
