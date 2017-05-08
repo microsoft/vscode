@@ -303,6 +303,7 @@
 
 		"input.background": "#003847",
 		"input.foreground": "#93A1A1",
+		"input.placeholderForeground": "#93A1A1AA",
 		// "input.border": "",
 
 		"inputOption.activeBorder": "#2AA19899",

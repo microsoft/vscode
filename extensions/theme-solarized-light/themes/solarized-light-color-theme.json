@@ -304,6 +304,7 @@
 		"input.background": "#DDD6C1",
 		// "input.border": "",
 		"input.foreground": "#586E75",
+		"input.placeholderForeground": "#586E75AA",
 		"inputOption.activeBorder": "#D3AF86",
 		// "inputValidation.infoBorder": "",
 		// "inputValidation.infoBackground": "",
