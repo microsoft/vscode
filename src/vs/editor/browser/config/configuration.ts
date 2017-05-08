@@ -314,7 +314,7 @@ export class Configuration extends CommonEditorConfiguration {
 
 		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
 
-		if (this._configWithDefaults.getEditorOptions().automaticLayout) {
+		if (this._validatedOptions.automaticLayout) {
 			this._elementSizeObserver.startObserving();
 		}
 

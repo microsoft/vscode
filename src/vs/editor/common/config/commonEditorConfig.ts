@@ -49,34 +49,6 @@ export const TabFocus: ITabFocus = new class {
 	}
 };
 
-export class ConfigurationWithDefaults {
-
-	private _editor: editorOptions.IEditorOptions;
-
-	constructor(options: editorOptions.IEditorOptions) {
-		this._editor = <editorOptions.IEditorOptions>objects.clone(DefaultConfig.editor);
-
-		this._mergeOptionsIn(options);
-	}
-
-	public getEditorOptions(): editorOptions.IEditorOptions {
-		return this._editor;
-	}
-
-	private _mergeOptionsIn(newOptions: editorOptions.IEditorOptions): void {
-		this._editor = objects.mixin(this._editor, newOptions || {});
-	}
-
-	public updateOptions(newOptions: editorOptions.IEditorOptions): void {
-		// Apply new options
-		this._mergeOptionsIn(newOptions);
-	}
-}
-
-function toBoolean(value: any): boolean {
-	return value === 'false' ? false : Boolean(value);
-}
-
 export interface IElementSizeObserver {
 	startObserving(): void;
 	observe(dimension?: editorCommon.IDimension): void;
@@ -87,9 +59,11 @@ export interface IElementSizeObserver {
 
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
+	protected _rawOptions: editorOptions.IEditorOptions;
+	protected _validatedOptions: editorOptions.IValidatedEditorOptions;
+
 	public editor: editorOptions.InternalEditorOptions;
 
-	protected _configWithDefaults: ConfigurationWithDefaults;
 	protected _elementSizeObserver: IElementSizeObserver;
 	private _isDominatedByLongLines: boolean;
 	private _lineNumbersDigitCount: number;
@@ -99,7 +73,10 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	constructor(options: editorOptions.IEditorOptions, elementSizeObserver: IElementSizeObserver = null) {
 		super();
-		this._configWithDefaults = new ConfigurationWithDefaults(options);
+
+		this._rawOptions = options;
+		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, editorOptions.DEFAULTS);
+
 		this._elementSizeObserver = elementSizeObserver;
 		this._isDominatedByLongLines = false;
 		this._lineNumbersDigitCount = 1;
@@ -127,33 +104,29 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	public getRawOptions(): editorOptions.IEditorOptions {
-		return this._configWithDefaults.getEditorOptions();
+		return this._rawOptions;
 	}
 
 	private _computeInternalOptions(): editorOptions.InternalEditorOptions {
-		let opts = this._configWithDefaults.getEditorOptions();
-
-		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures), opts.mouseStyle);
-
-		let bareFontInfo = BareFontInfo.createFromRawSettings(opts, this.getZoomLevel());
-
+		const opts = this._validatedOptions;
+		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, this.getZoomLevel());
 		const env = new editorOptions.EnvironmentalOptions({
 			outerWidth: this.getOuterWidth(),
 			outerHeight: this.getOuterHeight(),
 			fontInfo: this.readConfiguration(bareFontInfo),
-			editorClassName: editorClassName,
+			editorClassName: this._getEditorClassName(opts.theme, opts.fontLigatures, opts.mouseStyle),
 			isDominatedByLongLines: this._isDominatedByLongLines,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			canUseTranslate3d: this._getCanUseTranslate3d(),
 			pixelRatio: this._getPixelRatio(),
 			tabFocusMode: TabFocus.getTabFocusMode()
 		});
-
 		return editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
 	}
 
 	public updateOptions(newOptions: editorOptions.IEditorOptions): void {
-		this._configWithDefaults.updateOptions(newOptions);
+		this._rawOptions = objects.mixin(this._rawOptions, newOptions || {});
+		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, editorOptions.DEFAULTS);
 		this._recomputeOptions();
 	}
 

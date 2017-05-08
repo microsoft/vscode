@@ -39,6 +39,13 @@ function clamp(n: number, min: number, max: number): number {
 	return n;
 }
 
+function _string(value: any, defaultValue: string): string {
+	if (typeof value !== 'string') {
+		return defaultValue;
+	}
+	return value;
+}
+
 export class BareFontInfo {
 	readonly _bareFontInfoBrand: void;
 
@@ -52,8 +59,8 @@ export class BareFontInfo {
 		lineHeight?: number | string;
 	}, zoomLevel: number): BareFontInfo {
 
-		let fontFamily = String(opts.fontFamily) || DefaultConfig.editor.fontFamily;
-		let fontWeight = String(opts.fontWeight) || DefaultConfig.editor.fontWeight;
+		let fontFamily = _string(opts.fontFamily, DefaultConfig.editor.fontFamily);
+		let fontWeight = _string(opts.fontWeight, DefaultConfig.editor.fontWeight);
 
 		let fontSize = safeParseFloat(opts.fontSize, DefaultConfig.editor.fontSize);
 		fontSize = clamp(fontSize, 0, 100);
