@@ -313,11 +313,11 @@ export class TabsTitleControl extends TitleControl {
 					tabLabel.element.style.color = this.getColor(TAB_INACTIVE_FOREGROUND, (color, theme) => {
 						if (!isGroupActive) {
 							if (theme.type === 'dark') {
-								return color.transparent(0.5).transparent(0.5);
+								return color.transparent(0.5);
 							}
 
 							if (theme.type === 'light') {
-								return color.transparent(0.7).transparent(0.5);
+								return color.transparent(0.5);
 							}
 						}
 
