@@ -10,7 +10,7 @@ import { IConfigurationService, getConfigurationValue } from 'vs/platform/config
 import { Platform } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_FONT_DEFAULTS } from "vs/editor/common/config/editorOptions";
 
 
 class MockConfigurationService implements IConfigurationService {
@@ -97,7 +97,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().fontSize, `${DefaultConfig.editor.fontSize}px`, 'The default editor font size should be used when editor.fontSize is 0 and terminal.integrated.fontSize not set');
+		assert.equal(configHelper.getFont().fontSize, `${EDITOR_FONT_DEFAULTS.fontSize}px`, 'The default editor font size should be used when editor.fontSize is 0 and terminal.integrated.fontSize not set');
 
 		configurationService = new MockConfigurationService({
 			editor: {
@@ -113,7 +113,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 		});
 		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.getFont().fontSize, `${DefaultConfig.editor.fontSize}px`, 'The default editor font size should be used when editor.fontSize is < 0 and terminal.integrated.fontSize not set');
+		assert.equal(configHelper.getFont().fontSize, `${EDITOR_FONT_DEFAULTS.fontSize}px`, 'The default editor font size should be used when editor.fontSize is < 0 and terminal.integrated.fontSize not set');
 	});
 
 	test('TerminalConfigHelper - getFont lineHeight', function () {

@@ -27,7 +27,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import debugActions = require('vs/workbench/parts/debug/browser/debugActions');
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_FONT_DEFAULTS } from "vs/editor/common/config/editorOptions";
 import { registerColors } from './terminalColorRegistry';
 
 let configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
@@ -96,7 +96,7 @@ configurationRegistry.registerConfiguration({
 		'terminal.integrated.fontSize': {
 			'description': nls.localize('terminal.integrated.fontSize', "Controls the font size in pixels of the terminal."),
 			'type': 'number',
-			'default': DefaultConfig.editor.fontSize
+			'default': EDITOR_FONT_DEFAULTS.fontSize
 		},
 		'terminal.integrated.lineHeight': {
 			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multipled by the terminal font size to get the actual line-height in pixels."),

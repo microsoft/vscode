@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
-import { IConfiguration as IEditorConfiguration, DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from "vs/editor/common/config/editorOptions";
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IChoiceService } from 'vs/platform/message/common/message';
@@ -13,6 +13,10 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
 import { Severity } from 'vs/editor/common/standalone/standaloneBase';
 import { TPromise } from 'vs/base/common/winjs.base';
+
+interface IEditorConfiguration {
+	editor: IEditorOptions;
+}
 
 interface IFullTerminalConfiguration {
 	terminal: {
@@ -86,7 +90,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		const fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
 		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
 		if (fontSize <= 0) {
-			fontSize = DefaultConfig.editor.fontSize;
+			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
 		}
 		let lineHeight = terminalConfig.lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : terminalConfig.lineHeight;
 		if (!lineHeight) {

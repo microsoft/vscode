@@ -4,8 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { DefaultConfig, GOLDEN_LINE_HEIGHT_RATIO } from 'vs/editor/common/config/defaultConfig';
+import * as platform from 'vs/base/common/platform';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
+import { EDITOR_FONT_DEFAULTS } from "vs/editor/common/config/editorOptions";
+
+/**
+ * Determined from empirical observations.
+ * @internal
+ */
+const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
 
 function safeParseFloat(n: number | string, defaultValue: number): number {
 	if (typeof n === 'number') {
@@ -59,13 +66,13 @@ export class BareFontInfo {
 		lineHeight?: number | string;
 	}, zoomLevel: number): BareFontInfo {
 
-		let fontFamily = _string(opts.fontFamily, DefaultConfig.editor.fontFamily);
-		let fontWeight = _string(opts.fontWeight, DefaultConfig.editor.fontWeight);
+		let fontFamily = _string(opts.fontFamily, EDITOR_FONT_DEFAULTS.fontFamily);
+		let fontWeight = _string(opts.fontWeight, EDITOR_FONT_DEFAULTS.fontWeight);
 
-		let fontSize = safeParseFloat(opts.fontSize, DefaultConfig.editor.fontSize);
+		let fontSize = safeParseFloat(opts.fontSize, EDITOR_FONT_DEFAULTS.fontSize);
 		fontSize = clamp(fontSize, 0, 100);
 		if (fontSize === 0) {
-			fontSize = DefaultConfig.editor.fontSize;
+			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
 		}
 
 		let lineHeight = safeParseInt(opts.lineHeight, 0);

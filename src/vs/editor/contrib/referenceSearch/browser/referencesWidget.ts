@@ -30,7 +30,6 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
@@ -591,7 +590,13 @@ export class ReferenceWidget extends PeekViewWidget {
 
 			var options: IEditorOptions = {
 				scrollBeyondLastLine: false,
-				scrollbar: DefaultConfig.editor.scrollbar,
+				scrollbar: {
+					verticalScrollbarSize: 14,
+					horizontal: 'auto',
+					useShadows: true,
+					verticalHasArrows: false,
+					horizontalHasArrows: false
+				},
 				overviewRulerLanes: 2,
 				fixedOverflowWidgets: true,
 				minimap: {

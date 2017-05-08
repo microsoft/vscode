@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as nls from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
-import { DefaultConfig } from "vs/editor/common/config/defaultConfig";
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 
 /**
  * Configuration options for editor scrollbars
@@ -1733,99 +1735,6 @@ function _scrollbarVisibilityFromString(visibility: string, defaultValue: Scroll
 /**
  * @internal
  */
-export const DEFAULTS: IValidatedEditorOptions = {
-	inDiffEditor: false,
-	experimentalScreenReader: DefaultConfig.editor.experimentalScreenReader,
-	ariaLabel: DefaultConfig.editor.ariaLabel,
-	rulers: DefaultConfig.editor.rulers,
-	wordSeparators: DefaultConfig.editor.wordSeparators,
-	selectionClipboard: DefaultConfig.editor.selectionClipboard,
-	renderLineNumbers: true,
-	renderCustomLineNumbers: null,
-	renderRelativeLineNumbers: false,
-	selectOnLineNumbers: DefaultConfig.editor.selectOnLineNumbers,
-	lineNumbersMinChars: DefaultConfig.editor.lineNumbersMinChars,
-	glyphMargin: DefaultConfig.editor.glyphMargin,
-	lineDecorationsWidth: DefaultConfig.editor.lineDecorationsWidth,
-	revealHorizontalRightPadding: DefaultConfig.editor.revealHorizontalRightPadding,
-	roundedSelection: DefaultConfig.editor.roundedSelection,
-	theme: DefaultConfig.editor.theme,
-	readOnly: DefaultConfig.editor.readOnly,
-	scrollbar: {
-		vertical: ScrollbarVisibility.Auto,
-		horizontal: ScrollbarVisibility.Auto,
-		arrowSize: 11,
-		useShadows: true,
-		verticalHasArrows: false,
-		horizontalHasArrows: false,
-		horizontalScrollbarSize: 10,
-		horizontalSliderSize: 10,
-		verticalScrollbarSize: 14,
-		verticalSliderSize: 14,
-		handleMouseWheel: true
-	},
-	minimap: {
-		enabled: false,
-		renderCharacters: true,
-		maxColumn: 120
-	},
-	fixedOverflowWidgets: DefaultConfig.editor.fixedOverflowWidgets,
-	overviewRulerLanes: DefaultConfig.editor.overviewRulerLanes,
-	overviewRulerBorder: DefaultConfig.editor.overviewRulerBorder,
-	cursorBlinking: TextEditorCursorBlinkingStyle.Blink,
-	mouseWheelZoom: DefaultConfig.editor.mouseWheelZoom,
-	mouseStyle: DefaultConfig.editor.mouseStyle,
-	cursorStyle: TextEditorCursorStyle.Line,
-	fontLigatures: DefaultConfig.editor.fontLigatures,
-	disableTranslate3d: DefaultConfig.editor.disableTranslate3d,
-	disableMonospaceOptimizations: DefaultConfig.editor.disableMonospaceOptimizations,
-	hideCursorInOverviewRuler: DefaultConfig.editor.hideCursorInOverviewRuler,
-	scrollBeyondLastLine: DefaultConfig.editor.scrollBeyondLastLine,
-	automaticLayout: DefaultConfig.editor.automaticLayout,
-	wordWrap: DefaultConfig.editor.wordWrap,
-	wordWrapColumn: DefaultConfig.editor.wordWrapColumn,
-	wordWrapMinified: DefaultConfig.editor.wordWrapMinified,
-	wrappingIndent: WrappingIndent.Same,
-	wordWrapBreakBeforeCharacters: DefaultConfig.editor.wordWrapBreakBeforeCharacters,
-	wordWrapBreakAfterCharacters: DefaultConfig.editor.wordWrapBreakAfterCharacters,
-	wordWrapBreakObtrusiveCharacters: DefaultConfig.editor.wordWrapBreakObtrusiveCharacters,
-	stopRenderingLineAfter: 10000,
-	hover: DefaultConfig.editor.hover,
-	contextmenu: DefaultConfig.editor.contextmenu,
-	mouseWheelScrollSensitivity: DefaultConfig.editor.mouseWheelScrollSensitivity,
-	quickSuggestions: DefaultConfig.editor.quickSuggestions,
-	quickSuggestionsDelay: DefaultConfig.editor.quickSuggestionsDelay,
-	parameterHints: DefaultConfig.editor.parameterHints,
-	iconsInSuggestions: DefaultConfig.editor.iconsInSuggestions,
-	autoClosingBrackets: DefaultConfig.editor.autoClosingBrackets,
-	formatOnType: DefaultConfig.editor.formatOnType,
-	formatOnPaste: DefaultConfig.editor.formatOnPaste,
-	dragAndDrop: DefaultConfig.editor.dragAndDrop,
-	suggestOnTriggerCharacters: DefaultConfig.editor.suggestOnTriggerCharacters,
-	acceptSuggestionOnEnter: DefaultConfig.editor.acceptSuggestionOnEnter,
-	acceptSuggestionOnCommitCharacter: DefaultConfig.editor.acceptSuggestionOnCommitCharacter,
-	snippetSuggestions: DefaultConfig.editor.snippetSuggestions,
-	emptySelectionClipboard: DefaultConfig.editor.emptySelectionClipboard,
-	wordBasedSuggestions: DefaultConfig.editor.wordBasedSuggestions,
-	suggestFontSize: DefaultConfig.editor.suggestFontSize,
-	suggestLineHeight: DefaultConfig.editor.suggestLineHeight,
-	selectionHighlight: DefaultConfig.editor.selectionHighlight,
-	occurrencesHighlight: DefaultConfig.editor.occurrencesHighlight,
-	codeLens: DefaultConfig.editor.codeLens,
-	referenceInfos: DefaultConfig.editor.referenceInfos,
-	folding: DefaultConfig.editor.folding,
-	hideFoldIcons: DefaultConfig.editor.hideFoldIcons,
-	matchBrackets: DefaultConfig.editor.matchBrackets,
-	renderWhitespace: DefaultConfig.editor.renderWhitespace,
-	renderControlCharacters: DefaultConfig.editor.renderControlCharacters,
-	renderIndentGuides: DefaultConfig.editor.renderIndentGuides,
-	renderLineHighlight: DefaultConfig.editor.renderLineHighlight,
-	useTabStops: DefaultConfig.editor.useTabStops,
-};
-
-/**
- * @internal
- */
 export class EditorOptionsValidator {
 
 	/**
@@ -2371,3 +2280,124 @@ export class EditorLayoutProvider {
 		});
 	}
 }
+
+const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
+const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
+const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'Courier New\', monospace, \'Droid Sans Fallback\'';
+
+/**
+ * @internal
+ */
+export const EDITOR_FONT_DEFAULTS = {
+	fontFamily: (
+		platform.isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (platform.isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY)
+	),
+	fontWeight: 'normal',
+	fontSize: (
+		platform.isMacintosh ? 12 : 14
+	),
+	lineHeight: 0,
+};
+
+/**
+ * @internal
+ */
+export const EDITOR_MODEL_DEFAULTS = {
+	tabSize: 4,
+	insertSpaces: true,
+	detectIndentation: true,
+	trimAutoWhitespace: true
+};
+
+/**
+ * @internal
+ */
+export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
+	inDiffEditor: false,
+	experimentalScreenReader: true,
+	ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
+	rulers: [],
+	wordSeparators: USUAL_WORD_SEPARATORS,
+	selectionClipboard: true,
+	renderLineNumbers: true,
+	renderCustomLineNumbers: null,
+	renderRelativeLineNumbers: false,
+	selectOnLineNumbers: true,
+	lineNumbersMinChars: 5,
+	glyphMargin: true,
+	lineDecorationsWidth: 10,
+	revealHorizontalRightPadding: 30,
+	roundedSelection: true,
+	theme: 'vs',
+	readOnly: false,
+	scrollbar: {
+		vertical: ScrollbarVisibility.Auto,
+		horizontal: ScrollbarVisibility.Auto,
+		arrowSize: 11,
+		useShadows: true,
+		verticalHasArrows: false,
+		horizontalHasArrows: false,
+		horizontalScrollbarSize: 10,
+		horizontalSliderSize: 10,
+		verticalScrollbarSize: 14,
+		verticalSliderSize: 14,
+		handleMouseWheel: true
+	},
+	minimap: {
+		enabled: false,
+		renderCharacters: true,
+		maxColumn: 120
+	},
+	fixedOverflowWidgets: false,
+	overviewRulerLanes: 2,
+	overviewRulerBorder: true,
+	cursorBlinking: TextEditorCursorBlinkingStyle.Blink,
+	mouseWheelZoom: false,
+	mouseStyle: 'text',
+	cursorStyle: TextEditorCursorStyle.Line,
+	fontLigatures: false,
+	disableTranslate3d: false,
+	disableMonospaceOptimizations: false,
+	hideCursorInOverviewRuler: false,
+	scrollBeyondLastLine: true,
+	automaticLayout: false,
+	wordWrap: 'off',
+	wordWrapColumn: 80,
+	wordWrapMinified: true,
+	wrappingIndent: WrappingIndent.Same,
+	wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
+	wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ’”〉》」』】〕）］｝｣',
+	wordWrapBreakObtrusiveCharacters: '.',
+	stopRenderingLineAfter: 10000,
+	hover: true,
+	contextmenu: true,
+	mouseWheelScrollSensitivity: 1,
+	quickSuggestions: { other: true, comments: false, strings: false },
+	quickSuggestionsDelay: 10,
+	parameterHints: true,
+	iconsInSuggestions: true,
+	autoClosingBrackets: true,
+	formatOnType: false,
+	formatOnPaste: false,
+	dragAndDrop: false,
+	suggestOnTriggerCharacters: true,
+	acceptSuggestionOnEnter: true,
+	acceptSuggestionOnCommitCharacter: true,
+	snippetSuggestions: 'inline',
+	emptySelectionClipboard: true,
+	wordBasedSuggestions: true,
+	suggestFontSize: 0,
+	suggestLineHeight: 0,
+	selectionHighlight: true,
+	occurrencesHighlight: true,
+	codeLens: true,
+	referenceInfos: true,
+	folding: true,
+	hideFoldIcons: true,
+	matchBrackets: true,
+	renderWhitespace: 'none',
+	renderControlCharacters: false,
+	renderIndentGuides: false,
+	renderLineHighlight: 'line',
+	useTabStops: true,
+};
