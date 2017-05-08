@@ -812,7 +812,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	style(styles: IListStyles): void {
-		let content: string[] = [];
+		const content: string[] = [];
 
 		if (styles.listFocusBackground) {
 			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
