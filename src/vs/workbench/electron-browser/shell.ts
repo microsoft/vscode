@@ -103,7 +103,7 @@ import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { foreground, selection, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 
 /**
  * Services that we require for the Shell
@@ -529,9 +529,10 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.monaco-shell { color: ${windowForeground}; }`);
 	}
 
-	const windowSelection = theme.getColor(selection);
-	if (windowSelection) {
-		collector.addRule(`.monaco-shell *::selection { background-color: ${windowSelection}; }`);
+	// Selection
+	const windowSelectionBackground = theme.getColor(selectionBackground);
+	if (windowSelectionBackground) {
+		collector.addRule(`.monaco-shell ::selection { background-color: ${windowSelectionBackground}; }`);
 	}
 
 	// List highlight
