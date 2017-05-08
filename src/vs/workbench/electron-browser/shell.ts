@@ -103,7 +103,7 @@ import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
 
 /**
  * Services that we require for the Shell
@@ -533,6 +533,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const windowSelectionBackground = theme.getColor(selectionBackground);
 	if (windowSelectionBackground) {
 		collector.addRule(`.monaco-shell ::selection { background-color: ${windowSelectionBackground}; }`);
+	}
+
+	// Input placeholder
+	const placeholderForeground = theme.getColor(inputPlaceholderForeground);
+	if (placeholderForeground) {
+		collector.addRule(`.monaco-shell input::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
+		collector.addRule(`.monaco-shell textarea::-webkit-input-placeholder { color: ${placeholderForeground}; }`);
 	}
 
 	// List highlight
