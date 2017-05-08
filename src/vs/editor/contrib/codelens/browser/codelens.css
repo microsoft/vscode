@@ -8,7 +8,6 @@
 	display: inline-block;
 	text-overflow: ellipsis;
 	font-size: 90%;
-	color: #999999;
 }
 
 .monaco-editor .codelens-decoration > span,
@@ -28,11 +27,6 @@
 .monaco-editor .codelens-decoration > a:hover {
 	text-decoration: underline;
 	cursor: pointer;
-	color: blue !important;
-}
-
-.monaco-editor.vs-dark .codelens-decoration > a:hover {
-	color: #4E94CE !important;
 }
 
 .monaco-editor .codelens-decoration.invisible-cl {
