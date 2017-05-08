@@ -269,7 +269,7 @@ if (isWindows || isLinux) {
 	properties['window.enableMenuBarMnemonics'] = {
 		'type': 'boolean',
 		'default': true,
-		'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts.")
+		'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead.")
 	};
 }
 
