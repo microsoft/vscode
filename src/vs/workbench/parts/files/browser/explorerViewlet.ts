@@ -107,6 +107,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.viewletContainer.clearChildren();
 
 		this.splitView = new SplitView(this.viewletContainer.getHTMLElement());
+
 		// Track focus
 		this.focusListener = this.splitView.onFocus((view: IViewletView) => {
 			this.lastFocusedView = view;
@@ -121,16 +122,17 @@ export class ExplorerViewlet extends Viewlet {
 		}
 
 		// Explorer view
-		this.createExplorerView(this.views.length || customViews.length ? undefined : 0);
-		this.views.push(this.explorerView);
+		const view = this.createExplorerOrEmptyView(this.views.length || customViews.length ? undefined : 0);
+		this.views.push(view);
 
 		// custom views
 		for (const view of customViews) {
 			this.views.push(view.instantiate(this.getActionRunner(), this.viewletSettings, this.instantiationService));
 		}
 
-		for (const view of this.views) {
-			attachHeaderViewStyler(view, this.themeService);
+		for (let i = 0; i < this.views.length; i++) {
+			const view = this.views[i];
+			attachHeaderViewStyler(view, this.themeService, { noContrastBorder: i === 0 });
 			this.splitView.addView(view);
 		}
 
@@ -155,7 +157,7 @@ export class ExplorerViewlet extends Viewlet {
 		}
 	}
 
-	private createExplorerView(headerSize: number): void {
+	private createExplorerOrEmptyView(headerSize: number): IViewletView {
 		let explorerOrEmptyView: ExplorerView | EmptyView;
 
 		// With a Workspace
@@ -199,6 +201,8 @@ export class ExplorerViewlet extends Viewlet {
 		else {
 			this.emptyView = explorerOrEmptyView = this.instantiationService.createInstance(EmptyView, this.getActionRunner());
 		}
+
+		return explorerOrEmptyView;
 	}
 
 	public getExplorerView(): ExplorerView {

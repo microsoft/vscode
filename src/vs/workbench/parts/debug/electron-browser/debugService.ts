@@ -765,7 +765,9 @@ export class DebugService implements debug.IDebugService {
 				if (!this.viewModel.focusedProcess) {
 					this.focusStackFrameAndEvaluate(null, process);
 				}
-				if (configuration.internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && configuration.internalConsoleOptions !== 'neverOpen')) {
+
+				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').internalConsoleOptions;
+				if (internalConsoleOptions === 'openOnSessionStart' || (!this.viewModel.changedWorkbenchViewState && internalConsoleOptions === 'openOnFirstSessionStart')) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 

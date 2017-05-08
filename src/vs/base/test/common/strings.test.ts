@@ -231,6 +231,24 @@ suite('Strings', () => {
 		assert.equal(strings.containsRTL('זוהי עובדה מבוססת שדעתו'), true);
 	});
 
+	test('containsEmoji', () => {
+		assert.equal(strings.containsEmoji('a'), false);
+		assert.equal(strings.containsEmoji(''), false);
+		assert.equal(strings.containsEmoji(strings.UTF8_BOM_CHARACTER + 'a'), false);
+		assert.equal(strings.containsEmoji('hello world!'), false);
+		assert.equal(strings.containsEmoji('هناك حقيقة مثبتة منذ زمن طويل'), false);
+		assert.equal(strings.containsEmoji('זוהי עובדה מבוססת שדעתו'), false);
+
+		assert.equal(strings.containsEmoji('a📚📚b'), true);
+		assert.equal(strings.containsEmoji('1F600 # 😀 grinning face'), true);
+		assert.equal(strings.containsEmoji('1F47E # 👾 alien monster'), true);
+		assert.equal(strings.containsEmoji('1F467 1F3FD # 👧🏽 girl: medium skin tone'), true);
+		assert.equal(strings.containsEmoji('26EA # ⛪ church'), true);
+		assert.equal(strings.containsEmoji('231B # ⌛ hourglass'), true);
+		assert.equal(strings.containsEmoji('2702 # ✂ scissors'), true);
+		assert.equal(strings.containsEmoji('1F1F7 1F1F4  # 🇷🇴 Romania'), true);
+	});
+
 	// test('containsRTL speed', () => {
 	// 	var SIZE = 1000000;
 	// 	var REPEAT = 10;

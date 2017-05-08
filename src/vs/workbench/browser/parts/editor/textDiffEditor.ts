@@ -17,7 +17,6 @@ import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TextEditorOptions, TextDiffEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IFileEditorInput } from 'vs/workbench/common/editor';
-import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/contrib/diffNavigator/common/diffNavigator';
@@ -249,7 +248,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		if (input instanceof DiffEditorInput) {
 			const modifiedInput = input.modifiedInput;
 
-			return modifiedInput instanceof StringEditorInput || modifiedInput instanceof ResourceEditorInput;
+			return modifiedInput instanceof ResourceEditorInput;
 		}
 
 		return false;

@@ -16,7 +16,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { ansiColorIdentifiers } from './terminalColorRegistry';
+import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from './terminalColorRegistry';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
@@ -172,6 +172,15 @@ export class TerminalPanel extends Panel {
 					} else {
 						terminal.paste();
 					}
+					// Clear selection after all click event bubbling is finished on Mac to prevent
+					// right-click selecting a word which is seemed cannot be disabled. There is a
+					// flicker when pasting but this appears to give the best experience if the
+					// setting is enabled.
+					if (platform.isMacintosh) {
+						setTimeout(() => {
+							terminal.clearSelection();
+						}, 0);
+					}
 					this._cancelContextMenu = true;
 				}
 			}
@@ -221,11 +230,21 @@ export class TerminalPanel extends Panel {
 				let color = theme.getColor(colorId);
 				let rgba = color.transparent(0.996);
 				css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection,` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} *::selection { background-color: ${rgba}; }` +
 					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`;
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection,` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} *::selection { color: ${color}; }`;
 			}
 		});
+		const bgColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
+		if (bgColor) {
+			css += `.monaco-workbench .panel.integrated-terminal .terminal-outer-container { background-color: ${bgColor}; }`;
+		}
+		const fgColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
+		if (bgColor) {
+			css += `.monaco-workbench .panel.integrated-terminal .xterm { color: ${fgColor}; }`;
+		}
 
 		this._themeStyleElement.innerHTML = css;
 	}

@@ -134,6 +134,8 @@ export const focusBorder = registerColor('focusBorder', { dark: Color.fromHex('#
 export const contrastBorder = registerColor('contrastBorder', { light: null, dark: null, hc: '#6FC3DF' }, nls.localize('contrastBorder', "An extra border around elements to separate them from others for greater contrast."));
 export const activeContrastBorder = registerColor('contrastActiveBorder', { light: null, dark: null, hc: focusBorder }, nls.localize('activeContrastBorder', "An extra border around active elements to separate them from others for greater contrast."));
 
+export const selectionBackground = registerColor('selection.background', { light: null, dark: null, hc: null }, nls.localize('selectionBackground', "The background color of text selections in the workbench (e.g. for input fields or text areas). Note that this does not apply to selections within the editor and the terminal."));
+
 // ----- widgets
 export const widgetShadow = registerColor('widget.shadow', { dark: '#000000', light: '#A8A8A8', hc: null }, nls.localize('widgetShadow', 'Shadow color of widgets such as find/replace inside the editor.'));
 
@@ -142,11 +144,11 @@ export const inputForeground = registerColor('input.foreground', { dark: foregro
 export const inputBorder = registerColor('input.border', { dark: null, light: null, hc: contrastBorder }, nls.localize('inputBoxBorder', "Input box border."));
 export const inputActiveOptionBorder = registerColor('inputOption.activeBorder', { dark: '#007ACC', light: '#007ACC', hc: activeContrastBorder }, nls.localize('inputBoxActiveOptionBorder', "Border color of activated options in input fields."));
 export const inputValidationInfoBackground = registerColor('inputValidation.infoBackground', { dark: '#063B49', light: '#D6ECF2', hc: Color.black }, nls.localize('inputValidationInfoBackground', "Input validation background color for information severity."));
-export const inputValidationInfoBorder = registerColor('inputValidation.infoBorder', { dark: '#55AAFF', light: '#009CCC', hc: '#6FC3DF' }, nls.localize('inputValidationInfoBorder', "Input validation border color for information severity."));
+export const inputValidationInfoBorder = registerColor('inputValidation.infoBorder', { dark: '#55AAFF', light: '#55AAFF', hc: '#6FC3DF' }, nls.localize('inputValidationInfoBorder', "Input validation border color for information severity."));
 export const inputValidationWarningBackground = registerColor('inputValidation.warningBackground', { dark: '#352A05', light: '#F6F5D2', hc: Color.black }, nls.localize('inputValidationWarningBackground', "Input validation background color for information warning."));
-export const inputValidationWarningBorder = registerColor('inputValidation.warningBorder', { dark: '#B89500', light: '#F2CB1D', hc: '#B89500' }, nls.localize('inputValidationWarningBorder', "Input validation border color for warning severity."));
+export const inputValidationWarningBorder = registerColor('inputValidation.warningBorder', { dark: '#B89500', light: '#B89500', hc: '#B89500' }, nls.localize('inputValidationWarningBorder', "Input validation border color for warning severity."));
 export const inputValidationErrorBackground = registerColor('inputValidation.errorBackground', { dark: '#5A1D1D', light: '#F2DEDE', hc: Color.black }, nls.localize('inputValidationErrorBackground', "Input validation background color for error severity."));
-export const inputValidationErrorBorder = registerColor('inputValidation.errorBorder', { dark: '#BE1100', light: '#E51400', hc: '#BE1100' }, nls.localize('inputValidationErrorBorder', "Input validation border color for error severity."));
+export const inputValidationErrorBorder = registerColor('inputValidation.errorBorder', { dark: '#BE1100', light: '#BE1100', hc: '#BE1100' }, nls.localize('inputValidationErrorBorder', "Input validation border color for error severity."));
 
 export const selectBackground = registerColor('dropdown.background', { dark: '#3C3C3C', light: Color.white, hc: Color.black }, nls.localize('dropdownBackground', "Dropdown background."));
 export const selectForeground = registerColor('dropdown.foreground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('dropdownForeground', "Dropdown foreground."));

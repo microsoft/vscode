@@ -109,6 +109,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 
 		let checkEditorWidth = () => {
 			let editorWidth = this._codeEditor.getConfiguration().layoutInfo.width;
+			let minimapWidth = this._codeEditor.getConfiguration().layoutInfo.minimapWidth;
 			let collapsedFindWidget = false;
 			let reducedFindWidget = false;
 			let narrowFindWidget = false;
@@ -118,7 +119,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			if (WIDGET_FIXED_WIDTH + 28 >= editorWidth) {
 				narrowFindWidget = true;
 			}
-			if (WIDGET_FIXED_WIDTH + MAX_MATCHES_COUNT_WIDTH + 28 >= editorWidth) {
+			if (WIDGET_FIXED_WIDTH + MAX_MATCHES_COUNT_WIDTH + 28 + minimapWidth >= editorWidth) {
 				reducedFindWidget = true;
 			}
 			dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
@@ -557,7 +558,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
 			className: 'close-fw',
 			onTrigger: () => {
-				this._state.change({ isRevealed: false }, false);
+				this._state.change({ isRevealed: false, searchScope: null }, false);
 			},
 			onKeyDown: (e) => {
 				if (e.equals(KeyCode.Tab)) {

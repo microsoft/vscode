@@ -38,7 +38,7 @@ function assertUnchangedTokens(testFixurePath: string, done) {
 	}, done);
 }
 
-suite("colorization", () => {
+suite('colorization', () => {
 	let extensionsFolder = normalize(join(__dirname, '../../'));
 	let extensions = fs.readdirSync(extensionsFolder);
 	extensions.forEach(extension => {

@@ -190,10 +190,10 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 	});
 }
 
-export function attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, style?: { headerBackground?: ColorIdentifier, contrastBorder?: ColorIdentifier }): IDisposable {
+export function attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, options?: { noContrastBorder?: boolean }): IDisposable {
 	return attachStyler(themeService, widget, {
-		headerBackground: (style && style.headerBackground) || SIDE_BAR_SECTION_HEADER_BACKGROUND,
-		headerHighContrastBorder: (style && style.contrastBorder) || contrastBorder
+		headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
+		headerHighContrastBorder: (options && options.noContrastBorder) ? null : contrastBorder
 	});
 }
 

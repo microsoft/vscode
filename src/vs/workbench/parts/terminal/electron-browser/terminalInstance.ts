@@ -320,7 +320,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public clearSelection(): void {
-		document.getSelection().empty();
+		window.getSelection().empty();
 	}
 
 	public dispose(): void {

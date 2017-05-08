@@ -11,7 +11,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { FIND_IDS } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
-import { CaseSensitiveCheckbox, WholeWordsCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { inputActiveOptionBorder, editorWidgetBackground, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
@@ -25,6 +25,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 	private _keybindingService: IKeybindingService;
 
 	private _domNode: HTMLElement;
+	private regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
 	private caseSensitive: CaseSensitiveCheckbox;
 
@@ -73,10 +74,26 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		}));
 		this._domNode.appendChild(this.wholeWords.domNode);
 
+		this.regex = this._register(new RegexCheckbox({
+			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
+			isChecked: this._state.isRegex,
+			onChange: (viaKeyboard) => {
+				this._state.change({
+					isRegex: this.regex.checked
+				}, false);
+			},
+			inputActiveOptionBorder: inputActiveOptionBorderColor
+		}));
+		this._domNode.appendChild(this.regex.domNode);
+
 		this._editor.addOverlayWidget(this);
 
 		this._register(this._state.addChangeListener((e) => {
 			let somethingChanged = false;
+			if (e.isRegex) {
+				this.regex.checked = this._state.isRegex;
+				somethingChanged = true;
+			}
 			if (e.wholeWord) {
 				this.wholeWords.checked = this._state.wholeWord;
 				somethingChanged = true;
@@ -167,6 +184,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		let inputStyles = { inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder) };
 		this.caseSensitive.style(inputStyles);
 		this.wholeWords.style(inputStyles);
+		this.regex.style(inputStyles);
 	}
 }
 

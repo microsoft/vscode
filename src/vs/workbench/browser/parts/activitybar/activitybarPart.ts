@@ -29,7 +29,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
-import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -81,14 +80,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const pinnedViewlets = this.memento[ActivitybarPart.PINNED_VIEWLETS] as string[];
 
 		if (pinnedViewlets) {
-			// TODO@Ben: Migrate git => scm viewlet
-
-			const map = SCMPreview.enabled
-				? (id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
-				: (id => id === 'workbench.view.scm' ? 'workbench.view.git' : id);
-
 			this.pinnedViewlets = pinnedViewlets
-				.map(map)
+				// TODO@Ben: Migrate git => scm viewlet
+				.map(id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
 				.filter(arrays.uniqueFilter<string>(str => str));
 
 		} else {

@@ -11,6 +11,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITypeData, TextAreaState, ITextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
 import * as browser from 'vs/base/browser/browser';
+import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
 import { FastDomNode } from "vs/base/browser/fastDomNode";
@@ -138,10 +139,10 @@ export class TextAreaInput extends Disposable {
 		/**
 		 * Deduce the typed input from a text area's value and the last observed state.
 		 */
-		const deduceInputFromTextAreaValue = (): [TextAreaState, ITypeData] => {
+		const deduceInputFromTextAreaValue = (couldBeEmojiInput: boolean): [TextAreaState, ITypeData] => {
 			const oldState = this._textAreaState;
 			const newState = this._textAreaState.readFromTextArea(this._textArea);
-			return [newState, TextAreaState.deduceInput(oldState, newState)];
+			return [newState, TextAreaState.deduceInput(oldState, newState, couldBeEmojiInput)];
 		};
 
 		/**
@@ -172,7 +173,7 @@ export class TextAreaInput extends Disposable {
 				// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
 				// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
 				// which breaks this path of code.
-				const [newState, typeInput] = deduceInputFromTextAreaValue();
+				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 				this._onCompositionUpdate.fire(e);
@@ -188,7 +189,7 @@ export class TextAreaInput extends Disposable {
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
 			if (browser.isEdgeOrIE && e.locale === 'ja') {
 				// https://github.com/Microsoft/monaco-editor/issues/339
-				const [newState, typeInput] = deduceInputFromTextAreaValue();
+				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 			}
@@ -228,7 +229,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			const [newState, typeInput] = deduceInputFromTextAreaValue();
+			const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/platform.isMacintosh);
 			if (typeInput.replaceCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
 				// Ignore invalid input but keep it around for next time
 				return;
