@@ -10,11 +10,13 @@ import { inputBackground, inputForeground, ColorIdentifier, selectForeground, se
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 
+export type styleFn = (colors: { [name: string]: ColorIdentifier }) => void;
+
 export interface IThemable {
-	style(colors: { [name: string]: ColorIdentifier }): void;
+	style: styleFn;
 }
 
-export function attachStyler(themeService: IThemeService, widget: IThemable, optionsMapping: { [optionsKey: string]: ColorIdentifier | ColorFunction }): IDisposable {
+function doAttachStyler(themeService: IThemeService, optionsMapping: { [optionsKey: string]: ColorIdentifier | ColorFunction }, widgetOrCallback: IThemable | styleFn): IDisposable {
 	function applyStyles(theme: ITheme): void {
 		const styles = Object.create(null);
 		for (let key in optionsMapping) {
@@ -26,7 +28,11 @@ export function attachStyler(themeService: IThemeService, widget: IThemable, opt
 			}
 		}
 
-		widget.style(styles);
+		if (typeof widgetOrCallback === 'function') {
+			widgetOrCallback(styles);
+		} else {
+			widgetOrCallback.style(styles);
+		}
 	}
 
 	applyStyles(themeService.getTheme());
@@ -35,9 +41,9 @@ export function attachStyler(themeService: IThemeService, widget: IThemable, opt
 }
 
 export function attachCheckboxStyler(widget: IThemable, themeService: IThemeService, style?: { inputActiveOptionBorderColor?: ColorIdentifier }): IDisposable {
-	return attachStyler(themeService, widget, {
+	return doAttachStyler(themeService, {
 		inputActiveOptionBorder: (style && style.inputActiveOptionBorderColor) || inputActiveOptionBorder
-	});
+	}, widget);
 }
 
 export function attachInputBoxStyler(widget: IThemable, themeService: IThemeService, style?:
@@ -52,7 +58,7 @@ export function attachInputBoxStyler(widget: IThemable, themeService: IThemeServ
 		inputValidationErrorBorder?: ColorIdentifier,
 		inputValidationErrorBackground?: ColorIdentifier
 	}): IDisposable {
-	return attachStyler(themeService, widget, {
+	return doAttachStyler(themeService, {
 		inputBackground: (style && style.inputBackground) || inputBackground,
 		inputForeground: (style && style.inputForeground) || inputForeground,
 		inputBorder: (style && style.inputBorder) || inputBorder,
@@ -62,15 +68,15 @@ export function attachInputBoxStyler(widget: IThemable, themeService: IThemeServ
 		inputValidationWarningBackground: (style && style.inputValidationWarningBackground) || inputValidationWarningBackground,
 		inputValidationErrorBorder: (style && style.inputValidationErrorBorder) || inputValidationErrorBorder,
 		inputValidationErrorBackground: (style && style.inputValidationErrorBackground) || inputValidationErrorBackground
-	});
+	}, widget);
 }
 
 export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeService, style?: { selectBackground?: ColorIdentifier, selectForeground?: ColorIdentifier, selectBorder?: ColorIdentifier }): IDisposable {
-	return attachStyler(themeService, widget, {
+	return doAttachStyler(themeService, {
 		selectBackground: (style && style.selectBackground) || selectBackground,
 		selectForeground: (style && style.selectForeground) || selectForeground,
 		selectBorder: (style && style.selectBorder) || selectBorder
-	});
+	}, widget);
 }
 
 export function attachFindInputBoxStyler(widget: IThemable, themeService: IThemeService, style?:
@@ -86,7 +92,7 @@ export function attachFindInputBoxStyler(widget: IThemable, themeService: ITheme
 		inputValidationErrorBorder?: ColorIdentifier,
 		inputValidationErrorBackground?: ColorIdentifier
 	}): IDisposable {
-	return attachStyler(themeService, widget, {
+	return doAttachStyler(themeService, {
 		inputBackground: (style && style.inputBackground) || inputBackground,
 		inputForeground: (style && style.inputForeground) || inputForeground,
 		inputBorder: (style && style.inputBorder) || inputBorder,
@@ -97,7 +103,7 @@ export function attachFindInputBoxStyler(widget: IThemable, themeService: ITheme
 		inputValidationWarningBackground: (style && style.inputValidationWarningBackground) || inputValidationWarningBackground,
 		inputValidationErrorBorder: (style && style.inputValidationErrorBorder) || inputValidationErrorBorder,
 		inputValidationErrorBackground: (style && style.inputValidationErrorBackground) || inputValidationErrorBackground
-	});
+	}, widget);
 }
 
 export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeService, style?: {
@@ -129,7 +135,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 	listSelectionOutline?: ColorIdentifier,
 	listHoverOutline?: ColorIdentifier
 }): IDisposable {
-	return attachStyler(themeService, widget, {
+	return doAttachStyler(themeService, {
 		foreground: (style && style.foreground) || foreground,
 		background: (style && style.background) || editorBackground,
 		borderColor: style && style.borderColor || contrastBorder,
@@ -157,7 +163,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		listFocusOutline: (style && style.listFocusOutline) || activeContrastBorder,
 		listSelectionOutline: (style && style.listSelectionOutline) || activeContrastBorder,
 		listHoverOutline: (style && style.listHoverOutline) || activeContrastBorder
-	});
+	}, widget);
 }
 
 export function attachListStyler(widget: IThemable, themeService: IThemeService, style?: {
@@ -176,7 +182,7 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 	listSelectionOutline?: ColorIdentifier,
 	listHoverOutline?: ColorIdentifier,
 }): IDisposable {
-	return attachStyler(themeService, widget, {
+	return doAttachStyler(themeService, {
 		listFocusBackground: (style && style.listFocusBackground) || listFocusBackground,
 		listActiveSelectionBackground: (style && style.listActiveSelectionBackground) || lighten(listActiveSelectionBackground, 0.1),
 		listActiveSelectionForeground: (style && style.listActiveSelectionForeground) || listActiveSelectionForeground,
@@ -191,20 +197,24 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 		listSelectionOutline: (style && style.listSelectionOutline) || activeContrastBorder,
 		listHoverOutline: (style && style.listHoverOutline) || activeContrastBorder,
 		listInactiveFocusOutline: style && style.listInactiveFocusOutline // not defined by default, only opt-in
-	});
+	}, widget);
 }
 
 export function attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, options?: { noContrastBorder?: boolean }): IDisposable {
-	return attachStyler(themeService, widget, {
+	return doAttachStyler(themeService, {
 		headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
 		headerHighContrastBorder: (options && options.noContrastBorder) ? null : contrastBorder
-	});
+	}, widget);
 }
 
 export function attachButtonStyler(widget: IThemable, themeService: IThemeService, style?: { buttonForeground?: ColorIdentifier, buttonBackground?: ColorIdentifier, buttonHoverBackground?: ColorIdentifier }): IDisposable {
-	return attachStyler(themeService, widget, {
+	return doAttachStyler(themeService, {
 		buttonForeground: (style && style.buttonForeground) || buttonForeground,
 		buttonBackground: (style && style.buttonBackground) || buttonBackground,
 		buttonHoverBackground: (style && style.buttonHoverBackground) || buttonHoverBackground
-	});
+	}, widget);
+}
+
+export function attachStylerCallback(themeService: IThemeService, colors: { [name: string]: ColorIdentifier }, callback: styleFn): IDisposable {
+	return doAttachStyler(themeService, colors, callback);
 }

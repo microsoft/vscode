@@ -238,8 +238,6 @@
 }
 
 .monaco-editor .floating-click-widget {
-	background: #007ACC;
-	color: white;
 	padding: 10px;
 	border-radius: 5px;
 	cursor: pointer;
