@@ -6,49 +6,110 @@
 
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { SnippetSession } from 'vs/editor/contrib/snippet/browser/editorSnippets';
-import { SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { Model } from "vs/editor/common/model/model";
 
-
-suite('Editor Contrib - Snippets', () => {
+suite('SnippetInsertion', function () {
 
 	let editor: ICommonCodeEditor;
+	let model: Model;
 
-	setup(() => {
-		editor = mockCodeEditor([
-			'function foo() {',
-			'\tconsole.log(a)',
-			'}'
-		], {});
+	function assertSelections(editor: ICommonCodeEditor, ...s: Selection[]) {
+		for (const selection of editor.getSelections()) {
+			const actual = s.shift();
+			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);
+		}
+		assert.equal(s.length, 0);
+	}
+
+	setup(function () {
+		model = Model.createFromString('function foo() {\n    console.log(a);\n}');
+		editor = mockCodeEditor([], { model });
+		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
+		assert.equal(model.getEOL(), '\n');
 	});
 
-	teardown(() => {
-		editor.dispose();
+	teardown(function () {
+		model.dispose();
 	});
 
-	test('snippets, selections', () => {
+	test('normalize whitespace', function () {
 
-		editor.setSelections([
-			new Selection(1, 1, 1, 1),
-			new Selection(2, 2, 2, 2),
-		]);
+		function assertNormalized(position: IPosition, input: string, expected: string): void {
+			const actual = SnippetSession.normalizeWhitespace(model, position, input);
+			assert.equal(actual, expected);
+		}
 
-		const snippet = SnippetParser.parse('foo${1:bar}foo$0');
-		const session = new SnippetSession(editor, snippet);
+		assertNormalized(new Position(1, 1), 'foo', 'foo');
+		assertNormalized(new Position(1, 1), 'foo\rbar', 'foo\nbar');
+		assertNormalized(new Position(1, 1), 'foo\rbar', 'foo\nbar');
+		assertNormalized(new Position(2, 5), 'foo\r\tbar', 'foo\n        bar');
+		assertNormalized(new Position(2, 3), 'foo\r\tbar', 'foo\n      bar');
+	});
 
-		assert.equal(editor.getModel().getLineContent(1), 'foobarfoofunction foo() {');
-		assert.equal(editor.getModel().getLineContent(2), '\tfoobarfooconsole.log(a)');
+	test('text edits & selection', function () {
+		const session = new SnippetSession(editor, 'foo${1:bar}foo$0');
+		assert.equal(editor.getModel().getValue(), 'foobarfoofunction foo() {\n    foobarfooconsole.log(a);\n}');
 
-		assert.equal(editor.getSelections().length, 2);
-		assert.ok(editor.getSelections()[0].equalsSelection(new Selection(1, 4, 1, 7)));
-		assert.ok(editor.getSelections()[1].equalsSelection(new Selection(2, 5, 2, 8)));
+		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+		session.next();
+		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
+	});
+
+	test('snippets, selections and new text with newlines', () => {
+
+		const session = new SnippetSession(editor, 'foo\n\t${1:bar}\n$0');
+
+		assert.equal(editor.getModel().getValue(), 'foo\n    bar\nfunction foo() {\n    foo\n        bar\nconsole.log(a);\n}');
+
+		assertSelections(editor, new Selection(2, 5, 2, 8), new Selection(5, 9, 5, 12));
 
 		session.next();
-		assert.equal(editor.getSelections().length, 2);
-		assert.ok(editor.getSelections()[0].equalsSelection(new Selection(1, 10, 1, 10)));
-		assert.ok(editor.getSelections()[1].equalsSelection(new Selection(2, 11, 2, 11)));
+		assertSelections(editor, new Selection(3, 1, 3, 1), new Selection(6, 1, 6, 1));
+	});
 
+	test('snippets, selections -> next/prev', () => {
+
+		const session = new SnippetSession(editor, 'f$2oo${1:bar}foo$0');
+
+		// @ $2
+		assertSelections(editor, new Selection(1, 2, 1, 2), new Selection(2, 6, 2, 6));
+		// @ $1
+		session.next();
+		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+		// @ $2
+		session.prev();
+		assertSelections(editor, new Selection(1, 2, 1, 2), new Selection(2, 6, 2, 6));
+		// @ $1
+		session.next();
+		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+		// @ $0
+		session.next();
+		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
+	});
+
+	test('snippest, selections & typing', function () {
+		const session = new SnippetSession(editor, 'f${2:oo}_$1_$0');
+
+		editor.trigger('test', 'type', { text: 'X' });
+		session.next();
+		editor.trigger('test', 'type', { text: 'bar' });
+
+		// go back to ${2:oo} which is now just 'X'
+		session.prev();
+		assertSelections(editor, new Selection(1, 2, 1, 3), new Selection(2, 6, 2, 7));
+
+		// go forward to $1 which is now 'bar'
+		session.next();
+		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+
+		// go to final tabstop
+		session.next();
+		assert.equal(model.getValue(), 'fX_bar_function foo() {\n    fX_bar_console.log(a);\n}');
+		assertSelections(editor, new Selection(1, 8, 1, 8), new Selection(2, 12, 2, 12));
 	});
 });
+
