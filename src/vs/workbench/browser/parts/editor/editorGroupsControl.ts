@@ -1009,19 +1009,19 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			silo.style('background-color', this.getColor(editorBackground));
 
 			// Border
-			silo.style('border-left-color', index > Position.ONE ? (this.getColor(contrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR)) : null);
-			silo.style('border-top-color', index > Position.ONE ? (this.getColor(contrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR)) : null);
+			silo.style('border-left-color', index > Position.ONE ? (this.getColor(EDITOR_GROUP_BORDER_COLOR) || this.getColor(contrastBorder)) : null);
+			silo.style('border-top-color', index > Position.ONE ? (this.getColor(EDITOR_GROUP_BORDER_COLOR) || this.getColor(contrastBorder)) : null);
 		});
 
 		// Title control
 		POSITIONS.forEach(position => {
 			const container = this.getTitleAreaControl(position).getContainer();
-			const hcBorder = this.getColor(contrastBorder);
+			const contrastBorderColor = this.getColor(contrastBorder);
 
 			container.style.backgroundColor = this.getColor(this.tabOptions.showTabs ? TABS_CONTAINER_BACKGROUND : EDITOR_GROUP_HEADER_BACKGROUND);
-			container.style.borderBottomWidth = (hcBorder && this.tabOptions.showTabs) ? '1px' : null;
-			container.style.borderBottomStyle = (hcBorder && this.tabOptions.showTabs) ? 'solid' : null;
-			container.style.borderBottomColor = this.tabOptions.showTabs ? hcBorder : null;
+			container.style.borderBottomWidth = (contrastBorderColor && this.tabOptions.showTabs) ? '1px' : null;
+			container.style.borderBottomStyle = (contrastBorderColor && this.tabOptions.showTabs) ? 'solid' : null;
+			container.style.borderBottomColor = this.tabOptions.showTabs ? contrastBorderColor : null;
 		});
 	}
 
@@ -1226,15 +1226,15 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				const containers = $this.visibleEditors.filter(e => !!e).map(e => e.getContainer());
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
-						const hcOutline = $this.getColor(activeContrastBorder);
+						const activeContrastBorderColor = $this.getColor(activeContrastBorder);
 						overlay = $('div').style({
 							top: $this.tabOptions.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0,
 							height: $this.tabOptions.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%',
 							backgroundColor: $this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
-							outlineColor: hcOutline,
-							outlineOffset: hcOutline ? '-2px' : null,
-							outlineStyle: hcOutline ? 'dashed' : null,
-							outlineWidth: hcOutline ? '2px' : null
+							outlineColor: activeContrastBorderColor,
+							outlineOffset: activeContrastBorderColor ? '-2px' : null,
+							outlineStyle: activeContrastBorderColor ? 'dashed' : null,
+							outlineWidth: activeContrastBorderColor ? '2px' : null
 						}).id(overlayId);
 
 						overlay.appendTo(container);
@@ -1555,7 +1555,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		if (isDragging) {
 			this.parent.addClass('dragging');
 			silo.addClass('dragging');
-			borderColor = (this.getColor(contrastBorder) || this.getColor(EDITOR_GROUP_BORDER_COLOR));
+			borderColor = this.getColor(EDITOR_GROUP_BORDER_COLOR) || this.getColor(contrastBorder);
 		} else {
 			this.parent.removeClass('dragging');
 			silo.removeClass('dragging');
@@ -1575,11 +1575,11 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		const background = this.getColor(isDropping ? EDITOR_DRAG_AND_DROP_BACKGROUND : groupCount > 0 ? EDITOR_GROUP_BACKGROUND : null);
 		element.style.backgroundColor = background;
 
-		const hcOutline = this.getColor(activeContrastBorder);
-		element.style.outlineColor = isDropping ? hcOutline : null;
-		element.style.outlineStyle = isDropping && hcOutline ? 'dashed' : null;
-		element.style.outlineWidth = isDropping && hcOutline ? '2px' : null;
-		element.style.outlineOffset = isDropping && hcOutline ? '-2px' : null;
+		const activeContrastBorderColor = this.getColor(activeContrastBorder);
+		element.style.outlineColor = isDropping ? activeContrastBorderColor : null;
+		element.style.outlineStyle = isDropping && activeContrastBorderColor ? 'dashed' : null;
+		element.style.outlineWidth = isDropping && activeContrastBorderColor ? '2px' : null;
+		element.style.outlineOffset = isDropping && activeContrastBorderColor ? '-2px' : null;
 	}
 
 	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number, borderLeftTopWidth?: string | number): void {

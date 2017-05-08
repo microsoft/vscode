@@ -219,16 +219,16 @@ export class TabsTitleControl extends TitleControl {
 		element.style.backgroundColor = isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor;
 
 		// Outline
-		const hcOutline = this.getColor(activeContrastBorder);
-		if (hcOutline && isDND) {
+		const activeContrastBorderColor = this.getColor(activeContrastBorder);
+		if (activeContrastBorderColor && isDND) {
 			element.style.outlineWidth = '2px';
 			element.style.outlineStyle = 'dashed';
-			element.style.outlineColor = hcOutline;
+			element.style.outlineColor = activeContrastBorderColor;
 			element.style.outlineOffset = isTab ? '-5px' : '-3px';
 		} else {
 			element.style.outlineWidth = null;
 			element.style.outlineStyle = null;
-			element.style.outlineColor = hcOutline;
+			element.style.outlineColor = activeContrastBorderColor;
 			element.style.outlineOffset = null;
 		}
 	}
@@ -272,8 +272,8 @@ export class TabsTitleControl extends TitleControl {
 				// Container
 				tabContainer.setAttribute('aria-label', `${name}, tab`);
 				tabContainer.title = title;
-				tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(contrastBorder) || this.getColor(TAB_BORDER)) : null;
-				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(contrastBorder) || this.getColor(TAB_BORDER)) : null;
+				tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;;
+				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;;
 				tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
 				const tabOptions = this.editorGroupService.getTabOptions();
@@ -763,8 +763,8 @@ class TabActionRunner extends ActionRunner {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	// Styling with Outline color (e.g. high contrast theme)
-	const outline = theme.getColor(activeContrastBorder);
-	if (outline) {
+	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
+	if (activeContrastBorderColor) {
 		collector.addRule(`
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active,
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active:hover  {
