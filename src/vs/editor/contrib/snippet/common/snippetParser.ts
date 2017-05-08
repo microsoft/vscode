@@ -231,6 +231,14 @@ export class TextmateSnippet {
 		return pos;
 	}
 
+	len(marker: Marker): number {
+		let ret = 0;
+		walk([marker], marker => {
+			ret += marker.len();
+			return true;
+		});
+		return ret;
+	}
 
 	getPlaceholders(): Placeholder[] {
 		const ret: Placeholder[] = [];

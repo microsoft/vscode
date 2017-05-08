@@ -28,14 +28,27 @@ suite('Editor Contrib - Snippets', () => {
 		editor.dispose();
 	});
 
-	test('snippets', () => {
+	test('snippets, selections', () => {
 
 		editor.setSelections([
 			new Selection(1, 1, 1, 1),
 			new Selection(2, 2, 2, 2),
 		]);
 
-		new SnippetSession(editor, SnippetParser.parse('foo\n${1:bar}\nfoo'));
-		assert.ok(true);
+		const snippet = SnippetParser.parse('foo${1:bar}foo$0');
+		const session = new SnippetSession(editor, snippet);
+
+		assert.equal(editor.getModel().getLineContent(1), 'foobarfoofunction foo() {');
+		assert.equal(editor.getModel().getLineContent(2), '\tfoobarfooconsole.log(a)');
+
+		assert.equal(editor.getSelections().length, 2);
+		assert.ok(editor.getSelections()[0].equalsSelection(new Selection(1, 4, 1, 7)));
+		assert.ok(editor.getSelections()[1].equalsSelection(new Selection(2, 5, 2, 8)));
+
+		session.next();
+		assert.equal(editor.getSelections().length, 2);
+		assert.ok(editor.getSelections()[0].equalsSelection(new Selection(1, 10, 1, 10)));
+		assert.ok(editor.getSelections()[1].equalsSelection(new Selection(2, 11, 2, 11)));
+
 	});
 });
