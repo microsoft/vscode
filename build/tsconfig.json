@@ -9,5 +9,9 @@
 		"experimentalDecorators": true,
 		"noLib": true,
 		"newLine": "LF"
-	}
+	},
+	"exclude": [
+		"node_modules",
+		"./lib/watch/node_modules/**/*"
+	]
 }
