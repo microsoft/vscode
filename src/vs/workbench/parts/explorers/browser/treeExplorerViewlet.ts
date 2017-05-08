@@ -71,7 +71,7 @@ export class TreeExplorerViewlet extends Viewlet {
 		const headerSize = 0; // Hide header (root node) by default
 
 		this.view = this.instantiationService.createInstance(TreeExplorerView, this.viewletState, this.treeNodeProviderId, this.getActionRunner(), headerSize);
-		attachHeaderViewStyler(this.view, this.themeService);
+		attachHeaderViewStyler(this.view, this.themeService, { noContrastBorder: true });
 		this.view.render(this.viewletContainer.getHTMLElement(), Orientation.VERTICAL);
 	}
 

@@ -107,6 +107,7 @@ export class ExplorerViewlet extends Viewlet {
 		this.viewletContainer.clearChildren();
 
 		this.splitView = new SplitView(this.viewletContainer.getHTMLElement());
+
 		// Track focus
 		this.focusListener = this.splitView.onFocus((view: IViewletView) => {
 			this.lastFocusedView = view;
@@ -129,8 +130,9 @@ export class ExplorerViewlet extends Viewlet {
 			this.views.push(view.instantiate(this.getActionRunner(), this.viewletSettings, this.instantiationService));
 		}
 
-		for (const view of this.views) {
-			attachHeaderViewStyler(view, this.themeService);
+		for (let i = 0; i < this.views.length; i++) {
+			const view = this.views[i];
+			attachHeaderViewStyler(view, this.themeService, { noContrastBorder: i === 0 });
 			this.splitView.addView(view);
 		}
 
