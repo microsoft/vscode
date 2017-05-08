@@ -129,7 +129,7 @@ export class EditorScrollbar extends ViewPart {
 		const viewInfo = this._context.configuration.editor.viewInfo;
 
 		this.scrollbar.updateClassName('editor-scrollable' + ' ' + viewInfo.theme);
-		if (e.viewInfo.scrollbar || e.viewInfo.canUseTranslate3d) {
+		if (e.viewInfo) {
 			let newOpts: ScrollableElementChangeOptions = {
 				canUseTranslate3d: viewInfo.canUseTranslate3d,
 				handleMouseWheel: viewInfo.scrollbar.handleMouseWheel,

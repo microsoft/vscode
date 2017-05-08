@@ -104,51 +104,28 @@ export class DecorationsOverviewRuler extends ViewPart {
 		let prevLanesCount = this._overviewRuler.getLanesCount();
 		let newLanesCount = this._context.configuration.editor.viewInfo.overviewRulerLanes;
 
-		let shouldRender = false;
+		if (prevLanesCount !== newLanesCount) {
+			this._overviewRuler.setLanesCount(newLanesCount, false);
+		}
 
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, false);
-			shouldRender = true;
 		}
 
-		if (e.viewInfo.canUseTranslate3d) {
+		if (e.viewInfo) {
 			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.viewInfo.canUseTranslate3d, false);
-			shouldRender = true;
-		}
-
-		if (prevLanesCount !== newLanesCount) {
-			this._overviewRuler.setLanesCount(newLanesCount, false);
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.overviewRulerBorder) {
 			this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.hideCursorInOverviewRuler) {
 			this._hideCursor = this._context.configuration.editor.viewInfo.hideCursorInOverviewRuler;
 			this._shouldUpdateCursorPosition = true;
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.theme) {
-			let theme = this._context.configuration.editor.viewInfo.theme;
-			this._overviewRuler.setThemeType(getThemeType(theme), false);
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.minimap) {
+			this._overviewRuler.setThemeType(getThemeType(this._context.configuration.editor.viewInfo.theme), false);
 			this._updateBackground(false);
-			shouldRender = true;
 		}
 
 		if (e.layoutInfo) {
 			this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
-			shouldRender = true;
 		}
 
-		return shouldRender;
+		return true;
 	}
 
 	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {

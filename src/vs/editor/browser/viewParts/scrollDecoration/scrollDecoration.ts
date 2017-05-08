@@ -62,7 +62,7 @@ export class ScrollDecorationViewPart extends ViewPart {
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		let shouldRender = false;
-		if (e.viewInfo.scrollbar) {
+		if (e.viewInfo) {
 			this._useShadows = this._context.configuration.editor.viewInfo.scrollbar.useShadows;
 		}
 		if (e.layoutInfo) {

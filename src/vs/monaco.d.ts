@@ -2640,8 +2640,6 @@ declare module monaco.editor {
 		maxColumn?: number;
 	}
 
-	export type LineNumbersOption = 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
-
 	/**
 	 * Configuration options for the editor.
 	 */
@@ -2677,7 +2675,7 @@ declare module monaco.editor {
 		 * Otherwise, line numbers will not be rendered.
 		 * Defaults to true.
 		 */
-		lineNumbers?: LineNumbersOption;
+		lineNumbers?: 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
 		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
@@ -3161,7 +3159,6 @@ declare module monaco.editor {
 	}
 
 	export class InternalEditorViewOptions {
-		readonly _internalEditorViewOptionsBrand: void;
 		readonly theme: string;
 		readonly canUseTranslate3d: boolean;
 		readonly disableMonospaceOptimizations: boolean;
@@ -3353,39 +3350,6 @@ declare module monaco.editor {
 		readonly overviewRuler: OverviewRulerPosition;
 	}
 
-	export interface IViewConfigurationChangedEvent {
-		readonly theme: boolean;
-		readonly canUseTranslate3d: boolean;
-		readonly disableMonospaceOptimizations: boolean;
-		readonly experimentalScreenReader: boolean;
-		readonly rulers: boolean;
-		readonly ariaLabel: boolean;
-		readonly renderLineNumbers: boolean;
-		readonly renderCustomLineNumbers: boolean;
-		readonly renderRelativeLineNumbers: boolean;
-		readonly selectOnLineNumbers: boolean;
-		readonly glyphMargin: boolean;
-		readonly revealHorizontalRightPadding: boolean;
-		readonly roundedSelection: boolean;
-		readonly overviewRulerLanes: boolean;
-		readonly overviewRulerBorder: boolean;
-		readonly cursorBlinking: boolean;
-		readonly mouseWheelZoom: boolean;
-		readonly cursorStyle: boolean;
-		readonly hideCursorInOverviewRuler: boolean;
-		readonly scrollBeyondLastLine: boolean;
-		readonly editorClassName: boolean;
-		readonly stopRenderingLineAfter: boolean;
-		readonly renderWhitespace: boolean;
-		readonly renderControlCharacters: boolean;
-		readonly fontLigatures: boolean;
-		readonly renderIndentGuides: boolean;
-		readonly renderLineHighlight: boolean;
-		readonly scrollbar: boolean;
-		readonly minimap: boolean;
-		readonly fixedOverflowWidgets: boolean;
-	}
-
 	/**
 	 * An event describing that the configuration of the editor has changed.
 	 */
@@ -3399,7 +3363,7 @@ declare module monaco.editor {
 		readonly dragAndDrop: boolean;
 		readonly layoutInfo: boolean;
 		readonly fontInfo: boolean;
-		readonly viewInfo: IViewConfigurationChangedEvent;
+		readonly viewInfo: boolean;
 		readonly wrappingInfo: boolean;
 		readonly contribInfo: boolean;
 	}

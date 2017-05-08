@@ -266,17 +266,15 @@ export class TextAreaHandler extends ViewPart {
 		if (e.fontInfo) {
 			this._fontInfo = this._context.configuration.editor.fontInfo;
 		}
-		if (e.viewInfo.experimentalScreenReader) {
+		if (e.viewInfo) {
 			this._experimentalScreenReader = this._context.configuration.editor.viewInfo.experimentalScreenReader;
 			this._textAreaInput.writeScreenReaderContent('strategy changed');
+			this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
 		}
 		if (e.layoutInfo) {
 			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
 			this._contentHeight = this._context.configuration.editor.layoutInfo.contentHeight;
-		}
-		if (e.viewInfo.ariaLabel) {
-			this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
 		}
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;

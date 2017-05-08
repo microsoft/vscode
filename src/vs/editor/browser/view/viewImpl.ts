@@ -340,7 +340,7 @@ export class View extends ViewEventHandler {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo.editorClassName) {
+		if (e.viewInfo) {
 			this.domNode.setClassName(this._context.configuration.editor.viewInfo.editorClassName);
 		}
 		if (e.layoutInfo) {
