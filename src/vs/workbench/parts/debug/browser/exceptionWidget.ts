@@ -11,9 +11,11 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService, IExceptionInfo } from 'vs/workbench/parts/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, ITheme } from "vs/platform/theme/common/themeService";
+import { Color } from "vs/base/common/color";
+import { registerColor } from "vs/platform/theme/common/colorRegistry";
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
 const $ = dom.$;
 
 // theming
@@ -28,7 +30,8 @@ export class ExceptionWidget extends ZoneWidget {
 	constructor(editor: ICodeEditor, private exceptionInfo: IExceptionInfo, private lineNumber: number,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IDebugService private debugService: IDebugService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(editor, { showFrame: true, showArrow: true, frameWidth: 1 });
 
@@ -79,7 +82,9 @@ export class ExceptionWidget extends ZoneWidget {
 
 		if (this.exceptionInfo.details && this.exceptionInfo.details.stackTrace) {
 			let stackTrace = $('.stack-trace');
-			stackTrace.textContent = this.exceptionInfo.details.stackTrace;
+			const linkDetector = this.instantiationService.createInstance(LinkDetector);
+			const linkedStackTrace = linkDetector.handleLinks(this.exceptionInfo.details.stackTrace);
+			typeof linkedStackTrace === 'string' ? stackTrace.textContent = linkedStackTrace : stackTrace.appendChild(linkedStackTrace);
 			dom.append(container, stackTrace);
 		}
 	}
