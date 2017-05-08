@@ -59,7 +59,9 @@ class OneSnippet {
 				const range = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 
 				let stickiness: TrackedRangeStickiness;
-				if (lastRange && lastRange.getEndPosition().equals(range.getStartPosition())) {
+				if (placeholder.isFinalTabstop) {
+					stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+				} else if (lastRange && lastRange.getEndPosition().equals(range.getStartPosition())) {
 					stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
 				} else {
 					stickiness = TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
@@ -101,7 +103,6 @@ class OneSnippet {
 			return undefined;
 		}
 	}
-
 
 	private _getCurrentPlaceholderSelections(): Selection[] {
 		const selections: Selection[] = [];

@@ -91,7 +91,7 @@ suite('SnippetInsertion', function () {
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 	});
 
-	test('snippest, selections & typing', function () {
+	test('snippets, selections & typing', function () {
 		const session = new SnippetSession(editor, 'f${2:oo}_$1_$0');
 
 		editor.trigger('test', 'type', { text: 'X' });
@@ -111,5 +111,35 @@ suite('SnippetInsertion', function () {
 		assert.equal(model.getValue(), 'fX_bar_function foo() {\n    fX_bar_console.log(a);\n}');
 		assertSelections(editor, new Selection(1, 8, 1, 8), new Selection(2, 12, 2, 12));
 	});
+
+	test('snippets, insert into non-empty selection', function () {
+		model.setValue('foo_bar_foo');
+		editor.setSelections([new Selection(1, 1, 1, 4), new Selection(1, 9, 1, 12)]);
+
+		new SnippetSession(editor, 'x$0');
+		assert.equal(model.getValue(), 'x_bar_x');
+		assertSelections(editor, new Selection(1, 2, 1, 2), new Selection(1, 8, 1, 8));
+	});
+
+	test('snippets, don\'t grow final tabstop', function () {
+		model.setValue('foo_zzz_foo');
+		editor.setSelection(new Selection(1, 5, 1, 8));
+		const session = new SnippetSession(editor, '$1bar$0');
+
+		assertSelections(editor, new Selection(1, 5, 1, 5));
+		editor.trigger('test', 'type', { text: 'foo-' });
+
+		session.next();
+		assert.equal(model.getValue(), 'foo_foo-bar_foo');
+		assertSelections(editor, new Selection(1, 12, 1, 12));
+
+		editor.trigger('test', 'type', { text: 'XXX' });
+		assert.equal(model.getValue(), 'foo_foo-barXXX_foo');
+		session.prev();
+		assertSelections(editor, new Selection(1, 5, 1, 9));
+		session.next();
+		assertSelections(editor, new Selection(1, 15, 1, 15));
+	});
+
 });
 

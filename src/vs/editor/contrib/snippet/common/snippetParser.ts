@@ -164,6 +164,9 @@ export class Placeholder extends Marker {
 	constructor(public name: string = '', public defaultValue: Marker[]) {
 		super();
 	}
+	get isFinalTabstop() {
+		return this.name === '0';
+	}
 	toString() {
 		return Marker.toString(this.defaultValue);
 	}
