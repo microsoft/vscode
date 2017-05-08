@@ -7,7 +7,7 @@
 		{
 			"captures": {
 				"1": {
-					"name": "keyword.other.dockerfile"
+					"name": "keyword.other.special-method.dockerfile"
 				}
 			},
 			"match": "\\s*(?:(FROM|AS))\\s"
