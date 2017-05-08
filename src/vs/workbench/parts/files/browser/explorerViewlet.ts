@@ -122,8 +122,8 @@ export class ExplorerViewlet extends Viewlet {
 		}
 
 		// Explorer view
-		this.createExplorerView(this.views.length || customViews.length ? undefined : 0);
-		this.views.push(this.explorerView);
+		const view = this.createExplorerOrEmptyView(this.views.length || customViews.length ? undefined : 0);
+		this.views.push(view);
 
 		// custom views
 		for (const view of customViews) {
@@ -157,7 +157,7 @@ export class ExplorerViewlet extends Viewlet {
 		}
 	}
 
-	private createExplorerView(headerSize: number): void {
+	private createExplorerOrEmptyView(headerSize: number): IViewletView {
 		let explorerOrEmptyView: ExplorerView | EmptyView;
 
 		// With a Workspace
@@ -201,6 +201,8 @@ export class ExplorerViewlet extends Viewlet {
 		else {
 			this.emptyView = explorerOrEmptyView = this.instantiationService.createInstance(EmptyView, this.getActionRunner());
 		}
+
+		return explorerOrEmptyView;
 	}
 
 	public getExplorerView(): ExplorerView {
