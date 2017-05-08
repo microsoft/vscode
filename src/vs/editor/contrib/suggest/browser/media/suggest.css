@@ -32,6 +32,10 @@
 	float: right
 }
 
+.monaco-editor .suggest-widget.docs-below > .tree {
+	float: none;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row {
 	display: flex;
 	-mox-box-sizing: border-box;

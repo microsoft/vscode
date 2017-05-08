@@ -308,6 +308,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	readonly onDidShow: Event<this> = this.onDidShowEmitter.event;
 
 	private preferredPosition: Position;
+	private readonly minWidgetWidth = 440;
+	private readonly maxWidgetWidth = 660;
+	private readonly listWidth = 220;
+	private readonly minDocsWidth = 220;
+	private readonly maxDocsWidth = 440;
+	private readonly widgetWidthInSmallestEditor = 300;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -785,6 +791,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private updateWidgetHeight(): number {
 		let height = 0;
+		let maxSuggestionsToShow = this.editor.getLayoutInfo().contentWidth > this.minWidgetWidth ? 11 : 5;
 
 		if (this.state === State.Empty || this.state === State.Loading) {
 			height = this.unfocusedHeight;
@@ -794,7 +801,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			height = focusHeight;
 
 			const suggestionCount = (this.list.contentHeight - focusHeight) / this.unfocusedHeight;
-			height += Math.min(suggestionCount, 11) * this.unfocusedHeight;
+			height += Math.min(suggestionCount, maxSuggestionsToShow) * this.unfocusedHeight;
 		}
 
 		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
@@ -808,54 +815,66 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	private adjustWidgetWidth() {
-		const widgetWidth = 660;
-		const listWidth = 220;
-		const docsWidth = 440;
 		const perColumnWidth = this.editor.getLayoutInfo().contentWidth / this.editor.getLayoutInfo().viewportColumn;
 		const spaceOntheLeft = Math.floor(this.editor.getPosition().column * perColumnWidth) - this.editor.getScrollLeft();
 		const spaceOntheRight = this.editor.getLayoutInfo().contentWidth - spaceOntheLeft;
+		const scrolledColumns = Math.floor(this.editor.getScrollLeft() / perColumnWidth);
 
 		// Reset
 		this.preferredPosition = this.editor.getPosition();
-		this.details.element.style.width = `${docsWidth}px`;
-		this.element.style.width = `${widgetWidth}px`;
-		show(this.details.element);
+		this.details.element.style.width = `${this.maxDocsWidth}px`;
+		this.element.style.width = `${this.maxWidgetWidth}px`;
+		this.listElement.style.width = `${this.listWidth}px`;
 		removeClass(this.element, 'list-right');
+		removeClass(this.element, 'docs-below');
 
-		if (spaceOntheRight > widgetWidth) {
+		if (spaceOntheRight > this.maxWidgetWidth) {
 			// There is enough space on the right, so nothing to do here.
 			return;
 		}
 
-		if (spaceOntheRight > docsWidth) {
+
+		if (spaceOntheRight > this.minWidgetWidth) {
 			// There is enough space on the right for list and resized docs
-			this.adjustDocs(false, spaceOntheRight - listWidth, -1);
+			this.adjustDocs(false, spaceOntheRight - this.listWidth, this.editor.getPosition().column);
 			return;
 		}
 
-		if (spaceOntheLeft > docsWidth) {
+		if (spaceOntheRight > this.listWidth && spaceOntheLeft > this.maxDocsWidth) {
 			// Docs on the left and list on the right of the cursor
-			let columnsOccupiedByDocs = Math.floor(docsWidth / perColumnWidth);
+			let columnsOccupiedByDocs = Math.floor(this.maxDocsWidth / perColumnWidth);
 			this.adjustDocs(true, null, this.editor.getPosition().column - columnsOccupiedByDocs);
 			return;
 		}
 
-		if (spaceOntheRight > listWidth && spaceOntheLeft > listWidth) {
+		if (spaceOntheRight > this.listWidth && spaceOntheLeft > this.minDocsWidth) {
 			// Resized docs on the left and list on the right of the cursor
 			let columnsOccupiedByDocs = Math.floor(spaceOntheLeft / perColumnWidth);
 			this.adjustDocs(true, spaceOntheLeft, this.editor.getPosition().column - columnsOccupiedByDocs);
 			return;
 		}
 
-		if (this.editor.getLayoutInfo().contentWidth > 440) {
-			// Resize docs. Swap only of there is enough space on the right for the list
-			this.adjustDocs(spaceOntheRight < listWidth, this.editor.getLayoutInfo().contentWidth - listWidth, -1);
+		if (this.editor.getLayoutInfo().contentWidth > this.maxWidgetWidth) {
+			// Use as much space on the right, and for the rest go left
+			let columnsOccupiedByWidget = Math.floor(this.maxWidgetWidth / perColumnWidth);
+			let preferredColumn = this.editor.getLayoutInfo().viewportColumn - columnsOccupiedByWidget + scrolledColumns;
+			this.adjustDocs(true, null, preferredColumn);
 			return;
 		}
 
-		// Not enough space for docs, so hide it
-		hide(this.details.element);
-		this.element.style.width = `${listWidth}px`;
+		if (this.editor.getLayoutInfo().contentWidth > this.minWidgetWidth) {
+			// Resize docs. Swap only of there is enough space on the right for the list
+			let newDocsWidth = this.editor.getLayoutInfo().contentWidth - this.listWidth;
+			this.adjustDocs(spaceOntheRight < this.listWidth, newDocsWidth, scrolledColumns);
+			return;
+		}
+
+		// Not enough space to show side by side
+		// So show docs below the list
+		addClass(this.element, 'docs-below');
+		this.listElement.style.width = `${this.widgetWidthInSmallestEditor}px`;
+		this.element.style.width = `${this.widgetWidthInSmallestEditor}px`;
+		this.details.element.style.width = `${this.widgetWidthInSmallestEditor}px`;
 	}
 
 	/**
@@ -863,9 +882,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	 *
 	 * @swap boolean If true, then the docs and list are swapped
 	 * @resizedDocWidth number If not null, this number will be used to set the width of the docs
-	 * @moveToColumn If > -1, this is the column where the suggest widget should be moved to
+	 * @preferredColumn Preferred column in the current line for the suggest widget
 	 */
-	private adjustDocs(swap: boolean, resizedDocWidth: number, moveToColumn: number) {
+	private adjustDocs(swap: boolean, resizedDocWidth: number, preferredColumn: number) {
 
 		if (swap) {
 			addClass(this.element, 'list-right');
@@ -873,12 +892,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		if (resizedDocWidth !== null) {
 			this.details.element.style.width = `${resizedDocWidth}px`;
-			this.element.style.width = `${resizedDocWidth + 220}px`;
+			this.element.style.width = `${resizedDocWidth + this.listWidth}px`;
 		}
 
-		if (moveToColumn >= 0) {
-			this.preferredPosition = new Position(this.editor.getPosition().lineNumber, moveToColumn);
-		}
+		this.preferredPosition = new Position(this.editor.getPosition().lineNumber, preferredColumn);
 	}
 
 	private renderDetails(): void {
