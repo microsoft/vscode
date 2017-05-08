@@ -6,7 +6,8 @@
 
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import * as objects from 'vs/base/common/objects';
+import { Constants } from 'vs/editor/common/core/uint';
+import { DefaultConfig } from "vs/editor/common/config/defaultConfig";
 
 /**
  * Configuration options for editor scrollbars
@@ -676,13 +677,6 @@ export class InternalEditorScrollbarOptions {
 			&& this.mouseWheelScrollSensitivity === other.mouseWheelScrollSensitivity
 		);
 	}
-
-	/**
-	 * @internal
-	 */
-	public clone(): InternalEditorScrollbarOptions {
-		return new InternalEditorScrollbarOptions(this);
-	}
 }
 
 export class InternalEditorMinimapOptions {
@@ -714,13 +708,6 @@ export class InternalEditorMinimapOptions {
 			&& this.renderCharacters === other.renderCharacters
 			&& this.maxColumn === other.maxColumn
 		);
-	}
-
-	/**
-	 * @internal
-	 */
-	public clone(): InternalEditorMinimapOptions {
-		return new InternalEditorMinimapOptions(this);
 	}
 }
 
@@ -777,13 +764,6 @@ export class EditorWrappingInfo {
 			&& this.wordWrapBreakAfterCharacters === other.wordWrapBreakAfterCharacters
 			&& this.wordWrapBreakObtrusiveCharacters === other.wordWrapBreakObtrusiveCharacters
 		);
-	}
-
-	/**
-	 * @internal
-	 */
-	public clone(): EditorWrappingInfo {
-		return new EditorWrappingInfo(this);
 	}
 }
 
@@ -883,8 +863,8 @@ export class InternalEditorViewOptions {
 		this.fontLigatures = Boolean(source.fontLigatures);
 		this.renderIndentGuides = Boolean(source.renderIndentGuides);
 		this.renderLineHighlight = source.renderLineHighlight;
-		this.scrollbar = source.scrollbar.clone();
-		this.minimap = source.minimap.clone();
+		this.scrollbar = source.scrollbar;
+		this.minimap = source.minimap;
 		this.fixedOverflowWidgets = Boolean(source.fixedOverflowWidgets);
 	}
 
@@ -991,13 +971,6 @@ export class InternalEditorViewOptions {
 			fixedOverflowWidgets: this.fixedOverflowWidgets !== newOpts.fixedOverflowWidgets
 		};
 	}
-
-	/**
-	 * @internal
-	 */
-	public clone(): InternalEditorViewOptions {
-		return new InternalEditorViewOptions(this);
-	}
 }
 
 export class EditorContribOptions {
@@ -1086,7 +1059,7 @@ export class EditorContribOptions {
 			this.selectionClipboard === other.selectionClipboard
 			&& this.hover === other.hover
 			&& this.contextmenu === other.contextmenu
-			&& objects.equals(this.quickSuggestions, other.quickSuggestions)
+			&& EditorContribOptions._quickSuggestionsEquals(this.quickSuggestions, other.quickSuggestions)
 			&& this.quickSuggestionsDelay === other.quickSuggestionsDelay
 			&& this.parameterHints === other.parameterHints
 			&& this.iconsInSuggestions === other.iconsInSuggestions
@@ -1097,7 +1070,7 @@ export class EditorContribOptions {
 			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
 			&& this.snippetSuggestions === other.snippetSuggestions
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
-			&& objects.equals(this.wordBasedSuggestions, other.wordBasedSuggestions)
+			&& this.wordBasedSuggestions === other.wordBasedSuggestions
 			&& this.suggestFontSize === other.suggestFontSize
 			&& this.suggestLineHeight === other.suggestLineHeight
 			&& this.selectionHighlight === other.selectionHighlight
@@ -1109,11 +1082,21 @@ export class EditorContribOptions {
 		);
 	}
 
-	/**
-	 * @internal
-	 */
-	public clone(): EditorContribOptions {
-		return new EditorContribOptions(this);
+	private static _quickSuggestionsEquals(a: boolean | { other: boolean, comments: boolean, strings: boolean }, b: boolean | { other: boolean, comments: boolean, strings: boolean }): boolean {
+		if (typeof a === 'boolean') {
+			if (typeof b !== 'boolean') {
+				return false;
+			}
+			return a === b;
+		}
+		if (typeof b === 'boolean') {
+			return false;
+		}
+		return (
+			a.comments === b.comments
+			&& a.other === b.other
+			&& a.strings === b.strings
+		);
 	}
 }
 
@@ -1163,11 +1146,11 @@ export class InternalEditorOptions {
 		this.useTabStops = Boolean(source.useTabStops);
 		this.tabFocusMode = Boolean(source.tabFocusMode);
 		this.dragAndDrop = Boolean(source.dragAndDrop);
-		this.layoutInfo = source.layoutInfo.clone();
-		this.fontInfo = source.fontInfo.clone();
-		this.viewInfo = source.viewInfo.clone();
-		this.wrappingInfo = source.wrappingInfo.clone();
-		this.contribInfo = source.contribInfo.clone();
+		this.layoutInfo = source.layoutInfo;
+		this.fontInfo = source.fontInfo;
+		this.viewInfo = source.viewInfo;
+		this.wrappingInfo = source.wrappingInfo;
+		this.contribInfo = source.contribInfo;
 	}
 
 	/**
@@ -1208,13 +1191,6 @@ export class InternalEditorOptions {
 			wrappingInfo: (!this.wrappingInfo.equals(newOpts.wrappingInfo)),
 			contribInfo: (!this.contribInfo.equals(newOpts.contribInfo)),
 		};
-	}
-
-	/**
-	 * @internal
-	 */
-	public clone(): InternalEditorOptions {
-		return new InternalEditorOptions(this);
 	}
 }
 
@@ -1266,13 +1242,6 @@ export class OverviewRulerPosition {
 			&& this.top === other.top
 			&& this.right === other.right
 		);
-	}
-
-	/**
-	 * @internal
-	 */
-	public clone(): OverviewRulerPosition {
-		return new OverviewRulerPosition(this);
 	}
 }
 
@@ -1416,7 +1385,7 @@ export class EditorLayoutInfo {
 		this.viewportColumn = source.viewportColumn | 0;
 		this.verticalScrollbarWidth = source.verticalScrollbarWidth | 0;
 		this.horizontalScrollbarHeight = source.horizontalScrollbarHeight | 0;
-		this.overviewRuler = source.overviewRuler.clone();
+		this.overviewRuler = source.overviewRuler;
 	}
 
 	/**
@@ -1445,13 +1414,6 @@ export class EditorLayoutInfo {
 			&& this.horizontalScrollbarHeight === other.horizontalScrollbarHeight
 			&& this.overviewRuler.equals(other.overviewRuler)
 		);
-	}
-
-	/**
-	 * @internal
-	 */
-	public clone(): EditorLayoutInfo {
-		return new EditorLayoutInfo(this);
 	}
 }
 
@@ -1504,4 +1466,566 @@ export interface IConfigurationChangedEvent {
 	readonly viewInfo: IViewConfigurationChangedEvent;
 	readonly wrappingInfo: boolean;
 	readonly contribInfo: boolean;
+}
+
+/**
+ * @internal
+ */
+export class EnvironmentalOptions {
+
+	public readonly outerWidth: number;
+	public readonly outerHeight: number;
+	public readonly fontInfo: FontInfo;
+	public readonly editorClassName: string;
+	public readonly isDominatedByLongLines: boolean;
+	public readonly lineNumbersDigitCount: number;
+	public readonly canUseTranslate3d: boolean;
+	public readonly pixelRatio: number;
+	public readonly tabFocusMode: boolean;
+
+	constructor(opts: {
+		outerWidth: number;
+		outerHeight: number;
+		fontInfo: FontInfo;
+		editorClassName: string;
+		isDominatedByLongLines: boolean;
+		lineNumbersDigitCount: number;
+		canUseTranslate3d: boolean;
+		pixelRatio: number;
+		tabFocusMode: boolean;
+	}) {
+		this.outerWidth = opts.outerWidth;
+		this.outerHeight = opts.outerHeight;
+		this.fontInfo = opts.fontInfo;
+		this.editorClassName = opts.editorClassName;
+		this.isDominatedByLongLines = opts.isDominatedByLongLines;
+		this.lineNumbersDigitCount = opts.lineNumbersDigitCount;
+		this.canUseTranslate3d = opts.canUseTranslate3d;
+		this.pixelRatio = opts.pixelRatio;
+		this.tabFocusMode = opts.tabFocusMode;
+	}
+}
+
+/**
+ * @internal
+ */
+export class InternalEditorOptionsFactory {
+
+	public static createInternalEditorOptions(env: EnvironmentalOptions, opts: IEditorOptions) {
+
+		let stopRenderingLineAfter: number;
+		if (typeof opts.stopRenderingLineAfter !== 'undefined') {
+			stopRenderingLineAfter = this._toInteger(opts.stopRenderingLineAfter, -1);
+		} else {
+			stopRenderingLineAfter = 10000;
+		}
+
+		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, this._toFloat(opts.mouseWheelScrollSensitivity, 1));
+		const minimap = this._sanitizeMinimapOpts(opts.minimap);
+
+		const glyphMargin = this._toBoolean(opts.glyphMargin);
+		const lineNumbersMinChars = this._toInteger(opts.lineNumbersMinChars, 1);
+
+		let lineDecorationsWidth: number;
+		if (typeof opts.lineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(opts.lineDecorationsWidth)) {
+			const multiple = parseFloat(opts.lineDecorationsWidth.substr(0, opts.lineDecorationsWidth.length - 2));
+			lineDecorationsWidth = multiple * env.fontInfo.typicalHalfwidthCharacterWidth;
+		} else {
+			lineDecorationsWidth = this._toInteger(opts.lineDecorationsWidth, 0);
+		}
+		if (opts.folding) {
+			lineDecorationsWidth += 16;
+		}
+
+		let renderLineNumbers: boolean;
+		let renderCustomLineNumbers: (lineNumber: number) => string;
+		let renderRelativeLineNumbers: boolean;
+		{
+			let lineNumbers = opts.lineNumbers;
+			// Compatibility with old true or false values
+			if (<any>lineNumbers === true) {
+				lineNumbers = 'on';
+			} else if (<any>lineNumbers === false) {
+				lineNumbers = 'off';
+			}
+
+			if (typeof lineNumbers === 'function') {
+				renderLineNumbers = true;
+				renderCustomLineNumbers = lineNumbers;
+				renderRelativeLineNumbers = false;
+			} else if (lineNumbers === 'relative') {
+				renderLineNumbers = true;
+				renderCustomLineNumbers = null;
+				renderRelativeLineNumbers = true;
+			} else if (lineNumbers === 'on') {
+				renderLineNumbers = true;
+				renderCustomLineNumbers = null;
+				renderRelativeLineNumbers = false;
+			} else {
+				renderLineNumbers = false;
+				renderCustomLineNumbers = null;
+				renderRelativeLineNumbers = false;
+			}
+		}
+
+		const layoutInfo = EditorLayoutProvider.compute({
+			outerWidth: env.outerWidth,
+			outerHeight: env.outerHeight,
+			showGlyphMargin: glyphMargin,
+			lineHeight: env.fontInfo.lineHeight,
+			showLineNumbers: renderLineNumbers,
+			lineNumbersMinChars: lineNumbersMinChars,
+			lineNumbersDigitCount: env.lineNumbersDigitCount,
+			lineDecorationsWidth: lineDecorationsWidth,
+			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
+			maxDigitWidth: env.fontInfo.maxDigitWidth,
+			verticalScrollbarWidth: scrollbar.verticalScrollbarSize,
+			horizontalScrollbarHeight: scrollbar.horizontalScrollbarSize,
+			scrollbarArrowSize: scrollbar.arrowSize,
+			verticalScrollbarHasArrows: scrollbar.verticalHasArrows,
+			minimap: minimap.enabled,
+			minimapRenderCharacters: minimap.renderCharacters,
+			minimapMaxColumn: minimap.maxColumn,
+			pixelRatio: env.pixelRatio
+		});
+
+		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } = null;
+		{
+			let wordWrap = opts.wordWrap;
+			const wordWrapColumn = this._toInteger(opts.wordWrapColumn, 1);
+			const wordWrapMinified = this._toBoolean(opts.wordWrapMinified);
+
+			// Compatibility with old true or false values
+			if (<any>wordWrap === true) {
+				wordWrap = 'on';
+			} else if (<any>wordWrap === false) {
+				wordWrap = 'off';
+			}
+
+			if (wordWrapMinified && env.isDominatedByLongLines) {
+				// Force viewport width wrapping if model is dominated by long lines
+				bareWrappingInfo = {
+					isWordWrapMinified: true,
+					isViewportWrapping: true,
+					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
+				};
+			} else if (wordWrap === 'on') {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: true,
+					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
+				};
+			} else if (wordWrap === 'bounded') {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: true,
+					wrappingColumn: Math.min(Math.max(1, layoutInfo.viewportColumn), wordWrapColumn)
+				};
+			} else if (wordWrap === 'wordWrapColumn') {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: false,
+					wrappingColumn: wordWrapColumn
+				};
+			} else {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: false,
+					wrappingColumn: -1
+				};
+			}
+		}
+
+		const wrappingInfo = new EditorWrappingInfo({
+			inDiffEditor: Boolean(opts.inDiffEditor),
+			isDominatedByLongLines: env.isDominatedByLongLines,
+			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
+			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
+			wrappingColumn: bareWrappingInfo.wrappingColumn,
+			wrappingIndent: this._wrappingIndentFromString(opts.wrappingIndent),
+			wordWrapBreakBeforeCharacters: String(opts.wordWrapBreakBeforeCharacters),
+			wordWrapBreakAfterCharacters: String(opts.wordWrapBreakAfterCharacters),
+			wordWrapBreakObtrusiveCharacters: String(opts.wordWrapBreakObtrusiveCharacters),
+		});
+
+		const readOnly = this._toBoolean(opts.readOnly);
+
+		let renderWhitespace = opts.renderWhitespace;
+		// Compatibility with old true or false values
+		if (<any>renderWhitespace === true) {
+			renderWhitespace = 'boundary';
+		} else if (<any>renderWhitespace === false) {
+			renderWhitespace = 'none';
+		}
+
+		let renderLineHighlight = opts.renderLineHighlight;
+		// Compatibility with old true or false values
+		if (<any>renderLineHighlight === true) {
+			renderLineHighlight = 'line';
+		} else if (<any>renderLineHighlight === false) {
+			renderLineHighlight = 'none';
+		}
+
+		const viewInfo = new InternalEditorViewOptions({
+			theme: opts.theme,
+			canUseTranslate3d: this._toBoolean(opts.disableTranslate3d) ? false : env.canUseTranslate3d,
+			disableMonospaceOptimizations: (this._toBoolean(opts.disableMonospaceOptimizations) || this._toBoolean(opts.fontLigatures)),
+			experimentalScreenReader: this._toBoolean(opts.experimentalScreenReader),
+			rulers: this._toSortedIntegerArray(opts.rulers),
+			ariaLabel: String(opts.ariaLabel),
+			renderLineNumbers: renderLineNumbers,
+			renderCustomLineNumbers: renderCustomLineNumbers,
+			renderRelativeLineNumbers: renderRelativeLineNumbers,
+			selectOnLineNumbers: this._toBoolean(opts.selectOnLineNumbers),
+			glyphMargin: glyphMargin,
+			revealHorizontalRightPadding: this._toInteger(opts.revealHorizontalRightPadding, 0),
+			roundedSelection: this._toBoolean(opts.roundedSelection),
+			overviewRulerLanes: this._toInteger(opts.overviewRulerLanes, 0, 3),
+			overviewRulerBorder: this._toBoolean(opts.overviewRulerBorder),
+			cursorBlinking: this._cursorBlinkingStyleFromString(opts.cursorBlinking),
+			mouseWheelZoom: this._toBoolean(opts.mouseWheelZoom),
+			cursorStyle: this._cursorStyleFromString(opts.cursorStyle),
+			hideCursorInOverviewRuler: this._toBoolean(opts.hideCursorInOverviewRuler),
+			scrollBeyondLastLine: this._toBoolean(opts.scrollBeyondLastLine),
+			editorClassName: env.editorClassName,
+			stopRenderingLineAfter: stopRenderingLineAfter,
+			renderWhitespace: renderWhitespace,
+			renderControlCharacters: this._toBoolean(opts.renderControlCharacters),
+			fontLigatures: this._toBoolean(opts.fontLigatures),
+			renderIndentGuides: this._toBoolean(opts.renderIndentGuides),
+			renderLineHighlight: renderLineHighlight,
+			scrollbar: scrollbar,
+			minimap: minimap,
+			fixedOverflowWidgets: this._toBoolean(opts.fixedOverflowWidgets)
+		});
+
+		const contribInfo = new EditorContribOptions({
+			selectionClipboard: this._toBoolean(opts.selectionClipboard),
+			hover: this._toBoolean(opts.hover),
+			contextmenu: this._toBoolean(opts.contextmenu),
+			quickSuggestions: typeof opts.quickSuggestions === 'object' ? { other: true, ...opts.quickSuggestions } : this._toBoolean(opts.quickSuggestions),
+			quickSuggestionsDelay: this._toInteger(opts.quickSuggestionsDelay),
+			parameterHints: this._toBoolean(opts.parameterHints),
+			iconsInSuggestions: this._toBoolean(opts.iconsInSuggestions),
+			formatOnType: this._toBoolean(opts.formatOnType),
+			formatOnPaste: this._toBoolean(opts.formatOnPaste),
+			suggestOnTriggerCharacters: this._toBoolean(opts.suggestOnTriggerCharacters),
+			acceptSuggestionOnEnter: this._toBoolean(opts.acceptSuggestionOnEnter),
+			acceptSuggestionOnCommitCharacter: this._toBoolean(opts.acceptSuggestionOnCommitCharacter),
+			snippetSuggestions: opts.snippetSuggestions,
+			emptySelectionClipboard: opts.emptySelectionClipboard,
+			wordBasedSuggestions: opts.wordBasedSuggestions,
+			suggestFontSize: opts.suggestFontSize,
+			suggestLineHeight: opts.suggestLineHeight,
+			selectionHighlight: this._toBoolean(opts.selectionHighlight),
+			occurrencesHighlight: this._toBoolean(opts.occurrencesHighlight),
+			codeLens: opts.referenceInfos && opts.codeLens,
+			folding: this._toBoolean(opts.folding),
+			hideFoldIcons: this._toBoolean(opts.hideFoldIcons),
+			matchBrackets: this._toBoolean(opts.matchBrackets),
+		});
+
+		return new InternalEditorOptions({
+			lineHeight: env.fontInfo.lineHeight, // todo -> duplicated in styling
+			readOnly: readOnly,
+			wordSeparators: String(opts.wordSeparators),
+			autoClosingBrackets: this._toBoolean(opts.autoClosingBrackets),
+			useTabStops: this._toBoolean(opts.useTabStops),
+			tabFocusMode: readOnly ? true : env.tabFocusMode,
+			dragAndDrop: this._toBoolean(opts.dragAndDrop),
+			layoutInfo: layoutInfo,
+			fontInfo: env.fontInfo,
+			viewInfo: viewInfo,
+			wrappingInfo: wrappingInfo,
+			contribInfo: contribInfo,
+		});
+	}
+
+	private static _scrollbarVisibilityFromString(visibility: string): ScrollbarVisibility {
+		switch (visibility) {
+			case 'hidden':
+				return ScrollbarVisibility.Hidden;
+			case 'visible':
+				return ScrollbarVisibility.Visible;
+			default:
+				return ScrollbarVisibility.Auto;
+		}
+	}
+
+	private static _sanitizeScrollbarOpts(raw: IEditorScrollbarOptions, mouseWheelScrollSensitivity: number): InternalEditorScrollbarOptions {
+		const horizontalScrollbarSize = this._toIntegerWithDefault(raw.horizontalScrollbarSize, 10);
+		const verticalScrollbarSize = this._toIntegerWithDefault(raw.verticalScrollbarSize, 14);
+		return new InternalEditorScrollbarOptions({
+			vertical: this._scrollbarVisibilityFromString(raw.vertical),
+			horizontal: this._scrollbarVisibilityFromString(raw.horizontal),
+
+			arrowSize: this._toIntegerWithDefault(raw.arrowSize, 11),
+			useShadows: this._toBooleanWithDefault(raw.useShadows, true),
+
+			verticalHasArrows: this._toBooleanWithDefault(raw.verticalHasArrows, false),
+			horizontalHasArrows: this._toBooleanWithDefault(raw.horizontalHasArrows, false),
+
+			horizontalScrollbarSize: horizontalScrollbarSize,
+			horizontalSliderSize: this._toIntegerWithDefault(raw.horizontalSliderSize, horizontalScrollbarSize),
+
+			verticalScrollbarSize: verticalScrollbarSize,
+			verticalSliderSize: this._toIntegerWithDefault(raw.verticalSliderSize, verticalScrollbarSize),
+
+			handleMouseWheel: this._toBooleanWithDefault(raw.handleMouseWheel, true),
+			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity
+		});
+	}
+
+	private static _sanitizeMinimapOpts(raw: IEditorMinimapOptions): InternalEditorMinimapOptions {
+		let maxColumn = this._toIntegerWithDefault(raw.maxColumn, DefaultConfig.editor.minimap.maxColumn);
+		if (maxColumn < 1) {
+			maxColumn = 1;
+		}
+		return new InternalEditorMinimapOptions({
+			enabled: this._toBooleanWithDefault(raw.enabled, DefaultConfig.editor.minimap.enabled),
+			renderCharacters: this._toBooleanWithDefault(raw.renderCharacters, DefaultConfig.editor.minimap.renderCharacters),
+			maxColumn: maxColumn,
+		});
+	}
+
+	private static _wrappingIndentFromString(wrappingIndent: string): WrappingIndent {
+		if (wrappingIndent === 'indent') {
+			return WrappingIndent.Indent;
+		} else if (wrappingIndent === 'same') {
+			return WrappingIndent.Same;
+		} else {
+			return WrappingIndent.None;
+		}
+	}
+
+	private static _cursorStyleFromString(cursorStyle: string): TextEditorCursorStyle {
+		if (cursorStyle === 'line') {
+			return TextEditorCursorStyle.Line;
+		} else if (cursorStyle === 'block') {
+			return TextEditorCursorStyle.Block;
+		} else if (cursorStyle === 'underline') {
+			return TextEditorCursorStyle.Underline;
+		} else if (cursorStyle === 'line-thin') {
+			return TextEditorCursorStyle.LineThin;
+		} else if (cursorStyle === 'block-outline') {
+			return TextEditorCursorStyle.BlockOutline;
+		} else if (cursorStyle === 'underline-thin') {
+			return TextEditorCursorStyle.UnderlineThin;
+		}
+		return TextEditorCursorStyle.Line;
+	}
+
+	private static _cursorBlinkingStyleFromString(cursorBlinkingStyle: string): TextEditorCursorBlinkingStyle {
+		switch (cursorBlinkingStyle) {
+			case 'blink':
+				return TextEditorCursorBlinkingStyle.Blink;
+			case 'smooth':
+				return TextEditorCursorBlinkingStyle.Smooth;
+			case 'phase':
+				return TextEditorCursorBlinkingStyle.Phase;
+			case 'expand':
+				return TextEditorCursorBlinkingStyle.Expand;
+			case 'visible': // maintain compatibility
+			case 'solid':
+				return TextEditorCursorBlinkingStyle.Solid;
+		}
+		return TextEditorCursorBlinkingStyle.Blink;
+	}
+
+	private static _toBoolean(value: any): boolean {
+		return value === 'false' ? false : Boolean(value);
+	}
+
+	private static _toBooleanWithDefault(value: any, defaultValue: boolean): boolean {
+		if (typeof value === 'undefined') {
+			return defaultValue;
+		}
+		return this._toBoolean(value);
+	}
+
+	private static _toInteger(source: any, minimum: number = Constants.MIN_SAFE_SMALL_INTEGER, maximum: number = Constants.MAX_SAFE_SMALL_INTEGER): number {
+		let r = parseInt(source, 10);
+		if (isNaN(r)) {
+			r = 0;
+		}
+		r = Math.max(minimum, r);
+		r = Math.min(maximum, r);
+		return r | 0;
+	}
+
+	private static _toIntegerWithDefault(source: any, defaultValue: number): number {
+		if (typeof source === 'undefined') {
+			return defaultValue;
+		}
+		return this._toInteger(source);
+	}
+
+	private static _toSortedIntegerArray(source: any): number[] {
+		if (!Array.isArray(source)) {
+			return [];
+		}
+		const arrSource = <any[]>source;
+		const r = arrSource.map(el => this._toInteger(el));
+		r.sort();
+		return r;
+	}
+
+	private static _toFloat(source: any, defaultValue: number): number {
+		let r = parseFloat(source);
+		if (isNaN(r)) {
+			r = defaultValue;
+		}
+		return r;
+	}
+}
+
+/**
+ * @internal
+ */
+export interface IEditorLayoutProviderOpts {
+	outerWidth: number;
+	outerHeight: number;
+
+	showGlyphMargin: boolean;
+	lineHeight: number;
+
+	showLineNumbers: boolean;
+	lineNumbersMinChars: number;
+	lineNumbersDigitCount: number;
+
+	lineDecorationsWidth: number;
+
+	typicalHalfwidthCharacterWidth: number;
+	maxDigitWidth: number;
+
+	verticalScrollbarWidth: number;
+	verticalScrollbarHasArrows: boolean;
+	scrollbarArrowSize: number;
+	horizontalScrollbarHeight: number;
+
+	minimap: boolean;
+	minimapRenderCharacters: boolean;
+	minimapMaxColumn: number;
+	pixelRatio: number;
+}
+
+/**
+ * @internal
+ */
+export class EditorLayoutProvider {
+	public static compute(_opts: IEditorLayoutProviderOpts): EditorLayoutInfo {
+		const outerWidth = _opts.outerWidth | 0;
+		const outerHeight = _opts.outerHeight | 0;
+		const showGlyphMargin = Boolean(_opts.showGlyphMargin);
+		const lineHeight = _opts.lineHeight | 0;
+		const showLineNumbers = Boolean(_opts.showLineNumbers);
+		const lineNumbersMinChars = _opts.lineNumbersMinChars | 0;
+		const lineNumbersDigitCount = _opts.lineNumbersDigitCount | 0;
+		const lineDecorationsWidth = _opts.lineDecorationsWidth | 0;
+		const typicalHalfwidthCharacterWidth = Number(_opts.typicalHalfwidthCharacterWidth);
+		const maxDigitWidth = Number(_opts.maxDigitWidth);
+		const verticalScrollbarWidth = _opts.verticalScrollbarWidth | 0;
+		const verticalScrollbarHasArrows = Boolean(_opts.verticalScrollbarHasArrows);
+		const scrollbarArrowSize = _opts.scrollbarArrowSize | 0;
+		const horizontalScrollbarHeight = _opts.horizontalScrollbarHeight | 0;
+		const minimap = Boolean(_opts.minimap);
+		const minimapRenderCharacters = Boolean(_opts.minimapRenderCharacters);
+		const minimapMaxColumn = _opts.minimapMaxColumn | 0;
+		const pixelRatio = Number(_opts.pixelRatio);
+
+		let lineNumbersWidth = 0;
+		if (showLineNumbers) {
+			const digitCount = Math.max(lineNumbersDigitCount, lineNumbersMinChars);
+			lineNumbersWidth = Math.round(digitCount * maxDigitWidth);
+		}
+
+		let glyphMarginWidth = 0;
+		if (showGlyphMargin) {
+			glyphMarginWidth = lineHeight;
+		}
+
+		const glyphMarginLeft = 0;
+		const lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
+		const decorationsLeft = lineNumbersLeft + lineNumbersWidth;
+		const contentLeft = decorationsLeft + lineDecorationsWidth;
+
+		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
+
+		let renderMinimap: RenderMinimap;
+		let minimapWidth: number;
+		let contentWidth: number;
+		if (!minimap) {
+			minimapWidth = 0;
+			renderMinimap = RenderMinimap.None;
+			contentWidth = remainingWidth;
+		} else {
+			let minimapCharWidth: number;
+			if (pixelRatio >= 2) {
+				renderMinimap = minimapRenderCharacters ? RenderMinimap.Large : RenderMinimap.LargeBlocks;
+				minimapCharWidth = 2 / pixelRatio;
+			} else {
+				renderMinimap = minimapRenderCharacters ? RenderMinimap.Small : RenderMinimap.SmallBlocks;
+				minimapCharWidth = 1 / pixelRatio;
+			}
+
+			// Given:
+			// viewportColumn = (contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth
+			// minimapWidth = viewportColumn * minimapCharWidth
+			// contentWidth = remainingWidth - minimapWidth
+			// What are good values for contentWidth and minimapWidth ?
+
+			// minimapWidth = ((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth) * minimapCharWidth
+			// typicalHalfwidthCharacterWidth * minimapWidth = (contentWidth - verticalScrollbarWidth) * minimapCharWidth
+			// typicalHalfwidthCharacterWidth * minimapWidth = (remainingWidth - minimapWidth - verticalScrollbarWidth) * minimapCharWidth
+			// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth) * minimapCharWidth
+			// minimapWidth = ((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
+
+			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)));
+			let minimapColumns = minimapWidth / minimapCharWidth;
+			if (minimapColumns > minimapMaxColumn) {
+				minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
+			}
+			contentWidth = remainingWidth - minimapWidth;
+		}
+
+		const viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth));
+
+		const verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
+
+		return new EditorLayoutInfo({
+			width: outerWidth,
+			height: outerHeight,
+
+			glyphMarginLeft: glyphMarginLeft,
+			glyphMarginWidth: glyphMarginWidth,
+			glyphMarginHeight: outerHeight,
+
+			lineNumbersLeft: lineNumbersLeft,
+			lineNumbersWidth: lineNumbersWidth,
+			lineNumbersHeight: outerHeight,
+
+			decorationsLeft: decorationsLeft,
+			decorationsWidth: lineDecorationsWidth,
+			decorationsHeight: outerHeight,
+
+			contentLeft: contentLeft,
+			contentWidth: contentWidth,
+			contentHeight: outerHeight,
+
+			renderMinimap: renderMinimap,
+			minimapWidth: minimapWidth,
+
+			viewportColumn: viewportColumn,
+
+			verticalScrollbarWidth: verticalScrollbarWidth,
+			horizontalScrollbarHeight: horizontalScrollbarHeight,
+
+			overviewRuler: new OverviewRulerPosition({
+				top: verticalArrowSize,
+				width: verticalScrollbarWidth,
+				height: (outerHeight - 2 * verticalArrowSize),
+				right: 0
+			})
+		});
+	}
 }

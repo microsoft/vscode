@@ -13,10 +13,7 @@ import { Extensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platf
 import { Registry } from 'vs/platform/platform';
 import { DefaultConfig, DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EditorLayoutProvider } from 'vs/editor/common/viewLayout/editorLayoutProvider';
-import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { Constants } from 'vs/editor/common/core/uint';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 
@@ -76,394 +73,8 @@ export class ConfigurationWithDefaults {
 	}
 }
 
-class InternalEditorOptionsHelper {
-
-	constructor() {
-	}
-
-	public static createInternalEditorOptions(
-		outerWidth: number,
-		outerHeight: number,
-		opts: editorOptions.IEditorOptions,
-		fontInfo: FontInfo,
-		editorClassName: string,
-		isDominatedByLongLines: boolean,
-		lineNumbersDigitCount: number,
-		canUseTranslate3d: boolean,
-		pixelRatio: number
-	): editorOptions.InternalEditorOptions {
-
-		let stopRenderingLineAfter: number;
-		if (typeof opts.stopRenderingLineAfter !== 'undefined') {
-			stopRenderingLineAfter = toInteger(opts.stopRenderingLineAfter, -1);
-		} else {
-			stopRenderingLineAfter = 10000;
-		}
-
-		let scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, toFloat(opts.mouseWheelScrollSensitivity, 1));
-		let minimap = this._sanitizeMinimapOpts(opts.minimap);
-
-		let glyphMargin = toBoolean(opts.glyphMargin);
-		let lineNumbersMinChars = toInteger(opts.lineNumbersMinChars, 1);
-
-		let lineDecorationsWidth: number;
-		if (typeof opts.lineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(opts.lineDecorationsWidth)) {
-			let multiple = parseFloat(opts.lineDecorationsWidth.substr(0, opts.lineDecorationsWidth.length - 2));
-			lineDecorationsWidth = multiple * fontInfo.typicalHalfwidthCharacterWidth;
-		} else {
-			lineDecorationsWidth = toInteger(opts.lineDecorationsWidth, 0);
-		}
-		if (opts.folding) {
-			lineDecorationsWidth += 16;
-		}
-
-		let renderLineNumbers: boolean;
-		let renderCustomLineNumbers: (lineNumber: number) => string;
-		let renderRelativeLineNumbers: boolean;
-		{
-			let lineNumbers = opts.lineNumbers;
-			// Compatibility with old true or false values
-			if (<any>lineNumbers === true) {
-				lineNumbers = 'on';
-			} else if (<any>lineNumbers === false) {
-				lineNumbers = 'off';
-			}
-
-			if (typeof lineNumbers === 'function') {
-				renderLineNumbers = true;
-				renderCustomLineNumbers = lineNumbers;
-				renderRelativeLineNumbers = false;
-			} else if (lineNumbers === 'relative') {
-				renderLineNumbers = true;
-				renderCustomLineNumbers = null;
-				renderRelativeLineNumbers = true;
-			} else if (lineNumbers === 'on') {
-				renderLineNumbers = true;
-				renderCustomLineNumbers = null;
-				renderRelativeLineNumbers = false;
-			} else {
-				renderLineNumbers = false;
-				renderCustomLineNumbers = null;
-				renderRelativeLineNumbers = false;
-			}
-		}
-
-		let layoutInfo = EditorLayoutProvider.compute({
-			outerWidth: outerWidth,
-			outerHeight: outerHeight,
-			showGlyphMargin: glyphMargin,
-			lineHeight: fontInfo.lineHeight,
-			showLineNumbers: renderLineNumbers,
-			lineNumbersMinChars: lineNumbersMinChars,
-			lineNumbersDigitCount: lineNumbersDigitCount,
-			lineDecorationsWidth: lineDecorationsWidth,
-			typicalHalfwidthCharacterWidth: fontInfo.typicalHalfwidthCharacterWidth,
-			maxDigitWidth: fontInfo.maxDigitWidth,
-			verticalScrollbarWidth: scrollbar.verticalScrollbarSize,
-			horizontalScrollbarHeight: scrollbar.horizontalScrollbarSize,
-			scrollbarArrowSize: scrollbar.arrowSize,
-			verticalScrollbarHasArrows: scrollbar.verticalHasArrows,
-			minimap: minimap.enabled,
-			minimapRenderCharacters: minimap.renderCharacters,
-			minimapMaxColumn: minimap.maxColumn,
-			pixelRatio: pixelRatio
-		});
-
-		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } = null;
-		{
-			let wordWrap = opts.wordWrap;
-			let wordWrapColumn = toInteger(opts.wordWrapColumn, 1);
-			let wordWrapMinified = toBoolean(opts.wordWrapMinified);
-
-			// Compatibility with old true or false values
-			if (<any>wordWrap === true) {
-				wordWrap = 'on';
-			} else if (<any>wordWrap === false) {
-				wordWrap = 'off';
-			}
-
-			if (wordWrapMinified && isDominatedByLongLines) {
-				// Force viewport width wrapping if model is dominated by long lines
-				bareWrappingInfo = {
-					isWordWrapMinified: true,
-					isViewportWrapping: true,
-					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
-				};
-			} else if (wordWrap === 'on') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: true,
-					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
-				};
-			} else if (wordWrap === 'bounded') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: true,
-					wrappingColumn: Math.min(Math.max(1, layoutInfo.viewportColumn), wordWrapColumn)
-				};
-			} else if (wordWrap === 'wordWrapColumn') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: wordWrapColumn
-				};
-			} else {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: -1
-				};
-			}
-		}
-
-		let wrappingInfo = new editorOptions.EditorWrappingInfo({
-			inDiffEditor: Boolean(opts.inDiffEditor),
-			isDominatedByLongLines: isDominatedByLongLines,
-			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
-			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
-			wrappingColumn: bareWrappingInfo.wrappingColumn,
-			wrappingIndent: wrappingIndentFromString(opts.wrappingIndent),
-			wordWrapBreakBeforeCharacters: String(opts.wordWrapBreakBeforeCharacters),
-			wordWrapBreakAfterCharacters: String(opts.wordWrapBreakAfterCharacters),
-			wordWrapBreakObtrusiveCharacters: String(opts.wordWrapBreakObtrusiveCharacters),
-		});
-
-		let readOnly = toBoolean(opts.readOnly);
-
-		let tabFocusMode = TabFocus.getTabFocusMode();
-		if (readOnly) {
-			tabFocusMode = true;
-		}
-
-
-		let renderWhitespace = opts.renderWhitespace;
-		// Compatibility with old true or false values
-		if (<any>renderWhitespace === true) {
-			renderWhitespace = 'boundary';
-		} else if (<any>renderWhitespace === false) {
-			renderWhitespace = 'none';
-		}
-
-		let renderLineHighlight = opts.renderLineHighlight;
-		// Compatibility with old true or false values
-		if (<any>renderLineHighlight === true) {
-			renderLineHighlight = 'line';
-		} else if (<any>renderLineHighlight === false) {
-			renderLineHighlight = 'none';
-		}
-
-		let viewInfo = new editorOptions.InternalEditorViewOptions({
-			theme: opts.theme,
-			canUseTranslate3d: canUseTranslate3d,
-			disableMonospaceOptimizations: (toBoolean(opts.disableMonospaceOptimizations) || toBoolean(opts.fontLigatures)),
-			experimentalScreenReader: toBoolean(opts.experimentalScreenReader),
-			rulers: toSortedIntegerArray(opts.rulers),
-			ariaLabel: String(opts.ariaLabel),
-			renderLineNumbers: renderLineNumbers,
-			renderCustomLineNumbers: renderCustomLineNumbers,
-			renderRelativeLineNumbers: renderRelativeLineNumbers,
-			selectOnLineNumbers: toBoolean(opts.selectOnLineNumbers),
-			glyphMargin: glyphMargin,
-			revealHorizontalRightPadding: toInteger(opts.revealHorizontalRightPadding, 0),
-			roundedSelection: toBoolean(opts.roundedSelection),
-			overviewRulerLanes: toInteger(opts.overviewRulerLanes, 0, 3),
-			overviewRulerBorder: toBoolean(opts.overviewRulerBorder),
-			cursorBlinking: cursorBlinkingStyleFromString(opts.cursorBlinking),
-			mouseWheelZoom: toBoolean(opts.mouseWheelZoom),
-			cursorStyle: cursorStyleFromString(opts.cursorStyle),
-			hideCursorInOverviewRuler: toBoolean(opts.hideCursorInOverviewRuler),
-			scrollBeyondLastLine: toBoolean(opts.scrollBeyondLastLine),
-			editorClassName: editorClassName,
-			stopRenderingLineAfter: stopRenderingLineAfter,
-			renderWhitespace: renderWhitespace,
-			renderControlCharacters: toBoolean(opts.renderControlCharacters),
-			fontLigatures: toBoolean(opts.fontLigatures),
-			renderIndentGuides: toBoolean(opts.renderIndentGuides),
-			renderLineHighlight: renderLineHighlight,
-			scrollbar: scrollbar,
-			minimap: minimap,
-			fixedOverflowWidgets: toBoolean(opts.fixedOverflowWidgets)
-		});
-
-		let contribInfo = new editorOptions.EditorContribOptions({
-			selectionClipboard: toBoolean(opts.selectionClipboard),
-			hover: toBoolean(opts.hover),
-			contextmenu: toBoolean(opts.contextmenu),
-			quickSuggestions: typeof opts.quickSuggestions === 'object' ? { other: true, ...opts.quickSuggestions } : toBoolean(opts.quickSuggestions),
-			quickSuggestionsDelay: toInteger(opts.quickSuggestionsDelay),
-			parameterHints: toBoolean(opts.parameterHints),
-			iconsInSuggestions: toBoolean(opts.iconsInSuggestions),
-			formatOnType: toBoolean(opts.formatOnType),
-			formatOnPaste: toBoolean(opts.formatOnPaste),
-			suggestOnTriggerCharacters: toBoolean(opts.suggestOnTriggerCharacters),
-			acceptSuggestionOnEnter: toBoolean(opts.acceptSuggestionOnEnter),
-			acceptSuggestionOnCommitCharacter: toBoolean(opts.acceptSuggestionOnCommitCharacter),
-			snippetSuggestions: opts.snippetSuggestions,
-			emptySelectionClipboard: opts.emptySelectionClipboard,
-			wordBasedSuggestions: opts.wordBasedSuggestions,
-			suggestFontSize: opts.suggestFontSize,
-			suggestLineHeight: opts.suggestLineHeight,
-			selectionHighlight: toBoolean(opts.selectionHighlight),
-			occurrencesHighlight: toBoolean(opts.occurrencesHighlight),
-			codeLens: opts.referenceInfos && opts.codeLens,
-			folding: toBoolean(opts.folding),
-			hideFoldIcons: toBoolean(opts.hideFoldIcons),
-			matchBrackets: toBoolean(opts.matchBrackets),
-		});
-
-		return new editorOptions.InternalEditorOptions({
-			lineHeight: fontInfo.lineHeight, // todo -> duplicated in styling
-			readOnly: readOnly,
-			wordSeparators: String(opts.wordSeparators),
-			autoClosingBrackets: toBoolean(opts.autoClosingBrackets),
-			useTabStops: toBoolean(opts.useTabStops),
-			tabFocusMode: tabFocusMode,
-			dragAndDrop: toBoolean(opts.dragAndDrop),
-			layoutInfo: layoutInfo,
-			fontInfo: fontInfo,
-			viewInfo: viewInfo,
-			wrappingInfo: wrappingInfo,
-			contribInfo: contribInfo,
-		});
-	}
-
-	private static _sanitizeScrollbarOpts(raw: editorOptions.IEditorScrollbarOptions, mouseWheelScrollSensitivity: number): editorOptions.InternalEditorScrollbarOptions {
-
-		let visibilityFromString = (visibility: string) => {
-			switch (visibility) {
-				case 'hidden':
-					return ScrollbarVisibility.Hidden;
-				case 'visible':
-					return ScrollbarVisibility.Visible;
-				default:
-					return ScrollbarVisibility.Auto;
-			}
-		};
-
-		let horizontalScrollbarSize = toIntegerWithDefault(raw.horizontalScrollbarSize, 10);
-		let verticalScrollbarSize = toIntegerWithDefault(raw.verticalScrollbarSize, 14);
-		return new editorOptions.InternalEditorScrollbarOptions({
-			vertical: visibilityFromString(raw.vertical),
-			horizontal: visibilityFromString(raw.horizontal),
-
-			arrowSize: toIntegerWithDefault(raw.arrowSize, 11),
-			useShadows: toBooleanWithDefault(raw.useShadows, true),
-
-			verticalHasArrows: toBooleanWithDefault(raw.verticalHasArrows, false),
-			horizontalHasArrows: toBooleanWithDefault(raw.horizontalHasArrows, false),
-
-			horizontalScrollbarSize: horizontalScrollbarSize,
-			horizontalSliderSize: toIntegerWithDefault(raw.horizontalSliderSize, horizontalScrollbarSize),
-
-			verticalScrollbarSize: verticalScrollbarSize,
-			verticalSliderSize: toIntegerWithDefault(raw.verticalSliderSize, verticalScrollbarSize),
-
-			handleMouseWheel: toBooleanWithDefault(raw.handleMouseWheel, true),
-			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity
-		});
-	}
-
-	private static _sanitizeMinimapOpts(raw: editorOptions.IEditorMinimapOptions): editorOptions.InternalEditorMinimapOptions {
-		let maxColumn = toIntegerWithDefault(raw.maxColumn, DefaultConfig.editor.minimap.maxColumn);
-		if (maxColumn < 1) {
-			maxColumn = 1;
-		}
-		return new editorOptions.InternalEditorMinimapOptions({
-			enabled: toBooleanWithDefault(raw.enabled, DefaultConfig.editor.minimap.enabled),
-			renderCharacters: toBooleanWithDefault(raw.renderCharacters, DefaultConfig.editor.minimap.renderCharacters),
-			maxColumn: maxColumn,
-		});
-	}
-}
-
 function toBoolean(value: any): boolean {
 	return value === 'false' ? false : Boolean(value);
-}
-
-function toBooleanWithDefault(value: any, defaultValue: boolean): boolean {
-	if (typeof value === 'undefined') {
-		return defaultValue;
-	}
-	return toBoolean(value);
-}
-
-function toFloat(source: any, defaultValue: number): number {
-	let r = parseFloat(source);
-	if (isNaN(r)) {
-		r = defaultValue;
-	}
-	return r;
-}
-
-function toInteger(source: any, minimum: number = Constants.MIN_SAFE_SMALL_INTEGER, maximum: number = Constants.MAX_SAFE_SMALL_INTEGER): number {
-	let r = parseInt(source, 10);
-	if (isNaN(r)) {
-		r = 0;
-	}
-	r = Math.max(minimum, r);
-	r = Math.min(maximum, r);
-	return r | 0;
-}
-
-function toSortedIntegerArray(source: any): number[] {
-	if (!Array.isArray(source)) {
-		return [];
-	}
-	let arrSource = <any[]>source;
-	let r = arrSource.map(el => toInteger(el));
-	r.sort();
-	return r;
-}
-
-function wrappingIndentFromString(wrappingIndent: string): editorOptions.WrappingIndent {
-	if (wrappingIndent === 'indent') {
-		return editorOptions.WrappingIndent.Indent;
-	} else if (wrappingIndent === 'same') {
-		return editorOptions.WrappingIndent.Same;
-	} else {
-		return editorOptions.WrappingIndent.None;
-	}
-}
-
-function cursorStyleFromString(cursorStyle: string): editorOptions.TextEditorCursorStyle {
-	if (cursorStyle === 'line') {
-		return editorOptions.TextEditorCursorStyle.Line;
-	} else if (cursorStyle === 'block') {
-		return editorOptions.TextEditorCursorStyle.Block;
-	} else if (cursorStyle === 'underline') {
-		return editorOptions.TextEditorCursorStyle.Underline;
-	} else if (cursorStyle === 'line-thin') {
-		return editorOptions.TextEditorCursorStyle.LineThin;
-	} else if (cursorStyle === 'block-outline') {
-		return editorOptions.TextEditorCursorStyle.BlockOutline;
-	} else if (cursorStyle === 'underline-thin') {
-		return editorOptions.TextEditorCursorStyle.UnderlineThin;
-	}
-	return editorOptions.TextEditorCursorStyle.Line;
-}
-
-function cursorBlinkingStyleFromString(cursorBlinkingStyle: string): editorOptions.TextEditorCursorBlinkingStyle {
-	switch (cursorBlinkingStyle) {
-		case 'blink':
-			return editorOptions.TextEditorCursorBlinkingStyle.Blink;
-		case 'smooth':
-			return editorOptions.TextEditorCursorBlinkingStyle.Smooth;
-		case 'phase':
-			return editorOptions.TextEditorCursorBlinkingStyle.Phase;
-		case 'expand':
-			return editorOptions.TextEditorCursorBlinkingStyle.Expand;
-		case 'visible': // maintain compatibility
-		case 'solid':
-			return editorOptions.TextEditorCursorBlinkingStyle.Solid;
-	}
-	return editorOptions.TextEditorCursorBlinkingStyle.Blink;
-}
-
-function toIntegerWithDefault(source: any, defaultValue: number): number {
-	if (typeof source === 'undefined') {
-		return defaultValue;
-	}
-	return toInteger(source);
 }
 
 export interface IElementSizeObserver {
@@ -477,7 +88,6 @@ export interface IElementSizeObserver {
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
 	public editor: editorOptions.InternalEditorOptions;
-	public editorClone: editorOptions.InternalEditorOptions;
 
 	protected _configWithDefaults: ConfigurationWithDefaults;
 	protected _elementSizeObserver: IElementSizeObserver;
@@ -494,7 +104,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._isDominatedByLongLines = false;
 		this._lineNumbersDigitCount = 1;
 		this.editor = this._computeInternalOptions();
-		this.editorClone = this.editor.clone();
 		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
 	}
@@ -514,7 +123,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 		let changeEvent = this.editor.createChangeEvent(newOptions);
 		this.editor = newOptions;
-		this.editorClone = this.editor.clone();
 		this._onDidChange.fire(changeEvent);
 	}
 
@@ -527,25 +135,21 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 		let editorClassName = this._getEditorClassName(opts.theme, toBoolean(opts.fontLigatures), opts.mouseStyle);
 
-		let disableTranslate3d = toBoolean(opts.disableTranslate3d);
-		let canUseTranslate3d = this._getCanUseTranslate3d();
-		if (disableTranslate3d) {
-			canUseTranslate3d = false;
-		}
-
 		let bareFontInfo = BareFontInfo.createFromRawSettings(opts, this.getZoomLevel());
 
-		return InternalEditorOptionsHelper.createInternalEditorOptions(
-			this.getOuterWidth(),
-			this.getOuterHeight(),
-			opts,
-			this.readConfiguration(bareFontInfo),
-			editorClassName,
-			this._isDominatedByLongLines,
-			this._lineNumbersDigitCount,
-			canUseTranslate3d,
-			this._getPixelRatio()
-		);
+		const env = new editorOptions.EnvironmentalOptions({
+			outerWidth: this.getOuterWidth(),
+			outerHeight: this.getOuterHeight(),
+			fontInfo: this.readConfiguration(bareFontInfo),
+			editorClassName: editorClassName,
+			isDominatedByLongLines: this._isDominatedByLongLines,
+			lineNumbersDigitCount: this._lineNumbersDigitCount,
+			canUseTranslate3d: this._getCanUseTranslate3d(),
+			pixelRatio: this._getPixelRatio(),
+			tabFocusMode: TabFocus.getTabFocusMode()
+		});
+
+		return editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
 	}
 
 	public updateOptions(newOptions: editorOptions.IEditorOptions): void {
@@ -559,7 +163,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	public setMaxLineNumber(maxLineNumber: number): void {
-		let digitCount = CommonEditorConfiguration.digitCount(maxLineNumber);
+		let digitCount = CommonEditorConfiguration._digitCount(maxLineNumber);
 		if (this._lineNumbersDigitCount === digitCount) {
 			return;
 		}
@@ -567,7 +171,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._recomputeOptions();
 	}
 
-	private static digitCount(n: number): number {
+	private static _digitCount(n: number): number {
 		var r = 0;
 		while (n) {
 			n = Math.floor(n / 10);

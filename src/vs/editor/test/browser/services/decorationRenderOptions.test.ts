@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 
-suite('Browser Services - EditorLayoutProvider', () => {
+suite('Decoration Render Options', () => {
 	var options: IDecorationRenderOptions = {
 		gutterIconPath: URI.parse('https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png'),
 		gutterIconSize: 'contain',

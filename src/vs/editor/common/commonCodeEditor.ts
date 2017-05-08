@@ -191,7 +191,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	}
 
 	public getConfiguration(): editorOptions.InternalEditorOptions {
-		return this._configuration.editorClone;
+		return this._configuration.editor;
 	}
 
 	public getRawConfiguration(): editorOptions.IEditorOptions {
