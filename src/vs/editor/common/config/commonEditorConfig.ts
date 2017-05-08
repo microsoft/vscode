@@ -51,38 +51,35 @@ export const TabFocus: ITabFocus = new class {
 	}
 };
 
-export interface IElementSizeObserver {
-	startObserving(): void;
-	observe(dimension?: editorCommon.IDimension): void;
-	dispose(): void;
-	getWidth(): number;
-	getHeight(): number;
+export interface IEnvConfiguration {
+	extraEditorClassName: string;
+	outerWidth: number;
+	outerHeight: number;
+	canUseTranslate3d: boolean;
+	pixelRatio: number;
+	zoomLevel: number;
 }
 
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
 	protected _rawOptions: editorOptions.IEditorOptions;
 	protected _validatedOptions: editorOptions.IValidatedEditorOptions;
-
 	public editor: editorOptions.InternalEditorOptions;
-
-	protected _elementSizeObserver: IElementSizeObserver;
 	private _isDominatedByLongLines: boolean;
 	private _lineNumbersDigitCount: number;
 
 	private _onDidChange = this._register(new Emitter<editorOptions.IConfigurationChangedEvent>());
 	public onDidChange: Event<editorOptions.IConfigurationChangedEvent> = this._onDidChange.event;
 
-	constructor(options: editorOptions.IEditorOptions, elementSizeObserver: IElementSizeObserver = null) {
+	constructor(options: editorOptions.IEditorOptions) {
 		super();
 
 		this._rawOptions = options || {};
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
-
-		this._elementSizeObserver = elementSizeObserver;
+		this.editor = null;
 		this._isDominatedByLongLines = false;
 		this._lineNumbersDigitCount = 1;
-		this.editor = this._computeInternalOptions();
+
 		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
 	}
@@ -92,17 +89,18 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	protected _recomputeOptions(): void {
-		this._setOptions(this._computeInternalOptions());
-	}
+		const oldOptions = this.editor;
+		const newOptions = this._computeInternalOptions();
 
-	private _setOptions(newOptions: editorOptions.InternalEditorOptions): void {
-		if (this.editor && this.editor.equals(newOptions)) {
+		if (oldOptions && oldOptions.equals(newOptions)) {
 			return;
 		}
 
-		let changeEvent = this.editor.createChangeEvent(newOptions);
 		this.editor = newOptions;
-		this._onDidChange.fire(changeEvent);
+
+		if (oldOptions) {
+			this._onDidChange.fire(oldOptions.createChangeEvent(newOptions));
+		}
 	}
 
 	public getRawOptions(): editorOptions.IEditorOptions {
@@ -111,16 +109,18 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 	private _computeInternalOptions(): editorOptions.InternalEditorOptions {
 		const opts = this._validatedOptions;
-		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, this.getZoomLevel());
+		const partialEnv = this._getEnvConfiguration();
+		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, partialEnv.zoomLevel);
+		const editorClassName = this._getEditorClassName(opts.viewInfo.theme, opts.viewInfo.fontLigatures, opts.mouseStyle);
 		const env: editorOptions.IEnvironmentalOptions = {
-			outerWidth: this.getOuterWidth(),
-			outerHeight: this.getOuterHeight(),
+			outerWidth: partialEnv.outerWidth,
+			outerHeight: partialEnv.outerHeight,
 			fontInfo: this.readConfiguration(bareFontInfo),
-			editorClassName: this._getEditorClassName(opts.viewInfo.theme, opts.viewInfo.fontLigatures, opts.mouseStyle),
+			editorClassName: editorClassName + ' ' + partialEnv.extraEditorClassName,
 			isDominatedByLongLines: this._isDominatedByLongLines,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
-			canUseTranslate3d: this._getCanUseTranslate3d(),
-			pixelRatio: this._getPixelRatio(),
+			canUseTranslate3d: partialEnv.canUseTranslate3d,
+			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode()
 		};
 		return editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
@@ -155,19 +155,23 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return r ? r : 1;
 	}
 
-	protected abstract _getEditorClassName(theme: string, fontLigatures: boolean, mouseDrag: 'text' | 'default' | 'copy'): string;
+	private _getEditorClassName(theme: string, fontLigatures: boolean, mouseStyle: 'text' | 'default' | 'copy'): string {
+		let extra = '';
+		if (fontLigatures) {
+			extra += 'enable-ligatures ';
+		}
+		if (mouseStyle === 'default') {
+			extra += 'mouse-default ';
+		} else if (mouseStyle === 'copy') {
+			extra += 'mouse-copy ';
+		}
+		return 'monaco-editor ' + extra + theme;
+	}
 
-	protected abstract getOuterWidth(): number;
-
-	protected abstract getOuterHeight(): number;
-
-	protected abstract _getCanUseTranslate3d(): boolean;
-
-	protected abstract _getPixelRatio(): number;
+	protected abstract _getEnvConfiguration(): IEnvConfiguration;
 
 	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;
 
-	protected abstract getZoomLevel(): number;
 }
 
 const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
