@@ -435,12 +435,14 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (backgroundColor) {
 			this.listElement.style.backgroundColor = backgroundColor.toString();
 			this.details.element.style.backgroundColor = backgroundColor.toString();
+			this.messageElement.style.backgroundColor = backgroundColor.toString();
 		}
 		let borderColor = theme.getColor(editorSuggestWidgetBorder);
 		if (borderColor) {
 			let borderWidth = theme.type === 'hc' ? 2 : 1;
 			this.listElement.style.border = `${borderWidth}px solid ${borderColor}`;
 			this.details.element.style.border = `${borderWidth}px solid ${borderColor}`;
+			this.messageElement.style.border = `${borderWidth}px solid ${borderColor}`;
 		}
 	}
 
@@ -819,18 +821,28 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	private adjustWidgetWidth() {
+		// Reset
+		removeClass(this.element, 'list-right');
+		removeClass(this.element, 'docs-below');
+		this.preferredPosition = this.editor.getPosition();
+
+		// Message element is shown, list and docs are not
+		if (this.messageElement.style.display !== 'none'
+			&& this.details.element.style.display === 'none'
+			&& this.listElement.style.display === 'none') {
+			this.element.style.width = `${this.widgetWidthInSmallestEditor}px`;
+			return;
+		}
+
 		const perColumnWidth = this.editor.getLayoutInfo().contentWidth / this.editor.getLayoutInfo().viewportColumn;
 		const spaceOntheLeft = Math.floor(this.editor.getPosition().column * perColumnWidth) - this.editor.getScrollLeft();
 		const spaceOntheRight = this.editor.getLayoutInfo().contentWidth - spaceOntheLeft;
 		const scrolledColumns = Math.floor(this.editor.getScrollLeft() / perColumnWidth);
 
-		// Reset
-		this.preferredPosition = this.editor.getPosition();
+		// Reset width
 		this.details.element.style.width = `${this.maxDocsWidth}px`;
 		this.element.style.width = `${this.maxWidgetWidth}px`;
 		this.listElement.style.width = `${this.listWidth}px`;
-		removeClass(this.element, 'list-right');
-		removeClass(this.element, 'docs-below');
 
 		if (spaceOntheRight > this.maxWidgetWidth) {
 			// There is enough space on the right, so nothing to do here.
