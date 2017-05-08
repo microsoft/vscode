@@ -410,6 +410,7 @@ export interface IListStyles {
 	listFocusAndSelectionBackground?: Color;
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
+	listInactiveSelectionForeground?: Color;
 	listInactiveFocusBackground?: Color;
 	listHoverBackground?: Color;
 	listDropBackground?: Color;
@@ -842,6 +843,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (styles.listInactiveSelectionBackground) {
 			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected { background-color:  ${styles.listInactiveSelectionBackground}; }`);
 			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected:hover { background-color:  ${styles.listInactiveSelectionBackground}; }`); // overwrite :hover style in this case!
+		}
+
+		if (styles.listInactiveSelectionForeground) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected { color: ${styles.listInactiveSelectionForeground}; }`);
 		}
 
 		if (styles.listHoverBackground) {

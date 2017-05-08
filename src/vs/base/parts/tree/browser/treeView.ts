@@ -562,7 +562,7 @@ export class TreeView extends HeightMap {
 				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted)						{ background-color: ${styles.listFocusBackground}; }
 				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 						{ background-color: ${styles.listActiveSelectionBackground}; color: ${styles.listActiveSelectionForeground}; }
 				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) 				{ background-color: ${styles.listFocusAndSelectionBackground}; color: ${styles.listFocusAndSelectionForeground}; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)								{ background-color: ${styles.listInactiveSelectionBackground}; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)								{ background-color: ${styles.listInactiveSelectionBackground}; color: ${styles.listInactiveSelectionForeground}; }
 				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)	{ background-color: ${styles.listHoverBackground}; }
 				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
 				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target												{ background-color: ${styles.listDropBackground} !important; }
