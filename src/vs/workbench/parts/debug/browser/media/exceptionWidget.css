@@ -27,6 +27,11 @@
 	margin-top: 0.5em;
 }
 
+.monaco-editor .zone-widget .zone-widget-container.exception-widget a {
+	text-decoration: underline;
+	cursor: pointer;
+}
+
 /* High Contrast Theming */
 
 .monaco-workbench.mac .zone-widget .zone-widget-container.exception-widget {

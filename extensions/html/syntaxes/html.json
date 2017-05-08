@@ -339,11 +339,49 @@
 								},
 								{
 									"begin": "\\G",
-									"end": "(?i:(?=/?>|type\\s*=\\s*('|\"|)(?!text/(javascript|ecmascript)|application/((x-)?javascript|ecmascript))\\b))",
+									"end": "(?i:(?=/?>|type\\s*=\\s*('|\"|)(?!text/(javascript|ecmascript)|application/((x-)?javascript|ecmascript)|module)\\b))",
 									"name": "meta.tag.metadata.script.html",
 									"patterns": [
 										{
 											"include": "#tag-stuff"
+										}
+									]
+								},
+								{
+									"begin": "(?=(?i:type\\s*=\\s*('|\"|)(?=text/(x-handlebars|(x-(handlebars-)?|ng-)?template|html))\\b))",
+									"end": "(<)(?=/(?i:script))",
+									"endCaptures": {
+										"0": {
+											"name": "meta.tag.metadata.script.html"
+										},
+										"1": {
+											"name": "punctuation.definition.tag.begin.html"
+										}
+									},
+									"patterns": [
+										{
+											"begin": "\\G",
+											"end": "(>)|(?=/>)",
+											"endCaptures": {
+												"1": {
+													"name": "punctuation.definition.tag.end.html"
+												}
+											},
+											"name": "meta.tag.metadata.script.html",
+											"patterns": [
+												{
+													"include": "#tag-stuff"
+												}
+											]
+										},
+										{
+											"begin": "(?!\\G)",
+											"end": "(?=</(?i:script))",
+											"patterns": [
+												{
+													"include": "text.html.basic"
+												}
+											]
 										}
 									]
 								},
