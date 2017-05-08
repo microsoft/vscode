@@ -631,9 +631,7 @@ function _cursorStyleFromString(cursorStyle: string, defaultValue: TextEditorCur
 	return TextEditorCursorStyle.Line;
 }
 
-export class InternalEditorScrollbarOptions {
-	readonly _internalEditorScrollbarOptionsBrand: void;
-
+export interface InternalEditorScrollbarOptions {
 	readonly arrowSize: number;
 	readonly vertical: ScrollbarVisibility;
 	readonly horizontal: ScrollbarVisibility;
@@ -646,94 +644,15 @@ export class InternalEditorScrollbarOptions {
 	readonly verticalScrollbarSize: number;
 	readonly verticalSliderSize: number;
 	readonly mouseWheelScrollSensitivity: number;
-
-	/**
-	 * @internal
-	 */
-	constructor(source: {
-		arrowSize: number;
-		vertical: ScrollbarVisibility;
-		horizontal: ScrollbarVisibility;
-		useShadows: boolean;
-		verticalHasArrows: boolean;
-		horizontalHasArrows: boolean;
-		handleMouseWheel: boolean;
-		horizontalScrollbarSize: number;
-		horizontalSliderSize: number;
-		verticalScrollbarSize: number;
-		verticalSliderSize: number;
-		mouseWheelScrollSensitivity: number;
-	}) {
-		this.arrowSize = source.arrowSize | 0;
-		this.vertical = source.vertical | 0;
-		this.horizontal = source.horizontal | 0;
-		this.useShadows = Boolean(source.useShadows);
-		this.verticalHasArrows = Boolean(source.verticalHasArrows);
-		this.horizontalHasArrows = Boolean(source.horizontalHasArrows);
-		this.handleMouseWheel = Boolean(source.handleMouseWheel);
-		this.horizontalScrollbarSize = source.horizontalScrollbarSize | 0;
-		this.horizontalSliderSize = source.horizontalSliderSize | 0;
-		this.verticalScrollbarSize = source.verticalScrollbarSize | 0;
-		this.verticalSliderSize = source.verticalSliderSize | 0;
-		this.mouseWheelScrollSensitivity = Number(source.mouseWheelScrollSensitivity);
-	}
-
-	/**
-	 * @internal
-	 */
-	public equals(other: InternalEditorScrollbarOptions): boolean {
-		return (
-			this.arrowSize === other.arrowSize
-			&& this.vertical === other.vertical
-			&& this.horizontal === other.horizontal
-			&& this.useShadows === other.useShadows
-			&& this.verticalHasArrows === other.verticalHasArrows
-			&& this.horizontalHasArrows === other.horizontalHasArrows
-			&& this.handleMouseWheel === other.handleMouseWheel
-			&& this.horizontalScrollbarSize === other.horizontalScrollbarSize
-			&& this.horizontalSliderSize === other.horizontalSliderSize
-			&& this.verticalScrollbarSize === other.verticalScrollbarSize
-			&& this.verticalSliderSize === other.verticalSliderSize
-			&& this.mouseWheelScrollSensitivity === other.mouseWheelScrollSensitivity
-		);
-	}
 }
 
-export class InternalEditorMinimapOptions {
-	readonly _internalEditorMinimapOptionsBrand: void;
-
+export interface InternalEditorMinimapOptions {
 	readonly enabled: boolean;
 	readonly renderCharacters: boolean;
 	readonly maxColumn: number;
-
-	/**
-	 * @internal
-	 */
-	constructor(source: {
-		enabled: boolean;
-		renderCharacters: boolean;
-		maxColumn: number;
-	}) {
-		this.enabled = Boolean(source.enabled);
-		this.renderCharacters = Boolean(source.renderCharacters);
-		this.maxColumn = source.maxColumn | 0;
-	}
-
-	/**
-	 * @internal
-	 */
-	public equals(other: InternalEditorMinimapOptions): boolean {
-		return (
-			this.enabled === other.enabled
-			&& this.renderCharacters === other.renderCharacters
-			&& this.maxColumn === other.maxColumn
-		);
-	}
 }
 
-export class EditorWrappingInfo {
-	readonly _editorWrappingInfoBrand: void;
-
+export interface EditorWrappingInfo {
 	readonly inDiffEditor: boolean;
 	readonly isDominatedByLongLines: boolean;
 	readonly isWordWrapMinified: boolean;
@@ -743,54 +662,10 @@ export class EditorWrappingInfo {
 	readonly wordWrapBreakBeforeCharacters: string;
 	readonly wordWrapBreakAfterCharacters: string;
 	readonly wordWrapBreakObtrusiveCharacters: string;
-
-	/**
-	 * @internal
-	 */
-	constructor(source: {
-		inDiffEditor: boolean;
-		isDominatedByLongLines: boolean;
-		isWordWrapMinified: boolean;
-		isViewportWrapping: boolean;
-		wrappingColumn: number;
-		wrappingIndent: WrappingIndent;
-		wordWrapBreakBeforeCharacters: string;
-		wordWrapBreakAfterCharacters: string;
-		wordWrapBreakObtrusiveCharacters: string;
-	}) {
-		this.inDiffEditor = Boolean(source.inDiffEditor);
-		this.isDominatedByLongLines = Boolean(source.isDominatedByLongLines);
-		this.isWordWrapMinified = Boolean(source.isWordWrapMinified);
-		this.isViewportWrapping = Boolean(source.isViewportWrapping);
-		this.wrappingColumn = source.wrappingColumn | 0;
-		this.wrappingIndent = source.wrappingIndent | 0;
-		this.wordWrapBreakBeforeCharacters = String(source.wordWrapBreakBeforeCharacters);
-		this.wordWrapBreakAfterCharacters = String(source.wordWrapBreakAfterCharacters);
-		this.wordWrapBreakObtrusiveCharacters = String(source.wordWrapBreakObtrusiveCharacters);
-	}
-
-	/**
-	 * @internal
-	 */
-	public equals(other: EditorWrappingInfo): boolean {
-		return (
-			this.inDiffEditor === other.inDiffEditor
-			&& this.isDominatedByLongLines === other.isDominatedByLongLines
-			&& this.isWordWrapMinified === other.isWordWrapMinified
-			&& this.isViewportWrapping === other.isViewportWrapping
-			&& this.wrappingColumn === other.wrappingColumn
-			&& this.wrappingIndent === other.wrappingIndent
-			&& this.wordWrapBreakBeforeCharacters === other.wordWrapBreakBeforeCharacters
-			&& this.wordWrapBreakAfterCharacters === other.wordWrapBreakAfterCharacters
-			&& this.wordWrapBreakObtrusiveCharacters === other.wordWrapBreakObtrusiveCharacters
-		);
-	}
 }
 
-export class InternalEditorViewOptions {
-
+export interface InternalEditorViewOptions {
 	readonly theme: string;
-	readonly canUseTranslate3d: boolean;
 	readonly disableMonospaceOptimizations: boolean;
 	readonly experimentalScreenReader: boolean;
 	readonly rulers: number[];
@@ -809,7 +684,6 @@ export class InternalEditorViewOptions {
 	readonly cursorStyle: TextEditorCursorStyle;
 	readonly hideCursorInOverviewRuler: boolean;
 	readonly scrollBeyondLastLine: boolean;
-	readonly editorClassName: string;
 	readonly stopRenderingLineAfter: number;
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
 	readonly renderControlCharacters: boolean;
@@ -819,142 +693,9 @@ export class InternalEditorViewOptions {
 	readonly scrollbar: InternalEditorScrollbarOptions;
 	readonly minimap: InternalEditorMinimapOptions;
 	readonly fixedOverflowWidgets: boolean;
-
-	/**
-	 * @internal
-	 */
-	constructor(source: {
-		theme: string;
-		canUseTranslate3d: boolean;
-		disableMonospaceOptimizations: boolean;
-		experimentalScreenReader: boolean;
-		rulers: number[];
-		ariaLabel: string;
-		renderLineNumbers: boolean;
-		renderCustomLineNumbers: (lineNumber: number) => string;
-		renderRelativeLineNumbers: boolean;
-		selectOnLineNumbers: boolean;
-		glyphMargin: boolean;
-		revealHorizontalRightPadding: number;
-		roundedSelection: boolean;
-		overviewRulerLanes: number;
-		overviewRulerBorder: boolean;
-		cursorBlinking: TextEditorCursorBlinkingStyle;
-		mouseWheelZoom: boolean;
-		cursorStyle: TextEditorCursorStyle;
-		hideCursorInOverviewRuler: boolean;
-		scrollBeyondLastLine: boolean;
-		editorClassName: string;
-		stopRenderingLineAfter: number;
-		renderWhitespace: 'none' | 'boundary' | 'all';
-		renderControlCharacters: boolean;
-		fontLigatures: boolean;
-		renderIndentGuides: boolean;
-		renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
-		scrollbar: InternalEditorScrollbarOptions;
-		minimap: InternalEditorMinimapOptions;
-		fixedOverflowWidgets: boolean;
-	}) {
-		this.theme = String(source.theme);
-		this.canUseTranslate3d = Boolean(source.canUseTranslate3d);
-		this.disableMonospaceOptimizations = Boolean(source.disableMonospaceOptimizations);
-		this.experimentalScreenReader = Boolean(source.experimentalScreenReader);
-		this.rulers = InternalEditorViewOptions._toSortedIntegerArray(source.rulers);
-		this.ariaLabel = String(source.ariaLabel);
-		this.renderLineNumbers = Boolean(source.renderLineNumbers);
-		this.renderCustomLineNumbers = source.renderCustomLineNumbers;
-		this.renderRelativeLineNumbers = Boolean(source.renderRelativeLineNumbers);
-		this.selectOnLineNumbers = Boolean(source.selectOnLineNumbers);
-		this.glyphMargin = Boolean(source.glyphMargin);
-		this.revealHorizontalRightPadding = source.revealHorizontalRightPadding | 0;
-		this.roundedSelection = Boolean(source.roundedSelection);
-		this.overviewRulerLanes = source.overviewRulerLanes | 0;
-		this.overviewRulerBorder = Boolean(source.overviewRulerBorder);
-		this.cursorBlinking = source.cursorBlinking | 0;
-		this.mouseWheelZoom = Boolean(source.mouseWheelZoom);
-		this.cursorStyle = source.cursorStyle | 0;
-		this.hideCursorInOverviewRuler = Boolean(source.hideCursorInOverviewRuler);
-		this.scrollBeyondLastLine = Boolean(source.scrollBeyondLastLine);
-		this.editorClassName = String(source.editorClassName);
-		this.stopRenderingLineAfter = source.stopRenderingLineAfter | 0;
-		this.renderWhitespace = source.renderWhitespace;
-		this.renderControlCharacters = Boolean(source.renderControlCharacters);
-		this.fontLigatures = Boolean(source.fontLigatures);
-		this.renderIndentGuides = Boolean(source.renderIndentGuides);
-		this.renderLineHighlight = source.renderLineHighlight;
-		this.scrollbar = source.scrollbar;
-		this.minimap = source.minimap;
-		this.fixedOverflowWidgets = Boolean(source.fixedOverflowWidgets);
-	}
-
-	private static _toSortedIntegerArray(source: any): number[] {
-		if (!Array.isArray(source)) {
-			return [];
-		}
-		let arrSource = <any[]>source;
-		let result = arrSource.map(el => {
-			let r = parseInt(el, 10);
-			if (isNaN(r)) {
-				return 0;
-			}
-			return r;
-		});
-		result.sort();
-		return result;
-	}
-
-	private static _numberArraysEqual(a: number[], b: number[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (a[i] !== b[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	/**
-	 * @internal
-	 */
-	public static equals(a: InternalEditorViewOptions, b: InternalEditorViewOptions): boolean {
-		return (
-			a.theme === b.theme
-			&& a.canUseTranslate3d === b.canUseTranslate3d
-			&& a.disableMonospaceOptimizations === b.disableMonospaceOptimizations
-			&& a.experimentalScreenReader === b.experimentalScreenReader
-			&& InternalEditorViewOptions._numberArraysEqual(a.rulers, b.rulers)
-			&& a.ariaLabel === b.ariaLabel
-			&& a.renderLineNumbers === b.renderLineNumbers
-			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
-			&& a.renderRelativeLineNumbers === b.renderRelativeLineNumbers
-			&& a.selectOnLineNumbers === b.selectOnLineNumbers
-			&& a.glyphMargin === b.glyphMargin
-			&& a.revealHorizontalRightPadding === b.revealHorizontalRightPadding
-			&& a.roundedSelection === b.roundedSelection
-			&& a.overviewRulerLanes === b.overviewRulerLanes
-			&& a.overviewRulerBorder === b.overviewRulerBorder
-			&& a.cursorBlinking === b.cursorBlinking
-			&& a.mouseWheelZoom === b.mouseWheelZoom
-			&& a.cursorStyle === b.cursorStyle
-			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
-			&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
-			&& a.editorClassName === b.editorClassName
-			&& a.stopRenderingLineAfter === b.stopRenderingLineAfter
-			&& a.renderWhitespace === b.renderWhitespace
-			&& a.renderControlCharacters === b.renderControlCharacters
-			&& a.fontLigatures === b.fontLigatures
-			&& a.renderIndentGuides === b.renderIndentGuides
-			&& a.renderLineHighlight === b.renderLineHighlight
-			&& a.scrollbar.equals(b.scrollbar)
-			&& a.minimap.equals(b.minimap)
-			&& a.fixedOverflowWidgets === b.fixedOverflowWidgets
-		);
-	}
 }
 
-export class EditorContribOptions {
+export interface EditorContribOptions {
 	readonly selectionClipboard: boolean;
 	readonly hover: boolean;
 	readonly contextmenu: boolean;
@@ -978,107 +719,6 @@ export class EditorContribOptions {
 	readonly folding: boolean;
 	readonly hideFoldIcons: boolean;
 	readonly matchBrackets: boolean;
-
-	/**
-	 * @internal
-	 */
-	constructor(source: {
-		selectionClipboard: boolean;
-		hover: boolean;
-		contextmenu: boolean;
-		quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
-		quickSuggestionsDelay: number;
-		parameterHints: boolean;
-		iconsInSuggestions: boolean;
-		formatOnType: boolean;
-		formatOnPaste: boolean;
-		suggestOnTriggerCharacters: boolean;
-		acceptSuggestionOnEnter: boolean;
-		acceptSuggestionOnCommitCharacter: boolean;
-		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
-		emptySelectionClipboard: boolean;
-		wordBasedSuggestions: boolean;
-		suggestFontSize: number;
-		suggestLineHeight: number;
-		selectionHighlight: boolean;
-		occurrencesHighlight: boolean;
-		codeLens: boolean;
-		folding: boolean;
-		hideFoldIcons: boolean;
-		matchBrackets: boolean;
-	}) {
-		this.selectionClipboard = Boolean(source.selectionClipboard);
-		this.hover = Boolean(source.hover);
-		this.contextmenu = Boolean(source.contextmenu);
-		this.quickSuggestions = source.quickSuggestions;
-		this.quickSuggestionsDelay = source.quickSuggestionsDelay || 0;
-		this.parameterHints = Boolean(source.parameterHints);
-		this.iconsInSuggestions = Boolean(source.iconsInSuggestions);
-		this.formatOnType = Boolean(source.formatOnType);
-		this.formatOnPaste = Boolean(source.formatOnPaste);
-		this.suggestOnTriggerCharacters = Boolean(source.suggestOnTriggerCharacters);
-		this.acceptSuggestionOnEnter = Boolean(source.acceptSuggestionOnEnter);
-		this.acceptSuggestionOnCommitCharacter = Boolean(source.acceptSuggestionOnCommitCharacter);
-		this.snippetSuggestions = source.snippetSuggestions;
-		this.emptySelectionClipboard = source.emptySelectionClipboard;
-		this.wordBasedSuggestions = source.wordBasedSuggestions;
-		this.suggestFontSize = source.suggestFontSize;
-		this.suggestLineHeight = source.suggestLineHeight;
-		this.selectionHighlight = Boolean(source.selectionHighlight);
-		this.occurrencesHighlight = Boolean(source.occurrencesHighlight);
-		this.codeLens = Boolean(source.codeLens);
-		this.folding = Boolean(source.folding);
-		this.hideFoldIcons = Boolean(source.hideFoldIcons);
-		this.matchBrackets = Boolean(source.matchBrackets);
-	}
-
-	/**
-	 * @internal
-	 */
-	public equals(other: EditorContribOptions): boolean {
-		return (
-			this.selectionClipboard === other.selectionClipboard
-			&& this.hover === other.hover
-			&& this.contextmenu === other.contextmenu
-			&& EditorContribOptions._quickSuggestionsEquals(this.quickSuggestions, other.quickSuggestions)
-			&& this.quickSuggestionsDelay === other.quickSuggestionsDelay
-			&& this.parameterHints === other.parameterHints
-			&& this.iconsInSuggestions === other.iconsInSuggestions
-			&& this.formatOnType === other.formatOnType
-			&& this.formatOnPaste === other.formatOnPaste
-			&& this.suggestOnTriggerCharacters === other.suggestOnTriggerCharacters
-			&& this.acceptSuggestionOnEnter === other.acceptSuggestionOnEnter
-			&& this.acceptSuggestionOnCommitCharacter === other.acceptSuggestionOnCommitCharacter
-			&& this.snippetSuggestions === other.snippetSuggestions
-			&& this.emptySelectionClipboard === other.emptySelectionClipboard
-			&& this.wordBasedSuggestions === other.wordBasedSuggestions
-			&& this.suggestFontSize === other.suggestFontSize
-			&& this.suggestLineHeight === other.suggestLineHeight
-			&& this.selectionHighlight === other.selectionHighlight
-			&& this.occurrencesHighlight === other.occurrencesHighlight
-			&& this.codeLens === other.codeLens
-			&& this.folding === other.folding
-			&& this.hideFoldIcons === other.hideFoldIcons
-			&& this.matchBrackets === other.matchBrackets
-		);
-	}
-
-	private static _quickSuggestionsEquals(a: boolean | { other: boolean, comments: boolean, strings: boolean }, b: boolean | { other: boolean, comments: boolean, strings: boolean }): boolean {
-		if (typeof a === 'boolean') {
-			if (typeof b !== 'boolean') {
-				return false;
-			}
-			return a === b;
-		}
-		if (typeof b === 'boolean') {
-			return false;
-		}
-		return (
-			a.comments === b.comments
-			&& a.other === b.other
-			&& a.strings === b.strings
-		);
-	}
 }
 
 /**
@@ -1087,15 +727,18 @@ export class EditorContribOptions {
 export class InternalEditorOptions {
 	readonly _internalEditorOptionsBrand: void;
 
+	readonly canUseTranslate3d: boolean;
+	readonly editorClassName: string;
 	readonly lineHeight: number;
-
 	readonly readOnly: boolean;
+
 	// ---- cursor options
 	readonly wordSeparators: string;
 	readonly autoClosingBrackets: boolean;
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
 	readonly dragAndDrop: boolean;
+
 	// ---- grouped options
 	readonly layoutInfo: EditorLayoutInfo;
 	readonly fontInfo: FontInfo;
@@ -1107,6 +750,8 @@ export class InternalEditorOptions {
 	 * @internal
 	 */
 	constructor(source: {
+		canUseTranslate3d: boolean;
+		editorClassName: string;
 		lineHeight: number;
 		readOnly: boolean;
 		wordSeparators: string;
@@ -1120,6 +765,8 @@ export class InternalEditorOptions {
 		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
 	}) {
+		this.canUseTranslate3d = Boolean(source.canUseTranslate3d);
+		this.editorClassName = String(source.editorClassName);
 		this.lineHeight = source.lineHeight | 0;
 		this.readOnly = Boolean(source.readOnly);
 		this.wordSeparators = String(source.wordSeparators);
@@ -1139,18 +786,20 @@ export class InternalEditorOptions {
 	 */
 	public equals(other: InternalEditorOptions): boolean {
 		return (
-			this.lineHeight === other.lineHeight
+			this.canUseTranslate3d === other.canUseTranslate3d
+			&& this.editorClassName === other.editorClassName
+			&& this.lineHeight === other.lineHeight
 			&& this.readOnly === other.readOnly
 			&& this.wordSeparators === other.wordSeparators
 			&& this.autoClosingBrackets === other.autoClosingBrackets
 			&& this.useTabStops === other.useTabStops
 			&& this.tabFocusMode === other.tabFocusMode
 			&& this.dragAndDrop === other.dragAndDrop
-			&& this.layoutInfo.equals(other.layoutInfo)
+			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
-			&& InternalEditorViewOptions.equals(this.viewInfo, other.viewInfo)
-			&& this.wrappingInfo.equals(other.wrappingInfo)
-			&& this.contribInfo.equals(other.contribInfo)
+			&& InternalEditorOptions._equalsViewOptions(this.viewInfo, other.viewInfo)
+			&& InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, other.wrappingInfo)
+			&& InternalEditorOptions._equalsContribOptions(this.contribInfo, other.contribInfo)
 		);
 	}
 
@@ -1159,6 +808,8 @@ export class InternalEditorOptions {
 	 */
 	public createChangeEvent(newOpts: InternalEditorOptions): IConfigurationChangedEvent {
 		return {
+			canUseTranslate3d: (this.canUseTranslate3d !== newOpts.canUseTranslate3d),
+			editorClassName: (this.editorClassName !== newOpts.editorClassName),
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
 			readOnly: (this.readOnly !== newOpts.readOnly),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
@@ -1166,21 +817,203 @@ export class InternalEditorOptions {
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
 			tabFocusMode: (this.tabFocusMode !== newOpts.tabFocusMode),
 			dragAndDrop: (this.dragAndDrop !== newOpts.dragAndDrop),
-			layoutInfo: (!this.layoutInfo.equals(newOpts.layoutInfo)),
+			layoutInfo: (!InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, newOpts.layoutInfo)),
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
-			viewInfo: (!InternalEditorViewOptions.equals(this.viewInfo, newOpts.viewInfo)),
-			wrappingInfo: (!this.wrappingInfo.equals(newOpts.wrappingInfo)),
-			contribInfo: (!this.contribInfo.equals(newOpts.contribInfo)),
+			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
+			wrappingInfo: (!InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, newOpts.wrappingInfo)),
+			contribInfo: (!InternalEditorOptions._equalsContribOptions(this.contribInfo, newOpts.contribInfo)),
 		};
+	}
+
+	/**
+	 * @internal
+	 */
+	private static _equalsLayoutInfo(a: EditorLayoutInfo, b: EditorLayoutInfo): boolean {
+		return (
+			a.width === b.width
+			&& a.height === b.height
+			&& a.glyphMarginLeft === b.glyphMarginLeft
+			&& a.glyphMarginWidth === b.glyphMarginWidth
+			&& a.glyphMarginHeight === b.glyphMarginHeight
+			&& a.lineNumbersLeft === b.lineNumbersLeft
+			&& a.lineNumbersWidth === b.lineNumbersWidth
+			&& a.lineNumbersHeight === b.lineNumbersHeight
+			&& a.decorationsLeft === b.decorationsLeft
+			&& a.decorationsWidth === b.decorationsWidth
+			&& a.decorationsHeight === b.decorationsHeight
+			&& a.contentLeft === b.contentLeft
+			&& a.contentWidth === b.contentWidth
+			&& a.contentHeight === b.contentHeight
+			&& a.renderMinimap === b.renderMinimap
+			&& a.minimapWidth === b.minimapWidth
+			&& a.viewportColumn === b.viewportColumn
+			&& a.verticalScrollbarWidth === b.verticalScrollbarWidth
+			&& a.horizontalScrollbarHeight === b.horizontalScrollbarHeight
+			&& this._equalsOverviewRuler(a.overviewRuler, b.overviewRuler)
+		);
+	}
+
+	/**
+	 * @internal
+	 */
+	private static _equalsOverviewRuler(a: OverviewRulerPosition, b: OverviewRulerPosition): boolean {
+		return (
+			a.width === b.width
+			&& a.height === b.height
+			&& a.top === b.top
+			&& a.right === b.right
+		);
+	}
+
+	/**
+	 * @internal
+	 */
+	private static _equalsViewOptions(a: InternalEditorViewOptions, b: InternalEditorViewOptions): boolean {
+		return (
+			a.theme === b.theme
+			&& a.disableMonospaceOptimizations === b.disableMonospaceOptimizations
+			&& a.experimentalScreenReader === b.experimentalScreenReader
+			&& this._equalsNumberArrays(a.rulers, b.rulers)
+			&& a.ariaLabel === b.ariaLabel
+			&& a.renderLineNumbers === b.renderLineNumbers
+			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
+			&& a.renderRelativeLineNumbers === b.renderRelativeLineNumbers
+			&& a.selectOnLineNumbers === b.selectOnLineNumbers
+			&& a.glyphMargin === b.glyphMargin
+			&& a.revealHorizontalRightPadding === b.revealHorizontalRightPadding
+			&& a.roundedSelection === b.roundedSelection
+			&& a.overviewRulerLanes === b.overviewRulerLanes
+			&& a.overviewRulerBorder === b.overviewRulerBorder
+			&& a.cursorBlinking === b.cursorBlinking
+			&& a.mouseWheelZoom === b.mouseWheelZoom
+			&& a.cursorStyle === b.cursorStyle
+			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
+			&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
+			&& a.stopRenderingLineAfter === b.stopRenderingLineAfter
+			&& a.renderWhitespace === b.renderWhitespace
+			&& a.renderControlCharacters === b.renderControlCharacters
+			&& a.fontLigatures === b.fontLigatures
+			&& a.renderIndentGuides === b.renderIndentGuides
+			&& a.renderLineHighlight === b.renderLineHighlight
+			&& this._equalsScrollbarOptions(a.scrollbar, b.scrollbar)
+			&& this._equalsMinimapOptions(a.minimap, b.minimap)
+			&& a.fixedOverflowWidgets === b.fixedOverflowWidgets
+		);
+	}
+
+	/**
+	 * @internal
+	 */
+	private static _equalsScrollbarOptions(a: InternalEditorScrollbarOptions, b: InternalEditorScrollbarOptions): boolean {
+		return (
+			a.arrowSize === b.arrowSize
+			&& a.vertical === b.vertical
+			&& a.horizontal === b.horizontal
+			&& a.useShadows === b.useShadows
+			&& a.verticalHasArrows === b.verticalHasArrows
+			&& a.horizontalHasArrows === b.horizontalHasArrows
+			&& a.handleMouseWheel === b.handleMouseWheel
+			&& a.horizontalScrollbarSize === b.horizontalScrollbarSize
+			&& a.horizontalSliderSize === b.horizontalSliderSize
+			&& a.verticalScrollbarSize === b.verticalScrollbarSize
+			&& a.verticalSliderSize === b.verticalSliderSize
+			&& a.mouseWheelScrollSensitivity === b.mouseWheelScrollSensitivity
+		);
+	}
+
+	/**
+	 * @internal
+	 */
+	private static _equalsMinimapOptions(a: InternalEditorMinimapOptions, b: InternalEditorMinimapOptions): boolean {
+		return (
+			a.enabled === b.enabled
+			&& a.renderCharacters === b.renderCharacters
+			&& a.maxColumn === b.maxColumn
+		);
+	}
+
+	private static _equalsNumberArrays(a: number[], b: number[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0; i < a.length; i++) {
+			if (a[i] !== b[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * @internal
+	 */
+	private static _equalsWrappingInfo(a: EditorWrappingInfo, b: EditorWrappingInfo): boolean {
+		return (
+			a.inDiffEditor === b.inDiffEditor
+			&& a.isDominatedByLongLines === b.isDominatedByLongLines
+			&& a.isWordWrapMinified === b.isWordWrapMinified
+			&& a.isViewportWrapping === b.isViewportWrapping
+			&& a.wrappingColumn === b.wrappingColumn
+			&& a.wrappingIndent === b.wrappingIndent
+			&& a.wordWrapBreakBeforeCharacters === b.wordWrapBreakBeforeCharacters
+			&& a.wordWrapBreakAfterCharacters === b.wordWrapBreakAfterCharacters
+			&& a.wordWrapBreakObtrusiveCharacters === b.wordWrapBreakObtrusiveCharacters
+		);
+	}
+
+	/**
+	 * @internal
+	 */
+	private static _equalsContribOptions(a: EditorContribOptions, b: EditorContribOptions): boolean {
+		return (
+			a.selectionClipboard === b.selectionClipboard
+			&& a.hover === b.hover
+			&& a.contextmenu === b.contextmenu
+			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
+			&& a.quickSuggestionsDelay === b.quickSuggestionsDelay
+			&& a.parameterHints === b.parameterHints
+			&& a.iconsInSuggestions === b.iconsInSuggestions
+			&& a.formatOnType === b.formatOnType
+			&& a.formatOnPaste === b.formatOnPaste
+			&& a.suggestOnTriggerCharacters === b.suggestOnTriggerCharacters
+			&& a.acceptSuggestionOnEnter === b.acceptSuggestionOnEnter
+			&& a.acceptSuggestionOnCommitCharacter === b.acceptSuggestionOnCommitCharacter
+			&& a.snippetSuggestions === b.snippetSuggestions
+			&& a.emptySelectionClipboard === b.emptySelectionClipboard
+			&& a.wordBasedSuggestions === b.wordBasedSuggestions
+			&& a.suggestFontSize === b.suggestFontSize
+			&& a.suggestLineHeight === b.suggestLineHeight
+			&& a.selectionHighlight === b.selectionHighlight
+			&& a.occurrencesHighlight === b.occurrencesHighlight
+			&& a.codeLens === b.codeLens
+			&& a.folding === b.folding
+			&& a.hideFoldIcons === b.hideFoldIcons
+			&& a.matchBrackets === b.matchBrackets
+		);
+	}
+
+	private static _equalsQuickSuggestions(a: boolean | { other: boolean, comments: boolean, strings: boolean }, b: boolean | { other: boolean, comments: boolean, strings: boolean }): boolean {
+		if (typeof a === 'boolean') {
+			if (typeof b !== 'boolean') {
+				return false;
+			}
+			return a === b;
+		}
+		if (typeof b === 'boolean') {
+			return false;
+		}
+		return (
+			a.comments === b.comments
+			&& a.other === b.other
+			&& a.strings === b.strings
+		);
 	}
 }
 
 /**
  * A description for the overview ruler position.
  */
-export class OverviewRulerPosition {
-	readonly _overviewRulerPositionBrand: void;
-
+export interface OverviewRulerPosition {
 	/**
 	 * Width of the overview ruler
 	 */
@@ -1197,40 +1030,12 @@ export class OverviewRulerPosition {
 	 * Right position for the overview ruler
 	 */
 	readonly right: number;
-
-	/**
-	 * @internal
-	 */
-	constructor(source: {
-		width: number;
-		height: number;
-		top: number;
-		right: number;
-	}) {
-		this.width = source.width | 0;
-		this.height = source.height | 0;
-		this.top = source.top | 0;
-		this.right = source.right | 0;
-	}
-
-	/**
-	 * @internal
-	 */
-	public equals(other: OverviewRulerPosition): boolean {
-		return (
-			this.width === other.width
-			&& this.height === other.height
-			&& this.top === other.top
-			&& this.right === other.right
-		);
-	}
 }
 
 /**
  * The internal layout details of the editor.
  */
-export class EditorLayoutInfo {
-	readonly _editorLayoutInfoBrand: void;
+export interface EditorLayoutInfo {
 
 	/**
 	 * Full editor width.
@@ -1321,87 +1126,14 @@ export class EditorLayoutInfo {
 	 * The position of the overview ruler.
 	 */
 	readonly overviewRuler: OverviewRulerPosition;
-
-	/**
-	 * @internal
-	 */
-	constructor(source: {
-		width: number;
-		height: number;
-		glyphMarginLeft: number;
-		glyphMarginWidth: number;
-		glyphMarginHeight: number;
-		lineNumbersLeft: number;
-		lineNumbersWidth: number;
-		lineNumbersHeight: number;
-		decorationsLeft: number;
-		decorationsWidth: number;
-		decorationsHeight: number;
-		contentLeft: number;
-		contentWidth: number;
-		contentHeight: number;
-		renderMinimap: RenderMinimap;
-		minimapWidth: number;
-		viewportColumn: number;
-		verticalScrollbarWidth: number;
-		horizontalScrollbarHeight: number;
-		overviewRuler: OverviewRulerPosition;
-	}) {
-		this.width = source.width | 0;
-		this.height = source.height | 0;
-		this.glyphMarginLeft = source.glyphMarginLeft | 0;
-		this.glyphMarginWidth = source.glyphMarginWidth | 0;
-		this.glyphMarginHeight = source.glyphMarginHeight | 0;
-		this.lineNumbersLeft = source.lineNumbersLeft | 0;
-		this.lineNumbersWidth = source.lineNumbersWidth | 0;
-		this.lineNumbersHeight = source.lineNumbersHeight | 0;
-		this.decorationsLeft = source.decorationsLeft | 0;
-		this.decorationsWidth = source.decorationsWidth | 0;
-		this.decorationsHeight = source.decorationsHeight | 0;
-		this.contentLeft = source.contentLeft | 0;
-		this.contentWidth = source.contentWidth | 0;
-		this.contentHeight = source.contentHeight | 0;
-		this.renderMinimap = source.renderMinimap | 0;
-		this.minimapWidth = source.minimapWidth | 0;
-		this.viewportColumn = source.viewportColumn | 0;
-		this.verticalScrollbarWidth = source.verticalScrollbarWidth | 0;
-		this.horizontalScrollbarHeight = source.horizontalScrollbarHeight | 0;
-		this.overviewRuler = source.overviewRuler;
-	}
-
-	/**
-	 * @internal
-	 */
-	public equals(other: EditorLayoutInfo): boolean {
-		return (
-			this.width === other.width
-			&& this.height === other.height
-			&& this.glyphMarginLeft === other.glyphMarginLeft
-			&& this.glyphMarginWidth === other.glyphMarginWidth
-			&& this.glyphMarginHeight === other.glyphMarginHeight
-			&& this.lineNumbersLeft === other.lineNumbersLeft
-			&& this.lineNumbersWidth === other.lineNumbersWidth
-			&& this.lineNumbersHeight === other.lineNumbersHeight
-			&& this.decorationsLeft === other.decorationsLeft
-			&& this.decorationsWidth === other.decorationsWidth
-			&& this.decorationsHeight === other.decorationsHeight
-			&& this.contentLeft === other.contentLeft
-			&& this.contentWidth === other.contentWidth
-			&& this.contentHeight === other.contentHeight
-			&& this.renderMinimap === other.renderMinimap
-			&& this.minimapWidth === other.minimapWidth
-			&& this.viewportColumn === other.viewportColumn
-			&& this.verticalScrollbarWidth === other.verticalScrollbarWidth
-			&& this.horizontalScrollbarHeight === other.horizontalScrollbarHeight
-			&& this.overviewRuler.equals(other.overviewRuler)
-		);
-	}
 }
 
 /**
  * An event describing that the configuration of the editor has changed.
  */
 export interface IConfigurationChangedEvent {
+	readonly canUseTranslate3d: boolean;
+	readonly editorClassName: boolean;
 	readonly lineHeight: boolean;
 	readonly readOnly: boolean;
 	readonly wordSeparators: boolean;
@@ -1419,67 +1151,16 @@ export interface IConfigurationChangedEvent {
 /**
  * @internal
  */
-export class EnvironmentalOptions {
-
-	public readonly outerWidth: number;
-	public readonly outerHeight: number;
-	public readonly fontInfo: FontInfo;
-	public readonly editorClassName: string;
-	public readonly isDominatedByLongLines: boolean;
-	public readonly lineNumbersDigitCount: number;
-	public readonly canUseTranslate3d: boolean;
-	public readonly pixelRatio: number;
-	public readonly tabFocusMode: boolean;
-
-	constructor(opts: {
-		outerWidth: number;
-		outerHeight: number;
-		fontInfo: FontInfo;
-		editorClassName: string;
-		isDominatedByLongLines: boolean;
-		lineNumbersDigitCount: number;
-		canUseTranslate3d: boolean;
-		pixelRatio: number;
-		tabFocusMode: boolean;
-	}) {
-		this.outerWidth = opts.outerWidth;
-		this.outerHeight = opts.outerHeight;
-		this.fontInfo = opts.fontInfo;
-		this.editorClassName = opts.editorClassName;
-		this.isDominatedByLongLines = opts.isDominatedByLongLines;
-		this.lineNumbersDigitCount = opts.lineNumbersDigitCount;
-		this.canUseTranslate3d = opts.canUseTranslate3d;
-		this.pixelRatio = opts.pixelRatio;
-		this.tabFocusMode = opts.tabFocusMode;
-	}
-}
-
-/**
- * Validated scrollbar options for the editor.
- * @internal
- */
-export interface IValidatedEditorScrollbarOptions {
-	vertical: ScrollbarVisibility;
-	horizontal: ScrollbarVisibility;
-	arrowSize: number;
-	useShadows: boolean;
-	verticalHasArrows: boolean;
-	horizontalHasArrows: boolean;
-	horizontalScrollbarSize: number;
-	horizontalSliderSize: number;
-	verticalScrollbarSize: number;
-	verticalSliderSize: number;
-	handleMouseWheel: boolean;
-}
-
-/**
- * Validated minimap options for the editor.
- * @internal
- */
-export interface IValidatedEditorMinimapOptions {
-	enabled: boolean;
-	renderCharacters: boolean;
-	maxColumn: number;
+export interface IEnvironmentalOptions {
+	readonly outerWidth: number;
+	readonly outerHeight: number;
+	readonly fontInfo: FontInfo;
+	readonly editorClassName: string;
+	readonly isDominatedByLongLines: boolean;
+	readonly lineNumbersDigitCount: number;
+	readonly canUseTranslate3d: boolean;
+	readonly pixelRatio: number;
+	readonly tabFocusMode: boolean;
 }
 
 /**
@@ -1488,36 +1169,12 @@ export interface IValidatedEditorMinimapOptions {
  */
 export interface IValidatedEditorOptions {
 	inDiffEditor: boolean;
-	experimentalScreenReader: boolean;
-	ariaLabel: string;
-	rulers: number[];
 	wordSeparators: string;
-	selectionClipboard: boolean;
-	renderLineNumbers: boolean;
-	renderCustomLineNumbers: (lineNumber: number) => string;
-	renderRelativeLineNumbers: boolean;
-	selectOnLineNumbers: boolean;
 	lineNumbersMinChars: number;
-	glyphMargin: boolean;
 	lineDecorationsWidth: number | string;
-	revealHorizontalRightPadding: number;
-	roundedSelection: boolean;
-	theme: string;
 	readOnly: boolean;
-	scrollbar: IValidatedEditorScrollbarOptions;
-	minimap: IValidatedEditorMinimapOptions;
-	fixedOverflowWidgets: boolean;
-	overviewRulerLanes: number;
-	overviewRulerBorder: boolean;
-	cursorBlinking: TextEditorCursorBlinkingStyle;
-	mouseWheelZoom: boolean;
 	mouseStyle: 'text' | 'default' | 'copy';
-	cursorStyle: TextEditorCursorStyle;
-	fontLigatures: boolean;
 	disableTranslate3d: boolean;
-	disableMonospaceOptimizations: boolean;
-	hideCursorInOverviewRuler: boolean;
-	scrollBeyondLastLine: boolean;
 	automaticLayout: boolean;
 	wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	wordWrapColumn: number;
@@ -1526,37 +1183,12 @@ export interface IValidatedEditorOptions {
 	wordWrapBreakBeforeCharacters: string;
 	wordWrapBreakAfterCharacters: string;
 	wordWrapBreakObtrusiveCharacters: string;
-	stopRenderingLineAfter: number;
-	hover: boolean;
-	contextmenu: boolean;
-	mouseWheelScrollSensitivity: number;
-	quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
-	quickSuggestionsDelay: number;
-	parameterHints: boolean;
-	iconsInSuggestions: boolean;
 	autoClosingBrackets: boolean;
-	formatOnType: boolean;
-	formatOnPaste: boolean;
 	dragAndDrop: boolean;
-	suggestOnTriggerCharacters: boolean;
-	acceptSuggestionOnEnter: boolean;
-	acceptSuggestionOnCommitCharacter: boolean;
-	snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
-	emptySelectionClipboard: boolean;
-	wordBasedSuggestions: boolean;
-	suggestFontSize: number;
-	suggestLineHeight: number;
-	selectionHighlight: boolean;
-	occurrencesHighlight: boolean;
-	codeLens: boolean;
-	folding: boolean;
-	hideFoldIcons: boolean;
-	matchBrackets: boolean;
-	renderWhitespace: 'none' | 'boundary' | 'all';
-	renderControlCharacters: boolean;
-	renderIndentGuides: boolean;
-	renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	useTabStops: boolean;
+
+	viewInfo: InternalEditorViewOptions;
+	contribInfo: EditorContribOptions;
 }
 
 function _boolean<T>(value: any, defaultValue: T): boolean | T {
@@ -1667,6 +1299,84 @@ export class EditorOptionsValidator {
 	 * i.e. since they can be defined by the user, they might be invalid.
 	 */
 	public static validate(opts: IEditorOptions, defaults: IValidatedEditorOptions): IValidatedEditorOptions {
+		let wordWrap = opts.wordWrap;
+		{
+			// Compatibility with old true or false values
+			if (<any>wordWrap === true) {
+				wordWrap = 'on';
+			} else if (<any>wordWrap === false) {
+				wordWrap = 'off';
+			}
+
+			wordWrap = _stringSet<'off' | 'on' | 'wordWrapColumn' | 'bounded'>(wordWrap, defaults.wordWrap, ['off', 'on', 'wordWrapColumn', 'bounded']);
+		}
+
+		const viewInfo = this._sanitizeViewInfo(opts, defaults.viewInfo);
+		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo);
+
+		return {
+			inDiffEditor: _boolean(opts.inDiffEditor, defaults.inDiffEditor),
+			wordSeparators: _string(opts.wordSeparators, defaults.wordSeparators),
+			lineNumbersMinChars: _clampedInt(opts.lineNumbersMinChars, defaults.lineNumbersMinChars, 1, 10),
+			lineDecorationsWidth: (typeof opts.lineDecorationsWidth === 'undefined' ? defaults.lineDecorationsWidth : opts.lineDecorationsWidth),
+			readOnly: _boolean(opts.readOnly, defaults.readOnly),
+			mouseStyle: _stringSet<'text' | 'default' | 'copy'>(opts.mouseStyle, defaults.mouseStyle, ['text', 'default', 'copy']),
+			disableTranslate3d: _boolean(opts.disableTranslate3d, defaults.disableTranslate3d),
+			automaticLayout: _boolean(opts.automaticLayout, defaults.automaticLayout),
+			wordWrap: wordWrap,
+			wordWrapColumn: _clampedInt(opts.wordWrapColumn, defaults.wordWrapColumn, 1, Constants.MAX_SAFE_SMALL_INTEGER),
+			wordWrapMinified: _boolean(opts.wordWrapMinified, defaults.wordWrapMinified),
+			wrappingIndent: _wrappingIndentFromString(opts.wrappingIndent, defaults.wrappingIndent),
+			wordWrapBreakBeforeCharacters: _string(opts.wordWrapBreakBeforeCharacters, defaults.wordWrapBreakBeforeCharacters),
+			wordWrapBreakAfterCharacters: _string(opts.wordWrapBreakAfterCharacters, defaults.wordWrapBreakAfterCharacters),
+			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
+			autoClosingBrackets: _boolean(opts.autoClosingBrackets, defaults.autoClosingBrackets),
+			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
+			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
+			viewInfo: viewInfo,
+			contribInfo: contribInfo,
+		};
+	}
+
+	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions, defaults: InternalEditorScrollbarOptions, mouseWheelScrollSensitivity: number): InternalEditorScrollbarOptions {
+		if (typeof opts !== 'object') {
+			return defaults;
+		}
+		const horizontalScrollbarSize = _clampedInt(opts.horizontalScrollbarSize, defaults.horizontalScrollbarSize, 0, 1000);
+		const verticalScrollbarSize = _clampedInt(opts.verticalScrollbarSize, defaults.verticalScrollbarSize, 0, 1000);
+		return {
+			vertical: _scrollbarVisibilityFromString(opts.vertical, defaults.vertical),
+			horizontal: _scrollbarVisibilityFromString(opts.horizontal, defaults.horizontal),
+
+			arrowSize: _clampedInt(opts.arrowSize, defaults.arrowSize, 0, 1000),
+			useShadows: _boolean(opts.useShadows, defaults.useShadows),
+
+			verticalHasArrows: _boolean(opts.verticalHasArrows, defaults.verticalHasArrows),
+			horizontalHasArrows: _boolean(opts.horizontalHasArrows, defaults.horizontalHasArrows),
+
+			horizontalScrollbarSize: horizontalScrollbarSize,
+			horizontalSliderSize: _clampedInt(opts.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
+
+			verticalScrollbarSize: verticalScrollbarSize,
+			verticalSliderSize: _clampedInt(opts.verticalSliderSize, verticalScrollbarSize, 0, 1000),
+
+			handleMouseWheel: _boolean(opts.handleMouseWheel, defaults.handleMouseWheel),
+			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity
+		};
+	}
+
+	private static _sanitizeMinimapOpts(opts: IEditorMinimapOptions, defaults: InternalEditorMinimapOptions): InternalEditorMinimapOptions {
+		if (typeof opts !== 'object') {
+			return defaults;
+		}
+		return {
+			enabled: _boolean(opts.enabled, defaults.enabled),
+			renderCharacters: _boolean(opts.renderCharacters, defaults.renderCharacters),
+			maxColumn: _clampedInt(opts.maxColumn, defaults.maxColumn, 1, 10000),
+		};
+	}
+
+	private static _sanitizeViewInfo(opts: IEditorOptions, defaults: InternalEditorViewOptions): InternalEditorViewOptions {
 
 		let rulers: number[] = [];
 		if (Array.isArray(opts.rulers)) {
@@ -1709,17 +1419,8 @@ export class EditorOptionsValidator {
 			}
 		}
 
-		let wordWrap = opts.wordWrap;
-		{
-			// Compatibility with old true or false values
-			if (<any>wordWrap === true) {
-				wordWrap = 'on';
-			} else if (<any>wordWrap === false) {
-				wordWrap = 'off';
-			}
-
-			wordWrap = _stringSet<'off' | 'on' | 'wordWrapColumn' | 'bounded'>(wordWrap, defaults.wordWrap, ['off', 'on', 'wordWrapColumn', 'bounded']);
-		}
+		const fontLigatures = _boolean(opts.fontLigatures, defaults.fontLigatures);
+		const disableMonospaceOptimizations = _boolean(opts.disableMonospaceOptimizations, defaults.disableMonospaceOptimizations) || fontLigatures;
 
 		let renderWhitespace = opts.renderWhitespace;
 		{
@@ -1743,71 +1444,59 @@ export class EditorOptionsValidator {
 			renderLineHighlight = _stringSet<'none' | 'gutter' | 'line' | 'all'>(opts.renderLineHighlight, defaults.renderLineHighlight, ['none', 'gutter', 'line', 'all']);
 		}
 
-		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar);
+		const mouseWheelScrollSensitivity = _float(opts.mouseWheelScrollSensitivity, defaults.scrollbar.mouseWheelScrollSensitivity);
+		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity);
 		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);
 
+		return {
+			theme: _string(opts.theme, defaults.theme),
+			disableMonospaceOptimizations: disableMonospaceOptimizations,
+			experimentalScreenReader: _boolean(opts.experimentalScreenReader, defaults.experimentalScreenReader),
+			rulers: rulers,
+			ariaLabel: _string(opts.ariaLabel, defaults.ariaLabel),
+			renderLineNumbers: renderLineNumbers,
+			renderCustomLineNumbers: renderCustomLineNumbers,
+			renderRelativeLineNumbers: renderRelativeLineNumbers,
+			selectOnLineNumbers: _boolean(opts.selectOnLineNumbers, defaults.selectOnLineNumbers),
+			glyphMargin: _boolean(opts.glyphMargin, defaults.glyphMargin),
+			revealHorizontalRightPadding: _clampedInt(opts.revealHorizontalRightPadding, defaults.revealHorizontalRightPadding, 0, 1000),
+			roundedSelection: _boolean(opts.roundedSelection, defaults.roundedSelection),
+			overviewRulerLanes: _clampedInt(opts.overviewRulerLanes, defaults.overviewRulerLanes, 0, 3),
+			overviewRulerBorder: _boolean(opts.overviewRulerBorder, defaults.overviewRulerBorder),
+			cursorBlinking: _cursorBlinkingStyleFromString(opts.cursorBlinking, defaults.cursorBlinking),
+			mouseWheelZoom: _boolean(opts.mouseWheelZoom, defaults.mouseWheelZoom),
+			cursorStyle: _cursorStyleFromString(opts.cursorStyle, defaults.cursorStyle),
+			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
+			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
+			stopRenderingLineAfter: _clampedInt(opts.stopRenderingLineAfter, defaults.stopRenderingLineAfter, -1, Constants.MAX_SAFE_SMALL_INTEGER),
+			renderWhitespace: renderWhitespace,
+			renderControlCharacters: _boolean(opts.renderControlCharacters, defaults.renderControlCharacters),
+			fontLigatures: fontLigatures,
+			renderIndentGuides: _boolean(opts.renderIndentGuides, defaults.renderIndentGuides),
+			renderLineHighlight: renderLineHighlight,
+			scrollbar: scrollbar,
+			minimap: minimap,
+			fixedOverflowWidgets: _boolean(opts.fixedOverflowWidgets, defaults.fixedOverflowWidgets),
+		};
+	}
+
+	private static _sanitizeContribInfo(opts: IEditorOptions, defaults: EditorContribOptions): EditorContribOptions {
 		let quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 		if (typeof opts.quickSuggestions === 'object') {
 			quickSuggestions = { other: true, ...opts.quickSuggestions };
 		} else {
 			quickSuggestions = _boolean(opts.quickSuggestions, defaults.quickSuggestions);
 		}
-
-		const fontLigatures = _boolean(opts.fontLigatures, defaults.fontLigatures);
-		const disableTranslate3d = _boolean(opts.disableTranslate3d, defaults.disableTranslate3d) || fontLigatures;
-
 		return {
-			inDiffEditor: _boolean(opts.inDiffEditor, defaults.inDiffEditor),
-			experimentalScreenReader: _boolean(opts.experimentalScreenReader, defaults.experimentalScreenReader),
-			ariaLabel: _string(opts.ariaLabel, defaults.ariaLabel),
-			rulers: rulers,
-			wordSeparators: _string(opts.wordSeparators, defaults.wordSeparators),
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
-			renderLineNumbers: renderLineNumbers,
-			renderCustomLineNumbers: renderCustomLineNumbers,
-			renderRelativeLineNumbers: renderRelativeLineNumbers,
-			selectOnLineNumbers: _boolean(opts.selectOnLineNumbers, defaults.selectOnLineNumbers),
-			lineNumbersMinChars: _clampedInt(opts.lineNumbersMinChars, defaults.lineNumbersMinChars, 1, 10),
-			glyphMargin: _boolean(opts.glyphMargin, defaults.glyphMargin),
-			lineDecorationsWidth: (typeof opts.lineDecorationsWidth === 'undefined' ? defaults.lineDecorationsWidth : opts.lineDecorationsWidth),
-			revealHorizontalRightPadding: _clampedInt(opts.revealHorizontalRightPadding, defaults.revealHorizontalRightPadding, 0, 1000),
-			roundedSelection: _boolean(opts.roundedSelection, defaults.roundedSelection),
-			theme: _string(opts.theme, defaults.theme),
-			readOnly: _boolean(opts.readOnly, defaults.readOnly),
-			scrollbar: scrollbar,
-			minimap: minimap,
-			fixedOverflowWidgets: _boolean(opts.fixedOverflowWidgets, defaults.fixedOverflowWidgets),
-			overviewRulerLanes: _clampedInt(opts.overviewRulerLanes, defaults.overviewRulerLanes, 0, 3),
-			overviewRulerBorder: _boolean(opts.overviewRulerBorder, defaults.overviewRulerBorder),
-			cursorBlinking: _cursorBlinkingStyleFromString(opts.cursorBlinking, defaults.cursorBlinking),
-			mouseWheelZoom: _boolean(opts.mouseWheelZoom, defaults.mouseWheelZoom),
-			mouseStyle: _stringSet<'text' | 'default' | 'copy'>(opts.mouseStyle, defaults.mouseStyle, ['text', 'default', 'copy']),
-			cursorStyle: _cursorStyleFromString(opts.cursorStyle, defaults.cursorStyle),
-			fontLigatures: fontLigatures,
-			disableTranslate3d: disableTranslate3d,
-			disableMonospaceOptimizations: _boolean(opts.disableMonospaceOptimizations, defaults.disableMonospaceOptimizations),
-			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
-			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
-			automaticLayout: _boolean(opts.automaticLayout, defaults.automaticLayout),
-			wordWrap: wordWrap,
-			wordWrapColumn: _clampedInt(opts.wordWrapColumn, defaults.wordWrapColumn, 1, Constants.MAX_SAFE_SMALL_INTEGER),
-			wordWrapMinified: _boolean(opts.wordWrapMinified, defaults.wordWrapMinified),
-			wrappingIndent: _wrappingIndentFromString(opts.wrappingIndent, defaults.wrappingIndent),
-			wordWrapBreakBeforeCharacters: _string(opts.wordWrapBreakBeforeCharacters, defaults.wordWrapBreakBeforeCharacters),
-			wordWrapBreakAfterCharacters: _string(opts.wordWrapBreakAfterCharacters, defaults.wordWrapBreakAfterCharacters),
-			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
-			stopRenderingLineAfter: _clampedInt(opts.stopRenderingLineAfter, defaults.stopRenderingLineAfter, -1, Constants.MAX_SAFE_SMALL_INTEGER),
 			hover: _boolean(opts.hover, defaults.hover),
 			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
-			mouseWheelScrollSensitivity: _float(opts.mouseWheelScrollSensitivity, defaults.mouseWheelScrollSensitivity),
 			quickSuggestions: quickSuggestions,
 			quickSuggestionsDelay: _clampedInt(opts.quickSuggestionsDelay, defaults.quickSuggestionsDelay, Constants.MIN_SAFE_SMALL_INTEGER, Constants.MAX_SAFE_SMALL_INTEGER),
 			parameterHints: _boolean(opts.parameterHints, defaults.parameterHints),
 			iconsInSuggestions: _boolean(opts.iconsInSuggestions, defaults.iconsInSuggestions),
-			autoClosingBrackets: _boolean(opts.autoClosingBrackets, defaults.autoClosingBrackets),
 			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
 			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
-			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
 			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
 			acceptSuggestionOnEnter: _boolean(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter),
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
@@ -1822,48 +1511,6 @@ export class EditorOptionsValidator {
 			folding: _boolean(opts.folding, defaults.folding),
 			hideFoldIcons: _boolean(opts.hideFoldIcons, defaults.hideFoldIcons),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
-			renderWhitespace: renderWhitespace,
-			renderControlCharacters: _boolean(opts.renderControlCharacters, defaults.renderControlCharacters),
-			renderIndentGuides: _boolean(opts.renderIndentGuides, defaults.renderIndentGuides),
-			renderLineHighlight: renderLineHighlight,
-			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
-		};
-	}
-
-	private static _sanitizeScrollbarOpts(opts: IEditorScrollbarOptions, defaults: IValidatedEditorScrollbarOptions): IValidatedEditorScrollbarOptions {
-		if (typeof opts !== 'object') {
-			return defaults;
-		}
-		const horizontalScrollbarSize = _clampedInt(opts.horizontalScrollbarSize, defaults.horizontalScrollbarSize, 0, 1000);
-		const verticalScrollbarSize = _clampedInt(opts.verticalScrollbarSize, defaults.verticalScrollbarSize, 0, 1000);
-		return {
-			vertical: _scrollbarVisibilityFromString(opts.vertical, defaults.vertical),
-			horizontal: _scrollbarVisibilityFromString(opts.horizontal, defaults.horizontal),
-
-			arrowSize: _clampedInt(opts.arrowSize, defaults.arrowSize, 0, 1000),
-			useShadows: _boolean(opts.useShadows, defaults.useShadows),
-
-			verticalHasArrows: _boolean(opts.verticalHasArrows, defaults.verticalHasArrows),
-			horizontalHasArrows: _boolean(opts.horizontalHasArrows, defaults.horizontalHasArrows),
-
-			horizontalScrollbarSize: horizontalScrollbarSize,
-			horizontalSliderSize: _clampedInt(opts.horizontalSliderSize, horizontalScrollbarSize, 0, 1000),
-
-			verticalScrollbarSize: verticalScrollbarSize,
-			verticalSliderSize: _clampedInt(opts.verticalSliderSize, verticalScrollbarSize, 0, 1000),
-
-			handleMouseWheel: _boolean(opts.handleMouseWheel, defaults.handleMouseWheel)
-		};
-	}
-
-	private static _sanitizeMinimapOpts(opts: IEditorMinimapOptions, defaults: IValidatedEditorMinimapOptions): IValidatedEditorMinimapOptions {
-		if (typeof opts !== 'object') {
-			return defaults;
-		}
-		return {
-			enabled: _boolean(opts.enabled, defaults.enabled),
-			renderCharacters: _boolean(opts.renderCharacters, defaults.renderCharacters),
-			maxColumn: _clampedInt(opts.maxColumn, defaults.maxColumn, 1, 10000),
 		};
 	}
 }
@@ -1873,7 +1520,7 @@ export class EditorOptionsValidator {
  */
 export class InternalEditorOptionsFactory {
 
-	public static createInternalEditorOptions(env: EnvironmentalOptions, opts: IValidatedEditorOptions) {
+	public static createInternalEditorOptions(env: IEnvironmentalOptions, opts: IValidatedEditorOptions) {
 
 		let lineDecorationsWidth: number;
 		if (typeof opts.lineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(opts.lineDecorationsWidth)) {
@@ -1882,34 +1529,34 @@ export class InternalEditorOptionsFactory {
 		} else {
 			lineDecorationsWidth = _clampedInt(opts.lineDecorationsWidth, 0, 0, 1000);
 		}
-		if (opts.folding) {
+		if (opts.contribInfo.folding) {
 			lineDecorationsWidth += 16;
 		}
 
 		const layoutInfo = EditorLayoutProvider.compute({
 			outerWidth: env.outerWidth,
 			outerHeight: env.outerHeight,
-			showGlyphMargin: opts.glyphMargin,
+			showGlyphMargin: opts.viewInfo.glyphMargin,
 			lineHeight: env.fontInfo.lineHeight,
-			showLineNumbers: opts.renderLineNumbers,
+			showLineNumbers: opts.viewInfo.renderLineNumbers,
 			lineNumbersMinChars: opts.lineNumbersMinChars,
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			lineDecorationsWidth: lineDecorationsWidth,
 			typicalHalfwidthCharacterWidth: env.fontInfo.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: env.fontInfo.maxDigitWidth,
-			verticalScrollbarWidth: opts.scrollbar.verticalScrollbarSize,
-			horizontalScrollbarHeight: opts.scrollbar.horizontalScrollbarSize,
-			scrollbarArrowSize: opts.scrollbar.arrowSize,
-			verticalScrollbarHasArrows: opts.scrollbar.verticalHasArrows,
-			minimap: opts.minimap.enabled,
-			minimapRenderCharacters: opts.minimap.renderCharacters,
-			minimapMaxColumn: opts.minimap.maxColumn,
+			verticalScrollbarWidth: opts.viewInfo.scrollbar.verticalScrollbarSize,
+			horizontalScrollbarHeight: opts.viewInfo.scrollbar.horizontalScrollbarSize,
+			scrollbarArrowSize: opts.viewInfo.scrollbar.arrowSize,
+			verticalScrollbarHasArrows: opts.viewInfo.scrollbar.verticalHasArrows,
+			minimap: opts.viewInfo.minimap.enabled,
+			minimapRenderCharacters: opts.viewInfo.minimap.renderCharacters,
+			minimapMaxColumn: opts.viewInfo.minimap.maxColumn,
 			pixelRatio: env.pixelRatio
 		});
 
 		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } = null;
 		{
-			let wordWrap = opts.wordWrap;
+			const wordWrap = opts.wordWrap;
 			const wordWrapColumn = opts.wordWrapColumn;
 			const wordWrapMinified = opts.wordWrapMinified;
 
@@ -1947,7 +1594,7 @@ export class InternalEditorOptionsFactory {
 			}
 		}
 
-		const wrappingInfo = new EditorWrappingInfo({
+		const wrappingInfo: EditorWrappingInfo = {
 			inDiffEditor: opts.inDiffEditor,
 			isDominatedByLongLines: env.isDominatedByLongLines,
 			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
@@ -1957,90 +1604,11 @@ export class InternalEditorOptionsFactory {
 			wordWrapBreakBeforeCharacters: opts.wordWrapBreakBeforeCharacters,
 			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
-		});
-
-		const viewInfo = new InternalEditorViewOptions({
-			theme: opts.theme,
-			canUseTranslate3d: opts.disableTranslate3d ? false : env.canUseTranslate3d, // todo
-			disableMonospaceOptimizations: opts.disableMonospaceOptimizations,
-			experimentalScreenReader: opts.experimentalScreenReader,
-			rulers: opts.rulers,
-			ariaLabel: opts.ariaLabel,
-			renderLineNumbers: opts.renderLineNumbers,
-			renderCustomLineNumbers: opts.renderCustomLineNumbers,
-			renderRelativeLineNumbers: opts.renderRelativeLineNumbers,
-			selectOnLineNumbers: opts.selectOnLineNumbers,
-			glyphMargin: opts.glyphMargin,
-			revealHorizontalRightPadding: opts.revealHorizontalRightPadding,
-			roundedSelection: opts.roundedSelection,
-			overviewRulerLanes: opts.overviewRulerLanes,
-			overviewRulerBorder: opts.overviewRulerBorder,
-			cursorBlinking: opts.cursorBlinking,
-			mouseWheelZoom: opts.mouseWheelZoom,
-			cursorStyle: opts.cursorStyle,
-			hideCursorInOverviewRuler: opts.hideCursorInOverviewRuler,
-			scrollBeyondLastLine: opts.scrollBeyondLastLine,
-			editorClassName: env.editorClassName,
-			stopRenderingLineAfter: opts.stopRenderingLineAfter,
-			renderWhitespace: opts.renderWhitespace,
-			renderControlCharacters: opts.renderControlCharacters,
-			fontLigatures: opts.fontLigatures,
-			renderIndentGuides: opts.renderIndentGuides,
-			renderLineHighlight: opts.renderLineHighlight,
-			scrollbar: new InternalEditorScrollbarOptions({ // todo
-				vertical: opts.scrollbar.vertical,
-				horizontal: opts.scrollbar.horizontal,
-
-				arrowSize: opts.scrollbar.arrowSize,
-				useShadows: opts.scrollbar.useShadows,
-
-				verticalHasArrows: opts.scrollbar.verticalHasArrows,
-				horizontalHasArrows: opts.scrollbar.horizontalHasArrows,
-
-				horizontalScrollbarSize: opts.scrollbar.horizontalScrollbarSize,
-				horizontalSliderSize: opts.scrollbar.horizontalSliderSize,
-
-				verticalScrollbarSize: opts.scrollbar.verticalScrollbarSize,
-				verticalSliderSize: opts.scrollbar.verticalSliderSize,
-
-				handleMouseWheel: opts.scrollbar.handleMouseWheel,
-				mouseWheelScrollSensitivity: opts.mouseWheelScrollSensitivity
-			}),
-			minimap: new InternalEditorMinimapOptions({ // todo
-				enabled: opts.minimap.enabled,
-				renderCharacters: opts.minimap.renderCharacters,
-				maxColumn: opts.minimap.maxColumn,
-			}),
-			fixedOverflowWidgets: opts.fixedOverflowWidgets
-		});
-
-		const contribInfo = new EditorContribOptions({
-			selectionClipboard: opts.selectionClipboard,
-			hover: opts.hover,
-			contextmenu: opts.contextmenu,
-			quickSuggestions: opts.quickSuggestions,
-			quickSuggestionsDelay: opts.quickSuggestionsDelay,
-			parameterHints: opts.parameterHints,
-			iconsInSuggestions: opts.iconsInSuggestions,
-			formatOnType: opts.formatOnType,
-			formatOnPaste: opts.formatOnPaste,
-			suggestOnTriggerCharacters: opts.suggestOnTriggerCharacters,
-			acceptSuggestionOnEnter: opts.acceptSuggestionOnEnter,
-			acceptSuggestionOnCommitCharacter: opts.acceptSuggestionOnCommitCharacter,
-			snippetSuggestions: opts.snippetSuggestions,
-			emptySelectionClipboard: opts.emptySelectionClipboard,
-			wordBasedSuggestions: opts.wordBasedSuggestions,
-			suggestFontSize: opts.suggestFontSize,
-			suggestLineHeight: opts.suggestLineHeight,
-			selectionHighlight: opts.selectionHighlight,
-			occurrencesHighlight: opts.occurrencesHighlight,
-			codeLens: opts.codeLens,
-			folding: opts.folding,
-			hideFoldIcons: opts.hideFoldIcons,
-			matchBrackets: opts.matchBrackets,
-		});
+		};
 
 		return new InternalEditorOptions({
+			canUseTranslate3d: opts.disableTranslate3d ? false : env.canUseTranslate3d,
+			editorClassName: env.editorClassName,
 			lineHeight: env.fontInfo.lineHeight,
 			readOnly: opts.readOnly,
 			wordSeparators: opts.wordSeparators,
@@ -2050,9 +1618,9 @@ export class InternalEditorOptionsFactory {
 			dragAndDrop: opts.dragAndDrop,
 			layoutInfo: layoutInfo,
 			fontInfo: env.fontInfo,
-			viewInfo: viewInfo,
+			viewInfo: opts.viewInfo,
 			wrappingInfo: wrappingInfo,
-			contribInfo: contribInfo,
+			contribInfo: opts.contribInfo,
 		});
 	}
 }
@@ -2170,7 +1738,7 @@ export class EditorLayoutProvider {
 
 		const verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
 
-		return new EditorLayoutInfo({
+		return {
 			width: outerWidth,
 			height: outerHeight,
 
@@ -2198,13 +1766,13 @@ export class EditorLayoutProvider {
 			verticalScrollbarWidth: verticalScrollbarWidth,
 			horizontalScrollbarHeight: horizontalScrollbarHeight,
 
-			overviewRuler: new OverviewRulerPosition({
+			overviewRuler: {
 				top: verticalArrowSize,
 				width: verticalScrollbarWidth,
 				height: (outerHeight - 2 * verticalArrowSize),
 				right: 0
-			})
-		});
+			}
+		};
 	}
 }
 
@@ -2241,52 +1809,12 @@ export const EDITOR_MODEL_DEFAULTS = {
  */
 export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	inDiffEditor: false,
-	experimentalScreenReader: true,
-	ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
-	rulers: [],
 	wordSeparators: USUAL_WORD_SEPARATORS,
-	selectionClipboard: true,
-	renderLineNumbers: true,
-	renderCustomLineNumbers: null,
-	renderRelativeLineNumbers: false,
-	selectOnLineNumbers: true,
 	lineNumbersMinChars: 5,
-	glyphMargin: true,
 	lineDecorationsWidth: 10,
-	revealHorizontalRightPadding: 30,
-	roundedSelection: true,
-	theme: 'vs',
 	readOnly: false,
-	scrollbar: {
-		vertical: ScrollbarVisibility.Auto,
-		horizontal: ScrollbarVisibility.Auto,
-		arrowSize: 11,
-		useShadows: true,
-		verticalHasArrows: false,
-		horizontalHasArrows: false,
-		horizontalScrollbarSize: 10,
-		horizontalSliderSize: 10,
-		verticalScrollbarSize: 14,
-		verticalSliderSize: 14,
-		handleMouseWheel: true
-	},
-	minimap: {
-		enabled: false,
-		renderCharacters: true,
-		maxColumn: 120
-	},
-	fixedOverflowWidgets: false,
-	overviewRulerLanes: 2,
-	overviewRulerBorder: true,
-	cursorBlinking: TextEditorCursorBlinkingStyle.Blink,
-	mouseWheelZoom: false,
 	mouseStyle: 'text',
-	cursorStyle: TextEditorCursorStyle.Line,
-	fontLigatures: false,
 	disableTranslate3d: false,
-	disableMonospaceOptimizations: false,
-	hideCursorInOverviewRuler: false,
-	scrollBeyondLastLine: true,
 	automaticLayout: false,
 	wordWrap: 'off',
 	wordWrapColumn: 80,
@@ -2295,35 +1823,81 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
 	wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ’”〉》」』】〕）］｝｣',
 	wordWrapBreakObtrusiveCharacters: '.',
-	stopRenderingLineAfter: 10000,
-	hover: true,
-	contextmenu: true,
-	mouseWheelScrollSensitivity: 1,
-	quickSuggestions: { other: true, comments: false, strings: false },
-	quickSuggestionsDelay: 10,
-	parameterHints: true,
-	iconsInSuggestions: true,
 	autoClosingBrackets: true,
-	formatOnType: false,
-	formatOnPaste: false,
 	dragAndDrop: false,
-	suggestOnTriggerCharacters: true,
-	acceptSuggestionOnEnter: true,
-	acceptSuggestionOnCommitCharacter: true,
-	snippetSuggestions: 'inline',
-	emptySelectionClipboard: true,
-	wordBasedSuggestions: true,
-	suggestFontSize: 0,
-	suggestLineHeight: 0,
-	selectionHighlight: true,
-	occurrencesHighlight: true,
-	codeLens: true,
-	folding: true,
-	hideFoldIcons: true,
-	matchBrackets: true,
-	renderWhitespace: 'none',
-	renderControlCharacters: false,
-	renderIndentGuides: false,
-	renderLineHighlight: 'line',
 	useTabStops: true,
+
+	viewInfo: {
+		theme: 'vs',
+		disableMonospaceOptimizations: false,
+		experimentalScreenReader: true,
+		rulers: [],
+		ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
+		renderLineNumbers: true,
+		renderCustomLineNumbers: null,
+		renderRelativeLineNumbers: false,
+		selectOnLineNumbers: true,
+		glyphMargin: true,
+		revealHorizontalRightPadding: 30,
+		roundedSelection: true,
+		overviewRulerLanes: 2,
+		overviewRulerBorder: true,
+		cursorBlinking: TextEditorCursorBlinkingStyle.Blink,
+		mouseWheelZoom: false,
+		cursorStyle: TextEditorCursorStyle.Line,
+		hideCursorInOverviewRuler: false,
+		scrollBeyondLastLine: true,
+		stopRenderingLineAfter: 10000,
+		renderWhitespace: 'none',
+		renderControlCharacters: false,
+		fontLigatures: false,
+		renderIndentGuides: false,
+		renderLineHighlight: 'line',
+		scrollbar: {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Auto,
+			arrowSize: 11,
+			useShadows: true,
+			verticalHasArrows: false,
+			horizontalHasArrows: false,
+			horizontalScrollbarSize: 10,
+			horizontalSliderSize: 10,
+			verticalScrollbarSize: 14,
+			verticalSliderSize: 14,
+			handleMouseWheel: true,
+			mouseWheelScrollSensitivity: 1,
+		},
+		minimap: {
+			enabled: false,
+			renderCharacters: true,
+			maxColumn: 120
+		},
+		fixedOverflowWidgets: false,
+	},
+
+	contribInfo: {
+		selectionClipboard: true,
+		hover: true,
+		contextmenu: true,
+		quickSuggestions: { other: true, comments: false, strings: false },
+		quickSuggestionsDelay: 10,
+		parameterHints: true,
+		iconsInSuggestions: true,
+		formatOnType: false,
+		formatOnPaste: false,
+		suggestOnTriggerCharacters: true,
+		acceptSuggestionOnEnter: true,
+		acceptSuggestionOnCommitCharacter: true,
+		snippetSuggestions: 'inline',
+		emptySelectionClipboard: true,
+		wordBasedSuggestions: true,
+		suggestFontSize: 0,
+		suggestLineHeight: 0,
+		selectionHighlight: true,
+		occurrencesHighlight: true,
+		codeLens: true,
+		folding: true,
+		hideFoldIcons: true,
+		matchBrackets: true,
+	},
 };

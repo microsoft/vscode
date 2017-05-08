@@ -18,8 +18,8 @@ import { EDITOR_DEFAULTS, WrappingIndent } from "vs/editor/common/config/editorO
 
 // Set defaults for standalone editor
 EDITOR_DEFAULTS.wrappingIndent = WrappingIndent.None;
-EDITOR_DEFAULTS.folding = false;
-EDITOR_DEFAULTS.glyphMargin = false;
+(<any>EDITOR_DEFAULTS.contribInfo).folding = false;
+(<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
 
 var global: any = self;
 global.monaco = createMonacoBaseAPI();

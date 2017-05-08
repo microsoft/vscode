@@ -112,17 +112,17 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	private _computeInternalOptions(): editorOptions.InternalEditorOptions {
 		const opts = this._validatedOptions;
 		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, this.getZoomLevel());
-		const env = new editorOptions.EnvironmentalOptions({
+		const env: editorOptions.IEnvironmentalOptions = {
 			outerWidth: this.getOuterWidth(),
 			outerHeight: this.getOuterHeight(),
 			fontInfo: this.readConfiguration(bareFontInfo),
-			editorClassName: this._getEditorClassName(opts.theme, opts.fontLigatures, opts.mouseStyle),
+			editorClassName: this._getEditorClassName(opts.viewInfo.theme, opts.viewInfo.fontLigatures, opts.mouseStyle),
 			isDominatedByLongLines: this._isDominatedByLongLines,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			canUseTranslate3d: this._getCanUseTranslate3d(),
 			pixelRatio: this._getPixelRatio(),
 			tabFocusMode: TabFocus.getTabFocusMode()
-		});
+		};
 		return editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
 	}
 
@@ -210,7 +210,7 @@ const editorConfiguration: IConfigurationNode = {
 			'items': {
 				'type': 'number'
 			},
-			'default': EDITOR_DEFAULTS.rulers,
+			'default': EDITOR_DEFAULTS.viewInfo.rulers,
 			'description': nls.localize('rulers', "Columns at which to show vertical rulers")
 		},
 		'editor.wordSeparators': {
@@ -238,27 +238,27 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.roundedSelection': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.roundedSelection,
+			'default': EDITOR_DEFAULTS.viewInfo.roundedSelection,
 			'description': nls.localize('roundedSelection', "Controls if selections have rounded corners")
 		},
 		'editor.scrollBeyondLastLine': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.scrollBeyondLastLine,
+			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastLine,
 			'description': nls.localize('scrollBeyondLastLine', "Controls if the editor will scroll beyond the last line")
 		},
 		'editor.minimap.enabled': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.minimap.enabled,
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,
 			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
 		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.minimap.renderCharacters,
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.renderCharacters,
 			'description': nls.localize('minimap.renderCharacters', "Render the actual characters on a line (as opposed to color blocks)")
 		},
 		'editor.minimap.maxColumn': {
 			'type': 'number',
-			'default': EDITOR_DEFAULTS.minimap.maxColumn,
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.maxColumn,
 			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns")
 		},
 		'editor.wordWrap': {
@@ -310,7 +310,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.mouseWheelScrollSensitivity': {
 			'type': 'number',
-			'default': EDITOR_DEFAULTS.mouseWheelScrollSensitivity,
+			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.mouseWheelScrollSensitivity,
 			'description': nls.localize('mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events")
 		},
 		'editor.quickSuggestions': {
@@ -339,18 +339,18 @@ const editorConfiguration: IConfigurationNode = {
 					}
 				}
 			],
-			'default': EDITOR_DEFAULTS.quickSuggestions,
+			'default': EDITOR_DEFAULTS.contribInfo.quickSuggestions,
 			'description': nls.localize('quickSuggestions', "Controls if suggestions should automatically show up while typing")
 		},
 		'editor.quickSuggestionsDelay': {
 			'type': 'integer',
-			'default': EDITOR_DEFAULTS.quickSuggestionsDelay,
+			'default': EDITOR_DEFAULTS.contribInfo.quickSuggestionsDelay,
 			'minimum': 0,
 			'description': nls.localize('quickSuggestionsDelay', "Controls the delay in ms after which quick suggestions will show up")
 		},
 		'editor.parameterHints': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.parameterHints,
+			'default': EDITOR_DEFAULTS.contribInfo.parameterHints,
 			'description': nls.localize('parameterHints', "Enables parameter hints")
 		},
 		'editor.autoClosingBrackets': {
@@ -360,43 +360,43 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.formatOnType': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.formatOnType,
+			'default': EDITOR_DEFAULTS.contribInfo.formatOnType,
 			'description': nls.localize('formatOnType', "Controls if the editor should automatically format the line after typing")
 		},
 		'editor.formatOnPaste': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.formatOnPaste,
+			'default': EDITOR_DEFAULTS.contribInfo.formatOnPaste,
 			'description': nls.localize('formatOnPaste', "Controls if the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.")
 		},
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.suggestOnTriggerCharacters,
+			'default': EDITOR_DEFAULTS.contribInfo.suggestOnTriggerCharacters,
 			'description': nls.localize('suggestOnTriggerCharacters', "Controls if suggestions should automatically show up when typing trigger characters")
 		},
 		'editor.acceptSuggestionOnEnter': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.acceptSuggestionOnEnter,
+			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnEnter,
 			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions.")
 		},
 		'editor.acceptSuggestionOnCommitCharacter': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.acceptSuggestionOnCommitCharacter,
+			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnCommitCharacter,
 			'description': nls.localize('acceptSuggestionOnCommitCharacter', "Controls if suggestions should be accepted on commit characters. For instance in JavaScript the semi-colon (';') can be a commit character that accepts a suggestion and types that character.")
 		},
 		'editor.snippetSuggestions': {
 			'type': 'string',
 			'enum': ['top', 'bottom', 'inline', 'none'],
-			'default': EDITOR_DEFAULTS.snippetSuggestions,
+			'default': EDITOR_DEFAULTS.contribInfo.snippetSuggestions,
 			'description': nls.localize('snippetSuggestions', "Controls whether snippets are shown with other suggestions and how they are sorted.")
 		},
 		'editor.emptySelectionClipboard': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.emptySelectionClipboard,
+			'default': EDITOR_DEFAULTS.contribInfo.emptySelectionClipboard,
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
 		'editor.wordBasedSuggestions': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.wordBasedSuggestions,
+			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
 		'editor.suggestFontSize': {
@@ -413,12 +413,12 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.selectionHighlight': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.selectionHighlight,
+			'default': EDITOR_DEFAULTS.contribInfo.selectionHighlight,
 			'description': nls.localize('selectionHighlight', "Controls whether the editor should highlight similar matches to the selection")
 		},
 		'editor.occurrencesHighlight': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.occurrencesHighlight,
+			'default': EDITOR_DEFAULTS.contribInfo.occurrencesHighlight,
 			'description': nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences")
 		},
 		'editor.overviewRulerLanes': {
@@ -428,81 +428,81 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.overviewRulerBorder': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.overviewRulerBorder,
+			'default': EDITOR_DEFAULTS.viewInfo.overviewRulerBorder,
 			'description': nls.localize('overviewRulerBorder', "Controls if a border should be drawn around the overview ruler.")
 		},
 		'editor.cursorBlinking': {
 			'type': 'string',
 			'enum': ['blink', 'smooth', 'phase', 'expand', 'solid'],
-			'default': EDITOR_DEFAULTS.cursorBlinking,
+			'default': EDITOR_DEFAULTS.viewInfo.cursorBlinking,
 			'description': nls.localize('cursorBlinking', "Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'")
 		},
 		'editor.mouseWheelZoom': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.mouseWheelZoom,
+			'default': EDITOR_DEFAULTS.viewInfo.mouseWheelZoom,
 			'description': nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding Ctrl")
 		},
 		'editor.cursorStyle': {
 			'type': 'string',
 			'enum': ['block', 'block-outline', 'line', 'line-thin', 'underline', 'underline-thin'],
-			'default': EDITOR_DEFAULTS.cursorStyle,
+			'default': EDITOR_DEFAULTS.viewInfo.cursorStyle,
 			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'block-outline', 'line', 'line-thin', 'underline' and 'underline-thin'")
 		},
 		'editor.fontLigatures': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.fontLigatures,
+			'default': EDITOR_DEFAULTS.viewInfo.fontLigatures,
 			'description': nls.localize('fontLigatures', "Enables font ligatures")
 		},
 		'editor.hideCursorInOverviewRuler': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.hideCursorInOverviewRuler,
+			'default': EDITOR_DEFAULTS.viewInfo.hideCursorInOverviewRuler,
 			'description': nls.localize('hideCursorInOverviewRuler', "Controls if the cursor should be hidden in the overview ruler.")
 		},
 		'editor.renderWhitespace': {
 			'type': 'string',
 			'enum': ['none', 'boundary', 'all'],
-			default: EDITOR_DEFAULTS.renderWhitespace,
+			default: EDITOR_DEFAULTS.viewInfo.renderWhitespace,
 			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters, possibilities are 'none', 'boundary', and 'all'. The 'boundary' option does not render single spaces between words.")
 		},
 		'editor.renderControlCharacters': {
 			'type': 'boolean',
-			default: EDITOR_DEFAULTS.renderControlCharacters,
+			default: EDITOR_DEFAULTS.viewInfo.renderControlCharacters,
 			description: nls.localize('renderControlCharacters', "Controls whether the editor should render control characters")
 		},
 		'editor.renderIndentGuides': {
 			'type': 'boolean',
-			default: EDITOR_DEFAULTS.renderIndentGuides,
+			default: EDITOR_DEFAULTS.viewInfo.renderIndentGuides,
 			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
 		},
 		'editor.renderLineHighlight': {
 			'type': 'string',
 			'enum': ['none', 'gutter', 'line', 'all'],
-			default: EDITOR_DEFAULTS.renderLineHighlight,
+			default: EDITOR_DEFAULTS.viewInfo.renderLineHighlight,
 			description: nls.localize('renderLineHighlight', "Controls how the editor should render the current line highlight, possibilities are 'none', 'gutter', 'line', and 'all'.")
 		},
 		'editor.codeLens': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.codeLens,
+			'default': EDITOR_DEFAULTS.contribInfo.codeLens,
 			'description': nls.localize('codeLens', "Controls if the editor shows code lenses")
 		},
 		'editor.folding': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.folding,
+			'default': EDITOR_DEFAULTS.contribInfo.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
 		},
 		'editor.hideFoldIcons': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.hideFoldIcons,
+			'default': EDITOR_DEFAULTS.contribInfo.hideFoldIcons,
 			'description': nls.localize('hideFoldIcons', "Controls whether the fold icons on the gutter are automatically hidden.")
 		},
 		'editor.matchBrackets': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.matchBrackets,
+			'default': EDITOR_DEFAULTS.contribInfo.matchBrackets,
 			'description': nls.localize('matchBrackets', "Highlight matching brackets when one of them is selected.")
 		},
 		'editor.glyphMargin': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.glyphMargin,
+			'default': EDITOR_DEFAULTS.viewInfo.glyphMargin,
 			'description': nls.localize('glyphMargin', "Controls whether the editor should render the vertical glyph margin. Glyph margin is mostly used for debugging.")
 		},
 		'editor.useTabStops': {
@@ -546,7 +546,7 @@ const editorConfiguration: IConfigurationNode = {
 if (platform.isLinux) {
 	editorConfiguration['properties']['editor.selectionClipboard'] = {
 		'type': 'boolean',
-		'default': EDITOR_DEFAULTS.selectionClipboard,
+		'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,
 		'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported.")
 	};
 }

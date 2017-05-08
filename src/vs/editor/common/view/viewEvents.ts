@@ -34,6 +34,8 @@ export class ViewConfigurationChangedEvent {
 
 	public readonly type = ViewEventType.ViewConfigurationChanged;
 
+	public readonly canUseTranslate3d: boolean;
+	public readonly editorClassName: boolean;
 	public readonly lineHeight: boolean;
 	public readonly readOnly: boolean;
 	public readonly layoutInfo: boolean;
@@ -42,6 +44,8 @@ export class ViewConfigurationChangedEvent {
 	public readonly wrappingInfo: boolean;
 
 	constructor(source: IConfigurationChangedEvent) {
+		this.canUseTranslate3d = source.canUseTranslate3d;
+		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight;
 		this.readOnly = source.readOnly;
 		this.layoutInfo = source.layoutInfo;

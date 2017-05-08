@@ -22,7 +22,7 @@ export const Context = {
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
 	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
 	AcceptOnKey: new RawContextKey<boolean>('suggestionSupportsAcceptOnKey', true),
-	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', EDITOR_DEFAULTS.acceptSuggestionOnEnter)
+	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnEnter)
 };
 
 export interface ISuggestionItem {

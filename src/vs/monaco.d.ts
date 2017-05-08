@@ -3122,8 +3122,7 @@ declare module monaco.editor {
 		UnderlineThin = 6,
 	}
 
-	export class InternalEditorScrollbarOptions {
-		readonly _internalEditorScrollbarOptionsBrand: void;
+	export interface InternalEditorScrollbarOptions {
 		readonly arrowSize: number;
 		readonly vertical: ScrollbarVisibility;
 		readonly horizontal: ScrollbarVisibility;
@@ -3138,15 +3137,13 @@ declare module monaco.editor {
 		readonly mouseWheelScrollSensitivity: number;
 	}
 
-	export class InternalEditorMinimapOptions {
-		readonly _internalEditorMinimapOptionsBrand: void;
+	export interface InternalEditorMinimapOptions {
 		readonly enabled: boolean;
 		readonly renderCharacters: boolean;
 		readonly maxColumn: number;
 	}
 
-	export class EditorWrappingInfo {
-		readonly _editorWrappingInfoBrand: void;
+	export interface EditorWrappingInfo {
 		readonly inDiffEditor: boolean;
 		readonly isDominatedByLongLines: boolean;
 		readonly isWordWrapMinified: boolean;
@@ -3158,9 +3155,8 @@ declare module monaco.editor {
 		readonly wordWrapBreakObtrusiveCharacters: string;
 	}
 
-	export class InternalEditorViewOptions {
+	export interface InternalEditorViewOptions {
 		readonly theme: string;
-		readonly canUseTranslate3d: boolean;
 		readonly disableMonospaceOptimizations: boolean;
 		readonly experimentalScreenReader: boolean;
 		readonly rulers: number[];
@@ -3179,7 +3175,6 @@ declare module monaco.editor {
 		readonly cursorStyle: TextEditorCursorStyle;
 		readonly hideCursorInOverviewRuler: boolean;
 		readonly scrollBeyondLastLine: boolean;
-		readonly editorClassName: string;
 		readonly stopRenderingLineAfter: number;
 		readonly renderWhitespace: 'none' | 'boundary' | 'all';
 		readonly renderControlCharacters: boolean;
@@ -3191,7 +3186,7 @@ declare module monaco.editor {
 		readonly fixedOverflowWidgets: boolean;
 	}
 
-	export class EditorContribOptions {
+	export interface EditorContribOptions {
 		readonly selectionClipboard: boolean;
 		readonly hover: boolean;
 		readonly contextmenu: boolean;
@@ -3226,6 +3221,8 @@ declare module monaco.editor {
 	 */
 	export class InternalEditorOptions {
 		readonly _internalEditorOptionsBrand: void;
+		readonly canUseTranslate3d: boolean;
+		readonly editorClassName: string;
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
 		readonly wordSeparators: string;
@@ -3243,8 +3240,7 @@ declare module monaco.editor {
 	/**
 	 * A description for the overview ruler position.
 	 */
-	export class OverviewRulerPosition {
-		readonly _overviewRulerPositionBrand: void;
+	export interface OverviewRulerPosition {
 		/**
 		 * Width of the overview ruler
 		 */
@@ -3266,8 +3262,7 @@ declare module monaco.editor {
 	/**
 	 * The internal layout details of the editor.
 	 */
-	export class EditorLayoutInfo {
-		readonly _editorLayoutInfoBrand: void;
+	export interface EditorLayoutInfo {
 		/**
 		 * Full editor width.
 		 */
@@ -3354,6 +3349,8 @@ declare module monaco.editor {
 	 * An event describing that the configuration of the editor has changed.
 	 */
 	export interface IConfigurationChangedEvent {
+		readonly canUseTranslate3d: boolean;
+		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;
 		readonly readOnly: boolean;
 		readonly wordSeparators: boolean;

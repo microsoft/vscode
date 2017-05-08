@@ -213,7 +213,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._domElement = domElement;
 		options = options || {};
 
-		this._theme = options.theme || editorOptions.EDITOR_DEFAULTS.theme;
+		this._theme = options.theme || editorOptions.EDITOR_DEFAULTS.viewInfo.theme;
 		// renderSideBySide
 		this._renderSideBySide = true;
 		if (typeof options.renderSideBySide !== 'undefined') {
@@ -777,18 +777,18 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		let freeSpace = DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH - 2 * DiffEditorWidget.ONE_OVERVIEW_WIDTH;
 		let layoutInfo = this.modifiedEditor.getLayoutInfo();
 		if (layoutInfo) {
-			this._originalOverviewRuler.setLayout(new editorOptions.OverviewRulerPosition({
+			this._originalOverviewRuler.setLayout({
 				top: 0,
 				width: DiffEditorWidget.ONE_OVERVIEW_WIDTH,
 				right: freeSpace + DiffEditorWidget.ONE_OVERVIEW_WIDTH,
 				height: this._height
-			}));
-			this._modifiedOverviewRuler.setLayout(new editorOptions.OverviewRulerPosition({
+			});
+			this._modifiedOverviewRuler.setLayout({
 				top: 0,
 				right: 0,
 				width: DiffEditorWidget.ONE_OVERVIEW_WIDTH,
 				height: this._height
-			}));
+			});
 		}
 	}
 
@@ -898,7 +898,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _adjustOptionsForRightHandSide(options: editorOptions.IDiffEditorOptions): editorOptions.IEditorOptions {
 		let result = this._adjustOptionsForSubEditor(options);
-		result.revealHorizontalRightPadding = editorOptions.EDITOR_DEFAULTS.revealHorizontalRightPadding + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
+		result.revealHorizontalRightPadding = editorOptions.EDITOR_DEFAULTS.viewInfo.revealHorizontalRightPadding + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar.verticalHasArrows = false;
 		result.theme = this._theme + ' modified-in-monaco-diff-editor';
 		return result;
