@@ -73,12 +73,16 @@ export class BareFontInfo {
 		fontSize = clamp(fontSize, 0, 100);
 		if (fontSize === 0) {
 			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
+		} else if (fontSize < 8) {
+			fontSize = 8;
 		}
 
 		let lineHeight = safeParseInt(opts.lineHeight, 0);
 		lineHeight = clamp(lineHeight, 0, 150);
 		if (lineHeight === 0) {
 			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
+		} else if (lineHeight < 8) {
+			lineHeight = 8;
 		}
 
 		let editorZoomLevelMultiplier = 1 + (EditorZoom.getZoomLevel() * 0.1);
