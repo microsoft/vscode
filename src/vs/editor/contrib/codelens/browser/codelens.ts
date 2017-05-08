@@ -22,7 +22,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeLensData, getCodeLensData } from '../common/codelens';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { editorCodeLenseForeground } from "vs/editor/common/view/editorColorRegistry";
+import { editorCodeLensForeground } from "vs/editor/common/view/editorColorRegistry";
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { editorActiveLinkForeground } from "vs/platform/theme/common/colorRegistry";
 
@@ -628,9 +628,9 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let codeLenseForeground = theme.getColor(editorCodeLenseForeground);
-	if (codeLenseForeground) {
-		collector.addRule(`.monaco-editor .codelens-decoration { color: ${codeLenseForeground}; }`);
+	let codeLensForeground = theme.getColor(editorCodeLensForeground);
+	if (codeLensForeground) {
+		collector.addRule(`.monaco-editor .codelens-decoration { color: ${codeLensForeground}; }`);
 	}
 	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
 	if (activeLinkForeground) {

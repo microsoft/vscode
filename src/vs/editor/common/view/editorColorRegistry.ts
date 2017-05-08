@@ -19,8 +19,7 @@ export const editorWhitespaces = registerColor('editorWhitespace.foreground', { 
 export const editorIndentGuides = registerColor('editorIndentGuide.background', { dark: editorWhitespaces, light: editorWhitespaces, hc: editorWhitespaces }, nls.localize('editorIndentGuides', 'Color of the editor indentation guides.'));
 export const editorLineNumbers = registerColor('editorLineNumber.foreground', { dark: '#5A5A5A', light: '#2B91AF', hc: Color.white }, nls.localize('editorLineNumbers', 'Color of editor line numbers.'));
 
-export const editorCodeLenseForeground = registerColor('editorCodeLense.foreground', { dark: '#999999', light: '#999999', hc: '#999999' }, nls.localize('editorCodeLenseForeground', 'Foreground color of editor code lenses'));
-
+export const editorCodeLensForeground = registerColor('editorCodeLens.foreground', { dark: '#999999', light: '#999999', hc: '#999999' }, nls.localize('editorCodeLensForeground', 'Foreground color of editor code lenses'));
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {
