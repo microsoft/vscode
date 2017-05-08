@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { getLeadingWhitespace, compare } from 'vs/base/common/strings';
+import { getLeadingWhitespace } from 'vs/base/common/strings';
 import { ICommonCodeEditor, IModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TextmateSnippet, Placeholder, SnippetParser } from '../common/snippetParser';
@@ -77,7 +77,7 @@ class OneSnippet {
 		this._placeholderGroupsIdx = -1;
 		this._placeholderGroups = [];
 		let lastBucket: Placeholder[];
-		this._snippet.getPlaceholders().sort((a, b) => compare(a.name, b.name)).reverse().forEach(a => {
+		this._snippet.getPlaceholders().sort(Placeholder.compare).forEach(a => {
 			if (!lastBucket || lastBucket[0].name !== a.name) {
 				lastBucket = [a];
 				this._placeholderGroups.push(lastBucket);

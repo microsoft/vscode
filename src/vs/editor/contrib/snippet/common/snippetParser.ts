@@ -161,17 +161,34 @@ export class Text extends Marker {
 }
 
 export class Placeholder extends Marker {
+
+	static compare(a: Placeholder, b: Placeholder): number {
+		if (a.name === b.name) {
+			return 0;
+		} else if (a.isFinalTabstop) {
+			return 1;
+		} else if (b.isFinalTabstop) {
+			return -1;
+		} else if (a.name < b.name) {
+			return -1;
+		} else if (a.name > b.name) {
+			return 1;
+		} else {
+			return 0;
+		}
+	}
+
 	constructor(public name: string = '', public defaultValue: Marker[]) {
 		super();
 	}
 	get isFinalTabstop() {
 		return this.name === '0';
 	}
-	toString() {
-		return Marker.toString(this.defaultValue);
-	}
 	with(defaultValue: Marker[]): Placeholder {
 		return new Placeholder(this.name, defaultValue);
+	}
+	toString() {
+		return Marker.toString(this.defaultValue);
 	}
 }
 

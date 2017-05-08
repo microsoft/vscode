@@ -73,7 +73,7 @@ suite('SnippetInsertion', function () {
 
 	test('snippets, selections -> next/prev', () => {
 
-		const session = new SnippetSession(editor, 'f$2oo${1:bar}foo$0');
+		const session = new SnippetSession(editor, 'f$1oo${2:bar}foo$0');
 
 		// @ $2
 		assertSelections(editor, new Selection(1, 2, 1, 2), new Selection(2, 6, 2, 6));
@@ -92,7 +92,7 @@ suite('SnippetInsertion', function () {
 	});
 
 	test('snippets, selections & typing', function () {
-		const session = new SnippetSession(editor, 'f${2:oo}_$1_$0');
+		const session = new SnippetSession(editor, 'f${1:oo}_$2_$0');
 
 		editor.trigger('test', 'type', { text: 'X' });
 		session.next();
