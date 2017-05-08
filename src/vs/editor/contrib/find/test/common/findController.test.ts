@@ -20,6 +20,7 @@ import {
 import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Delayer } from 'vs/base/common/async';
 
 class TestFindController extends CommonFindController {
@@ -30,8 +31,8 @@ class TestFindController extends CommonFindController {
 
 	private _delayedUpdateHistoryEvent: Emitter<void> = new Emitter<void>();
 
-	constructor(editor: ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
-		super(editor, contextKeyService);
+	constructor(editor: ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @IStorageService storageService: IStorageService) {
+		super(editor, contextKeyService, storageService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 	}
 

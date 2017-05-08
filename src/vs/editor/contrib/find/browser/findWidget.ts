@@ -483,6 +483,9 @@ export class FindWidget extends Widget implements IOverlayWidget {
 				}
 			}
 		}));
+		this._findInput.setRegex(!!this._state.isRegex);
+		this._findInput.setCaseSensitive(!!this._state.matchCase);
+		this._findInput.setWholeWords(!!this._state.wholeWord);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
 		this._register(this._findInput.onInput(() => {
 			this._state.change({ searchString: this._findInput.getValue() }, true);
