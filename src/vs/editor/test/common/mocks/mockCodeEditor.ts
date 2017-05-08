@@ -85,6 +85,7 @@ export interface MockCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	 * The initial model associated with this code editor.
 	 */
 	model?: editorCommon.IModel;
+	serviceCollection?: ServiceCollection;
 }
 
 export function withMockCodeEditor(text: string[], options: MockCodeEditorCreationOptions, callback: (editor: MockCodeEditor, cursor: Cursor) => void): void {
@@ -97,7 +98,7 @@ export function mockCodeEditor(text: string[], options: MockCodeEditorCreationOp
 
 	let contextKeyService = new MockContextKeyService();
 
-	let services = new ServiceCollection();
+	let services = options.serviceCollection || new ServiceCollection();
 	services.set(IContextKeyService, contextKeyService);
 	let instantiationService = new InstantiationService(services);
 

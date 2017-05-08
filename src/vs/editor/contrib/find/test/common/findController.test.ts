@@ -17,10 +17,12 @@ import {
 	NextMatchFindAction, StartFindAction, SelectHighlightsAction,
 	AddSelectionToNextFindMatchAction
 } from 'vs/editor/contrib/find/common/findController';
+import { FindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Delayer } from 'vs/base/common/async';
 
 class TestFindController extends CommonFindController {
@@ -68,7 +70,13 @@ class TestFindController extends CommonFindController {
 }
 
 suite('FindController', () => {
-
+	let queryState = new FindReplaceState();
+	let serviceCollection = new ServiceCollection();
+	serviceCollection.set(IStorageService, <any>{
+		get: (key) => queryState[key],
+		getBoolean: (key) => !!queryState[key],
+		store: (key: string, value: any) => { queryState[key] = value; }
+	});
 	function fromRange(rng: Range): number[] {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
@@ -79,7 +87,7 @@ suite('FindController', () => {
 			'ABC',
 			'XYZ',
 			'ABC'
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			// The cursor is at the very top, of the file, at the first ABC
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
@@ -134,7 +142,7 @@ suite('FindController', () => {
 	test('issue #3090: F3 does not loop with two matches on a single line', () => {
 		withMockCodeEditor([
 			'import nls = require(\'vs/nls\');'
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let nextMatchFindAction = new NextMatchFindAction();
@@ -159,7 +167,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3  * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let startFindAction = new StartFindAction();
@@ -185,7 +193,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let selectHighlightsAction = new SelectHighlightsAction();
@@ -212,7 +220,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.start({
@@ -240,7 +248,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.getState().change({ searchString: '1' }, false);
@@ -256,7 +264,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.delayUpdateHistory = true;
@@ -276,7 +284,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.getState().change({ searchString: '1' }, false);
@@ -293,7 +301,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.getState().change({ searchString: '1' }, false);
@@ -310,7 +318,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.getState().change({ searchString: '1' }, false);
@@ -330,7 +338,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.getState().change({ searchString: '1' }, false);
@@ -356,7 +364,7 @@ suite('FindController', () => {
 			'rty',
 			'qwe',
 			'rty'
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
@@ -388,7 +396,7 @@ suite('FindController', () => {
 			'rty',
 			'qwe',
 			'rty'
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			editor.getModel().setEOL(EndOfLineSequence.CRLF);
 
@@ -414,7 +422,7 @@ suite('FindController', () => {
 	test('issue #18111: Regex replace with single space replaces with no space', () => {
 		withMockCodeEditor([
 			'HRESULT OnAmbientPropertyChange(DISPID   dispid);'
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 
@@ -448,7 +456,7 @@ suite('FindController', () => {
 	}
 
 	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: MockCodeEditor, action: AddSelectionToNextFindMatchAction, findController: TestFindController) => void): void {
-		withMockCodeEditor(text, {}, (editor, cursor) => {
+		withMockCodeEditor(text, { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 
