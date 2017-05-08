@@ -104,4 +104,5 @@ export interface IWindowSettings {
 	menuBarVisibility: MenuBarVisibility;
 	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
 	nativeTabs: boolean;
+	enableMenuBarMnemonics: boolean;
 }

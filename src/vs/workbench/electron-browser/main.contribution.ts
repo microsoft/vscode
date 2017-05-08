@@ -266,6 +266,11 @@ if (isWindows || isLinux) {
 		'default': 'default',
 		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen.")
 	};
+	properties['window.enableMenuBarMnemonics'] = {
+		'type': 'boolean',
+		'default': true,
+		'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead.")
+	};
 }
 
 if (isWindows) {
