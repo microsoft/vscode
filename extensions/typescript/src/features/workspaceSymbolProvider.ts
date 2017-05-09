@@ -7,6 +7,8 @@
 
 import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Range, Location, CancellationToken } from 'vscode';
 
+import * as path from 'path';
+
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 
@@ -28,7 +30,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		// general questions so we check the active editor. If this
 		// doesn't match we take the first TS document.
 		let uri: Uri | undefined = undefined;
-		let editor = window.activeTextEditor;
+		const editor = window.activeTextEditor;
 		if (editor) {
 			let document = editor.document;
 			if (document && document.languageId === this.modeId) {
@@ -53,34 +55,39 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		if (!filepath) {
 			return Promise.resolve<SymbolInformation[]>([]);
 		}
-		let args: Proto.NavtoRequestArgs = {
+		const args: Proto.NavtoRequestArgs = {
 			file: filepath,
 			searchValue: search
 		};
-		if (!args.file) {
-			return Promise.resolve<SymbolInformation[]>([]);
-		}
 		return this.client.execute('navto', args, token).then((response): SymbolInformation[] => {
 			let data = response.body;
 			if (data) {
-				let result: SymbolInformation[] = [];
+				const result: SymbolInformation[] = [];
 				for (let item of data) {
 					if (!item.containerName && item.kind === 'alias') {
 						continue;
 					}
-					let range = new Range(item.start.line - 1, item.start.offset - 1, item.end.line - 1, item.end.offset - 1);
+					const range = new Range(item.start.line - 1, item.start.offset - 1, item.end.line - 1, item.end.offset - 1);
 					let label = item.name;
 					if (item.kind === 'method' || item.kind === 'function') {
 						label += '()';
 					}
-					result.push(new SymbolInformation(label, _kindMapping[item.kind], item.containerName ? item.containerName : '',
-						new Location(this.client.asUrl(item.file), range)));
+					const containerNameParts: string[] = [];
+					if (item.containerName) {
+						containerNameParts.push(item.containerName);
+					}
+					const fileUri = this.client.asUrl(item.file);
+					const fileName = path.basename(fileUri.fsPath);
+					if (fileName) {
+						containerNameParts.push(fileName);
+					}
+					result.push(new SymbolInformation(label, _kindMapping[item.kind], containerNameParts.join(' — '),
+						new Location(fileUri, range)));
 				}
 				return result;
 			} else {
 				return [];
 			}
-
 		}, (err) => {
 			this.client.error(`'navto' request failed with error.`, err);
 			return [];
