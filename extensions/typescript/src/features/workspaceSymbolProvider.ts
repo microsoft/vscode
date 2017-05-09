@@ -12,13 +12,17 @@ import * as path from 'path';
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 
-const _kindMapping: { [kind: string]: SymbolKind } = Object.create(null);
-_kindMapping['method'] = SymbolKind.Method;
-_kindMapping['enum'] = SymbolKind.Enum;
-_kindMapping['function'] = SymbolKind.Function;
-_kindMapping['class'] = SymbolKind.Class;
-_kindMapping['interface'] = SymbolKind.Interface;
-_kindMapping['var'] = SymbolKind.Variable;
+function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
+	switch (item.kind) {
+		case 'method': return SymbolKind.Method;
+		case 'enum': return SymbolKind.Enum;
+		case 'function': return SymbolKind.Function;
+		case 'class': return SymbolKind.Class;
+		case 'interface': return SymbolKind.Interface;
+		case 'var': return SymbolKind.Variable;
+		default: return SymbolKind.Variable;
+	}
+}
 
 export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
 	public constructor(
@@ -32,14 +36,14 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		let uri: Uri | undefined = undefined;
 		const editor = window.activeTextEditor;
 		if (editor) {
-			let document = editor.document;
+			const document = editor.document;
 			if (document && document.languageId === this.modeId) {
 				uri = document.uri;
 			}
 		}
 		if (!uri) {
-			let documents = workspace.textDocuments;
-			for (let document of documents) {
+			const documents = workspace.textDocuments;
+			for (const document of documents) {
 				if (document.languageId === this.modeId) {
 					uri = document.uri;
 					break;
@@ -60,9 +64,9 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			searchValue: search
 		};
 		return this.client.execute('navto', args, token).then((response): SymbolInformation[] => {
+			const result: SymbolInformation[] = [];
 			let data = response.body;
 			if (data) {
-				const result: SymbolInformation[] = [];
 				for (let item of data) {
 					if (!item.containerName && item.kind === 'alias') {
 						continue;
@@ -81,13 +85,11 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 					if (fileName) {
 						containerNameParts.push(fileName);
 					}
-					result.push(new SymbolInformation(label, _kindMapping[item.kind], containerNameParts.join(' — '),
+					result.push(new SymbolInformation(label, getSymbolKind(item), containerNameParts.join(' — '),
 						new Location(fileUri, range)));
 				}
-				return result;
-			} else {
-				return [];
 			}
+			return result;
 		}, (err) => {
 			this.client.error(`'navto' request failed with error.`, err);
 			return [];
