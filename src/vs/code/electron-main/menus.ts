@@ -388,6 +388,8 @@ export class VSCodeMenu {
 		const about = new MenuItem({ label: nls.localize('mAbout', "About {0}", product.nameLong), role: 'about' });
 		const checkForUpdates = this.getUpdateMenuItems();
 		const preferences = this.getPreferencesMenu();
+		const servicesMenu = new Menu();
+		const services = new MenuItem({ label: nls.localize('mServices', "Services"), role: 'services', submenu: servicesMenu });
 		const hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", product.nameLong), role: 'hide', accelerator: 'Command+H' });
 		const hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Alt+H' });
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
@@ -398,6 +400,8 @@ export class VSCodeMenu {
 		actions.push(...[
 			__separator__(),
 			preferences,
+			__separator__(),
+			services,
 			__separator__(),
 			hide,
 			hideOthers,
