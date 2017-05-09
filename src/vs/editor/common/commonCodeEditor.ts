@@ -18,8 +18,6 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { hash } from 'vs/base/common/hash';
 import { EditorModeContext } from 'vs/editor/common/modes/editorModeContext';
@@ -752,27 +750,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 			this.model.onBeforeAttached();
 
-			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-				this._configuration.editor.wrappingInfo.wordWrapBreakBeforeCharacters,
-				this._configuration.editor.wrappingInfo.wordWrapBreakAfterCharacters,
-				this._configuration.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
-			);
-
-			let linesCollection = new SplitLinesCollection(
-				this.model,
-				hardWrappingLineMapperFactory,
-				this.model.getOptions().tabSize,
-				this._configuration.editor.wrappingInfo.wrappingColumn,
-				this._configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
-				this._configuration.editor.wrappingInfo.wrappingIndent
-			);
-
-			this.viewModel = new ViewModel(
-				linesCollection,
-				this.id,
-				this._configuration,
-				this.model
-			);
+			this.viewModel = new ViewModel(this.id, this._configuration, this.model);
 
 			let viewModelHelper: IViewModelHelper = {
 				viewModel: this.viewModel,

@@ -57,283 +57,6 @@ export interface ISplitLine {
 	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position;
 }
 
-class VisibleIdentitySplitLine implements ISplitLine {
-
-	public static INSTANCE = new VisibleIdentitySplitLine();
-
-	private constructor() { }
-
-	public isVisible(): boolean {
-		return true;
-	}
-
-	public setVisible(isVisible: boolean): ISplitLine {
-		if (isVisible) {
-			return this;
-		}
-		return InvisibleIdentitySplitLine.INSTANCE;
-	}
-
-	public getViewLineCount(): number {
-		return 1;
-	}
-
-	public getViewLineContent(model: IModel, modelLineNumber: number, outputLineIndex: number): string {
-		return model.getLineContent(modelLineNumber);
-	}
-
-	public getViewLineMinColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
-		return model.getLineMinColumn(modelLineNumber);
-	}
-
-	public getViewLineMaxColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
-		return model.getLineMaxColumn(modelLineNumber);
-	}
-
-	public getViewLineData(model: IModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
-		let lineTokens = model.getLineTokens(modelLineNumber);
-		let lineContent = lineTokens.getLineContent();
-		return new ViewLineData(
-			lineContent,
-			1,
-			lineContent.length + 1,
-			lineTokens.inflate()
-		);
-	}
-
-	public getViewLinesData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
-		if (!needed[globalStartIndex]) {
-			result[globalStartIndex] = null;
-			return;
-		}
-		result[globalStartIndex] = this.getViewLineData(model, modelLineNumber, 0);
-	}
-
-	public getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number {
-		return outputColumn;
-	}
-
-	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position {
-		return new Position(deltaLineNumber, inputColumn);
-	}
-}
-
-class InvisibleIdentitySplitLine implements ISplitLine {
-
-	public static INSTANCE = new InvisibleIdentitySplitLine();
-
-	private constructor() { }
-
-	public isVisible(): boolean {
-		return false;
-	}
-
-	public setVisible(isVisible: boolean): ISplitLine {
-		if (!isVisible) {
-			return this;
-		}
-		return VisibleIdentitySplitLine.INSTANCE;
-	}
-
-	public getViewLineCount(): number {
-		return 0;
-	}
-
-	public getViewLineContent(model: IModel, modelLineNumber: number, outputLineIndex: number): string {
-		throw new Error('Not supported');
-	}
-
-	public getViewLineMinColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
-		throw new Error('Not supported');
-	}
-
-	public getViewLineMaxColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
-		throw new Error('Not supported');
-	}
-
-	public getViewLineData(model: IModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
-		throw new Error('Not supported');
-	}
-
-	public getViewLinesData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
-		throw new Error('Not supported');
-	}
-
-	public getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number {
-		throw new Error('Not supported');
-	}
-
-	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position {
-		throw new Error('Not supported');
-	}
-}
-
-export class SplitLine implements ISplitLine {
-
-	private positionMapper: ILineMapping;
-	private outputLineCount: number;
-
-	private wrappedIndent: string;
-	private wrappedIndentLength: number;
-	private _isVisible: boolean;
-
-	constructor(positionMapper: ILineMapping, isVisible: boolean) {
-		this.positionMapper = positionMapper;
-		this.wrappedIndent = this.positionMapper.getWrappedLinesIndent();
-		this.wrappedIndentLength = this.wrappedIndent.length;
-		this.outputLineCount = this.positionMapper.getOutputLineCount();
-		this._isVisible = isVisible;
-	}
-
-	public isVisible(): boolean {
-		return this._isVisible;
-	}
-
-	public setVisible(isVisible: boolean): ISplitLine {
-		this._isVisible = isVisible;
-		return this;
-	}
-
-	public getViewLineCount(): number {
-		if (!this._isVisible) {
-			return 0;
-		}
-		return this.outputLineCount;
-	}
-
-	private getInputStartOffsetOfOutputLineIndex(outputLineIndex: number): number {
-		return this.positionMapper.getInputOffsetOfOutputPosition(outputLineIndex, 0);
-	}
-
-	private getInputEndOffsetOfOutputLineIndex(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
-		if (outputLineIndex + 1 === this.outputLineCount) {
-			return model.getLineMaxColumn(modelLineNumber) - 1;
-		}
-		return this.positionMapper.getInputOffsetOfOutputPosition(outputLineIndex + 1, 0);
-	}
-
-	public getViewLineContent(model: IModel, modelLineNumber: number, outputLineIndex: number): string {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
-		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
-		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
-		let r = model.getLineContent(modelLineNumber).substring(startOffset, endOffset);
-
-		if (outputLineIndex > 0) {
-			r = this.wrappedIndent + r;
-		}
-
-		return r;
-	}
-
-	public getViewLineMinColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
-		if (outputLineIndex > 0) {
-			return this.wrappedIndentLength + 1;
-		}
-		return 1;
-	}
-
-	public getViewLineMaxColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
-		return this.getViewLineContent(model, modelLineNumber, outputLineIndex).length + 1;
-	}
-
-	public getViewLineData(model: IModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
-
-		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
-		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
-
-		let lineContent = model.getLineContent(modelLineNumber).substring(startOffset, endOffset);
-		if (outputLineIndex > 0) {
-			lineContent = this.wrappedIndent + lineContent;
-		}
-
-		let minColumn = (outputLineIndex > 0 ? this.wrappedIndentLength + 1 : 1);
-		let maxColumn = lineContent.length + 1;
-
-		let deltaStartIndex = 0;
-		if (outputLineIndex > 0) {
-			deltaStartIndex = this.wrappedIndentLength;
-		}
-		let lineTokens = model.getLineTokens(modelLineNumber);
-
-		return new ViewLineData(
-			lineContent,
-			minColumn,
-			maxColumn,
-			lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex)
-		);
-	}
-
-	public getViewLinesData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
-
-		for (let outputLineIndex = fromOuputLineIndex; outputLineIndex < toOutputLineIndex; outputLineIndex++) {
-			let globalIndex = globalStartIndex + outputLineIndex - fromOuputLineIndex;
-			if (!needed[globalIndex]) {
-				result[globalIndex] = null;
-				continue;
-			}
-			result[globalIndex] = this.getViewLineData(model, modelLineNumber, outputLineIndex);
-		}
-	}
-
-	public getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
-		let adjustedColumn = outputColumn - 1;
-		if (outputLineIndex > 0) {
-			if (adjustedColumn < this.wrappedIndentLength) {
-				adjustedColumn = 0;
-			} else {
-				adjustedColumn -= this.wrappedIndentLength;
-			}
-		}
-		return this.positionMapper.getInputOffsetOfOutputPosition(outputLineIndex, adjustedColumn) + 1;
-	}
-
-	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position {
-		if (!this._isVisible) {
-			throw new Error('Not supported');
-		}
-		let r = this.positionMapper.getOutputPositionOfInputOffset(inputColumn - 1);
-		let outputLineIndex = r.outputLineIndex;
-		let outputColumn = r.outputOffset + 1;
-
-		if (outputLineIndex > 0) {
-			outputColumn += this.wrappedIndentLength;
-		}
-
-		//		console.log('in -> out ' + deltaLineNumber + ',' + inputColumn + ' ===> ' + (deltaLineNumber+outputLineIndex) + ',' + outputColumn);
-		return new Position(deltaLineNumber + outputLineIndex, outputColumn);
-	}
-}
-
-function createSplitLine(linePositionMapperFactory: ILineMapperFactory, text: string, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, isVisible: boolean): ISplitLine {
-	let positionMapper = linePositionMapperFactory.createLineMapping(text, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
-	if (positionMapper === null) {
-		// No mapping needed
-		if (isVisible) {
-			return VisibleIdentitySplitLine.INSTANCE;
-		}
-		return InvisibleIdentitySplitLine.INSTANCE;
-	} else {
-		return new SplitLine(positionMapper, isVisible);
-	}
-}
-
 export class SplitLinesCollection {
 
 	private model: editorCommon.IModel;
@@ -533,24 +256,15 @@ export class SplitLinesCollection {
 		return true;
 	}
 
-	public setWrappingIndent(eventsCollector: ViewEventsCollector, newWrappingIndent: WrappingIndent): boolean {
-		if (this.wrappingIndent === newWrappingIndent) {
+	public setWrappingSettings(eventsCollector: ViewEventsCollector, wrappingIndent: WrappingIndent, wrappingColumn: number, columnsForFullWidthChar: number): boolean {
+		if (this.wrappingIndent === wrappingIndent && this.wrappingColumn === wrappingColumn && this.columnsForFullWidthChar === columnsForFullWidthChar) {
 			return false;
 		}
-		this.wrappingIndent = newWrappingIndent;
 
-		this._constructLines(false);
-		eventsCollector.emit(new viewEvents.ViewFlushedEvent());
-
-		return true;
-	}
-
-	public setWrappingColumn(eventsCollector: ViewEventsCollector, newWrappingColumn: number, columnsForFullWidthChar: number): boolean {
-		if (this.wrappingColumn === newWrappingColumn && this.columnsForFullWidthChar === columnsForFullWidthChar) {
-			return false;
-		}
-		this.wrappingColumn = newWrappingColumn;
+		this.wrappingIndent = wrappingIndent;
+		this.wrappingColumn = wrappingColumn;
 		this.columnsForFullWidthChar = columnsForFullWidthChar;
+
 		this._constructLines(false);
 		eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 
@@ -855,5 +569,282 @@ export class SplitLinesCollection {
 
 		// console.log('in -> out ' + inputLineNumber + ',' + inputColumn + ' ===> ' + r.lineNumber + ',' + r);
 		return r;
+	}
+}
+
+class VisibleIdentitySplitLine implements ISplitLine {
+
+	public static INSTANCE = new VisibleIdentitySplitLine();
+
+	private constructor() { }
+
+	public isVisible(): boolean {
+		return true;
+	}
+
+	public setVisible(isVisible: boolean): ISplitLine {
+		if (isVisible) {
+			return this;
+		}
+		return InvisibleIdentitySplitLine.INSTANCE;
+	}
+
+	public getViewLineCount(): number {
+		return 1;
+	}
+
+	public getViewLineContent(model: IModel, modelLineNumber: number, outputLineIndex: number): string {
+		return model.getLineContent(modelLineNumber);
+	}
+
+	public getViewLineMinColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
+		return model.getLineMinColumn(modelLineNumber);
+	}
+
+	public getViewLineMaxColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
+		return model.getLineMaxColumn(modelLineNumber);
+	}
+
+	public getViewLineData(model: IModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
+		let lineTokens = model.getLineTokens(modelLineNumber);
+		let lineContent = lineTokens.getLineContent();
+		return new ViewLineData(
+			lineContent,
+			1,
+			lineContent.length + 1,
+			lineTokens.inflate()
+		);
+	}
+
+	public getViewLinesData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
+		if (!needed[globalStartIndex]) {
+			result[globalStartIndex] = null;
+			return;
+		}
+		result[globalStartIndex] = this.getViewLineData(model, modelLineNumber, 0);
+	}
+
+	public getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number {
+		return outputColumn;
+	}
+
+	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position {
+		return new Position(deltaLineNumber, inputColumn);
+	}
+}
+
+class InvisibleIdentitySplitLine implements ISplitLine {
+
+	public static INSTANCE = new InvisibleIdentitySplitLine();
+
+	private constructor() { }
+
+	public isVisible(): boolean {
+		return false;
+	}
+
+	public setVisible(isVisible: boolean): ISplitLine {
+		if (!isVisible) {
+			return this;
+		}
+		return VisibleIdentitySplitLine.INSTANCE;
+	}
+
+	public getViewLineCount(): number {
+		return 0;
+	}
+
+	public getViewLineContent(model: IModel, modelLineNumber: number, outputLineIndex: number): string {
+		throw new Error('Not supported');
+	}
+
+	public getViewLineMinColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
+		throw new Error('Not supported');
+	}
+
+	public getViewLineMaxColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
+		throw new Error('Not supported');
+	}
+
+	public getViewLineData(model: IModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
+		throw new Error('Not supported');
+	}
+
+	public getViewLinesData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
+		throw new Error('Not supported');
+	}
+
+	public getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number {
+		throw new Error('Not supported');
+	}
+
+	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position {
+		throw new Error('Not supported');
+	}
+}
+
+export class SplitLine implements ISplitLine {
+
+	private positionMapper: ILineMapping;
+	private outputLineCount: number;
+
+	private wrappedIndent: string;
+	private wrappedIndentLength: number;
+	private _isVisible: boolean;
+
+	constructor(positionMapper: ILineMapping, isVisible: boolean) {
+		this.positionMapper = positionMapper;
+		this.wrappedIndent = this.positionMapper.getWrappedLinesIndent();
+		this.wrappedIndentLength = this.wrappedIndent.length;
+		this.outputLineCount = this.positionMapper.getOutputLineCount();
+		this._isVisible = isVisible;
+	}
+
+	public isVisible(): boolean {
+		return this._isVisible;
+	}
+
+	public setVisible(isVisible: boolean): ISplitLine {
+		this._isVisible = isVisible;
+		return this;
+	}
+
+	public getViewLineCount(): number {
+		if (!this._isVisible) {
+			return 0;
+		}
+		return this.outputLineCount;
+	}
+
+	private getInputStartOffsetOfOutputLineIndex(outputLineIndex: number): number {
+		return this.positionMapper.getInputOffsetOfOutputPosition(outputLineIndex, 0);
+	}
+
+	private getInputEndOffsetOfOutputLineIndex(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
+		if (outputLineIndex + 1 === this.outputLineCount) {
+			return model.getLineMaxColumn(modelLineNumber) - 1;
+		}
+		return this.positionMapper.getInputOffsetOfOutputPosition(outputLineIndex + 1, 0);
+	}
+
+	public getViewLineContent(model: IModel, modelLineNumber: number, outputLineIndex: number): string {
+		if (!this._isVisible) {
+			throw new Error('Not supported');
+		}
+		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
+		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
+		let r = model.getLineContent(modelLineNumber).substring(startOffset, endOffset);
+
+		if (outputLineIndex > 0) {
+			r = this.wrappedIndent + r;
+		}
+
+		return r;
+	}
+
+	public getViewLineMinColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
+		if (!this._isVisible) {
+			throw new Error('Not supported');
+		}
+		if (outputLineIndex > 0) {
+			return this.wrappedIndentLength + 1;
+		}
+		return 1;
+	}
+
+	public getViewLineMaxColumn(model: IModel, modelLineNumber: number, outputLineIndex: number): number {
+		if (!this._isVisible) {
+			throw new Error('Not supported');
+		}
+		return this.getViewLineContent(model, modelLineNumber, outputLineIndex).length + 1;
+	}
+
+	public getViewLineData(model: IModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
+		if (!this._isVisible) {
+			throw new Error('Not supported');
+		}
+
+		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
+		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
+
+		let lineContent = model.getLineContent(modelLineNumber).substring(startOffset, endOffset);
+		if (outputLineIndex > 0) {
+			lineContent = this.wrappedIndent + lineContent;
+		}
+
+		let minColumn = (outputLineIndex > 0 ? this.wrappedIndentLength + 1 : 1);
+		let maxColumn = lineContent.length + 1;
+
+		let deltaStartIndex = 0;
+		if (outputLineIndex > 0) {
+			deltaStartIndex = this.wrappedIndentLength;
+		}
+		let lineTokens = model.getLineTokens(modelLineNumber);
+
+		return new ViewLineData(
+			lineContent,
+			minColumn,
+			maxColumn,
+			lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex)
+		);
+	}
+
+	public getViewLinesData(model: IModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
+		if (!this._isVisible) {
+			throw new Error('Not supported');
+		}
+
+		for (let outputLineIndex = fromOuputLineIndex; outputLineIndex < toOutputLineIndex; outputLineIndex++) {
+			let globalIndex = globalStartIndex + outputLineIndex - fromOuputLineIndex;
+			if (!needed[globalIndex]) {
+				result[globalIndex] = null;
+				continue;
+			}
+			result[globalIndex] = this.getViewLineData(model, modelLineNumber, outputLineIndex);
+		}
+	}
+
+	public getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number {
+		if (!this._isVisible) {
+			throw new Error('Not supported');
+		}
+		let adjustedColumn = outputColumn - 1;
+		if (outputLineIndex > 0) {
+			if (adjustedColumn < this.wrappedIndentLength) {
+				adjustedColumn = 0;
+			} else {
+				adjustedColumn -= this.wrappedIndentLength;
+			}
+		}
+		return this.positionMapper.getInputOffsetOfOutputPosition(outputLineIndex, adjustedColumn) + 1;
+	}
+
+	public getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position {
+		if (!this._isVisible) {
+			throw new Error('Not supported');
+		}
+		let r = this.positionMapper.getOutputPositionOfInputOffset(inputColumn - 1);
+		let outputLineIndex = r.outputLineIndex;
+		let outputColumn = r.outputOffset + 1;
+
+		if (outputLineIndex > 0) {
+			outputColumn += this.wrappedIndentLength;
+		}
+
+		//		console.log('in -> out ' + deltaLineNumber + ',' + inputColumn + ' ===> ' + (deltaLineNumber+outputLineIndex) + ',' + outputColumn);
+		return new Position(deltaLineNumber + outputLineIndex, outputColumn);
+	}
+}
+
+function createSplitLine(linePositionMapperFactory: ILineMapperFactory, text: string, tabSize: number, wrappingColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, isVisible: boolean): ISplitLine {
+	let positionMapper = linePositionMapperFactory.createLineMapping(text, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
+	if (positionMapper === null) {
+		// No mapping needed
+		if (isVisible) {
+			return VisibleIdentitySplitLine.INSTANCE;
+		}
+		return InvisibleIdentitySplitLine.INSTANCE;
+	} else {
+		return new SplitLine(positionMapper, isVisible);
 	}
 }
