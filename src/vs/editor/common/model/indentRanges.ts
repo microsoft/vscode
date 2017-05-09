@@ -38,11 +38,12 @@ export function computeRanges(model: ITextModel, minimumRangeSize: number = 1): 
 
 	for (let line = model.getLineCount(); line > 0; line--) {
 		let indent = model.getIndentLevel(line);
+		let previous = previousRegions[previousRegions.length - 1];
 		if (indent === -1) {
+			// exclude empty lines from end of fold
+			previous.line = line;
 			continue; // only whitespace
 		}
-
-		let previous = previousRegions[previousRegions.length - 1];
 
 		if (previous.indent > indent) {
 			// discard all regions with larger indent
