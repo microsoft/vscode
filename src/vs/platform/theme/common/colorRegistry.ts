@@ -308,7 +308,7 @@ function resolveColorValue(colorValue: ColorValue, theme: ITheme): Color {
 	return null;
 }
 
-setTimeout(_ => console.log(colorRegistry.toString()), 5000);
+// setTimeout(_ => console.log(colorRegistry.toString()), 5000);
 
 
 
