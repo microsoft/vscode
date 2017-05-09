@@ -65,8 +65,8 @@ export class CodeSnippet implements ICodeSnippet {
 		let getMaxTabStop = (markers: Marker[]): number => {
 			let currentMaxTabStop = -1;
 			markers.forEach(marker => {
-				if (marker instanceof Placeholder && /^\d+$/.test(marker['name'])) {
-					let currentTabStop = Number(marker['name']);
+				if (marker instanceof Placeholder && /^\d+$/.test(marker['index'])) {
+					let currentTabStop = Number(marker['index']);
 					let nestedMaxTabStop = getMaxTabStop(marker['defaultValue'] || []);
 					currentMaxTabStop = Math.max(currentMaxTabStop, currentTabStop, nestedMaxTabStop);
 				}
@@ -79,8 +79,8 @@ export class CodeSnippet implements ICodeSnippet {
 		let setNextTabStop = (markers: Marker[]) => {
 			markers.forEach(marker => {
 				if (marker instanceof Placeholder) {
-					if (marker['name'] === '0') {
-						marker['name'] = ++maxTabStop + '';
+					if (marker['index'] === '0') {
+						marker['index'] = ++maxTabStop + '';
 					}
 					setNextTabStop(marker['defaultValue'] || []);
 				}
@@ -262,10 +262,10 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 
 		} else if (marker instanceof Placeholder) {
 
-			let placeHolder = placeHolders[marker.name];
+			let placeHolder = placeHolders[marker.index];
 			if (!placeHolder) {
-				placeHolders[marker.name] = placeHolder = {
-					id: marker.name,
+				placeHolders[marker.index] = placeHolder = {
+					id: marker.index,
 					value: Marker.toString(marker.defaultValue),
 					occurences: []
 				};

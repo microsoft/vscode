@@ -144,7 +144,7 @@ suite('SnippetParser', () => {
 		let [, placeholder] = new SnippetParser(true, false).parse('foo${1:bar\\}${2:foo}}');
 		let { defaultValue } = (<Placeholder>placeholder);
 
-		assert.equal((<Placeholder>placeholder).name, '1');
+		assert.equal((<Placeholder>placeholder).index, '1');
 		assert.ok(defaultValue[0] instanceof Text);
 		assert.equal(defaultValue[0].toString(), 'bar}');
 		assert.ok(defaultValue[1] instanceof Placeholder);
@@ -213,7 +213,7 @@ suite('SnippetParser', () => {
 
 		const placeholder = <Placeholder>marker[1];
 		assert.equal(placeholder, false);
-		assert.equal(placeholder.name, '1');
+		assert.equal(placeholder.index, '1');
 		assert.equal(placeholder.defaultValue.length, 3);
 		assert.ok(placeholder.defaultValue[0] instanceof Text);
 		assert.ok(placeholder.defaultValue[1] instanceof Variable);
@@ -256,13 +256,13 @@ suite('SnippetParser', () => {
 		);
 
 		const [p1, , p2, , p3] = new SnippetParser().parse('{{first}}-{{2:}}-{{second}}-{{1:}}');
-		assert.equal((<Placeholder>p1).name, 'first');
+		assert.equal((<Placeholder>p1).index, 'first');
 		assert.equal(Marker.toString((<Placeholder>p1).defaultValue), 'first');
 
-		assert.equal((<Placeholder>p2).name, '2');
+		assert.equal((<Placeholder>p2).index, '2');
 		assert.equal(Marker.toString((<Placeholder>p2).defaultValue), '');
 
-		assert.equal((<Placeholder>p3).name, 'second');
+		assert.equal((<Placeholder>p3).index, 'second');
 		assert.equal(Marker.toString((<Placeholder>p3).defaultValue), 'second');
 	});
 
@@ -272,11 +272,11 @@ suite('SnippetParser', () => {
 
 		const [, p1, , p2] = new SnippetParser().parse('errorContext: `${1:err}`, error:$1');
 
-		assert.equal((<Placeholder>p1).name, '1');
+		assert.equal((<Placeholder>p1).index, '1');
 		assert.equal((<Placeholder>p1).defaultValue.length, '1');
 		assert.equal((<Text>(<Placeholder>p1).defaultValue[0]), 'err');
 
-		assert.equal((<Placeholder>p2).name, '1');
+		assert.equal((<Placeholder>p2).index, '1');
 		assert.equal((<Placeholder>p2).defaultValue.length, '1');
 		assert.equal((<Text>(<Placeholder>p2).defaultValue[0]), 'err');
 
@@ -347,34 +347,5 @@ suite('SnippetParser', () => {
 		snippet = SnippetParser.parse('${1:bar${2:foo}bar}');
 		placeholders = snippet.getPlaceholders();
 		assert.equal(placeholders.length, 2);
-	});
-
-	test('TextmateSnippet#withIndentation', () => {
-		let snippet = SnippetParser.parse('foo\n  bar');
-		assert.equal(snippet.text, 'foo\n  bar');
-		let snippet1 = snippet.withIndentation(s => s.replace(/  /, '\t'));
-		let snippet2 = snippet.withIndentation(s => s.replace(/  /, ' '));
-		assert.equal(snippet.text, 'foo\n  bar');
-		assert.equal(snippet1.text, 'foo\n\tbar');
-		assert.equal(snippet2.text, 'foo\n bar');
-
-		snippet = SnippetParser.parse('foo\n  bar');
-		assert.equal(snippet.text, 'foo\n  bar');
-		let newSnippet = snippet.withIndentation(s => s.replace(/  /, '\t'));
-		assert.equal(snippet.text, 'foo\n  bar');
-		assert.equal(newSnippet.text, 'foo\n\tbar');
-
-		snippet = SnippetParser.parse('foo\r\n  bar\r\n  far');
-		assert.equal(snippet.text, 'foo\r\n  bar\r\n  far');
-		newSnippet = snippet.withIndentation(s => s.replace(/  /, '\t'));
-		assert.equal(snippet.text, 'foo\r\n  bar\r\n  far');
-		assert.equal(newSnippet.text, 'foo\r\n\tbar\r\n\tfar');
-
-		snippet = SnippetParser.parse('foo${1:bar\r  far\r  boo}');
-		assert.equal(snippet.text, 'foobar\r  far\r  boo');
-		newSnippet = snippet.withIndentation(s => s.replace(/  /, '\t'));
-		assert.equal(snippet.text, 'foobar\r  far\r  boo');
-		assert.equal(newSnippet.text, 'foobar\r\tfar\r\tboo');
-
 	});
 });

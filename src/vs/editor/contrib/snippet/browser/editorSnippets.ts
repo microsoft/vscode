@@ -79,8 +79,8 @@ class OneSnippet {
 		this._placeholderGroupsIdx = -1;
 		this._placeholderGroups = [];
 		let lastBucket: Placeholder[];
-		this._snippet.getPlaceholders().sort(Placeholder.compare).forEach(a => {
-			if (!lastBucket || lastBucket[0].name !== a.name) {
+		this._snippet.getPlaceholders().sort(Placeholder.compareByIndex).forEach(a => {
+			if (!lastBucket || lastBucket[0].index !== a.index) {
 				lastBucket = [a];
 				this._placeholderGroups.push(lastBucket);
 			} else {

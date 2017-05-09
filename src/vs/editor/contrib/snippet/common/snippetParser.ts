@@ -6,7 +6,6 @@
 'use strict';
 
 import { CharCode } from 'vs/base/common/charCode';
-import { getLeadingWhitespace } from 'vs/base/common/strings';
 
 export enum TokenType {
 	Dollar,
@@ -162,30 +161,30 @@ export class Text extends Marker {
 
 export class Placeholder extends Marker {
 
-	static compare(a: Placeholder, b: Placeholder): number {
-		if (a.name === b.name) {
+	static compareByIndex(a: Placeholder, b: Placeholder): number {
+		if (a.index === b.index) {
 			return 0;
 		} else if (a.isFinalTabstop) {
 			return 1;
 		} else if (b.isFinalTabstop) {
 			return -1;
-		} else if (a.name < b.name) {
+		} else if (a.index < b.index) {
 			return -1;
-		} else if (a.name > b.name) {
+		} else if (a.index > b.index) {
 			return 1;
 		} else {
 			return 0;
 		}
 	}
 
-	constructor(public name: string = '', public defaultValue: Marker[]) {
+	constructor(public index: string = '', public defaultValue: Marker[]) {
 		super();
 	}
 	get isFinalTabstop() {
-		return this.name === '0';
+		return this.index === '0';
 	}
 	with(defaultValue: Marker[]): Placeholder {
-		return new Placeholder(this.name, defaultValue);
+		return new Placeholder(this.index, defaultValue);
 	}
 	toString() {
 		return Marker.toString(this.defaultValue);
@@ -204,11 +203,6 @@ export class Variable extends Marker {
 	}
 	toString() {
 		return this.isDefined ? this.resolvedValue : Marker.toString(this.defaultValue);
-	}
-	with(defaultValue: Marker[]): Variable {
-		let ret = new Variable(this.name, defaultValue);
-		ret.resolvedValue = this.resolvedValue;
-		return ret;
 	}
 }
 export function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
@@ -274,44 +268,6 @@ export class TextmateSnippet {
 	get text() {
 		return Marker.toString(this.marker);
 	}
-
-	withIndentation(normalizer: (whitespace: string) => string): TextmateSnippet {
-		// create a new snippet because this can be
-		// different for each and every cursor
-		const newMarker = [...this.marker];
-		TextmateSnippet._adjustIndentation(newMarker, normalizer);
-		return new TextmateSnippet(newMarker);
-	}
-
-	private static _adjustIndentation(marker: Marker[], normalizer: (whitespace: string) => string): void {
-		for (let i = 0; i < marker.length; i++) {
-			const candidate = marker[i];
-			if (candidate instanceof Text) {
-				//check for newline characters and adjust indent
-				let regex = /\r\n|\r|\n/g;
-				let match: RegExpMatchArray;
-				let value = candidate.string;
-				while (match = regex.exec(value)) {
-					let pos = regex.lastIndex;
-					let whitespace = getLeadingWhitespace(value, pos);
-					let normalized = normalizer(whitespace);
-					if (whitespace !== normalized) {
-						value = value.substr(0, pos)
-							+ normalized
-							+ value.substr(pos + whitespace.length);
-
-						marker[i] = candidate.with(value);
-					}
-				}
-			} else if (candidate instanceof Placeholder || candidate instanceof Variable) {
-				// recurse with a copied array
-				let children = [...candidate.defaultValue];
-				TextmateSnippet._adjustIndentation(children, normalizer);
-				marker[i] = candidate.with(children);
-			}
-		}
-	}
-
 }
 
 export class SnippetParser {
@@ -353,10 +309,10 @@ export class SnippetParser {
 				const thisMarker = marker[i];
 
 				if (thisMarker instanceof Placeholder) {
-					if (placeholders[thisMarker.name] === undefined) {
-						placeholders[thisMarker.name] = thisMarker.defaultValue;
+					if (placeholders[thisMarker.index] === undefined) {
+						placeholders[thisMarker.index] = thisMarker.defaultValue;
 					} else if (thisMarker.defaultValue.length === 0) {
-						thisMarker.defaultValue = placeholders[thisMarker.name].slice(0);
+						thisMarker.defaultValue = placeholders[thisMarker.index].slice(0);
 					}
 
 					if (thisMarker.defaultValue.length > 0) {
