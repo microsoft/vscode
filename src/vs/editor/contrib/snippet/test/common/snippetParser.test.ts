@@ -351,30 +351,30 @@ suite('SnippetParser', () => {
 
 	test('TextmateSnippet#withIndentation', () => {
 		let snippet = SnippetParser.parse('foo\n  bar');
-		assert.equal(snippet.value, 'foo\n  bar');
+		assert.equal(snippet.text, 'foo\n  bar');
 		let snippet1 = snippet.withIndentation(s => s.replace(/  /, '\t'));
 		let snippet2 = snippet.withIndentation(s => s.replace(/  /, ' '));
-		assert.equal(snippet.value, 'foo\n  bar');
-		assert.equal(snippet1.value, 'foo\n\tbar');
-		assert.equal(snippet2.value, 'foo\n bar');
+		assert.equal(snippet.text, 'foo\n  bar');
+		assert.equal(snippet1.text, 'foo\n\tbar');
+		assert.equal(snippet2.text, 'foo\n bar');
 
 		snippet = SnippetParser.parse('foo\n  bar');
-		assert.equal(snippet.value, 'foo\n  bar');
+		assert.equal(snippet.text, 'foo\n  bar');
 		let newSnippet = snippet.withIndentation(s => s.replace(/  /, '\t'));
-		assert.equal(snippet.value, 'foo\n  bar');
-		assert.equal(newSnippet.value, 'foo\n\tbar');
+		assert.equal(snippet.text, 'foo\n  bar');
+		assert.equal(newSnippet.text, 'foo\n\tbar');
 
 		snippet = SnippetParser.parse('foo\r\n  bar\r\n  far');
-		assert.equal(snippet.value, 'foo\r\n  bar\r\n  far');
+		assert.equal(snippet.text, 'foo\r\n  bar\r\n  far');
 		newSnippet = snippet.withIndentation(s => s.replace(/  /, '\t'));
-		assert.equal(snippet.value, 'foo\r\n  bar\r\n  far');
-		assert.equal(newSnippet.value, 'foo\r\n\tbar\r\n\tfar');
+		assert.equal(snippet.text, 'foo\r\n  bar\r\n  far');
+		assert.equal(newSnippet.text, 'foo\r\n\tbar\r\n\tfar');
 
 		snippet = SnippetParser.parse('foo${1:bar\r  far\r  boo}');
-		assert.equal(snippet.value, 'foobar\r  far\r  boo');
+		assert.equal(snippet.text, 'foobar\r  far\r  boo');
 		newSnippet = snippet.withIndentation(s => s.replace(/  /, '\t'));
-		assert.equal(snippet.value, 'foobar\r  far\r  boo');
-		assert.equal(newSnippet.value, 'foobar\r\tfar\r\tboo');
+		assert.equal(snippet.text, 'foobar\r  far\r  boo');
+		assert.equal(newSnippet.text, 'foobar\r\tfar\r\tboo');
 
 	});
 });

@@ -12,7 +12,7 @@ import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { Model } from "vs/editor/common/model/model";
 
-suite('SnippetInsertion', function () {
+suite('SnippetSession', function () {
 
 	let editor: ICommonCodeEditor;
 	let model: Model;
@@ -232,6 +232,53 @@ suite('SnippetInsertion', function () {
 		session.next();
 		assert.equal(session.isAtFinalPlaceholder, true);
 		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
+	});
+
+	test('snippets, overwriting nested placeholder', function () {
+		const session = new SnippetSession(editor, 'log(${1:"$2"});$0');
+		assertSelections(editor, new Selection(1, 5, 1, 7), new Selection(2, 9, 2, 11));
+
+		editor.trigger('test', 'type', { text: 'XXX' });
+		assert.equal(model.getValue(), 'log(XXX);function foo() {\n    log(XXX);console.log(a);\n}');
+
+		session.next();
+		assert.equal(session.isAtFinalPlaceholder, false);
+		// assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+
+		session.next();
+		assert.equal(session.isAtFinalPlaceholder, true);
+		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
+	});
+
+	test('snippets, selections and snippet ranges', function () {
+		const session = new SnippetSession(editor, '${1:foo}farboo${2:bar}$0');
+		assert.equal(model.getValue(), 'foofarboobarfunction foo() {\n    foofarboobarconsole.log(a);\n}');
+		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(2, 5, 2, 8));
+
+		assert.equal(session.validateSelections(), true);
+
+		editor.setSelections([new Selection(1, 1, 1, 1)]);
+		assert.equal(session.validateSelections(), false);
+
+		editor.setSelections([new Selection(1, 6, 1, 6), new Selection(2, 10, 2, 10)]);
+		assert.equal(session.validateSelections(), true);
+
+		editor.setSelections([new Selection(1, 6, 1, 6), new Selection(2, 10, 2, 10), new Selection(1, 1, 1, 1)]);
+		assert.equal(session.validateSelections(), true);
+
+		editor.setSelections([new Selection(1, 6, 1, 6), new Selection(2, 10, 2, 10), new Selection(2, 20, 2, 21)]);
+		assert.equal(session.validateSelections(), false);
+
+		// reset selection to placeholder
+		session.next();
+		assert.equal(session.validateSelections(), true);
+		assertSelections(editor, new Selection(1, 10, 1, 13), new Selection(2, 14, 2, 17));
+
+		// reset selection to placeholder
+		session.next();
+		assert.equal(session.validateSelections(), true);
+		assert.equal(session.isAtFinalPlaceholder, true);
+		assertSelections(editor, new Selection(1, 13, 1, 13), new Selection(2, 17, 2, 17));
 	});
 
 });

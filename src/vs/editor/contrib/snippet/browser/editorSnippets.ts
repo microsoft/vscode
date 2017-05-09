@@ -20,14 +20,16 @@ class OneSnippet {
 	private readonly _snippet: TextmateSnippet;
 	private readonly _offset: number;
 
+	private _snippetDecoration: string;
 	private _placeholderDecorations: Map<Placeholder, string>;
 	private _placeholderGroups: Placeholder[][];
 	private _placeholderGroupsIdx: number;
 
-	private static readonly _decorations = {
+	private static readonly _decor = {
 		active: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges },
 		activeFinal: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
-		inActive: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
+		inactive: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
+		snippet: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges },
 	};
 
 	constructor(editor: ICommonCodeEditor, snippet: TextmateSnippet, offset: number) {
@@ -52,22 +54,25 @@ class OneSnippet {
 		this._placeholderDecorations = new Map<Placeholder, string>();
 		const model = this._editor.getModel();
 
-		// create a decoration (tracked range) for each placeholder
 		this._editor.changeDecorations(accessor => {
 
-			let lastRange: Range;
+			// create one decoration for the whole snippets
+			const range = Range.fromPositions(
+				model.getPositionAt(this._offset),
+				model.getPositionAt(this._offset + this._snippet.text.length)
+			);
+			this._snippetDecoration = accessor.addDecoration(range, OneSnippet._decor.snippet);
 
+			// create a decoration for each placeholder
 			for (const placeholder of this._snippet.getPlaceholders()) {
 				const placeholderOffset = this._snippet.offset(placeholder);
 				const placeholderLen = this._snippet.len(placeholder);
-				const start = model.getPositionAt(this._offset + placeholderOffset);
-				const end = model.getPositionAt(this._offset + placeholderOffset + placeholderLen);
-				const range = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-
-				const handle = accessor.addDecoration(range, OneSnippet._decorations.inActive);
+				const range = Range.fromPositions(
+					model.getPositionAt(this._offset + placeholderOffset),
+					model.getPositionAt(this._offset + placeholderOffset + placeholderLen)
+				);
+				const handle = accessor.addDecoration(range, OneSnippet._decor.inactive);
 				this._placeholderDecorations.set(placeholder, handle);
-
-				lastRange = range;
 			}
 		});
 
@@ -107,7 +112,7 @@ class OneSnippet {
 			if (prevGroupsIdx !== -1) {
 				for (const placeholder of this._placeholderGroups[prevGroupsIdx]) {
 					const id = this._placeholderDecorations.get(placeholder);
-					accessor.changeDecorationOptions(id, OneSnippet._decorations.inActive);
+					accessor.changeDecorationOptions(id, OneSnippet._decor.inactive);
 				}
 			}
 
@@ -120,7 +125,7 @@ class OneSnippet {
 				const range = this._editor.getModel().getDecorationRange(id);
 				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
 
-				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decorations.activeFinal : OneSnippet._decorations.active);
+				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
 			}
 			return selections;
 		});
@@ -132,6 +137,10 @@ class OneSnippet {
 		} else {
 			return this._placeholderGroups[this._placeholderGroupsIdx][0].isFinalTabstop;
 		}
+	}
+
+	get range() {
+		return this._snippetDecoration !== undefined && this._editor.getModel().getDecorationRange(this._snippetDecoration);
 	}
 }
 
@@ -170,10 +179,10 @@ export class SnippetSession {
 			const snippet = SnippetParser.parse(adjustedTemplate);
 			const offset = model.getOffsetAt(start) + delta;
 
-			edits.push(EditOperation.replaceMove(selection, snippet.value));
+			edits.push(EditOperation.replaceMove(selection, snippet.text));
 			this._snippets.push(new OneSnippet(editor, snippet, offset));
 
-			delta += snippet.value.length - model.getValueLengthInRange(selection);
+			delta += snippet.text.length - model.getValueLengthInRange(selection);
 		}
 
 		// make insert edit and start with first selections
@@ -210,5 +219,33 @@ export class SnippetSession {
 
 	get isAtFinalPlaceholder() {
 		return this._snippets[0].isAtFinalPlaceholder;
+	}
+
+	validateSelections(): boolean {
+		const selections = this._editor.getSelections();
+		if (selections.length < this._snippets.length) {
+			return false;
+		}
+
+		for (const selection of selections) {
+			let found = false;
+			for (const { range } of this._snippets) {
+
+				if (!range) {
+					// too early, not yet initialized
+					return true;
+				}
+
+				if (range.containsRange(selection)) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }

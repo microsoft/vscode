@@ -271,7 +271,7 @@ export class TextmateSnippet {
 		return ret;
 	}
 
-	get value() {
+	get text() {
 		return Marker.toString(this.marker);
 	}
 
