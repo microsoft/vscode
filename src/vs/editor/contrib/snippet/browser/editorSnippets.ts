@@ -29,7 +29,7 @@ class OneSnippet {
 		active: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges },
 		activeFinal: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
 		inactive: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
-		snippet: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges },
+		snippet: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
 	};
 
 	constructor(editor: ICommonCodeEditor, snippet: TextmateSnippet, offset: number) {
@@ -95,16 +95,15 @@ class OneSnippet {
 
 		this._init();
 
-		const prevGroupsIdx = this._placeholderGroupsIdx;
+		let prevGroupsIdx = -1;
 
 		if (fwd && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
+			prevGroupsIdx = this._placeholderGroupsIdx;
 			this._placeholderGroupsIdx += 1;
 
 		} else if (!fwd && this._placeholderGroupsIdx > 0) {
+			prevGroupsIdx = this._placeholderGroupsIdx;
 			this._placeholderGroupsIdx -= 1;
-
-		} else {
-			return [];
 		}
 
 		return this._editor.getModel().changeDecorations(accessor => {
@@ -200,24 +199,14 @@ export class SnippetSession {
 		dispose(this._snippets);
 	}
 
-	next(): boolean {
+	next(): void {
 		const newSelections = this._move(true);
-		if (newSelections.length > 0) {
-			this._editor.setSelections(newSelections);
-			return true;
-		} else {
-			return false;
-		}
+		this._editor.setSelections(newSelections);
 	}
 
-	prev(): boolean {
+	prev(): void {
 		const newSelections = this._move(false);
-		if (newSelections.length > 0) {
-			this._editor.setSelections(newSelections);
-			return true;
-		} else {
-			return false;
-		}
+		this._editor.setSelections(newSelections);
 	}
 
 	private _move(fwd: boolean): Selection[] {
@@ -245,14 +234,8 @@ export class SnippetSession {
 
 		for (const selection of selections) {
 			let found = false;
-			for (const { range } of this._snippets) {
-
-				if (!range) {
-					// too early, not yet initialized
-					return true;
-				}
-
-				if (range.containsRange(selection)) {
+			for (const snippet of this._snippets) {
+				if (snippet.range.containsRange(selection)) {
 					found = true;
 					break;
 				}

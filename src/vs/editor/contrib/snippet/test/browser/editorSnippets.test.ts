@@ -302,7 +302,33 @@ suite('SnippetSession', function () {
 		first.next();
 		assert.equal(first.isAtFinalPlaceholder, true);
 		assertSelections(editor, new Selection(1, 13, 1, 13));
+	});
 
+	test('snippets, typing at final tabstop', function () {
+
+		const session = new SnippetSession(editor, 'farboo$0');
+		assert.equal(session.isAtFinalPlaceholder, true);
+		assert.equal(session.validateSelections(), true);
+
+		editor.trigger('test', 'type', { text: 'XXX' });
+		assert.equal(session.validateSelections(), false);
+	});
+
+	test('snippets, typing at beginning', function () {
+
+		editor.setSelection(new Selection(1, 2, 1, 2));
+		const session = new SnippetSession(editor, 'farboo$0');
+
+		editor.setSelection(new Selection(1, 2, 1, 2));
+		assert.equal(session.validateSelections(), true);
+		assert.equal(session.isAtFinalPlaceholder, true);
+
+		editor.trigger('test', 'type', { text: 'XXX' });
+		assert.equal(model.getLineContent(1), 'fXXXfarboounction foo() {');
+		assert.equal(session.validateSelections(), true);
+
+		session.next();
+		assertSelections(editor, new Selection(1, 11, 1, 11));
 	});
 
 });
