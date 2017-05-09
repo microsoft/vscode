@@ -42,7 +42,7 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { comparePaths } from 'vs/base/common/comparers';
 import { isSCMResource } from './scmUtil';
-import { attachInputBoxStyler, attachListStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
 
 // TODO@Joao
@@ -80,6 +80,7 @@ interface ResourceGroupTemplate {
 	name: HTMLElement;
 	count: CountBadge;
 	actionBar: ActionBar;
+	dispose: () => void;
 }
 
 class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGroupTemplate> {
@@ -89,7 +90,8 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 
 	constructor(
 		private scmMenus: SCMMenus,
-		private actionItemProvider: IActionItemProvider
+		private actionItemProvider: IActionItemProvider,
+		private themeService: IThemeService
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
@@ -99,8 +101,14 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		const actionBar = new ActionBar(actionsContainer, { actionItemProvider: this.actionItemProvider });
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer);
+		const styler = attachBadgeStyler(count, this.themeService);
 
-		return { name, count, actionBar };
+		return {
+			name, count, actionBar, dispose: () => {
+				actionBar.dispose();
+				styler.dispose();
+			}
+		};
 	}
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
@@ -112,7 +120,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
-
+		template.dispose();
 	}
 }
 
@@ -295,7 +303,7 @@ export class SCMViewlet extends Viewlet {
 		const actionItemProvider = action => this.getActionItem(action);
 
 		const renderers = [
-			new ResourceGroupRenderer(this.menus, actionItemProvider),
+			new ResourceGroupRenderer(this.menus, actionItemProvider, this.themeService),
 			this.instantiationService.createInstance(ResourceRenderer, this.menus, actionItemProvider, () => this.getSelectedResources()),
 		];
 

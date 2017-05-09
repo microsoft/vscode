@@ -1816,7 +1816,7 @@ export interface ICommonCodeEditor extends IEditor {
 	getConfiguration(): editorOptions.InternalEditorOptions;
 
 	/**
-	 * Returns the 'raw' editor's configuration, as it was applied over the defaults, but without any computed members.
+	 * Returns the 'raw' editor's configuration (without any validation or defaults).
 	 * @internal
 	 */
 	getRawConfiguration(): editorOptions.IEditorOptions;

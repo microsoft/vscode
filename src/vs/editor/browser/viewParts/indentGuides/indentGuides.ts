@@ -48,7 +48,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		if (e.fontInfo) {
 			this._spaceWidth = this._context.configuration.editor.fontInfo.spaceWidth;
 		}
-		if (e.viewInfo.renderIndentGuides) {
+		if (e.viewInfo) {
 			this._enabled = this._context.configuration.editor.viewInfo.renderIndentGuides;
 		}
 		return true;

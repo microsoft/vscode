@@ -670,7 +670,7 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private onConfigurationChanged(): void {
-		if (!this.editor.getRawConfiguration().glyphMargin) {
+		if (!this.editor.getConfiguration().viewInfo.glyphMargin) {
 			this.editPreferenceWidgetForCusorPosition.hide();
 			this.editPreferenceWidgetForMouseMove.hide();
 		}
@@ -720,7 +720,7 @@ class EditSettingRenderer extends Disposable {
 
 	private showEditPreferencesWidget(editPreferencesWidget: EditPreferenceWidget<ISetting>, settings: ISetting[]) {
 		const line = settings[0].valueRange.startLineNumber;
-		if (this.editor.getRawConfiguration().glyphMargin && this.marginFreeFromOtherDecorations(line)) {
+		if (this.editor.getConfiguration().viewInfo.glyphMargin && this.marginFreeFromOtherDecorations(line)) {
 			editPreferencesWidget.show(line, nls.localize('editTtile', "Edit"), settings);
 			const editPreferenceWidgetToHide = editPreferencesWidget === this.editPreferenceWidgetForCusorPosition ? this.editPreferenceWidgetForMouseMove : this.editPreferenceWidgetForCusorPosition;
 			editPreferenceWidgetToHide.hide();

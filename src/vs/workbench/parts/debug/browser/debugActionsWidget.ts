@@ -149,10 +149,10 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			const widgetShadowColor = this.getColor(widgetShadow);
 			this.$el.style('box-shadow', widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null);
 
-			const hcBorder = this.getColor(contrastBorder);
-			this.$el.style('border-style', hcBorder ? 'solid' : null);
-			this.$el.style('border-width', hcBorder ? '1px' : null);
-			this.$el.style('border-color', hcBorder);
+			const contrastBorderColor = this.getColor(contrastBorder);
+			this.$el.style('border-style', contrastBorderColor ? 'solid' : null);
+			this.$el.style('border-width', contrastBorderColor ? '1px' : null);
+			this.$el.style('border-color', contrastBorderColor);
 		}
 	}
 

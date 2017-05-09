@@ -6,17 +6,17 @@
 'use strict';
 
 import * as assert from 'assert';
-import { BaseEditor, EditorInputAction, EditorInputActionContributor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { BaseEditor, EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorInput, EditorOptions, Extensions, IEditorRegistry, IEditorInputFactory } from 'vs/workbench/common/editor';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as Platform from 'vs/platform/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { StringEditorInput } from 'vs/workbench/common/editor/stringEditorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { workbenchInstantiationService, TestThemeService } from 'vs/workbench/test/workbenchTestServices';
+import { ResourceEditorInput } from "vs/workbench/common/editor/resourceEditorInput";
 
 const NullThemeService = new TestThemeService();
 
@@ -94,36 +94,7 @@ class MyOtherInput extends EditorInput {
 		return null;
 	}
 }
-class MyStringInput extends StringEditorInput { }
-
-class MyAction extends EditorInputAction {
-
-	public didCallIsEnabled = false;
-
-	isEnabled() {
-		this.didCallIsEnabled = true;
-		return true;
-	}
-}
-
-class MyAction2 extends EditorInputAction {
-	isEnabled() {
-		return true;
-	}
-}
-
-class MyEditorInputActionContributor extends EditorInputActionContributor {
-	hasActionsForEditorInput(context) {
-		return context.input instanceof StringEditorInput;
-	}
-
-	getActionsForEditorInput(context) {
-		return [
-			new MyAction2('id1', 'label1'),
-			new MyAction2('id2', 'label2')
-		];
-	}
-}
+class MyResourceInput extends ResourceEditorInput { }
 
 suite('Workbench BaseEditor', () => {
 
@@ -188,15 +159,15 @@ suite('Workbench BaseEditor', () => {
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);
 
-		EditorRegistry.registerEditor(d2, new SyncDescriptor(StringEditorInput));
-		EditorRegistry.registerEditor(d1, new SyncDescriptor(MyStringInput));
+		EditorRegistry.registerEditor(d2, new SyncDescriptor(ResourceEditorInput));
+		EditorRegistry.registerEditor(d1, new SyncDescriptor(MyResourceInput));
 
 		let inst = new TestInstantiationService();
 
-		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', PLAINTEXT_MODE_ID, false)), 'id').then(editor => {
+		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', '', PLAINTEXT_MODE_ID, false)), 'id').then(editor => {
 			assert.strictEqual(editor.getId(), 'myEditor');
 
-			return inst.createInstance(EditorRegistry.getEditor(inst.createInstance(StringEditorInput, 'fake', '', '', PLAINTEXT_MODE_ID, false)), 'id').then(editor => {
+			return inst.createInstance(EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', '', PLAINTEXT_MODE_ID, false)), 'id').then(editor => {
 				assert.strictEqual(editor.getId(), 'myOtherEditor');
 
 				(<any>EditorRegistry).setEditors(oldEditors);
@@ -210,59 +181,15 @@ suite('Workbench BaseEditor', () => {
 		let oldEditors = EditorRegistry.getEditors();
 		(<any>EditorRegistry).setEditors([]);
 
-		EditorRegistry.registerEditor(d1, new SyncDescriptor(StringEditorInput));
+		EditorRegistry.registerEditor(d1, new SyncDescriptor(ResourceEditorInput));
 
 		let inst = new TestInstantiationService();
 
-		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyStringInput, 'fake', '', '', PLAINTEXT_MODE_ID, false)), 'id').then(editor => {
+		inst.createInstance(EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', '', PLAINTEXT_MODE_ID, false)), 'id').then(editor => {
 			assert.strictEqual('myOtherEditor', editor.getId());
 
 			(<any>EditorRegistry).setEditors(oldEditors);
 		}).done(() => done());
-	});
-
-	test('Editor Input Action - triggers isEnabled properly', function () {
-		let inst = new TestInstantiationService();
-
-		let action = new MyAction('id', 'label');
-		action.input = inst.createInstance(StringEditorInput, 'input', '', '', PLAINTEXT_MODE_ID, false);
-		assert.equal(action.didCallIsEnabled, true);
-	});
-
-	test('Editor Input Action Contributor', function () {
-		let inst = new TestInstantiationService();
-
-		let contributor = new MyEditorInputActionContributor();
-
-		assert(!contributor.hasActions(null));
-		assert(contributor.hasActions({ editor: new MyEditor('id', NullTelemetryService), input: inst.createInstance(StringEditorInput, 'fake', '', '', PLAINTEXT_MODE_ID, false), position: 0 }));
-
-		let actionsFirst = contributor.getActions({ editor: new MyEditor('id', NullTelemetryService), input: inst.createInstance(StringEditorInput, 'fake', '', '', PLAINTEXT_MODE_ID, false), position: 0 });
-		assert.strictEqual(actionsFirst.length, 2);
-
-		let input = inst.createInstance(StringEditorInput, 'fake', '', '', PLAINTEXT_MODE_ID, false);
-		let actions = contributor.getActions({ editor: new MyEditor('id', NullTelemetryService), input: input, position: 0 });
-		assert(actions[0] === actionsFirst[0]);
-		assert(actions[1] === actionsFirst[1]);
-		assert((<any>actions[0]).input === input);
-		assert((<any>actions[1]).input === input);
-
-		// other editor causes new actions to be created
-		actions = contributor.getActions({ editor: new MyOtherEditor('id2', NullTelemetryService), input: input, position: 0 });
-		assert(actions[0] !== actionsFirst[0]);
-		assert(actions[1] !== actionsFirst[1]);
-		assert((<any>actions[0]).input === input);
-		assert((<any>actions[1]).input === input);
-
-		// other input causes actions to loose input context
-		let myInput = new MyInput();
-		myInput.getTypeId = function () {
-			return 'foo.id';
-		};
-
-		actions = contributor.getActions({ editor: new MyEditor('id3', NullTelemetryService), input: myInput, position: 0 });
-		assert(!(<any>actionsFirst[0]).input);
-		assert(!(<any>actionsFirst[1]).input);
 	});
 
 	test('Editor Input Factory', function () {

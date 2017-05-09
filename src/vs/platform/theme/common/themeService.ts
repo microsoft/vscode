@@ -32,9 +32,10 @@ export interface ITheme {
 	getColor(color: ColorIdentifier, useDefault?: boolean): Color;
 
 	/**
-	 * Returns wheter the current color matches the default color
+	 * Returns wheter the theme defines a value for the color. If not, that means the
+	 * default color will be used.
 	 */
-	isDefault(color: ColorIdentifier): boolean;
+	defines(color: ColorIdentifier): boolean;
 }
 
 export interface ICssStyleCollector {

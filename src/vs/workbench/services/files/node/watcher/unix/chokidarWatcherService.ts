@@ -35,7 +35,8 @@ export class ChokidarWatcherService implements IWatcherService {
 			followSymlinks: true, // this is the default of chokidar and supports file events through symlinks
 			ignored: request.ignored,
 			interval: 1000, // while not used in normal cases, if any error causes chokidar to fallback to polling, increase its intervals
-			binaryInterval: 1000
+			binaryInterval: 1000,
+			disableGlobbing: true // fix https://github.com/Microsoft/vscode/issues/4586
 		};
 
 		// Chokidar fails when the basePath does not match case-identical to the path on disk

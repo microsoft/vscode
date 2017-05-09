@@ -110,7 +110,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.glyphMargin) {
+		if (e.viewInfo) {
 			this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
 		}
 		if (e.layoutInfo) {

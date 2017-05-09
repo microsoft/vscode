@@ -146,14 +146,14 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	public updateStyles(): void {
 		super.updateStyles();
 
-		const hcBorder = this.getColor(contrastBorder);
+		const contrastBorderColor = this.getColor(contrastBorder);
 
 		this.searchBox.style.backgroundColor = this.getColor(inputBackground);
 		this.searchBox.style.color = this.getColor(inputForeground);
 
-		this.searchBox.style.borderWidth = hcBorder ? '1px' : null;
-		this.searchBox.style.borderStyle = hcBorder ? 'solid' : null;
-		this.searchBox.style.borderColor = hcBorder;
+		this.searchBox.style.borderWidth = contrastBorderColor ? '1px' : null;
+		this.searchBox.style.borderStyle = contrastBorderColor ? 'solid' : null;
+		this.searchBox.style.borderColor = contrastBorderColor;
 	}
 
 	setVisible(visible: boolean): TPromise<void> {

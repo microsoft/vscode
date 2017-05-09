@@ -21,7 +21,7 @@ import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_MODEL_DEFAULTS } from "vs/editor/common/config/editorOptions";
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
@@ -223,7 +223,7 @@ export class ModelServiceImpl implements IModelService {
 	}
 
 	private static _readModelOptions(config: IRawConfig): editorCommon.ITextModelCreationOptions {
-		let tabSize = DEFAULT_INDENTATION.tabSize;
+		let tabSize = EDITOR_MODEL_DEFAULTS.tabSize;
 		if (config.editor && typeof config.editor.tabSize !== 'undefined') {
 			let parsedTabSize = parseInt(config.editor.tabSize, 10);
 			if (!isNaN(parsedTabSize)) {
@@ -231,7 +231,7 @@ export class ModelServiceImpl implements IModelService {
 			}
 		}
 
-		let insertSpaces = DEFAULT_INDENTATION.insertSpaces;
+		let insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
 		if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
 			insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
 		}
@@ -244,12 +244,12 @@ export class ModelServiceImpl implements IModelService {
 			newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
 		}
 
-		let trimAutoWhitespace = DEFAULT_TRIM_AUTO_WHITESPACE;
+		let trimAutoWhitespace = EDITOR_MODEL_DEFAULTS.trimAutoWhitespace;
 		if (config.editor && typeof config.editor.trimAutoWhitespace !== 'undefined') {
 			trimAutoWhitespace = (config.editor.trimAutoWhitespace === 'false' ? false : Boolean(config.editor.trimAutoWhitespace));
 		}
 
-		let detectIndentation = DEFAULT_INDENTATION.detectIndentation;
+		let detectIndentation = EDITOR_MODEL_DEFAULTS.detectIndentation;
 		if (config.editor && typeof config.editor.detectIndentation !== 'undefined') {
 			detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
 		}

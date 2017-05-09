@@ -21,7 +21,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		super();
 		this._context = context;
 		this._overviewRuler = new OverviewRulerImpl(0, cssClassName, scrollHeight, this._context.configuration.editor.lineHeight,
-			this._context.configuration.editor.viewInfo.canUseTranslate3d, minimumHeight, maximumHeight, getVerticalOffsetForLine);
+			this._context.configuration.editor.canUseTranslate3d, minimumHeight, maximumHeight, getVerticalOffsetForLine);
 
 		this._context.addEventHandler(this);
 	}
@@ -37,15 +37,13 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, true);
-			return true;
 		}
 
-		if (e.viewInfo.canUseTranslate3d) {
-			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.viewInfo.canUseTranslate3d, true);
-			return true;
+		if (e.canUseTranslate3d) {
+			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.canUseTranslate3d, true);
 		}
 
-		return false;
+		return true;
 	}
 
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {

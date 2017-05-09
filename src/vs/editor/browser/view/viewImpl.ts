@@ -147,7 +147,7 @@ export class View extends ViewEventHandler {
 		this.linesContent.setPosition('absolute');
 
 		this.domNode = createFastDomNode(document.createElement('div'));
-		this.domNode.setClassName(this._context.configuration.editor.viewInfo.editorClassName);
+		this.domNode.setClassName(this._context.configuration.editor.editorClassName);
 
 		this.overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.overflowGuardContainer, PartFingerprint.OverflowGuard);
@@ -340,8 +340,8 @@ export class View extends ViewEventHandler {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo.editorClassName) {
-			this.domNode.setClassName(this._context.configuration.editor.viewInfo.editorClassName);
+		if (e.editorClassName) {
+			this.domNode.setClassName(this._context.configuration.editor.editorClassName);
 		}
 		if (e.layoutInfo) {
 			this._setLayout();

@@ -606,7 +606,6 @@ const workbenchResources: Resource[] = [
 	{ name: 'vs/workbench/parts/extensions', project: workbenchProject },
 	{ name: 'vs/workbench/parts/feedback', project: workbenchProject },
 	{ name: 'vs/workbench/parts/files', project: workbenchProject },
-	{ name: 'vs/workbench/parts/git', project: workbenchProject },
 	{ name: 'vs/workbench/parts/html', project: workbenchProject },
 	{ name: 'vs/workbench/parts/markers', project: workbenchProject },
 	{ name: 'vs/workbench/parts/nps', project: workbenchProject },

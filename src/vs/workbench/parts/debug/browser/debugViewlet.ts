@@ -75,9 +75,9 @@ export class DebugViewlet extends Viewlet {
 			this.viewletSettings)
 		);
 
-		this.views.forEach(view => {
+		this.views.forEach((view, index) => {
 			if (view instanceof HeaderView) {
-				attachHeaderViewStyler(view, this.themeService);
+				attachHeaderViewStyler(view, this.themeService, { noContrastBorder: index === 0 });
 			}
 		});
 

@@ -24,7 +24,7 @@ export class Margin extends ViewPart {
 
 	constructor(context: ViewContext) {
 		super(context);
-		this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
+		this._canUseTranslate3d = this._context.configuration.editor.canUseTranslate3d;
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 		this._glyphMarginLeft = this._context.configuration.editor.layoutInfo.glyphMarginLeft;
 		this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
@@ -57,8 +57,8 @@ export class Margin extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo.canUseTranslate3d) {
-			this._canUseTranslate3d = this._context.configuration.editor.viewInfo.canUseTranslate3d;
+		if (e.canUseTranslate3d) {
+			this._canUseTranslate3d = this._context.configuration.editor.canUseTranslate3d;
 		}
 
 		if (e.layoutInfo) {

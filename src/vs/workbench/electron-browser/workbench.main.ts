@@ -45,11 +45,6 @@ import 'vs/workbench/parts/search/browser/openAnythingHandler'; // can be packag
 import 'vs/workbench/parts/scm/electron-browser/scm.contribution';
 import 'vs/workbench/parts/scm/electron-browser/scmViewlet'; // can be packaged separately
 
-import 'vs/workbench/parts/git/electron-browser/git.contribution';
-import 'vs/workbench/parts/git/browser/gitQuickOpen';
-import 'vs/workbench/parts/git/browser/gitActions.contribution';
-import 'vs/workbench/parts/git/browser/gitViewlet'; // can be packaged separately
-
 import 'vs/workbench/parts/debug/electron-browser/debug.contribution';
 import 'vs/workbench/parts/debug/browser/debugQuickOpen';
 import 'vs/workbench/parts/debug/electron-browser/repl';
@@ -69,8 +64,7 @@ import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // ca
 
 import 'vs/workbench/parts/welcome/page/electron-browser/welcomePage.contribution';
 
-import 'vs/workbench/parts/explorers/browser/treeExplorer.contribution';
-import 'vs/workbench/parts/explorers/browser/treeExplorerViewlet'; // can be packaged separately
+import 'vs/workbench/parts/explorers/browser/explorer.contribution';
 
 import 'vs/workbench/parts/output/browser/output.contribution';
 import 'vs/workbench/parts/output/browser/outputPanel'; // can be packaged separately

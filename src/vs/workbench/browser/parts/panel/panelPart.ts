@@ -104,7 +104,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 
 		const title = this.getTitleArea();
-		title.style('border-top-color', this.getColor(contrastBorder) || this.getColor(PANEL_BORDER_COLOR));
+		title.style('border-top-color', this.getColor(PANEL_BORDER_COLOR) || this.getColor(contrastBorder));
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {

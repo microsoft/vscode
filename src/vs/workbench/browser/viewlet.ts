@@ -24,6 +24,7 @@ import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IThemable } from 'vs/platform/theme/common/styler';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -288,7 +289,7 @@ export class CollapseAction extends Action {
 	}
 }
 
-export interface IViewletView extends IView {
+export interface IViewletView extends IView, IThemable {
 	create(): TPromise<void>;
 	setVisible(visible: boolean): TPromise<void>;
 	getActions(): IAction[];

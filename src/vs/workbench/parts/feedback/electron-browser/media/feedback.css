@@ -36,16 +36,8 @@
 
 .monaco-shell .feedback-form .content .contactus {
 	padding: 10px;
-	border: solid 1px #B4BABF;
-	background-color: #EBF2F9;
 	float: right;
 }
-
-.monaco-shell.vs-dark .feedback-form .content .contactus {
-	border: solid 1px #44444C;
-	background-color: #333337;
-}
-
 
 .monaco-shell .feedback-form .content .channels {
 	margin-top: 5px;
@@ -148,10 +140,6 @@
 	background-color: #eaeaea;
 }
 
-.monaco-shell .feedback-form .sentiment.checked {
-	border: 1px solid #39F;
-}
-
 /* Statusbar */
 .monaco-shell .statusbar-item > .dropdown.send-feedback {
 	display: inline-block;
@@ -163,11 +151,6 @@
 }
 
 /* Theming */
-.monaco-shell.vs .feedback-form {
-	color: black;
-	background: #F6F6F6;
-}
-
 .monaco-shell .feedback-form h2 {
 	color: #007ACC;
 }
@@ -224,11 +207,6 @@
 	background-color: #E51400;
 }
 
-.monaco-shell.vs-dark .feedback-form {
-	background: #252526;
-	box-shadow: 0 2px 8px #000;
-}
-
 .monaco-shell.vs-dark .feedback-form h2 {
 	color: #75BEFF;
 }
@@ -239,18 +217,11 @@
 }
 
 .monaco-shell.vs-dark .feedback-form .sentiment:hover {
-	background-color: #1e1e1e;
-}
-
-.monaco-shell.vs-dark .feedback-form .sentiment.checked {
-	border-color: #75BEFF;
+	background-color: rgba(30,30,30,0.8);
 }
 
 .monaco-shell.vs-dark .feedback-form .feedback-alias, .monaco-shell.vs-dark .feedback-form .feedback-description {
 	font-family: inherit;
-	border: 1px solid transparent;
-	background-color: #333337;
-	color: #D4D4D4;
 }
 
 .monaco-shell.vs-dark .feedback-form .cancel,
@@ -259,7 +230,7 @@
 }
 
 .monaco-shell.vs-dark .feedback-form .cancel:hover {
-	background-color: #1e1e1e;
+	background-color: rgba(30,30,30,0.8);
 }
 
 .monaco-shell .feedback-form .sentiment.smile {
@@ -312,9 +283,6 @@
 
 .monaco-shell.hc-black .feedback-form .feedback-alias, .monaco-shell.hc-black .feedback-form .feedback-description {
 	font-family: inherit;
-	border: 1px solid #6FC3DF;
-	background-color: #000;
-	color: #D4D4D4;
 }
 
 .monaco-shell.hc-black .feedback-form .content .contactus {
@@ -343,13 +311,6 @@
 	background-color: #0C141F;
 }
 
-.monaco-shell.hc-black .feedback-form .sentiment {
-	border: 1px solid transparent;
-}
-
-.monaco-shell.hc-black .feedback-form .sentiment.checked {
-	border: 1px solid #f38518;
-}
 
 .monaco-shell .feedback-form .infotip {
 	background: none;

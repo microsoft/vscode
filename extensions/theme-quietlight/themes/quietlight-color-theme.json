@@ -495,6 +495,7 @@
 		"inputValidation.warningBackground": "#fffee2",
 		"inputValidation.warningBorder": "#ffe055",
 		"inputValidation.errorBackground": "#ffeaea",
-		"inputValidation.errorBorder": "#f1897f"
+		"inputValidation.errorBorder": "#f1897f",
+		"badge.background": "#705697AA"
 	}
 }

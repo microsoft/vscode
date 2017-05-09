@@ -211,20 +211,18 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		if (typeof options.theme === 'string') {
 			options.theme = standaloneThemeService.setTheme(options.theme);
 		}
-
+		let model: IModel = options.model;
+		delete options.model;
 		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 		this._standaloneThemeService = standaloneThemeService;
 		this._register(toDispose);
 
-		let model: IModel = null;
-		if (typeof options.model === 'undefined') {
+		if (typeof model === 'undefined') {
 			model = (<any>self).monaco.editor.createModel(options.value || '', options.language || 'text/plain');
 			this._ownsModel = true;
 		} else {
-			model = options.model;
-			delete options.model;
 			this._ownsModel = false;
 		}
 

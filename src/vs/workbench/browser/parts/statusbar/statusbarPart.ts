@@ -139,10 +139,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		container.style('color', this.getColor(STATUS_BAR_FOREGROUND));
 		container.style('background-color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND));
 
-		const hcBorder = this.getColor(contrastBorder);
-		container.style('border-top-width', hcBorder ? '1px' : null);
-		container.style('border-top-style', hcBorder ? 'solid' : null);
-		container.style('border-top-color', hcBorder);
+		const contrastBorderColor = this.getColor(contrastBorder);
+		container.style('border-top-width', contrastBorderColor ? '1px' : null);
+		container.style('border-top-style', contrastBorderColor ? 'solid' : null);
+		container.style('border-top-color', contrastBorderColor);
 	}
 
 	private doCreateStatusItem(alignment: StatusbarAlignment, priority: number = 0): HTMLElement {

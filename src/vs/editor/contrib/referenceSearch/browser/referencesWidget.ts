@@ -30,7 +30,6 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
@@ -41,7 +40,7 @@ import { FileReferences, OneReference, ReferencesModel } from './referencesModel
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
@@ -345,10 +344,16 @@ class Controller extends DefaultController {
 
 class Renderer extends LegacyRenderer {
 	private _contextService: IWorkspaceContextService;
+	private _themeService: IThemeService;
 
-	constructor( @IWorkspaceContextService contextService: IWorkspaceContextService) {
+	constructor(
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IThemeService themeService: IThemeService
+	) {
 		super();
+
 		this._contextService = contextService;
+		this._themeService = themeService;
 	}
 
 	public getHeight(tree: tree.ITree, element: any): number {
@@ -357,6 +362,7 @@ class Renderer extends LegacyRenderer {
 
 	protected render(tree: tree.ITree, element: FileReferences | OneReference, container: HTMLElement): tree.IElementCallback {
 
+		const toDispose: IDisposable[] = [];
 		dom.clearNode(container);
 
 		if (element instanceof FileReferences) {
@@ -365,13 +371,15 @@ class Renderer extends LegacyRenderer {
 			/* tslint:disable:no-unused-expression */
 			new LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
 
-				new FileLabel(left, element.uri, this._contextService);
+				const label = new FileLabel(left, element.uri, this._contextService);
+				toDispose.push(label);
 				return <IDisposable>null;
 
 			}, (right: HTMLElement) => {
 
 				const len = element.children.length;
-				const badge = new CountBadge(right, len);
+				const badge = new CountBadge(right, { count: len });
+				toDispose.push(attachBadgeStyler(badge, this._themeService));
 
 				if (element.failure) {
 					badge.setTitleFormat(nls.localize('referencesFailre', "Failed to resolve file."));
@@ -403,7 +411,9 @@ class Renderer extends LegacyRenderer {
 					strings.escape(preview.after))).appendTo(container);
 		}
 
-		return null;
+		return () => {
+			dispose(toDispose);
+		};
 	}
 }
 
@@ -591,7 +601,13 @@ export class ReferenceWidget extends PeekViewWidget {
 
 			var options: IEditorOptions = {
 				scrollBeyondLastLine: false,
-				scrollbar: DefaultConfig.editor.scrollbar,
+				scrollbar: {
+					verticalScrollbarSize: 14,
+					horizontal: 'auto',
+					useShadows: true,
+					verticalHasArrows: false,
+					horizontalHasArrows: false
+				},
 				overviewRulerLanes: 2,
 				fixedOverflowWidgets: true,
 				minimap: {

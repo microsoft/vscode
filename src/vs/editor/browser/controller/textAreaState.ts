@@ -81,7 +81,7 @@ export class TextAreaState {
 		return new TextAreaState(text, 0, text.length, 0);
 	}
 
-	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState): ITypeData {
+	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
 		if (!previousState) {
 			// This is the EMPTY state
 			return {
@@ -91,8 +91,8 @@ export class TextAreaState {
 		}
 
 		// console.log('------------------------deduceInput');
-		// console.log('CURRENT STATE: ' + currentState.toString());
 		// console.log('PREVIOUS STATE: ' + previousState.toString());
+		// console.log('CURRENT STATE: ' + currentState.toString());
 
 		let previousValue = previousState.value;
 		let previousSelectionStart = previousState.selectionStart;
@@ -118,8 +118,48 @@ export class TextAreaState {
 		currentSelectionEnd -= prefixLength;
 		previousSelectionEnd -= prefixLength;
 
-		// console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
 		// console.log('AFTER DIFFING PREVIOUS STATE: <' + previousValue + '>, selectionStart: ' + previousSelectionStart + ', selectionEnd: ' + previousSelectionEnd);
+		// console.log('AFTER DIFFING CURRENT STATE: <' + currentValue + '>, selectionStart: ' + currentSelectionStart + ', selectionEnd: ' + currentSelectionEnd);
+
+		if (couldBeEmojiInput && currentSelectionStart === currentSelectionEnd && previousValue.length > 0) {
+			// on OSX, emojis from the emoji picker are inserted at random locations
+			// the only hints we can use is that the selection is immediately after the inserted emoji
+			// and that none of the old text has been deleted
+
+			let potentialEmojiInput: string = null;
+
+			if (currentSelectionStart === currentValue.length) {
+				// emoji potentially inserted "somewhere" after the previous selection => it should appear at the end of `currentValue`
+				if (strings.startsWith(currentValue, previousValue)) {
+					// only if all of the old text is accounted for
+					potentialEmojiInput = currentValue.substring(previousValue.length);
+				}
+			} else {
+				// emoji potentially inserted "somewhere" before the previous selection => it should appear at the start of `currentValue`
+				if (strings.endsWith(currentValue, previousValue)) {
+					// only if all of the old text is accounted for
+					potentialEmojiInput = currentValue.substring(0, currentValue.length - previousValue.length);
+				}
+			}
+
+			if (potentialEmojiInput !== null && potentialEmojiInput.length > 0) {
+				// now we check that this is indeed an emoji
+				// emojis can grow quite long, so a length check is of no help
+				// e.g. 1F3F4 E0067 E0062 E0065 E006E E0067 E007F  ; fully-qualified     # 🏴󠁧󠁢󠁥󠁮󠁧󠁿 England
+
+				// Oftentimes, emojis use Variation Selector-16 (U+FE0F), so that is a good hint
+				// http://emojipedia.org/variation-selector-16/
+				// > An invisible codepoint which specifies that the preceding character
+				// > should be displayed with emoji presentation. Only required if the
+				// > preceding character defaults to text presentation.
+				if (/\uFE0F/.test(potentialEmojiInput) || strings.containsEmoji(potentialEmojiInput)) {
+					return {
+						text: potentialEmojiInput,
+						replaceCharCnt: 0
+					};
+				}
+			}
+		}
 
 		if (currentSelectionStart === currentSelectionEnd) {
 			// composition accept case (noticed in FF + Japanese)

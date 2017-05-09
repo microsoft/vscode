@@ -81,6 +81,11 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		return this._label;
 	}
 
+	set label(label: string) {
+		this._label = label;
+		this._proxy.$updateGroupLabel(this._sourceControlHandle, this._handle, label);
+	}
+
 	private _hideWhenEmpty: boolean | undefined = undefined;
 
 	get hideWhenEmpty(): boolean | undefined {

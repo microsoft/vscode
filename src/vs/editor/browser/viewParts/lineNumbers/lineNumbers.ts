@@ -51,10 +51,8 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.renderLineNumbers) {
+		if (e.viewInfo) {
 			this._renderLineNumbers = this._context.configuration.editor.viewInfo.renderLineNumbers;
-		}
-		if (e.viewInfo.renderRelativeLineNumbers) {
 			this._renderRelativeLineNumbers = this._context.configuration.editor.viewInfo.renderRelativeLineNumbers;
 		}
 		if (e.layoutInfo) {

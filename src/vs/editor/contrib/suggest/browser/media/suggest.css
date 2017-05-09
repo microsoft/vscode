@@ -6,7 +6,7 @@
 /* Suggest */
 .monaco-editor .suggest-widget {
 	z-index: 40;
-	width: 438px;
+	width: 660px;
 }
 
 .monaco-editor .suggest-widget.visible {
@@ -23,7 +23,16 @@
 
 .monaco-editor .suggest-widget > .tree {
 	height: 100%;
-	width: 100%;
+	float: left;
+	box-sizing: border-box;
+}
+
+.monaco-editor .suggest-widget.list-right > .tree {
+	float: right
+}
+
+.monaco-editor .suggest-widget.docs-below > .tree {
+	float: none;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row {
@@ -49,69 +58,8 @@
 	text-overflow: ellipsis;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs {
-	display: none;
-	overflow: hidden;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-text {
-	flex: 2;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	overflow: hidden;
-	opacity: 0.85;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-text.no-docs {
-	opacity: 0.5;
-	font-style: italic;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details {
-	opacity: 0.6;
-	background-image: url('./info.svg');
-	background-position: center center;
-	background-repeat: no-repeat;
-	background-size: 70%;
-}
-
-.monaco-editor .suggest-widget .details > .header > .go-back,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details {
-	color: #0035DD;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details:hover {
-	opacity: 1;
-}
-
 .monaco-editor .suggest-widget:not(.frozen) .monaco-highlighted-label .highlight {
 	font-weight: bold;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label {
-	display: none;
-	margin-left: 0.8em;
-	flex: 1;
-	text-align: right;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	opacity: 0.7;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label > .monaco-tokenized-source {
-	display: inline;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
-	display: inline;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .type-label {
-	display: inline;
-}
-
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused .docs {
-	display: flex;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon {
@@ -160,37 +108,15 @@
 }
 
 .monaco-editor .suggest-widget .details {
-	height: 100%;
-	box-sizing: border-box;
+	max-height: 216px;
 	display: flex;
 	flex-direction: column;
 	cursor: default;
-}
-
-.monaco-editor .suggest-widget .details > .header {
-	padding: 4px 5px;
-	display: flex;
 	box-sizing: border-box;
-	border-bottom: 1px solid rgba(204, 204, 204, 0.5);
 }
 
-.monaco-editor .suggest-widget .details > .header > .title {
-	flex: 2;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.monaco-editor .suggest-widget .details > .header > .go-back {
-	cursor: pointer;
-	opacity: 0.6;
-	background-image: url('./back.svg');
-	background-size: 70%;
-	background-position: center center;
-	background-repeat: no-repeat;
-}
-
-.monaco-editor .suggest-widget .details > .header > .go-back:hover {
-	opacity: 1;
+.monaco-editor .suggest-widget .details.no-docs {
+	display: none;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element {
@@ -218,28 +144,10 @@
 	display: none;
 }
 
-/* Dark theme */
-
-.monaco-editor.vs-dark .suggest-widget .details > .header {
-	border-color: rgba(85,85,85,0.5);
-}
-
-.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details,
-.monaco-editor.vs-dark .suggest-widget .details > .header > .go-back {
-	color: #4E94CE;
-}
-
-
 /* High Contrast Theming */
 
-.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .docs,
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .docs {
+.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .docs {
 	color: #C07A7A;
-}
-
-.monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .docs > .docs-details,
-.monaco-editor.hc-black .suggest-widget .details > .header > .go-back {
-	color: #4E94CE;
 }
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon,

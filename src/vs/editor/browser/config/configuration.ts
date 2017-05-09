@@ -8,7 +8,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
-import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
@@ -309,16 +309,22 @@ export class Configuration extends CommonEditorConfiguration {
 		domNode.setLineHeight(fontInfo.lineHeight);
 	}
 
+	private readonly _elementSizeObserver: ElementSizeObserver;
+
 	constructor(options: IEditorOptions, referenceDomElement: HTMLElement = null) {
-		super(options, new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));
+		super(options);
+
+		this._elementSizeObserver = this._register(new ElementSizeObserver(referenceDomElement, () => this._onReferenceDomElementSizeChanged()));
 
 		this._register(CSSBasedConfiguration.INSTANCE.onDidChange(() => this._onCSSBasedConfigurationChanged()));
 
-		if (this._configWithDefaults.getEditorOptions().automaticLayout) {
+		if (this._validatedOptions.automaticLayout) {
 			this._elementSizeObserver.startObserving();
 		}
 
 		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
+
+		this._recomputeOptions();
 	}
 
 	private _onReferenceDomElementSizeChanged(): void {
@@ -334,11 +340,10 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	public dispose(): void {
-		this._elementSizeObserver.dispose();
 		super.dispose();
 	}
 
-	protected _getEditorClassName(theme: string, fontLigatures: boolean, mouseStyle: 'text' | 'default' | 'copy'): string {
+	private _getExtraEditorClassName(): string {
 		let extra = '';
 		if (browser.isIE) {
 			extra += 'ie ';
@@ -350,38 +355,21 @@ export class Configuration extends CommonEditorConfiguration {
 		if (platform.isMacintosh) {
 			extra += 'mac ';
 		}
-		if (fontLigatures) {
-			extra += 'enable-ligatures ';
-		}
-		if (mouseStyle === 'default') {
-			extra += 'mouse-default ';
-		} else if (mouseStyle === 'copy') {
-			extra += 'mouse-copy ';
-		}
-		return 'monaco-editor ' + extra + theme;
+		return extra;
 	}
 
-	protected getOuterWidth(): number {
-		return this._elementSizeObserver.getWidth();
-	}
-
-	protected getOuterHeight(): number {
-		return this._elementSizeObserver.getHeight();
-	}
-
-	protected _getCanUseTranslate3d(): boolean {
-		return browser.canUseTranslate3d();
-	}
-
-	protected _getPixelRatio(): number {
-		return browser.getPixelRatio();
+	protected _getEnvConfiguration(): IEnvConfiguration {
+		return {
+			extraEditorClassName: this._getExtraEditorClassName(),
+			outerWidth: this._elementSizeObserver.getWidth(),
+			outerHeight: this._elementSizeObserver.getHeight(),
+			canUseTranslate3d: browser.canUseTranslate3d(),
+			pixelRatio: browser.getPixelRatio(),
+			zoomLevel: browser.getZoomLevel()
+		};
 	}
 
 	protected readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
 		return CSSBasedConfiguration.INSTANCE.readConfiguration(bareFontInfo);
-	}
-
-	protected getZoomLevel(): number {
-		return browser.getZoomLevel();
 	}
 }

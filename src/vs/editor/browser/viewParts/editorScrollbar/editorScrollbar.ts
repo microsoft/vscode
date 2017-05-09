@@ -32,13 +32,13 @@ export class EditorScrollbar extends ViewPart {
 
 		this.scrollable = scrollable;
 
-		const viewInfo = this._context.configuration.editor.viewInfo;
-		const configScrollbarOpts = viewInfo.scrollbar;
+		const editor = this._context.configuration.editor;
+		const configScrollbarOpts = editor.viewInfo.scrollbar;
 
 		let scrollbarOptions: ScrollableElementCreationOptions = {
-			canUseTranslate3d: viewInfo.canUseTranslate3d,
+			canUseTranslate3d: editor.canUseTranslate3d,
 			listenOnDomNode: viewDomNode.domNode,
-			className: 'editor-scrollable' + ' ' + viewInfo.theme,
+			className: 'editor-scrollable' + ' ' + editor.viewInfo.theme,
 			useShadows: false,
 			lazyRender: true,
 
@@ -126,14 +126,14 @@ export class EditorScrollbar extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const viewInfo = this._context.configuration.editor.viewInfo;
+		const editor = this._context.configuration.editor;
 
-		this.scrollbar.updateClassName('editor-scrollable' + ' ' + viewInfo.theme);
-		if (e.viewInfo.scrollbar || e.viewInfo.canUseTranslate3d) {
+		this.scrollbar.updateClassName('editor-scrollable' + ' ' + editor.viewInfo.theme);
+		if (e.viewInfo || e.canUseTranslate3d) {
 			let newOpts: ScrollableElementChangeOptions = {
-				canUseTranslate3d: viewInfo.canUseTranslate3d,
-				handleMouseWheel: viewInfo.scrollbar.handleMouseWheel,
-				mouseWheelScrollSensitivity: viewInfo.scrollbar.mouseWheelScrollSensitivity
+				canUseTranslate3d: editor.canUseTranslate3d,
+				handleMouseWheel: editor.viewInfo.scrollbar.handleMouseWheel,
+				mouseWheelScrollSensitivity: editor.viewInfo.scrollbar.mouseWheelScrollSensitivity
 			};
 			this.scrollbar.updateOptions(newOpts);
 		}

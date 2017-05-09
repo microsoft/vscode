@@ -7,6 +7,14 @@
 		{
 			"captures": {
 				"1": {
+					"name": "keyword.other.special-method.dockerfile"
+				}
+			},
+			"match": "\\s*(?:(FROM|AS))\\s"
+		},
+		{
+			"captures": {
+				"1": {
 					"name": "keyword.control.dockerfile"
 				},
 				"2": {

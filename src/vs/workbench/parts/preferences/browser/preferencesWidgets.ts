@@ -23,10 +23,11 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { buttonBackground, buttonForeground, badgeBorder, badgeForeground, badgeBackground } from "vs/platform/theme/common/colorRegistry";
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -262,6 +263,18 @@ export class SearchWidget extends Widget {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 		this.countElement = DOM.append(this.domNode, DOM.$('.settings-count-widget'));
+		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, badgeBorder }, colors => {
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
+			const border = colors.badgeBorder ? colors.badgeBorder.toString() : null;
+
+			this.countElement.style.backgroundColor = background;
+			this.countElement.style.color = foreground;
+
+			this.countElement.style.borderWidth = border ? '1px' : null;
+			this.countElement.style.borderStyle = border ? 'solid' : null;
+			this.countElement.style.borderColor = border;
+		}));
 		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
 	}
 
@@ -360,10 +373,15 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	private _onClick: Emitter<void> = this._register(new Emitter<void>());
 	public onClick: Event<void> = this._onClick.event;
 
-	constructor(private editor: ICodeEditor, private label: string, private keyBindingAction: string,
-		@IKeybindingService keybindingService: IKeybindingService
+	constructor(
+		private editor: ICodeEditor,
+		private label: string,
+		private keyBindingAction: string,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super();
+
 		if (keyBindingAction) {
 			let keybinding = keybindingService.lookupKeybinding(keyBindingAction);
 			if (keybinding) {
@@ -374,6 +392,11 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	public render() {
 		this._domNode = DOM.$('.floating-click-widget');
+		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground }, colors => {
+			this._domNode.style.backgroundColor = colors.buttonBackground;
+			this._domNode.style.color = colors.buttonForeground;
+		}));
+
 		DOM.append(this._domNode, DOM.$('')).textContent = this.label;
 		this.onclick(this._domNode, e => this._onClick.fire());
 		this.editor.addOverlayWidget(this);

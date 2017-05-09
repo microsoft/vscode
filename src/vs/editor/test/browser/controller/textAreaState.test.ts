@@ -122,7 +122,7 @@ suite('TextAreaState', () => {
 		textArea._selectionEnd = selectionEnd;
 
 		let newState = prevState.readFromTextArea(textArea);
-		let actual = TextAreaState.deduceInput(prevState, newState);
+		let actual = TextAreaState.deduceInput(prevState, newState, true);
 
 		assert.equal(actual.text, expected);
 		assert.equal(actual.replaceCharCnt, expectedCharReplaceCnt);
@@ -417,6 +417,75 @@ suite('TextAreaState', () => {
 			'x x',
 			1, 1,
 			'x', 0
+		);
+	});
+
+	test('issue #4271 (example 1) - When inserting an emoji on OSX, it is placed two spaces left of the cursor', () => {
+		// The OSX emoji inserter inserts emojis at random positions in the text, unrelated to where the cursor is.
+		testDeduceInput(
+			new TextAreaState(
+				[
+					'some1  text',
+					'some2  text',
+					'some3  text',
+					'some4  text', // cursor is here in the middle of the two spaces
+					'some5  text',
+					'some6  text',
+					'some7  text'
+				].join('\n'),
+				42, 42, 0
+			),
+			[
+				'so📅me1  text',
+				'some2  text',
+				'some3  text',
+				'some4  text',
+				'some5  text',
+				'some6  text',
+				'some7  text'
+			].join('\n'),
+			4, 4,
+			'📅', 0
+		);
+	});
+
+	test('issue #4271 (example 2) - When inserting an emoji on OSX, it is placed two spaces left of the cursor', () => {
+		// The OSX emoji inserter inserts emojis at random positions in the text, unrelated to where the cursor is.
+		testDeduceInput(
+			new TextAreaState(
+				'some1  text',
+				6, 6, 0
+			),
+			'some💊1  text',
+			6, 6,
+			'💊', 0
+		);
+	});
+
+	test('issue #4271 (example 3) - When inserting an emoji on OSX, it is placed two spaces left of the cursor', () => {
+		// The OSX emoji inserter inserts emojis at random positions in the text, unrelated to where the cursor is.
+		testDeduceInput(
+			new TextAreaState(
+				'qwertyu\nasdfghj\nzxcvbnm',
+				12, 12, 0
+			),
+			'qwertyu\nasdfghj\nzxcvbnm🎈',
+			25, 25,
+			'🎈', 0
+		);
+	});
+
+	// an example of an emoji missed by the regex but which has the FE0F variant 16 hint
+	test('issue #4271 (example 4) - When inserting an emoji on OSX, it is placed two spaces left of the cursor', () => {
+		// The OSX emoji inserter inserts emojis at random positions in the text, unrelated to where the cursor is.
+		testDeduceInput(
+			new TextAreaState(
+				'some1  text',
+				6, 6, 0
+			),
+			'some⌨️1  text',
+			6, 6,
+			'⌨️', 0
 		);
 	});
 

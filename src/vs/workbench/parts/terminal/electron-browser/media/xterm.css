@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .panel.integrated-terminal .xterm {
-	background-color: transparent!important;
 	position: relative;
 	height: 100%;
 }

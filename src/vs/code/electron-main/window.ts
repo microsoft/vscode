@@ -30,6 +30,7 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
+	display?: number;
 }
 
 export interface IWindowCreationOptions {
@@ -599,9 +600,15 @@ export class VSCodeWindow {
 	}
 
 	public serializeWindowState(): IWindowState {
+
+		// fullscreen gets special treatment
 		if (this.win.isFullScreen()) {
+			const display = screen.getDisplayMatching(this.getBounds());
+
 			return {
 				mode: WindowMode.Fullscreen,
+				display: display ? display.id : void 0,
+
 				// still carry over window dimensions from previous sessions!
 				width: this.windowState.width,
 				height: this.windowState.height,
@@ -631,13 +638,12 @@ export class VSCodeWindow {
 
 		// only consider non-minimized window states
 		if (mode === WindowMode.Normal || mode === WindowMode.Maximized) {
-			const pos = this.win.getPosition();
-			const size = this.win.getSize();
+			const bounds = this.getBounds();
 
-			state.x = pos[0];
-			state.y = pos[1];
-			state.width = size[0];
-			state.height = size[1];
+			state.x = bounds.x;
+			state.y = bounds.y;
+			state.width = bounds.width;
+			state.height = bounds.height;
 		}
 
 		return state;
@@ -713,7 +719,19 @@ export class VSCodeWindow {
 			return state;
 		}
 
-		// Multi Monitor: be less strict because metrics can be crazy
+		// Multi Montior (fullscreen): try to find the previously used display
+		if (state.display && state.mode === WindowMode.Fullscreen) {
+			const display = displays.filter(d => d.id === state.display)[0];
+			if (display && display.bounds && typeof display.bounds.x === 'number' && typeof display.bounds.y === 'number') {
+				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
+				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
+				defaults.y = display.bounds.y;
+
+				return defaults;
+			}
+		}
+
+		// Multi Monitor (non-fullscreen): be less strict because metrics can be crazy
 		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
 		const display = screen.getDisplayMatching(bounds);
 		if (display && display.bounds.x + display.bounds.width > bounds.x && display.bounds.y + display.bounds.height > bounds.y) {

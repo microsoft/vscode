@@ -4735,7 +4735,7 @@ declare module 'vscode' {
 		/**
 		 * The label of this source control resource group.
 		 */
-		readonly label: string;
+		label: string;
 
 		/**
 		 * Whether this source control resource group is hidden when it contains
