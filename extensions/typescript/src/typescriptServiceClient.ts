@@ -741,21 +741,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				'TS Server has not started logging.')).then(() => false);
 		}
 
-		return workspace.openTextDocument(this.tsServerLogFile)
-			.then(doc => {
-				if (!doc) {
-					return false;
-				}
-				return window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined)
-					.then(editor => !!editor);
-			}, () => false)
-			.then(didOpen => {
-				if (!didOpen) {
-					window.showWarningMessage(localize(
-						'openTsServerLog.openFileFailedFailed',
-						'Could not open TS Server log file'));
-				}
-				return didOpen;
+		return commands.executeCommand('_workbench.action.files.revealInOS', Uri.parse(this.tsServerLogFile))
+			.then(() => true, () => {
+				window.showWarningMessage(localize(
+					'openTsServerLog.openFileFailedFailed',
+					'Could not open TS Server log file'));
+				return false;
 			});
 	}
 
