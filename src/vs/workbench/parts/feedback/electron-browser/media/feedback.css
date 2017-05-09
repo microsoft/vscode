@@ -50,12 +50,7 @@
 
 /* TODO @C5 review link color */
 .monaco-shell .feedback-form .content .channels a {
-	color: #007ACC;
 	padding: 2px 0;
-}
-
-.monaco-shell.vs-dark .feedback-form .content .channels a {
-	color: #75BEFF;
 }
 
 .monaco-shell .feedback-form .content .channels a:hover {
@@ -151,15 +146,6 @@
 }
 
 /* Theming */
-.monaco-shell .feedback-form h2 {
-	color: #007ACC;
-}
-
-.monaco-shell.vs .feedback-form h3 {
-	color: #646465;
-}
-
-
 .monaco-shell.vs .feedback-form .feedback-alias, .monaco-shell.vs .feedback-form .feedback-description {
 	font-family: inherit;
 	border: 1px solid transparent;
@@ -205,10 +191,6 @@
 
 .monaco-shell .feedback-form .form-buttons .send.error {
 	background-color: #E51400;
-}
-
-.monaco-shell.vs-dark .feedback-form h2 {
-	color: #75BEFF;
 }
 
 .monaco-shell.vs-dark .feedback-form h3 {
@@ -258,27 +240,10 @@
 	margin-left: 5px;
 }
 
-.monaco-shell .feedback-form .privacyLink {
-	float: left;
-	color: #007ACC !Important;
-}
-.monaco-shell.vs-dark .feedback-form .privacyLink {
-	color: #75BEFF !Important;
-}
-
-.monaco-shell .feedback-form .privacyLink:hover {
-	text-decoration: underline;
-}
-
 /* High Contrast Theming */
 .monaco-shell.hc-black .feedback-form {
-	background-color: #000;
 	outline: 2px solid #6fc3df;
 	outline-offset: -2px;
-}
-
-.monaco-shell.hc-black .feedback-form h2 {
-	color: white;
 }
 
 .monaco-shell.hc-black .feedback-form .feedback-alias, .monaco-shell.hc-black .feedback-form .feedback-description {
@@ -287,8 +252,6 @@
 
 .monaco-shell.hc-black .feedback-form .content .contactus {
 	padding: 10px;
-	border: solid 1px #6FC3DF;
-	background-color: #0C141F;
 	float: right;
 }
 .monaco-shell.hc-black .feedback-form .cancel {
@@ -321,8 +284,4 @@
 	height: 16px;
 	width: 16px;
 	display: inline-block;
-}
-
-.monaco-shell.hc-black .feedback-form .privacyLink {
-	color: white !Important;
 }
