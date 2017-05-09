@@ -125,13 +125,22 @@ suite('SnippetInsertion', function () {
 		assertSelections(editor, new Selection(1, 8, 1, 8), new Selection(2, 12, 2, 12));
 	});
 
-	test('snippets, insert into non-empty selection', function () {
+	test('snippets, insert shorter snippet into non-empty selection', function () {
 		model.setValue('foo_bar_foo');
 		editor.setSelections([new Selection(1, 1, 1, 4), new Selection(1, 9, 1, 12)]);
 
 		new SnippetSession(editor, 'x$0');
 		assert.equal(model.getValue(), 'x_bar_x');
 		assertSelections(editor, new Selection(1, 2, 1, 2), new Selection(1, 8, 1, 8));
+	});
+
+	test('snippets, insert longer snippet into non-empty selection', function () {
+		model.setValue('foo_bar_foo');
+		editor.setSelections([new Selection(1, 1, 1, 4), new Selection(1, 9, 1, 12)]);
+
+		new SnippetSession(editor, 'LONGER$0');
+		assert.equal(model.getValue(), 'LONGER_bar_LONGER');
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(1, 18, 1, 18));
 	});
 
 	test('snippets, don\'t grow final tabstop', function () {
