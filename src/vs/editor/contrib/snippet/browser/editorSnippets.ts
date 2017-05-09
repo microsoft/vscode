@@ -24,8 +24,11 @@ class OneSnippet {
 	private _placeholderGroups: Placeholder[][];
 	private _placeholderGroupsIdx: number;
 
-	private static readonly _growingDecoration: IModelDecorationOptions = { stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges };
-	private static readonly _fixedDecoration: IModelDecorationOptions = { stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges };
+	private static readonly _decorations = {
+		active: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges },
+		activeFinal: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
+		inActive: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
+	};
 
 	constructor(editor: ICommonCodeEditor, snippet: TextmateSnippet, offset: number) {
 		this._editor = editor;
@@ -61,7 +64,7 @@ class OneSnippet {
 				const end = model.getPositionAt(this._offset + placeholderOffset + placeholderLen);
 				const range = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 
-				const handle = accessor.addDecoration(range, OneSnippet._fixedDecoration);
+				const handle = accessor.addDecoration(range, OneSnippet._decorations.inActive);
 				this._placeholderDecorations.set(placeholder, handle);
 
 				lastRange = range;
@@ -104,7 +107,7 @@ class OneSnippet {
 			if (prevGroupsIdx !== -1) {
 				for (const placeholder of this._placeholderGroups[prevGroupsIdx]) {
 					const id = this._placeholderDecorations.get(placeholder);
-					accessor.changeDecorationOptions(id, OneSnippet._fixedDecoration);
+					accessor.changeDecorationOptions(id, OneSnippet._decorations.inActive);
 				}
 			}
 
@@ -117,7 +120,7 @@ class OneSnippet {
 				const range = this._editor.getModel().getDecorationRange(id);
 				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
 
-				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._fixedDecoration : OneSnippet._growingDecoration);
+				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decorations.activeFinal : OneSnippet._decorations.active);
 			}
 			return selections;
 		});
