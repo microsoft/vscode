@@ -6,6 +6,7 @@
 
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Range } from 'vs/editor/common/core/range';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { SnippetSession } from 'vs/editor/contrib/snippet/browser/editorSnippets';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
@@ -49,6 +50,19 @@ suite('SnippetSession', function () {
 		assertNormalized(new Position(1, 1), 'foo\rbar', 'foo\nbar');
 		assertNormalized(new Position(2, 5), 'foo\r\tbar', 'foo\n        bar');
 		assertNormalized(new Position(2, 3), 'foo\r\tbar', 'foo\n      bar');
+	});
+
+	test('adjust selection (overwrite[Before|After]', function () {
+
+		let range = SnippetSession.adjustRange(model, new Range(1, 2, 1, 2), 1, 0);
+		assert.ok(range.equalsRange(new Range(1, 1, 1, 2)));
+		range = SnippetSession.adjustRange(model, new Range(1, 2, 1, 2), 1111, 0);
+		assert.ok(range.equalsRange(new Range(1, 1, 1, 2)));
+		range = SnippetSession.adjustRange(model, new Range(1, 2, 1, 2), 0, 10);
+		assert.ok(range.equalsRange(new Range(1, 2, 1, 12)));
+		range = SnippetSession.adjustRange(model, new Range(1, 2, 1, 2), 0, 10111);
+		assert.ok(range.equalsRange(new Range(1, 2, 1, 17)));
+
 	});
 
 	test('text edits & selection', function () {

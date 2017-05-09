@@ -166,13 +166,34 @@ export class SnippetSession {
 		return templateLines.join(model.getEOL());
 	}
 
+	static adjustRange(model: IModel, range: Range, overwriteBefore: number, overwriteAfter: number): Range {
+		if (overwriteBefore !== 0 || overwriteAfter !== 0) {
+			let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
+			startColumn -= overwriteBefore;
+			endColumn += overwriteAfter;
+
+			range = Range.plusRange(range, {
+				startLineNumber,
+				startColumn,
+				endLineNumber,
+				endColumn,
+			});
+			range = model.validateRange(range);
+		}
+		return range;
+	}
+
 	private readonly _editor: ICommonCodeEditor;
 	private readonly _template: string;
+	private readonly _overwriteBefore: number;
+	private readonly _overwriteAfter: number;
 	private readonly _snippets: OneSnippet[];
 
-	constructor(editor: ICommonCodeEditor, template: string) {
+	constructor(editor: ICommonCodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0) {
 		this._editor = editor;
 		this._template = template;
+		this._overwriteBefore = overwriteBefore;
+		this._overwriteAfter = overwriteAfter;
 		this._snippets = [];
 	}
 
@@ -186,16 +207,17 @@ export class SnippetSession {
 		let model = this._editor.getModel();
 
 		for (const selection of this._editor.getSelections()) {
-			const start = selection.getStartPosition();
+			const range = SnippetSession.adjustRange(model, selection, this._overwriteBefore, this._overwriteAfter);
+			const start = range.getStartPosition();
 			const adjustedTemplate = SnippetSession.normalizeWhitespace(model, start, this._template);
 
 			const snippet = SnippetParser.parse(adjustedTemplate);
 			const offset = model.getOffsetAt(start) + delta;
 
-			edits.push(EditOperation.replaceMove(selection, snippet.text));
+			edits.push(EditOperation.replaceMove(range, snippet.text));
 			this._snippets.push(new OneSnippet(this._editor, snippet, offset));
 
-			delta += snippet.text.length - model.getValueLengthInRange(selection);
+			delta += snippet.text.length - model.getValueLengthInRange(range);
 		}
 
 		// make insert edit and start with first selections

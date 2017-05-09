@@ -45,7 +45,7 @@ export class SnippetController2 {
 	}
 
 	insert(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
-		const session = new SnippetSession(this._editor, template);
+		const session = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
 		const newLen = this._snippetStack.unshift(session);
 		if (newLen === 1) {
 			this._inSnippet.set(true);
