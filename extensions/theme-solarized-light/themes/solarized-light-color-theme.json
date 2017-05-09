@@ -313,6 +313,8 @@
 		// "inputValidation.errorBackground": "",
 		// "inputValidation.errorBorder": "",
 
+		"badge.background": "#B58900AA",
+
 		"dropdown.background": "#EEE8D5",
 		// "dropdown.foreground": "",
 		"dropdown.border": "#D3AF86",

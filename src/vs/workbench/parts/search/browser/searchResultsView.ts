@@ -19,6 +19,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { attachBadgeStyler } from "vs/platform/theme/common/styler";
+import { IThemeService } from "vs/platform/theme/common/themeService";
 
 export class SearchDataSource implements IDataSource {
 
@@ -107,8 +109,13 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	private static FILE_MATCH_TEMPLATE_ID = 'fileMatch';
 	private static MATCH_TEMPLATE_ID = 'match';
 
-	constructor(actionRunner: IActionRunner, private viewlet: SearchViewlet, @IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(
+		actionRunner: IActionRunner,
+		private viewlet: SearchViewlet,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
+	) {
 		super();
 	}
 
@@ -145,11 +152,11 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		}
 	}
 
-
 	private renderFileMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileMatchTemplate {
 		let fileMatchElement = DOM.append(container, DOM.$('.filematch'));
 		const label = this.instantiationService.createInstance(FileLabel, fileMatchElement, void 0);
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
+		this._register(attachBadgeStyler(badge, this.themeService));
 		const actions = new ActionBar(fileMatchElement, { animated: false });
 		return { label, badge, actions };
 	}

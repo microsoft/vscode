@@ -50,7 +50,8 @@
 		"list.highlightForeground": "#ff4444",
 		"notification.background": "#662222",
 		"pickerGroup.foreground": "#cc9999",
-		"pickerGroup.border": "#ff000033"
+		"pickerGroup.border": "#ff000033",
+		"badge.background": "#cc3333"
 	},
 	"name": "Red"
 }

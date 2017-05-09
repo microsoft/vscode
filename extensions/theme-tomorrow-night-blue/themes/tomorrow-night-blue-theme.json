@@ -33,6 +33,8 @@
 		"activityBar.background": "#001733",
 		"activityBarBadge.background": "#bbdaff",
 		"activityBarBadge.foreground": "#001733",
+		"badge.background": "#bbdaffcc",
+		"badge.foreground": "#001733",
 		"sideBar.background": "#001c40",
 		"terminal.ansiBlack": "#111111",
 		"terminal.ansiRed": "#ff9da4",
