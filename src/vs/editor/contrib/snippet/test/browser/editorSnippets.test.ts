@@ -59,6 +59,19 @@ suite('SnippetInsertion', function () {
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 	});
 
+	test('snippets, repeated tabstops', function () {
+		const session = new SnippetSession(editor, '${1:abc}foo${1:abc}$0');
+		assertSelections(editor,
+			new Selection(1, 1, 1, 4), new Selection(1, 7, 1, 10),
+			new Selection(2, 5, 2, 8), new Selection(2, 11, 2, 14),
+		);
+		session.next();
+		assertSelections(editor,
+			new Selection(1, 10, 1, 10),
+			new Selection(2, 14, 2, 14),
+		);
+	});
+
 	test('snippets, selections and new text with newlines', () => {
 
 		const session = new SnippetSession(editor, 'foo\n\t${1:bar}\n$0');
@@ -139,6 +152,77 @@ suite('SnippetInsertion', function () {
 		assertSelections(editor, new Selection(1, 5, 1, 9));
 		session.next();
 		assertSelections(editor, new Selection(1, 15, 1, 15));
+	});
+
+	test('snippets, don\'t merge touching tabstops 1/2', function () {
+
+		const session = new SnippetSession(editor, '$1$2$3$0');
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
+
+		session.next();
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
+
+		session.next();
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
+
+		session.next();
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
+
+		session.prev();
+		session.prev();
+		session.prev();
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
+		editor.trigger('test', 'type', { text: '111' });
+
+		session.next();
+		editor.trigger('test', 'type', { text: '222' });
+
+		session.next();
+		editor.trigger('test', 'type', { text: '333' });
+
+		session.next();
+		assert.equal(model.getValue(), '111222333function foo() {\n    111222333console.log(a);\n}');
+		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
+
+		session.prev();
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		session.prev();
+		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
+		session.prev();
+		assertSelections(editor, new Selection(1, 1, 1, 4), new Selection(2, 5, 2, 8));
+	});
+	test('snippets, don\'t merge touching tabstops 2/2', function () {
+
+		const session = new SnippetSession(editor, '$1$2$3$0');
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
+
+		editor.trigger('test', 'type', { text: '111' });
+
+		session.next();
+		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
+		editor.trigger('test', 'type', { text: '222' });
+
+		session.next();
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+		editor.trigger('test', 'type', { text: '333' });
+
+		session.next();
+		assert.equal(session.isAtFinalPlaceholder, true);
+	});
+
+	test('snippets, gracefully move over final tabstop', function () {
+		const session = new SnippetSession(editor, '${1}bar$0');
+
+		assert.equal(session.isAtFinalPlaceholder, false);
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
+
+		session.next();
+		assert.equal(session.isAtFinalPlaceholder, true);
+		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
+
+		session.next();
+		assert.equal(session.isAtFinalPlaceholder, true);
+		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
 	});
 
 });

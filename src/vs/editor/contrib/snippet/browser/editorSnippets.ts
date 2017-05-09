@@ -6,7 +6,7 @@
 'use strict';
 
 import { getLeadingWhitespace } from 'vs/base/common/strings';
-import { ICommonCodeEditor, IModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IModel, IModelDecorationOptions, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TextmateSnippet, Placeholder, SnippetParser } from '../common/snippetParser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -23,6 +23,9 @@ class OneSnippet {
 	private _placeholderDecorations: Map<Placeholder, string>;
 	private _placeholderGroups: Placeholder[][];
 	private _placeholderGroupsIdx: number;
+
+	private static readonly _growingDecoration: IModelDecorationOptions = { stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges };
+	private static readonly _fixedDecoration: IModelDecorationOptions = { stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges };
 
 	constructor(editor: ICommonCodeEditor, snippet: TextmateSnippet, offset: number) {
 		this._editor = editor;
@@ -58,16 +61,7 @@ class OneSnippet {
 				const end = model.getPositionAt(this._offset + placeholderOffset + placeholderLen);
 				const range = new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 
-				let stickiness: TrackedRangeStickiness;
-				if (placeholder.isFinalTabstop) {
-					stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
-				} else if (lastRange && lastRange.getEndPosition().equals(range.getStartPosition())) {
-					stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
-				} else {
-					stickiness = TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
-				}
-
-				const handle = accessor.addDecoration(range, { stickiness });
+				const handle = accessor.addDecoration(range, OneSnippet._fixedDecoration);
 				this._placeholderDecorations.set(placeholder, handle);
 
 				lastRange = range;
@@ -91,27 +85,50 @@ class OneSnippet {
 
 		this._init();
 
+		const prevGroupsIdx = this._placeholderGroupsIdx;
+
 		if (fwd && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
 			this._placeholderGroupsIdx += 1;
-			return this._getCurrentPlaceholderSelections();
 
 		} else if (!fwd && this._placeholderGroupsIdx > 0) {
 			this._placeholderGroupsIdx -= 1;
-			return this._getCurrentPlaceholderSelections();
 
 		} else {
-			return undefined;
+			return [];
 		}
+
+		return this._editor.getModel().changeDecorations(accessor => {
+
+			// change stickness to never grow when typing at its edges
+			// so that in-active tabstops never grow
+			if (prevGroupsIdx !== -1) {
+				for (const placeholder of this._placeholderGroups[prevGroupsIdx]) {
+					const id = this._placeholderDecorations.get(placeholder);
+					accessor.changeDecorationOptions(id, OneSnippet._fixedDecoration);
+				}
+			}
+
+			// change stickiness to always grow when typing at its edges
+			// because these decorations represent the currently active
+			// tabstop. Special case: reaching the final tab stop
+			const selections: Selection[] = [];
+			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
+				const id = this._placeholderDecorations.get(placeholder);
+				const range = this._editor.getModel().getDecorationRange(id);
+				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
+
+				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._fixedDecoration : OneSnippet._growingDecoration);
+			}
+			return selections;
+		});
 	}
 
-	private _getCurrentPlaceholderSelections(): Selection[] {
-		const selections: Selection[] = [];
-		for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
-			const handle = this._placeholderDecorations.get(placeholder);
-			const range = this._editor.getModel().getDecorationRange(handle);
-			selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
+	get isAtFinalPlaceholder() {
+		if (this._placeholderGroupsIdx < 0) {
+			return false;
+		} else {
+			return this._placeholderGroups[this._placeholderGroupsIdx][0].isFinalTabstop;
 		}
-		return selections;
 	}
 }
 
@@ -161,32 +178,34 @@ export class SnippetSession {
 		this._editor.setSelections(newSelections);
 	}
 
+	dispose(): void {
+		dispose(this._snippets);
+	}
+
 	next(): void {
 		const newSelections = this._move(true);
-		this._editor.setSelections(newSelections);
+		if (newSelections.length > 0) {
+			this._editor.setSelections(newSelections);
+		}
 	}
 
 	prev(): void {
 		const newSelections = this._move(false);
-		this._editor.setSelections(newSelections);
+		if (newSelections.length > 0) {
+			this._editor.setSelections(newSelections);
+		}
 	}
 
 	private _move(fwd: boolean): Selection[] {
 		const selections: Selection[] = [];
 		for (const snippet of this._snippets) {
 			const oneSelection = snippet.move(fwd);
-			if (!oneSelection) {
-				if (fwd) {
-					this.stop();
-				}
-				return this._editor.getSelections();
-			}
 			selections.push(...oneSelection);
 		}
 		return selections;
 	}
 
-	stop(): void {
-		dispose(this._snippets);
+	get isAtFinalPlaceholder() {
+		return this._snippets[0].isAtFinalPlaceholder;
 	}
 }
