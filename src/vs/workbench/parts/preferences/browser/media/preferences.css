@@ -114,15 +114,6 @@
 	display: none;
 }
 
-.settings-header-widget > .settings-count-widget.no-results {
-	color: #A1260D !important;
-}
-
-.hc-black .settings-header-widget > .settings-count-widget.no-results,
-.vs-dark .settings-header-widget > .settings-count-widget.no-results {
-	color: #F48771 !important;
-}
-
 .settings-header-widget > .settings-search-container {
 	flex: 1;
 }

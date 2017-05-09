@@ -27,7 +27,7 @@ import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder } from "vs/platform/theme/common/colorRegistry";
+import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from "vs/platform/theme/common/colorRegistry";
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -263,17 +263,17 @@ export class SearchWidget extends Widget {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 		this.countElement = DOM.append(this.domNode, DOM.$('.settings-count-widget'));
-		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
+		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
 			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
 
 			this.countElement.style.backgroundColor = background;
-			this.countElement.style.color = foreground;
 
 			this.countElement.style.borderWidth = border ? '1px' : null;
 			this.countElement.style.borderStyle = border ? 'solid' : null;
 			this.countElement.style.borderColor = border;
+
+			this.styleCountElementForeground();
 		}));
 		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
 	}
@@ -298,6 +298,13 @@ export class SearchWidget extends Widget {
 		this.inputBox.inputElement.setAttribute('aria-label', message);
 		DOM.toggleClass(this.countElement, 'no-results', count === 0);
 		this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+		this.styleCountElementForeground();
+	}
+
+	private styleCountElementForeground() {
+		const colorId = DOM.hasClass(this.countElement, 'no-results') ? errorForeground : badgeForeground;
+		const color = this.themeService.getTheme().getColor(colorId);
+		this.countElement.style.color = color ? color.toString() : null;
 	}
 
 	public layout(dimension: Dimension) {
