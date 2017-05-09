@@ -51,17 +51,17 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private _zonesFromDecorations: OverviewRulerZone[];
 	private _zonesFromCursors: OverviewRulerZone[];
 
-	constructor(context: ViewContext, scrollHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
+	constructor(context: ViewContext) {
 		super(context);
 		this._overviewRuler = new OverviewRulerImpl(
 			1,
 			'decorationsOverviewRuler',
-			scrollHeight,
+			this._context.viewLayout.getScrollHeight(),
 			this._context.configuration.editor.lineHeight,
 			this._context.configuration.editor.canUseTranslate3d,
 			DecorationsOverviewRuler.MIN_DECORATION_HEIGHT,
 			DecorationsOverviewRuler.MAX_DECORATION_HEIGHT,
-			getVerticalOffsetForLine
+			(lineNumber: number) => this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber)
 		);
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
 		let theme = this._context.configuration.editor.viewInfo.theme;

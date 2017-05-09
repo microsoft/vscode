@@ -10,7 +10,6 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LinesLayout } from 'vs/editor/common/viewLayout/linesLayout';
 import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import Event from 'vs/base/common/event';
 import { IConfigurationChangedEvent } from "vs/editor/common/config/editorOptions";
@@ -71,12 +70,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		this._linesLayout.onFlushed(lineCount);
 		this._updateHeight();
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): void {
-		this._linesLayout.onLinesDeleted(e.fromLineNumber, e.toLineNumber);
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber);
 		this._updateHeight();
 	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): void {
-		this._linesLayout.onLinesInserted(e.fromLineNumber, e.toLineNumber);
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber);
 		this._updateHeight();
 	}
 

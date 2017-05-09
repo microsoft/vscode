@@ -24,10 +24,9 @@ export const enum ViewEventType {
 	ViewLinesInserted = 10,
 	ViewRevealRangeRequest = 11,
 	ViewScrollChanged = 12,
-	ViewScrollRequest = 13,
-	ViewTokensChanged = 14,
-	ViewTokensColorsChanged = 15,
-	ViewZonesChanged = 16,
+	ViewTokensChanged = 13,
+	ViewTokensColorsChanged = 14,
+	ViewZonesChanged = 15,
 }
 
 export class ViewConfigurationChangedEvent {
@@ -243,17 +242,6 @@ export class ViewScrollChangedEvent {
 	}
 }
 
-export class ViewScrollRequestEvent {
-
-	public readonly type = ViewEventType.ViewScrollRequest;
-
-	public readonly desiredScrollTop: number;
-
-	constructor(desiredScrollTop: number) {
-		this.desiredScrollTop = desiredScrollTop;
-	}
-}
-
 export class ViewTokensChangedEvent {
 
 	public readonly type = ViewEventType.ViewTokensChanged;
@@ -305,7 +293,6 @@ export type ViewEvent = (
 	| ViewLinesInsertedEvent
 	| ViewRevealRangeRequestEvent
 	| ViewScrollChangedEvent
-	| ViewScrollRequestEvent
 	| ViewTokensChangedEvent
 	| ViewTokensColorsChangedEvent
 	| ViewZonesChangedEvent

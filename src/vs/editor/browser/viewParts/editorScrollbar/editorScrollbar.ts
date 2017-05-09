@@ -9,7 +9,6 @@ import { ScrollableElementCreationOptions, ScrollableElementChangeOptions } from
 import { IOverviewRulerLayoutInfo, ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
-import { Scrollable } from 'vs/base/common/scrollable';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -17,7 +16,6 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 
 export class EditorScrollbar extends ViewPart {
 
-	private scrollable: Scrollable;
 	private scrollbar: ScrollableElement;
 	private scrollbarDomNode: FastDomNode<HTMLElement>;
 
@@ -28,8 +26,6 @@ export class EditorScrollbar extends ViewPart {
 		overflowGuardDomNode: FastDomNode<HTMLElement>
 	) {
 		super(context);
-
-		this.scrollable = this._context.viewLayout.scrollable;
 
 		const editor = this._context.configuration.editor;
 		const configScrollbarOpts = editor.viewInfo.scrollbar;
@@ -54,7 +50,7 @@ export class EditorScrollbar extends ViewPart {
 			mouseWheelScrollSensitivity: configScrollbarOpts.mouseWheelScrollSensitivity,
 		};
 
-		this.scrollbar = this._register(new ScrollableElement(linesContent.domNode, scrollbarOptions, this.scrollable));
+		this.scrollbar = this._register(new ScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.scrollable));
 		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
 
 		this.scrollbarDomNode = createFastDomNode(this.scrollbar.getDomNode());
@@ -66,13 +62,12 @@ export class EditorScrollbar extends ViewPart {
 		// changing the .scrollTop of this.linesContent
 
 		let onBrowserDesperateReveal = (domNode: HTMLElement, lookAtScrollTop: boolean, lookAtScrollLeft: boolean) => {
-			const scrollState = this.scrollable.getState();
 			let newScrollPosition: INewScrollPosition = {};
 
 			if (lookAtScrollTop) {
 				let deltaTop = domNode.scrollTop;
 				if (deltaTop) {
-					newScrollPosition.scrollTop = scrollState.scrollTop + deltaTop;
+					newScrollPosition.scrollTop = this._context.viewLayout.getScrollTop() + deltaTop;
 					domNode.scrollTop = 0;
 				}
 			}
@@ -80,12 +75,12 @@ export class EditorScrollbar extends ViewPart {
 			if (lookAtScrollLeft) {
 				let deltaLeft = domNode.scrollLeft;
 				if (deltaLeft) {
-					newScrollPosition.scrollLeft = scrollState.scrollLeft + deltaLeft;
+					newScrollPosition.scrollLeft = this._context.viewLayout.getScrollLeft() + deltaLeft;
 					domNode.scrollLeft = 0;
 				}
 			}
 
-			this.scrollable.updateState(newScrollPosition);
+			this._context.viewLayout.setScrollPosition(newScrollPosition);
 		};
 
 		// I've seen this happen both on the view dom node & on the lines content dom node.

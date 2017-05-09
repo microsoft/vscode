@@ -184,7 +184,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 			this._lastCursorRevealRangeHorizontallyEvent = e;
 		}
 
-		this._context.viewLayout.setScrollPosition({
+		this._context.viewLayout.setScrollPosition({ // TODO@Alex: scrolling vertically can be moved to the view model
 			scrollTop: newScrollTop
 		});
 

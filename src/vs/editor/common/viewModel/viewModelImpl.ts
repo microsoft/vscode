@@ -217,7 +217,6 @@ export class ViewModel extends Disposable implements IViewModel {
 					this.viewLayout.setScrollPosition({
 						scrollTop: e.desiredScrollTop
 					});
-					eventsCollector.emit(new viewEvents.ViewScrollRequestEvent(e.desiredScrollTop)); // TODO@Alex: delete this ev type
 					break;
 				}
 				default:
@@ -312,7 +311,7 @@ export class ViewModel extends Disposable implements IViewModel {
 								const linesDeletedEvent = this.lines.onModelLinesDeleted(versionId, change.fromLineNumber, change.toLineNumber);
 								if (linesDeletedEvent !== null) {
 									eventsCollector.emit(linesDeletedEvent);
-									this.viewLayout.onLinesDeleted(linesDeletedEvent);
+									this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
 								}
 								hadOtherModelChange = true;
 								break;
@@ -321,24 +320,24 @@ export class ViewModel extends Disposable implements IViewModel {
 								const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, change.detail.split('\n'));
 								if (linesInsertedEvent !== null) {
 									eventsCollector.emit(linesInsertedEvent);
-									this.viewLayout.onLinesInserted(linesInsertedEvent);
+									this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
 								}
 								hadOtherModelChange = true;
 								break;
 							}
 							case textModelEvents.RawContentChangedType.LineChanged: {
-								const [lineMappingChanged, viewLinesChangedEvent, viewLinesInsertedEvent, viewLinesDeletedEvent] = this.lines.onModelLineChanged(versionId, change.lineNumber, change.detail);
+								const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this.lines.onModelLineChanged(versionId, change.lineNumber, change.detail);
 								hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
-								if (viewLinesChangedEvent) {
-									eventsCollector.emit(viewLinesChangedEvent);
+								if (linesChangedEvent) {
+									eventsCollector.emit(linesChangedEvent);
 								}
-								if (viewLinesInsertedEvent) {
-									eventsCollector.emit(viewLinesInsertedEvent);
-									this.viewLayout.onLinesInserted(viewLinesInsertedEvent);
+								if (linesInsertedEvent) {
+									eventsCollector.emit(linesInsertedEvent);
+									this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
 								}
-								if (viewLinesDeletedEvent) {
-									eventsCollector.emit(viewLinesDeletedEvent);
-									this.viewLayout.onLinesDeleted(viewLinesDeletedEvent);
+								if (linesDeletedEvent) {
+									eventsCollector.emit(linesDeletedEvent);
+									this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
 								}
 								break;
 							}
