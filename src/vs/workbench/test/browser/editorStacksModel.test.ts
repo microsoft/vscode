@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { EditorStacksModel, EditorGroup, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory } from 'vs/workbench/common/editor';
+import { EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, IGroupEvent } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -47,6 +47,8 @@ interface ModelEvents {
 	renamed: IEditorGroup[];
 	disposed: IEditorIdentifier[];
 	changed: IStacksModelChangeEvent[];
+	editorClosed: IGroupEvent[];
+	editorWillClose: IEditorIdentifier[];
 }
 
 interface GroupEvents {
@@ -66,7 +68,9 @@ function modelListener(model: EditorStacksModel): ModelEvents {
 		moved: [],
 		renamed: [],
 		disposed: [],
-		changed: []
+		changed: [],
+		editorClosed: [],
+		editorWillClose: []
 	};
 
 	model.onGroupOpened(g => modelEvents.opened.push(g));
@@ -76,6 +80,8 @@ function modelListener(model: EditorStacksModel): ModelEvents {
 	model.onGroupRenamed(g => modelEvents.renamed.push(g));
 	model.onEditorDisposed(e => modelEvents.disposed.push(e));
 	model.onModelChanged(e => modelEvents.changed.push(e));
+	model.onWillCloseEditor(e => modelEvents.editorWillClose.push(e));
+	model.onEditorClosed(e => modelEvents.editorClosed.push(e));
 
 	return modelEvents;
 }
@@ -1671,6 +1677,7 @@ suite('Editor Stacks Model', () => {
 
 	test('Stack - Multiple Editors - Editor Disposed on Close', function () {
 		const model = create();
+		const events = modelListener(model);
 
 		const group1 = model.openGroup('group1');
 		const group2 = model.openGroup('group2');
@@ -1687,6 +1694,13 @@ suite('Editor Stacks Model', () => {
 
 		group1.closeEditor(input3);
 
+		assert.equal(events.editorClosed.length, 1);
+		assert.equal(events.editorClosed[0].editor, input3);
+
+		assert.equal(events.editorWillClose.length, 1);
+		assert.equal(events.editorWillClose[0].editor, input3);
+		assert.equal(events.editorWillClose[0].group, group1);
+
 		assert.equal(input3.isDisposed(), true);
 
 		group2.openEditor(input2, { pinned: true, active: true });
@@ -1695,17 +1709,37 @@ suite('Editor Stacks Model', () => {
 
 		group1.closeEditor(input2);
 
+		assert.equal(events.editorClosed.length, 2);
+		assert.equal(events.editorClosed[1].editor, input2);
+
+		assert.equal(events.editorWillClose.length, 2);
+		assert.equal(events.editorWillClose[1].editor, input2);
+		assert.equal(events.editorWillClose[1].group, group1);
+
 		assert.equal(input2.isDisposed(), false);
 
 		group2.closeEditor(input2);
+
+		assert.equal(events.editorClosed.length, 3);
+		assert.equal(events.editorClosed[2].editor, input2);
+
+		assert.equal(events.editorWillClose.length, 3);
+		assert.equal(events.editorWillClose[2].editor, input2);
+		assert.equal(events.editorWillClose[2].group, group2);
 
 		assert.equal(input2.isDisposed(), true);
 
 		group1.closeAllEditors();
 
+		assert.equal(events.editorClosed.length, 5);
+		assert.equal(events.editorWillClose.length, 5);
+
 		assert.equal(input4.isDisposed(), false);
 
 		model.closeGroups();
+
+		assert.equal(events.editorClosed.length, 7);
+		assert.equal(events.editorWillClose.length, 7);
 
 		assert.equal(input4.isDisposed(), true);
 	});
