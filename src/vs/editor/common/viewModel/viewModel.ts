@@ -110,7 +110,6 @@ export interface IViewModel {
 	getLineIndentGuide(lineNumber: number): number;
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
-	getLineRenderLineNumber(lineNumber: number): string;
 	getAllOverviewRulerDecorations(): ViewModelDecoration[];
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 

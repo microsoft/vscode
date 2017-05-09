@@ -100,10 +100,6 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private _isDisposing: boolean;
 
-	private _renderCustomLineNumbers: (lineNumber: number) => string;
-	private _renderRelativeLineNumbers: boolean;
-	private _lastCursorPosition: Position;
-
 	private _centeredViewLine: number;
 
 	private _listeners: IViewModelListener[];
@@ -118,10 +114,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		this.configuration.setMaxLineNumber(this.model.getLineCount());
 
 		this.coordinatesConverter = new CoordinatesConverter(this.lines);
-
-		this._lastCursorPosition = new Position(1, 1);
-		this._renderCustomLineNumbers = this.configuration.editor.viewInfo.renderCustomLineNumbers;
-		this._renderRelativeLineNumbers = this.configuration.editor.viewInfo.renderRelativeLineNumbers;
 
 		this._centeredViewLine = -1;
 
@@ -230,8 +222,44 @@ export class ViewModel extends Disposable implements IViewModel {
 		return lineMappingChanged;
 	}
 
-	public addEventSource(eventSource: Cursor): void {
-		this._register(eventSource.addBulkListener((events: EmitterEvent[]) => this.onEvents(events)));
+	public addEventSource(cursor: Cursor): void {
+		this._register(cursor.addBulkListener((events: EmitterEvent[]) => {
+			const eventsCollector = new ViewEventsCollector();
+
+			for (let i = 0, len = events.length; i < len; i++) {
+				const _e = events[i];
+				const type = _e.type;
+				const data = _e.data;
+
+				switch (type) {
+					case CursorEventType.CursorPositionChanged: {
+						const e = <ICursorPositionChangedEvent>data;
+						this.cursors.onCursorPositionChanged(eventsCollector, e);
+						break;
+					}
+					case CursorEventType.CursorSelectionChanged: {
+						const e = <ICursorSelectionChangedEvent>data;
+						this.cursors.onCursorSelectionChanged(eventsCollector, e);
+						break;
+					}
+					case CursorEventType.CursorRevealRange: {
+						const e = <ICursorRevealRangeEvent>data;
+						this.cursors.onCursorRevealRange(eventsCollector, e);
+						break;
+					}
+					case CursorEventType.CursorScrollRequest: {
+						const e = <CursorScrollRequest>data;
+						this.cursors.onCursorScrollRequest(eventsCollector, e);
+						break;
+					}
+					default:
+						console.info('View received unknown event: ');
+						console.info(type, data);
+				}
+			}
+
+			this._emit(eventsCollector.finalize());
+		}));
 	}
 
 	private onEvents(events: EmitterEvent[]): void {
@@ -389,34 +417,10 @@ export class ViewModel extends Disposable implements IViewModel {
 					// Ignore, since the editor will take care of this and destroy the view shortly
 					break;
 				}
-				case CursorEventType.CursorPositionChanged: {
-					const e = <ICursorPositionChangedEvent>data;
-					this.cursors.onCursorPositionChanged(eventsCollector, e);
-					this._lastCursorPosition = e.position;
-					break;
-				}
-				case CursorEventType.CursorSelectionChanged: {
-					const e = <ICursorSelectionChangedEvent>data;
-					this.cursors.onCursorSelectionChanged(eventsCollector, e);
-					break;
-				}
-				case CursorEventType.CursorRevealRange: {
-					const e = <ICursorRevealRangeEvent>data;
-					this.cursors.onCursorRevealRange(eventsCollector, e);
-					break;
-				}
-				case CursorEventType.CursorScrollRequest: {
-					const e = <CursorScrollRequest>data;
-					this.cursors.onCursorScrollRequest(eventsCollector, e);
-					break;
-				}
 				case ConfigurationChanged: {
 					const e = <IConfigurationChangedEvent>data;
 					revealPreviousCenteredModelRange = this._onWrappingIndentChange(eventsCollector, this.configuration.editor.wrappingInfo.wrappingIndent) || revealPreviousCenteredModelRange;
 					revealPreviousCenteredModelRange = this._onWrappingColumnChange(eventsCollector, this.configuration.editor.wrappingInfo.wrappingColumn, this.configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth) || revealPreviousCenteredModelRange;
-
-					this._renderCustomLineNumbers = this.configuration.editor.viewInfo.renderCustomLineNumbers;
-					this._renderRelativeLineNumbers = this.configuration.editor.viewInfo.renderRelativeLineNumbers;
 
 					if (e.readOnly) {
 						// Must read again all decorations due to readOnly filtering
@@ -489,28 +493,6 @@ export class ViewModel extends Disposable implements IViewModel {
 			return 0;
 		}
 		return result + 2;
-	}
-
-	public getLineRenderLineNumber(viewLineNumber: number): string {
-		let modelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(viewLineNumber, 1));
-		if (modelPosition.column !== 1) {
-			return '';
-		}
-		let modelLineNumber = modelPosition.lineNumber;
-
-		if (this._renderCustomLineNumbers) {
-			return this._renderCustomLineNumbers(modelLineNumber);
-		}
-
-		if (this._renderRelativeLineNumbers) {
-			let diff = Math.abs(this._lastCursorPosition.lineNumber - modelLineNumber);
-			if (diff === 0) {
-				return '<span class="relative-current-line-number">' + modelLineNumber + '</span>';
-			}
-			return String(diff);
-		}
-
-		return String(modelLineNumber);
 	}
 
 	public getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[] {
