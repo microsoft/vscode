@@ -1,4 +1,4 @@
-. .\lib.ps1
+. .\build\tfs\win32\lib.ps1
 
 exec { & .\scripts\npm.bat install }
 exec { & npm run gulp -- mixin }
