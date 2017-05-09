@@ -121,8 +121,10 @@ declare module DebugProtocol {
 	export interface TerminatedEvent extends Event {
 		// event: 'terminated';
 		body?: {
-			/** A debug adapter may set 'restart' to true to request that the front end restarts the session. */
-			restart?: boolean;
+			/** A debug adapter may set 'restart' to true (or to an arbitrary object) to request that the front end restarts the session.
+				The value is not interpreted by the client and passed unmodified as an attribute '__restart' to the launchRequest.
+			*/
+			restart?: boolean | object;
 		};
 	}
 
@@ -1345,4 +1347,3 @@ declare module DebugProtocol {
 		innerException?: ExceptionDetails[];
 	}
 }
-
