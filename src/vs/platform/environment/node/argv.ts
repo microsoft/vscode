@@ -110,7 +110,9 @@ export function parseArgs(args: string[]): ParsedArgs {
 	// Because Spectron doesn't allow us to pass a custom user-data-dir,
 	// Code receives two of them. Let's just take the first one.
 	const userDataDir: string | string[] = result['user-data-dir'];
-	result['user-data-dir'] = typeof userDataDir === 'string' ? userDataDir : userDataDir[0];
+	if (userDataDir) {
+		result['user-data-dir'] = typeof userDataDir === 'string' ? userDataDir : userDataDir[0];
+	}
 
 	return result;
 }
