@@ -4,7 +4,7 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
 NAME="@@NAME@@"
-VSCODE_PATH="$(dirname "$(dirname "$(realpath "$0")")")"
+VSCODE_PATH="$(dirname "$(cd "$(dirname "$0")"; pwd -P)")"
 ELECTRON="$VSCODE_PATH/$NAME.exe"
 if grep -q Microsoft /proc/version; then
 	# If running under WSL don't pass cli.js to Electron as environment vars
