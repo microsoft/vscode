@@ -33,7 +33,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { badgeBackground, badgeForeground, badgeBorder } from "vs/platform/theme/common/colorRegistry";
+import { badgeBackground, badgeForeground, contrastBorder } from "vs/platform/theme/common/colorRegistry";
 
 const $ = dom.$;
 
@@ -89,10 +89,10 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 
 		this.dirtyCountElement = dom.append(titleDiv, $('.monaco-count-badge'));
 
-		this.toDispose.push((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, badgeBorder }, colors => {
+		this.toDispose.push((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
 			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
-			const border = colors.badgeBorder ? colors.badgeBorder.toString() : null;
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
 
 			this.dirtyCountElement.style.backgroundColor = background;
 			this.dirtyCountElement.style.color = foreground;

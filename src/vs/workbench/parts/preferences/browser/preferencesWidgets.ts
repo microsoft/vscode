@@ -27,7 +27,7 @@ import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { buttonBackground, buttonForeground, badgeBorder, badgeForeground, badgeBackground } from "vs/platform/theme/common/colorRegistry";
+import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder } from "vs/platform/theme/common/colorRegistry";
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -263,10 +263,10 @@ export class SearchWidget extends Widget {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 		this.countElement = DOM.append(this.domNode, DOM.$('.settings-count-widget'));
-		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, badgeBorder }, colors => {
+		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
 			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
-			const border = colors.badgeBorder ? colors.badgeBorder.toString() : null;
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
 
 			this.countElement.style.backgroundColor = background;
 			this.countElement.style.color = foreground;
