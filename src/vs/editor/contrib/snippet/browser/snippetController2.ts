@@ -45,12 +45,13 @@ export class SnippetController2 {
 	}
 
 	insert(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
-		const newLen = this._snippetStack.unshift(new SnippetSession(this._editor, template));
+		const session = new SnippetSession(this._editor, template);
+		const newLen = this._snippetStack.unshift(session);
 		if (newLen === 1) {
 			this._inSnippet.set(true);
 			this._snippetListener = [this._editor.onDidChangeCursorSelection(() => this._updateState())];
 		}
-		this._updateState();
+		session.insert();
 	}
 
 	private _updateState(): void {

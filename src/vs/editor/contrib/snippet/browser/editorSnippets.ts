@@ -167,36 +167,40 @@ export class SnippetSession {
 	}
 
 	private readonly _editor: ICommonCodeEditor;
+	private readonly _template: string;
 	private readonly _snippets: OneSnippet[];
 
 	constructor(editor: ICommonCodeEditor, template: string) {
 		this._editor = editor;
+		this._template = template;
 		this._snippets = [];
+	}
 
+	dispose(): void {
+		dispose(this._snippets);
+	}
+
+	insert(): void {
 		let delta = 0;
 		let edits: IIdentifiedSingleEditOperation[] = [];
-		let model = editor.getModel();
+		let model = this._editor.getModel();
 
-		for (const selection of editor.getSelections()) {
+		for (const selection of this._editor.getSelections()) {
 			const start = selection.getStartPosition();
-			const adjustedTemplate = SnippetSession.normalizeWhitespace(model, start, template);
+			const adjustedTemplate = SnippetSession.normalizeWhitespace(model, start, this._template);
 
 			const snippet = SnippetParser.parse(adjustedTemplate);
 			const offset = model.getOffsetAt(start) + delta;
 
 			edits.push(EditOperation.replaceMove(selection, snippet.text));
-			this._snippets.push(new OneSnippet(editor, snippet, offset));
+			this._snippets.push(new OneSnippet(this._editor, snippet, offset));
 
 			delta += snippet.text.length - model.getValueLengthInRange(selection);
 		}
 
 		// make insert edit and start with first selections
-		const newSelections = model.pushEditOperations(editor.getSelections(), edits, () => this._move(true));
+		const newSelections = model.pushEditOperations(this._editor.getSelections(), edits, () => this._move(true));
 		this._editor.setSelections(newSelections);
-	}
-
-	dispose(): void {
-		dispose(this._snippets);
 	}
 
 	next(): void {
