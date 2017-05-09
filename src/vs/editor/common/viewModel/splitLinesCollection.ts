@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ViewLineData, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
+import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
@@ -165,7 +165,7 @@ export class SplitLinesCollection {
 		return result;
 	}
 
-	public setHiddenAreas(eventsCollector: ViewEventsCollector, _ranges: Range[]): boolean {
+	public setHiddenAreas(_ranges: Range[]): boolean {
 
 		let newRanges = this._reduceRanges(_ranges);
 
@@ -232,7 +232,6 @@ export class SplitLinesCollection {
 			}
 		}
 
-		eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 		return true;
 	}
 
@@ -244,19 +243,18 @@ export class SplitLinesCollection {
 		return this.lines[modelLineNumber - 1].isVisible();
 	}
 
-	public setTabSize(eventsCollector: ViewEventsCollector, newTabSize: number): boolean {
+	public setTabSize(newTabSize: number): boolean {
 		if (this.tabSize === newTabSize) {
 			return false;
 		}
 		this.tabSize = newTabSize;
 
 		this._constructLines(false);
-		eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 
 		return true;
 	}
 
-	public setWrappingSettings(eventsCollector: ViewEventsCollector, wrappingIndent: WrappingIndent, wrappingColumn: number, columnsForFullWidthChar: number): boolean {
+	public setWrappingSettings(wrappingIndent: WrappingIndent, wrappingColumn: number, columnsForFullWidthChar: number): boolean {
 		if (this.wrappingIndent === wrappingIndent && this.wrappingColumn === wrappingColumn && this.columnsForFullWidthChar === columnsForFullWidthChar) {
 			return false;
 		}
@@ -266,21 +264,19 @@ export class SplitLinesCollection {
 		this.columnsForFullWidthChar = columnsForFullWidthChar;
 
 		this._constructLines(false);
-		eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 
 		return true;
 	}
 
-	public onModelFlushed(eventsCollector: ViewEventsCollector): void {
+	public onModelFlushed(): void {
 		this._constructLines(true);
-		eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 	}
 
-	public onModelLinesDeleted(eventsCollector: ViewEventsCollector, versionId: number, fromLineNumber: number, toLineNumber: number): void {
+	public onModelLinesDeleted(versionId: number, fromLineNumber: number, toLineNumber: number): viewEvents.ViewLinesDeletedEvent {
 		if (versionId <= this._validModelVersionId) {
 			// Here we check for versionId in case the lines were reconstructed in the meantime.
 			// We don't want to apply stale change events on top of a newer read model state.
-			return;
+			return null;
 		}
 
 		let outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.prefixSumComputer.getAccumulatedValue(fromLineNumber - 2) + 1);
@@ -289,14 +285,14 @@ export class SplitLinesCollection {
 		this.lines.splice(fromLineNumber - 1, toLineNumber - fromLineNumber + 1);
 		this.prefixSumComputer.removeValues(fromLineNumber - 1, toLineNumber - fromLineNumber + 1);
 
-		eventsCollector.emit(new viewEvents.ViewLinesDeletedEvent(outputFromLineNumber, outputToLineNumber));
+		return new viewEvents.ViewLinesDeletedEvent(outputFromLineNumber, outputToLineNumber);
 	}
 
-	public onModelLinesInserted(eventsCollector: ViewEventsCollector, versionId: number, fromLineNumber: number, toLineNumber: number, text: string[]): void {
+	public onModelLinesInserted(versionId: number, fromLineNumber: number, toLineNumber: number, text: string[]): viewEvents.ViewLinesInsertedEvent {
 		if (versionId <= this._validModelVersionId) {
 			// Here we check for versionId in case the lines were reconstructed in the meantime.
 			// We don't want to apply stale change events on top of a newer read model state.
-			return;
+			return null;
 		}
 
 		let hiddenAreas = this.getHiddenAreas();
@@ -328,14 +324,14 @@ export class SplitLinesCollection {
 
 		this.prefixSumComputer.insertValues(fromLineNumber - 1, insertPrefixSumValues);
 
-		eventsCollector.emit(new viewEvents.ViewLinesInsertedEvent(outputFromLineNumber, outputFromLineNumber + totalOutputLineCount - 1));
+		return new viewEvents.ViewLinesInsertedEvent(outputFromLineNumber, outputFromLineNumber + totalOutputLineCount - 1);
 	}
 
-	public onModelLineChanged(eventsCollector: ViewEventsCollector, versionId: number, lineNumber: number, newText: string): boolean {
+	public onModelLineChanged(versionId: number, lineNumber: number, newText: string): [boolean, viewEvents.ViewLinesChangedEvent, viewEvents.ViewLinesInsertedEvent, viewEvents.ViewLinesDeletedEvent] {
 		if (versionId <= this._validModelVersionId) {
 			// Here we check for versionId in case the lines were reconstructed in the meantime.
 			// We don't want to apply stale change events on top of a newer read model state.
-			return false;
+			return [false, null, null, null];
 		}
 
 		let lineIndex = lineNumber - 1;
@@ -373,17 +369,11 @@ export class SplitLinesCollection {
 
 		this.prefixSumComputer.changeValue(lineIndex, newOutputLineCount);
 
-		if (changeFrom <= changeTo) {
-			eventsCollector.emit(new viewEvents.ViewLinesChangedEvent(changeFrom, changeTo));
-		}
-		if (insertFrom <= insertTo) {
-			eventsCollector.emit(new viewEvents.ViewLinesInsertedEvent(insertFrom, insertTo));
-		}
-		if (deleteFrom <= deleteTo) {
-			eventsCollector.emit(new viewEvents.ViewLinesDeletedEvent(deleteFrom, deleteTo));
-		}
+		const viewLinesChangedEvent = (changeFrom <= changeTo ? new viewEvents.ViewLinesChangedEvent(changeFrom, changeTo) : null);
+		const viewLinesInsertedEvent = (insertFrom <= insertTo ? new viewEvents.ViewLinesInsertedEvent(insertFrom, insertTo) : null);
+		const viewLinesDeletedEvent = (deleteFrom <= deleteTo ? new viewEvents.ViewLinesDeletedEvent(deleteFrom, deleteTo) : null);
 
-		return lineMappingChanged;
+		return [lineMappingChanged, viewLinesChangedEvent, viewLinesInsertedEvent, viewLinesDeletedEvent];
 	}
 
 	public acceptVersionId(versionId: number): void {

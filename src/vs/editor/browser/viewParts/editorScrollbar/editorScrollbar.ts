@@ -23,14 +23,13 @@ export class EditorScrollbar extends ViewPart {
 
 	constructor(
 		context: ViewContext,
-		scrollable: Scrollable,
 		linesContent: FastDomNode<HTMLElement>,
 		viewDomNode: FastDomNode<HTMLElement>,
 		overflowGuardDomNode: FastDomNode<HTMLElement>
 	) {
 		super(context);
 
-		this.scrollable = scrollable;
+		this.scrollable = this._context.viewLayout.scrollable;
 
 		const editor = this._context.configuration.editor;
 		const configScrollbarOpts = editor.viewInfo.scrollbar;

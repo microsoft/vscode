@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IModelDecoration, EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, IModelDecoration, EndOfLinePreference, IViewState } from 'vs/editor/common/editorCommon';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ViewEvent } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Scrollable } from "vs/base/common/scrollable";
+import { IPartialViewLinesViewportData } from "vs/editor/common/viewLayout/viewLinesViewportData";
+import { IEditorWhitespace } from "vs/editor/common/viewLayout/whitespaceComputer";
 
 export interface IViewWhitespaceViewportData {
 	readonly id: number;
@@ -37,6 +40,8 @@ export class Viewport {
 
 export interface IViewLayout {
 
+	readonly scrollable: Scrollable;
+
 	onMaxLineWidthChanged(width: number): void;
 
 	getScrollLeft(): number;
@@ -44,8 +49,19 @@ export interface IViewLayout {
 	getScrollHeight(): number;
 	getScrollTop(): number;
 	getCurrentViewport(): Viewport;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	setScrollPosition(position: INewScrollPosition): void;
+
+	getLinesViewportData(): IPartialViewLinesViewportData;
+	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
+	getWhitespaces(): IEditorWhitespace[];
+
+	saveState(): IViewState;
+	restoreState(state: IViewState): void;
+
+	isAfterLines(verticalOffset: number): boolean;
+	getLineNumberAtVerticalOffset(verticalOffset: number): number;
+	getVerticalOffsetForLineNumber(lineNumber: number): number;
+	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData;
 
 	// --------------- Begin vertical whitespace management
 
@@ -66,6 +82,9 @@ export interface IViewLayout {
 	 * Get the layout information for whitespaces currently in the viewport
 	 */
 	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
+
+	// TODO@Alex
+	onHeightMaybeChanged();
 
 	// --------------- End vertical whitespace management
 }
@@ -94,6 +113,8 @@ export interface IViewModel {
 	addEventListener(listener: IViewModelListener): IDisposable;
 
 	readonly coordinatesConverter: ICoordinatesConverter;
+
+	readonly viewLayout: IViewLayout;
 
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.

@@ -20,7 +20,6 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ViewController, ExecCoreEditorCommandFunc } from 'vs/editor/browser/view/viewController';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
-import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
 import { CurrentLineHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineHighlight/currentLineHighlight';
 import { CurrentLineMarginHighlightOverlay } from 'vs/editor/browser/viewParts/currentLineMarginHighlight/currentLineMarginHighlight';
@@ -66,7 +65,6 @@ export class View extends ViewEventHandler {
 
 	private eventDispatcher: ViewEventDispatcher;
 
-	private layoutProvider: ViewLayout;
 	private _scrollbar: EditorScrollbar;
 	private _context: ViewContext;
 
@@ -114,12 +112,6 @@ export class View extends ViewEventHandler {
 		// Ensure the view is the first event handler in order to update the layout
 		this.eventDispatcher.addEventHandler(this);
 
-		// The layout provider has such responsibilities as:
-		// - scrolling (i.e. viewport / full size) & co.
-		// - whitespaces (a.k.a. view zones) management & co.
-		// - line heights updating & co.
-		this.layoutProvider = new ViewLayout(configuration, model.getLineCount(), this.eventDispatcher);
-
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, model, this.eventDispatcher);
 
@@ -153,20 +145,20 @@ export class View extends ViewEventHandler {
 		PartFingerprints.write(this.overflowGuardContainer, PartFingerprint.OverflowGuard);
 		this.overflowGuardContainer.setClassName('overflow-guard');
 
-		this._scrollbar = new EditorScrollbar(this._context, this.layoutProvider.getScrollable(), this.linesContent, this.domNode, this.overflowGuardContainer);
+		this._scrollbar = new EditorScrollbar(this._context, this.linesContent, this.domNode, this.overflowGuardContainer);
 		this.viewParts.push(this._scrollbar);
 
 		// View Lines
-		this.viewLines = new ViewLines(this._context, this.linesContent, this.layoutProvider);
+		this.viewLines = new ViewLines(this._context, this.linesContent);
 
 		// View Zones
-		this.viewZones = new ViewZones(this._context, this.layoutProvider);
+		this.viewZones = new ViewZones(this._context);
 		this.viewParts.push(this.viewZones);
 
 		// Decorations overview ruler
 		let decorationsOverviewRuler = new DecorationsOverviewRuler(
-			this._context, this.layoutProvider.getScrollHeight(),
-			(lineNumber: number) => this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber)
+			this._context, this._context.viewLayout.getScrollHeight(),
+			(lineNumber: number) => this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber)
 		);
 		this.viewParts.push(decorationsOverviewRuler);
 
@@ -208,7 +200,7 @@ export class View extends ViewEventHandler {
 		let rulers = new Rulers(this._context);
 		this.viewParts.push(rulers);
 
-		let minimap = new Minimap(this._context, this.layoutProvider, this._scrollbar);
+		let minimap = new Minimap(this._context, this._scrollbar);
 		this.viewParts.push(minimap);
 
 		// -------------- Wire dom nodes up
@@ -248,29 +240,6 @@ export class View extends ViewEventHandler {
 				this.focus();
 			},
 
-			getScrollLeft: () => {
-				return this.layoutProvider.getScrollLeft();
-			},
-			getScrollTop: () => {
-				return this.layoutProvider.getScrollTop();
-			},
-
-			setScrollPosition: (position: editorCommon.INewScrollPosition) => {
-				this.layoutProvider.setScrollPosition(position);
-			},
-
-			isAfterLines: (verticalOffset: number) => {
-				return this.layoutProvider.isAfterLines(verticalOffset);
-			},
-			getLineNumberAtVerticalOffset: (verticalOffset: number) => {
-				return this.layoutProvider.getLineNumberAtVerticalOffset(verticalOffset);
-			},
-			getVerticalOffsetForLineNumber: (lineNumber: number) => {
-				return this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber);
-			},
-			getWhitespaceAtVerticalOffset: (verticalOffset: number) => {
-				return this.layoutProvider.getWhitespaceAtVerticalOffset(verticalOffset);
-			},
 			getLastViewCursorsRenderData: () => {
 				return this.viewCursors.getLastRenderData() || [];
 			},
@@ -310,9 +279,6 @@ export class View extends ViewEventHandler {
 					return null;
 				}
 				return visibleRanges[0];
-			},
-			getVerticalOffsetForLineNumber: (lineNumber: number) => {
-				return this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber);
 			}
 		};
 	}
@@ -346,11 +312,6 @@ export class View extends ViewEventHandler {
 		if (e.layoutInfo) {
 			this._setLayout();
 		}
-		this.layoutProvider.onConfigurationChanged(e);
-		return false;
-	}
-	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this.layoutProvider.onFlushed(this._context.model.getLineCount());
 		return false;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -362,22 +323,8 @@ export class View extends ViewEventHandler {
 		}
 		return false;
 	}
-	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
-		this.layoutProvider.onLinesDeleted(e);
-		return false;
-	}
-	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
-		this.layoutProvider.onLinesInserted(e);
-		return false;
-	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this.outgoingEvents.emitScrollChanged(e);
-		return false;
-	}
-	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
-		this.layoutProvider.setScrollPosition({
-			scrollTop: e.desiredScrollTop
-		});
 		return false;
 	}
 
@@ -402,8 +349,6 @@ export class View extends ViewEventHandler {
 			this.viewParts[i].dispose();
 		}
 		this.viewParts = [];
-
-		this.layoutProvider.dispose();
 
 		super.dispose();
 	}
@@ -453,7 +398,7 @@ export class View extends ViewEventHandler {
 			return;
 		}
 
-		let partialViewportData = this.layoutProvider.getLinesViewportData();
+		const partialViewportData = this._context.viewLayout.getLinesViewportData();
 		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
 		let viewportData = new ViewportData(partialViewportData, this._context.model);
@@ -470,7 +415,7 @@ export class View extends ViewEventHandler {
 			this._textAreaHandler.writeToTextArea();
 		}
 
-		let renderingContext = new RenderingContext(this.layoutProvider, viewportData, this.viewLines);
+		let renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this.viewLines);
 
 		// Render the rest of the parts
 		for (let i = 0, len = viewPartsToRender.length; i < len; i++) {
@@ -488,27 +433,27 @@ export class View extends ViewEventHandler {
 	// --- BEGIN CodeEditor helpers
 
 	public getScrollWidth(): number {
-		return this.layoutProvider.getScrollWidth();
+		return this._context.viewLayout.getScrollWidth();
 	}
 
 	public getScrollLeft(): number {
-		return this.layoutProvider.getScrollLeft();
+		return this._context.viewLayout.getScrollLeft();
 	}
 
 	public getScrollHeight(): number {
-		return this.layoutProvider.getScrollHeight();
+		return this._context.viewLayout.getScrollHeight();
 	}
 
 	public getScrollTop(): number {
-		return this.layoutProvider.getScrollTop();
+		return this._context.viewLayout.getScrollTop();
 	}
 
 	public setScrollPosition(scrollPosition: editorCommon.INewScrollPosition): void {
-		this.layoutProvider.setScrollPosition(scrollPosition);
+		this._context.viewLayout.setScrollPosition(scrollPosition);
 	}
 
 	public getVerticalOffsetForViewLineNumber(viewLineNumber: number): number {
-		return this.layoutProvider.getVerticalOffsetForLineNumber(viewLineNumber);
+		return this._context.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
 	}
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: MouseEvent): void {
@@ -534,7 +479,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public getCompletelyVisibleViewRange(): Range {
-		const partialData = this.layoutProvider.getLinesViewportData();
+		const partialData = this._context.viewLayout.getLinesViewportData();
 		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
 		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
 
@@ -545,7 +490,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
-		const partialData = this.layoutProvider.getLinesViewportDataAtScrollTop(scrollTop);
+		const partialData = this._context.viewLayout.getLinesViewportDataAtScrollTop(scrollTop);
 		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
 		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
 
@@ -561,8 +506,8 @@ export class View extends ViewEventHandler {
 
 	public createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): OverviewRuler {
 		return new OverviewRuler(
-			this._context, cssClassName, this.layoutProvider.getScrollHeight(), minimumHeight, maximumHeight,
-			(lineNumber: number) => this.layoutProvider.getVerticalOffsetForLineNumber(lineNumber)
+			this._context, cssClassName, this._context.viewLayout.getScrollHeight(), minimumHeight, maximumHeight,
+			(lineNumber: number) => this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber)
 		);
 	}
 
@@ -596,7 +541,7 @@ export class View extends ViewEventHandler {
 			changeAccessor.removeZone = null;
 
 			if (zonesHaveChanged) {
-				this.layoutProvider.onHeightMaybeChanged();
+				this._context.viewLayout.onHeightMaybeChanged();
 				this._context.privateViewEventBus.emit(new viewEvents.ViewZonesChangedEvent());
 			}
 		});
@@ -604,7 +549,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public getWhitespaces(): IEditorWhitespace[] {
-		return this.layoutProvider.getWhitespaces();
+		return this._context.viewLayout.getWhitespaces();
 	}
 
 	public render(now: boolean, everything: boolean): void {
@@ -628,11 +573,11 @@ export class View extends ViewEventHandler {
 	}
 
 	public saveState(): editorCommon.IViewState {
-		return this.layoutProvider.saveState();
+		return this._context.viewLayout.saveState();
 	}
 
 	public restoreState(state: editorCommon.IViewState): void {
-		return this.layoutProvider.restoreState(state);
+		return this._context.viewLayout.restoreState(state);
 	}
 
 	public focus(): void {

@@ -27,10 +27,9 @@ import { BareFontInfo } from "vs/editor/common/config/fontInfo";
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
-	getVerticalOffsetForLineNumber(lineNumber: number): number;
 }
 
-class VisibleTextArea {
+class VisibleTextAreaData {
 	_visibleTextAreaBrand: void;
 
 	public readonly top: number;
@@ -43,8 +42,8 @@ class VisibleTextArea {
 		this.width = width;
 	}
 
-	public setWidth(width: number): VisibleTextArea {
-		return new VisibleTextArea(this.top, this.left, width);
+	public setWidth(width: number): VisibleTextAreaData {
+		return new VisibleTextAreaData(this.top, this.left, width);
 	}
 }
 
@@ -67,7 +66,7 @@ export class TextAreaHandler extends ViewPart {
 	/**
 	 * Defined only when the text area is visible (composition case).
 	 */
-	private _visibleTextArea: VisibleTextArea;
+	private _visibleTextArea: VisibleTextAreaData;
 	private _selections: Selection[];
 	private _lastCopiedValue: string;
 	private _lastCopiedValueIsFromEmptySelection: boolean;
@@ -79,7 +78,6 @@ export class TextAreaHandler extends ViewPart {
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: ITextAreaHandlerHelper) {
 		super(context);
 
-		this._context = context;
 		this._viewController = viewController;
 		this._viewHelper = viewHelper;
 
@@ -211,8 +209,8 @@ export class TextAreaHandler extends ViewPart {
 			const visibleRange = this._viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
 
 			if (visibleRange) {
-				this._visibleTextArea = new VisibleTextArea(
-					this._viewHelper.getVerticalOffsetForLineNumber(lineNumber),
+				this._visibleTextArea = new VisibleTextAreaData(
+					this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber),
 					visibleRange.left,
 					canUseZeroSizeTextarea ? 0 : 1
 				);
@@ -379,7 +377,7 @@ export class TextAreaHandler extends ViewPart {
 			return;
 		}
 
-		const top = this._viewHelper.getVerticalOffsetForLineNumber(this._selections[0].positionLineNumber) - this._scrollTop;
+		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._selections[0].positionLineNumber) - this._scrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();

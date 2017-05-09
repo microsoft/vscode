@@ -5,7 +5,7 @@
 'use strict';
 
 import { IConfiguration } from 'vs/editor/common/editorCommon';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IViewModel, IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 
@@ -13,6 +13,7 @@ export class ViewContext {
 
 	public readonly configuration: IConfiguration;
 	public readonly model: IViewModel;
+	public readonly viewLayout: IViewLayout;
 	public readonly privateViewEventBus: ViewEventDispatcher;
 
 	constructor(
@@ -22,6 +23,7 @@ export class ViewContext {
 	) {
 		this.configuration = configuration;
 		this.model = model;
+		this.viewLayout = model.viewLayout;
 		this.privateViewEventBus = privateViewEventBus;
 	}
 
