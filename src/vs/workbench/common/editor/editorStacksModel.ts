@@ -703,6 +703,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onEditorDirty: Emitter<EditorIdentifier>;
 	private _onEditorLabelChange: Emitter<EditorIdentifier>;
 	private _onEditorOpened: Emitter<EditorIdentifier>;
+	private _onWillCloseEditor: Emitter<EditorIdentifier>;
 	private _onEditorClosed: Emitter<GroupEvent>;
 	private _onModelChanged: Emitter<IStacksModelChangeEvent>;
 
@@ -728,9 +729,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onEditorDirty = new Emitter<EditorIdentifier>();
 		this._onEditorLabelChange = new Emitter<EditorIdentifier>();
 		this._onEditorOpened = new Emitter<EditorIdentifier>();
+		this._onWillCloseEditor = new Emitter<EditorIdentifier>();
 		this._onEditorClosed = new Emitter<GroupEvent>();
 
-		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorClosed);
+		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorClosed, this._onWillCloseEditor);
 
 		this.registerListeners();
 	}
@@ -781,6 +783,10 @@ export class EditorStacksModel implements IEditorStacksModel {
 
 	public get onEditorOpened(): Event<EditorIdentifier> {
 		return this._onEditorOpened.event;
+	}
+
+	public get onWillCloseEditor(): Event<EditorIdentifier> {
+		return this._onWillCloseEditor.event;
 	}
 
 	public get onEditorClosed(): Event<GroupEvent> {
@@ -1155,6 +1161,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		unbind.push(group.onEditorStateChanged(editor => this._onModelChanged.fire({ group, editor })));
 		unbind.push(group.onEditorOpened(editor => this._onEditorOpened.fire({ editor, group })));
 		unbind.push(group.onEditorClosed(event => {
+			this._onWillCloseEditor.fire({ editor: event.editor, group });
 			this.handleOnEditorClosed(event);
 			this._onEditorClosed.fire(event);
 		}));
