@@ -281,5 +281,28 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 13, 1, 13), new Selection(2, 17, 2, 17));
 	});
 
+	test('snippets, nested sessions', function () {
+
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		const first = new SnippetSession(editor, 'foo${2:bar}foo$0');
+		assert.equal(model.getValue(), 'foobarfoo');
+		assertSelections(editor, new Selection(1, 4, 1, 7));
+
+		const second = new SnippetSession(editor, 'ba${1:zzzz}$0');
+		assert.equal(model.getValue(), 'foobazzzzfoo');
+		assertSelections(editor, new Selection(1, 6, 1, 10));
+
+		second.next();
+		assert.equal(second.isAtFinalPlaceholder, true);
+		assertSelections(editor, new Selection(1, 10, 1, 10));
+
+		first.next();
+		assert.equal(first.isAtFinalPlaceholder, true);
+		assertSelections(editor, new Selection(1, 13, 1, 13));
+
+	});
+
 });
 
