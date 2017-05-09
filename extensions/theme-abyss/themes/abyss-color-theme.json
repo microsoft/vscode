@@ -369,7 +369,7 @@
 		// Workbench: Activity Bar
 		"activityBar.background": "#051336",
 		// "activityBar.foreground": "",
-		"activityBarBadge.background": "#0063a5",
+		// "activityBarBadge.background": "",
 		// "activityBarBadge.foreground": "",
 		// "activityBar.dropBackground": "",
 

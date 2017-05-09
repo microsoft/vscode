@@ -40,8 +40,6 @@
 		"statusBar.noFolderBackground": "#414339",
 		"statusBar.debuggingBackground": "#75715E",
 		"activityBar.background": "#272822",
-		"activityBarBadge.foreground": "#f8f8f2",
-		"activityBarBadge.background": "#75715E",
 		"activityBar.foreground": "#f8f8f2",
 		"activityBar.dropBackground": "#414339",
 		"sideBar.background": "#1e1f1c",

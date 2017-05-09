@@ -2,7 +2,6 @@
 	"tokenColors": "./red.tmTheme",
 	"colors": {
 		// window
-		"activityBarBadge.background": "#cc3333",
 		"activityBar.background": "#580000",
 		"tab.inactiveBackground": "#300a0a",
 		"tab.activeBackground": "#490000",

@@ -26,7 +26,6 @@
 		"statusBar.noFolderBackground": "#423523",
 		"activityBar.background": "#221a0f",
 		"activityBar.foreground": "#d3af86",
-		"activityBarBadge.background": "#7f5d38",
 		"sideBar.background": "#362712",
 		"editor.lineHighlightBackground": "#5e452b",
 		"editorCursor.foreground": "#d3af86",

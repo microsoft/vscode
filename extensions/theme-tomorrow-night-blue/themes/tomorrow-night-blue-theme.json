@@ -31,8 +31,6 @@
 		"statusBar.noFolderBackground": "#001126",
 		"statusBar.debuggingBackground": "#001126",
 		"activityBar.background": "#001733",
-		"activityBarBadge.background": "#bbdaff",
-		"activityBarBadge.foreground": "#001733",
 		"badge.background": "#bbdaffcc",
 		"badge.foreground": "#001733",
 		"sideBar.background": "#001c40",
