@@ -559,6 +559,24 @@ export enum TextEditorCursorBlinkingStyle {
 	 */
 	Solid = 5
 }
+/**
+ * @internal
+ */
+export function blinkingStyleToString(blinkingStyle: TextEditorCursorBlinkingStyle): string {
+	if (blinkingStyle === TextEditorCursorBlinkingStyle.Blink) {
+		return 'blink';
+	} else if (blinkingStyle === TextEditorCursorBlinkingStyle.Expand) {
+		return 'expand';
+	} else if (blinkingStyle === TextEditorCursorBlinkingStyle.Phase) {
+		return 'phase';
+	} else if (blinkingStyle === TextEditorCursorBlinkingStyle.Smooth) {
+		return 'smooth';
+	} else if (blinkingStyle === TextEditorCursorBlinkingStyle.Solid) {
+		return 'solid';
+	} else {
+		throw new Error('blinkingStyleToString: Unknown blinkingStyle');
+	}
+}
 
 /**
  * The style in which the editor's cursor should be rendered.
