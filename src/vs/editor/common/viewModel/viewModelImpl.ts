@@ -98,6 +98,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly decorations: ViewModelDecorations;
 	private readonly cursors: ViewModelCursors;
 
+	private _isDisposing: boolean;
+
 	private _renderCustomLineNumbers: (lineNumber: number) => string;
 	private _renderRelativeLineNumbers: boolean;
 	private _lastCursorPosition: Position;
@@ -128,6 +130,8 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this.cursors = new ViewModelCursors(this.configuration, this.coordinatesConverter);
 
+		this._isDisposing = false;
+
 		this._register(this.model.addBulkListener((events: EmitterEvent[]) => this.onEvents(events)));
 		this._register(this.configuration.onDidChange((e) => {
 			this.onEvents([new EmitterEvent(ConfigurationChanged, e)]);
@@ -155,6 +159,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	public dispose(): void {
+		this._isDisposing = true;
 		this.decorations.dispose();
 		this.lines.dispose();
 		this._listeners = [];
@@ -230,6 +235,11 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private onEvents(events: EmitterEvent[]): void {
+		if (this._isDisposing) {
+			// Disposing the lines might end up sending model decoration changed events
+			// We no longer care about them...
+			return;
+		}
 		let eventsCollector = new ViewEventsCollector();
 		this._onEvents(eventsCollector, events);
 		this._emit(eventsCollector.finalize());
