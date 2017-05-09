@@ -111,12 +111,7 @@ export class ViewContentWidgets extends ViewPart {
 				let keys = Object.keys(this._widgets);
 				for (let i = 0, len = keys.length; i < len; i++) {
 					const widgetId = keys[i];
-					const widgetData = this._widgets[widgetId];
-					const maxWidth = widgetData.allowEditorOverflow
-						? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
-						: this._contentWidth;
-
-					widgetData.domNode.setMaxWidth(maxWidth);
+					this._setWidgetMaxWidth(this._widgets[widgetId]);
 				}
 			}
 		}
@@ -147,6 +142,14 @@ export class ViewContentWidgets extends ViewPart {
 
 	// ---- end view event handlers
 
+	private _setWidgetMaxWidth(widgetData: IWidgetData): void {
+		const maxWidth = widgetData.allowEditorOverflow
+			? window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth
+			: this._contentWidth;
+
+		widgetData.domNode.setMaxWidth(maxWidth);
+	}
+
 	public addWidget(widget: IContentWidget): void {
 		const domNode = createFastDomNode(widget.getDomNode());
 
@@ -161,7 +164,7 @@ export class ViewContentWidgets extends ViewPart {
 		this._widgets[widget.getId()] = widgetData;
 
 		domNode.setPosition((this._context.configuration.editor.viewInfo.fixedOverflowWidgets && widget.allowEditorOverflow) ? 'fixed' : 'absolute');
-		domNode.setMaxWidth(this._contentWidth);
+		this._setWidgetMaxWidth(widgetData);
 		domNode.setVisibility('hidden');
 		domNode.setAttribute('widgetId', widget.getId());
 
