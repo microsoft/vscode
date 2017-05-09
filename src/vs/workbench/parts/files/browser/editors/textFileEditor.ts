@@ -72,7 +72,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 	private onWillCloseEditor(e: IEditorIdentifier): void {
 		if (e.editor === this.input && this.position === this.editorGroupService.getStacksModel().positionOfGroup(e.group)) {
-			this.doSaveTextEditorViewState();
+			this.doSaveTextEditorViewState(this.input);
 		}
 	}
 
@@ -231,7 +231,7 @@ export class TextFileEditor extends BaseTextEditor {
 	public clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
-		this.doSaveTextEditorViewState();
+		this.doSaveTextEditorViewState(this.input);
 
 		// Clear Model
 		this.getControl().setModel(null);
@@ -243,13 +243,13 @@ export class TextFileEditor extends BaseTextEditor {
 	public shutdown(): void {
 
 		// Save View State
-		this.doSaveTextEditorViewState();
+		this.doSaveTextEditorViewState(this.input);
 
 		// Call Super
 		super.shutdown();
 	}
 
-	private doSaveTextEditorViewState(input = this.input): void {
+	private doSaveTextEditorViewState(input: FileEditorInput): void {
 		if (input && !input.isDisposed()) {
 			this.saveTextEditorViewState(input.getResource().toString());
 		}
