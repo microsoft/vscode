@@ -318,8 +318,8 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidTerminateDebugee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (session && session.getId() === event.body.sessionId) {
-				if (event.body && typeof event.body.restart === 'boolean' && event.body.restart && process) {
-					this.restartProcess(process, true).done(null, err => this.messageService.show(severity.Error, err.message));
+				if (event.body && event.body.restart && process) {
+					this.restartProcess(process, event.body.restart).done(null, err => this.messageService.show(severity.Error, err.message));
 				} else {
 					session.disconnect().done(null, errors.onUnexpectedError);
 				}
@@ -874,7 +874,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.deemphasizeSource(uri);
 	}
 
-	public restartProcess(process: debug.IProcess, internalRestart?: boolean): TPromise<any> {
+	public restartProcess(process: debug.IProcess, restartData?: any): TPromise<any> {
 		if (process.session.capabilities.supportsRestartRequest) {
 			return process.session.custom('restart', null);
 		}
@@ -890,7 +890,7 @@ export class DebugService implements debug.IDebugService {
 						// Take the type from the process since the debug extension might overwrite it #21316
 						config.type = process.configuration.type;
 						config.noDebug = process.configuration.noDebug;
-						config.__restart = internalRestart;
+						config.__restart = restartData;
 					}
 					this.createProcess(config || process.configuration).then(() => c(null), err => e(err));
 				}, 300);
