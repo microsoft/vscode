@@ -223,7 +223,8 @@ export function attachButtonStyler(widget: IThemable, themeService: IThemeServic
 	return doAttachStyler(themeService, {
 		buttonForeground: (style && style.buttonForeground) || buttonForeground,
 		buttonBackground: (style && style.buttonBackground) || buttonBackground,
-		buttonHoverBackground: (style && style.buttonHoverBackground) || buttonHoverBackground
+		buttonHoverBackground: (style && style.buttonHoverBackground) || buttonHoverBackground,
+		buttonBorder: contrastBorder
 	}, widget);
 }
 
