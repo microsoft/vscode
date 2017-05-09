@@ -39,9 +39,11 @@ class OneSnippet {
 	}
 
 	dispose(): void {
-		if (this._placeholderDecorations) {
-			this._editor.changeDecorations(accessor => this._placeholderDecorations.forEach(handle => accessor.removeDecoration(handle)));
+		if (!this._placeholderDecorations) {
+			return;
 		}
+		this._editor.changeDecorations(accessor => this._placeholderDecorations.forEach(handle => accessor.removeDecoration(handle)));
+		this._placeholderGroups.length = 0;
 	}
 
 	private _init(): void {
@@ -131,6 +133,10 @@ class OneSnippet {
 		});
 	}
 
+	get isAtFirstPlaceholder() {
+		return this._placeholderGroupsIdx === 0;
+	}
+
 	get isAtFinalPlaceholder() {
 		if (this._placeholderGroupsIdx < 0) {
 			return false;
@@ -194,17 +200,23 @@ export class SnippetSession {
 		dispose(this._snippets);
 	}
 
-	next(): void {
+	next(): boolean {
 		const newSelections = this._move(true);
 		if (newSelections.length > 0) {
 			this._editor.setSelections(newSelections);
+			return true;
+		} else {
+			return false;
 		}
 	}
 
-	prev(): void {
+	prev(): boolean {
 		const newSelections = this._move(false);
 		if (newSelections.length > 0) {
 			this._editor.setSelections(newSelections);
+			return true;
+		} else {
+			return false;
 		}
 	}
 
@@ -215,6 +227,10 @@ export class SnippetSession {
 			selections.push(...oneSelection);
 		}
 		return selections;
+	}
+
+	get isAtFirstPlaceholder() {
+		return this._snippets[0].isAtFirstPlaceholder;
 	}
 
 	get isAtFinalPlaceholder() {

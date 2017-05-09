@@ -34,6 +34,7 @@ suite('SnippetSession', function () {
 
 	teardown(function () {
 		model.dispose();
+		editor.dispose();
 	});
 
 	test('normalize whitespace', function () {
