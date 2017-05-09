@@ -99,15 +99,6 @@
 	vertical-align: middle;
 }
 
-.monaco-editor .find-widget.no-results .matchesCount {
-	color: #A1260D;
-}
-
-.monaco-editor.vs-dark .find-widget.no-results .matchesCount,
-.monaco-editor.hc-black .find-widget.no-results .matchesCount {
-	color: #F48771
-}
-
 .monaco-editor .find-widget .matchesCount {
 	display: inline-block;
 	margin: 0 1px 0 3px;
