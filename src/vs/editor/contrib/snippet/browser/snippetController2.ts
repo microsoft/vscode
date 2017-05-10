@@ -23,7 +23,7 @@ export class SnippetController2 {
 	private readonly _hasNextTabstop: IContextKey<boolean>;
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
-	private _snippetStack: SnippetSession[] = [];
+	private _snippet: SnippetSession;
 	private _snippetListener: IDisposable[] = [];
 
 	constructor(
@@ -37,7 +37,7 @@ export class SnippetController2 {
 
 	dispose(): void {
 		this._inSnippet.reset();
-		dispose(this._snippetStack);
+		dispose(this._snippet);
 	}
 
 	getId(): string {
@@ -45,67 +45,51 @@ export class SnippetController2 {
 	}
 
 	insert(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
-		const session = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
-		const newLen = this._snippetStack.unshift(session);
-		if (newLen === 1) {
-			this._inSnippet.set(true);
-			this._snippetListener = [this._editor.onDidChangeCursorSelection(() => this._updateState())];
+
+		if (this._snippet) {
+			this.abort();
 		}
-		session.insert();
+
+		this._snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
+		this._snippetListener = [this._editor.onDidChangeCursorSelection(() => this._updateState())];
+		this._snippet.insert();
 	}
 
 	private _updateState(): void {
-		if (!this._snippetStack[0].validateSelections()) {
+		if (!this._snippet) {
+			return;
+		}
+		if (this._snippet.isAtFinalPlaceholder || !this._snippet.validateSelections()) {
 			return this.abort();
 		}
 
-		let prev = false;
-		let next = false;
-		for (let i = 0; i < this._snippetStack.length && !(prev && next); i++) {
-			if (!this._snippetStack[i].isAtFirstPlaceholder) {
-				prev = true;
-			}
-			if (!this._snippetStack[i].isAtFinalPlaceholder) {
-				next = true;
-			}
-		}
-		this._hasNextTabstop.set(next);
-		this._hasPrevTabstop.set(prev);
+		this._hasPrevTabstop.set(!this._snippet.isAtFirstPlaceholder);
+		this._hasNextTabstop.set(!this._snippet.isAtFinalPlaceholder);
+		this._inSnippet.set(true);
 	}
 
 	abort(): void {
-
-		// remove current, check for next
-		const element = this._snippetStack.shift();
-		dispose(element);
-
-		// clean up if last snippet is gone
-		// or validate the new active snippet
-		if (this._snippetStack.length === 0) {
-			this._inSnippet.set(false);
-			this._hasNextTabstop.set(false);
-			this._hasPrevTabstop.set(false);
-			this._snippetListener = dispose(this._snippetListener);
-
-		} else {
-			//
-			this._updateState();
+		if (this._snippet) {
+			this._hasPrevTabstop.reset();
+			this._hasNextTabstop.reset();
+			this._inSnippet.reset();
+			dispose(this._snippetListener);
+			dispose(this._snippet);
+			this._snippet = undefined;
 		}
 	}
 
 	prev(): void {
-		for (let i = 0; i < this._snippetStack.length; i++) {
-			if (this._snippetStack[i].prev()) {
-				return;
-			}
+		if (this._snippet) {
+			this._snippet.prev();
+			this._updateState();
 		}
 	}
 
 	next(): void {
-		for (let i = 0; i < this._snippetStack.length; i++) {
-			if (this._snippetStack[i].next()) {
-				return;
-			}
+		if (this._snippet) {
+			this._snippet.next();
+			this._updateState();
 		}
 	}
 

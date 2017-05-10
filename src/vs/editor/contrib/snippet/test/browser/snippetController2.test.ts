@@ -22,6 +22,12 @@ suite('SnippetController2', function () {
 		assert.equal(s.length, 0);
 	}
 
+	function assertContextKeys(service: MockContextKeyService, inSnippet: boolean, hasPrev: boolean, hasNext: boolean): void {
+		assert.equal(SnippetController2.InSnippetMode.getValue(service), inSnippet, `inSnippetMode`);
+		assert.equal(SnippetController2.HasPrevTabstop.getValue(service), hasPrev, `HasPrevTabstop`);
+		assert.equal(SnippetController2.HasNextTabstop.getValue(service), hasNext, `HasNextTabstop`);
+	}
+
 	let editor: ICommonCodeEditor;
 	let model: Model;
 	let contextKeys: MockContextKeyService;
@@ -40,7 +46,7 @@ suite('SnippetController2', function () {
 
 	test('creation', function () {
 		const ctrl = new SnippetController2(editor, contextKeys);
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), false);
+		assertContextKeys(contextKeys, false, false, false);
 		ctrl.dispose();
 	});
 
@@ -48,11 +54,11 @@ suite('SnippetController2', function () {
 		const ctrl = new SnippetController2(editor, contextKeys);
 
 		ctrl.insert('foo${1:bar}foo$0');
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
+		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 
 		ctrl.abort();
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), false);
+		assertContextKeys(contextKeys, false, false, false);
 		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 	});
 
@@ -60,27 +66,45 @@ suite('SnippetController2', function () {
 		const ctrl = new SnippetController2(editor, contextKeys);
 
 		ctrl.insert('${1:one}${2:two}$0');
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
-		assert.equal(SnippetController2.HasNextTabstop.getValue(contextKeys), true);
-		assert.equal(SnippetController2.HasPrevTabstop.getValue(contextKeys), false);
+		assertContextKeys(contextKeys, true, false, true);
 
 		ctrl.next();
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
-		assert.equal(SnippetController2.HasNextTabstop.getValue(contextKeys), true);
-		assert.equal(SnippetController2.HasPrevTabstop.getValue(contextKeys), true);
+		assertContextKeys(contextKeys, true, true, true);
 
 		ctrl.next();
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
+		assertContextKeys(contextKeys, false, false, false);
+
+		editor.trigger('test', 'type', { text: '\t' });
+		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), false);
 		assert.equal(SnippetController2.HasNextTabstop.getValue(contextKeys), false);
-		assert.equal(SnippetController2.HasPrevTabstop.getValue(contextKeys), true);
-
-		// editor.trigger('test', 'type', { text: '\t' });
-		// assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), false);
-		// assert.equal(SnippetController2.HasNextTabstop.getValue(contextKeys), false);
-		// assert.equal(SnippetController2.HasPrevTabstop.getValue(contextKeys), false);
+		assert.equal(SnippetController2.HasPrevTabstop.getValue(contextKeys), false);
 	});
 
-	test('insert, insert -> cursor moves out', function () {
+	test('insert, insert -> cursor moves out (left/right)', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+
+		ctrl.insert('foo${1:bar}foo$0');
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+
+		// bad selection change
+		editor.setSelections([new Selection(1, 12, 1, 12), new Selection(2, 16, 2, 16)]);
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('insert, insert -> cursor moves out (up/down)', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+
+		ctrl.insert('foo${1:bar}foo$0');
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+
+		// bad selection change
+		editor.setSelections([new Selection(2, 4, 2, 7), new Selection(3, 8, 3, 11)]);
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('insert, insert -> cursors collapse', function () {
 		const ctrl = new SnippetController2(editor, contextKeys);
 
 		ctrl.insert('foo${1:bar}foo$0');
@@ -88,61 +112,31 @@ suite('SnippetController2', function () {
 		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 
 		// bad selection change
-		editor.setSelections([new Selection(1, 12, 1, 12), new Selection(2, 16, 2, 16)]);
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), false);
+		editor.setSelections([new Selection(1, 4, 1, 7)]);
+		assertContextKeys(contextKeys, false, false, false);
 	});
 
-	test('insert, nested -> cursor moves out 1/2', function () {
-
+	test('insert, delete snippet text', function () {
 		const ctrl = new SnippetController2(editor, contextKeys);
 
-		ctrl.insert('foo${1:bar}foo$0');
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
-		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
+		ctrl.insert('${1:foobar}$0');
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
 
-		ctrl.insert('ff$1bb$0');
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
-		assertSelections(editor, new Selection(1, 6, 1, 6), new Selection(2, 10, 2, 10));
+		editor.trigger('test', 'deleteLeft', {});
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
 
-		// bad selection
-		editor.setSelections([new Selection(3, 1, 3, 1), new Selection(1, 6, 1, 6)]);
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), false);
-	});
-
-	test('insert, nested -> cursor moves out 2/2', function () {
-
-		const ctrl = new SnippetController2(editor, contextKeys);
-
-		ctrl.insert('foo${1:bar}foo$0');
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
-		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
-
-		ctrl.insert('ff$1bb$0');
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
-		assertSelections(editor, new Selection(1, 6, 1, 6), new Selection(2, 10, 2, 10));
-
-		// select outer snippet
-		editor.setSelections([new Selection(1, 3, 1, 3), new Selection(2, 6, 2, 6)]);
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
+		editor.trigger('test', 'type', { text: 'abc' });
+		assertContextKeys(contextKeys, true, false, true);
 
 		ctrl.next();
-		assert.equal(model.getValue(), 'fooffbbfooif\n    fooffbbfoo$state\nfi');
-		assertSelections(editor, new Selection(1, 11, 1, 11), new Selection(2, 15, 2, 15));
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
-	});
+		assertContextKeys(contextKeys, false, false, false);
 
-	test('insert, nested -> tab across all', function () {
-		const ctrl = new SnippetController2(editor, contextKeys);
+		editor.trigger('test', 'tab', {});
+		assertContextKeys(contextKeys, false, false, false);
 
-		ctrl.insert('outer$1outer$0');
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
-		assert.equal(SnippetController2.HasNextTabstop.getValue(contextKeys), true);
-		assert.equal(SnippetController2.HasPrevTabstop.getValue(contextKeys), false);
-
-		ctrl.insert('inner$1inner$0');
-		assert.equal(SnippetController2.InSnippetMode.getValue(contextKeys), true);
-		assert.equal(SnippetController2.HasNextTabstop.getValue(contextKeys), true);
-		// assert.equal(SnippetController2.HasPrevTabstop.getValue(contextKeys), true);
-
+		// editor.trigger('test', 'type', { text: 'abc' });
+		// assertContextKeys(contextKeys, false, false, false);
 	});
 });
