@@ -315,11 +315,11 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestionOnEnter',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MakesTextEdit),
+	precondition: SuggestContext.Visible,
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, SuggestContext.AcceptSuggestionsOnEnter),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.textFocus, SuggestContext.AcceptSuggestionsOnEnter, SuggestContext.MakesTextEdit),
 		primary: KeyCode.Enter
 	}
 }));
