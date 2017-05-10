@@ -69,7 +69,8 @@ export class GettingStarted implements IWorkbenchContribution {
 	) {
 		this.appName = product.nameLong;
 
-		if (product.welcomePage && !environmentService.isExtensionDevelopment /* do not open a browser when we run an extension */) {
+		/* do not open a browser when we run an extension or --noGettingStarted is provided */
+		if (product.welcomePage && !environmentService.isExtensionDevelopment && !environmentService.noGettingStarted) {
 			this.welcomePageURL = product.welcomePage;
 			this.handleWelcome();
 		}

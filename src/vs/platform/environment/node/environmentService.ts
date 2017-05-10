@@ -100,6 +100,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get disableExtensions(): boolean { return this._args['disable-extensions']; }
 
+	get noGettingStarted(): boolean { return this._args.noGettingStarted; }
+
 	@memoize
 	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this._args, this.isBuilt); }
 
