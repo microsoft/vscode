@@ -368,8 +368,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
 			focusedSf.thread.exceptionInfo.then(exceptionInfo => {
-				if (exceptionInfo && exceptionSf.lineNumber && exceptionSf.column) {
-					this.showExceptionWidget(exceptionInfo, exceptionSf.lineNumber, exceptionSf.column);
+				if (exceptionInfo && exceptionSf.range.startLineNumber && exceptionSf.range.startColumn) {
+					this.showExceptionWidget(exceptionInfo, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
 				}
 			});
 		}
@@ -467,11 +467,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.removeInlineValuesScheduler.cancel();
 
-		stackFrame.getMostSpecificScopes(new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, stackFrame.column))
+		stackFrame.getMostSpecificScopes(stackFrame.range)
 			// Get all top level children in the scope chain
 			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren()
 				.then(children => {
-					let range = new Range(0, 0, stackFrame.lineNumber, stackFrame.column);
+					let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
 					if (scope.range) {
 						range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
 					}

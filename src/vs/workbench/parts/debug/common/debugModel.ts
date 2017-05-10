@@ -311,8 +311,7 @@ export class StackFrame implements IStackFrame {
 		public frameId: number,
 		public source: Source,
 		public name: string,
-		public lineNumber: number,
-		public column: number
+		public range: IRange
 	) {
 		this.scopes = null;
 	}
@@ -352,7 +351,7 @@ export class StackFrame implements IStackFrame {
 	}
 
 	public toString(): string {
-		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.lineNumber})`;
+		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.range.startLineNumber})`;
 	}
 
 	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
@@ -362,7 +361,7 @@ export class StackFrame implements IStackFrame {
 			description: this.source.origin,
 			options: {
 				preserveFocus,
-				selection: { startLineNumber: this.lineNumber, startColumn: 1 },
+				selection: { startLineNumber: this.range.startLineNumber, startColumn: 1 },
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true,
 				pinned: !preserveFocus
@@ -444,7 +443,12 @@ export class Thread implements IThread {
 					this.process.sources.set(source.uri.toString(), source);
 				}
 
-				return new StackFrame(this, rsf.id, source, rsf.name, rsf.line, rsf.column);
+				return new StackFrame(this, rsf.id, source, rsf.name, new Range(
+					rsf.line,
+					rsf.column,
+					rsf.endLine === undefined ? rsf.line : rsf.endLine,
+					rsf.endColumn === undefined ? rsf.column : rsf.endColumn
+				));
 			});
 		}, (err: Error) => {
 			if (this.stoppedDetails) {

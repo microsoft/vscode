@@ -180,9 +180,8 @@ export interface IScope extends IExpressionContainer {
 export interface IStackFrame extends ITreeElement {
 	thread: IThread;
 	name: string;
-	lineNumber: number;
-	column: number;
 	frameId: number;
+	range: IRange;
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
 	getMostSpecificScopes(range: IRange): TPromise<IScope[]>;

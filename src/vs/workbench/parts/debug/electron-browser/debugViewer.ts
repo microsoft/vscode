@@ -538,10 +538,10 @@ export class CallStackRenderer implements IRenderer {
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
 		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
-		if (stackFrame.lineNumber !== undefined) {
-			data.lineNumber.textContent = `${stackFrame.lineNumber}`;
-			if (stackFrame.column) {
-				data.lineNumber.textContent += `:${stackFrame.column}`;
+		if (stackFrame.range.startLineNumber !== undefined) {
+			data.lineNumber.textContent = `${stackFrame.range.startLineNumber}`;
+			if (stackFrame.range.startColumn) {
+				data.lineNumber.textContent += `:${stackFrame.range.startColumn}`;
 			}
 			dom.removeClass(data.lineNumber, 'unavailable');
 		} else {
@@ -565,7 +565,7 @@ export class CallstackAccessibilityProvider implements IAccessibilityProvider {
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
 		}
 		if (element instanceof StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", (<StackFrame>element).name, (<StackFrame>element).lineNumber, getSourceName((<StackFrame>element).source, this.contextService));
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", (<StackFrame>element).name, (<StackFrame>element).range.startLineNumber, getSourceName((<StackFrame>element).source, this.contextService));
 		}
 
 		return null;
