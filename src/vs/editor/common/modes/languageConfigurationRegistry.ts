@@ -289,7 +289,7 @@ export class LanguageConfigurationRegistryImpl {
 			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		} else {
 			let endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber);
-			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - endScopedLineTokens.firstCharOffset);
+			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1);
 		}
 
 		let lineNumber = range.startLineNumber;
