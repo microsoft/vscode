@@ -1,3 +1,9 @@
+Param(
+   [string]$storageKey,
+   [string]$mooncakeStorageKey,
+	 [string]$documentDbKey
+)
+
 . .\build\tfs\win32\lib.ps1
 
 $Repo = "$(pwd)"
@@ -15,6 +21,10 @@ $Quality = "$env:VSCODE_QUALITY"
 pushd "$Repo\build\tfs"
 exec { & npm i }
 popd
+
+$env:AZURE_STORAGE_ACCESS_KEY_2 = $storageKey
+$env:MOONCAKE_STORAGE_ACCESS_KEY = $mooncakeStorageKey
+$env:AZURE_DOCUMENTDB_MASTERKEY = $documentDbKey
 
 exec { & node build/tfs/out/publish.js $Quality win32 setup "VSCodeSetup-$Version.exe" $Version true $Exe }
 exec { & node build/tfs/out/publish.js $Quality win32-archive archive "VSCode-win32-$Version.zip" $Version true $Zip }

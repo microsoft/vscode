@@ -1,15 +1,3 @@
-Param(
-   [string]$storageKey,
-   [string]$mooncakeStorageKey,
-	 [string]$documentDbKey
-)
-
-echo keys:
-echo key: $storageKey
-echo key: $mooncakeStorageKey
-echo key: $documentDbKey
-echo done!
-
 . .\build\tfs\win32\lib.ps1
 
 # npm install
