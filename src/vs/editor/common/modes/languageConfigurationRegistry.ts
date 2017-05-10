@@ -288,8 +288,8 @@ export class LanguageConfigurationRegistryImpl {
 		if (range.isEmpty()) {
 			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		} else {
-			let endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber);
-			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1);
+			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
+			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
 		let lineNumber = range.startLineNumber;
