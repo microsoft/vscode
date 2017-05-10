@@ -453,7 +453,7 @@ export class DebugService implements debug.IDebugService {
 			return debug.State.Stopped;
 		}
 		const focusedProcess = this.viewModel.focusedProcess;
-		if (focusedProcess) {
+		if (focusedProcess && this.sessionStates.has(focusedProcess.getId())) {
 			return this.sessionStates.get(focusedProcess.getId());
 		}
 		if (this.sessionStates.size > 0) {
