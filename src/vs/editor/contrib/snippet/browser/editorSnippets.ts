@@ -67,7 +67,7 @@ class OneSnippet {
 			this._snippetDecoration = accessor.addDecoration(range, OneSnippet._decor.snippet);
 
 			// create a decoration for each placeholder
-			for (const placeholder of this._snippet.getPlaceholders()) {
+			for (const placeholder of this._snippet.placeholders) {
 				const placeholderOffset = this._snippet.offset(placeholder);
 				const placeholderLen = this._snippet.len(placeholder);
 				const range = Range.fromPositions(
@@ -83,7 +83,7 @@ class OneSnippet {
 		this._placeholderGroupsIdx = -1;
 		this._placeholderGroups = [];
 		let lastBucket: Placeholder[];
-		this._snippet.getPlaceholders().sort(Placeholder.compareByIndex).forEach(a => {
+		this._snippet.placeholders.slice(0).sort(Placeholder.compareByIndex).forEach(a => {
 			if (!lastBucket || lastBucket[0].index !== a.index) {
 				lastBucket = [a];
 				this._placeholderGroups.push(lastBucket);
@@ -147,7 +147,7 @@ class OneSnippet {
 	}
 
 	get hasPlaceholder() {
-		return this._snippet.getPlaceholders().length > 0;
+		return this._snippet.placeholders.length > 0;
 	}
 
 	get range() {

@@ -343,20 +343,20 @@ suite('SnippetParser', () => {
 
 	test('TextmateSnippet#placeholder', () => {
 		let snippet = SnippetParser.parse('te$1xt');
-		let placeholders = snippet.getPlaceholders();
+		let placeholders = snippet.placeholders;
 		assert.equal(placeholders.length, 1);
 
 		snippet = SnippetParser.parse('te$1xt$1');
-		placeholders = snippet.getPlaceholders();
+		placeholders = snippet.placeholders;
 		assert.equal(placeholders.length, 2);
 
 
 		snippet = SnippetParser.parse('te$1xt$2');
-		placeholders = snippet.getPlaceholders();
+		placeholders = snippet.placeholders;
 		assert.equal(placeholders.length, 2);
 
 		snippet = SnippetParser.parse('${1:bar${2:foo}bar}');
-		placeholders = snippet.getPlaceholders();
+		placeholders = snippet.placeholders;
 		assert.equal(placeholders.length, 2);
 	});
 });

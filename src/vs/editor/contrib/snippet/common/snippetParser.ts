@@ -222,9 +222,22 @@ export function walk(marker: Marker[], visitor: (marker: Marker) => boolean): vo
 export class TextmateSnippet {
 
 	readonly marker: Marker[];
+	readonly placeholders: Placeholder[];
 
 	constructor(marker: Marker[]) {
 		this.marker = marker;
+		this.placeholders = [];
+
+		// fill in placeholders
+		walk(marker, candidate => {
+			if (candidate instanceof Placeholder) {
+				this.placeholders.push(candidate);
+			}
+			return true;
+		});
+
+		Object.freeze(this.marker);
+		Object.freeze(this.placeholders);
 	}
 
 	offset(marker: Marker): number {
@@ -249,17 +262,6 @@ export class TextmateSnippet {
 		let ret = 0;
 		walk([marker], marker => {
 			ret += marker.len();
-			return true;
-		});
-		return ret;
-	}
-
-	getPlaceholders(): Placeholder[] {
-		const ret: Placeholder[] = [];
-		walk(this.marker, candidate => {
-			if (candidate instanceof Placeholder) {
-				ret.push(candidate);
-			}
 			return true;
 		});
 		return ret;
