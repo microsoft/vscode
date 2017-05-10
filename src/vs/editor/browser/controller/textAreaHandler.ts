@@ -409,6 +409,8 @@ export class TextAreaHandler extends ViewPart {
 			Configuration.applyFontInfo(ta, this._fontInfo);
 		} else {
 			ta.setFontSize(1);
+			// Chrome does not generate input events in empty textareas that end
+			// up having a line height smaller than 1 screen pixel.
 			ta.setLineHeight(Math.ceil(1 / this._pixelRatio));
 		}
 
