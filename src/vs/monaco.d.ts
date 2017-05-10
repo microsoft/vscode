@@ -727,6 +727,10 @@ declare module monaco {
 		 */
 		setStartPosition(startLineNumber: number, startColumn: number): Selection;
 		/**
+		 * Create a `Selection` from one or two positions
+		 */
+		static fromPositions(start: IPosition, end?: IPosition): Selection;
+		/**
 		 * Create a `Selection` from an `ISelection`.
 		 */
 		static liftSelection(sel: ISelection): Selection;

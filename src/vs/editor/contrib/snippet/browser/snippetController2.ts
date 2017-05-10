@@ -61,8 +61,16 @@ export class SnippetController2 {
 
 	private _updateState(): void {
 		if (!this._snippet) {
+			// canceled in the meanwhile
 			return;
 		}
+
+		if (!this._snippet.hasPlaceholder) {
+			// don't listen for selection changes and don't
+			// update context keys when the snippet is plain text
+			return;
+		}
+
 		if (this._snippet.isAtFinalPlaceholder || !this._snippet.validateSelections()) {
 			return this.cancel();
 		}
@@ -74,9 +82,9 @@ export class SnippetController2 {
 
 	cancel(): void {
 		if (this._snippet) {
+			this._inSnippet.reset();
 			this._hasPrevTabstop.reset();
 			this._hasNextTabstop.reset();
-			this._inSnippet.reset();
 			dispose(this._snippetListener);
 			dispose(this._snippet);
 			this._snippet = undefined;

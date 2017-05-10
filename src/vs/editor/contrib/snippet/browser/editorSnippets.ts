@@ -146,6 +146,10 @@ class OneSnippet {
 		}
 	}
 
+	get hasPlaceholder() {
+		return this._snippet.getPlaceholders().length > 0;
+	}
+
 	get range() {
 		return this._snippetDecoration !== undefined && this._editor.getModel().getDecorationRange(this._snippetDecoration);
 	}
@@ -204,6 +208,7 @@ export class SnippetSession {
 	}
 
 	insert(): void {
+
 		let delta = 0;
 		let edits: IIdentifiedSingleEditOperation[] = [];
 		let model = this._editor.getModel();
@@ -231,7 +236,13 @@ export class SnippetSession {
 		}
 
 		// make insert edit and start with first selections
-		const newSelections = model.pushEditOperations(this._editor.getSelections(), edits, () => this._move(true));
+		const newSelections = model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
+			if (this._snippets[0].hasPlaceholder) {
+				return this._move(true);
+			} else {
+				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
+			}
+		});
 		this._editor.setSelections(newSelections);
 	}
 
@@ -260,6 +271,10 @@ export class SnippetSession {
 
 	get isAtFinalPlaceholder() {
 		return this._snippets[0].isAtFinalPlaceholder;
+	}
+
+	get hasPlaceholder() {
+		return this._snippets[0].hasPlaceholder;
 	}
 
 	validateSelections(): boolean {

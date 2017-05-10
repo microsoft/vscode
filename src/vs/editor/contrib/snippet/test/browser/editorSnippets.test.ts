@@ -99,6 +99,13 @@ suite('SnippetSession', function () {
 		);
 	});
 
+	test('snippets, just text', function () {
+		const session = new SnippetSession(editor, 'foobar');
+		session.insert();
+		assert.equal(model.getValue(), 'foobarfunction foo() {\n    foobarconsole.log(a);\n}');
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+	});
+
 	test('snippets, selections and new text with newlines', () => {
 
 		const session = new SnippetSession(editor, 'foo\n\t${1:bar}\n$0');

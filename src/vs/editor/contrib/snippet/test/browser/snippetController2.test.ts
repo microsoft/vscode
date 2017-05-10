@@ -116,6 +116,15 @@ suite('SnippetController2', function () {
 		assertContextKeys(contextKeys, false, false, false);
 	});
 
+	test('insert, insert plain text -> no snippet mode', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+
+		ctrl.insert('foobar');
+		assertContextKeys(contextKeys, false, false, false);
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+	});
+
+
 	test('insert, delete snippet text', function () {
 		const ctrl = new SnippetController2(editor, contextKeys);
 
