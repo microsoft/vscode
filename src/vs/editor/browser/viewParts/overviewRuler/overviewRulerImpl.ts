@@ -6,7 +6,6 @@
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { OverviewRulerLane, ThemeType } from 'vs/editor/common/editorCommon';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { OverviewZoneManager, ColorZone, OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { Color } from 'vs/base/common/color';
 import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
@@ -19,8 +18,6 @@ export class OverviewRulerImpl {
 	private _zoneManager: OverviewZoneManager;
 	private _canUseTranslate3d: boolean;
 	private _background: Color;
-
-	private _zoomListener: IDisposable;
 
 	constructor(
 		canvasLeftOffset: number, cssClassName: string, scrollHeight: number, lineHeight: number,
@@ -52,7 +49,6 @@ export class OverviewRulerImpl {
 	}
 
 	public dispose(): void {
-		this._zoomListener.dispose();
 		this._zoneManager = null;
 	}
 
