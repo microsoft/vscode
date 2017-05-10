@@ -341,8 +341,9 @@ export class StackFrame implements IStackFrame {
 				return scopes;
 			}
 
-			return [scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
-				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber)).shift()];
+			const scopesContainingRange = scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
+				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber));
+			return scopesContainingRange.length > 0 ? scopesContainingRange.slice(0, 1) : scopes;
 		});
 	}
 
