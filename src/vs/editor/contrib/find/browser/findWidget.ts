@@ -16,6 +16,7 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { IMessage as InputBoxMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { Sash, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/common/findModel';
@@ -68,7 +69,9 @@ export class FindWidgetViewZone implements IViewZone {
 	}
 }
 
-export class FindWidget extends Widget implements IOverlayWidget {
+
+export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
+
 
 	private static ID = 'editor.contrib.findWidget';
 	private static PART_WIDTH = 275;
@@ -104,6 +107,8 @@ export class FindWidget extends Widget implements IOverlayWidget {
 	private _viewZone: FindWidgetViewZone;
 	private _viewZoneId: number;
 
+	private _resizeSash: Sash;
+
 	constructor(
 		codeEditor: ICodeEditor,
 		controller: IFindController,
@@ -126,6 +131,26 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));
 
 		this._buildDomNode();
+		this._resizeSash = new Sash(this._domNode, this, { orientation: 0});
+		let data: { startX: number; };
+		let originalWidth = 411;
+		this._register(this._resizeSash.addListener('start', (e: ISashEvent) => {
+			data = {
+				startX: e.startX,
+			};
+			originalWidth = dom.getTotalWidth(this._domNode);
+		}));
+
+		this._register(this._resizeSash.addListener('end', () => {
+			data = undefined;
+		}));
+
+		this._register(this._resizeSash.addListener('change', (evt: ISashEvent) => {
+			if (data) {
+				this._domNode.style.width = `${originalWidth + data.startX - evt.currentX}px`;
+				this._findInput.setWidth(FindWidget.FIND_INPUT_AREA_WIDTH + Math.max(0, data.startX - evt.currentX));
+			}
+		}));
 		this._updateButtons();
 
 		let checkEditorWidth = () => {
@@ -134,18 +159,27 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			let collapsedFindWidget = false;
 			let reducedFindWidget = false;
 			let narrowFindWidget = false;
-			if (WIDGET_FIXED_WIDTH + 28 >= editorWidth + 50) {
+			let widgetWidth = Math.max(411, dom.getTotalWidth(this._domNode)) - 69;
+			if (widgetWidth + 28 >= editorWidth + 50) {
 				collapsedFindWidget = true;
 			}
-			if (WIDGET_FIXED_WIDTH + 28 >= editorWidth) {
+			if (widgetWidth + 28 >= editorWidth) {
 				narrowFindWidget = true;
 			}
-			if (WIDGET_FIXED_WIDTH + MAX_MATCHES_COUNT_WIDTH + 28 + minimapWidth >= editorWidth) {
+			if (widgetWidth + MAX_MATCHES_COUNT_WIDTH + 28 + minimapWidth >= editorWidth) {
 				reducedFindWidget = true;
 			}
 			dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
 			dom.toggleClass(this._domNode, 'reduced-find-widget', reducedFindWidget);
 			dom.toggleClass(this._domNode, 'narrow-find-widget', narrowFindWidget);
+			if (collapsedFindWidget) {
+				this._domNode.style.maxWidth = '111px';
+			} else if (narrowFindWidget) {
+				this._domNode.style.maxWidth = '257px';
+			} else {
+				this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
+			}
+
 		};
 		checkEditorWidth();
 
@@ -550,6 +584,17 @@ export class FindWidget extends Widget implements IOverlayWidget {
 			e.preventDefault();
 			return;
 		}
+	}
+
+	// ----- sash
+	public getHorizontalSashTop(sash: Sash): number {
+		return 0;
+	}
+	public getHorizontalSashLeft?(sash: Sash): number {
+		return 0;
+	}
+	public getHorizontalSashWidth?(sash: Sash): number {
+		return 500;
 	}
 
 	// ----- initialization
