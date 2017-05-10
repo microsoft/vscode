@@ -52,15 +52,15 @@ suite('SnippetSession', function () {
 		assertNormalized(new Position(2, 3), 'foo\r\tbar', 'foo\n      bar');
 	});
 
-	test('adjust selection (overwrite[Before|After]', function () {
+	test('adjust selection (overwrite[Before|After])', function () {
 
-		let range = SnippetSession.adjustRange(model, new Range(1, 2, 1, 2), 1, 0);
+		let range = SnippetSession.adjustSelection(model, new Selection(1, 2, 1, 2), 1, 0);
 		assert.ok(range.equalsRange(new Range(1, 1, 1, 2)));
-		range = SnippetSession.adjustRange(model, new Range(1, 2, 1, 2), 1111, 0);
+		range = SnippetSession.adjustSelection(model, new Selection(1, 2, 1, 2), 1111, 0);
 		assert.ok(range.equalsRange(new Range(1, 1, 1, 2)));
-		range = SnippetSession.adjustRange(model, new Range(1, 2, 1, 2), 0, 10);
+		range = SnippetSession.adjustSelection(model, new Selection(1, 2, 1, 2), 0, 10);
 		assert.ok(range.equalsRange(new Range(1, 2, 1, 12)));
-		range = SnippetSession.adjustRange(model, new Range(1, 2, 1, 2), 0, 10111);
+		range = SnippetSession.adjustSelection(model, new Selection(1, 2, 1, 2), 0, 10111);
 		assert.ok(range.equalsRange(new Range(1, 2, 1, 17)));
 
 	});
@@ -375,6 +375,14 @@ suite('SnippetSession', function () {
 
 		session.next();
 		assertSelections(editor, new Selection(1, 11, 1, 11));
+	});
+
+	test('snippets, snippet with variables', function () {
+		const session = new SnippetSession(editor, '@line=$TM_LINE_NUMBER$0');
+		session.insert();
+
+		assert.equal(model.getValue(), '@line=1function foo() {\n    @line=2console.log(a);\n}');
+		assertSelections(editor, new Selection(1, 8, 1, 8), new Selection(2, 12, 2, 12));
 	});
 
 });

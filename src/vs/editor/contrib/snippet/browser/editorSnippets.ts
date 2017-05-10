@@ -13,6 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { dispose } from 'vs/base/common/lifecycle';
+import { EditorSnippetVariableResolver } from "vs/editor/contrib/snippet/common/snippetVariables";
 
 class OneSnippet {
 
@@ -172,21 +173,26 @@ export class SnippetSession {
 		return templateLines.join(model.getEOL());
 	}
 
-	static adjustRange(model: IModel, range: Range, overwriteBefore: number, overwriteAfter: number): Range {
+	static adjustSelection(model: IModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Selection {
 		if (overwriteBefore !== 0 || overwriteAfter !== 0) {
-			let { startLineNumber, startColumn, endLineNumber, endColumn } = range;
+			let { startLineNumber, startColumn, endLineNumber, endColumn } = selection;
 			startColumn -= overwriteBefore;
 			endColumn += overwriteAfter;
 
-			range = Range.plusRange(range, {
+			const range = model.validateRange(Range.plusRange(selection, {
 				startLineNumber,
 				startColumn,
 				endLineNumber,
 				endColumn,
-			});
-			range = model.validateRange(range);
+			}));
+
+			selection = Selection.createWithDirection(
+				range.startLineNumber, range.startColumn,
+				range.endLineNumber, range.endColumn,
+				selection.getDirection()
+			);
 		}
-		return range;
+		return selection;
 	}
 
 	private readonly _editor: ICommonCodeEditor;
@@ -222,11 +228,11 @@ export class SnippetSession {
 			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
 
 		for (const { selection, idx } of indexedSelection) {
-			const range = SnippetSession.adjustRange(model, selection, this._overwriteBefore, this._overwriteAfter);
+			const range = SnippetSession.adjustSelection(model, selection, this._overwriteBefore, this._overwriteAfter);
 			const start = range.getStartPosition();
 			const adjustedTemplate = SnippetSession.normalizeWhitespace(model, start, this._template);
 
-			const snippet = SnippetParser.parse(adjustedTemplate);
+			const snippet = SnippetParser.parse(adjustedTemplate).resolveVariables(new EditorSnippetVariableResolver(model, range));
 			const offset = model.getOffsetAt(start) + delta;
 
 			edits[idx] = EditOperation.replaceMove(range, snippet.text);

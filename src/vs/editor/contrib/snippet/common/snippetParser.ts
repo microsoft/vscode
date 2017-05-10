@@ -183,9 +183,6 @@ export class Placeholder extends Marker {
 	get isFinalTabstop() {
 		return this.index === '0';
 	}
-	with(defaultValue: Marker[]): Placeholder {
-		return new Placeholder(this.index, defaultValue);
-	}
 	toString() {
 		return Marker.toString(this.defaultValue);
 	}
@@ -200,6 +197,13 @@ export class Variable extends Marker {
 	}
 	get isDefined(): boolean {
 		return this.resolvedValue !== undefined;
+	}
+	len(): number {
+		if (this.isDefined) {
+			return this.resolvedValue.length;
+		} else {
+			return super.len();
+		}
 	}
 	toString() {
 		return this.isDefined ? this.resolvedValue : Marker.toString(this.defaultValue);
@@ -271,7 +275,7 @@ export class TextmateSnippet {
 		return Marker.toString(this.marker);
 	}
 
-	resolveVariables(resolver: { resolve(name: string): string }): void {
+	resolveVariables(resolver: { resolve(name: string): string }): this {
 		walk(this.marker, candidate => {
 			if (candidate instanceof Variable) {
 				candidate.resolvedValue = resolver.resolve(candidate.name);
@@ -282,6 +286,7 @@ export class TextmateSnippet {
 			}
 			return true;
 		});
+		return this;
 	}
 }
 
