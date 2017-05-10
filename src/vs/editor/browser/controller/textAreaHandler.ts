@@ -54,6 +54,7 @@ export class TextAreaHandler extends ViewPart {
 	private readonly _viewController: ViewController;
 	private readonly _viewHelper: ITextAreaHandlerHelper;
 
+	private _pixelRatio: number;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
@@ -81,14 +82,17 @@ export class TextAreaHandler extends ViewPart {
 		this._viewController = viewController;
 		this._viewHelper = viewHelper;
 
-		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-		this._contentHeight = this._context.configuration.editor.layoutInfo.contentHeight;
+		const conf = this._context.configuration.editor;
+
+		this._pixelRatio = conf.pixelRatio;
+		this._contentLeft = conf.layoutInfo.contentLeft;
+		this._contentWidth = conf.layoutInfo.contentWidth;
+		this._contentHeight = conf.layoutInfo.contentHeight;
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
-		this._experimentalScreenReader = this._context.configuration.editor.viewInfo.experimentalScreenReader;
-		this._fontInfo = this._context.configuration.editor.fontInfo;
-		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._experimentalScreenReader = conf.viewInfo.experimentalScreenReader;
+		this._fontInfo = conf.fontInfo;
+		this._lineHeight = conf.lineHeight;
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -103,7 +107,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
-		this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
+		this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-multiline', 'true');
 		this.textArea.setAttribute('aria-haspopup', 'false');
@@ -260,23 +264,28 @@ export class TextAreaHandler extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		// Give textarea same font size & line height as editor, for the IME case (when the textarea is visible)
+		const conf = this._context.configuration.editor;
+
 		if (e.fontInfo) {
-			this._fontInfo = this._context.configuration.editor.fontInfo;
+			this._fontInfo = conf.fontInfo;
 		}
 		if (e.viewInfo) {
-			this._experimentalScreenReader = this._context.configuration.editor.viewInfo.experimentalScreenReader;
+			this._experimentalScreenReader = conf.viewInfo.experimentalScreenReader;
 			this._textAreaInput.writeScreenReaderContent('strategy changed');
-			this.textArea.setAttribute('aria-label', this._context.configuration.editor.viewInfo.ariaLabel);
+			this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
 		}
 		if (e.layoutInfo) {
-			this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
-			this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
-			this._contentHeight = this._context.configuration.editor.layoutInfo.contentHeight;
+			this._contentLeft = conf.layoutInfo.contentLeft;
+			this._contentWidth = conf.layoutInfo.contentWidth;
+			this._contentHeight = conf.layoutInfo.contentHeight;
 		}
 		if (e.lineHeight) {
-			this._lineHeight = this._context.configuration.editor.lineHeight;
+			this._lineHeight = conf.lineHeight;
 		}
+		if (e.pixelRatio) {
+			this._pixelRatio = conf.pixelRatio;
+		}
+
 		return true;
 	}
 	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
@@ -400,7 +409,7 @@ export class TextAreaHandler extends ViewPart {
 			Configuration.applyFontInfo(ta, this._fontInfo);
 		} else {
 			ta.setFontSize(1);
-			ta.setLineHeight(1);
+			ta.setLineHeight(Math.ceil(1 / this._pixelRatio));
 		}
 
 		ta.setTop(top);
@@ -418,6 +427,7 @@ export class TextAreaHandler extends ViewPart {
 		const ta = this.textArea;
 		const tac = this.textAreaCover;
 
+		Configuration.applyFontInfo(ta, this._fontInfo);
 		ta.setTop(0);
 		ta.setLeft(0);
 		tac.setTop(0);
