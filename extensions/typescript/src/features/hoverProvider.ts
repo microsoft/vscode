@@ -29,7 +29,7 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 			if (response && response.body) {
 				const data = response.body;
 				return new Hover(
-					[{ language: 'typescript', value: data.displayString }, data.documentation],
+					TypeScriptHoverProvider.getContents(data),
 					new Range(data.start.line - 1, data.start.offset - 1, data.end.line - 1, data.end.offset - 1));
 			}
 			return undefined;
@@ -37,5 +37,16 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 			this.client.error(`'quickinfo' request failed with error.`, err);
 			return null;
 		});
+	}
+
+	private static getContents(data: Proto.QuickInfoResponseBody) {
+		const tags: string[] = [];
+		for (const tag of data.tags || []) {
+			tags.push(`*@${tag.name}*` + (tag.text ? ` — ${tag.text}` : ''));
+		}
+		return [
+			{ language: 'typescript', value: data.displayString },
+			data.documentation + (tags.length ? '\n\n' + tags.join('  \n') : '')
+		];
 	}
 }
