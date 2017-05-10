@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 .progress-container {
 	width: 100%;
-	height: 5px;	
+	height: 5px;
 }
 
 .progress-container .progress-bit {
@@ -13,7 +13,6 @@
 	position: absolute;
 	left: 0;
 	display: none;
-	background-color: #0E70C0;
 }
 
 .progress-container.active .progress-bit {

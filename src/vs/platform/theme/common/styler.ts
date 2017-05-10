@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, lighten, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listHoverBackground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, lighten, badgeBackground, badgeForeground, progressBarBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 
@@ -123,6 +123,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 	background?: ColorIdentifier,
 	borderColor?: ColorIdentifier,
 	widgetShadow?: ColorIdentifier,
+	progressBarBackground?: ColorIdentifier,
 	inputBackground?: ColorIdentifier,
 	inputForeground?: ColorIdentifier,
 	inputBorder?: ColorIdentifier,
@@ -152,6 +153,7 @@ export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeSer
 		background: (style && style.background) || editorBackground,
 		borderColor: style && style.borderColor || contrastBorder,
 		widgetShadow: style && style.widgetShadow || widgetShadow,
+		progressBarBackground: style && style.progressBarBackground || progressBarBackground,
 		pickerGroupForeground: style && style.pickerGroupForeground || pickerGroupForeground,
 		pickerGroupBorder: style && style.pickerGroupBorder || pickerGroupBorder,
 		inputBackground: (style && style.inputBackground) || inputBackground,
@@ -225,6 +227,12 @@ export function attachButtonStyler(widget: IThemable, themeService: IThemeServic
 		buttonBackground: (style && style.buttonBackground) || buttonBackground,
 		buttonHoverBackground: (style && style.buttonHoverBackground) || buttonHoverBackground,
 		buttonBorder: contrastBorder
+	}, widget);
+}
+
+export function attachProgressBarStyler(widget: IThemable, themeService: IThemeService, style?: { progressBarBackground?: ColorIdentifier }): IDisposable {
+	return doAttachStyler(themeService, {
+		progressBarBackground: (style && style.progressBarBackground) || progressBarBackground
 	}, widget);
 }
 

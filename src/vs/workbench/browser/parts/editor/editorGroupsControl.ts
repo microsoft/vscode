@@ -36,6 +36,7 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, TABS_CONTAINER_BACKGROUND, EDITOR_GROUP_HEADER_BACKGROUND, EDITOR_GROUP_BORDER_COLOR, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
+import { attachProgressBarStyler } from "vs/platform/theme/common/styler";
 
 export enum Rochade {
 	NONE,
@@ -991,6 +992,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 			// Progress Bar
 			const progressBar = new ProgressBar($(container));
+			this.toUnbind.push(attachProgressBarStyler(progressBar, this.themeService));
 			progressBar.getContainer().hide();
 			container.setProperty(EditorGroupsControl.PROGRESS_BAR_CONTROL_KEY, progressBar); // associate with container
 		});

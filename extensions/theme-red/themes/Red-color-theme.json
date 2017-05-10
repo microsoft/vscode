@@ -50,7 +50,8 @@
 		"notification.background": "#662222",
 		"pickerGroup.foreground": "#cc9999",
 		"pickerGroup.border": "#ff000033",
-		"badge.background": "#cc3333"
+		"badge.background": "#cc3333",
+		"progressBar.background": "#cc3333"
 	},
 	"name": "Red"
 }

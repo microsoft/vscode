@@ -271,6 +271,7 @@
 		"inputValidation.errorBorder": "#AB395B",
 
 		"badge.background": "#0063a5",
+		"progressBar.background": "#0063a5",
 
 		"dropdown.background": "#181f2f",
 		// "dropdown.foreground": "",

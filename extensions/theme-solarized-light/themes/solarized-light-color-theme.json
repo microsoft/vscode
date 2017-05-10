@@ -314,6 +314,7 @@
 		// "inputValidation.errorBorder": "",
 
 		"badge.background": "#B58900AA",
+		"progressBar.background": "#B58900",
 
 		"dropdown.background": "#EEE8D5",
 		// "dropdown.foreground": "",

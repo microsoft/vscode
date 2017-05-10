@@ -315,6 +315,7 @@
 		"inputValidation.errorBorder": "#a92049",
 
 		"badge.background": "#047aa6",
+		"progressBar.background": "#047aa6",
 
 		"dropdown.background": "#00212B",
 		"dropdown.border": "#2AA19899",

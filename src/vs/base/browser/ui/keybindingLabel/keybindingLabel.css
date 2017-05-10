@@ -9,11 +9,11 @@
 
 .monaco-kbkey {
 	display: inline-block;
-	border: solid 1px #ccc;
-	border-bottom-color: #bbb;
+	border: solid 1px rgba(204, 204, 204, 0.4);
+	border-bottom-color: rgba(187, 187, 187, 0.4);
 	border-radius: 3px;
-	box-shadow: inset 0 -1px 0 #bbb;
-	background-color: #ddd;
+	box-shadow: inset 0 -1px 0 rgba(187, 187, 187, 0.4);
+	background-color: rgba(221, 221, 221, 0.4);
 	vertical-align: middle;
 	color: #555;
 	line-height: 10px;
@@ -25,7 +25,7 @@
 .vs-dark .monaco-kbkey {
 	background-color: rgba(128, 128, 128, 0.17);
 	color: #ccc;
-	border: solid 1px #333;
-	border-bottom-color: #444;
-	box-shadow: inset 0 -1px 0 #444;
+	border: solid 1px rgba(51, 51, 51, 0.6);
+	border-bottom-color: rgba(68, 68, 68, 0.6);
+	box-shadow: inset 0 -1px 0 rgba(68, 68, 68, 0.6);
 }
