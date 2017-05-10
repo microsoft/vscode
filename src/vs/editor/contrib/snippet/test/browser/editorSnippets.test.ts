@@ -75,6 +75,16 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 	});
 
+	test('text edit with reversed selection', function () {
+
+		const session = new SnippetSession(editor, '${1:bar}$0');
+		editor.setSelections([new Selection(2, 5, 2, 5), new Selection(1, 1, 1, 1)]);
+
+		session.insert();
+		assert.equal(model.getValue(), 'barfunction foo() {\n    barconsole.log(a);\n}');
+		assertSelections(editor, new Selection(2, 5, 2, 8), new Selection(1, 1, 1, 4));
+	});
+
 	test('snippets, repeated tabstops', function () {
 		const session = new SnippetSession(editor, '${1:abc}foo${1:abc}$0');
 		session.insert();

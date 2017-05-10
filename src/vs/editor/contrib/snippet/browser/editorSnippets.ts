@@ -208,7 +208,15 @@ export class SnippetSession {
 		let edits: IIdentifiedSingleEditOperation[] = [];
 		let model = this._editor.getModel();
 
-		for (const selection of this._editor.getSelections()) {
+		// sort selections by their start position but remeber
+		// the original index. that allows you to create correct
+		// offset-based selection logic without changing the
+		// primary selection
+		const indexedSelection = this._editor.getSelections()
+			.map((selection, idx) => ({ selection, idx }))
+			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
+
+		for (const { selection, idx } of indexedSelection) {
 			const range = SnippetSession.adjustRange(model, selection, this._overwriteBefore, this._overwriteAfter);
 			const start = range.getStartPosition();
 			const adjustedTemplate = SnippetSession.normalizeWhitespace(model, start, this._template);
@@ -216,8 +224,8 @@ export class SnippetSession {
 			const snippet = SnippetParser.parse(adjustedTemplate);
 			const offset = model.getOffsetAt(start) + delta;
 
-			edits.push(EditOperation.replaceMove(range, snippet.text));
-			this._snippets.push(new OneSnippet(this._editor, snippet, offset));
+			edits[idx] = EditOperation.replaceMove(range, snippet.text);
+			this._snippets[idx] = new OneSnippet(this._editor, snippet, offset);
 
 			delta += snippet.text.length - model.getValueLengthInRange(range);
 		}
