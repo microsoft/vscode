@@ -48,6 +48,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -94,6 +95,7 @@ export class View extends ViewEventHandler {
 	constructor(
 		commandService: ICommandService,
 		configuration: Configuration,
+		themeService: IThemeService,
 		model: IViewModel,
 		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
 	) {
@@ -111,7 +113,11 @@ export class View extends ViewEventHandler {
 		this.eventDispatcher.addEventHandler(this);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
-		this._context = new ViewContext(configuration, model, this.eventDispatcher);
+		this._context = new ViewContext(configuration, themeService.getTheme(), model, this.eventDispatcher);
+
+		this._register(themeService.onThemeChange(theme => {
+			this.eventDispatcher.emit(new viewEvents.ViewThemeChangedEvent());
+		}));
 
 		this.viewParts = [];
 

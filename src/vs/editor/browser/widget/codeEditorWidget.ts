@@ -32,6 +32,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -70,6 +71,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	private _codeEditorService: ICodeEditorService;
 	private _commandService: ICommandService;
+	private _themeService: IThemeService;
 
 	protected domElement: HTMLElement;
 	private _focusTracker: CodeEditorWidgetFocusTracker;
@@ -87,11 +89,13 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(domElement, options, instantiationService, contextKeyService);
 		this._codeEditorService = codeEditorService;
 		this._commandService = commandService;
+		this._themeService = themeService;
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._focusTracker.onChage(() => {
@@ -426,6 +430,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._view = new View(
 			this._commandService,
 			this._configuration,
+			this._themeService,
 			this.viewModel,
 			(editorCommand: CoreEditorCommand, args: any) => {
 				if (!this.cursor) {

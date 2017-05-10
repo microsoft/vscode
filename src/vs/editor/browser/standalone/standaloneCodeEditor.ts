@@ -83,9 +83,10 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;
@@ -213,7 +214,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 		let model: IModel = options.model;
 		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, standaloneThemeService);
 
 		this._contextViewService = <IEditorContextViewService>contextViewService;
 		this._standaloneThemeService = standaloneThemeService;

@@ -27,6 +27,7 @@ export const enum ViewEventType {
 	ViewTokensChanged = 13,
 	ViewTokensColorsChanged = 14,
 	ViewZonesChanged = 15,
+	ViewThemeChanged = 16
 }
 
 export class ViewConfigurationChangedEvent {
@@ -262,6 +263,14 @@ export class ViewTokensChangedEvent {
 	}
 }
 
+export class ViewThemeChangedEvent {
+
+	public readonly type = ViewEventType.ViewThemeChanged;
+
+	constructor() {
+	}
+}
+
 export class ViewTokensColorsChangedEvent {
 
 	public readonly type = ViewEventType.ViewTokensColorsChanged;
@@ -296,4 +305,5 @@ export type ViewEvent = (
 	| ViewTokensChangedEvent
 	| ViewTokensColorsChangedEvent
 	| ViewZonesChangedEvent
+	| ViewThemeChangedEvent
 );
