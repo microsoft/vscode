@@ -37,7 +37,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	let foreground = theme.getColor(editorForeground);
 	if (foreground) {
-		collector.addRule(`.monaco-editor.${theme.selector}, .monaco-editor.${theme.selector} .inputarea { color: ${foreground}; }`);
+		collector.addRule(`.monaco-editor.${theme.selector}, .monaco-editor.${theme.selector} .inputarea.ime-input { color: ${foreground}; }`);
 	}
 
 	let rangeHighlight = theme.getColor(editorRangeHighlight);
