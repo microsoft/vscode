@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as themes from 'vs/platform/theme/common/themes';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { OverviewRulerImpl } from 'vs/editor/browser/viewParts/overviewRuler/overviewRulerImpl';
@@ -15,25 +14,12 @@ import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
-import { editorOverviewRulerBorder } from 'vs/editor/common/view/editorColorRegistry';
-
-function getThemeType(themeId: string): editorCommon.ThemeType {
-	if (themes.isHighContrastTheme(themeId)) {
-		return editorCommon.ThemeType.HighContrast;
-	}
-	if (themes.isLightTheme(themeId)) {
-		return editorCommon.ThemeType.Light;
-	}
-	return editorCommon.ThemeType.Dark;
-}
+import { editorOverviewRulerBorder, editorCursor } from 'vs/editor/common/view/editorColorRegistry';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
 	static MIN_DECORATION_HEIGHT = 6;
 	static MAX_DECORATION_HEIGHT = 60;
-
-	private static _CURSOR_COLOR = 'rgba(0, 0, 102, 0.8)';
-	private static _CURSOR_COLOR_DARK = 'rgba(152, 152, 152, 0.8)';
 
 	private readonly _tokensColorTrackerListener: IDisposable;
 
@@ -41,6 +27,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	private _renderBorder: boolean;
 	private _borderColor: string;
+	private _cursorColor: string;
 
 	private _shouldUpdateDecorations: boolean;
 	private _shouldUpdateCursorPosition: boolean;
@@ -65,15 +52,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 			(lineNumber: number) => this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber)
 		);
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
-		let theme = this._context.configuration.editor.viewInfo.theme;
-		this._overviewRuler.setThemeType(getThemeType(theme), false);
 		this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
 
 		this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
 
-		let borderColor = this._context.theme.getColor(editorOverviewRulerBorder);
-		this._borderColor = borderColor ? borderColor.toString() : null;
-
+		this._updateColors();
 
 		this._updateBackground(false);
 		this._tokensColorTrackerListener = TokenizationRegistry.onDidChange((e) => {
@@ -129,7 +112,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 			this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
 			this._hideCursor = this._context.configuration.editor.viewInfo.hideCursorInOverviewRuler;
 			this._shouldUpdateCursorPosition = true;
-			this._overviewRuler.setThemeType(getThemeType(this._context.configuration.editor.viewInfo.theme), false);
 			this._updateBackground(false);
 		}
 
@@ -168,8 +150,9 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 
 	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		let borderColor = this._context.theme.getColor(editorOverviewRulerBorder);
-		this._borderColor = borderColor ? borderColor.toString() : null;
+		this._updateColors();
+		this._shouldUpdateDecorations = true;
+		this._shouldUpdateCursorPosition = true;
 		return true;
 	}
 
@@ -177,6 +160,16 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	public getDomNode(): HTMLElement {
 		return this._overviewRuler.getDomNode();
+	}
+
+	private _updateColors() {
+		let borderColor = this._context.theme.getColor(editorOverviewRulerBorder);
+		this._borderColor = borderColor ? borderColor.toString() : null;
+
+		let cursorColor = this._context.theme.getColor(editorCursor);
+		this._cursorColor = cursorColor ? cursorColor.transparent(0.7).toString() : null;
+
+		this._overviewRuler.setThemeType(this._context.theme.type, false);
 	}
 
 	private _createZonesFromDecorations(): OverviewRulerZone[] {
@@ -211,9 +204,9 @@ export class DecorationsOverviewRuler extends ViewPart {
 				cursor.lineNumber,
 				editorCommon.OverviewRulerLane.Full,
 				2,
-				DecorationsOverviewRuler._CURSOR_COLOR,
-				DecorationsOverviewRuler._CURSOR_COLOR_DARK,
-				DecorationsOverviewRuler._CURSOR_COLOR_DARK
+				this._cursorColor,
+				this._cursorColor,
+				this._cursorColor
 			));
 		}
 

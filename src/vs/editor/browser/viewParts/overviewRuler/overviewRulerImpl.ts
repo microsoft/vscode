@@ -5,10 +5,11 @@
 'use strict';
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { OverviewRulerLane, ThemeType } from 'vs/editor/common/editorCommon';
+import { OverviewRulerLane } from 'vs/editor/common/editorCommon';
 import { OverviewZoneManager, ColorZone, OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { Color } from 'vs/base/common/color';
 import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
+import { ThemeType, LIGHT } from 'vs/platform/theme/common/themeService';
 
 export class OverviewRulerImpl {
 
@@ -39,7 +40,7 @@ export class OverviewRulerImpl {
 		this._zoneManager = new OverviewZoneManager(getVerticalOffsetForLine);
 		this._zoneManager.setMinimumHeight(minimumHeight);
 		this._zoneManager.setMaximumHeight(maximumHeight);
-		this._zoneManager.setThemeType(ThemeType.Light);
+		this._zoneManager.setThemeType(LIGHT);
 		this._zoneManager.setDOMWidth(0);
 		this._zoneManager.setDOMHeight(0);
 		this._zoneManager.setOuterHeight(scrollHeight);
