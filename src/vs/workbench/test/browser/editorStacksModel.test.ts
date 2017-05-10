@@ -6,8 +6,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import { EditorStacksModel, EditorGroup, GroupEvent } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, IGroupEvent } from 'vs/workbench/common/editor';
+import { EditorStacksModel, EditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
+import { EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -47,14 +47,14 @@ interface ModelEvents {
 	renamed: IEditorGroup[];
 	disposed: IEditorIdentifier[];
 	changed: IStacksModelChangeEvent[];
-	editorClosed: IGroupEvent[];
-	editorWillClose: IEditorIdentifier[];
+	editorClosed: IEditorCloseEvent[];
+	editorWillClose: IEditorCloseEvent[];
 }
 
 interface GroupEvents {
 	opened: EditorInput[];
 	activated: EditorInput[];
-	closed: GroupEvent[];
+	closed: EditorCloseEvent[];
 	pinned: EditorInput[];
 	unpinned: EditorInput[];
 	moved: EditorInput[];
