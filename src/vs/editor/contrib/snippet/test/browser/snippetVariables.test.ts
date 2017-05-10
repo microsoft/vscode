@@ -9,6 +9,7 @@ import { isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import { SnippetVariablesResolver } from 'vs/editor/contrib/snippet/common/snippetVariables';
+import { SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
 import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { Model } from 'vs/editor/common/model/model';
 
@@ -88,6 +89,30 @@ suite('Snippet Variables Resolver', function () {
 
 			editor.setSelection(new Selection(3, 1, 3, 1));
 			assert.equal(resolver.resolve('TM_CURRENT_WORD'), '');
+		});
+	});
+
+	test('TextmateSnippet, resolve variable', function () {
+
+		const snippet = SnippetParser.parse('"$TM_SELECTED_TEXT"');
+
+		variablesTest((editor, resolver) => {
+			assert.equal(snippet.text, '""');
+			editor.setSelection(new Selection(1, 1, 1, 5));
+			snippet.resolveVariables(resolver);
+			assert.equal(snippet.text, '"this"');
+		});
+	});
+
+	test('TextmateSnippet, resolve variable with default', function () {
+
+		const snippet = SnippetParser.parse('"${TM_SELECTED_TEXT:foo}"');
+
+		variablesTest((editor, resolver) => {
+			assert.equal(snippet.text, '"foo"');
+			editor.setSelection(new Selection(1, 1, 1, 5));
+			snippet.resolveVariables(resolver);
+			assert.equal(snippet.text, '"this"');
 		});
 	});
 

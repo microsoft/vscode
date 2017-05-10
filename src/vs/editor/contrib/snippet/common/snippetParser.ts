@@ -270,6 +270,19 @@ export class TextmateSnippet {
 	get text() {
 		return Marker.toString(this.marker);
 	}
+
+	resolveVariables(resolver: { resolve(name: string): string }): void {
+		walk(this.marker, candidate => {
+			if (candidate instanceof Variable) {
+				candidate.resolvedValue = resolver.resolve(candidate.name);
+				if (candidate.isDefined) {
+					// remove default value from resolved variable
+					candidate.defaultValue.length = 0;
+				}
+			}
+			return true;
+		});
+	}
 }
 
 export class SnippetParser {
