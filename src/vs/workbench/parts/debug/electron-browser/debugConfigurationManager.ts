@@ -311,7 +311,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 			return null;
 		}
 
-		return config.configurations.filter(config => config && config.name === name).pop();
+		return config.configurations.filter(config => config && config.name === name).shift();
 	}
 
 	public resloveConfiguration(config: debug.IConfig): TPromise<debug.IConfig> {
