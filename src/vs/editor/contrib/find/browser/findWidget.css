@@ -51,7 +51,9 @@
 	height: 64px; /* find input height + replace input height */
 }
 .monaco-editor .find-widget.replaceToggled > .replace-part {
-	display: inline-block;
+	display: flex;
+	display: -webkit-flex;
+	align-items: center;
 }
 
 .monaco-editor .find-widget.visible,
@@ -81,6 +83,9 @@
 .monaco-editor .find-widget > .replace-part {
 	margin: 4px 0 0 17px;
 	font-size: 12px;
+	display: flex;
+	display: -webkit-flex;
+	align-items: center;
 }
 
 .monaco-editor .find-widget > .find-part .monaco-inputbox,
@@ -95,8 +100,9 @@
 }
 
 .monaco-editor .find-widget .monaco-findInput {
-	display: inline-block;
 	vertical-align: middle;
+	display: flex;
+	flex:1;
 }
 
 .monaco-editor .find-widget .matchesCount {
@@ -111,6 +117,7 @@
 }
 
 .monaco-editor .find-widget .button {
+	min-width: 20px;
 	width: 20px;
 	height: 20px;
 	display: inline-block;
@@ -227,7 +234,8 @@
 }
 
 .monaco-editor .find-widget > .replace-part > .replace-input {
-	display: inline-block;
+	display: flex;
+	flex:1;
 	vertical-align: middle;
 }
 
@@ -242,12 +250,9 @@
 }
 
 /* NARROW (SMALLER THAN REDUCED) */
-.monaco-editor .find-widget.narrow-find-widget > .find-part .monaco-findInput,
-.monaco-editor .find-widget.narrow-find-widget > .replace-part .replace-input {
-	width: 171px !important;
-}
-.monaco-editor .find-widget.narrow-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
-	width: 105px !important;
+.monaco-editor .find-widget.narrow-find-widget > .find-part,
+.monaco-editor .find-widget.narrow-find-widget > .replace-part {
+	width: 240px !important;
 }
 
 /* COLLAPSED (SMALLER THAN NARROW) */
@@ -258,10 +263,14 @@
 .monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput .controls {
 	display:none;
 }
+.monaco-editor .find-widget.collapsed-find-widget > .find-part,
+.monaco-editor .find-widget.collapsed-find-widget > .replace-part {
+	max-width: 94px !important;
+}
 .monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput,
 .monaco-editor .find-widget.collapsed-find-widget > .replace-part .replace-input,
 .monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
-	width: 71px !important;
+	max-width: 71px !important;
 }
 
 .monaco-editor .findMatch {
@@ -273,6 +282,11 @@
 	-ms-animation-name: inherit !important;
 	animation-duration: 0;
 	animation-name: inherit !important;
+}
+
+.monaco-editor .find-widget .monaco-sash {
+	background: grey;
+    margin-left: -4px;
 }
 
 .monaco-editor.hc-black .find-widget .previous,
