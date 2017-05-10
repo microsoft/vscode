@@ -202,13 +202,12 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				// Prevents incorrectly completing while typing spread operators.
 				if (position.character > 0) {
 					const preText = document.getText(new Range(
-						new Position(position.line, 0),
-						new Position(position.line, position.character - 1)));
+						position.line, 0,
+						position.line, position.character - 1));
 					enableDotCompletions = preText.match(/[a-z_$\)\]\}]\s*$/ig) !== null;
 				}
 
-				for (let i = 0; i < body.length; i++) {
-					const element = body[i];
+				for (const element of body) {
 					const item = new MyCompletionItem(position, document, element, enableDotCompletions, !this.config.useCodeSnippetsOnMethodSuggest);
 					completionItems.push(item);
 				}
