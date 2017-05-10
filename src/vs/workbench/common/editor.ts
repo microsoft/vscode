@@ -844,6 +844,8 @@ export interface IStacksModelChangeEvent {
 export interface IEditorStacksModel {
 
 	onModelChanged: Event<IStacksModelChangeEvent>;
+
+	onWillCloseEditor: Event<IEditorIdentifier>;
 	onEditorClosed: Event<IGroupEvent>;
 
 	groups: IEditorGroup[];

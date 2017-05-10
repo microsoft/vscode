@@ -14,7 +14,7 @@ import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
@@ -58,12 +58,21 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
+
+		// React to editors closing to preserve view state
+		this.toUnbind.push(editorGroupService.getStacksModel().onWillCloseEditor(e => this.onWillCloseEditor(e)));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
 		const deleted = e.getDeleted();
 		if (deleted && deleted.length) {
 			this.clearTextEditorViewState(deleted.map(d => d.resource.toString()));
+		}
+	}
+
+	private onWillCloseEditor(e: IEditorIdentifier): void {
+		if (e.editor === this.input && this.position === this.editorGroupService.getStacksModel().positionOfGroup(e.group)) {
+			this.doSaveTextEditorViewState(this.input);
 		}
 	}
 
@@ -104,9 +113,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 
 		// Remember view settings if input changes
-		if (oldInput) {
-			this.saveTextEditorViewState(oldInput.getResource().toString());
-		}
+		this.doSaveTextEditorViewState(oldInput);
 
 		// Different Input (Reload)
 		return input.resolve(true).then(resolvedModel => {
@@ -224,9 +231,7 @@ export class TextFileEditor extends BaseTextEditor {
 	public clearInput(): void {
 
 		// Keep editor view state in settings to restore when coming back
-		if (this.input) {
-			this.saveTextEditorViewState(this.input.getResource().toString());
-		}
+		this.doSaveTextEditorViewState(this.input);
 
 		// Clear Model
 		this.getControl().setModel(null);
@@ -238,11 +243,15 @@ export class TextFileEditor extends BaseTextEditor {
 	public shutdown(): void {
 
 		// Save View State
-		if (this.input) {
-			this.saveTextEditorViewState(this.input.getResource().toString());
-		}
+		this.doSaveTextEditorViewState(this.input);
 
 		// Call Super
 		super.shutdown();
+	}
+
+	private doSaveTextEditorViewState(input: FileEditorInput): void {
+		if (input && !input.isDisposed()) {
+			this.saveTextEditorViewState(input.getResource().toString());
+		}
 	}
 }

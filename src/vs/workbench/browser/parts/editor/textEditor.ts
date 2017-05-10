@@ -61,7 +61,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IEditorGroupService protected editorGroupService: IEditorGroupService
 	) {
 		super(id, telemetryService, themeService);
 
