@@ -16,12 +16,24 @@ export function plain(parts: Proto.SymbolDisplayPart[]): string {
 
 export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[]): string {
 	return (tags || [])
-		.map(tag => `*@${tag.name}*` + (tag.text ? ` — ${tag.text}` : ''))
+		.map(tag => {
+			const label = `*@${tag.name}*`;
+			if (!tag.text) {
+				return label;
+			}
+			return label + (tag.text.match(/\r\n|\n/g) ? '\n' + tag.text : ` — ${tag.text}`);
+		})
 		.join('  \n');
 }
 
 export function tagsPlainPreview(tags: Proto.JSDocTagInfo[]): string {
 	return (tags || [])
-		.map(tag => `@${tag.name}` + (tag.text ? ` — ${tag.text}` : ''))
+		.map(tag => {
+			const label = `@${tag.name}`;
+			if (!tag.text) {
+				return label;
+			}
+			return label + (tag.text.match(/\r\n|\n/g) ? '\n' + tag.text : ` — ${tag.text}`);
+		})
 		.join('\n');
 }
