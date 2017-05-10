@@ -1,13 +1,13 @@
 Param(
-   [string]$AZURE_STORAGE_ACCESS_KEY_2,
-   [string]$MOONCAKE_STORAGE_ACCESS_KEY,
-	 [string]$AZURE_DOCUMENTDB_MASTERKEY
+   [string]$storageKey,
+   [string]$mooncakeStorageKey,
+	 [string]$documentDbKey
 )
 
 echo keys:
-echo $AZURE_STORAGE_ACCESS_KEY_2
-echo $MOONCAKE_STORAGE_ACCESS_KEY
-echo $AZURE_DOCUMENTDB_MASTERKEY
+echo key: $storageKey
+echo key: $mooncakeStorageKey
+echo key: $documentDbKey
 echo done!
 
 . .\build\tfs\win32\lib.ps1
