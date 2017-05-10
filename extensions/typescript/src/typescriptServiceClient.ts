@@ -917,7 +917,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return Uri.file(filepath);
 	}
 
-	public execute(command: string, args: any, expectsResultOrToken?: boolean | CancellationToken, token?: CancellationToken): Promise<any> {
+	public execute(command: string, args: any, expectsResultOrToken?: boolean | CancellationToken): Promise<any> {
+		let token: CancellationToken | undefined = undefined;
 		let expectsResult = true;
 		if (typeof expectsResultOrToken === 'boolean') {
 			expectsResult = expectsResultOrToken;
@@ -925,13 +926,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			token = expectsResultOrToken;
 		}
 
-		let request: Proto.Request = {
+		const request: Proto.Request = {
 			seq: this.sequenceNumber++,
 			type: 'request',
 			command: command,
 			arguments: args
 		};
-		let requestInfo: RequestItem = {
+		const requestInfo: RequestItem = {
 			request: request,
 			promise: null,
 			callbacks: null

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeLens, CancellationToken, TextDocument, Range, Location } from 'vscode';
+import { CodeLens, CancellationToken, TextDocument, Range, Location, ProviderResult } from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
@@ -22,9 +22,9 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 		super(client, 'referencesCodeLens.enabled');
 	}
 
-	provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
+	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
 		if (!this.client.apiVersion.has206Features()) {
-			return Promise.resolve([]);
+			return [];
 		}
 		return super.provideCodeLenses(document, token);
 	}

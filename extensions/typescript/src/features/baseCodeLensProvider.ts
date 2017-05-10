@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, workspace, } from 'vscode';
+import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, workspace, ProviderResult, } from 'vscode';
 import * as Proto from '../protocol';
 
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -42,14 +42,14 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		}
 	}
 
-	provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
+	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
 		if (!this.enabled) {
-			return Promise.resolve([]);
+			return [];
 		}
 
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return Promise.resolve([]);
+			return [];
 		}
 		return this.client.execute('navtree', { file: filepath }, token).then(response => {
 			if (!response) {
@@ -61,6 +61,9 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 				tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
 			}
 			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
+		}, (err: any) => {
+			this.client.error(`'navtree' request failed with error.`, err);
+			return [];
 		});
 	}
 
