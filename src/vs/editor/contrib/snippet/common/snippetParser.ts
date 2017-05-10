@@ -272,6 +272,10 @@ export class TextmateSnippet {
 
 export class SnippetParser {
 
+	static escape(value: string): string {
+		return value.replace(/\$|}|\\/g, '\\$&');
+	}
+
 	static parse(template: string): TextmateSnippet {
 		const marker = new SnippetParser(true, false).parse(template);
 		return new TextmateSnippet(marker);
@@ -288,7 +292,7 @@ export class SnippetParser {
 		this._enableInternal = enableInternal;
 	}
 
-	escape(value: string): string {
+	text(value: string): string {
 		return Marker.toString(this.parse(value));
 	}
 

@@ -78,14 +78,12 @@ suite('SnippetParser', () => {
 		assert.equal(scanner.next().type, TokenType.CurlyClose);
 	});
 
-	function assertEscape(value: string, expected: string) {
+	function assertText(value: string, expected: string) {
 		const p = new SnippetParser();
-		const actual = p.escape(value);
+		const actual = p.text(value);
 		assert.equal(actual, expected);
 	}
 
-	function assertMarker(marker: Marker[], ...ctors: Function[]);
-	function assertMarker(value: string, ...ctors: Function[]);
 	function assertMarker(valueOrMarker: Marker[] | string, ...ctors: Function[]) {
 		let marker: Marker[];
 		if (typeof valueOrMarker === 'string') {
@@ -103,43 +101,56 @@ suite('SnippetParser', () => {
 		assert.equal(marker.length, 0);
 	}
 
-	function assertEscapeAndMarker(value: string, escaped: string, ...ctors: Function[]) {
-		assertEscape(value, escaped);
+	function assertTextAndMarker(value: string, escaped: string, ...ctors: Function[]) {
+		assertText(value, escaped);
 		assertMarker(value, ...ctors);
 	}
 
-	test('Parser, escaping', () => {
-		assertEscape('$', '$');
-		assertEscape('\\\\$', '\\$');
-		assertEscape('{', '{');
-		assertEscape('\\}', '}');
-		assertEscape('\\abc', '\\abc');
-		assertEscape('foo${f:\\}}bar', 'foo}bar');
-		assertEscape('\\{', '{');
-		assertEscape('I need \\\\\\$', 'I need \\$');
-		assertEscape('\\', '\\');
-		assertEscape('\\{{', '{{');
-		assertEscape('{{', '{{');
-		assertEscape('{{dd', '{{dd');
-		assertEscape('}}', '}}');
-		assertEscape('ff}}', 'ff}}');
+	function assertEscaped(value: string, expected: string) {
+		const actual = SnippetParser.escape(value);
+		assert.equal(actual, expected);
+	}
 
-		assertEscape('farboo', 'farboo');
-		assertEscape('far{{}}boo', 'farboo');
-		assertEscape('far{{123}}boo', 'far123boo');
-		assertEscape('far\\{{123}}boo', 'far{{123}}boo');
-		assertEscape('far{{id:bern}}boo', 'farbernboo');
-		assertEscape('far{{id:bern {{basel}}}}boo', 'farbern baselboo');
-		assertEscape('far{{id:bern {{id:basel}}}}boo', 'farbern baselboo');
-		assertEscape('far{{id:bern {{id2:basel}}}}boo', 'farbern baselboo');
-
+	test('Parser, escaped', function () {
+		assertEscaped('foo$0', 'foo\\$0');
+		assertEscaped('foo\\$0', 'foo\\\\\\$0');
+		assertEscaped('f$1oo$0', 'f\\$1oo\\$0');
+		assertEscaped('${1:foo}$0', '\\${1:foo\\}\\$0');
+		assertEscaped('$', '\\$');
 	});
 
-	test('Parser, TM escaping', () => {
-		assertEscapeAndMarker('foo${1:bar}}', 'foobar}', Text, Placeholder, Text);
-		assertEscapeAndMarker('foo${1:bar}${2:foo}}', 'foobarfoo}', Text, Placeholder, Placeholder, Text);
+	test('Parser, text', () => {
+		assertText('$', '$');
+		assertText('\\\\$', '\\$');
+		assertText('{', '{');
+		assertText('\\}', '}');
+		assertText('\\abc', '\\abc');
+		assertText('foo${f:\\}}bar', 'foo}bar');
+		assertText('\\{', '{');
+		assertText('I need \\\\\\$', 'I need \\$');
+		assertText('\\', '\\');
+		assertText('\\{{', '{{');
+		assertText('{{', '{{');
+		assertText('{{dd', '{{dd');
+		assertText('}}', '}}');
+		assertText('ff}}', 'ff}}');
 
-		assertEscapeAndMarker('foo${1:bar\\}${2:foo}}', 'foobar}foo', Text, Placeholder);
+		assertText('farboo', 'farboo');
+		assertText('far{{}}boo', 'farboo');
+		assertText('far{{123}}boo', 'far123boo');
+		assertText('far\\{{123}}boo', 'far{{123}}boo');
+		assertText('far{{id:bern}}boo', 'farbernboo');
+		assertText('far{{id:bern {{basel}}}}boo', 'farbern baselboo');
+		assertText('far{{id:bern {{id:basel}}}}boo', 'farbern baselboo');
+		assertText('far{{id:bern {{id2:basel}}}}boo', 'farbern baselboo');
+	});
+
+
+	test('Parser, TM text', () => {
+		assertTextAndMarker('foo${1:bar}}', 'foobar}', Text, Placeholder, Text);
+		assertTextAndMarker('foo${1:bar}${2:foo}}', 'foobarfoo}', Text, Placeholder, Placeholder, Text);
+
+		assertTextAndMarker('foo${1:bar\\}${2:foo}}', 'foobar}foo', Text, Placeholder);
 
 		let [, placeholder] = new SnippetParser(true, false).parse('foo${1:bar\\}${2:foo}}');
 		let { defaultValue } = (<Placeholder>placeholder);
@@ -152,34 +163,34 @@ suite('SnippetParser', () => {
 	});
 
 	test('Parser, placeholder', () => {
-		assertEscapeAndMarker('farboo', 'farboo', Text);
-		assertEscapeAndMarker('far{{}}boo', 'farboo', Text, Placeholder, Text);
-		assertEscapeAndMarker('far{{123}}boo', 'far123boo', Text, Placeholder, Text);
-		assertEscapeAndMarker('far\\{{123}}boo', 'far{{123}}boo', Text);
+		assertTextAndMarker('farboo', 'farboo', Text);
+		assertTextAndMarker('far{{}}boo', 'farboo', Text, Placeholder, Text);
+		assertTextAndMarker('far{{123}}boo', 'far123boo', Text, Placeholder, Text);
+		assertTextAndMarker('far\\{{123}}boo', 'far{{123}}boo', Text);
 	});
 
 	test('Parser, literal code', () => {
-		assertEscapeAndMarker('far`123`boo', 'far`123`boo', Text);
-		assertEscapeAndMarker('far\\`123\\`boo', 'far\\`123\\`boo', Text);
+		assertTextAndMarker('far`123`boo', 'far`123`boo', Text);
+		assertTextAndMarker('far\\`123\\`boo', 'far\\`123\\`boo', Text);
 	});
 
 	test('Parser, variables/tabstop', () => {
-		assertEscapeAndMarker('$far-boo', '-boo', Variable, Text);
-		assertEscapeAndMarker('\\$far-boo', '$far-boo', Text);
-		assertEscapeAndMarker('far$farboo', 'far', Text, Variable);
-		assertEscapeAndMarker('far${farboo}', 'far', Text, Variable);
-		assertEscapeAndMarker('$123', '', Placeholder);
-		assertEscapeAndMarker('$farboo', '', Variable);
-		assertEscapeAndMarker('$far12boo', '', Variable);
+		assertTextAndMarker('$far-boo', '-boo', Variable, Text);
+		assertTextAndMarker('\\$far-boo', '$far-boo', Text);
+		assertTextAndMarker('far$farboo', 'far', Text, Variable);
+		assertTextAndMarker('far${farboo}', 'far', Text, Variable);
+		assertTextAndMarker('$123', '', Placeholder);
+		assertTextAndMarker('$farboo', '', Variable);
+		assertTextAndMarker('$far12boo', '', Variable);
 	});
 
 	test('Parser, variables/placeholder with defaults', () => {
-		assertEscapeAndMarker('${name:value}', 'value', Variable);
-		assertEscapeAndMarker('${1:value}', 'value', Placeholder);
-		assertEscapeAndMarker('${1:bar${2:foo}bar}', 'barfoobar', Placeholder);
+		assertTextAndMarker('${name:value}', 'value', Variable);
+		assertTextAndMarker('${1:value}', 'value', Placeholder);
+		assertTextAndMarker('${1:bar${2:foo}bar}', 'barfoobar', Placeholder);
 
-		assertEscapeAndMarker('${name:value', '${name:value', Text);
-		assertEscapeAndMarker('${1:bar${2:foobar}', '${1:barfoobar', Text, Placeholder);
+		assertTextAndMarker('${name:value', '${name:value', Text);
+		assertTextAndMarker('${1:bar${2:foobar}', '${1:barfoobar', Text, Placeholder);
 	});
 
 	test('Parser, only textmate', () => {
@@ -233,14 +244,14 @@ suite('SnippetParser', () => {
 
 	test('Parser, real world, mixed', () => {
 
-		assertEscapeAndMarker(
+		assertTextAndMarker(
 			'finished:{{}}, second:{{2:name}}, first:{{1:}}, third:{{3:}}',
 			'finished:, second:name, first:, third:',
 			Text, Placeholder, Text, Placeholder, Text, Placeholder, Text, Placeholder
 		);
 
 
-		assertEscapeAndMarker(
+		assertTextAndMarker(
 			'begin\\{{{1:enumerate}}\\}\n\t{{}}\nend\\{{{1:}}\\}',
 			'begin{enumerate}\n\t\nend{enumerate}',
 			Text, Placeholder, Text, Placeholder, Text, Placeholder, Text
@@ -249,7 +260,7 @@ suite('SnippetParser', () => {
 	});
 
 	test('Parser, default name/value', () => {
-		assertEscapeAndMarker(
+		assertTextAndMarker(
 			'{{first}}-{{2:}}-{{second}}-{{1:}}',
 			'first--second-',
 			Placeholder, Text, Placeholder, Text, Placeholder, Text, Placeholder
@@ -283,15 +294,15 @@ suite('SnippetParser', () => {
 	});
 
 	test('backspace esapce in TM only, #16212', () => {
-		const actual = new SnippetParser(true, false).escape('Foo \\\\${abc}bar');
+		const actual = new SnippetParser(true, false).text('Foo \\\\${abc}bar');
 		assert.equal(actual, 'Foo \\bar');
 	});
 
 	test('colon as variable/placeholder value, #16717', () => {
-		let actual = new SnippetParser(true, false).escape('${TM_SELECTED_TEXT:foo:bar}');
+		let actual = new SnippetParser(true, false).text('${TM_SELECTED_TEXT:foo:bar}');
 		assert.equal(actual, 'foo:bar');
 
-		actual = new SnippetParser(true, false).escape('${1:foo:bar}');
+		actual = new SnippetParser(true, false).text('${1:foo:bar}');
 		assert.equal(actual, 'foo:bar');
 	});
 
