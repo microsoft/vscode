@@ -205,7 +205,9 @@ export interface IRawBreakpoint {
 export interface IBreakpoint extends IEnablement {
 	uri: uri;
 	lineNumber: number;
+	endLineNumber?: number;
 	column: number;
+	endColumn?: number;
 	condition: string;
 	hitCondition: string;
 	verified: boolean;

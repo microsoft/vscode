@@ -1253,11 +1253,21 @@ export class BreakpointsController extends BaseDebugController {
 
 	public openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		const sideBySide = (event && (event.ctrlKey || event.metaKey));
+		const selection = breakpoint.endLineNumber ? {
+			startLineNumber: breakpoint.lineNumber,
+			endLineNumber: breakpoint.endLineNumber,
+			startColumn: breakpoint.column,
+			endColumn: breakpoint.endColumn
+		} : {
+				startLineNumber: breakpoint.lineNumber,
+				startColumn: 1
+			};
+
 		this.editorService.openEditor({
 			resource: breakpoint.uri,
 			options: {
 				preserveFocus,
-				selection: { startLineNumber: breakpoint.lineNumber, startColumn: 1 },
+				selection,
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true,
 				pinned: !preserveFocus
