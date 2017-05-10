@@ -250,14 +250,14 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		const editorViewState = this.getControl().saveViewState();
 
-		let fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
-		if (!fileViewState) {
-			fileViewState = Object.create(null);
-			textEditorViewStateMemento[key] = fileViewState;
+		let lastKnownViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+		if (!lastKnownViewState) {
+			lastKnownViewState = Object.create(null);
+			textEditorViewStateMemento[key] = lastKnownViewState;
 		}
 
 		if (typeof this.position === 'number') {
-			fileViewState[this.position] = editorViewState;
+			lastKnownViewState[this.position] = editorViewState;
 		}
 	}
 
@@ -279,9 +279,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (textEditorViewStateMemento) {
-			const fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
-			if (fileViewState) {
-				return fileViewState[this.position];
+			const viewState: ITextEditorViewState = textEditorViewStateMemento[key];
+			if (viewState) {
+				return viewState[this.position];
 			}
 		}
 
