@@ -270,7 +270,7 @@ export class LanguageConfigurationRegistryImpl {
 		let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 		let ignoreCurrentLine = false;
 
-		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber);
+		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 		let onEnterSupport = this._getOnEnterSupport(scopedLineTokens.languageId);
 		if (!onEnterSupport) {
 			return {
@@ -398,11 +398,11 @@ export class LanguageConfigurationRegistryImpl {
 		return lineText;
 	}
 
-	private getScopedLineTokens(model: ITokenizedModel, lineNumber: number) {
+	private getScopedLineTokens(model: ITokenizedModel, lineNumber: number, columnNumber?: number) {
 		model.forceTokenization(lineNumber);
 		let lineTokens = model.getLineTokens(lineNumber);
-		let column = model.getLineMaxColumn(lineNumber);
-		let scopedLineTokens = createScopedLineTokens(lineTokens, column - 1);
+		let column = isNaN(columnNumber) ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber;
+		let scopedLineTokens = createScopedLineTokens(lineTokens, column);
 		return scopedLineTokens;
 	}
 
