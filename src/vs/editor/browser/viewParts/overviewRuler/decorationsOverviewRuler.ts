@@ -59,6 +59,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 			this._context.viewLayout.getScrollHeight(),
 			this._context.configuration.editor.lineHeight,
 			this._context.configuration.editor.canUseTranslate3d,
+			this._context.configuration.editor.pixelRatio,
 			DecorationsOverviewRuler.MIN_DECORATION_HEIGHT,
 			DecorationsOverviewRuler.MAX_DECORATION_HEIGHT,
 			(lineNumber: number) => this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber)
@@ -114,6 +115,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		if (e.canUseTranslate3d) {
 			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.canUseTranslate3d, false);
+		}
+
+		if (e.pixelRatio) {
+			this._overviewRuler.setPixelRatio(this._context.configuration.editor.pixelRatio, false);
 		}
 
 		if (e.viewInfo) {

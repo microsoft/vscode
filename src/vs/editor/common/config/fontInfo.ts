@@ -178,11 +178,4 @@ export class FontInfo extends BareFontInfo {
 			&& this.maxDigitWidth === other.maxDigitWidth
 		);
 	}
-
-	/**
-	 * @internal
-	 */
-	public clone(): FontInfo {
-		return new FontInfo(this, this.isTrusted);
-	}
 }

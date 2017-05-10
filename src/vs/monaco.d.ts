@@ -3222,6 +3222,7 @@ declare module monaco.editor {
 	export class InternalEditorOptions {
 		readonly _internalEditorOptionsBrand: void;
 		readonly canUseTranslate3d: boolean;
+		readonly pixelRatio: number;
 		readonly editorClassName: string;
 		readonly lineHeight: number;
 		readonly readOnly: boolean;
@@ -3350,6 +3351,7 @@ declare module monaco.editor {
 	 */
 	export interface IConfigurationChangedEvent {
 		readonly canUseTranslate3d: boolean;
+		readonly pixelRatio: boolean;
 		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;
 		readonly readOnly: boolean;

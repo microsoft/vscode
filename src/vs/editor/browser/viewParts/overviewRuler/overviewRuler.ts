@@ -26,6 +26,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 			this._context.viewLayout.getScrollHeight(),
 			this._context.configuration.editor.lineHeight,
 			this._context.configuration.editor.canUseTranslate3d,
+			this._context.configuration.editor.pixelRatio,
 			minimumHeight,
 			maximumHeight,
 			(lineNumber: number) => this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber)
@@ -49,6 +50,10 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 
 		if (e.canUseTranslate3d) {
 			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.canUseTranslate3d, true);
+		}
+
+		if (e.pixelRatio) {
+			this._overviewRuler.setPixelRatio(this._context.configuration.editor.pixelRatio, true);
 		}
 
 		return true;

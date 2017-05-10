@@ -7,7 +7,6 @@
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { OverviewRulerLane, ThemeType } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as browser from 'vs/base/browser/browser';
 import { OverviewZoneManager, ColorZone, OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { Color } from 'vs/base/common/color';
 import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
@@ -23,7 +22,11 @@ export class OverviewRulerImpl {
 
 	private _zoomListener: IDisposable;
 
-	constructor(canvasLeftOffset: number, cssClassName: string, scrollHeight: number, lineHeight: number, canUseTranslate3d: boolean, minimumHeight: number, maximumHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
+	constructor(
+		canvasLeftOffset: number, cssClassName: string, scrollHeight: number, lineHeight: number,
+		canUseTranslate3d: boolean, pixelRatio: number, minimumHeight: number, maximumHeight: number,
+		getVerticalOffsetForLine: (lineNumber: number) => number
+	) {
 		this._canvasLeftOffset = canvasLeftOffset;
 
 		this._domNode = createFastDomNode(document.createElement('canvas'));
@@ -45,15 +48,7 @@ export class OverviewRulerImpl {
 		this._zoneManager.setOuterHeight(scrollHeight);
 		this._zoneManager.setLineHeight(lineHeight);
 
-		this._zoomListener = browser.onDidChangeZoomLevel(() => {
-			this._zoneManager.setPixelRatio(browser.getPixelRatio());
-			this._domNode.setWidth(this._zoneManager.getDOMWidth());
-			this._domNode.setHeight(this._zoneManager.getDOMHeight());
-			this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
-			this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
-			this.render(true);
-		});
-		this._zoneManager.setPixelRatio(browser.getPixelRatio());
+		this._zoneManager.setPixelRatio(pixelRatio);
 	}
 
 	public dispose(): void {
@@ -137,6 +132,17 @@ export class OverviewRulerImpl {
 
 	public setCanUseTranslate3d(canUseTranslate3d: boolean, render: boolean): void {
 		this._canUseTranslate3d = canUseTranslate3d;
+		if (render) {
+			this.render(true);
+		}
+	}
+
+	public setPixelRatio(pixelRatio: number, render: boolean): void {
+		this._zoneManager.setPixelRatio(pixelRatio);
+		this._domNode.setWidth(this._zoneManager.getDOMWidth());
+		this._domNode.setHeight(this._zoneManager.getDOMHeight());
+		this._domNode.domNode.width = this._zoneManager.getCanvasWidth();
+		this._domNode.domNode.height = this._zoneManager.getCanvasHeight();
 		if (render) {
 			this.render(true);
 		}

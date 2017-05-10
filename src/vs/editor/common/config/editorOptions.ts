@@ -746,6 +746,7 @@ export class InternalEditorOptions {
 	readonly _internalEditorOptionsBrand: void;
 
 	readonly canUseTranslate3d: boolean;
+	readonly pixelRatio: number;
 	readonly editorClassName: string;
 	readonly lineHeight: number;
 	readonly readOnly: boolean;
@@ -769,6 +770,7 @@ export class InternalEditorOptions {
 	 */
 	constructor(source: {
 		canUseTranslate3d: boolean;
+		pixelRatio: number;
 		editorClassName: string;
 		lineHeight: number;
 		readOnly: boolean;
@@ -783,15 +785,16 @@ export class InternalEditorOptions {
 		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
 	}) {
-		this.canUseTranslate3d = Boolean(source.canUseTranslate3d);
-		this.editorClassName = String(source.editorClassName);
+		this.canUseTranslate3d = source.canUseTranslate3d;
+		this.pixelRatio = source.pixelRatio;
+		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight | 0;
-		this.readOnly = Boolean(source.readOnly);
-		this.wordSeparators = String(source.wordSeparators);
-		this.autoClosingBrackets = Boolean(source.autoClosingBrackets);
-		this.useTabStops = Boolean(source.useTabStops);
-		this.tabFocusMode = Boolean(source.tabFocusMode);
-		this.dragAndDrop = Boolean(source.dragAndDrop);
+		this.readOnly = source.readOnly;
+		this.wordSeparators = source.wordSeparators;
+		this.autoClosingBrackets = source.autoClosingBrackets;
+		this.useTabStops = source.useTabStops;
+		this.tabFocusMode = source.tabFocusMode;
+		this.dragAndDrop = source.dragAndDrop;
 		this.layoutInfo = source.layoutInfo;
 		this.fontInfo = source.fontInfo;
 		this.viewInfo = source.viewInfo;
@@ -805,6 +808,7 @@ export class InternalEditorOptions {
 	public equals(other: InternalEditorOptions): boolean {
 		return (
 			this.canUseTranslate3d === other.canUseTranslate3d
+			&& this.pixelRatio === other.pixelRatio
 			&& this.editorClassName === other.editorClassName
 			&& this.lineHeight === other.lineHeight
 			&& this.readOnly === other.readOnly
@@ -827,6 +831,7 @@ export class InternalEditorOptions {
 	public createChangeEvent(newOpts: InternalEditorOptions): IConfigurationChangedEvent {
 		return {
 			canUseTranslate3d: (this.canUseTranslate3d !== newOpts.canUseTranslate3d),
+			pixelRatio: (this.pixelRatio !== newOpts.pixelRatio),
 			editorClassName: (this.editorClassName !== newOpts.editorClassName),
 			lineHeight: (this.lineHeight !== newOpts.lineHeight),
 			readOnly: (this.readOnly !== newOpts.readOnly),
@@ -1151,6 +1156,7 @@ export interface EditorLayoutInfo {
  */
 export interface IConfigurationChangedEvent {
 	readonly canUseTranslate3d: boolean;
+	readonly pixelRatio: boolean;
 	readonly editorClassName: boolean;
 	readonly lineHeight: boolean;
 	readonly readOnly: boolean;
@@ -1626,6 +1632,7 @@ export class InternalEditorOptionsFactory {
 
 		return new InternalEditorOptions({
 			canUseTranslate3d: opts.disableTranslate3d ? false : env.canUseTranslate3d,
+			pixelRatio: env.pixelRatio,
 			editorClassName: env.editorClassName,
 			lineHeight: env.fontInfo.lineHeight,
 			readOnly: opts.readOnly,
