@@ -21,9 +21,9 @@ export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[]): string {
 			if (!tag.text) {
 				return label;
 			}
-			return label + (tag.text.match(/\r\n|\n/g) ? '\n' + tag.text : ` — ${tag.text}`);
+			return label + (tag.text.match(/\r\n|\n/g) ? '  \n' + tag.text : ` — ${tag.text}`);
 		})
-		.join('  \n');
+		.join('  \n\n');
 }
 
 export function tagsPlainPreview(tags: Proto.JSDocTagInfo[]): string {
