@@ -268,7 +268,7 @@ export class WindowsManager implements IWindowsMainService {
 		const currentWindowsState: IWindowsState = {
 			openedFolders: [],
 			lastPluginDevelopmentHostWindow: this.windowsState.lastPluginDevelopmentHostWindow,
-			lastActiveWindow: this.lastClosedWindowState //will be set on Win/Linux if last window was closed, resulting in an exit
+			lastActiveWindow: this.lastClosedWindowState
 		};
 
 		// 1.) Find a last active window (pick any other first window otherwise)
@@ -330,7 +330,9 @@ export class WindowsManager implements IWindowsMainService {
 
 		// On Windows and Linux closing the last window will trigger quit. Since we are storing all UI state
 		// before quitting, we need to remember the UI state of this window to be able to persist it.
-		if (!platform.isMacintosh && this.getWindowCount() === 1) {
+		// On macOS we keep the last closed window state ready in case the user wants to quit right after or
+		// wants to open another window, in which case we use this state over the persisted one.
+		if (this.getWindowCount() === 1) {
 			this.lastClosedWindowState = state;
 		}
 	}
@@ -921,8 +923,9 @@ export class WindowsManager implements IWindowsMainService {
 
 		// First Window
 		const lastActive = this.getLastActiveWindow();
-		if (!lastActive && this.windowsState.lastActiveWindow) {
-			return this.windowsState.lastActiveWindow.uiState;
+		const lastActiveState = this.lastClosedWindowState || this.windowsState.lastActiveWindow;
+		if (!lastActive && lastActiveState) {
+			return lastActiveState.uiState;
 		}
 
 		//
