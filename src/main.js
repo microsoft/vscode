@@ -16,7 +16,12 @@ if (process.argv.indexOf('--prof-startup') >= 0) {
 // in certain locales (e.g. PL), image metrics are wrongly computed. We explicitly set the
 // LC_NUMERIC to prevent this from happening (selects the numeric formatting category of the
 // C locale, http://en.cppreference.com/w/cpp/locale/LC_categories). TODO@Ben temporary.
-process.env.LC_NUMERIC = 'C';
+if (process.env.LC_ALL) {
+	process.env.LC_ALL = 'C';
+}
+if (process.env.LC_NUMERIC) {
+	process.env.LC_NUMERIC = 'C';
+}
 
 // Perf measurements
 global.perfStartTime = Date.now();
@@ -170,8 +175,15 @@ function mkdir(dir) {
 	});
 }
 
+// Because Spectron doesn't allow us to pass a custom user-data-dir,
+// Code receives two of them. Let's just take the first one.
+var userDataDir = args['user-data-dir'];
+if (userDataDir) {
+	userDataDir = typeof userDataDir === 'string' ? userDataDir : userDataDir[0];
+}
+
 // Set userData path before app 'ready' event and call to process.chdir
-var userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
+var userData = path.resolve(userDataDir || paths.getDefaultUserDataPath(process.platform));
 app.setPath('userData', userData);
 
 // Update cwd based on environment and platform

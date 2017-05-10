@@ -15,6 +15,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
+import { editorBracketMatchBackground, editorBracketMatchBorder } from "vs/editor/common/view/editorColorRegistry";
 
 @editorAction
 class SelectBracketAction extends EditorAction {
@@ -204,3 +206,14 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._lastVersionId = versionId;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let bracketMatchBackground = theme.getColor(editorBracketMatchBackground);
+	if (bracketMatchBackground) {
+		collector.addRule(`.monaco-editor .bracket-match { background-color: ${bracketMatchBackground}; }`);
+	}
+	let bracketMatchBorder = theme.getColor(editorBracketMatchBorder);
+	if (bracketMatchBorder) {
+		collector.addRule(`.monaco-editor .bracket-match { border: 1px solid ${bracketMatchBorder}; }`);
+	}
+});

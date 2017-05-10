@@ -20,6 +20,7 @@ import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorFo
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';
 import { WorkbenchThemeService, IColorCustomizations } from "vs/workbench/services/themes/electron-browser/workbenchThemeService";
+import { getParseErrorMessage } from "vs/base/common/jsonErrorMessages";
 
 let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 
@@ -181,7 +182,7 @@ function _loadColorThemeFromFile(themePath: string, resultRules: ITokenColorizat
 			let errors: Json.ParseError[] = [];
 			let contentValue = Json.parse(content.toString(), errors);
 			if (errors.length > 0) {
-				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
+				return TPromise.wrapError(new Error(nls.localize('error.cannotparsejson', "Problems parsing JSON theme file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 			}
 			let includeCompletes = TPromise.as(null);
 			if (contentValue.include) {

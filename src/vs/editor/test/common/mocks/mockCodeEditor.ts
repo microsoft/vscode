@@ -14,30 +14,12 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { Range } from 'vs/editor/common/core/range';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 
 export class MockCodeEditor extends CommonCodeEditor {
 	protected _createConfiguration(options: editorOptions.IEditorOptions): CommonEditorConfiguration {
 		return new TestConfiguration(options);
 	}
-	public getCenteredRangeInViewport(): Range { return null; }
-	protected _getCompletelyVisibleViewRange(): Range { return null; }
-	protected _getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range { return null; }
-	protected _getVerticalOffsetForViewLineNumber(viewLineNumber: number): number { return 0; }
-
-	public getScrollWidth(): number { return 0; }
-	public getScrollLeft(): number { return 0; }
-
-	public getScrollHeight(): number { return 0; }
-	public getScrollTop(): number { return 0; }
-
-	public setScrollLeft(newScrollLeft: number): void { }
-	public setScrollTop(newScrollTop: number): void { }
-	public setScrollPosition(position: editorCommon.INewScrollPosition): void { }
-
-	public saveViewState(): editorCommon.ICodeEditorViewState { return null; }
-	public restoreViewState(state: editorCommon.IEditorViewState): void { }
 
 	public layout(dimension?: editorCommon.IDimension): void { }
 
@@ -85,6 +67,7 @@ export interface MockCodeEditorCreationOptions extends editorOptions.IEditorOpti
 	 * The initial model associated with this code editor.
 	 */
 	model?: editorCommon.IModel;
+	serviceCollection?: ServiceCollection;
 }
 
 export function withMockCodeEditor(text: string[], options: MockCodeEditorCreationOptions, callback: (editor: MockCodeEditor, cursor: Cursor) => void): void {
@@ -97,7 +80,7 @@ export function mockCodeEditor(text: string[], options: MockCodeEditorCreationOp
 
 	let contextKeyService = new MockContextKeyService();
 
-	let services = new ServiceCollection();
+	let services = options.serviceCollection || new ServiceCollection();
 	services.set(IContextKeyService, contextKeyService);
 	let instantiationService = new InstantiationService(services);
 

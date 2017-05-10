@@ -39,6 +39,7 @@ import pfs = require('vs/base/node/pfs');
 import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { getParseErrorMessage } from "vs/base/common/jsonErrorMessages";
 
 // implementation
 
@@ -753,7 +754,7 @@ function _loadIconThemeDocument(fileSetPath: string): TPromise<IconThemeDocument
 		let errors: Json.ParseError[] = [];
 		let contentValue = Json.parse(content.toString(), errors);
 		if (errors.length > 0) {
-			return TPromise.wrapError(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => Json.getParseErrorMessage(e.error)).join(', '))));
+			return TPromise.wrapError(new Error(nls.localize('error.cannotparseicontheme', "Problems parsing file icons file: {0}", errors.map(e => getParseErrorMessage(e.error)).join(', '))));
 		}
 		return TPromise.as(contentValue);
 	});

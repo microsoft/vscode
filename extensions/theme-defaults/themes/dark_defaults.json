@@ -7,6 +7,7 @@
 		"editor.inactiveSelectionBackground": "#3A3D41",
 		"editorIndentGuide.background": "#404040",
 		"editor.selectionHighlightBackground": "#add6ff26",
-		"list.dropBackground": "#383B3D"
+		"list.dropBackground": "#383B3D",
+		"activityBarBadge.background": "#007ACC"
 	}
 }

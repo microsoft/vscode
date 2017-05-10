@@ -303,6 +303,7 @@
 
 		"input.background": "#003847",
 		"input.foreground": "#93A1A1",
+		"input.placeholderForeground": "#93A1A1AA",
 		// "input.border": "",
 
 		"inputOption.activeBorder": "#2AA19899",
@@ -312,6 +313,9 @@
 		"inputValidation.warningBorder": "#9d8a5e",
 		"inputValidation.errorBackground": "#571b26",
 		"inputValidation.errorBorder": "#a92049",
+
+		"badge.background": "#047aa6",
+		"progressBar.background": "#047aa6",
 
 		"dropdown.background": "#00212B",
 		"dropdown.border": "#2AA19899",
@@ -409,7 +413,7 @@
 
 		// Workbench: Activity Bar
 		"activityBar.background": "#003847",
-		"activityBarBadge.background": "#047aa6",
+		// "activityBarBadge.background": "",
 		// "activityBar.dropBackground": "",
 		// "activityBar.foreground": "",
 		// "activityBarBadge.foreground": "",

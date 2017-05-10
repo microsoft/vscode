@@ -41,6 +41,8 @@ import WorkspaceSymbolProvider from './features/workspaceSymbolProvider';
 import CodeActionProvider from './features/codeActionProvider';
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
+import { DirectiveCommentCompletionProvider } from './features/directiveCommentCompletionProvider';
+
 import ImplementationCodeLensProvider from './features/implementationsCodeLensProvider';
 
 import * as BuildStatus from './utils/buildStatus';
@@ -214,6 +216,8 @@ class LanguageProvider {
 		this.completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
 		this.completionItemProvider.updateConfiguration();
 		this.disposables.push(languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.'));
+
+		this.disposables.push(languages.registerCompletionItemProvider(selector, new DirectiveCommentCompletionProvider(client), '@'));
 
 		this.formattingProvider = new FormattingProvider(client);
 		this.formattingProvider.updateConfiguration(config);
@@ -416,7 +420,7 @@ class LanguageProvider {
 
 class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private client: TypeScriptServiceClient;
-	private languages: LanguageProvider[];
+	private languages: LanguageProvider[] = [];
 	private languagePerId: ObjectMap<LanguageProvider>;
 	private readonly disposables: Disposable[] = [];
 
@@ -442,7 +446,6 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
 		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState, this.disposables);
-		this.languages = [];
 		this.languagePerId = Object.create(null);
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description);

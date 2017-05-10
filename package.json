@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.13.0",
   "electronVersion": "1.6.6",
-  "distro": "bb676c1d1f91a0c6d3050d8ca8a49ba7743108c5",
+  "distro": "1337efdc669776e277c7e556d33b1dd7915fcefa",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -16,7 +16,8 @@
     "watch": "gulp watch --max_old_space_size=4096",
     "monaco-editor-setup": "node scripts/monaco-editor-setup.js",
     "monaco-editor-test": "mocha --only-monaco-editor",
-    "precommit": "node build/gulpfile.hygiene.js"
+    "precommit": "node build/gulpfile.hygiene.js",
+    "gulp": "gulp"
   },
   "dependencies": {
     "applicationinsights": "0.17.1",

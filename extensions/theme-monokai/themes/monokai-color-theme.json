@@ -28,6 +28,9 @@
 		"tab.border": "#1e1f1c",
 		"tab.inactiveForeground": "#ccccc7", // needs to be bright so it's readable when another editor group is focused
 		"widget.shadow": "#1e1f1c",
+		"progressBar.background": "#75715E",
+		"badge.background": "#75715E",
+		"badge.foreground": "#f8f8f2",
 		"editorLineNumber.foreground": "#90908a",
 		"panelTitle.activeForeground": "#f8f8f2",
 		"panelTitle.activeBorder": "#75715E",
@@ -38,8 +41,6 @@
 		"statusBar.noFolderBackground": "#414339",
 		"statusBar.debuggingBackground": "#75715E",
 		"activityBar.background": "#272822",
-		"activityBarBadge.foreground": "#f8f8f2",
-		"activityBarBadge.background": "#75715E",
 		"activityBar.foreground": "#f8f8f2",
 		"activityBar.dropBackground": "#414339",
 		"sideBar.background": "#1e1f1c",

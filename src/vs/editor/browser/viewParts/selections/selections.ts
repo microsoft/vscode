@@ -105,7 +105,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.roundedSelection) {
+		if (e.viewInfo) {
 			this._roundedSelection = this._context.configuration.editor.viewInfo.roundedSelection;
 		}
 		return true;

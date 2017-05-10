@@ -202,13 +202,12 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				// Prevents incorrectly completing while typing spread operators.
 				if (position.character > 0) {
 					const preText = document.getText(new Range(
-						new Position(position.line, 0),
-						new Position(position.line, position.character - 1)));
+						position.line, 0,
+						position.line, position.character - 1));
 					enableDotCompletions = preText.match(/[a-z_$\)\]\}]\s*$/ig) !== null;
 				}
 
-				for (let i = 0; i < body.length; i++) {
-					const element = body[i];
+				for (const element of body) {
 					const item = new MyCompletionItem(position, document, element, enableDotCompletions, !this.config.useCodeSnippetsOnMethodSuggest);
 					completionItems.push(item);
 				}
@@ -242,8 +241,10 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				return item;
 			}
 			const detail = details[0];
-			item.documentation = Previewer.plain(detail.documentation);
 			item.detail = Previewer.plain(detail.displayParts);
+
+			const tags = Previewer.tagsPlainPreview(detail.tags);
+			item.documentation = Previewer.plain(detail.documentation) + (tags ? '\n\n' + tags : '');
 
 			if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
 				return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {

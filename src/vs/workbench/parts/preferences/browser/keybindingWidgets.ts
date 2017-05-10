@@ -21,8 +21,9 @@ import { Dimension } from 'vs/base/browser/builder';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorWidgetBackground, widgetShadow } from "vs/platform/theme/common/colorRegistry";
 
 class KeybindingInputWidget extends Widget {
 
@@ -128,8 +129,11 @@ export class DefineKeybindingWidget extends Widget {
 
 	private _onHide = this._register(new Emitter<void>());
 
-	constructor(parent: HTMLElement, @IKeybindingService private keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
+	constructor(
+		parent: HTMLElement,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super();
 		this.create();
@@ -185,6 +189,16 @@ export class DefineKeybindingWidget extends Widget {
 		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
 		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
 		dom.append(this._domNode.domNode, dom.$('.message', null, nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER. ESCAPE to cancel.")));
+
+		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, widgetShadow }, colors => {
+			this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground;
+
+			if (colors.widgetShadow) {
+				this._domNode.domNode.style.boxShadow = `0 2px 8px ${colors.widgetShadow}`;
+			} else {
+				this._domNode.domNode.style.boxShadow = null;
+			}
+		}));
 
 		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingInputWidget, this._domNode.domNode, {}));
 		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.printKeybinding(keybinding)));

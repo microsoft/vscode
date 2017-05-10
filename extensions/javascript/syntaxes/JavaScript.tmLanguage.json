@@ -4008,8 +4008,8 @@
 		},
 		"jsx-tag-without-attributes": {
 			"name": "meta.tag.without-attributes.js",
-			"begin": "(<)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)",
-			"end": "(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)",
+			"begin": "(<)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>)",
+			"end": "(</)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.begin.js"
@@ -4018,6 +4018,9 @@
 					"name": "entity.name.tag.js"
 				},
 				"3": {
+					"name": "support.class.component.js"
+				},
+				"4": {
 					"name": "punctuation.definition.tag.end.js"
 				}
 			},
@@ -4029,6 +4032,9 @@
 					"name": "entity.name.tag.js"
 				},
 				"3": {
+					"name": "support.class.component.js"
+				},
+				"4": {
 					"name": "punctuation.definition.tag.end.js"
 				}
 			},
@@ -4041,7 +4047,7 @@
 		},
 		"jsx-tag-in-expression": {
 			"begin": "(?x)\n  (?<=[({\\[,?=>:*]|&&|\\|\\||\\?|\\Wreturn|^return|\\Wdefault|^)\\s*\n  (?!(<)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)) #look ahead is not start of tag without attributes\n  (?!<\\s*[_$[:alpha:]][_$[:alnum:]]*((\\s+extends\\s+[^=>])|,)) # look ahead is not type parameter of arrow\n  (?=(<)\\s*\n  ([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>))",
-			"end": "(/>)|(?:(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>))",
+			"end": "(/>)|(?:(</)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>))",
 			"endCaptures": {
 				"0": {
 					"name": "meta.tag.js"
@@ -4056,6 +4062,9 @@
 					"name": "entity.name.tag.js"
 				},
 				"4": {
+					"name": "support.class.component.js"
+				},
+				"5": {
 					"name": "punctuation.definition.tag.end.js"
 				}
 			},
@@ -4067,7 +4076,7 @@
 		},
 		"jsx-child-tag": {
 			"begin": "(?x)\n  (?=(<)\\s*\n  ([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>))",
-			"end": "(/>)|(?:(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>))",
+			"end": "(/>)|(?:(</)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>))",
 			"endCaptures": {
 				"0": {
 					"name": "meta.tag.js"
@@ -4082,6 +4091,9 @@
 					"name": "entity.name.tag.js"
 				},
 				"4": {
+					"name": "support.class.component.js"
+				},
+				"5": {
 					"name": "punctuation.definition.tag.end.js"
 				}
 			},
@@ -4097,13 +4109,16 @@
 			"end": "(?=(/>)|(?:(</)\\s*([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\\s*(>)))",
 			"patterns": [
 				{
-					"begin": "(?x)\n  (<)\\s*\n  ([_$a-zA-Z][-$\\w.]*(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>)",
+					"begin": "(?x)\n  (<)\\s*\n  ((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\n  (?=\\s+(?!\\?)|/?>)",
 					"beginCaptures": {
 						"1": {
 							"name": "punctuation.definition.tag.begin.js"
 						},
 						"2": {
 							"name": "entity.name.tag.js"
+						},
+						"3": {
+							"name": "support.class.component.js"
 						}
 					},
 					"end": "(?=[/]?>)",
@@ -4173,5 +4188,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/9f6676aa2ddb75cb5a9dbe1f59024069e839d986"
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/cb1af7953db224204607cbe22d3a45aa0f77a4c1"
 }

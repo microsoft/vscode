@@ -13,3 +13,15 @@ export function plain(parts: Proto.SymbolDisplayPart[]): string {
 	}
 	return parts.map(part => part.text).join('');
 }
+
+export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[]): string {
+	return (tags || [])
+		.map(tag => `*@${tag.name}*` + (tag.text ? ` — ${tag.text}` : ''))
+		.join('  \n');
+}
+
+export function tagsPlainPreview(tags: Proto.JSDocTagInfo[]): string {
+	return (tags || [])
+		.map(tag => `@${tag.name}` + (tag.text ? ` — ${tag.text}` : ''))
+		.join('\n');
+}

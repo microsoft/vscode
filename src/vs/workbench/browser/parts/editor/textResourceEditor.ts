@@ -10,6 +10,7 @@ import types = require('vs/base/common/types');
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TextEditorOptions, EditorModel, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
@@ -118,7 +119,7 @@ export class TextResourceEditor extends BaseTextEditor {
 	}
 
 	protected restoreViewState(input: EditorInput) {
-		if (input instanceof UntitledEditorInput) {
+		if (input instanceof UntitledEditorInput || input instanceof ResourceEditorInput) {
 			const viewState = this.loadTextEditorViewState(input.getResource().toString());
 			if (viewState) {
 				this.getControl().restoreViewState(viewState);
@@ -190,7 +191,7 @@ export class TextResourceEditor extends BaseTextEditor {
 			return super.saveTextEditorViewState(arg1);
 		}
 
-		if (arg1 instanceof UntitledEditorInput && !arg1.isDisposed()) {
+		if ((arg1 instanceof UntitledEditorInput || arg1 instanceof ResourceEditorInput) && !arg1.isDisposed()) {
 			return super.saveTextEditorViewState(arg1.getResource().toString());
 		}
 	}

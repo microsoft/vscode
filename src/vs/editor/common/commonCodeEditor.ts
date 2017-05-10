@@ -12,15 +12,12 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKey, IContextKeyServiceTarget, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { CursorColumns, IViewModelHelper, ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CharacterHardWrappingLineMapperFactory } from 'vs/editor/common/viewModel/characterHardWrappingLineMapper';
-import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { hash } from 'vs/base/common/hash';
 import { EditorModeContext } from 'vs/editor/common/modes/editorModeContext';
@@ -126,9 +123,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._decorationTypeSubtypes = {};
 
 		options = options || {};
-		if (typeof options.ariaLabel === 'undefined') {
-			options.ariaLabel = DefaultConfig.editor.ariaLabel;
-		}
 		this._configuration = this._register(this._createConfiguration(options));
 		this._register(this._configuration.onDidChange((e) => {
 			this._onDidChangeConfiguration.fire(e);
@@ -191,7 +185,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	}
 
 	public getConfiguration(): editorOptions.InternalEditorOptions {
-		return this._configuration.editorClone;
+		return this._configuration.editor;
 	}
 
 	public getRawConfiguration(): editorOptions.IEditorOptions {
@@ -240,11 +234,40 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._postDetachModelCleanup(detachedModel);
 	}
 
-	public abstract getCenteredRangeInViewport(): Range;
+	public getCenteredRangeInViewport(): Range {
+		if (!this.hasView) {
+			return null;
+		}
+		return this.viewModel.getCenteredRangeInViewport();
+	}
 
-	protected abstract _getCompletelyVisibleViewRange(): Range;
-	protected abstract _getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
-	protected abstract _getVerticalOffsetForViewLineNumber(viewLineNumber: number): number;
+	protected _getCompletelyVisibleViewRange(): Range {
+		if (!this.hasView) {
+			return null;
+		}
+		const partialData = this.viewModel.viewLayout.getLinesViewportData();
+		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
+		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
+
+		return new Range(
+			startViewLineNumber, this.viewModel.getLineMinColumn(startViewLineNumber),
+			endViewLineNumber, this.viewModel.getLineMaxColumn(endViewLineNumber)
+		);
+	}
+
+	protected _getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
+		if (!this.hasView) {
+			return null;
+		}
+		const partialData = this.viewModel.viewLayout.getLinesViewportDataAtScrollTop(scrollTop);
+		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
+		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
+
+		return new Range(
+			startViewLineNumber, this.viewModel.getLineMinColumn(startViewLineNumber),
+			endViewLineNumber, this.viewModel.getLineMaxColumn(endViewLineNumber)
+		);
+	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
 		if (!this.model) {
@@ -505,18 +528,111 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this.cursor.setSelections('api', ranges);
 	}
 
-	public abstract getScrollWidth(): number;
-	public abstract getScrollLeft(): number;
+	public getScrollWidth(): number {
+		if (!this.hasView) {
+			return -1;
+		}
+		return this.viewModel.viewLayout.getScrollWidth();
+	}
+	public getScrollLeft(): number {
+		if (!this.hasView) {
+			return -1;
+		}
+		return this.viewModel.viewLayout.getScrollLeft();
+	}
 
-	public abstract getScrollHeight(): number;
-	public abstract getScrollTop(): number;
+	public getScrollHeight(): number {
+		if (!this.hasView) {
+			return -1;
+		}
+		return this.viewModel.viewLayout.getScrollHeight();
+	}
+	public getScrollTop(): number {
+		if (!this.hasView) {
+			return -1;
+		}
+		return this.viewModel.viewLayout.getScrollTop();
+	}
 
-	public abstract setScrollLeft(newScrollLeft: number): void;
-	public abstract setScrollTop(newScrollTop: number): void;
-	public abstract setScrollPosition(position: editorCommon.INewScrollPosition): void;
+	public setScrollLeft(newScrollLeft: number): void {
+		if (!this.hasView) {
+			return;
+		}
+		if (typeof newScrollLeft !== 'number') {
+			throw new Error('Invalid arguments');
+		}
+		this.viewModel.viewLayout.setScrollPosition({
+			scrollLeft: newScrollLeft
+		});
+	}
+	public setScrollTop(newScrollTop: number): void {
+		if (!this.hasView) {
+			return;
+		}
+		if (typeof newScrollTop !== 'number') {
+			throw new Error('Invalid arguments');
+		}
+		this.viewModel.viewLayout.setScrollPosition({
+			scrollTop: newScrollTop
+		});
+	}
+	public setScrollPosition(position: editorCommon.INewScrollPosition): void {
+		if (!this.hasView) {
+			return;
+		}
+		this.viewModel.viewLayout.setScrollPosition(position);
+	}
 
-	public abstract saveViewState(): editorCommon.ICodeEditorViewState;
-	public abstract restoreViewState(state: editorCommon.IEditorViewState): void;
+	public saveViewState(): editorCommon.ICodeEditorViewState {
+		if (!this.cursor || !this.hasView) {
+			return null;
+		}
+		let contributionsState: { [key: string]: any } = {};
+
+		let keys = Object.keys(this._contributions);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let id = keys[i];
+			let contribution = this._contributions[id];
+			if (typeof contribution.saveViewState === 'function') {
+				contributionsState[id] = contribution.saveViewState();
+			}
+		}
+
+		let cursorState = this.cursor.saveState();
+		let viewState = this.viewModel.viewLayout.saveState();
+		return {
+			cursorState: cursorState,
+			viewState: viewState,
+			contributionsState: contributionsState
+		};
+	}
+
+	public restoreViewState(s: editorCommon.ICodeEditorViewState): void {
+		if (!this.cursor || !this.hasView) {
+			return;
+		}
+		if (s && s.cursorState && s.viewState) {
+			let codeEditorState = <editorCommon.ICodeEditorViewState>s;
+			let cursorState = <any>codeEditorState.cursorState;
+			if (Array.isArray(cursorState)) {
+				this.cursor.restoreState(<editorCommon.ICursorState[]>cursorState);
+			} else {
+				// Backwards compatibility
+				this.cursor.restoreState([<editorCommon.ICursorState>cursorState]);
+			}
+			this.viewModel.viewLayout.restoreState(codeEditorState.viewState);
+
+			let contributionsState = s.contributionsState || {};
+			let keys = Object.keys(this._contributions);
+			for (let i = 0, len = keys.length; i < len; i++) {
+				let id = keys[i];
+				let contribution = this._contributions[id];
+				if (typeof contribution.restoreViewState === 'function') {
+					contribution.restoreViewState(contributionsState[id]);
+				}
+			}
+		}
+	}
 
 	public onVisible(): void {
 	}
@@ -756,27 +872,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 			this.model.onBeforeAttached();
 
-			let hardWrappingLineMapperFactory = new CharacterHardWrappingLineMapperFactory(
-				this._configuration.editor.wrappingInfo.wordWrapBreakBeforeCharacters,
-				this._configuration.editor.wrappingInfo.wordWrapBreakAfterCharacters,
-				this._configuration.editor.wrappingInfo.wordWrapBreakObtrusiveCharacters
-			);
-
-			let linesCollection = new SplitLinesCollection(
-				this.model,
-				hardWrappingLineMapperFactory,
-				this.model.getOptions().tabSize,
-				this._configuration.editor.wrappingInfo.wrappingColumn,
-				this._configuration.editor.fontInfo.typicalFullwidthCharacterWidth / this._configuration.editor.fontInfo.typicalHalfwidthCharacterWidth,
-				this._configuration.editor.wrappingInfo.wrappingIndent
-			);
-
-			this.viewModel = new ViewModel(
-				linesCollection,
-				this.id,
-				this._configuration,
-				this.model
-			);
+			this.viewModel = new ViewModel(this.id, this._configuration, this.model);
 
 			let viewModelHelper: IViewModelHelper = {
 				viewModel: this.viewModel,
@@ -791,7 +887,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 					return this._getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
 				},
 				getVerticalOffsetForViewLineNumber: (viewLineNumber: number): number => {
-					return this._getVerticalOffsetForViewLineNumber(viewLineNumber);
+					return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
 				}
 			};
 

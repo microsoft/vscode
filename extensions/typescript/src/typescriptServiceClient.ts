@@ -741,21 +741,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				'TS Server has not started logging.')).then(() => false);
 		}
 
-		return workspace.openTextDocument(this.tsServerLogFile)
-			.then(doc => {
-				if (!doc) {
-					return false;
-				}
-				return window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined)
-					.then(editor => !!editor);
-			}, () => false)
-			.then(didOpen => {
-				if (!didOpen) {
-					window.showWarningMessage(localize(
-						'openTsServerLog.openFileFailedFailed',
-						'Could not open TS Server log file'));
-				}
-				return didOpen;
+		return commands.executeCommand('_workbench.action.files.revealInOS', Uri.parse(this.tsServerLogFile))
+			.then(() => true, () => {
+				window.showWarningMessage(localize(
+					'openTsServerLog.openFileFailedFailed',
+					'Could not open TS Server log file'));
+				return false;
 			});
 	}
 
@@ -926,7 +917,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return Uri.file(filepath);
 	}
 
-	public execute(command: string, args: any, expectsResultOrToken?: boolean | CancellationToken, token?: CancellationToken): Promise<any> {
+	public execute(command: string, args: any, expectsResultOrToken?: boolean | CancellationToken): Promise<any> {
+		let token: CancellationToken | undefined = undefined;
 		let expectsResult = true;
 		if (typeof expectsResultOrToken === 'boolean') {
 			expectsResult = expectsResultOrToken;
@@ -934,13 +926,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			token = expectsResultOrToken;
 		}
 
-		let request: Proto.Request = {
+		const request: Proto.Request = {
 			seq: this.sequenceNumber++,
 			type: 'request',
 			command: command,
 			arguments: args
 		};
-		let requestInfo: RequestItem = {
+		const requestInfo: RequestItem = {
 			request: request,
 			promise: null,
 			callbacks: null

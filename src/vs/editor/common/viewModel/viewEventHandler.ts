@@ -70,9 +70,6 @@ export class ViewEventHandler extends Disposable {
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return false;
 	}
-	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
-		return false;
-	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return false;
 	}
@@ -162,12 +159,6 @@ export class ViewEventHandler extends Disposable {
 
 				case viewEvents.ViewEventType.ViewScrollChanged:
 					if (this.onScrollChanged(e)) {
-						shouldRender = true;
-					}
-					break;
-
-				case viewEvents.ViewEventType.ViewScrollRequest:
-					if (this.onScrollRequest(e)) {
 						shouldRender = true;
 					}
 					break;

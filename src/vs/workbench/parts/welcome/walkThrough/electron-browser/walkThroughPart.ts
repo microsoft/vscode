@@ -11,7 +11,6 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
@@ -418,7 +417,13 @@ export class WalkThroughPart extends BaseEditor {
 		return {
 			...isObject(config) ? config : Object.create(null),
 			scrollBeyondLastLine: false,
-			scrollbar: DefaultConfig.editor.scrollbar,
+			scrollbar: {
+				verticalScrollbarSize: 14,
+				horizontal: 'auto',
+				useShadows: true,
+				verticalHasArrows: false,
+				horizontalHasArrows: false
+			},
 			overviewRulerLanes: 3,
 			fixedOverflowWidgets: true,
 			lineNumbersMinChars: 1,

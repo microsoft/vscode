@@ -20,6 +20,8 @@ import {
 import { MockCodeEditor, withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Delayer } from 'vs/base/common/async';
 
 class TestFindController extends CommonFindController {
@@ -30,8 +32,8 @@ class TestFindController extends CommonFindController {
 
 	private _delayedUpdateHistoryEvent: Emitter<void> = new Emitter<void>();
 
-	constructor(editor: ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
-		super(editor, contextKeyService);
+	constructor(editor: ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @IStorageService storageService: IStorageService) {
+		super(editor, contextKeyService, storageService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 	}
 
@@ -66,11 +68,18 @@ class TestFindController extends CommonFindController {
 	}
 }
 
-suite('FindController', () => {
+function fromRange(rng: Range): number[] {
+	return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
+}
 
-	function fromRange(rng: Range): number[] {
-		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
-	}
+suite('FindController', () => {
+	let queryState = {};
+	let serviceCollection = new ServiceCollection();
+	serviceCollection.set(IStorageService, <any>{
+		get: (key) => queryState[key],
+		getBoolean: (key) => !!queryState[key],
+		store: (key: string, value: any) => { queryState[key] = value; }
+	});
 
 	test('issue #1857: F3, Find Next, acts like "Find Under Cursor"', () => {
 		withMockCodeEditor([
@@ -78,7 +87,7 @@ suite('FindController', () => {
 			'ABC',
 			'XYZ',
 			'ABC'
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			// The cursor is at the very top, of the file, at the first ABC
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
@@ -133,7 +142,7 @@ suite('FindController', () => {
 	test('issue #3090: F3 does not loop with two matches on a single line', () => {
 		withMockCodeEditor([
 			'import nls = require(\'vs/nls\');'
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let nextMatchFindAction = new NextMatchFindAction();
@@ -158,7 +167,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3  * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let startFindAction = new StartFindAction();
@@ -184,7 +193,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let selectHighlightsAction = new SelectHighlightsAction();
@@ -211,7 +220,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.start({
@@ -239,7 +248,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.getState().change({ searchString: '1' }, false);
@@ -255,7 +264,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.delayUpdateHistory = true;
@@ -275,7 +284,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.getState().change({ searchString: '1' }, false);
@@ -292,7 +301,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.getState().change({ searchString: '1' }, false);
@@ -309,7 +318,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.getState().change({ searchString: '1' }, false);
@@ -329,7 +338,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			findController.getState().change({ searchString: '1' }, false);
@@ -355,7 +364,7 @@ suite('FindController', () => {
 			'rty',
 			'qwe',
 			'rty'
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
@@ -387,7 +396,7 @@ suite('FindController', () => {
 			'rty',
 			'qwe',
 			'rty'
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			editor.getModel().setEOL(EndOfLineSequence.CRLF);
 
@@ -413,7 +422,7 @@ suite('FindController', () => {
 	test('issue #18111: Regex replace with single space replaces with no space', () => {
 		withMockCodeEditor([
 			'HRESULT OnAmbientPropertyChange(DISPID   dispid);'
-		], {}, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 
@@ -447,7 +456,7 @@ suite('FindController', () => {
 	}
 
 	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: MockCodeEditor, action: AddSelectionToNextFindMatchAction, findController: TestFindController) => void): void {
-		withMockCodeEditor(text, {}, (editor, cursor) => {
+		withMockCodeEditor(text, { serviceCollection: serviceCollection }, (editor, cursor) => {
 
 			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
 
@@ -674,6 +683,85 @@ suite('FindController', () => {
 				new Selection(4, 1, 4, 5),
 				new Selection(5, 1, 5, 5),
 			]);
+		});
+	});
+});
+
+suite('FindController query options persistence', () => {
+	let queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': false };
+	let serviceCollection = new ServiceCollection();
+	serviceCollection.set(IStorageService, <any>{
+		get: (key) => queryState[key],
+		getBoolean: (key) => !!queryState[key],
+		store: (key: string, value: any) => { queryState[key] = value; }
+	});
+
+	test('matchCase', () => {
+		withMockCodeEditor([
+			'abc',
+			'ABC',
+			'XYZ',
+			'ABC'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			queryState = { 'editor.isRegex': false, 'editor.matchCase': true, 'editor.wholeWord': false };
+			// The cursor is at the very top, of the file, at the first ABC
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findState = findController.getState();
+			let startFindAction = new StartFindAction();
+
+			// I hit Ctrl+F to show the Find dialog
+			startFindAction.run(null, editor);
+
+			// I type ABC.
+			findState.change({ searchString: 'ABC' }, true);
+			// The second ABC is highlighted as matchCase is true.
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 2, 4]);
+
+			findController.dispose();
+		});
+	});
+
+	queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
+
+	test('wholeWord', () => {
+		withMockCodeEditor([
+			'ABC',
+			'AB',
+			'XYZ',
+			'ABC'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
+			// The cursor is at the very top, of the file, at the first ABC
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let findState = findController.getState();
+			let startFindAction = new StartFindAction();
+
+			// I hit Ctrl+F to show the Find dialog
+			startFindAction.run(null, editor);
+
+			// I type AB.
+			findState.change({ searchString: 'AB' }, true);
+			// The second AB is highlighted as wholeWord is true.
+			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 2, 3]);
+
+			findController.dispose();
+		});
+	});
+
+	test('toggling options is saved', () => {
+		withMockCodeEditor([
+			'ABC',
+			'AB',
+			'XYZ',
+			'ABC'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
+			// The cursor is at the very top, of the file, at the first ABC
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			findController.toggleRegex();
+			assert.equal(queryState['editor.isRegex'], true);
+
+			findController.dispose();
 		});
 	});
 });

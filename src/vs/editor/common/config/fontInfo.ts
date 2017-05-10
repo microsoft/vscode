@@ -4,8 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { DefaultConfig, GOLDEN_LINE_HEIGHT_RATIO } from 'vs/editor/common/config/defaultConfig';
+import * as platform from 'vs/base/common/platform';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
+import { EDITOR_FONT_DEFAULTS } from "vs/editor/common/config/editorOptions";
+
+/**
+ * Determined from empirical observations.
+ * @internal
+ */
+const GOLDEN_LINE_HEIGHT_RATIO = platform.isMacintosh ? 1.5 : 1.35;
 
 function safeParseFloat(n: number | string, defaultValue: number): number {
 	if (typeof n === 'number') {
@@ -39,6 +46,13 @@ function clamp(n: number, min: number, max: number): number {
 	return n;
 }
 
+function _string(value: any, defaultValue: string): string {
+	if (typeof value !== 'string') {
+		return defaultValue;
+	}
+	return value;
+}
+
 export class BareFontInfo {
 	readonly _bareFontInfoBrand: void;
 
@@ -52,19 +66,23 @@ export class BareFontInfo {
 		lineHeight?: number | string;
 	}, zoomLevel: number): BareFontInfo {
 
-		let fontFamily = String(opts.fontFamily) || DefaultConfig.editor.fontFamily;
-		let fontWeight = String(opts.fontWeight) || DefaultConfig.editor.fontWeight;
+		let fontFamily = _string(opts.fontFamily, EDITOR_FONT_DEFAULTS.fontFamily);
+		let fontWeight = _string(opts.fontWeight, EDITOR_FONT_DEFAULTS.fontWeight);
 
-		let fontSize = safeParseFloat(opts.fontSize, DefaultConfig.editor.fontSize);
+		let fontSize = safeParseFloat(opts.fontSize, EDITOR_FONT_DEFAULTS.fontSize);
 		fontSize = clamp(fontSize, 0, 100);
 		if (fontSize === 0) {
-			fontSize = DefaultConfig.editor.fontSize;
+			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
+		} else if (fontSize < 8) {
+			fontSize = 8;
 		}
 
 		let lineHeight = safeParseInt(opts.lineHeight, 0);
 		lineHeight = clamp(lineHeight, 0, 150);
 		if (lineHeight === 0) {
 			lineHeight = Math.round(GOLDEN_LINE_HEIGHT_RATIO * fontSize);
+		} else if (lineHeight < 8) {
+			lineHeight = 8;
 		}
 
 		let editorZoomLevelMultiplier = 1 + (EditorZoom.getZoomLevel() * 0.1);

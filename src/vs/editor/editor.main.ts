@@ -14,12 +14,12 @@ import 'vs/editor/contrib/inspectTokens/browser/inspectTokens';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/browser/standalone/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/browser/standalone/standaloneLanguages';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_DEFAULTS, WrappingIndent } from "vs/editor/common/config/editorOptions";
 
 // Set defaults for standalone editor
-DefaultConfig.editor.wrappingIndent = 'none';
-DefaultConfig.editor.folding = false;
-DefaultConfig.editor.glyphMargin = false;
+EDITOR_DEFAULTS.wrappingIndent = WrappingIndent.None;
+(<any>EDITOR_DEFAULTS.contribInfo).folding = false;
+(<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
 
 var global: any = self;
 global.monaco = createMonacoBaseAPI();

@@ -21,8 +21,9 @@ import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/p
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorHoverBackground, editorHoverBorder } from "vs/platform/theme/common/colorRegistry";
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
@@ -88,6 +89,14 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree));
+		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
+			this.domNode.style.backgroundColor = colors.editorHoverBackground;
+			if (colors.editorHoverBorder) {
+				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
+			} else {
+				this.domNode.style.border = null;
+			}
+		}));
 	}
 
 	private registerListeners(): void {

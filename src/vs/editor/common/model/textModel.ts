@@ -11,7 +11,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ModelLine } from 'vs/editor/common/model/modelLine';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
-import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_MODEL_DEFAULTS } from "vs/editor/common/config/editorOptions";
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
@@ -32,11 +32,11 @@ export class TextModel implements editorCommon.ITextModel {
 	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
 
 	public static DEFAULT_CREATION_OPTIONS: editorCommon.ITextModelCreationOptions = {
-		tabSize: DEFAULT_INDENTATION.tabSize,
-		insertSpaces: DEFAULT_INDENTATION.insertSpaces,
+		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
+		insertSpaces: EDITOR_MODEL_DEFAULTS.insertSpaces,
 		detectIndentation: false,
 		defaultEOL: editorCommon.DefaultEndOfLine.LF,
-		trimAutoWhitespace: DEFAULT_TRIM_AUTO_WHITESPACE,
+		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
 	};
 
 	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): TextModel {

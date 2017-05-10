@@ -176,14 +176,14 @@ export class ActivityActionItem extends ThemableActivityActionItem {
 		if (this.$badgeContent) {
 			const badgeForeground = theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND);
 			const badgeBackground = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND);
-			const hcBorder = theme.getColor(contrastBorder);
+			const contrastBorderColor = theme.getColor(contrastBorder);
 
 			this.$badgeContent.style('color', badgeForeground ? badgeForeground.toString() : null);
 			this.$badgeContent.style('background-color', badgeBackground ? badgeBackground.toString() : null);
 
-			this.$badgeContent.style('border-style', hcBorder ? 'solid' : null);
-			this.$badgeContent.style('border-width', hcBorder ? '1px' : null);
-			this.$badgeContent.style('border-color', hcBorder ? hcBorder.toString() : null);
+			this.$badgeContent.style('border-style', contrastBorderColor ? 'solid' : null);
+			this.$badgeContent.style('border-width', contrastBorderColor ? '1px' : null);
+			this.$badgeContent.style('border-color', contrastBorderColor ? contrastBorderColor.toString() : null);
 		}
 	}
 

@@ -20,6 +20,7 @@ import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export const enum FindStartFocusAction {
 	NoFocusChange,
@@ -48,19 +49,22 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	private _currentHistoryNavigator: HistoryNavigator<string>;
 	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel;
+	private _storageService: IStorageService;
 
 	public static get(editor: editorCommon.ICommonCodeEditor): CommonFindController {
 		return editor.getContribution<CommonFindController>(CommonFindController.ID);
 	}
 
-	constructor(editor: editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
+	constructor(editor: editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @IStorageService storageService: IStorageService) {
 		super();
 		this._editor = editor;
 		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
+		this._storageService = storageService;
 
 		this._updateHistoryDelayer = new Delayer<void>(500);
 		this._currentHistoryNavigator = new HistoryNavigator<string>();
 		this._state = this._register(new FindReplaceState());
+		this.loadQueryState();
 		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));
 
 		this._model = null;
@@ -71,7 +75,10 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 			this.disposeModel();
 
 			this._state.change({
-				searchScope: null
+				searchScope: null,
+				matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, false),
+				wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, false),
+				isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, false)
 			}, false);
 
 			if (shouldRestartFind) {
@@ -102,6 +109,8 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
+		this.saveQueryState(e);
+
 		if (e.updateHistory && e.searchString) {
 			this._delayedUpdateHistory();
 		}
@@ -113,6 +122,26 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 				this.disposeModel();
 			}
 		}
+	}
+
+	private saveQueryState(e: FindReplaceStateChangedEvent) {
+		if (e.isRegex && typeof this._state.isRegex !== 'undefined') {
+			this._storageService.store('editor.isRegex', this._state.isRegex, StorageScope.WORKSPACE);
+		}
+		if (e.wholeWord && typeof this._state.wholeWord !== 'undefined') {
+			this._storageService.store('editor.wholeWord', this._state.wholeWord, StorageScope.WORKSPACE);
+		}
+		if (e.matchCase && typeof this._state.matchCase !== 'undefined') {
+			this._storageService.store('editor.matchCase', this._state.matchCase, StorageScope.WORKSPACE);
+		}
+	}
+
+	private loadQueryState() {
+		this._state.change({
+			matchCase: this._storageService.getBoolean('editor.matchCase', StorageScope.WORKSPACE, this._state.matchCase),
+			wholeWord: this._storageService.getBoolean('editor.wholeWord', StorageScope.WORKSPACE, this._state.wholeWord),
+			isRegex: this._storageService.getBoolean('editor.isRegex', StorageScope.WORKSPACE, this._state.isRegex)
+		}, false);
 	}
 
 	protected _delayedUpdateHistory() {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import nls = require('vs/nls');
-import { registerColor, editorBackground, contrastBorder, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, badgeForeground, badgeBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -177,15 +177,15 @@ export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.
 }, nls.localize('activityBarDragAndDropBackground', "Drag and drop feedback color for the activity bar items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', {
-	dark: '#007ACC',
-	light: '#007ACC',
-	hc: '#000000'
+	dark: badgeBackground,
+	light: badgeBackground,
+	hc: badgeBackground
 }, nls.localize('activityBarBadgeBackground', "Activity notification badge background color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_FOREGROUND = registerColor('activityBarBadge.foreground', {
-	dark: Color.white,
-	light: Color.white,
-	hc: Color.white
+	dark: badgeForeground,
+	light: badgeForeground,
+	hc: badgeForeground
 }, nls.localize('activityBarBadgeForeground', "Activity notification badge foreground color. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 

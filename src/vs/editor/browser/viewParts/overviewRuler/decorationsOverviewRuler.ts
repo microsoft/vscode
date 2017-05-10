@@ -51,17 +51,17 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private _zonesFromDecorations: OverviewRulerZone[];
 	private _zonesFromCursors: OverviewRulerZone[];
 
-	constructor(context: ViewContext, scrollHeight: number, getVerticalOffsetForLine: (lineNumber: number) => number) {
+	constructor(context: ViewContext) {
 		super(context);
 		this._overviewRuler = new OverviewRulerImpl(
 			1,
 			'decorationsOverviewRuler',
-			scrollHeight,
+			this._context.viewLayout.getScrollHeight(),
 			this._context.configuration.editor.lineHeight,
-			this._context.configuration.editor.viewInfo.canUseTranslate3d,
+			this._context.configuration.editor.canUseTranslate3d,
 			DecorationsOverviewRuler.MIN_DECORATION_HEIGHT,
 			DecorationsOverviewRuler.MAX_DECORATION_HEIGHT,
-			getVerticalOffsetForLine
+			(lineNumber: number) => this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber)
 		);
 		this._overviewRuler.setLanesCount(this._context.configuration.editor.viewInfo.overviewRulerLanes, false);
 		let theme = this._context.configuration.editor.viewInfo.theme;
@@ -104,51 +104,31 @@ export class DecorationsOverviewRuler extends ViewPart {
 		let prevLanesCount = this._overviewRuler.getLanesCount();
 		let newLanesCount = this._context.configuration.editor.viewInfo.overviewRulerLanes;
 
-		let shouldRender = false;
+		if (prevLanesCount !== newLanesCount) {
+			this._overviewRuler.setLanesCount(newLanesCount, false);
+		}
 
 		if (e.lineHeight) {
 			this._overviewRuler.setLineHeight(this._context.configuration.editor.lineHeight, false);
-			shouldRender = true;
 		}
 
-		if (e.viewInfo.canUseTranslate3d) {
-			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.viewInfo.canUseTranslate3d, false);
-			shouldRender = true;
+		if (e.canUseTranslate3d) {
+			this._overviewRuler.setCanUseTranslate3d(this._context.configuration.editor.canUseTranslate3d, false);
 		}
 
-		if (prevLanesCount !== newLanesCount) {
-			this._overviewRuler.setLanesCount(newLanesCount, false);
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.overviewRulerBorder) {
+		if (e.viewInfo) {
 			this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.hideCursorInOverviewRuler) {
 			this._hideCursor = this._context.configuration.editor.viewInfo.hideCursorInOverviewRuler;
 			this._shouldUpdateCursorPosition = true;
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.theme) {
-			let theme = this._context.configuration.editor.viewInfo.theme;
-			this._overviewRuler.setThemeType(getThemeType(theme), false);
-			shouldRender = true;
-		}
-
-		if (e.viewInfo.minimap) {
+			this._overviewRuler.setThemeType(getThemeType(this._context.configuration.editor.viewInfo.theme), false);
 			this._updateBackground(false);
-			shouldRender = true;
 		}
 
 		if (e.layoutInfo) {
 			this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
-			shouldRender = true;
 		}
 
-		return shouldRender;
+		return true;
 	}
 
 	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {

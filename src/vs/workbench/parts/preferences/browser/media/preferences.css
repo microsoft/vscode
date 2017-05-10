@@ -108,25 +108,10 @@
 	position: absolute;
 	right: 10px;
 	border-radius: 2px;
-	background-color: #EFEFF2;
 }
 
 .settings-header-widget > .settings-count-widget.hide {
 	display: none;
-}
-
-.hc-black .settings-header-widget > .settings-count-widget,
-.vs-dark .settings-header-widget > .settings-count-widget {
-	background-color: #2D2D30;
-}
-
-.settings-header-widget > .settings-count-widget.no-results {
-	color: #A1260D;
-}
-
-.hc-black .settings-header-widget > .settings-count-widget.no-results,
-.vs-dark .settings-header-widget > .settings-count-widget.no-results {
-	color: #F48771
 }
 
 .settings-header-widget > .settings-search-container {
@@ -238,8 +223,6 @@
 }
 
 .monaco-editor .floating-click-widget {
-	background: #007ACC;
-	color: white;
 	padding: 10px;
 	border-radius: 5px;
 	cursor: pointer;

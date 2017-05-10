@@ -646,7 +646,6 @@ export class Breakpoint implements IBreakpoint {
 		public enabled: boolean,
 		public condition: string,
 		public hitCondition: string,
-		public respectColumn: boolean // TODO@Isidor remove this in March
 	) {
 		if (enabled === undefined) {
 			this.enabled = true;
@@ -807,8 +806,9 @@ export class Model implements IModel {
 
 	public addBreakpoints(uri: uri, rawData: IRawBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, true)));
+			new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
 		this.breakpointsActivated = true;
+		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
 		this._onDidChangeBreakpoints.fire();
 	}
 
@@ -828,6 +828,7 @@ export class Model implements IModel {
 				bp.message = bpData.message;
 			}
 		});
+		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
 
 		this._onDidChangeBreakpoints.fire();
 	}

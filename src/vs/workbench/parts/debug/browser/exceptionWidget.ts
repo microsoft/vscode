@@ -93,7 +93,10 @@ export class ExceptionWidget extends ZoneWidget {
 		// Reload the height with respect to the exception text content and relayout it to match the line count.
 		this.container.style.height = 'initial';
 
-		const computedLinesNumber = Math.ceil(this.container.offsetHeight / this.editor.getConfiguration().fontInfo.lineHeight);
+		const lineHeight = this.editor.getConfiguration().lineHeight;
+		const arrowHeight = Math.round(lineHeight / 3);
+		const computedLinesNumber = Math.ceil((this.container.offsetHeight + arrowHeight) / lineHeight);
+
 		this._relayout(computedLinesNumber);
 	}
 }

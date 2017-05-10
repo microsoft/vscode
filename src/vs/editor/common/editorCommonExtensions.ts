@@ -64,7 +64,7 @@ export abstract class EditorAction extends ConfigEditorCommand {
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
 		this.reportTelemetry(accessor, editor);
-		return this.run(accessor, editor, args);
+		return this.run(accessor, editor, args || {});
 	}
 
 	protected reportTelemetry(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor) {

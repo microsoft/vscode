@@ -83,14 +83,14 @@ export class SidebarPart extends CompositePart<Viewlet> {
 
 		container.style('background-color', this.getColor(SIDE_BAR_BACKGROUND));
 
-		const hcBorder = this.getColor(contrastBorder);
+		const contrastBorderColor = this.getColor(contrastBorder);
 		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style('border-right-width', hcBorder && isPositionLeft ? '1px' : null);
-		container.style('border-right-style', hcBorder && isPositionLeft ? 'solid' : null);
-		container.style('border-right-color', isPositionLeft ? hcBorder : null);
-		container.style('border-left-width', hcBorder && !isPositionLeft ? '1px' : null);
-		container.style('border-left-style', hcBorder && !isPositionLeft ? 'solid' : null);
-		container.style('border-left-color', !isPositionLeft ? hcBorder : null);
+		container.style('border-right-width', contrastBorderColor && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', contrastBorderColor && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', isPositionLeft ? contrastBorderColor : null);
+		container.style('border-left-width', contrastBorderColor && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', contrastBorderColor && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', !isPositionLeft ? contrastBorderColor : null);
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {

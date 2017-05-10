@@ -37,7 +37,7 @@ export class Rulers extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		if (e.viewInfo.rulers || e.layoutInfo || e.fontInfo) {
+		if (e.viewInfo || e.layoutInfo || e.fontInfo) {
 			this._rulers = this._context.configuration.editor.viewInfo.rulers;
 			this._height = this._context.configuration.editor.layoutInfo.contentHeight;
 			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
