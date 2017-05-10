@@ -242,8 +242,10 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				return item;
 			}
 			const detail = details[0];
-			item.documentation = Previewer.plain(detail.documentation);
 			item.detail = Previewer.plain(detail.displayParts);
+
+			const tags = Previewer.tagsPlainPreview(detail.tags);
+			item.documentation = Previewer.plain(detail.documentation) + (tags ? '\n\n' + tags : '');
 
 			if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
 				return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {

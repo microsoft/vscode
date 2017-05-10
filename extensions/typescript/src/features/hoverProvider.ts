@@ -9,6 +9,7 @@ import { HoverProvider, Hover, TextDocument, Position, Range, CancellationToken 
 
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
+import { tagsMarkdownPreview } from "./previewer";
 
 export default class TypeScriptHoverProvider implements HoverProvider {
 
@@ -40,13 +41,10 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 	}
 
 	private static getContents(data: Proto.QuickInfoResponseBody) {
-		const tags: string[] = [];
-		for (const tag of data.tags || []) {
-			tags.push(`*@${tag.name}*` + (tag.text ? ` — ${tag.text}` : ''));
-		}
+		const tags = tagsMarkdownPreview(data.tags);
 		return [
 			{ language: 'typescript', value: data.displayString },
-			data.documentation + (tags.length ? '\n\n' + tags.join('  \n') : '')
+			data.documentation + (tags ? '\n\n' + tags : '')
 		];
 	}
 }
