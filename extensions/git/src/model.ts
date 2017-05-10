@@ -7,9 +7,8 @@
 
 import { Uri, Command, EventEmitter, Event, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace } from 'vscode';
 import { Git, Repository, Ref, Branch, Remote, PushOptions, Commit, GitErrorCodes } from './git';
-import { anyEvent, eventToPromise, filterEvent, mapEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
+import { anyEvent, eventToPromise, filterEvent, EmptyDisposable, combinedDisposable, dispose } from './util';
 import { memoize, throttle, debounce } from './decorators';
-import { watch } from './watch';
 import * as path from 'path';
 import * as nls from 'vscode-nls';
 
@@ -582,11 +581,7 @@ export class Model implements Disposable {
 		const repositoryRoot = await this._git.getRepositoryRoot(this.workspaceRoot.fsPath);
 		this.repository = this._git.open(repositoryRoot);
 
-		const dotGitPath = path.join(repositoryRoot, '.git');
-		const { event: onRawGitChange, disposable: watcher } = watch(dotGitPath);
-		disposables.push(watcher);
-
-		const onGitChange = mapEvent(onRawGitChange, ({ filename }) => Uri.file(path.join(dotGitPath, filename)));
+		const onGitChange = filterEvent(this.onWorkspaceChange, uri => /\/\.git\//.test(uri.fsPath));
 		const onRelevantGitChange = filterEvent(onGitChange, uri => !/\/\.git\/index\.lock$/.test(uri.fsPath));
 		onRelevantGitChange(this.onFSChange, this, disposables);
 		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, disposables);
