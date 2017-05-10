@@ -307,24 +307,26 @@ export class SnippetParser {
 
 		// * fill in default for empty placeHolders
 		// * compact sibling Text markers
-		function compact(marker: Marker[], placeholders: { [name: string]: Marker[] }) {
+		function walk(marker: Marker[], placeholderDefaultValues: Map<string, Marker[]>) {
 
 			for (let i = 0; i < marker.length; i++) {
 				const thisMarker = marker[i];
 
 				if (thisMarker instanceof Placeholder) {
-					if (placeholders[thisMarker.index] === undefined) {
-						placeholders[thisMarker.index] = thisMarker.defaultValue;
+					// fill in default values for repeated placeholders
+					// like `${1:foo}and$1` becomes ${1:foo}and${1:foo}
+					if (!placeholderDefaultValues.has(thisMarker.index)) {
+						placeholderDefaultValues.set(thisMarker.index, thisMarker.defaultValue);
 					} else if (thisMarker.defaultValue.length === 0) {
-						thisMarker.defaultValue = placeholders[thisMarker.index].slice(0);
+						thisMarker.defaultValue = placeholderDefaultValues.get(thisMarker.index).slice(0);
 					}
 
 					if (thisMarker.defaultValue.length > 0) {
-						compact(thisMarker.defaultValue, placeholders);
+						walk(thisMarker.defaultValue, placeholderDefaultValues);
 					}
 
 				} else if (thisMarker instanceof Variable) {
-					compact(thisMarker.defaultValue, placeholders);
+					walk(thisMarker.defaultValue, placeholderDefaultValues);
 
 				} else if (i > 0 && thisMarker instanceof Text && marker[i - 1] instanceof Text) {
 					(<Text>marker[i - 1]).string += (<Text>marker[i]).string;
@@ -334,7 +336,13 @@ export class SnippetParser {
 			}
 		}
 
-		compact(marker, Object.create(null));
+		const placeholderDefaultValues = new Map<string, Marker[]>();
+		walk(marker, placeholderDefaultValues);
+
+		// if (placeholderDefaultValues.size > 0 && !placeholderDefaultValues.has('0')) {
+		// 	// snippet uses tabstops but has no final tabstop
+		// 	marker.push(new Placeholder('0', []));
+		// }
 
 		return marker;
 	}
