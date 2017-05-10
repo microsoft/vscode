@@ -249,7 +249,7 @@ Note that there can still be cases where this setting is ignored (e.g. when usin
 			nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'window.newWindowDimensions.fullscreen' }, "Open new windows in full screen mode.")
 		],
 		'default': 'default',
-		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window. By default, a new window will open in the center of the screen with small dimensions. When set to  'inherit', the window will get the same dimensions as the last active one. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'.")
+		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window when at least one window is already opened. By default, a new window will open in the center of the screen with small dimensions. When set to 'inherit', the window will get the same dimensions as the last window that was active. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'. Note that this setting does not have an impact on the first window that is opened. The first window will always restore the size and location as you left it before closing.")
 	},
 };
 
