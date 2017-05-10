@@ -26,7 +26,7 @@ export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[]): string {
 		.join('  \n\n');
 }
 
-export function tagsPlainPreview(tags: Proto.JSDocTagInfo[]): string {
+function tagsPlainPreview(tags: Proto.JSDocTagInfo[]): string {
 	return (tags || [])
 		.map(tag => {
 			const label = `@${tag.name}`;
@@ -35,5 +35,10 @@ export function tagsPlainPreview(tags: Proto.JSDocTagInfo[]): string {
 			}
 			return label + (tag.text.match(/\r\n|\n/g) ? '\n' + tag.text : ` — ${tag.text}`);
 		})
-		.join('\n');
+		.join('\n\ngit');
+}
+
+export function plainDocumentation(documentation: Proto.SymbolDisplayPart[], tags: Proto.JSDocTagInfo[]): string {
+	const parts = [plain(documentation), tagsPlainPreview(tags)];
+	return parts.filter(x => x).join('\n\n');
 }
