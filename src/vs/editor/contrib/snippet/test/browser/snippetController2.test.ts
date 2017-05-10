@@ -57,7 +57,7 @@ suite('SnippetController2', function () {
 		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 
-		ctrl.abort();
+		ctrl.cancel();
 		assertContextKeys(contextKeys, false, false, false);
 		assertSelections(editor, new Selection(1, 4, 1, 7), new Selection(2, 8, 2, 11));
 	});

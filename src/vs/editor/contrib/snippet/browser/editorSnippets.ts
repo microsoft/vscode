@@ -26,9 +26,10 @@ class OneSnippet {
 	private _placeholderGroupsIdx: number;
 
 	private static readonly _decor = {
-		active: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges },
-		activeFinal: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
-		inactive: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
+		active: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges, className: 'snippet-placeholder' },
+		inactive: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'snippet-placeholder' },
+		activeFinal: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' },
+		inactiveFinal: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' },
 		snippet: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
 	};
 
@@ -73,7 +74,8 @@ class OneSnippet {
 					model.getPositionAt(this._offset + placeholderOffset),
 					model.getPositionAt(this._offset + placeholderOffset + placeholderLen)
 				);
-				const handle = accessor.addDecoration(range, OneSnippet._decor.inactive);
+				const options = placeholder.isFinalTabstop ? OneSnippet._decor.inactiveFinal : OneSnippet._decor.inactive;
+				const handle = accessor.addDecoration(range, options);
 				this._placeholderDecorations.set(placeholder, handle);
 			}
 		});
