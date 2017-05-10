@@ -116,6 +116,7 @@ export class View extends ViewEventHandler {
 		this._context = new ViewContext(configuration, themeService.getTheme(), model, this.eventDispatcher);
 
 		this._register(themeService.onThemeChange(theme => {
+			this._context.theme = theme;
 			this.eventDispatcher.emit(new viewEvents.ViewThemeChangedEvent());
 		}));
 

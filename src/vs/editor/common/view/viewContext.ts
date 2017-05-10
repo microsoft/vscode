@@ -13,10 +13,11 @@ import { ITheme } from 'vs/platform/theme/common/themeService';
 export class ViewContext {
 
 	public readonly configuration: IConfiguration;
-	public readonly theme: ITheme;
 	public readonly model: IViewModel;
 	public readonly viewLayout: IViewLayout;
 	public readonly privateViewEventBus: ViewEventDispatcher;
+
+	public theme: ITheme; // will be updated
 
 	constructor(
 		configuration: IConfiguration,

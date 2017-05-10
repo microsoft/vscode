@@ -15,6 +15,7 @@ import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
+import { editorOverviewRulerBorder } from 'vs/editor/common/view/editorColorRegistry';
 
 function getThemeType(themeId: string): editorCommon.ThemeType {
 	if (themes.isHighContrastTheme(themeId)) {
@@ -34,13 +35,12 @@ export class DecorationsOverviewRuler extends ViewPart {
 	private static _CURSOR_COLOR = 'rgba(0, 0, 102, 0.8)';
 	private static _CURSOR_COLOR_DARK = 'rgba(152, 152, 152, 0.8)';
 
-	private static _BORDER_COLOR = 'rgba(127,127,127,0.3)';
-
 	private readonly _tokensColorTrackerListener: IDisposable;
 
 	private _overviewRuler: OverviewRulerImpl;
 
 	private _renderBorder: boolean;
+	private _borderColor: string;
 
 	private _shouldUpdateDecorations: boolean;
 	private _shouldUpdateCursorPosition: boolean;
@@ -70,6 +70,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._overviewRuler.setLayout(this._context.configuration.editor.layoutInfo.overviewRuler, false);
 
 		this._renderBorder = this._context.configuration.editor.viewInfo.overviewRulerBorder;
+
+		let borderColor = this._context.theme.getColor(editorOverviewRulerBorder);
+		this._borderColor = borderColor ? borderColor.toString() : null;
+
 
 		this._updateBackground(false);
 		this._tokensColorTrackerListener = TokenizationRegistry.onDidChange((e) => {
@@ -163,6 +167,12 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		let borderColor = this._context.theme.getColor(editorOverviewRulerBorder);
+		this._borderColor = borderColor ? borderColor.toString() : null;
+		return true;
+	}
+
 	// ---- end view event handlers
 
 	public getDomNode(): HTMLElement {
@@ -240,11 +250,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 		let hasRendered = this._overviewRuler.render(false);
 
-		if (hasRendered && this._renderBorder && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
+		if (hasRendered && this._renderBorder && this._borderColor && this._overviewRuler.getLanesCount() > 0 && (this._zonesFromDecorations.length > 0 || this._zonesFromCursors.length > 0)) {
 			let ctx2 = this._overviewRuler.getDomNode().getContext('2d');
 			ctx2.beginPath();
 			ctx2.lineWidth = 1;
-			ctx2.strokeStyle = DecorationsOverviewRuler._BORDER_COLOR;
+			ctx2.strokeStyle = this._borderColor;
 			ctx2.moveTo(0, 0);
 			ctx2.lineTo(0, this._overviewRuler.getPixelHeight());
 			ctx2.stroke();
