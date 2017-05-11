@@ -144,6 +144,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					options: DebugEditorModelManager.TOP_STACK_FRAME_DECORATION,
 					range: columnUntilEOLRange
 				});
+				if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
+					result.push({
+						options: { className: 'debug-top-stack-frame-range' },
+						range: stackFrame.range
+					});
+				}
 
 				if (this.modelDataMap.has(modelUriStr)) {
 					const modelData = this.modelDataMap.get(modelUriStr);
@@ -161,6 +167,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_MARGIN,
 				range
 			});
+			if (stackFrame.range.endLineNumber && stackFrame.range.endColumn) {
+				result.push({
+					options: { className: 'debug-focused-stack-frame-range' },
+					range: stackFrame.range
+				});
+			}
 
 			result.push({
 				options: DebugEditorModelManager.FOCUSED_STACK_FRAME_DECORATION,
