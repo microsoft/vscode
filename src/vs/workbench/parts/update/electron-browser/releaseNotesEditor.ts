@@ -92,10 +92,18 @@ export class ReleaseNotesEditor extends BaseEditor {
 			.then<void>(body => {
 				this.webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
 				this.webview.baseUrl = `https://code.visualstudio.com/raw/`;
+				if (this.input && this.input instanceof ReleaseNotesInput) {
+					this.webview.initialScrollProgress = this.input.scrollYPercentage;
+				}
 				this.webview.style(this.themeService.getTheme());
 				this.webview.contents = [body];
 
 				this.webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
+				this.webview.onDidScroll(event => {
+					if (this.input && this.input instanceof ReleaseNotesInput) {
+						this.input.updateScroll(event.scrollYPercentage);
+					}
+				}, null, this.contentDisposables);
 				this.themeService.onThemeChange(themeId => this.webview.style(themeId), null, this.contentDisposables);
 				this.contentDisposables.push(this.webview);
 				this.contentDisposables.push(toDisposable(() => this.webview = null));
