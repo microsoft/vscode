@@ -24,6 +24,21 @@ import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/se
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 
 import Webview from './webview';
+import { Scope } from "vs/workbench/common/memento";
+import { IStorageService } from "vs/platform/storage/common/storage";
+
+const HTML_PREVIEW_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'htmlPreviewEditorViewState';
+
+interface HtmlPreviewEditorViewState {
+	scrollYPercentage: number;
+}
+
+interface HtmlPreviewEditorViewStates {
+	0?: HtmlPreviewEditorViewState;
+	1?: HtmlPreviewEditorViewState;
+	2?: HtmlPreviewEditorViewState;
+}
+
 
 
 /**
@@ -46,13 +61,17 @@ export class HtmlPreviewPart extends BaseEditor {
 	private _modelChangeSubscription = EmptyDisposable;
 	private _themeChangeSubscription = EmptyDisposable;
 
+	private scrollYPercentage: number;
+
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
 		@IThemeService protected themeService: IThemeService,
 		@IOpenerService openerService: IOpenerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IPartService private partService: IPartService
+		@IPartService private partService: IPartService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService);
 
@@ -85,7 +104,8 @@ export class HtmlPreviewPart extends BaseEditor {
 			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART));
 			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
 			if (this.input && this.input instanceof HtmlInput) {
-				this.webview.initialScrollProgress = this.input.scrollYPercentage;
+				this.loadTextEditorViewState(this.input.getResource());
+				this.webview.initialScrollProgress = this.scrollYPercentage;
 			}
 
 			this._webviewDisposables = [
@@ -93,9 +113,7 @@ export class HtmlPreviewPart extends BaseEditor {
 				this._webview.onDidClickLink(uri => this._openerService.open(uri)),
 				this._webview.onDidLoadContent(data => this.telemetryService.publicLog('previewHtml', data.stats)),
 				this._webview.onDidScroll(data => {
-					if (this.input && this.input instanceof HtmlInput) {
-						this.input.updateScroll(data.scrollYPercentage);
-					}
+					this.scrollYPercentage = data.scrollYPercentage;
 				})
 			];
 		}
@@ -151,9 +169,20 @@ export class HtmlPreviewPart extends BaseEditor {
 	}
 
 	public clearInput(): void {
+		if (this.input instanceof HtmlInput) {
+			this.saveTextEditorViewState(this.input.getResource());
+		}
+
 		dispose(this._modelRef);
 		this._modelRef = undefined;
 		super.clearInput();
+	}
+
+	public shutdown(): void {
+		if (this.input instanceof HtmlInput) {
+			this.saveTextEditorViewState(this.input.getResource());
+		}
+		super.shutdown();
 	}
 
 	public sendMessage(data: any): void {
@@ -166,6 +195,10 @@ export class HtmlPreviewPart extends BaseEditor {
 			return TPromise.as(undefined);
 		}
 
+		if (this.input instanceof HtmlInput) {
+			this.saveTextEditorViewState(this.input.getResource());
+		}
+
 		if (this._modelRef) {
 			this._modelRef.dispose();
 		}
@@ -174,6 +207,7 @@ export class HtmlPreviewPart extends BaseEditor {
 		if (!(input instanceof HtmlInput)) {
 			return TPromise.wrapError<void>('Invalid input');
 		}
+
 
 		return super.setInput(input, options).then(() => {
 			const resourceUri = input.getResource();
@@ -193,11 +227,50 @@ export class HtmlPreviewPart extends BaseEditor {
 						this.webview.contents = this.model.getLinesContent();
 					}
 				});
+				this.loadTextEditorViewState(resourceUri);
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.contents = this.model.getLinesContent();
-				this.webview.initialScrollProgress = input.scrollYPercentage;
+				this.webview.initialScrollProgress = this.scrollYPercentage;
 				return undefined;
 			});
 		});
+	}
+
+	private saveTextEditorViewState(resource: URI): void {
+		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+		let editorViewStateMemento = memento[HTML_PREVIEW_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (!editorViewStateMemento) {
+			editorViewStateMemento = Object.create(null);
+			memento[HTML_PREVIEW_EDITOR_VIEW_STATE_PREFERENCE_KEY] = editorViewStateMemento;
+		}
+
+		const scrollYPercentage = this.scrollYPercentage;
+		const editorViewState: HtmlPreviewEditorViewState = {
+			scrollYPercentage: scrollYPercentage
+		};
+
+		let fileViewState: HtmlPreviewEditorViewStates = editorViewStateMemento[resource.toString()];
+		if (!fileViewState) {
+			fileViewState = Object.create(null);
+			editorViewStateMemento[resource.toString()] = fileViewState;
+		}
+
+		if (typeof this.position === 'number') {
+			fileViewState[this.position] = editorViewState;
+		}
+	}
+
+	private loadTextEditorViewState(resource: URI) {
+		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+		const editorViewStateMemento = memento[HTML_PREVIEW_EDITOR_VIEW_STATE_PREFERENCE_KEY];
+		if (editorViewStateMemento) {
+			const fileViewState: HtmlPreviewEditorViewStates = editorViewStateMemento[resource.toString()];
+			if (fileViewState) {
+				const state: HtmlPreviewEditorViewState = fileViewState[this.position];
+				if (state) {
+					this.webview.initialScrollProgress = state.scrollYPercentage;
+				}
+			}
+		}
 	}
 }
