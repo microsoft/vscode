@@ -67,10 +67,10 @@
 	display: none;
 }
 
-.scm-viewlet .monaco-list .monaco-list-row.focused > .resource-group > .actions,
-.scm-viewlet .monaco-list .monaco-list-row.focused > .resource > .actions,
-.scm-viewlet .monaco-list .monaco-list-row.focused.selected > .resource-group > .actions,
-.scm-viewlet .monaco-list .monaco-list-row.focused.selected  > .resource > .actions,
+.scm-viewlet .monaco-list.focused .monaco-list-row.focused > .resource-group > .actions,
+.scm-viewlet .monaco-list.focused .monaco-list-row.focused > .resource > .actions,
+.scm-viewlet .monaco-list.focused .monaco-list-row.focused.selected > .resource-group > .actions,
+.scm-viewlet .monaco-list.focused .monaco-list-row.focused.selected  > .resource > .actions,
 .scm-viewlet .monaco-list:not(.selection-multiple) .monaco-list-row > .resource:hover > .actions {
 	display: block;
 }

@@ -15,7 +15,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { append, $, toggleClass } from 'vs/base/browser/dom';
+import { append, $, toggleClass, addClass, removeClass } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -322,6 +322,17 @@ export class SCMViewlet extends Viewlet {
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
+
+		// Add a logical list focus that will be active even if an action has :focus
+		this._register(this.list.onDOMFocus(() => {
+			addClass(this.list.getHTMLElement(), 'focused');
+		}));
+
+		this._register(this.list.onDOMBlur(() => {
+			removeClass(this.list.getHTMLElement(), 'focused');
+		}));
+
+
 
 		this.setActiveProvider(this.scmService.activeProvider);
 		this.scmService.onDidChangeProvider(this.setActiveProvider, this, this.disposables);
