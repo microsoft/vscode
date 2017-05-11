@@ -107,7 +107,6 @@ export default class BufferSyncSupport {
 
 	private _validate: boolean;
 	private modeIds: ObjectMap<boolean>;
-	private extensions: ObjectMap<boolean>;
 	private diagnostics: Diagnostics;
 	private disposables: Disposable[] = [];
 	private syncedBuffers: ObjectMap<SyncedBuffer>;
@@ -119,12 +118,11 @@ export default class BufferSyncSupport {
 	private emitQueue: LinkedMap<string>;
 	private checkGlobalTSCVersion: boolean;
 
-	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: ObjectMap<boolean>, validate: boolean = true) {
+	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, validate: boolean = true) {
 		this.client = client;
 		this.modeIds = Object.create(null);
 		modeIds.forEach(modeId => this.modeIds[modeId] = true);
 		this.diagnostics = diagnostics;
-		this.extensions = extensions;
 		this._validate = validate;
 
 		this.projectValidationRequested = false;
