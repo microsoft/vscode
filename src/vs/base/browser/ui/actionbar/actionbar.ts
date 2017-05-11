@@ -410,6 +410,13 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 				this.focusPrevious();
 			} else if (event.equals(isVertical ? KeyCode.DownArrow : KeyCode.RightArrow)) {
 				this.focusNext();
+
+
+			} else if (event.equals(!isVertical ? KeyCode.UpArrow : KeyCode.LeftArrow)) {
+				console.log('discard: Up-Left');
+			} else if (event.equals(!isVertical ? KeyCode.DownArrow : KeyCode.RightArrow)) {
+				console.log('discard: Down-Right');
+
 			} else if (event.equals(KeyCode.Escape)) {
 				this.cancel();
 			} else if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
