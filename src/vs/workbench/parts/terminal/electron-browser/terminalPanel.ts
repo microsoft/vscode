@@ -151,9 +151,6 @@ export class TerminalPanel extends Panel {
 	}
 
 	private _attachEventListeners(): void {
-		this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => this._refreshCtrlHeld(e)));
-		this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => this._refreshCtrlHeld(e)));
-		this._register(DOM.addDisposableListener(window, DOM.EventType.FOCUS, (e: KeyboardEvent) => this._refreshCtrlHeld(e)));
 		this._register(DOM.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
@@ -213,10 +210,6 @@ export class TerminalPanel extends Panel {
 				event.stopPropagation();
 			}
 		}));
-	}
-
-	private _refreshCtrlHeld(e: KeyboardEvent): void {
-		this._parentDomElement.classList.toggle('ctrlcmd-held', platform.isMacintosh ? e.metaKey : e.ctrlKey);
 	}
 
 	private _updateTheme(theme?: ITheme): void {

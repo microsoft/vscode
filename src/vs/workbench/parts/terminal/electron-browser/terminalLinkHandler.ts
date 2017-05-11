@@ -56,6 +56,7 @@ export type XtermLinkMatcherValidationCallback = (uri: string, element: HTMLElem
 
 export class TerminalLinkHandler {
 	private _tooltipDisposables: IDisposable[] = [];
+	private _tooltipMouseMoveDisposable: IDisposable;
 	private _widgetManager: TerminalWidgetManager;
 
 	private _localLinkPattern: RegExp;
@@ -165,7 +166,11 @@ export class TerminalLinkHandler {
 	private _addTooltipEventListeners(element: HTMLElement): void {
 		let timeout = null;
 		let isMessageShowing = false;
-		this._tooltipDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, () => {
+		this._tooltipDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, e => {
+			element.classList.toggle('active', platform.isMacintosh ? e.metaKey : e.ctrlKey);
+			this._tooltipMouseMoveDisposable = dom.addDisposableListener(element, dom.EventType.MOUSE_MOVE, e => {
+				element.classList.toggle('active', platform.isMacintosh ? e.metaKey : e.ctrlKey);
+			});
 			timeout = setTimeout(() => {
 				let message: string;
 				if (platform.isMacintosh) {
@@ -178,6 +183,10 @@ export class TerminalLinkHandler {
 			}, 500);
 		}));
 		this._tooltipDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => {
+			element.classList.remove('active');
+			if (this._tooltipMouseMoveDisposable) {
+				this._tooltipMouseMoveDisposable.dispose();
+			}
 			clearTimeout(timeout);
 			this._widgetManager.closeMessage();
 			isMessageShowing = false;
