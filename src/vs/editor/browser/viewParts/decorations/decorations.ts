@@ -9,7 +9,7 @@ import 'vs/css!./decorations';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
@@ -17,12 +17,14 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 	private _context: ViewContext;
 	private _lineHeight: number;
+	private _typicalHalfwidthCharacterWidth: number;
 	private _renderResult: string[];
 
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		this._renderResult = null;
 
 		this._context.addEventHandler(this);
@@ -40,6 +42,9 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
+		}
+		if (e.fontInfo) {
+			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		}
 		return true;
 	}
@@ -152,6 +157,14 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 			let linesVisibleRanges = ctx.linesVisibleRangesForRange(d.range, /*TODO@Alex*/className === 'findMatch');
 			if (!linesVisibleRanges) {
 				continue;
+			}
+
+			if (linesVisibleRanges.length === 1 && linesVisibleRanges[0].ranges.length === 1) {
+				const singleVisibleRange = linesVisibleRanges[0].ranges[0];
+				if (singleVisibleRange.width === 0) {
+					// collapsed range case => make the decoration visible by faking its width
+					linesVisibleRanges[0].ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
+				}
 			}
 
 			for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
