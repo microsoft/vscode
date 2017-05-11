@@ -1,9 +1,14 @@
+Param(
+   [string]$mixinPassword
+)
+
 . .\build\tfs\win32\lib.ps1
 
 # npm install
 exec { & .\scripts\npm.bat install }
 
 # mixin
+$env:VSCODE_MIXIN_PASSWORD = $mixinPassword
 exec { & npm run gulp -- mixin }
 
 # compile
