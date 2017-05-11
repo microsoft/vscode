@@ -406,6 +406,69 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 	});
 });
 
+
+suite('keyboardMapper - WINDOWS por_ptb', () => {
+
+	let mapper: WindowsKeyboardMapper;
+
+	suiteSetup((done) => {
+		createKeyboardMapper('win_por_ptb').then((_mapper) => {
+			mapper = _mapper;
+			done();
+		}, done);
+	});
+
+	test('mapping', (done) => {
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_por_ptb.txt', done);
+	});
+
+	test('resolveKeyboardEvent Ctrl+[IntlRo]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.ABNT_C1,
+				code: null
+			},
+			{
+				label: 'Ctrl+/',
+				ariaLabel: 'Control+/',
+				electronAccelerator: 'Ctrl+ABNT_C1',
+				userSettingsLabel: 'ctrl+abnt_c1',
+				isWYSIWYG: false,
+				isChord: false,
+				dispatchParts: ['ctrl+ABNT_C1', null],
+			}
+		);
+	});
+
+	test('resolveKeyboardEvent Ctrl+[NumpadComma]', () => {
+		assertResolveKeyboardEvent(
+			mapper,
+			{
+				ctrlKey: true,
+				shiftKey: false,
+				altKey: false,
+				metaKey: false,
+				keyCode: KeyCode.ABNT_C2,
+				code: null
+			},
+			{
+				label: 'Ctrl+.',
+				ariaLabel: 'Control+.',
+				electronAccelerator: 'Ctrl+ABNT_C2',
+				userSettingsLabel: 'ctrl+abnt_c2',
+				isWYSIWYG: false,
+				isChord: false,
+				dispatchParts: ['ctrl+ABNT_C2', null],
+			}
+		);
+	});
+});
+
 suite('misc', () => {
 	test('issue #23513: Toggle Sidebar Visibility and Go to Line display same key mapping in Arabic keyboard', () => {
 		const mapper = new WindowsKeyboardMapper({

@@ -357,11 +357,13 @@ declare module monaco {
 		 * Cover all key codes when IME is processing input.
 		 */
 		KEY_IN_COMPOSITION = 109,
+		ABNT_C1 = 110,
+		ABNT_C2 = 111,
 		/**
 		 * Placed last to cover the length of the enum.
 		 * Please do not depend on this value!
 		 */
-		MAX_VALUE = 110,
+		MAX_VALUE = 112,
 	}
 
 	export class KeyMod {
