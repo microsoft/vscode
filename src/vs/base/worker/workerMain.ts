@@ -13,6 +13,9 @@
 		importScripts(monacoBaseUrl + 'vs/loader.js');
 	}
 
+	// import TypeScript helpers
+	importScripts(monacoBaseUrl + '/vs/tslib.js');
+
 	require.config({
 		baseUrl: monacoBaseUrl,
 		catchError: true

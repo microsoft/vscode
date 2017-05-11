@@ -153,6 +153,9 @@ function main() {
 		webFrame.setZoomLevel(zoomLevel);
 	}
 
+	// load ts-helpers like __extends
+	require(path.join(configuration.appRoot, 'out/vs/tslib.js'));
+
 	// Load the loader and start loading the workbench
 	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
 

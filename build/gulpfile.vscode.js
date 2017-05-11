@@ -58,6 +58,7 @@ const vscodeResources = [
 	'out-build/bootstrap.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/paths.js',
+	'out-build/vs/tslib.js',
 	'out-build/vs/**/*.{svg,png,cur,html}',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
@@ -362,7 +363,7 @@ const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
 const apiToken = process.env.TRANSIFEX_API_TOKEN;
 
-gulp.task('vscode-translations-push', ['optimize-vscode'], function() {
+gulp.task('vscode-translations-push', ['optimize-vscode'], function () {
 	const pathToMetadata = './out-vscode/nls.metadata.json';
 	const pathToExtensions = './extensions/**/*.nls.json';
 	const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
@@ -374,7 +375,7 @@ gulp.task('vscode-translations-push', ['optimize-vscode'], function() {
 	).pipe(i18n.pushXlfFiles(apiHostname, apiName, apiToken));
 });
 
-gulp.task('vscode-translations-pull', function() {
+gulp.task('vscode-translations-pull', function () {
 	return es.merge(
 		i18n.pullXlfFiles('vscode-editor', apiHostname, apiName, apiToken, vscodeLanguages),
 		i18n.pullXlfFiles('vscode-workbench', apiHostname, apiName, apiToken, vscodeLanguages),
@@ -383,7 +384,7 @@ gulp.task('vscode-translations-pull', function() {
 	).pipe(vfs.dest('../vscode-localization'));
 });
 
-gulp.task('vscode-translations-import', function() {
+gulp.task('vscode-translations-import', function () {
 	return gulp.src('../vscode-localization/**/*.xlf').pipe(i18n.prepareJsonFiles()).pipe(vfs.dest('./i18n'));
 });
 

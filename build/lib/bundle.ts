@@ -226,8 +226,7 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 	});
 
 	return {
-		// TODO@TS 2.1.2
-		files: extractStrings(removeDuplicateTSBoilerplate(result)),
+		files: extractStrings(result),
 		bundleData: bundleData
 	};
 }
@@ -323,57 +322,6 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 			contents: '}).call(this);'
 		});
 	});
-	return destFiles;
-}
-
-function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
-	// Taken from typescript compiler => emitFiles
-	let BOILERPLATE = [
-		{ start: /^var __extends/, end: /^}\)\(\);$/ },
-		{ start: /^var __assign/, end: /^};$/ },
-		{ start: /^var __decorate/, end: /^};$/ },
-		{ start: /^var __metadata/, end: /^};$/ },
-		{ start: /^var __param/, end: /^};$/ },
-		{ start: /^var __awaiter/, end: /^};$/ },
-	];
-
-	destFiles.forEach((destFile) => {
-		let SEEN_BOILERPLATE = [];
-		destFile.sources.forEach((source) => {
-			let lines = source.contents.split(/\r\n|\n|\r/);
-			let newLines: string[] = [];
-			let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
-
-			for (let i = 0; i < lines.length; i++) {
-				let line = lines[i];
-				if (IS_REMOVING_BOILERPLATE) {
-					newLines.push('');
-					if (END_BOILERPLATE.test(line)) {
-						IS_REMOVING_BOILERPLATE = false;
-					}
-				} else {
-					for (let j = 0; j < BOILERPLATE.length; j++) {
-						let boilerplate = BOILERPLATE[j];
-						if (boilerplate.start.test(line)) {
-							if (SEEN_BOILERPLATE[j]) {
-								IS_REMOVING_BOILERPLATE = true;
-								END_BOILERPLATE = boilerplate.end;
-							} else {
-								SEEN_BOILERPLATE[j] = true;
-							}
-						}
-					}
-					if (IS_REMOVING_BOILERPLATE) {
-						newLines.push('');
-					} else {
-						newLines.push(line);
-					}
-				}
-			}
-			source.contents = newLines.join('\n');
-		});
-	});
-
 	return destFiles;
 }
 

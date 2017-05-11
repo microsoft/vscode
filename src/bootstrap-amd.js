@@ -6,6 +6,8 @@
 var path = require('path');
 var loader = require('./vs/loader');
 
+require('./vs/tslib');
+
 function uriFromPath(_path) {
 	var pathName = path.resolve(_path).replace(/\\/g, '/');
 

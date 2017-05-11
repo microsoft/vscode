@@ -21,6 +21,9 @@ function initLoader(opts) {
 	let outdir = opts.build ? 'out-build' : 'out';
 	_out = path.join(__dirname, `../../${outdir}`);
 
+	// setup typescript
+	require(`${_out}/vs/tslib`);
+
 	// setup loader
 	loader = require(`${_out}/vs/loader`);
 	const loaderConfig = {
