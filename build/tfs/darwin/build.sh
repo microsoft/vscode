@@ -37,4 +37,4 @@ node build/tfs/out/publish.js $VSCODE_QUALITY darwin archive-unsigned VSCode-dar
 node build/tfs/out/enqueue.js $VSCODE_QUALITY
 
 # wait for signed build
-node build/tfs/out/waitForSignedBuild.js $VSCODE_QUALITY $VERSION
+node build/tfs/out/waitForSignedBuild.js $VSCODE_QUALITY
