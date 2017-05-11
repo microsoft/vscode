@@ -378,6 +378,24 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 11, 1, 11));
 	});
 
+	// test('snippets, typing with nested placeholder', function () {
+
+	// 	editor.setSelection(new Selection(1, 1, 1, 1));
+	// 	const session = new SnippetSession(editor, 'This ${1:is ${2:nested}}.$0');
+	// 	session.insert();
+	// 	assertSelections(editor, new Selection(1, 6, 1, 15));
+
+	// 	session.next();
+	// 	assertSelections(editor, new Selection(1, 9, 1, 15));
+
+	// 	editor.trigger('test', 'deleteLeft', {});
+	// 	assertSelections(editor, new Selection(1, 9, 1, 9));
+
+	// 	editor.trigger('test', 'type', { text: 'XXX' });
+	// 	session.prev();
+	// 	assertSelections(editor, new Selection(1, 6, 1, 12));
+	// });
+
 	test('snippets, snippet with variables', function () {
 		const session = new SnippetSession(editor, '@line=$TM_LINE_NUMBER$0');
 		session.insert();
