@@ -21,7 +21,6 @@ class OneSnippet {
 	private readonly _snippet: TextmateSnippet;
 	private readonly _offset: number;
 
-	private _snippetDecoration: string;
 	private _placeholderDecorations: Map<Placeholder, string>;
 	private _placeholderGroups: Placeholder[][];
 	private _placeholderGroupsIdx: number;
@@ -31,7 +30,6 @@ class OneSnippet {
 		inactive: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'snippet-placeholder' },
 		activeFinal: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' },
 		inactiveFinal: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' },
-		snippet: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges },
 	};
 
 	constructor(editor: ICommonCodeEditor, snippet: TextmateSnippet, offset: number) {
@@ -59,13 +57,6 @@ class OneSnippet {
 		const model = this._editor.getModel();
 
 		this._editor.changeDecorations(accessor => {
-
-			// create one decoration for the whole snippets
-			const range = Range.fromPositions(
-				model.getPositionAt(this._offset),
-				model.getPositionAt(this._offset + this._snippet.text.length)
-			);
-			this._snippetDecoration = accessor.addDecoration(range, OneSnippet._decor.snippet);
 
 			// create a decoration for each placeholder
 			for (const placeholder of this._snippet.placeholders) {
@@ -151,8 +142,17 @@ class OneSnippet {
 		return this._snippet.placeholders.length > 0;
 	}
 
-	get range() {
-		return this._snippetDecoration !== undefined && this._editor.getModel().getDecorationRange(this._snippetDecoration);
+	get placeholderRanges() {
+		const ret: Range[] = [];
+		this._placeholderDecorations.forEach((id, placeholder) => {
+			if (!placeholder.isFinalTabstop) {
+				const range = this._editor.getModel().getDecorationRange(id);
+				if (range) {
+					ret.push(range);
+				}
+			}
+		});
+		return ret;
 	}
 }
 
@@ -307,27 +307,38 @@ export class SnippetSession {
 		return this._snippets[0].hasPlaceholder;
 	}
 
-	validateSelections(): boolean {
+	isSelectionWithPlaceholders(): boolean {
 		const selections = this._editor.getSelections();
 		if (selections.length < this._snippets.length) {
+			// this means we started snippet mode with N
+			// selections and have M (N > M) selections.
+			// So one snippet is without selection -> cancel
 			return false;
 		}
 
-		for (const selection of selections) {
-			let found = false;
-			for (const { range } of this._snippets) {
-				if (!range) {
-					// all deleted
-					return false;
-				}
+		const ranges: Range[] = [];
+		for (const snippet of this._snippets) {
+			ranges.push(...snippet.placeholderRanges);
+		}
+
+		if (selections.length > ranges.length) {
+			return false;
+		}
+
+		// sort selections and ranges by their start position
+		// and then make sure each selection is contained by
+		// a placeholder range
+		selections.sort(Range.compareRangesUsingStarts);
+		ranges.sort(Range.compareRangesUsingStarts);
+
+		outer: for (const selection of selections) {
+			let range: Range;
+			while (range = ranges.shift()) {
 				if (range.containsRange(selection)) {
-					found = true;
-					break;
+					continue outer;
 				}
 			}
-			if (!found) {
-				return false;
-			}
+			return false;
 		}
 
 		return true;

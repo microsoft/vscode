@@ -57,11 +57,12 @@ export class SnippetController2 {
 			this.cancel();
 		}
 		this._snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
+		this._snippet.insert();
 		this._snippetListener = [
 			this._editor.onDidChangeModel(() => this.cancel()),
 			this._editor.onDidChangeCursorSelection(() => this._updateState())
 		];
-		this._snippet.insert();
+		this._updateState();
 	}
 
 	private _updateState(): void {
@@ -76,7 +77,7 @@ export class SnippetController2 {
 			return;
 		}
 
-		if (this._snippet.isAtFinalPlaceholder || !this._snippet.validateSelections()) {
+		if (this._snippet.isAtFinalPlaceholder || !this._snippet.isSelectionWithPlaceholders()) {
 			return this.cancel();
 		}
 
