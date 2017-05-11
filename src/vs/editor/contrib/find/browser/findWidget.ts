@@ -50,7 +50,6 @@ const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}")
 const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
 
 let MAX_MATCHES_COUNT_WIDTH = 69;
-const WIDGET_FIXED_WIDTH = 411 - 69;
 
 export class FindWidgetViewZone implements IViewZone {
 
@@ -131,7 +130,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));
 
 		this._buildDomNode();
-		this._resizeSash = new Sash(this._domNode, this, { orientation: 0});
+		this._resizeSash = new Sash(this._domNode, this, { orientation: 0 });
 		let data: { startX: number; };
 		let originalWidth = 411;
 		this._register(this._resizeSash.addListener('start', (e: ISashEvent) => {
@@ -147,8 +146,24 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		this._register(this._resizeSash.addListener('change', (evt: ISashEvent) => {
 			if (data) {
-				this._domNode.style.width = `${originalWidth + data.startX - evt.currentX}px`;
-				this._findInput.setWidth(FindWidget.FIND_INPUT_AREA_WIDTH + Math.max(0, data.startX - evt.currentX));
+				let reducedFindWidget = false;
+				let narrowFindWidget = false;
+				let collapsedFindWidget = false;
+				let width = originalWidth + data.startX - evt.currentX;
+				if (width < 411) {
+					reducedFindWidget = true;
+			}
+				if (width < 411 - 69) {
+					narrowFindWidget = true;
+				}
+				if (width < 265) {
+					collapsedFindWidget = true;
+				}
+				dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
+				dom.toggleClass(this._domNode, 'narrow-find-widget', narrowFindWidget);
+				dom.toggleClass(this._domNode, 'reduced-find-widget', reducedFindWidget);
+				this._domNode.style.width = `${width}px`;
+				// this._findInput.setWidth(FindWidget.FIND_INPUT_AREA_WIDTH + Math.max(0, data.startX - evt.currentX));
 			}
 		}));
 		this._updateButtons();
@@ -170,8 +185,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				reducedFindWidget = true;
 			}
 			dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
-			dom.toggleClass(this._domNode, 'reduced-find-widget', reducedFindWidget);
 			dom.toggleClass(this._domNode, 'narrow-find-widget', narrowFindWidget);
+			dom.toggleClass(this._domNode, 'reduced-find-widget', reducedFindWidget);
 			if (collapsedFindWidget) {
 				this._domNode.style.maxWidth = '111px';
 			} else if (narrowFindWidget) {
