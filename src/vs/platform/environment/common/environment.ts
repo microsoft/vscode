@@ -38,7 +38,7 @@ export interface ParsedArgs {
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: string | string[];
 	'prof-startup-timers': string;
-	noGettingStarted?: boolean;
+	'skip-getting-started'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -79,7 +79,7 @@ export interface IEnvironmentService {
 	performance: boolean;
 	profileStartup: { prefix: string, dir: string } | undefined;
 
-	noGettingStarted: boolean | undefined;
+	skipGettingStarted: boolean | undefined;
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
