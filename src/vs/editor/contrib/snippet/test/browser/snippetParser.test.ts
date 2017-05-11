@@ -318,13 +318,13 @@ suite('SnippetParser', () => {
 			assert.equal(lengths.length, 0);
 		}
 
-		assertLen('text', 4);
-		assertLen('$1text', 0, 4);
-		assertLen('te$1xt', 2, 0, 2);
+		assertLen('text$0', 4, 0);
+		assertLen('$1text$0', 0, 4, 0);
+		assertLen('te$1xt$0', 2, 0, 2, 0);
 		assertLen('errorContext: `${1:err}`, error: $0', 15, 0, 3, 10, 0);
-		assertLen('errorContext: `${1:err}`, error: $1', 15, 0, 3, 10, 0, 3);
-		assertLen('$TM_SELECTED_TEXT', 0);
-		assertLen('${TM_SELECTED_TEXT:def}', 0, 3);
+		assertLen('errorContext: `${1:err}`, error: $1$0', 15, 0, 3, 10, 0, 3, 0);
+		assertLen('$TM_SELECTED_TEXT$0', 0, 0);
+		assertLen('${TM_SELECTED_TEXT:def}$0', 0, 3, 0);
 	});
 
 	test('TextmateSnippet#offset', () => {
@@ -342,21 +342,21 @@ suite('SnippetParser', () => {
 	});
 
 	test('TextmateSnippet#placeholder', () => {
-		let snippet = SnippetParser.parse('te$1xt');
+		let snippet = SnippetParser.parse('te$1xt$0');
 		let placeholders = snippet.placeholders;
-		assert.equal(placeholders.length, 1);
-
-		snippet = SnippetParser.parse('te$1xt$1');
-		placeholders = snippet.placeholders;
 		assert.equal(placeholders.length, 2);
 
-
-		snippet = SnippetParser.parse('te$1xt$2');
+		snippet = SnippetParser.parse('te$1xt$1$0');
 		placeholders = snippet.placeholders;
-		assert.equal(placeholders.length, 2);
+		assert.equal(placeholders.length, 3);
 
-		snippet = SnippetParser.parse('${1:bar${2:foo}bar}');
+
+		snippet = SnippetParser.parse('te$1xt$2$0');
 		placeholders = snippet.placeholders;
-		assert.equal(placeholders.length, 2);
+		assert.equal(placeholders.length, 3);
+
+		snippet = SnippetParser.parse('${1:bar${2:foo}bar}$0');
+		placeholders = snippet.placeholders;
+		assert.equal(placeholders.length, 3);
 	});
 });

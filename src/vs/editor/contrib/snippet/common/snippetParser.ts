@@ -297,7 +297,7 @@ export class SnippetParser {
 	}
 
 	static parse(template: string): TextmateSnippet {
-		const marker = new SnippetParser(true, false).parse(template);
+		const marker = new SnippetParser(true, false).parse(template, true);
 		return new TextmateSnippet(marker);
 	}
 
@@ -316,7 +316,7 @@ export class SnippetParser {
 		return Marker.toString(this.parse(value));
 	}
 
-	parse(value: string): Marker[] {
+	parse(value: string, insertFinalTabstop?: boolean): Marker[] {
 		const marker: Marker[] = [];
 
 		this._scanner.text(value);
@@ -359,10 +359,15 @@ export class SnippetParser {
 		const placeholderDefaultValues = new Map<string, Marker[]>();
 		walk(marker, placeholderDefaultValues);
 
-		// if (placeholderDefaultValues.size > 0 && !placeholderDefaultValues.has('0')) {
-		// 	// snippet uses tabstops but has no final tabstop
-		// 	marker.push(new Placeholder('0', []));
-		// }
+		if (
+			insertFinalTabstop
+			&& placeholderDefaultValues.size > 0
+			&& !placeholderDefaultValues.has('0')
+		) {
+			// the snippet uses placeholders but has no
+			// final tabstop defined -> insert at the end
+			marker.push(new Placeholder('0', []));
+		}
 
 		return marker;
 	}
