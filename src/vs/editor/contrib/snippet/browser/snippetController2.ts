@@ -10,9 +10,9 @@ import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { commonEditorContribution, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { SnippetSession } from './editorSnippets';
-import { EditorCommand } from "vs/editor/common/config/config";
-import { EditorContextKeys } from "vs/editor/common/editorContextKeys";
-import { KeyCode, KeyMod } from "vs/base/common/keyCodes";
+import { EditorCommand } from 'vs/editor/common/config/config';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 @commonEditorContribution
 export class SnippetController2 {
