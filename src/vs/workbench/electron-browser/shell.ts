@@ -280,7 +280,7 @@ export class WorkbenchShell {
 
 	private handleNegativePerformanceNumbers(i: IInstantiationService, time: number): void {
 		this.messageService.show(Severity.Warning, {
-			message: nls.localize('handleNegativePerformanceNumbers', "Something went wrong measuring startup performance numbers (ellapsed: {0}ms). We would like to learn more about this issue.", time),
+			message: `Something went wrong measuring startup performance numbers (ellapsed: ${time}ms). We would like to learn more about this issue.`,
 			actions: [
 				i.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL),
 				CloseAction
