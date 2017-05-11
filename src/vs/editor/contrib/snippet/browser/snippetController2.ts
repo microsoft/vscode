@@ -43,6 +43,8 @@ export class SnippetController2 {
 
 	dispose(): void {
 		this._inSnippet.reset();
+		this._hasPrevTabstop.reset();
+		this._hasNextTabstop.reset();
 		dispose(this._snippet);
 	}
 
@@ -55,7 +57,10 @@ export class SnippetController2 {
 			this.cancel();
 		}
 		this._snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
-		this._snippetListener = [this._editor.onDidChangeCursorSelection(() => this._updateState())];
+		this._snippetListener = [
+			this._editor.onDidChangeModel(() => this.cancel()),
+			this._editor.onDidChangeCursorSelection(() => this._updateState())
+		];
 		this._snippet.insert();
 	}
 

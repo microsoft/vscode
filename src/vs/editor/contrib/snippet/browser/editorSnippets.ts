@@ -164,11 +164,9 @@ export class SnippetSession {
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
 		const templateLines = template.split(/\r\n|\r|\n/);
 
-		for (let i = 0; i < templateLines.length; i++) {
+		for (let i = 1; i < templateLines.length; i++) {
 			let templateLeadingWhitespace = getLeadingWhitespace(templateLines[i]);
-			if (templateLeadingWhitespace.length > 0) {
-				templateLines[i] = model.normalizeIndentation(lineLeadingWhitespace + templateLeadingWhitespace) + templateLines[i].substr(templateLeadingWhitespace.length);
-			}
+			templateLines[i] = model.normalizeIndentation(lineLeadingWhitespace + templateLeadingWhitespace) + templateLines[i].substr(templateLeadingWhitespace.length);
 		}
 		return templateLines.join(model.getEOL());
 	}
@@ -219,6 +217,12 @@ export class SnippetSession {
 		let edits: IIdentifiedSingleEditOperation[] = [];
 		let model = this._editor.getModel();
 
+		// know what text the overwrite[Before|After] extensions
+		// of the primary curser have selected because only when
+		// secondary selections extend to the same text we can grow them
+		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, this._editor.getSelection(), this._overwriteBefore, 0));
+		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, this._editor.getSelection(), 0, this._overwriteAfter));
+
 		// sort selections by their start position but remeber
 		// the original index. that allows you to create correct
 		// offset-based selection logic without changing the
@@ -228,17 +232,37 @@ export class SnippetSession {
 			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
 
 		for (const { selection, idx } of indexedSelection) {
-			const range = SnippetSession.adjustSelection(model, selection, this._overwriteBefore, this._overwriteAfter);
-			const start = range.getStartPosition();
+
+			// extend selection with the `overwriteBefore` and `overwriteAfter` and then
+			// compare if this matches the extensions of the primary selection
+			let extensionBefore = SnippetSession.adjustSelection(model, selection, this._overwriteBefore, 0);
+			let extensionAfter = SnippetSession.adjustSelection(model, selection, 0, this._overwriteAfter);
+			if (firstBeforeText !== model.getValueInRange(extensionBefore)) {
+				extensionBefore = selection;
+			}
+			if (firstAfterText !== model.getValueInRange(extensionAfter)) {
+				extensionAfter = selection;
+			}
+
+			// merge the before and after selection into one
+			const snippetSelection = selection
+				.setStartPosition(extensionBefore.startLineNumber, extensionBefore.startColumn)
+				.setEndPosition(extensionAfter.endLineNumber, extensionAfter.endColumn);
+
+			// adjust the template string to match the indentation and
+			// whitespace rules of this insert location (can be different for each cursor)
+			const start = snippetSelection.getStartPosition();
 			const adjustedTemplate = SnippetSession.normalizeWhitespace(model, start, this._template);
 
-			const snippet = SnippetParser.parse(adjustedTemplate).resolveVariables(new EditorSnippetVariableResolver(model, range));
+			const snippet = SnippetParser.parse(adjustedTemplate).resolveVariables(new EditorSnippetVariableResolver(model, snippetSelection));
 			const offset = model.getOffsetAt(start) + delta;
+			delta += snippet.text.length - model.getValueLengthInRange(snippetSelection);
 
-			edits[idx] = EditOperation.replaceMove(range, snippet.text);
+			// store snippets with the index of their originating selection.
+			// that ensures the primiary cursor stays primary despite not being
+			// the one with lowest start position
+			edits[idx] = EditOperation.replaceMove(snippetSelection, snippet.text);
 			this._snippets[idx] = new OneSnippet(this._editor, snippet, offset);
-
-			delta += snippet.text.length - model.getValueLengthInRange(range);
 		}
 
 		// make insert edit and start with first selections
@@ -291,8 +315,12 @@ export class SnippetSession {
 
 		for (const selection of selections) {
 			let found = false;
-			for (const snippet of this._snippets) {
-				if (snippet.range.containsRange(selection)) {
+			for (const { range } of this._snippets) {
+				if (!range) {
+					// all deleted
+					return false;
+				}
+				if (range.containsRange(selection)) {
 					found = true;
 					break;
 				}

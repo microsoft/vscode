@@ -50,6 +50,7 @@ suite('SnippetSession', function () {
 		assertNormalized(new Position(1, 1), 'foo\rbar', 'foo\nbar');
 		assertNormalized(new Position(2, 5), 'foo\r\tbar', 'foo\n        bar');
 		assertNormalized(new Position(2, 3), 'foo\r\tbar', 'foo\n      bar');
+		assertNormalized(new Position(2, 5), 'foo\r\tbar\nfoo', 'foo\n        bar\n    foo');
 	});
 
 	test('adjust selection (overwrite[Before|After])', function () {
@@ -111,12 +112,12 @@ suite('SnippetSession', function () {
 		const session = new SnippetSession(editor, 'foo\n\t${1:bar}\n$0');
 		session.insert();
 
-		assert.equal(editor.getModel().getValue(), 'foo\n    bar\nfunction foo() {\n    foo\n        bar\nconsole.log(a);\n}');
+		assert.equal(editor.getModel().getValue(), 'foo\n    bar\nfunction foo() {\n    foo\n        bar\n    console.log(a);\n}');
 
 		assertSelections(editor, new Selection(2, 5, 2, 8), new Selection(5, 9, 5, 12));
 
 		session.next();
-		assertSelections(editor, new Selection(3, 1, 3, 1), new Selection(6, 1, 6, 1));
+		assertSelections(editor, new Selection(3, 1, 3, 1), new Selection(6, 5, 6, 5));
 	});
 
 	test('snippets, selections -> next/prev', () => {
