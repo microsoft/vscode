@@ -23,7 +23,7 @@ process.lazyEnv = new Promise(function (resolve) {
 	const handle = setTimeout(function () {
 		resolve();
 		console.warn('renderer did not receive lazyEnv in time')
-	}, 2000);
+	}, 10000);
 	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
 		clearTimeout(handle);
 		assign(process.env, shellEnv);
