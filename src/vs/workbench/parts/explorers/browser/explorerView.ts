@@ -135,7 +135,12 @@ class TreeExplorerView extends CollapsibleViewletView {
 
 		this.toDispose.push(attachListStyler(tree, this.themeService));
 		this.toDispose.push(this.listService.register(tree, [this.viewFocusContext]));
-
+		tree.addListener('selection', (event: any) => {
+			const selection = tree.getSelection()[0];
+			if (selection) {
+				this.dataProvider.select(selection);
+			}
+		});
 		return tree;
 	}
 

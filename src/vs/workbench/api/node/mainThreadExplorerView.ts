@@ -73,9 +73,11 @@ class TreeExplorerNodeProvider implements IExplorerViewDataProvider<ITreeNode> {
 		return node.contextKey;
 	}
 
-	executeCommand(node: ITreeNode): TPromise<any> {
-		return this._proxy.$getInternalCommand(this.id, node).then(command => {
-			return this.commandService.executeCommand(command.id, ...command.arguments);
+	select(node: ITreeNode): void {
+		this._proxy.$getInternalCommand(this.id, node).then(command => {
+			if (command) {
+				this.commandService.executeCommand(command.id, ...command.arguments);
+			}
 		});
 	}
 }

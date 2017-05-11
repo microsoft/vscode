@@ -33,4 +33,5 @@ export interface IExplorerViewDataProvider<T> {
 	getLabel(element: T): string;
 	getContextKey(element: T): string;
 	hasChildren(element: T): boolean;
+	select(element: T): void;
 }
