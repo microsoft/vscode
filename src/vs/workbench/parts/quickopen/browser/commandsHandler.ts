@@ -20,14 +20,15 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { Registry } from 'vs/platform/platform';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
-import { IEditorAction, IEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction, IEditor, isCommonCodeEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity, IMessageWithAction } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { editorAction, EditorAction } from "vs/editor/common/editorCommonExtensions";
 
 export const ALL_COMMANDS_PREFIX = '>';
 export const EDITOR_COMMANDS_PREFIX = '$';
@@ -41,6 +42,30 @@ export class ShowAllCommandsAction extends QuickOpenAction {
 
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, ALL_COMMANDS_PREFIX, quickOpenService);
+	}
+}
+
+@editorAction
+class CommandPaletteEditorAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.showCommands',
+			label: nls.localize('showCommands.label', "Command Palette..."),
+			alias: 'Command Palette',
+			precondition: null,
+			menuOpts: {
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+		const quickOpenService = accessor.get(IQuickOpenService);
+
+		// Show with prefix
+		quickOpenService.show(ALL_COMMANDS_PREFIX);
+
+		return TPromise.as(null);
 	}
 }
 
