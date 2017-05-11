@@ -148,7 +148,7 @@ function main() {
 
 	// disable pinch zoom & apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
-	webFrame.setZoomLevelLimits(1, 1);
+	webFrame.setVisualZoomLevelLimits(1, 1);
 	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
 		webFrame.setZoomLevel(zoomLevel);
 	}

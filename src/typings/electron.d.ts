@@ -4466,7 +4466,7 @@ declare namespace Electron {
 		/**
 		 * Sets the maximum and minimum zoom level.
 		 */
-		setZoomLevelLimits(minimumLevel: number, maximumLevel: number): void;
+		setVisualZoomLevelLimits(minimumLevel: number, maximumLevel: number): void;
 		/**
 		 * Executes the editing command undo in web page.
 		 */
@@ -5161,7 +5161,7 @@ declare namespace Electron {
 		/**
 		 * Sets the maximum and minimum zoom level.
 		 */
-		setZoomLevelLimits(minimumLevel: number, maximumLevel: number): void;
+		setVisualZoomLevelLimits(minimumLevel: number, maximumLevel: number): void;
 		/**
 		 * Sets a provider for spell checking in input fields and text areas.
 		 */
