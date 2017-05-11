@@ -84,11 +84,19 @@ export class HtmlPreviewPart extends BaseEditor {
 		if (!this._webview) {
 			this._webview = new Webview(this._container, this.partService.getContainer(Parts.EDITOR_PART));
 			this._webview.baseUrl = this._baseUrl && this._baseUrl.toString(true);
+			if (this.input && this.input instanceof HtmlInput) {
+				this.webview.initialScrollProgress = this.input.scrollYPercentage;
+			}
 
 			this._webviewDisposables = [
 				this._webview,
 				this._webview.onDidClickLink(uri => this._openerService.open(uri)),
-				this._webview.onDidLoadContent(data => this.telemetryService.publicLog('previewHtml', data.stats))
+				this._webview.onDidLoadContent(data => this.telemetryService.publicLog('previewHtml', data.stats)),
+				this._webview.onDidScroll(data => {
+					if (this.input && this.input instanceof HtmlInput) {
+						this.input.updateScroll(data.scrollYPercentage);
+					}
+				})
 			];
 		}
 		return this._webview;
@@ -187,7 +195,7 @@ export class HtmlPreviewPart extends BaseEditor {
 				});
 				this.webview.baseUrl = resourceUri.toString(true);
 				this.webview.contents = this.model.getLinesContent();
-
+				this.webview.initialScrollProgress = input.scrollYPercentage;
 				return undefined;
 			});
 		});

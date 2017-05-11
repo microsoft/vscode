@@ -13,8 +13,11 @@ export class ReleaseNotesInput extends EditorInput {
 
 	static get ID() { return 'workbench.releaseNotes.input'; }
 
+	private _scrollYPercentage: number = 0;
+
 	get version(): string { return this._version; }
 	get text(): string { return this._text; }
+	get scrollYPercentage(): number { return this._scrollYPercentage; }
 
 	constructor(private _version: string, private _text: string) {
 		super();
@@ -43,5 +46,9 @@ export class ReleaseNotesInput extends EditorInput {
 
 	supportsSplitEditor(): boolean {
 		return false;
+	}
+
+	updateScroll(scrollYPercentage: number) {
+		this._scrollYPercentage = scrollYPercentage;
 	}
 }
