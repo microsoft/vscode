@@ -311,8 +311,7 @@ export class StackFrame implements IStackFrame {
 		public frameId: number,
 		public source: Source,
 		public name: string,
-		public lineNumber: number,
-		public column: number
+		public range: IRange
 	) {
 		this.scopes = null;
 	}
@@ -341,8 +340,9 @@ export class StackFrame implements IStackFrame {
 				return scopes;
 			}
 
-			return [scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
-				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber)).shift()];
+			const scopesContainingRange = scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
+				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber));
+			return scopesContainingRange.length > 0 ? scopesContainingRange.slice(0, 1) : scopes;
 		});
 	}
 
@@ -351,7 +351,7 @@ export class StackFrame implements IStackFrame {
 	}
 
 	public toString(): string {
-		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.lineNumber})`;
+		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.range.startLineNumber})`;
 	}
 
 	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
@@ -361,7 +361,7 @@ export class StackFrame implements IStackFrame {
 			description: this.source.origin,
 			options: {
 				preserveFocus,
-				selection: { startLineNumber: this.lineNumber, startColumn: 1 },
+				selection: { startLineNumber: this.range.startLineNumber, startColumn: 1 },
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true,
 				pinned: !preserveFocus
@@ -443,7 +443,12 @@ export class Thread implements IThread {
 					this.process.sources.set(source.uri.toString(), source);
 				}
 
-				return new StackFrame(this, rsf.id, source, rsf.name, rsf.line, rsf.column);
+				return new StackFrame(this, rsf.id, source, rsf.name, new Range(
+					rsf.line,
+					rsf.column,
+					rsf.endLine === undefined ? rsf.line : rsf.endLine,
+					rsf.endColumn === undefined ? rsf.column : rsf.endColumn
+				));
 			});
 		}, (err: Error) => {
 			if (this.stoppedDetails) {
@@ -637,6 +642,8 @@ export class Breakpoint implements IBreakpoint {
 	public verified: boolean;
 	public idFromAdapter: number;
 	public message: string;
+	public endLineNumber: number;
+	public endColumn: number;
 	private id: string;
 
 	constructor(
@@ -822,7 +829,9 @@ export class Model implements IModel {
 			const bpData = data[bp.getId()];
 			if (bpData) {
 				bp.lineNumber = bpData.line ? bpData.line : bp.lineNumber;
+				bp.endLineNumber = bpData.endLine;
 				bp.column = bpData.column;
+				bp.endColumn = bpData.endColumn;
 				bp.verified = bpData.verified;
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;

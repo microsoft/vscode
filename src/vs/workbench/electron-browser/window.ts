@@ -321,7 +321,10 @@ export class ElectronWindow extends Themable {
 			if (webFrame.getZoomLevel() !== newZoomLevel) {
 				webFrame.setZoomLevel(newZoomLevel);
 				browser.setZoomFactor(webFrame.getZoomFactor());
-				browser.setZoomLevel(webFrame.getZoomLevel()); // Ensure others can listen to zoom level changes
+				// See https://github.com/Microsoft/vscode/issues/26151
+				// Cannot be trusted because the webFrame might take some time
+				// until it really applies the new zoom level
+				browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 			}
 		});
 

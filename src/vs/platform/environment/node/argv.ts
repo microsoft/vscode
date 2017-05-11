@@ -41,7 +41,8 @@ const options: minimist.Opts = {
 		'disable-extensions',
 		'list-extensions',
 		'show-versions',
-		'nolazy'
+		'nolazy',
+		'skip-getting-started'
 	],
 	alias: {
 		help: 'h',

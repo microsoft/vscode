@@ -297,7 +297,7 @@ export class DebugService implements debug.IDebugService {
 							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);
 							this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
 							this.windowService.getWindow().focus();
-							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.lineNumber));
+							aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", event.body.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
 
 							return stackFrameToFocus.openInEditor(this.editorService);
 						}
@@ -453,7 +453,7 @@ export class DebugService implements debug.IDebugService {
 			return debug.State.Stopped;
 		}
 		const focusedProcess = this.viewModel.focusedProcess;
-		if (focusedProcess) {
+		if (focusedProcess && this.sessionStates.has(focusedProcess.getId())) {
 			return this.sessionStates.get(focusedProcess.getId());
 		}
 		if (this.sessionStates.size > 0) {
@@ -943,9 +943,9 @@ export class DebugService implements debug.IDebugService {
 
 		if (this.model.getProcesses().length === 0) {
 			// set breakpoints back to unverified since the session ended.
-			const data: { [id: string]: { line: number, verified: boolean, column: number } } = {};
+			const data: { [id: string]: { line: number, verified: boolean, column: number, endLine: number, endColumn: number } } = {};
 			this.model.getBreakpoints().forEach(bp => {
-				data[bp.getId()] = { line: bp.lineNumber, verified: false, column: bp.column };
+				data[bp.getId()] = { line: bp.lineNumber, verified: false, column: bp.column, endLine: bp.endLineNumber, endColumn: bp.endColumn };
 			});
 			this.model.updateBreakpoints(data);
 
@@ -1006,7 +1006,7 @@ export class DebugService implements debug.IDebugService {
 					return;
 				}
 
-				const data: { [id: string]: { line?: number, column?: number, verified: boolean } } = {};
+				const data: { [id: string]: DebugProtocol.Breakpoint } = {};
 				for (let i = 0; i < breakpointsToSend.length; i++) {
 					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
 					if (!breakpointsToSend[i].column) {

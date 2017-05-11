@@ -57,7 +57,10 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
 	// Ensure others can listen to zoom level changes
 	browser.setZoomFactor(webFrame.getZoomFactor());
-	browser.setZoomLevel(webFrame.getZoomLevel());
+	// See https://github.com/Microsoft/vscode/issues/26151
+	// Can be trusted because we are not setting it ourselves.
+	browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/true);
+
 	browser.setFullscreen(!!configuration.fullscreen);
 
 	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(configuration.isISOKeyboard);

@@ -837,7 +837,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		const perColumnWidth = this.editor.getLayoutInfo().contentWidth / this.editor.getLayoutInfo().viewportColumn;
 		const spaceOntheLeft = Math.floor(this.editor.getPosition().column * perColumnWidth) - this.editor.getScrollLeft();
 		const spaceOntheRight = this.editor.getLayoutInfo().contentWidth - spaceOntheLeft;
-		const columnsOccupiedByDocs = Math.floor(this.docsWidth / perColumnWidth);
 
 		// Reset width
 		this.details.element.style.width = `${this.docsWidth}px`;
@@ -857,8 +856,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (this.editorGroupService.getGroupOrientation() === 'horizontal' || totalEditors === 1) {
 			if (this.editor.getLayoutInfo().contentWidth > this.maxWidgetWidth) {
 				if (spaceOntheRight < this.docsWidth) {
-					addClass(this.element, 'list-right');
-					this.preferredPosition = new Position(this.editor.getPosition().lineNumber, this.editor.getPosition().column - columnsOccupiedByDocs);
+					this.swapDocs();
 				}
 				return;
 			}
@@ -868,10 +866,17 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		// Its vertical, multiple editors, active editor is the last one and not enough space on the right for widget
 		// TODO: Check if window width < this.maxDocsWidth, in which case we may have to drop the docs below.
+		if (spaceOntheRight < this.docsWidth) {
+			this.swapDocs();
+		}
+
+	}
+
+	private swapDocs() {
+		const perColumnWidth = this.editor.getLayoutInfo().contentWidth / this.editor.getLayoutInfo().viewportColumn;
+		const columnsOccupiedByDocs = Math.floor(this.docsWidth / perColumnWidth);
 		addClass(this.element, 'list-right');
 		this.preferredPosition = new Position(this.editor.getPosition().lineNumber, this.editor.getPosition().column - columnsOccupiedByDocs);
-
-		return;
 	}
 
 	private showDocsBelow() {

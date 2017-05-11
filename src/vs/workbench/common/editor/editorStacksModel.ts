@@ -6,7 +6,7 @@
 'use strict';
 
 import Event, { Emitter, once } from 'vs/base/common/event';
-import { IEditorRegistry, Extensions, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IGroupEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions, EditorInput, toResource, IEditorStacksModel, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, EditorOpenPositioning, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +17,7 @@ import { Registry } from 'vs/platform/platform';
 import { Position, Direction } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 
-export interface GroupEvent extends IGroupEvent {
+export interface EditorCloseEvent extends IEditorCloseEvent {
 	editor: EditorInput;
 }
 
@@ -63,7 +63,7 @@ export class EditorGroup implements IEditorGroup {
 
 	private _onEditorActivated: Emitter<EditorInput>;
 	private _onEditorOpened: Emitter<EditorInput>;
-	private _onEditorClosed: Emitter<GroupEvent>;
+	private _onEditorClosed: Emitter<EditorCloseEvent>;
 	private _onEditorDisposed: Emitter<EditorInput>;
 	private _onEditorDirty: Emitter<EditorInput>;
 	private _onEditorLabelChange: Emitter<EditorInput>;
@@ -88,7 +88,7 @@ export class EditorGroup implements IEditorGroup {
 
 		this._onEditorActivated = new Emitter<EditorInput>();
 		this._onEditorOpened = new Emitter<EditorInput>();
-		this._onEditorClosed = new Emitter<GroupEvent>();
+		this._onEditorClosed = new Emitter<EditorCloseEvent>();
 		this._onEditorDisposed = new Emitter<EditorInput>();
 		this._onEditorDirty = new Emitter<EditorInput>();
 		this._onEditorLabelChange = new Emitter<EditorInput>();
@@ -143,7 +143,7 @@ export class EditorGroup implements IEditorGroup {
 		return this._onEditorOpened.event;
 	}
 
-	public get onEditorClosed(): Event<GroupEvent> {
+	public get onEditorClosed(): Event<EditorCloseEvent> {
 		return this._onEditorClosed.event;
 	}
 
@@ -376,7 +376,7 @@ export class EditorGroup implements IEditorGroup {
 		this.splice(index, true);
 
 		// Event
-		this.fireEvent(this._onEditorClosed, { editor, pinned, index }, true);
+		this.fireEvent(this._onEditorClosed, { editor, pinned, index, group: this }, true);
 	}
 
 	public closeEditors(except: EditorInput, direction?: Direction): void {
@@ -507,7 +507,7 @@ export class EditorGroup implements IEditorGroup {
 		return !this.matches(this.preview, editor);
 	}
 
-	private fireEvent(emitter: Emitter<EditorInput | GroupEvent>, arg2: EditorInput | GroupEvent, isStructuralChange: boolean): void {
+	private fireEvent(emitter: Emitter<EditorInput | EditorCloseEvent>, arg2: EditorInput | EditorCloseEvent, isStructuralChange: boolean): void {
 		emitter.fire(arg2);
 
 		if (isStructuralChange) {
@@ -699,12 +699,15 @@ export class EditorStacksModel implements IEditorStacksModel {
 	private _onGroupActivated: Emitter<EditorGroup>;
 	private _onGroupDeactivated: Emitter<EditorGroup>;
 	private _onGroupRenamed: Emitter<EditorGroup>;
+
 	private _onEditorDisposed: Emitter<EditorIdentifier>;
 	private _onEditorDirty: Emitter<EditorIdentifier>;
 	private _onEditorLabelChange: Emitter<EditorIdentifier>;
 	private _onEditorOpened: Emitter<EditorIdentifier>;
-	private _onWillCloseEditor: Emitter<EditorIdentifier>;
-	private _onEditorClosed: Emitter<GroupEvent>;
+
+	private _onWillCloseEditor: Emitter<EditorCloseEvent>;
+	private _onEditorClosed: Emitter<EditorCloseEvent>;
+
 	private _onModelChanged: Emitter<IStacksModelChangeEvent>;
 
 	constructor(
@@ -729,8 +732,8 @@ export class EditorStacksModel implements IEditorStacksModel {
 		this._onEditorDirty = new Emitter<EditorIdentifier>();
 		this._onEditorLabelChange = new Emitter<EditorIdentifier>();
 		this._onEditorOpened = new Emitter<EditorIdentifier>();
-		this._onWillCloseEditor = new Emitter<EditorIdentifier>();
-		this._onEditorClosed = new Emitter<GroupEvent>();
+		this._onWillCloseEditor = new Emitter<EditorCloseEvent>();
+		this._onEditorClosed = new Emitter<EditorCloseEvent>();
 
 		this.toDispose.push(this._onGroupOpened, this._onGroupClosed, this._onGroupActivated, this._onGroupDeactivated, this._onGroupMoved, this._onGroupRenamed, this._onModelChanged, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorClosed, this._onWillCloseEditor);
 
@@ -785,11 +788,11 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return this._onEditorOpened.event;
 	}
 
-	public get onWillCloseEditor(): Event<EditorIdentifier> {
+	public get onWillCloseEditor(): Event<EditorCloseEvent> {
 		return this._onWillCloseEditor.event;
 	}
 
-	public get onEditorClosed(): Event<GroupEvent> {
+	public get onEditorClosed(): Event<EditorCloseEvent> {
 		return this._onEditorClosed.event;
 	}
 
@@ -1161,7 +1164,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		unbind.push(group.onEditorStateChanged(editor => this._onModelChanged.fire({ group, editor })));
 		unbind.push(group.onEditorOpened(editor => this._onEditorOpened.fire({ editor, group })));
 		unbind.push(group.onEditorClosed(event => {
-			this._onWillCloseEditor.fire({ editor: event.editor, group });
+			this._onWillCloseEditor.fire(event);
 			this.handleOnEditorClosed(event);
 			this._onEditorClosed.fire(event);
 		}));
@@ -1177,7 +1180,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return group;
 	}
 
-	private handleOnEditorClosed(event: GroupEvent): void {
+	private handleOnEditorClosed(event: EditorCloseEvent): void {
 		const editor = event.editor;
 		const editorsToClose = [editor];
 

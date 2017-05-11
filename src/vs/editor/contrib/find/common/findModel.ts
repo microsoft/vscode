@@ -277,13 +277,13 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private _moveToNextMatch(after: Position): void {
-		let nextMatch = this._getNextMatch(after, false);
+		let nextMatch = this._getNextMatch(after, false, true);
 		if (nextMatch) {
 			this._setCurrentFindMatch(nextMatch.range);
 		}
 	}
 
-	private _getNextMatch(after: Position, captureMatches: boolean, isRecursed: boolean = false): editorCommon.FindMatch {
+	private _getNextMatch(after: Position, captureMatches: boolean, forceMove: boolean, isRecursed: boolean = false): editorCommon.FindMatch {
 		if (this._cannotFind()) {
 			return null;
 		}
@@ -308,7 +308,7 @@ export class FindModelBoundToEditorModel {
 
 		let nextMatch = model.findNextMatch(this._state.searchString, position, this._state.isRegex, this._state.matchCase, this._state.wholeWord, captureMatches);
 
-		if (nextMatch && nextMatch.range.isEmpty() && nextMatch.range.getStartPosition().equals(position)) {
+		if (forceMove && nextMatch && nextMatch.range.isEmpty() && nextMatch.range.getStartPosition().equals(position)) {
 			// Looks like we're stuck at this position, unacceptable!
 
 			let isUsingLineStops = this._state.isRegex && (
@@ -337,7 +337,7 @@ export class FindModelBoundToEditorModel {
 		}
 
 		if (!isRecursed && !searchRange.containsRange(nextMatch.range)) {
-			return this._getNextMatch(nextMatch.range.getEndPosition(), captureMatches, true);
+			return this._getNextMatch(nextMatch.range.getEndPosition(), captureMatches, forceMove, true);
 		}
 
 		return nextMatch;
@@ -361,7 +361,7 @@ export class FindModelBoundToEditorModel {
 
 		let replacePattern = this._getReplacePattern();
 		let selection = this._editor.getSelection();
-		let nextMatch = this._getNextMatch(selection.getStartPosition(), replacePattern.hasReplacementPatterns);
+		let nextMatch = this._getNextMatch(selection.getStartPosition(), replacePattern.hasReplacementPatterns, false);
 		if (nextMatch) {
 			if (selection.equalsRange(nextMatch.range)) {
 				// selection sits on a find match => replace it!

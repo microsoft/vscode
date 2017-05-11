@@ -102,7 +102,7 @@ class CSSBasedConfiguration extends Disposable {
 	public static INSTANCE = new CSSBasedConfiguration();
 
 	private _cache: CSSBasedConfigurationCache;
-	private _changeMonitorTimeout: number = -1;
+	private _evictUntrustedReadingsTimeout: number;
 
 	private _onDidChange = this._register(new Emitter<void>());
 	public onDidChange: Event<void> = this._onDidChange.event;
@@ -111,14 +111,42 @@ class CSSBasedConfiguration extends Disposable {
 		super();
 
 		this._cache = new CSSBasedConfigurationCache();
+		this._evictUntrustedReadingsTimeout = -1;
 	}
 
 	public dispose(): void {
-		if (this._changeMonitorTimeout !== -1) {
-			clearTimeout(this._changeMonitorTimeout);
-			this._changeMonitorTimeout = -1;
+		if (this._evictUntrustedReadingsTimeout !== -1) {
+			clearTimeout(this._evictUntrustedReadingsTimeout);
+			this._evictUntrustedReadingsTimeout = -1;
 		}
 		super.dispose();
+	}
+
+	private _writeToCache(item: BareFontInfo, value: FontInfo): void {
+		this._cache.put(item, value);
+
+		if (!value.isTrusted && this._evictUntrustedReadingsTimeout === -1) {
+			// Try reading again after some time
+			this._evictUntrustedReadingsTimeout = setTimeout(() => {
+				this._evictUntrustedReadingsTimeout = -1;
+				this._evictUntrustedReadings();
+			}, 5000);
+		}
+	}
+
+	private _evictUntrustedReadings(): void {
+		let values = this._cache.getValues();
+		let somethingRemoved = false;
+		for (let i = 0, len = values.length; i < len; i++) {
+			let item = values[i];
+			if (!item.isTrusted) {
+				somethingRemoved = true;
+				this._cache.remove(item);
+			}
+		}
+		if (somethingRemoved) {
+			this._onDidChange.fire();
+		}
 	}
 
 	public saveFontInfo(): ISerializedFontInfo[] {
@@ -131,25 +159,8 @@ class CSSBasedConfiguration extends Disposable {
 		// The reason for this is that a font might have been installed on the OS in the meantime.
 		for (let i = 0, len = savedFontInfo.length; i < len; i++) {
 			let fontInfo = new FontInfo(savedFontInfo[i], false);
-			this._cache.put(fontInfo, fontInfo);
+			this._writeToCache(fontInfo, fontInfo);
 		}
-
-		// Remove saved font info that does not have the trusted flag.
-		// (this forces it to be re-read).
-		setTimeout(() => {
-			let values = this._cache.getValues();
-			let somethingRemoved = false;
-			for (let i = 0, len = values.length; i < len; i++) {
-				let item = values[i];
-				if (!item.isTrusted) {
-					somethingRemoved = true;
-					this._cache.remove(item);
-				}
-			}
-			if (somethingRemoved) {
-				this._onDidChange.fire();
-			}
-		}, 5000);
 	}
 
 	public readConfiguration(bareFontInfo: BareFontInfo): FontInfo {
@@ -169,43 +180,12 @@ class CSSBasedConfiguration extends Disposable {
 					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
 					spaceWidth: Math.max(readConfig.spaceWidth, 5),
 					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
-				}, true);
-				this._installChangeMonitor();
+				}, false);
 			}
 
-			this._cache.put(bareFontInfo, readConfig);
+			this._writeToCache(bareFontInfo, readConfig);
 		}
 		return this._cache.get(bareFontInfo);
-	}
-
-	private _installChangeMonitor(): void {
-		if (this._changeMonitorTimeout === -1) {
-			this._changeMonitorTimeout = setTimeout(() => {
-				this._changeMonitorTimeout = -1;
-				this._monitorForChanges();
-			}, 500);
-		}
-	}
-
-	private _monitorForChanges(): void {
-		let shouldInstallChangeMonitor = false;
-		let keys = this._cache.getKeys();
-		for (let i = 0; i < keys.length; i++) {
-			let styling = keys[i];
-
-			let newValue = CSSBasedConfiguration._actualReadConfiguration(styling);
-
-			if (newValue.typicalHalfwidthCharacterWidth <= 2 || newValue.typicalFullwidthCharacterWidth <= 2 || newValue.maxDigitWidth <= 2) {
-				// We still couldn't read the CSS config
-				shouldInstallChangeMonitor = true;
-			} else {
-				this._cache.put(styling, newValue);
-				this._onDidChange.fire();
-			}
-		}
-		if (shouldInstallChangeMonitor) {
-			this._installChangeMonitor();
-		}
 	}
 
 	private static createRequest(chr: string, type: CharWidthRequestType, all: CharWidthRequest[], monospace: CharWidthRequest[]): CharWidthRequest {
@@ -278,6 +258,8 @@ class CSSBasedConfiguration extends Disposable {
 			}
 		}
 
+		// let's trust the zoom level only 2s after it was changed.
+		const canTrustBrowserZoomLevel = (browser.getTimeSinceLastZoomLevelChanged() > 2000);
 		return new FontInfo({
 			zoomLevel: browser.getZoomLevel(),
 			fontFamily: bareFontInfo.fontFamily,
@@ -289,7 +271,7 @@ class CSSBasedConfiguration extends Disposable {
 			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
 			spaceWidth: space.width,
 			maxDigitWidth: maxDigitWidth
-		}, true);
+		}, canTrustBrowserZoomLevel);
 	}
 }
 

@@ -301,11 +301,21 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 					log(`Unknown scanCode ${strCode} in mapping.`);
 					continue;
 				}
-				if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== -1) {
-					continue;
+				const rawMapping = rawMappings[strCode];
+
+				const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[scanCode];
+				if (immutableKeyCode !== -1) {
+					const keyCode = NATIVE_KEY_CODE_TO_KEY_CODE[rawMapping.vkey] || KeyCode.Unknown;
+					if (keyCode === KeyCode.Unknown || immutableKeyCode === keyCode) {
+						continue;
+					}
+					if (scanCode !== ScanCode.NumpadComma) {
+						// Looks like ScanCode.NumpadComma doesn't always map to KeyCode.NUMPAD_SEPARATOR
+						// e.g. on POR - PTB
+						continue;
+					}
 				}
 
-				const rawMapping = rawMappings[strCode];
 				const value = rawMapping.value;
 				const withShift = rawMapping.withShift;
 				const withAltGr = rawMapping.withAltGr;
@@ -625,6 +635,8 @@ function _getNativeMap() {
 		VK_OEM_PERIOD: KeyCode.US_DOT,
 		VK_OEM_2: KeyCode.US_SLASH,
 		VK_OEM_3: KeyCode.US_BACKTICK,
+		VK_ABNT_C1: KeyCode.ABNT_C1,
+		VK_ABNT_C2: KeyCode.ABNT_C2,
 		VK_OEM_4: KeyCode.US_OPEN_SQUARE_BRACKET,
 		VK_OEM_5: KeyCode.US_BACKSLASH,
 		VK_OEM_6: KeyCode.US_CLOSE_SQUARE_BRACKET,

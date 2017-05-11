@@ -217,10 +217,10 @@ export class ProgressBar {
 	}
 
 	protected applyStyles(): void {
-		if (this.element) {
+		if (this.bit) {
 			const background = this.progressBarBackground ? this.progressBarBackground.toString() : null;
 
-			this.element.style('background-color', background);
+			this.bit.style.backgroundColor = background;
 		}
 	}
 

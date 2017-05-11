@@ -8,6 +8,7 @@ import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { IViewModel, IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export class ViewContext {
 
@@ -16,12 +17,16 @@ export class ViewContext {
 	public readonly viewLayout: IViewLayout;
 	public readonly privateViewEventBus: ViewEventDispatcher;
 
+	public theme: ITheme; // will be updated
+
 	constructor(
 		configuration: IConfiguration,
+		theme: ITheme,
 		model: IViewModel,
 		privateViewEventBus: ViewEventDispatcher
 	) {
 		this.configuration = configuration;
+		this.theme = theme;
 		this.model = model;
 		this.viewLayout = model.viewLayout;
 		this.privateViewEventBus = privateViewEventBus;

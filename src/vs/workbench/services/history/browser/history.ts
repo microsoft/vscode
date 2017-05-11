@@ -11,7 +11,7 @@ import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
-import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorCloseEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -214,7 +214,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private onEditorClosed(event: IGroupEvent): void {
+	private onEditorClosed(event: IEditorCloseEvent): void {
 
 		// Track closing of pinned editor to support to reopen closed editors
 		if (event.pinned) {

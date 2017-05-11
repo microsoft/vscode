@@ -16,12 +16,29 @@ export function plain(parts: Proto.SymbolDisplayPart[]): string {
 
 export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[]): string {
 	return (tags || [])
-		.map(tag => `*@${tag.name}*` + (tag.text ? ` — ${tag.text}` : ''))
-		.join('  \n');
+		.map(tag => {
+			const label = `*@${tag.name}*`;
+			if (!tag.text) {
+				return label;
+			}
+			return label + (tag.text.match(/\r\n|\n/g) ? '  \n' + tag.text : ` — ${tag.text}`);
+		})
+		.join('  \n\n');
 }
 
-export function tagsPlainPreview(tags: Proto.JSDocTagInfo[]): string {
+function tagsPlainPreview(tags: Proto.JSDocTagInfo[]): string {
 	return (tags || [])
-		.map(tag => `@${tag.name}` + (tag.text ? ` — ${tag.text}` : ''))
-		.join('\n');
+		.map(tag => {
+			const label = `@${tag.name}`;
+			if (!tag.text) {
+				return label;
+			}
+			return label + (tag.text.match(/\r\n|\n/g) ? '\n' + tag.text : ` — ${tag.text}`);
+		})
+		.join('\n\ngit');
+}
+
+export function plainDocumentation(documentation: Proto.SymbolDisplayPart[], tags: Proto.JSDocTagInfo[]): string {
+	const parts = [plain(documentation), tagsPlainPreview(tags)];
+	return parts.filter(x => x).join('\n\n');
 }

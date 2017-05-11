@@ -13,6 +13,7 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { EditorBrowserRegistry } from 'vs/editor/browser/editorBrowserExtensions';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class CodeEditor extends CodeEditorWidget {
 
@@ -22,9 +23,10 @@ export class CodeEditor extends CodeEditorWidget {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
 	}
 
 	protected _getContributions(): IEditorContributionCtor[] {

@@ -2067,12 +2067,3 @@ export var Handler = {
 	LineInsertAfter: 'lineInsertAfter',
 	LineBreakInsert: 'lineBreakInsert',
 };
-
-/**
- * @internal
- */
-export const enum ThemeType {
-	Light = 1,
-	Dark = 2,
-	HighContrast = 3
-}

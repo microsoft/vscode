@@ -13,6 +13,7 @@
 	resize: none;
 	border: none;
 	overflow: hidden;
+	color: transparent;
 	background-color: transparent;
 }
 /*.monaco-editor .inputarea {

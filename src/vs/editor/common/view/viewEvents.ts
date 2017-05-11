@@ -27,6 +27,7 @@ export const enum ViewEventType {
 	ViewTokensChanged = 13,
 	ViewTokensColorsChanged = 14,
 	ViewZonesChanged = 15,
+	ViewThemeChanged = 16
 }
 
 export class ViewConfigurationChangedEvent {
@@ -34,6 +35,7 @@ export class ViewConfigurationChangedEvent {
 	public readonly type = ViewEventType.ViewConfigurationChanged;
 
 	public readonly canUseTranslate3d: boolean;
+	public readonly pixelRatio: boolean;
 	public readonly editorClassName: boolean;
 	public readonly lineHeight: boolean;
 	public readonly readOnly: boolean;
@@ -44,6 +46,7 @@ export class ViewConfigurationChangedEvent {
 
 	constructor(source: IConfigurationChangedEvent) {
 		this.canUseTranslate3d = source.canUseTranslate3d;
+		this.pixelRatio = source.pixelRatio;
 		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight;
 		this.readOnly = source.readOnly;
@@ -262,6 +265,14 @@ export class ViewTokensChangedEvent {
 	}
 }
 
+export class ViewThemeChangedEvent {
+
+	public readonly type = ViewEventType.ViewThemeChanged;
+
+	constructor() {
+	}
+}
+
 export class ViewTokensColorsChangedEvent {
 
 	public readonly type = ViewEventType.ViewTokensColorsChanged;
@@ -296,4 +307,5 @@ export type ViewEvent = (
 	| ViewTokensChangedEvent
 	| ViewTokensColorsChangedEvent
 	| ViewZonesChangedEvent
+	| ViewThemeChangedEvent
 );

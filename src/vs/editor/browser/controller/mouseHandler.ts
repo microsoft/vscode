@@ -265,20 +265,18 @@ export class MouseHandler extends ViewEventHandler {
 
 class MouseDownOperation extends Disposable {
 
-	private _context: ViewContext;
-	private _viewController: ViewController;
-	private _viewHelper: IPointerHandlerHelper;
-	private _createMouseTarget: (e: EditorMouseEvent, testEventTarget: boolean) => editorBrowser.IMouseTarget;
-	private _getMouseColumn: (e: EditorMouseEvent) => number;
+	private readonly _context: ViewContext;
+	private readonly _viewController: ViewController;
+	private readonly _viewHelper: IPointerHandlerHelper;
+	private readonly _createMouseTarget: (e: EditorMouseEvent, testEventTarget: boolean) => editorBrowser.IMouseTarget;
+	private readonly _getMouseColumn: (e: EditorMouseEvent) => number;
 
-	private _mouseMoveMonitor: GlobalEditorMouseMoveMonitor;
+	private readonly _mouseMoveMonitor: GlobalEditorMouseMoveMonitor;
+	private readonly _onScrollTimeout: TimeoutTimer;
+	private readonly _mouseState: MouseDownState;
 
 	private _currentSelection: Selection;
-	private _mouseState: MouseDownState;
-
-	private _onScrollTimeout: TimeoutTimer;
 	private _isActive: boolean;
-
 	private _lastMouseEvent: EditorMouseEvent;
 
 	constructor(
@@ -295,15 +293,13 @@ class MouseDownOperation extends Disposable {
 		this._createMouseTarget = createMouseTarget;
 		this._getMouseColumn = getMouseColumn;
 
-		this._currentSelection = new Selection(1, 1, 1, 1);
+		this._mouseMoveMonitor = this._register(new GlobalEditorMouseMoveMonitor(this._viewHelper.viewDomNode));
+		this._onScrollTimeout = this._register(new TimeoutTimer());
 		this._mouseState = new MouseDownState();
 
-		this._onScrollTimeout = this._register(new TimeoutTimer());
+		this._currentSelection = new Selection(1, 1, 1, 1);
 		this._isActive = false;
-
 		this._lastMouseEvent = null;
-
-		this._mouseMoveMonitor = this._register(new GlobalEditorMouseMoveMonitor(this._viewHelper.viewDomNode));
 	}
 
 	public dispose(): void {

@@ -18,11 +18,15 @@ export const editorCursor = registerColor('editorCursor.foreground', { dark: '#A
 export const editorWhitespaces = registerColor('editorWhitespace.foreground', { dark: '#e3e4e229', light: '#33333333', hc: '#e3e4e229' }, nls.localize('editorWhitespaces', 'Color of whitespace characters in the editor.'));
 export const editorIndentGuides = registerColor('editorIndentGuide.background', { dark: editorWhitespaces, light: editorWhitespaces, hc: editorWhitespaces }, nls.localize('editorIndentGuides', 'Color of the editor indentation guides.'));
 export const editorLineNumbers = registerColor('editorLineNumber.foreground', { dark: '#5A5A5A', light: '#2B91AF', hc: Color.white }, nls.localize('editorLineNumbers', 'Color of editor line numbers.'));
+export const editorRuler = registerColor('editorRuler.foreground', { dark: '#5A5A5A', light: Color.lightgrey, hc: Color.white }, nls.localize('editorRuler', 'Color of the editor rulers.'));
 
 export const editorCodeLensForeground = registerColor('editorCodeLens.foreground', { dark: '#999999', light: '#999999', hc: '#999999' }, nls.localize('editorCodeLensForeground', 'Foreground color of editor code lenses'));
 
 export const editorBracketMatchBackground = registerColor('editorBracketMatch.background', { dark: '#0064001a', light: '#0064001a', hc: '#0064001a' }, nls.localize('editorBracketMatchBackground', 'Background color behind matching brackets'));
 export const editorBracketMatchBorder = registerColor('editorBracketMatch.border', { dark: '#888', light: '#B9B9B9', hc: '#fff' }, nls.localize('editorBracketMatchBorder', 'Color for matching brackets boxes'));
+
+export const editorOverviewRulerBorder = registerColor('editorOverviewRuler.border', { dark: '#7f7f7f4d', light: '#7f7f7f4d', hc: '#7f7f7f4d' }, nls.localize('editorOverviewRulerBorder', 'Color of the overview ruler border.'));
+
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {
@@ -33,7 +37,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	let foreground = theme.getColor(editorForeground);
 	if (foreground) {
-		collector.addRule(`.monaco-editor.${theme.selector}, .monaco-editor.${theme.selector} .inputarea { color: ${foreground}; }`);
+		collector.addRule(`.monaco-editor.${theme.selector}, .monaco-editor.${theme.selector} .inputarea.ime-input { color: ${foreground}; }`);
 	}
 
 	let rangeHighlight = theme.getColor(editorRangeHighlight);

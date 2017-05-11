@@ -16,6 +16,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
+import { getMapForWordSeparators, WordCharacterClass } from "vs/editor/common/controller/cursorWordOperations";
 
 export class TypeOperations {
 
@@ -364,10 +365,20 @@ export class TypeOperations {
 
 			const position = cursor.position;
 			const lineText = model.getLineContent(position.lineNumber);
-			const afterCharacter = lineText.charAt(position.column - 1);
+
+			// Do not auto-close ' or " after a word character
+			if ((ch === '\'' || ch === '"') && position.column > 1) {
+				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
+				const characterBeforeCode = lineText.charCodeAt(position.column - 2);
+				const characterBeforeType = wordSeparators.get(characterBeforeCode);
+				if (characterBeforeType === WordCharacterClass.Regular) {
+					return false;
+				}
+			}
 
 			// Only consider auto closing the pair if a space follows or if another autoclosed pair follows
-			if (afterCharacter) {
+			const characterAfter = lineText.charAt(position.column - 1);
+			if (characterAfter) {
 				const thisBraceIsSymmetric = (config.autoClosingPairsOpen[ch] === ch);
 
 				let isBeforeCloseBrace = false;
@@ -376,12 +387,12 @@ export class TypeOperations {
 					if (!thisBraceIsSymmetric && otherBraceIsSymmetric) {
 						continue;
 					}
-					if (afterCharacter === otherCloseBrace) {
+					if (characterAfter === otherCloseBrace) {
 						isBeforeCloseBrace = true;
 						break;
 					}
 				}
-				if (!isBeforeCloseBrace && !/\s/.test(afterCharacter)) {
+				if (!isBeforeCloseBrace && !/\s/.test(characterAfter)) {
 					return false;
 				}
 			}

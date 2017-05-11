@@ -444,6 +444,33 @@ suite('FindController', () => {
 		});
 	});
 
+	test('issue #24714: Regular expression with ^ in search & replace', () => {
+		withMockCodeEditor([
+			'',
+			'line2',
+			'line3'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+
+			let startFindAction = new StartFindAction();
+			startFindAction.run(null, editor);
+
+			findController.getState().change({ searchString: '^', replaceString: 'x', isRegex: true }, false);
+			findController.moveToNextMatch();
+
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[2, 1, 2, 1]
+			]);
+
+			findController.replace();
+
+			assert.deepEqual(editor.getValue(), '\nxline2\nline3');
+
+			findController.dispose();
+		});
+	});
+
 	function toArray(historyNavigator: HistoryNavigator<string>): string[] {
 		let result = [];
 		historyNavigator.first();

@@ -38,6 +38,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -68,9 +69,10 @@ class WalkThroughCodeEditor extends CodeEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
 	}
 
 	getTelemetryData() {

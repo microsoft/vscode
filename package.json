@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.13.0",
   "electronVersion": "1.6.6",
-  "distro": "1337efdc669776e277c7e556d33b1dd7915fcefa",
+  "distro": "866fd532378acbb246f02ed97397e3f0f4dbc345",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -17,7 +17,8 @@
     "monaco-editor-setup": "node scripts/monaco-editor-setup.js",
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
-    "gulp": "gulp"
+    "gulp": "gulp",
+    "7z": "7z"
   },
   "dependencies": {
     "applicationinsights": "0.17.1",
@@ -32,7 +33,7 @@
     "iconv-lite": "0.4.15",
     "jschardet": "^1.4.2",
     "minimist": "1.2.0",
-    "native-keymap": "1.2.3",
+    "native-keymap": "1.2.4",
     "node-pty": "0.6.4",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
@@ -44,6 +45,7 @@
     "yauzl": "2.3.1"
   },
   "devDependencies": {
+    "7zip": "0.0.6",
     "@types/minimist": "^1.2.0",
     "@types/mocha": "^2.2.39",
     "@types/semver": "^5.3.30",

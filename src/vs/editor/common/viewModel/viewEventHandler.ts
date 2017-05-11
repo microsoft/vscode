@@ -79,6 +79,9 @@ export class ViewEventHandler extends Disposable {
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
 		return false;
 	}
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		return false;
+	}
 
 	// --- end event handlers
 
@@ -177,6 +180,13 @@ export class ViewEventHandler extends Disposable {
 
 				case viewEvents.ViewEventType.ViewZonesChanged:
 					if (this.onZonesChanged(e)) {
+						shouldRender = true;
+					}
+					break;
+
+
+				case viewEvents.ViewEventType.ViewThemeChanged:
+					if (this.onThemeChanged(e)) {
 						shouldRender = true;
 					}
 					break;
