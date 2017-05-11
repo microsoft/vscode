@@ -93,6 +93,10 @@
 	height: 25px;
 }
 
+.monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .input {
+	width: 100% !important;
+	padding-right: 66px;
+}
 .monaco-editor .find-widget > .find-part .monaco-inputbox > .wrapper > .input,
 .monaco-editor .find-widget > .replace-part .monaco-inputbox > .wrapper > .input {
 	padding-top: 2px;
@@ -106,7 +110,9 @@
 }
 
 .monaco-editor .find-widget .matchesCount {
-	display: inline-block;
+	display: flex;
+	display: -webkit-flex;
+	flex: initial;
 	margin: 0 1px 0 3px;
 	padding: 2px 2px 0 2px;
 	height: 25px;
@@ -120,8 +126,9 @@
 	min-width: 20px;
 	width: 20px;
 	height: 20px;
-	display: inline-block;
-	vertical-align: middle;
+	display: flex;
+	display: -webkit-flex;
+	flex: initial;
 	margin-left: 3px;
 	background-position: center center;
 	background-repeat: no-repeat;
@@ -250,10 +257,10 @@
 }
 
 /* NARROW (SMALLER THAN REDUCED) */
-.monaco-editor .find-widget.narrow-find-widget > .find-part,
+/*.monaco-editor .find-widget.narrow-find-widget > .find-part,
 .monaco-editor .find-widget.narrow-find-widget > .replace-part {
 	width: 240px !important;
-}
+}*/
 
 /* COLLAPSED (SMALLER THAN NARROW) */
 .monaco-editor .find-widget.collapsed-find-widget .button.previous,
@@ -263,7 +270,11 @@
 .monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput .controls {
 	display:none;
 }
-.monaco-editor .find-widget.collapsed-find-widget > .find-part,
+
+.monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
+	padding-right: 0px;
+}
+/*.monaco-editor .find-widget.collapsed-find-widget > .find-part,
 .monaco-editor .find-widget.collapsed-find-widget > .replace-part {
 	max-width: 94px !important;
 }
@@ -271,7 +282,7 @@
 .monaco-editor .find-widget.collapsed-find-widget > .replace-part .replace-input,
 .monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
 	max-width: 71px !important;
-}
+}*/
 
 .monaco-editor .findMatch {
 	-webkit-animation-duration: 0;
@@ -286,7 +297,7 @@
 
 .monaco-editor .find-widget .monaco-sash {
 	background: grey;
-    margin-left: -4px;
+	margin-left: -4px;
 }
 
 .monaco-editor.hc-black .find-widget .previous,
