@@ -29,7 +29,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { IChoiceService, Severity } from 'vs/platform/message/common/message';
+import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface IConfigurationEditOperation extends IConfigurationValue {
@@ -56,6 +56,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IChoiceService private choiceService: IChoiceService,
+		@IMessageService private messageService: IMessageService,
 		@ICommandService private commandService: ICommandService
 	) {
 		this.queue = new Queue<void>();
@@ -97,14 +98,25 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	}
 
 	private onError(error: IConfigurationEditingError, target: ConfigurationTarget): TPromise<IConfigurationEditingError> {
-		this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 1)
-			.then(value => {
-				switch (value) {
-					case 0:
-						this.commandService.executeCommand(ConfigurationTarget.USER === target ? 'workbench.action.openGlobalSettings' : 'workbench.action.openWorkspaceSettings');
-				}
-			});
+		switch (error.code) {
+			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION:
+			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY:
+				this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 1)
+					.then(option => {
+						switch (option) {
+							case 0:
+								this.openSettings(target);
+						}
+					});
+				break;
+			default:
+				this.messageService.show(Severity.Error, error.message);
+		}
 		return TPromise.wrapError(error);
+	}
+
+	private openSettings(target: ConfigurationTarget): void {
+		this.commandService.executeCommand(ConfigurationTarget.USER === target ? 'workbench.action.openGlobalSettings' : 'workbench.action.openWorkspaceSettings');
 	}
 
 	private wrapError(code: ConfigurationEditingErrorCode, target: ConfigurationTarget): TPromise<any> {
@@ -180,7 +192,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return parseErrors.length > 0;
 	}
 
-	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, save: boolean): TPromise<IReference<ITextEditorModel>> {
+	private resolveAndValidate(target: ConfigurationTarget, operation: IConfigurationEditOperation, checkDirty: boolean): TPromise<IReference<ITextEditorModel>> {
 
 		// Any key must be a known setting from the registry (unless this is a standalone config)
 		if (!operation.isWorkspaceStandalone) {
@@ -202,7 +214,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 
 		// Target cannot be dirty if not writing into buffer
 		const resource = operation.resource;
-		if (save && this.textFileService.isDirty(resource)) {
+		if (checkDirty && this.textFileService.isDirty(resource)) {
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target);
 		}
 
