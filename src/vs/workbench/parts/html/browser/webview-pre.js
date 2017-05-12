@@ -9,14 +9,23 @@
 	const ipcRenderer = require('electron').ipcRenderer;
 
 
-	const initData = {};
+	const initData = {
+		baseTheme: '',
+		theme: ''
+	};
 
+	/**
+	 * @param {HTMLBodyElement} body
+	 */
 	function styleBody(body) {
 		if (!body) {
 			return
 		}
 		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
-		body.classList.add(initData.activeTheme);
+		body.classList.add(initData.baseTheme);
+
+		body.dataset.vscodeBaseTheme = initData.baseTheme;
+		body.dataset.vscodeTheme = initData.theme;
 	}
 
 	/**
@@ -57,9 +66,10 @@
 			initData.baseUrl = value;
 		});
 
-		ipcRenderer.on('styles', function (event, value, activeTheme) {
+		ipcRenderer.on('styles', function (event, value, baseTheme, theme) {
 			initData.styles = value;
-			initData.activeTheme = activeTheme;
+			initData.baseTheme = baseTheme;
+			initData.theme = theme;
 
 			// webview
 			var target = getTarget()

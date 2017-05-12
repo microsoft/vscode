@@ -999,6 +999,7 @@ export class TestWindowsService implements IWindowsService {
 }
 
 export class TestTheme implements ITheme {
+	name: string;
 	selector: string;
 	type: 'light' | 'dark' | 'hc';
 

@@ -23,8 +23,9 @@ const colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 
 class StandaloneTheme implements IStandaloneTheme {
-	id: string;
-	selector: string;
+	readonly name: string;
+	readonly id: string;
+	readonly selector: string;
 	private rules: ITokenThemeRule[];
 	base: string;
 	private colors: { [colorId: string]: Color };
@@ -35,9 +36,11 @@ class StandaloneTheme implements IStandaloneTheme {
 		if (name.length > 0) {
 			this.id = base + ' ' + name;
 			this.selector = base + '.' + name;
+			this.name = name;
 		} else {
 			this.id = base;
 			this.selector = base;
+			this.name = base;
 		}
 		this.base = base;
 		this.rules = rules;

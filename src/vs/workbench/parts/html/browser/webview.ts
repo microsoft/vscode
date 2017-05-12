@@ -240,7 +240,7 @@ export default class Webview {
 			activeTheme = 'vscode-high-contrast';
 		}
 
-		this._send('styles', value, activeTheme);
+		this._send('styles', value, activeTheme, theme.name);
 	}
 
 	public layout(): void {
