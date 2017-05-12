@@ -50,7 +50,7 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IThemeService, ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme, IThemingParticipant, ThemeType } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { isLinux } from 'vs/base/common/platform';
@@ -999,8 +999,7 @@ export class TestWindowsService implements IWindowsService {
 }
 
 export class TestTheme implements ITheme {
-	selector: string;
-	type: 'light' | 'dark' | 'hc';
+	type: ThemeType;
 
 	getColor(color: string, useDefault?: boolean): Color {
 		throw new Error('Method not implemented.');

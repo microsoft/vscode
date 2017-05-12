@@ -633,6 +633,6 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 registerThemingParticipant((theme, collector) => {
 	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
 	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .goto-definition-link { color: ${activeLinkForeground} !important; }`);
+		collector.addRule(`.monaco-editor .goto-definition-link { color: ${activeLinkForeground} !important; }`);
 	}
 });

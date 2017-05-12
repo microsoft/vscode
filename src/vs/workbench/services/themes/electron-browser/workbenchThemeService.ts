@@ -246,7 +246,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			let initialTheme = new ColorThemeData();
 			initialTheme.id = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 			initialTheme.label = '';
-			initialTheme.selector = isLightTheme ? VS_LIGHT_THEME : VS_DARK_THEME;
 			initialTheme.settingsId = null;
 			initialTheme.isLoaded = false;
 			initialTheme.tokenColors = [{ settings: {} }];

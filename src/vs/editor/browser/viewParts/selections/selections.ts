@@ -397,11 +397,11 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 registerThemingParticipant((theme, collector) => {
 	let editorSelectionColor = theme.getColor(editorSelection);
 	if (editorSelectionColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .focused .selected-text { background-color: ${editorSelectionColor}; }`);
+		collector.addRule(`.monaco-editor .focused .selected-text { background-color: ${editorSelectionColor}; }`);
 	}
 	let editorInactiveSelectionColor = theme.getColor(editorInactiveSelection);
 	if (editorInactiveSelectionColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
+		collector.addRule(`.monaco-editor .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
 	}
 	// IE/Edge specific rules
 	let outline = theme.getColor(activeContrastBorder);

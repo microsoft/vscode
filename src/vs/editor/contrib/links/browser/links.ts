@@ -348,6 +348,6 @@ class OpenLinkAction extends EditorAction {
 registerThemingParticipant((theme, collector) => {
 	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);
 	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .detected-link-active { color: ${activeLinkForeground} !important; }`);
+		collector.addRule(`.monaco-editor .detected-link-active { color: ${activeLinkForeground} !important; }`);
 	}
 });

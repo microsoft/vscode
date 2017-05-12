@@ -24,7 +24,6 @@ const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingC
 
 class StandaloneTheme implements IStandaloneTheme {
 	id: string;
-	selector: string;
 	private rules: ITokenThemeRule[];
 	base: string;
 	private colors: { [colorId: string]: Color };
@@ -34,10 +33,8 @@ class StandaloneTheme implements IStandaloneTheme {
 	constructor(base: string, name: string, colors: IColors, rules: ITokenThemeRule[]) {
 		if (name.length > 0) {
 			this.id = base + ' ' + name;
-			this.selector = base + '.' + name;
 		} else {
 			this.id = base;
-			this.selector = base;
 		}
 		this.base = base;
 		this.rules = rules;

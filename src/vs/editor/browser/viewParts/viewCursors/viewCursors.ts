@@ -345,9 +345,9 @@ registerThemingParticipant((theme, collector) => {
 	let caret = theme.getColor(editorCursor);
 	if (caret) {
 		let oppositeCaret = caret.opposite();
-		collector.addRule(`.monaco-editor.${theme.selector} .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
+		collector.addRule(`.monaco-editor .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
 		if (theme.type === 'hc') {
-			collector.addRule(`.monaco-editor.${theme.selector} .cursors-layer.has-selection .cursor { border-left: 1px solid ${oppositeCaret}; border-right: 1px solid ${oppositeCaret}; }`);
+			collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${oppositeCaret}; border-right: 1px solid ${oppositeCaret}; }`);
 		}
 	}
 
