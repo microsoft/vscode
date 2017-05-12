@@ -50,7 +50,7 @@ class CommandPaletteEditorAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: 'workbench.action.showCommands',
+			id: ShowAllCommandsAction.ID,
 			label: nls.localize('showCommands.label', "Command Palette..."),
 			alias: 'Command Palette',
 			precondition: null,
@@ -74,6 +74,7 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 	private keyLabel: string;
 	private keyAriaLabel: string;
 	private label: string;
+	private description: string;
 	private alias: string;
 
 	constructor(
@@ -109,6 +110,14 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 
 	public getLabel(): string {
 		return this.label;
+	}
+
+	public getDescription(): string {
+		return this.description;
+	}
+
+	public setDescription(description: string): void {
+		this.description = description;
 	}
 
 	public getDetail(): string {
@@ -147,14 +156,14 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 					this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'quick open' });
 					(action.run() || TPromise.as(null)).done(() => {
 						action.dispose();
-					}, (err) => this.onError(err));
+					}, err => this.onError(err));
 				} catch (error) {
 					this.onError(error);
 				}
 			} else {
 				this.messageService.show(Severity.Info, nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 			}
-		}, (err) => this.onError(err));
+		}, err => this.onError(err));
 	}
 }
 
@@ -218,14 +227,14 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 				if (this.action) {
 					try {
 						this.telemetryService.publicLog('workbenchActionExecuted', { id: this.action.id, from: 'quick open' });
-						(this.action.run() || TPromise.as(null)).done(null, (err) => this.onError(err));
+						(this.action.run() || TPromise.as(null)).done(null, err => this.onError(err));
 					} catch (error) {
 						this.onError(error);
 					}
 				} else {
 					this.messageService.show(Severity.Info, nls.localize('actionNotEnabled', "Command '{0}' is not enabled in the current context.", this.getLabel()));
 				}
-			}, (err) => this.onError(err));
+			}, err => this.onError(err));
 
 			return true;
 		}
@@ -318,7 +327,18 @@ export class CommandsHandler extends QuickOpenHandler {
 		let entries = [...workbenchEntries, ...editorEntries, ...commandEntries];
 
 		// Remove duplicates
-		entries = arrays.distinct(entries, entry => entry.getCommandId());
+		entries = arrays.distinct(entries, entry => `${entry.getLabel()}${entry.getGroupLabel()}${entry.getCommandId()}`);
+
+		// Handle label clashes
+		const commandLabels = new Set<string>();
+		entries.forEach(entry => {
+			const commandLabel = `${entry.getLabel()}${entry.getGroupLabel()}`;
+			if (commandLabels.has(commandLabel)) {
+				entry.setDescription(entry.getCommandId());
+			} else {
+				commandLabels.add(commandLabel);
+			}
+		});
 
 		// Sort by name
 		entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
