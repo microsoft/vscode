@@ -253,6 +253,10 @@ export default class Webview {
 			return;
 		}
 		window.webContents.getZoomFactor(factor => {
+			if (contents.isDestroyed()) {
+				return;
+			}
+
 			contents.setZoomFactor(factor);
 
 			const width = this.parent.clientWidth;
