@@ -291,7 +291,15 @@ export class DebugService implements debug.IDebugService {
 
 				const thread = process && process.getThread(threadId);
 				if (thread) {
-					thread.fetchCallStack().then(callStack => {
+					// Call fetch call stack twice, the first only return the top stack frame.
+					// Second retrieves the rest of the call stack. For performance reasons #25605
+					this.model.fetchCallStack(thread).then(() => {
+						const callStack = thread.getCallStack();
+						// Some adapters might not respect the number levels in StackTraceRequest and might
+						// return more stackFrames than requested. For those do not send an additional stackTrace request.
+						if (callStack.length <= 1) {
+							this.model.fetchCallStack(thread).done(undefined, errors.onUnexpectedError);
+						}
 						if (callStack.length > 0 && !this.viewModel.focusedStackFrame) {
 							// focus first stack frame from top that has source location if no other stack frame is focussed
 							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);
