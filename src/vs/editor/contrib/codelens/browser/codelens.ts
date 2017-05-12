@@ -8,7 +8,7 @@
 import 'vs/css!./codelens';
 import { RunOnceScheduler, asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposables, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { format, escape } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -17,7 +17,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol, Command } from 'vs/editor/common/modes';
+import { CodeLensProviderRegistry, ICodeLensSymbol, Command } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeLensData, getCodeLensData } from '../common/codelens';
@@ -406,24 +406,12 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		const providerSubscriptions = new Disposables();
-		this._localToDispose.push(providerSubscriptions);
-
-		const onEvent = () => {
-			providerSubscriptions.dispose();
-			scheduler.schedule();
-		};
-
-		const subscribeToProviders = (result: ICodeLensData[]) => {
-			const seen = new Set<CodeLensProvider>();
-
-			for (const { provider } of result) {
-				if (provider.onDidChange && !seen.has(provider)) {
-					providerSubscriptions.add(provider.onDidChange(onEvent));
-					seen.add(provider);
-				}
+		for (const provider of CodeLensProviderRegistry.all(model)) {
+			if (typeof provider.onDidChange === 'function') {
+				let registration = provider.onDidChange(() => scheduler.schedule());
+				this._localToDispose.push(registration);
 			}
-		};
+		}
 
 		this._detectVisibleLenses = new RunOnceScheduler(() => {
 			this._onViewportChanged(model.getLanguageIdentifier().language);
@@ -440,7 +428,6 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			this._currentFindCodeLensSymbolsPromise.then((result) => {
 				if (counterValue === this._modelChangeCounter) { // only the last one wins
 					this.renderCodeLensSymbols(result);
-					subscribeToProviders(result);
 					this._detectVisibleLenses.schedule();
 				}
 			}, (error) => {
