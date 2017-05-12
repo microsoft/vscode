@@ -324,6 +324,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public dispose(): void {
+		if (this._linkHandler) {
+			this._linkHandler.dispose();
+		}
 		if (this._xterm && this._xterm.element) {
 			this._hadFocusOnExit = DOM.hasClass(this._xterm.element, 'focus');
 		}
@@ -491,9 +494,6 @@ export class TerminalInstance implements ITerminalInstance {
 		if (message.type === 'data') {
 			if (this._widgetManager) {
 				this._widgetManager.closeMessage();
-			}
-			if (this._linkHandler) {
-				this._linkHandler.disposeTooltipListeners();
 			}
 			if (this._xterm) {
 				this._xterm.write(message.content);

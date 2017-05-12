@@ -351,7 +351,7 @@ export class CallStackDataSource implements IDataSource {
 
 	public getChildren(tree: ITree, element: any): TPromise<any> {
 		if (element instanceof Thread) {
-			return this.getThreadChildren(element);
+			return TPromise.as(this.getThreadChildren(element));
 		}
 		if (element instanceof Model) {
 			return TPromise.as(element.getProcesses());
@@ -361,17 +361,16 @@ export class CallStackDataSource implements IDataSource {
 		return TPromise.as(process.getAllThreads());
 	}
 
-	private getThreadChildren(thread: Thread): TPromise<any> {
-		return thread.fetchCallStack().then((callStack: any[]) => {
-			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
-				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
-			}
-			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
-				return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
-			}
+	private getThreadChildren(thread: Thread): any[] {
+		const callStack: any[] = thread.getCallStack();
+		if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
+			return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
+		}
+		if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
+			return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
+		}
 
-			return callStack;
-		});
+		return callStack;
 	}
 
 	public getParent(tree: ITree, element: any): TPromise<any> {

@@ -446,8 +446,8 @@ export class Thread implements IThread {
 				return new StackFrame(this, rsf.id, source, rsf.name, new Range(
 					rsf.line,
 					rsf.column,
-					rsf.endLine === undefined ? rsf.line : rsf.endLine,
-					rsf.endColumn === undefined ? rsf.column : rsf.endColumn
+					rsf.endLine,
+					rsf.endColumn
 				));
 			});
 		}, (err: Error) => {

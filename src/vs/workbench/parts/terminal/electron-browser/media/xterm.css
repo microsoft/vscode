@@ -51,17 +51,7 @@
 
 .monaco-workbench .panel.integrated-terminal .xterm a {
 	color: inherit;
-	cursor: text;
-	text-decoration: none;
-}
-
-.monaco-workbench .panel.integrated-terminal.ctrlcmd-held .xterm a:hover {
-	cursor: pointer;
-	text-decoration: underline;
-}
-
-.monaco-workbench .panel.integrated-terminal.ctrlcmd-held .xterm a.xterm-invalid-link:hover {
-	cursor: text;
+	cursor: inherit;
 	text-decoration: none;
 }
 

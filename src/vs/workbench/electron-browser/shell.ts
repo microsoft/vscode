@@ -53,7 +53,7 @@ import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServic
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
+import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IOptions } from 'vs/workbench/common/options';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -280,7 +280,7 @@ export class WorkbenchShell {
 
 	private handleNegativePerformanceNumbers(i: IInstantiationService, time: number): void {
 		this.messageService.show(Severity.Warning, {
-			message: nls.localize('handleNegativePerformanceNumbers', "Something went wrong measuring startup performance numbers (ellapsed: {0}ms). We would like to learn more about this issue.", time),
+			message: `Something went wrong measuring startup performance numbers (ellapsed: ${time}ms). We would like to learn more about this issue.`,
 			actions: [
 				i.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL),
 				CloseAction

@@ -59,7 +59,7 @@ export const FIND_IDS = {
 	ToggleCaseSensitiveCommand: 'toggleFindCaseSensitive',
 	ToggleWholeWordCommand: 'toggleFindWholeWord',
 	ToggleRegexCommand: 'toggleFindRegex',
-	ToggleSearchScopeCommand: 'toggleSearchScope',
+	ToggleSearchScopeCommand: 'toggleFindInSelection',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
 	SelectAllMatchesAction: 'editor.action.selectAllMatches',

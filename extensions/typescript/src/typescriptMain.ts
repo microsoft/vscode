@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity, TextDocument } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -54,7 +54,6 @@ interface LanguageDescription {
 	id: string;
 	diagnosticSource: string;
 	modeIds: string[];
-	extensions: string[];
 	configFile: string;
 }
 
@@ -79,14 +78,12 @@ export function activate(context: ExtensionContext): void {
 			id: 'typescript',
 			diagnosticSource: 'ts',
 			modeIds: [MODE_ID_TS, MODE_ID_TSX],
-			extensions: ['.ts', '.tsx'],
 			configFile: 'tsconfig.json'
 		},
 		{
 			id: 'javascript',
 			diagnosticSource: 'js',
 			modeIds: [MODE_ID_JS, MODE_ID_JSX],
-			extensions: ['.js', '.jsx', '.es6', '.mjs'],
 			configFile: 'jsconfig.json'
 		}
 	], context.storagePath, context.globalState, context.workspaceState);
@@ -136,8 +133,6 @@ export function activate(context: ExtensionContext): void {
 const validateSetting = 'validate.enable';
 
 class LanguageProvider {
-
-	private readonly extensions: ObjectMap<boolean>;
 	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private readonly bufferSyncSupport: BufferSyncSupport;
@@ -160,14 +155,11 @@ class LanguageProvider {
 		private readonly client: TypeScriptServiceClient,
 		private readonly description: LanguageDescription
 	) {
-		this.extensions = Object.create(null);
-		description.extensions.forEach(extension => this.extensions[extension] = true);
-
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (file: string) => {
 				this.currentDiagnostics.delete(client.asUrl(file));
 			}
-		}, this.extensions);
+		});
 		this.syntaxDiagnostics = Object.create(null);
 		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
@@ -334,13 +326,20 @@ class LanguageProvider {
 		}
 	}
 
-	public handles(file: string): boolean {
-		const extension = path.extname(file);
-		if ((extension && this.extensions[extension]) || this.bufferSyncSupport.handles(file)) {
+	public handles(file: string, doc: TextDocument): boolean {
+		if (doc && this.description.modeIds.indexOf(doc.languageId) >= 0) {
 			return true;
 		}
+
+		if (this.bufferSyncSupport.handles(file)) {
+			return true;
+		}
+
 		const basename = path.basename(file);
-		return !!basename && basename === this.description.configFile;
+		if (!!basename && basename === this.description.configFile) {
+			return true;
+		}
+		return false;
 	}
 
 	public get id(): string {
@@ -558,14 +557,15 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		});
 	}
 
-	private findLanguage(file: string): LanguageProvider | null {
-		for (let i = 0; i < this.languages.length; i++) {
-			let language = this.languages[i];
-			if (language.handles(file)) {
-				return language;
+	private findLanguage(file: string): Thenable<LanguageProvider | null> {
+		return workspace.openTextDocument(file).then((doc: TextDocument) => {
+			for (const language of this.languages) {
+				if (language.handles(file, doc)) {
+					return language;
+				}
 			}
-		}
-		return null;
+			return null;
+		}, () => null);
 	}
 
 	private triggerAllDiagnostics() {
@@ -580,22 +580,24 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	}
 
 	/* internal */ syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
-		let body = event.body;
+		const body = event.body;
 		if (body && body.diagnostics) {
-			let language = this.findLanguage(body.file);
-			if (language) {
-				language.syntaxDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
-			}
+			this.findLanguage(body.file).then(language => {
+				if (language) {
+					language.syntaxDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
+				}
+			});
 		}
 	}
 
 	/* internal */ semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void {
-		let body = event.body;
+		const body = event.body;
 		if (body && body.diagnostics) {
-			let language = this.findLanguage(body.file);
-			if (language) {
-				language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
-			}
+			this.findLanguage(body.file).then(language => {
+				if (language) {
+					language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
+				}
+			});
 		}
 		/*
 		if (Is.defined(body.queueLength)) {
@@ -611,47 +613,48 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			return;
 		}
 
-		const language = body.triggerFile ? this.findLanguage(body.triggerFile) : this.findLanguage(body.configFile);
-		if (!language) {
-			return;
-		}
-		if (body.diagnostics.length === 0) {
-			language.configFileDiagnosticsReceived(body.configFile, []);
-		} else if (body.diagnostics.length >= 1) {
-			workspace.openTextDocument(Uri.file(body.configFile)).then((document) => {
-				let curly: [number, number, number] | undefined = undefined;
-				let nonCurly: [number, number, number] | undefined = undefined;
-				let diagnostic: Diagnostic;
-				for (let index = 0; index < document.lineCount; index++) {
-					const line = document.lineAt(index);
-					const text = line.text;
-					const firstNonWhitespaceCharacterIndex = line.firstNonWhitespaceCharacterIndex;
-					if (firstNonWhitespaceCharacterIndex < text.length) {
-						if (text.charAt(firstNonWhitespaceCharacterIndex) === '{') {
-							curly = [index, firstNonWhitespaceCharacterIndex, firstNonWhitespaceCharacterIndex + 1];
-							break;
-						} else {
-							const matches = /\s*([^\s]*)(?:\s*|$)/.exec(text.substr(firstNonWhitespaceCharacterIndex));
-							if (matches && matches.length >= 1) {
-								nonCurly = [index, firstNonWhitespaceCharacterIndex, firstNonWhitespaceCharacterIndex + matches[1].length];
+		(body.triggerFile ? this.findLanguage(body.triggerFile) : this.findLanguage(body.configFile)).then(language => {
+			if (!language) {
+				return;
+			}
+			if (body.diagnostics.length === 0) {
+				language.configFileDiagnosticsReceived(body.configFile, []);
+			} else if (body.diagnostics.length >= 1) {
+				workspace.openTextDocument(Uri.file(body.configFile)).then((document) => {
+					let curly: [number, number, number] | undefined = undefined;
+					let nonCurly: [number, number, number] | undefined = undefined;
+					let diagnostic: Diagnostic;
+					for (let index = 0; index < document.lineCount; index++) {
+						const line = document.lineAt(index);
+						const text = line.text;
+						const firstNonWhitespaceCharacterIndex = line.firstNonWhitespaceCharacterIndex;
+						if (firstNonWhitespaceCharacterIndex < text.length) {
+							if (text.charAt(firstNonWhitespaceCharacterIndex) === '{') {
+								curly = [index, firstNonWhitespaceCharacterIndex, firstNonWhitespaceCharacterIndex + 1];
+								break;
+							} else {
+								const matches = /\s*([^\s]*)(?:\s*|$)/.exec(text.substr(firstNonWhitespaceCharacterIndex));
+								if (matches && matches.length >= 1) {
+									nonCurly = [index, firstNonWhitespaceCharacterIndex, firstNonWhitespaceCharacterIndex + matches[1].length];
+								}
 							}
 						}
 					}
-				}
-				const match = curly || nonCurly;
-				if (match) {
-					diagnostic = new Diagnostic(new Range(match[0], match[1], match[0], match[2]), body.diagnostics[0].text);
-				} else {
-					diagnostic = new Diagnostic(new Range(0, 0, 0, 0), body.diagnostics[0].text);
-				}
-				if (diagnostic) {
-					diagnostic.source = language.diagnosticSource;
-					language.configFileDiagnosticsReceived(body.configFile, [diagnostic]);
-				}
-			}, _error => {
-				language.configFileDiagnosticsReceived(body.configFile, [new Diagnostic(new Range(0, 0, 0, 0), body.diagnostics[0].text)]);
-			});
-		}
+					const match = curly || nonCurly;
+					if (match) {
+						diagnostic = new Diagnostic(new Range(match[0], match[1], match[0], match[2]), body.diagnostics[0].text);
+					} else {
+						diagnostic = new Diagnostic(new Range(0, 0, 0, 0), body.diagnostics[0].text);
+					}
+					if (diagnostic) {
+						diagnostic.source = language.diagnosticSource;
+						language.configFileDiagnosticsReceived(body.configFile, [diagnostic]);
+					}
+				}, _error => {
+					language.configFileDiagnosticsReceived(body.configFile, [new Diagnostic(new Range(0, 0, 0, 0), body.diagnostics[0].text)]);
+				});
+			}
+		});
 	}
 
 	private createMarkerDatas(diagnostics: Proto.Diagnostic[], source: string): Diagnostic[] {

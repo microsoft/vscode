@@ -63,6 +63,11 @@
 	font-weight: normal !important;
 }
 
+.monaco-workbench .panel.integrated-terminal .xterm a.active {
+	cursor: pointer;
+	text-decoration: underline;
+}
+
 /* Terminal actions */
 
 /* Light theme */

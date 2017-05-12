@@ -20,7 +20,12 @@ const remote = electron.remote;
 const ipc = electron.ipcRenderer;
 
 process.lazyEnv = new Promise(function (resolve) {
+	const handle = setTimeout(function () {
+		resolve();
+		console.warn('renderer did not receive lazyEnv in time')
+	}, 10000);
 	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+		clearTimeout(handle);
 		assign(process.env, shellEnv);
 		resolve(process.env);
 	});

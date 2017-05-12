@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FinalNewLineParticipant } from 'vs/workbench/api/node/mainThreadSaveParticipant';
+import { FinalNewLineParticipant } from 'vs/workbench/api/electron-browser/mainThreadSaveParticipant';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';

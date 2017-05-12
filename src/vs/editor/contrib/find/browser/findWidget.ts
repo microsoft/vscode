@@ -540,7 +540,7 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		// Toggle selection button
 		this._toggleSelectionFind = this._register(new SimpleCheckbox({
 			parent: findPart,
-			title: NLS_TOGGLE_SELECTION_FIND_TITLE,
+			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
 			onChange: () => {
 				if (this._toggleSelectionFind.checked) {
 					let selection = this._codeEditor.getSelection();
