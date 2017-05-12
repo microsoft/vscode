@@ -42,7 +42,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-
+import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -126,6 +126,14 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 		instantiationService.stub(ITextModelResolverService, <ITextModelResolverService>instantiationService.createInstance(TextModelResolverService));
 		instantiationService.stub(IBackupFileService, new TestBackupFileService());
+		instantiationService.stub(IChoiceService, {
+			choose: (severity, message, options, cancelId): TPromise<number> => {
+				return TPromise.as(cancelId);
+			}
+		});
+		instantiationService.stub(IMessageService, {
+			show: (severity, message, options, cancelId): void => { }
+		});
 
 		testObject = instantiationService.createInstance(ConfigurationEditingService);
 		return configurationService.initialize();
