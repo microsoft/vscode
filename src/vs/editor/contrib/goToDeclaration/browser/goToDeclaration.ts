@@ -276,10 +276,6 @@ export class GoToImplementationAction extends ImplementationAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.F12
-			},
-			menuOpts: {
-				group: 'navigation',
-				order: 1.3
 			}
 		});
 	}
