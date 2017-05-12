@@ -8,8 +8,16 @@ if (Test-Path env:AGENT_WORKFOLDER) {
 
 # throw when a process exits with something other than 0
 function exec([scriptblock]$cmd, [string]$errorMessage = "Error executing command: " + $cmd) {
-    & $cmd
-    if ($LastExitCode -ne 0) {
-        throw $errorMessage
-    }
+	& $cmd
+	if ($LastExitCode -ne 0) {
+		throw $errorMessage
+	}
+}
+
+# log build step
+function STEP() {
+	Write-Host "********************************************************************************"
+	Write-Host "*** $args"
+	Write-Host "********************************************************************************"
+	Write-Host ""
 }
