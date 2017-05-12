@@ -6,7 +6,7 @@
 
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, ExtHostFileSystemEventServiceShape, FileSystemEvents } from './extHost.protocol';
+import { ExtHostContext, ExtHostFileSystemEventServiceShape, FileSystemEvents } from '../node/extHost.protocol';
 
 export class MainThreadFileSystemEventService {
 

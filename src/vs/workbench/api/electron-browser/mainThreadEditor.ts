@@ -15,19 +15,7 @@ import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetContr
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 import { TextEditorCursorStyle, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-
-export interface ITextEditorConfigurationUpdate {
-	tabSize?: number | 'auto';
-	insertSpaces?: boolean | 'auto';
-	cursorStyle?: TextEditorCursorStyle;
-	lineNumbers?: TextEditorLineNumbersStyle;
-}
-export interface IResolvedTextEditorConfiguration {
-	tabSize: number;
-	insertSpaces: boolean;
-	cursorStyle: TextEditorCursorStyle;
-	lineNumbers: TextEditorLineNumbersStyle;
-}
+import { IResolvedTextEditorConfiguration, ISelectionChangeEvent, ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
 
 function configurationsEqual(a: IResolvedTextEditorConfiguration, b: IResolvedTextEditorConfiguration) {
 	if (a && !b || !a && b) {
@@ -42,30 +30,9 @@ function configurationsEqual(a: IResolvedTextEditorConfiguration, b: IResolvedTe
 	);
 }
 
-export interface ISelectionChangeEvent {
-	selections: Selection[];
-	source?: string;
-}
-
 export interface IFocusTracker {
 	onGainedFocus(): void;
 	onLostFocus(): void;
-}
-
-export enum TextEditorRevealType {
-	Default = 0,
-	InCenter = 1,
-	InCenterIfOutsideViewport = 2,
-	AtTop = 3
-}
-
-export interface IUndoStopOptions {
-	undoStopBefore: boolean;
-	undoStopAfter: boolean;
-}
-
-export interface IApplyEditsOptions extends IUndoStopOptions {
-	setEndOfLine: EndOfLine;
 }
 
 /**

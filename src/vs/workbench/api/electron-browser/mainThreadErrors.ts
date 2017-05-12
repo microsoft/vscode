@@ -5,7 +5,7 @@
 'use strict';
 
 import * as errors from 'vs/base/common/errors';
-import { MainThreadErrorsShape } from './extHost.protocol';
+import { MainThreadErrorsShape } from '../node/extHost.protocol';
 
 export class MainThreadErrors extends MainThreadErrorsShape {
 

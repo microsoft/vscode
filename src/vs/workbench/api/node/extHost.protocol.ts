@@ -35,13 +35,15 @@ import { IWorkspaceConfigurationValues } from 'vs/workbench/services/configurati
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
-import { IApplyEditsOptions, IUndoStopOptions, TextEditorRevealType, ITextEditorConfigurationUpdate, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './mainThreadEditor';
+import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
+
 
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorModel';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 export interface IEnvironment {
 	enableProposedApiForAll: boolean;
@@ -132,6 +134,44 @@ export abstract class MainThreadDocumentsShape {
 	$unregisterTextContentProvider(handle: number): void { throw ni(); }
 	$trySaveDocument(uri: URI): TPromise<boolean> { throw ni(); }
 }
+
+
+export interface ISelectionChangeEvent {
+	selections: Selection[];
+	source?: string;
+}
+
+export interface ITextEditorConfigurationUpdate {
+	tabSize?: number | 'auto';
+	insertSpaces?: boolean | 'auto';
+	cursorStyle?: TextEditorCursorStyle;
+	lineNumbers?: TextEditorLineNumbersStyle;
+}
+
+export interface IResolvedTextEditorConfiguration {
+	tabSize: number;
+	insertSpaces: boolean;
+	cursorStyle: TextEditorCursorStyle;
+	lineNumbers: TextEditorLineNumbersStyle;
+}
+
+export enum TextEditorRevealType {
+	Default = 0,
+	InCenter = 1,
+	InCenterIfOutsideViewport = 2,
+	AtTop = 3
+}
+
+export interface IUndoStopOptions {
+	undoStopBefore: boolean;
+	undoStopAfter: boolean;
+}
+
+export interface IApplyEditsOptions extends IUndoStopOptions {
+	setEndOfLine: EndOfLine;
+}
+
+
 
 export interface ITextDocumentShowOptions {
 	position?: EditorPosition;

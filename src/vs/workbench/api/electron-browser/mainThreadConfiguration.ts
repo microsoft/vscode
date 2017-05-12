@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { MainThreadConfigurationShape, ExtHostContext } from './extHost.protocol';
+import { MainThreadConfigurationShape, ExtHostContext } from '../node/extHost.protocol';
 
 export class MainThreadConfiguration extends MainThreadConfigurationShape {
 

@@ -6,7 +6,7 @@
 
 import { IProgressService2, IProgress, IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { MainThreadProgressShape } from './extHost.protocol';
+import { MainThreadProgressShape } from '../node/extHost.protocol';
 
 export class MainThreadProgress extends MainThreadProgressShape {
 

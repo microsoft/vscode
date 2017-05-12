@@ -18,7 +18,7 @@ import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessa
 import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, ExtHostExtensionServiceShape } from './extHost.protocol';
+import { ExtHostContext, ExtHostExtensionServiceShape } from '../node/extHost.protocol';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));

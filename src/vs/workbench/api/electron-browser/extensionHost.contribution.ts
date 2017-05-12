@@ -9,7 +9,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { Registry } from 'vs/platform/platform';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, InstanceCollection } from './extHost.protocol';
+import { MainContext, InstanceCollection } from '../node/extHost.protocol';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 
 // --- addressable

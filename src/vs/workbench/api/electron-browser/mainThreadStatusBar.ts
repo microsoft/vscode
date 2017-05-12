@@ -6,7 +6,7 @@
 
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { MainThreadStatusBarShape } from './extHost.protocol';
+import { MainThreadStatusBarShape } from '../node/extHost.protocol';
 
 export class MainThreadStatusBar extends MainThreadStatusBarShape {
 	private mapIdToDisposable: { [id: number]: IDisposable };

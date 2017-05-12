@@ -14,7 +14,7 @@ import { ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCo
 import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Uri } from 'vscode';
-import { MainThreadWorkspaceShape } from './extHost.protocol';
+import { MainThreadWorkspaceShape } from '../node/extHost.protocol';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 

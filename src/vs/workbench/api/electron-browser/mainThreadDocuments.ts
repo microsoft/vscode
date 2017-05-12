@@ -15,7 +15,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from './extHost.protocol';
+import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape } from '../node/extHost.protocol';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { ITextSource } from 'vs/editor/common/model/textSource';

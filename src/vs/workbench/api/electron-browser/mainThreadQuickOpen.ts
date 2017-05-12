@@ -9,7 +9,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IQuickOpenService, IPickOptions, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { InputBoxOptions } from 'vscode';
-import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems } from './extHost.protocol';
+import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems } from '../node/extHost.protocol';
 
 export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 

@@ -9,7 +9,7 @@ import { IMessageService, IChoiceService } from 'vs/platform/message/common/mess
 import Severity from 'vs/base/common/severity';
 import { Action } from 'vs/base/common/actions';
 import { TPromise as Promise } from 'vs/base/common/winjs.base';
-import { MainThreadMessageServiceShape } from './extHost.protocol';
+import { MainThreadMessageServiceShape } from '../node/extHost.protocol';
 import * as vscode from 'vscode';
 
 export class MainThreadMessageService extends MainThreadMessageServiceShape {

@@ -13,11 +13,13 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
-import { TextEditorRevealType, MainThreadTextEditor, IApplyEditsOptions, IUndoStopOptions, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditor';
+import { MainThreadTextEditor } from './mainThreadEditor';
+import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
+
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals as objectEquals } from 'vs/base/common/objects';
-import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData } from './extHost.protocol';
+import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData } from '../node/extHost.protocol';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 

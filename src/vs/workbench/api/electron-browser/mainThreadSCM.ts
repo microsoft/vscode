@@ -14,7 +14,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ISCMService, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations } from 'vs/workbench/services/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource, SCMGroupFeatures } from './extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResource, SCMGroupFeatures } from '../node/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {

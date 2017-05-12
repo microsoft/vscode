@@ -30,7 +30,7 @@ import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net
 import { createServer, Server } from 'net';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
+import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';

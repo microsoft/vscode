@@ -22,7 +22,7 @@ import { getDocumentFormattingEdits } from 'vs/editor/contrib/format/common/form
 import { EditOperationsCommand } from 'vs/editor/contrib/format/common/formatCommand';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from './extHost.protocol';
+import { ExtHostContext, ExtHostDocumentSaveParticipantShape } from '../node/extHost.protocol';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 export interface INamedSaveParticpant extends ISaveParticipant {

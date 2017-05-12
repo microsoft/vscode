@@ -105,7 +105,7 @@ import 'vs/workbench/parts/performance/electron-browser/performance.contribution
 
 import 'vs/workbench/parts/cli/electron-browser/cli.contribution';
 
-import 'vs/workbench/api/node/extHost.contribution';
+import 'vs/workbench/api/electron-browser/extensionHost.contribution';
 
 import 'vs/workbench/electron-browser/main.contribution';
 import 'vs/workbench/electron-browser/main';

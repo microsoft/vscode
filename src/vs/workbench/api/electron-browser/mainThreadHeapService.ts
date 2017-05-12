@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, ObjectIdentifier } from './extHost.protocol';
+import { ExtHostContext, ObjectIdentifier } from '../node/extHost.protocol';
 import { consumeSignals, GCSignal } from 'gc-signals';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

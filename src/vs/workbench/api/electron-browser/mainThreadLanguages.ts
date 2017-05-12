@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { MainThreadLanguagesShape } from './extHost.protocol';
+import { MainThreadLanguagesShape } from '../node/extHost.protocol';
 
 export class MainThreadLanguages extends MainThreadLanguagesShape {
 

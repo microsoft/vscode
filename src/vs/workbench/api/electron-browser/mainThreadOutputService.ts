@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/platform';
 import { IOutputService, IOutputChannel, OUTPUT_PANEL_ID, Extensions, IOutputChannelRegistry } from 'vs/workbench/parts/output/common/output';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { MainThreadOutputServiceShape } from './extHost.protocol';
+import { MainThreadOutputServiceShape } from '../node/extHost.protocol';
 
 export class MainThreadOutputService extends MainThreadOutputServiceShape {
 

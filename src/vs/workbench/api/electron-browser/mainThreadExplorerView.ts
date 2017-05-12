@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { ExtHostContext, MainThreadExplorerViewShape, ExtHostExplorerViewShape, ITreeNode } from './extHost.protocol';
+import { ExtHostContext, MainThreadExplorerViewShape, ExtHostExplorerViewShape, ITreeNode } from '../node/extHost.protocol';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExplorerViewsService, IExplorerViewDataProvider, IExplorerView } from 'vs/workbench/parts/explorers/common/explorer';

@@ -8,7 +8,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape } from './extHost.protocol';
+import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape } from '../node/extHost.protocol';
 
 export class MainThreadTerminalService extends MainThreadTerminalServiceShape {
 

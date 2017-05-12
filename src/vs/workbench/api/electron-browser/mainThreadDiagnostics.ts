@@ -7,7 +7,7 @@
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { MainThreadDiagnosticsShape } from './extHost.protocol';
+import { MainThreadDiagnosticsShape } from '../node/extHost.protocol';
 
 export class MainThreadDiagnostics extends MainThreadDiagnosticsShape {
 
