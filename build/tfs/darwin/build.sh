@@ -1,6 +1,12 @@
 #!/bin/sh
 set -e
 
+# set agent specific npm cache
+if [ -z "$AGENT_WORKFOLDER" ]
+then
+	export npm_config_cache="$AGENT_WORKFOLDER/npm-cache"
+fi
+
 # log build step
 STEP() {
 	echo ""
