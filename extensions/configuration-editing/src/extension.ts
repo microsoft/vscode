@@ -24,6 +24,9 @@ export function activate(context): void {
 	//settings.json suggestions
 	context.subscriptions.push(registerSettingsCompletions());
 
+	//extensions.json suggestions
+	context.subscriptions.push(registerExtensionsCompletions());
+
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
 	context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
@@ -61,11 +64,25 @@ function registerSettingsCompletions(): vscode.Disposable {
 	});
 }
 
-function newSimpleCompletionItem(text: string, range: vscode.Range, description?: string): vscode.CompletionItem {
+function registerExtensionsCompletions(): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ pattern: '**/extensions.json' }, {
+		provideCompletionItems(document, position, token) {
+			const location = getLocation(document.getText(), document.offsetAt(position));
+			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
+			if (location.path[0] === 'recommendations') {
+				return vscode.extensions.all
+					.filter(e => !e.id.startsWith('vscode.'))
+					.map(e => newSimpleCompletionItem(e.id, range, undefined, '"' + e.id + '"'));
+			}
+		}
+	});
+}
+
+function newSimpleCompletionItem(text: string, range: vscode.Range, description?: string, insertText?: string): vscode.CompletionItem {
 	const item = new vscode.CompletionItem(text);
 	item.kind = vscode.CompletionItemKind.Value;
 	item.detail = description;
-	item.insertText = text;
+	item.insertText = insertText || text;
 	item.range = range;
 
 	return item;
