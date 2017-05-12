@@ -70,12 +70,14 @@ class CommandPaletteEditorAction extends EditorAction {
 }
 
 class BaseCommandEntry extends QuickOpenEntryGroup {
+	private commandId: string;
 	private keyLabel: string;
 	private keyAriaLabel: string;
 	private label: string;
 	private alias: string;
 
 	constructor(
+		commandId: string,
 		keyLabel: string,
 		keyAriaLabel: string,
 		label: string,
@@ -87,6 +89,7 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 	) {
 		super();
 
+		this.commandId = commandId;
 		this.keyLabel = keyLabel;
 		this.keyAriaLabel = keyAriaLabel;
 		this.label = label;
@@ -98,6 +101,10 @@ class BaseCommandEntry extends QuickOpenEntryGroup {
 		}
 
 		this.setHighlights(labelHighlights, null, aliasHighlights);
+	}
+
+	public getCommandId(): string {
+		return this.commandId;
 	}
 
 	public getLabel(): string {
@@ -155,6 +162,7 @@ class CommandEntry extends BaseCommandEntry {
 	private actionDescriptor: SyncActionDescriptor;
 
 	constructor(
+		commandId: string,
 		keyLabel: string,
 		keyAriaLabel: string,
 		label: string,
@@ -166,7 +174,7 @@ class CommandEntry extends BaseCommandEntry {
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
+		super(commandId, keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
 
 		this.actionDescriptor = actionDescriptor;
 	}
@@ -187,6 +195,7 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 	private action: IEditorAction;
 
 	constructor(
+		commandId: string,
 		keyLabel: string,
 		keyAriaLabel: string,
 		label: string,
@@ -197,7 +206,7 @@ class EditorActionCommandEntry extends BaseCommandEntry {
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
+		super(commandId, keyLabel, keyAriaLabel, label, meta, labelHighlights, aliasHighlights, messageService, telemetryService);
 
 		this.action = action;
 	}
@@ -230,6 +239,7 @@ class ActionCommandEntry extends BaseCommandEntry {
 	private action: IAction;
 
 	constructor(
+		commandId: string,
 		keyLabel: string,
 		keyAriaLabel: string,
 		label: string,
@@ -240,7 +250,7 @@ class ActionCommandEntry extends BaseCommandEntry {
 		@IMessageService messageService: IMessageService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, messageService, telemetryService);
+		super(commandId, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, messageService, telemetryService);
 
 		this.action = action;
 	}
@@ -308,7 +318,7 @@ export class CommandsHandler extends QuickOpenHandler {
 		let entries = [...workbenchEntries, ...editorEntries, ...commandEntries];
 
 		// Remove duplicates
-		entries = arrays.distinct(entries, (entry) => entry.getLabel() + entry.getGroupLabel());
+		entries = arrays.distinct(entries, entry => entry.getCommandId());
 
 		// Sort by name
 		entries = entries.sort((elementA, elementB) => elementA.getLabel().toLowerCase().localeCompare(elementB.getLabel().toLowerCase()));
@@ -340,7 +350,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(CommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, actionDescriptor));
+					entries.push(this.instantiationService.createInstance(CommandEntry, actionDescriptor.id, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, actionDescriptor));
 				}
 			}
 		}
@@ -353,6 +363,9 @@ export class CommandsHandler extends QuickOpenHandler {
 
 		for (let i = 0; i < actions.length; i++) {
 			const action = actions[i];
+			if (action.id === ShowAllCommandsAction.ID) {
+				continue; // avoid duplicates
+			}
 
 			const keybinding = this.keybindingService.lookupKeybinding(action.id);
 			const keyLabel = keybinding ? keybinding.getLabel() : '';
@@ -366,7 +379,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const labelHighlights = wordFilter(searchValue, label);
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
+					entries.push(this.instantiationService.createInstance(EditorActionCommandEntry, action.id, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
 				}
 			}
 		}
@@ -401,7 +414,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				}
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 				if (labelHighlights || aliasHighlights) {
-					entries.push(this.instantiationService.createInstance(ActionCommandEntry, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
+					entries.push(this.instantiationService.createInstance(ActionCommandEntry, action.id, keyLabel, keyAriaLabel, label, alias, labelHighlights, aliasHighlights, action));
 				}
 			}
 		}
