@@ -80,7 +80,7 @@ export class VariablesView extends CollapsibleViewletView {
 				}
 				return undefined;
 			}).done(null, errors.onUnexpectedError);
-		}, 700);
+		}, 400);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -116,11 +116,11 @@ export class VariablesView extends CollapsibleViewletView {
 		this.toolBar.setActions(prepareActions([collapseAction]))();
 
 		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => {
-			// Only delay if the stack frames got cleared and there is no active stack frame
-			// Otherwise just update immediately
-			if (sf) {
+			// Refresh the tree immediatly if it is not visible.
+			// Otherwise postpone the refresh until user stops stepping.
+			if (!this.tree.getContentHeight()) {
 				this.onFocusStackFrameScheduler.schedule(0);
-			} else if (!this.onFocusStackFrameScheduler.isScheduled()) {
+			} else {
 				this.onFocusStackFrameScheduler.schedule();
 			}
 		}));
