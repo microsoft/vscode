@@ -18,6 +18,8 @@
 	"discard": "放弃更改",
 	"confirm discard all": "确定要放弃所有更改吗？此操作不可撤销！",
 	"discardAll": "放弃所有更改",
+	"yes": "是",
+	"always": "始终",
 	"no changes": "没有要提交的更改。",
 	"commit message": "提交消息",
 	"provide commit message": "请提供提交消息",

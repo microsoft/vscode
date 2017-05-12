@@ -35,7 +35,6 @@
 	"javascript.goToProjectConfig.title": "Перейти к конфигурации проекта",
 	"typescript.referencesCodeLens.enabled": "Включить или отключить CodeLens для ссылок. Требуется TypeScript >= 2.0.6.",
 	"typescript.implementationsCodeLens.enabled": "Включить или отключить CodeLens для реализаций. Требуется TypeScript >= 2.2.0.",
-	"typescript.openTsServerLog.title": "Открытие файла журнала сервера TS",
 	"typescript.selectTypeScriptVersion.title": "Выберите версию TypeScript.",
 	"jsDocCompletion.enabled": "Включить или отключить JSDoc коментарии",
 	"javascript.implicitProjectConfig.checkJs": "Включает/отключает семантическую проверку файлов JavaScript. Этот параметр может переопределяться в файле jsconfig.json или tsconfig.json. Требуется TypeScript 2.3.1 или более поздней версии.",

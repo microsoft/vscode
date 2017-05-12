@@ -28,8 +28,6 @@
 	"listActiveSelectionBackground": "목록/트리가 활성 상태인 경우 선택한 항목의 목록/트리 배경색입니다. 목록/트리가 활성 상태이면 키보드 포커스를 가지며, 비활성 상태이면 포커스가 없습니다.",
 	"listInactiveSelectionBackground": "목록/트리가 비활성 상태인 경우 선택한 항목의 목록/트리 배경색입니다. 목록/트리가 활성 상태이면 키보드 포커스를 가지며, 비활성 상태이면 포커스가 없습니다.",
 	"listActiveSelectionForeground": "목록/트리가 활성 상태인 경우 선택한 항목의 목록/트리 전경색입니다. 목록/트리가 활성 상태이면 키보드 포커스를 가지며, 비활성 상태이면 포커스가 없습니다.",
-	"listFocusAndSelectionBackground": "목록/트리가 활성 상태인 경우 포커스가 있는 선택한 항목의 목록/트리 배경색입니다. 목록/트리가 활성 상태이면 키보드 포커스를 가지며, 비활성 상태이면 포커스가 없습니다. 이 색은 개별 선택 및 포커스 색보다 우선합니다.",
-	"listFocusAndSelectionForeground": "목록/트리가 활성 상태인 경우 포커스가 있는 선택한 항목의 목록/트리 전경색입니다. 목록/트리가 활성 상태이면 키보드 포커스를 가지며, 비활성 상태이면 포커스가 없습니다. 이 색은 개별 선택 및 포커스 색보다 우선합니다.",
 	"listHoverBackground": "마우스로 항목을 가리킬 때 목록/트리 배경입니다.",
 	"listDropBackground": "마우스로 항목을 이동할 때 목록/트리 끌어서 놓기 배경입니다.",
 	"highlight": "목록/트리 내에서 검색할 때 일치 항목 강조 표시의 목록/트리 전경색입니다.",
@@ -50,7 +48,9 @@
 	"editorFindMatch": "현재 검색 일치 항목의 색입니다.",
 	"findMatchHighlight": "기타 검색 일치 항목의 색입니다.",
 	"findRangeHighlight": "검색을 제한하는 영역의 색을 지정합니다.",
+	"hoverHighlight": "호버가 표시된 단어 아래를 강조 표시합니다.",
+	"hoverBackground": "편집기 호버의 배경색.",
+	"hoverBorder": "편집기 호버의 테두리 색입니다.",
 	"activeLinkForeground": "활성 링크의 색입니다.",
-	"linkForeground": "링크 색입니다.",
 	"editorWidgetBackground": "찾기/바꾸기 같은 편집기 위젯의 배경색입니다."
 }

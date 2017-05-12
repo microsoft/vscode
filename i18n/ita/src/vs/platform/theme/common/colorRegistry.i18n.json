@@ -28,8 +28,6 @@
 	"listActiveSelectionBackground": "Colore sfondo Elenco/Struttura ad albero per l'elemento selezionato quando l'Elenco/Struttura ad albero è attivo. Un Elenco/Struttura ad albero attivo\nha il focus della tastiera, uno inattivo no.",
 	"listInactiveSelectionBackground": "Colore sfondo Elenco/Struttura ad albero per l'elemento selezionato quando l'Elenco/Struttura ad albero è inattivo. Un Elenco/Struttura ad albero attivo\nha il focus della tastiera, uno inattivo no.",
 	"listActiveSelectionForeground": "Colore primo piano Elenco/Struttura ad albero per l'elemento selezionato quando l'Elenco/Struttura ad albero è attivo. Un Elenco/Struttura ad albero attivo\nha il focus della tastiera, uno inattivo no.",
-	"listFocusAndSelectionBackground": "Colore sfondo Elenco/Struttura ad albero per l'elemento evidenziato e selezionato quando l'Elenco/Struttura ad albero è attivo. Un Elenco/Struttura ad albero attivo\nha il focus della tastiera, uno inattivo no. Questo colore ha la precedenza su colori specificati singolarmente per selezione e focus.",
-	"listFocusAndSelectionForeground": "Colore primo piano Elenco/Struttura ad albero per l'elemento evidenziato e selezionato quando l'Elenco/Struttura ad albero è attivo. Un Elenco/Struttura ad albero attivo\nha il focus della tastiera, uno inattivo no. Questo colore ha la precedenza su colori specificati singolarmente per selezione e focus.",
 	"listHoverBackground": "Sfondo Elenco/Struttura ad albero al passaggio del mouse sugli elementi.",
 	"listDropBackground": "Sfondo Elenco/Struttura ad albero durante il trascinamento degli elementi selezionati.",
 	"highlight": "Colore primo piano Elenco/Struttura ad albero delle occorrenze trovate durante la ricerca nell'Elenco/Struttura ad albero.",
@@ -50,7 +48,9 @@
 	"editorFindMatch": "Colore della corrispondenza di ricerca corrente.",
 	"findMatchHighlight": "Colore delle altre corrispondenze di ricerca.",
 	"findRangeHighlight": "Colore dell'intervallo di ricerca.",
+	"hoverHighlight": "Evidenziazione sotto la parola per cui è visualizzata un'area sensibile al passaggio del mouse.",
+	"hoverBackground": "Colore di sfondo dell'area sensibile al passaggio del mouse dell'editor.",
+	"hoverBorder": "Colore del bordo dell'area sensibile al passaggio del mouse dell'editor.",
 	"activeLinkForeground": "Colore dei collegamenti attivi.",
-	"linkForeground": "Colore dei collegamenti.",
 	"editorWidgetBackground": "Colore di sfondo dei widget dell'editor, ad esempio Trova/Sostituisci."
 }

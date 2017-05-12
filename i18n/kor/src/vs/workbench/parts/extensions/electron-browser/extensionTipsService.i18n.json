@@ -8,5 +8,7 @@
 	"showRecommendations": "권장 사항 표시",
 	"neverShowAgain": "다시 표시 안 함",
 	"close": "닫기",
-	"workspaceRecommended": "이 작업 영역에 확장 권장 사항이 있습니다."
+	"workspaceRecommended": "이 작업 영역에 확장 권장 사항이 있습니다.",
+	"no": "아니요",
+	"cancel": "취소"
 }

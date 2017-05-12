@@ -6,6 +6,7 @@
 {
 	"openLaunchJson": "打开 {0}",
 	"launchJsonNeedsConfigurtion": "配置或修复 \"launch.json\"",
+	"noFolderDebugConfig": "请先打开一个文件夹以进行高级调试配置。",
 	"startDebug": "开始调试",
 	"startWithoutDebugging": "开始执行(不调试)",
 	"selectAndStartDebugging": "选择并开始调试",

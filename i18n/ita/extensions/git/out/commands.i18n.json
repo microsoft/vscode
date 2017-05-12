@@ -18,6 +18,8 @@
 	"discard": "Rimuovi modifiche",
 	"confirm discard all": "Sei sicuro di voler annullare TUTTE le modifiche? Quest'azione è IRREVERSIBILE!",
 	"discardAll": "Rimuovi TUTTE le modifiche",
+	"yes": "Sì",
+	"always": "Sempre",
 	"no changes": "Non ci sono modifiche di cui eseguire il commit.",
 	"commit message": "Messaggio di commit",
 	"provide commit message": "Specificare un messaggio di commit",

@@ -62,6 +62,7 @@
 	"renderLineHighlight": "控制編輯器應如何轉譯目前反白的行，可能的值有 'none'、'gutter'、'line' 和 'all'。",
 	"codeLens": "控制編輯器是否顯示程式碼濾鏡",
 	"folding": "控制編輯器是否已啟用程式碼摺疊功能",
+	"hideFoldIcons": "自動隱藏摺疊圖示",
 	"matchBrackets": "當選取某側的括號時，強調顯示另一側的配對括號。",
 	"glyphMargin": "控制編輯器是否應轉譯垂直字符邊界。字符邊界最常用來進行偵錯。",
 	"useTabStops": "插入和刪除接在定位停駐點後的空白字元",

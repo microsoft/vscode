@@ -27,8 +27,6 @@
 	"autoSaveDelay": "Controlla il ritardo in ms dopo il quale un file dirty viene salvato automaticamente. Si applica solo quando 'files.autoSave' è impostato su '{0}'",
 	"watcherExclude": "Consente di configurare i criteri GLOB dei percorsi file da escludere dal controllo dei file. Se si modifica questa impostazione, è necessario riavviare. Quando si nota che Code consuma troppo tempo della CPU all'avvio, è possibile escludere le cartelle di grandi dimensioni per ridurre il carico iniziale.",
 	"hotExit.off": "Disabilita Hot Exit.",
-	"hotExit.onExit": "La funzionalità Hot Exit verrà attivata alla chiusura dell'applicazione, ovvero quando si chiude l'ultima finestra in Windows/Linux o quando si attiva il comando workbench.action.quit (riquadro comandi, tasto di scelta rapida, menu). Tutte le finestre con backup verranno ripristinate al successivo avvio.",
-	"hotExit.onExitAndWindowClose": "La funzionalità Hot Exit verrà attivata alla chiusura dell'applicazione, ovvero quando si chiude l'ultima finestra in Windows/Linux o quando si attiva il comando workbench.action.quit (riquadro comandi, tasto di scelta rapida, menu), nonché per qualsiasi finestra con una cartella aperta indipendentemente dal fatto che sia l'ultima. Tutte le finestre senza cartelle aperte verranno ripristinate al successivo avvio. Per riportare le finestre di cartelle allo stato in cui si trovavano prima dell'arresto, impostare \"window.reopenFolders\" su \"all\".",
 	"hotExit": "Controlla se i file non salvati verranno memorizzati tra una sessione e l'altra, consentendo di ignorare il prompt di salvataggio alla chiusura dell'editor.",
 	"defaultLanguage": "Modalità linguaggio predefinita assegnata ai nuovi file.",
 	"editorConfigurationTitle": "Editor",

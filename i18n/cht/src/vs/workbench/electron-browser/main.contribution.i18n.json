@@ -41,7 +41,6 @@
 	"window.newWindowDimensions.inherit": "以相同於上一個使用中之視窗的維度開啟新視窗。",
 	"window.newWindowDimensions.maximized": "開啟並最大化新視窗。",
 	"window.newWindowDimensions.fullscreen": "在全螢幕模式下開啟新視窗。",
-	"newWindowDimensions": "控制開啟新視窗的維度。根據預設，新視窗會以小型維度在畫面中央開啟。設為 'inherit' 時，視窗的維度會和上一個使用中視窗相同。設為 'maximized' 時，視窗會開到最大，若設為 'fullscreen' 則全螢幕開啟。",
 	"window.menuBarVisibility.default": "只在全螢幕模式時隱藏功能表。",
 	"window.menuBarVisibility.visible": "一律顯示功能表，即使在全螢幕模式時亦然。",
 	"window.menuBarVisibility.toggle": "隱藏功能表，但可經由 Alt 鍵加以顯示。",

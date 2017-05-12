@@ -35,7 +35,6 @@
 	"javascript.goToProjectConfig.title": "移至專案組態",
 	"typescript.referencesCodeLens.enabled": "啟用/停用參考 CodeLens。需要 TypeScript >= 2.0.6。",
 	"typescript.implementationsCodeLens.enabled": "啟用/停用實作 CodeLens。需要 TypeScript >= 2.2.0。",
-	"typescript.openTsServerLog.title": "開啟 TS 伺服器記錄檔",
 	"typescript.selectTypeScriptVersion.title": "選取 TypeScript 版本",
 	"jsDocCompletion.enabled": "啟用/停用自動 JSDoc 註解",
 	"javascript.implicitProjectConfig.checkJs": "啟用/停用 JavaScript 檔案的語意檢查。現有的 jsconfig.json 或 tsconfig.json 檔案會覆寫此設定。需要 TypeScript >=2.3.1。",

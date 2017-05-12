@@ -10,5 +10,7 @@
 	"caret": "Color del cursor del editor.",
 	"editorWhitespaces": "Color de los caracteres de espacio en blanco del editor.",
 	"editorIndentGuides": "Color de las guías de sangría del editor.",
-	"editorLineNumbers": "Color de números de línea del editor."
+	"editorLineNumbers": "Color de números de línea del editor.",
+	"editorCodeLensForeground": "Color principal de lentes de código en el editor",
+	"editorBracketMatchBackground": "Color de fondo tras corchetes coincidentes"
 }

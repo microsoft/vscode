@@ -18,7 +18,6 @@
 	"problems": "Probleme",
 	"manyMarkers": "mehr als 99",
 	"tasks": "Aufgaben",
-	"TaskSystem.noHotSwap": "Zum Ändern des Aufgabenausführungsmoduls muss VS Code neu gestartet werden. Die Änderung wird ignoriert.",
 	"TaskService.noBuildTask": "Keine Buildaufgabe definiert. Markieren Sie eine Aufgabe mit 'isBuildCommand' in der tasks.json-Datei.",
 	"TaskService.noTestTask": "Keine Testaufgabe definiert. Markieren Sie eine Aufgabe mit 'isTestCommand' in der tasks.json-Datei.",
 	"TaskServer.noTask": "Die angeforderte auszuführende Aufgabe {0} wurde nicht gefunden.",

@@ -28,8 +28,6 @@
 	"listActiveSelectionBackground": "Hintergrundfarbe der Liste/Struktur für das ausgewählte Element, wenn die Liste/Struktur aktiv ist. Eine aktive Liste/Struktur hat Tastaturfokus, eine inaktive hingegen nicht.",
 	"listInactiveSelectionBackground": "Hintergrundfarbe der Liste/Struktur für das ausgewählte Element, wenn die Liste/Struktur inaktiv ist. Eine aktive Liste/Struktur hat Tastaturfokus, eine inaktive hingegen nicht.",
 	"listActiveSelectionForeground": "Vordergrundfarbe der Liste/Struktur für das ausgewählte Element, wenn die Liste/Struktur aktiv ist. Eine aktive Liste/Struktur hat Tastaturfokus, eine inaktive hingegen nicht.",
-	"listFocusAndSelectionBackground": "Hintergrundfarbe der Liste/Struktur für das fokussierte und ausgewählte Element, wenn die Liste/Struktur aktiv ist. Eine aktive Liste/Struktur hat Tastaturfokus, eine inaktive hingegen nicht. Diese Farbe hat Vorrang vor der individuellen Auswahl und den Fokusfarben.",
-	"listFocusAndSelectionForeground": "Vordergrundfarbe der Liste/Struktur für das fokussierte und ausgewählte Element, wenn die Liste/Struktur aktiv ist. Eine aktive Liste/Struktur hat Tastaturfokus, eine inaktive hingegen nicht. Diese Farbe hat Vorrang vor der individuellen Auswahl und den Fokusfarben.",
 	"listHoverBackground": "Hintergrund der Liste/Struktur, wenn mit der Maus auf Elemente gezeigt wird.",
 	"listDropBackground": "Drag & Drop-Hintergrund der Liste/Struktur, wenn Elemente mithilfe der Maus verschoben werden.",
 	"highlight": "Vordergrundfarbe der Liste/Struktur zur Trefferhervorhebung beim Suchen innerhalb der Liste/Struktur.",
@@ -50,7 +48,9 @@
 	"editorFindMatch": "Farbe des aktuellen Suchergebnisses.",
 	"findMatchHighlight": "Farbe der anderen Suchtreffer.",
 	"findRangeHighlight": "Farbe des Bereichs zur Einschränkung der Suche.",
+	"hoverHighlight": "Hervorhebung eines Worts, unter dem ein Mauszeiger angezeigt wird.",
+	"hoverBackground": "Background color of the editor hover.",
+	"hoverBorder": "Rahmenfarbe des Editor-Mauszeigers.",
 	"activeLinkForeground": "Farbe der aktiven Links.",
-	"linkForeground": "Farbe der Links.",
 	"editorWidgetBackground": "Hintergrundfarbe von Editor-Widgets wie zum Beispiel Suchen/Ersetzen."
 }

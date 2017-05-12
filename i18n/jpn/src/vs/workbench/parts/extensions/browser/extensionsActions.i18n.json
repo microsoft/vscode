@@ -23,7 +23,7 @@
 	"disableAction": "無効にする",
 	"checkForUpdates": "更新の確認",
 	"updateAll": "すべての拡張機能を更新します",
-	"reloadAction": "再読み込む",
+	"reloadAction": "再読み込み",
 	"postUpdateTooltip": "再度読み込んで更新する",
 	"postUpdateMessage": "このウィンドウを再度読み込んで、更新済みの拡張機能 '{0}' をアクティブ化しますか?",
 	"postEnableTooltip": "再度読み込んでアクティブにする",

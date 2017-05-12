@@ -28,8 +28,6 @@
 	"listActiveSelectionBackground": "Couleur d'arrière-plan de la liste/l'arborescence de l'élément sélectionné quand la liste/l'arborescence est active. Une liste/arborescence active peut être sélectionnée au clavier, elle ne l'est pas quand elle est inactive.",
 	"listInactiveSelectionBackground": "Couleur d'arrière-plan de la liste/l'arborescence pour l'élément sélectionné quand la liste/l'arborescence est inactive. Une liste/aborescence active peut être sélectionnée au clavier, elle ne l'est pas quand elle est inactive.",
 	"listActiveSelectionForeground": "Couleur de premier plan de la liste/l'arborescence pour l'élément sélectionné quand la liste/l'arborescence est active. Une liste/aborescence active peut être sélectionnée au clavier, elle ne l'est pas quand elle est inactive.",
-	"listFocusAndSelectionBackground": "Couleur d'arrière-plan de la liste/l'arborescence pour l'élément ayant le focus et sélectionné quand la liste/l'arborescence est active. Une liste/aborescence active peut être sélectionnée au clavier, elle ne l'est pas quand elle est inactive. Cette couleur l'emporte sur les couleurs individuelles de la sélection et du focus.",
-	"listFocusAndSelectionForeground": "Couleur de premier plan de la liste/l'arborescence pour l'élément ayant le focus et sélectionné quand la liste/l'arborescence est active. Une liste/aborescence active peut être sélectionnée au clavier, elle ne l'est pas quand elle est inactive. Cette couleur l'emporte sur les couleurs individuelles de la sélection et du focus.",
 	"listHoverBackground": "Arrière-plan de la liste/l'arborescence pendant le pointage sur des éléments avec la souris.",
 	"listDropBackground": "Arrière-plan de l'opération de glisser-déplacer dans une liste/arborescence pendant le déplacement d'éléments avec la souris.",
 	"highlight": "Couleur de premier plan dans la liste/l'arborescence pour la surbrillance des correspondances pendant la recherche dans une liste/arborescence.",
@@ -50,7 +48,9 @@
 	"editorFindMatch": "Couleur du résultat de recherche actif.",
 	"findMatchHighlight": "Couleur des autres résultats de recherche.",
 	"findRangeHighlight": "Couleur de la plage limitant la recherche.",
+	"hoverHighlight": "Mettez en surbrillance ci-dessous le mot pour lequel un pointage s'affiche.",
+	"hoverBackground": "Couleur d'arrière-plan du pointage de l'éditeur.",
+	"hoverBorder": "Couleur de bordure du pointage de l'éditeur.",
 	"activeLinkForeground": "Couleur des liens actifs.",
-	"linkForeground": "Couleur des liens.",
 	"editorWidgetBackground": "Couleur d'arrière-plan des gadgets de l'éditeur tels que rechercher/remplacer."
 }

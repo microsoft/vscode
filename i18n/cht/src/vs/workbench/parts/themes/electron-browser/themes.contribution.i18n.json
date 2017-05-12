@@ -6,7 +6,6 @@
 {
 	"selectTheme.label": "色彩佈景主題",
 	"installColorThemes": "安裝其他的色彩佈景主題...",
-	"problemChangingTheme": "設定佈景主題時發生問題: {0}",
 	"themes.selectTheme": "選取色彩佈景主題",
 	"selectIconTheme.label": "檔案圖示佈景主題",
 	"installIconThemes": "安裝其他的檔案圖示主題...",

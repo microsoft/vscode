@@ -18,7 +18,6 @@
 	"problems": "Проблемы",
 	"manyMarkers": "99+",
 	"tasks": "Задачи",
-	"TaskSystem.noHotSwap": "Чтобы изменить подсистему выполнения задач, нужно перезапустить VS Code. Изменение игнорируется.",
 	"TaskService.noBuildTask": "Задача сборки не определена. Отметьте задачу с помощью \"isBuildCommand\" в файле tasks.json.",
 	"TaskService.noTestTask": "Задача теста не определена. Отметьте задачу с помощью \"isTestCommand\" в файле tasks.json.",
 	"TaskServer.noTask": "Запрошенная задача {0} для выполнения не найдена.",
