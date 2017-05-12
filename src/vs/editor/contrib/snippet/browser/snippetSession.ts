@@ -129,7 +129,7 @@ class OneSnippet {
 			// so that in-active tabstops never grow
 			this._placeholderDecorations.forEach((id, placeholder) => {
 				if (!activePlaceholders.has(placeholder)) {
-					accessor.changeDecorationOptions(id, OneSnippet._decor.inactive);
+					accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.inactiveFinal : OneSnippet._decor.inactive);
 				}
 			});
 
