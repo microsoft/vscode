@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
+import { EditorAccessor, IGrammarContributions } from 'vs/workbench/parts/emmet/electron-browser/editorAccessor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionService, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
 import { IMessageService } from 'vs/platform/message/common/message';

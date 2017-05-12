@@ -156,13 +156,6 @@ export class Text extends Marker {
 	len(): number {
 		return this.string.length;
 	}
-	with(string: string): Text {
-		if (this.string !== string) {
-			return new Text(string);
-		} else {
-			return this;
-		}
-	}
 }
 
 export class Placeholder extends Marker {

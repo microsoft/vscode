@@ -6,7 +6,7 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/node/emmetActions';
+import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 
 import { editorAction } from 'vs/editor/common/editorCommonExtensions';
 
