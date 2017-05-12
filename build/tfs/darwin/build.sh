@@ -1,10 +1,10 @@
 #!/bin/sh
 set -e
 
-export $VSCODE_MIXIN_PASSWORD = "$1"
-export $AZURE_STORAGE_ACCESS_KEY_2 = "$2"
-export $MOONCAKE_STORAGE_ACCESS_KEY = "$3"
-export $AZURE_DOCUMENTDB_MASTERKEY = "$4"
+export VSCODE_MIXIN_PASSWORD = "$1"
+export AZURE_STORAGE_ACCESS_KEY_2 = "$2"
+export MOONCAKE_STORAGE_ACCESS_KEY = "$3"
+export AZURE_DOCUMENTDB_MASTERKEY = "$4"
 
 # set agent specific npm cache
 if [ -z "$AGENT_WORKFOLDER" ]
