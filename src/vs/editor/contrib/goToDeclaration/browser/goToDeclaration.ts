@@ -66,10 +66,15 @@ export class DefinitionAction extends EditorAction {
 		const messageService = accessor.get(IMessageService);
 		const editorService = accessor.get(IEditorService);
 
-		let model = editor.getModel();
-		let pos = editor.getPosition();
+		const model = editor.getModel();
+		const pos = editor.getPosition();
 
 		return this._getDeclarationsAtPosition(model, pos).then(references => {
+
+			if (model.isDisposed() || editor.getModel() !== model) {
+				// new model, no more model
+				return;
+			}
 
 			// * remove falsy references
 			// * find reference at the current pos
