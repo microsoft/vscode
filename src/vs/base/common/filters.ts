@@ -478,6 +478,9 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 		return undefined;
 	}
 
+	// keep track of the maximum score
+	let maxScore = -1;
+
 	for (i = 1; i <= patternLen; i++) {
 
 		let lastLowWordChar = '';
@@ -509,6 +512,9 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 			}
 
 			_scores[i][j] = score;
+			if (score > maxScore) {
+				maxScore = score;
+			}
 
 			let diag = _table[i - 1][j - 1] + (score > 1 ? 1 : score);
 			let top = _table[i - 1][j] + -1;
@@ -542,6 +548,10 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 
 			lastLowWordChar = lowWordChar;
 		}
+	}
+
+	if (maxScore <= 1) {
+		return undefined;
 	}
 
 	if (_debug) {
