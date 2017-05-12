@@ -600,6 +600,9 @@ export class VSCodeWindow {
 	}
 
 	public serializeWindowState(): IWindowState {
+		if (!this._win) {
+			return null; // avoid NPE when calling this method after the window has been disposed
+		}
 
 		// fullscreen gets special treatment
 		if (this._win.isFullScreen()) {
