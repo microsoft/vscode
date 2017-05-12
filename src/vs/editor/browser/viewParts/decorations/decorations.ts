@@ -159,17 +159,17 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 				continue;
 			}
 
-			if (linesVisibleRanges.length === 1 && linesVisibleRanges[0].ranges.length === 1) {
-				const singleVisibleRange = linesVisibleRanges[0].ranges[0];
-				if (singleVisibleRange.width === 0) {
-					// collapsed range case => make the decoration visible by faking its width
-					linesVisibleRanges[0].ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
-				}
-			}
-
 			for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
 				let lineVisibleRanges = linesVisibleRanges[j];
 				let lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
+
+				if (lineVisibleRanges.ranges.length === 1) {
+					const singleVisibleRange = lineVisibleRanges.ranges[0];
+					if (singleVisibleRange.width === 0) {
+						// collapsed range case => make the decoration visible by faking its width
+						lineVisibleRanges.ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
+					}
+				}
 
 				for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
 					let visibleRange = lineVisibleRanges.ranges[k];
