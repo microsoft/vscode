@@ -42,7 +42,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._keybindingService = keybindingService;
 
 		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-editor-background findOptionsWidget';
+		this._domNode.className = 'findOptionsWidget';
 		this._domNode.style.display = 'none';
 		this._domNode.style.top = '10px';
 		this._domNode.setAttribute('role', 'presentation');
@@ -192,16 +192,16 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 registerThemingParticipant((theme, collector) => {
 	let widgetBackground = theme.getColor(editorWidgetBackground);
 	if (widgetBackground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .findOptionsWidget { background-color: ${widgetBackground}; }`);
+		collector.addRule(`.monaco-editor .findOptionsWidget { background-color: ${widgetBackground}; }`);
 	}
 
 	let widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .findOptionsWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+		collector.addRule(`.monaco-editor .findOptionsWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 
 	let hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
-		collector.addRule(`.monaco-editor.${theme.selector} .findOptionsWidget { border: 2px solid ${hcBorder}; }`);
+		collector.addRule(`.monaco-editor .findOptionsWidget { border: 2px solid ${hcBorder}; }`);
 	}
 });
