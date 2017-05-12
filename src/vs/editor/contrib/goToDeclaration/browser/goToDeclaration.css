@@ -7,14 +7,3 @@
 	text-decoration: underline;
 	cursor: pointer;
 }
-
-.monaco-editor .goto-definition-link-hover {
-	margin: 0.5em;
-	padding: 0;
-	padding-left: 0.5em;
-	border-left: 4px solid rgba(0, 0, 0, 0.14);
-}
-
-.monaco-editor.vs-dark .goto-definition-link-hover {
-	border-left: 4px solid rgba(255, 255, 255, 0.25);
-}
