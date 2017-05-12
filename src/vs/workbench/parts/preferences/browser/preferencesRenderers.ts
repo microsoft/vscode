@@ -101,7 +101,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
 		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
 		this.configurationEditingService.writeConfiguration(this.preferencesModel.configurationTarget, { key, value, overrideIdentifier }, !this.textFileService.isDirty(this.preferencesModel.uri))
-			.then(() => this.onSettingUpdated(source), error => this.messageService.show(Severity.Error, error));
+			.then(() => this.onSettingUpdated(source));
 	}
 
 	private onModelChanged(): void {

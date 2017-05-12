@@ -168,8 +168,7 @@ class WelcomePage {
 			showOnStartup.setAttribute('checked', 'checked');
 		}
 		showOnStartup.addEventListener('click', e => {
-			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: enabledKey, value: showOnStartup.checked })
-				.then(null, error => this.messageService.show(Severity.Error, error));
+			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: enabledKey, value: showOnStartup.checked });
 		});
 
 		recentlyOpened.then(({ folders }) => {

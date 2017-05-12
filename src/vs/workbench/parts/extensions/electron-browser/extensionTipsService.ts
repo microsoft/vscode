@@ -279,9 +279,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	private setIgnoreRecommendationsConfig(configVal: boolean) {
 		let target = ConfigurationTarget.USER;
 		const configKey = 'extensions.ignoreRecommendations';
-		this.configurationEditingService.writeConfiguration(target, { key: configKey, value: configVal }).then(null, error => {
-			this.messageService.show(Severity.Error, error);
-		});
+		this.configurationEditingService.writeConfiguration(target, { key: configKey, value: configVal });
 		if (configVal) {
 			const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 			this.storageService.store(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);

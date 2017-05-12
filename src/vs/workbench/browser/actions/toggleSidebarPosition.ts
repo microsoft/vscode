@@ -9,7 +9,6 @@ import nls = require('vs/nls');
 import { Registry } from 'vs/platform/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
@@ -25,7 +24,6 @@ export class ToggleSidebarPositionAction extends Action {
 		id: string,
 		label: string,
 		@IPartService private partService: IPartService,
-		@IMessageService private messageService: IMessageService,
 		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
 	) {
 		super(id, label);
@@ -37,9 +35,7 @@ export class ToggleSidebarPositionAction extends Action {
 		const position = this.partService.getSideBarPosition();
 		const newPositionValue = (position === Position.LEFT) ? 'right' : 'left';
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleSidebarPositionAction.sidebarPositionConfigurationKey, value: newPositionValue }).then(null, error => {
-			this.messageService.show(Severity.Error, error);
-		});
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleSidebarPositionAction.sidebarPositionConfigurationKey, value: newPositionValue });
 
 		return TPromise.as(null);
 	}
