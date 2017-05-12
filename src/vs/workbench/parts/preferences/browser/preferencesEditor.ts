@@ -159,7 +159,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	public focus(): void {
-		this.sideBySidePreferencesWidget.focus();
+		this.searchWidget.focus();
 	}
 
 	public focusSearch(): void {
