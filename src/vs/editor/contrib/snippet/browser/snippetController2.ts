@@ -52,12 +52,21 @@ export class SnippetController2 {
 		return 'snippetController2';
 	}
 
-	insert(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
+	insert(template: string,
+		overwriteBefore: number = 0, overwriteAfter: number = 0,
+		undoStopBefore: boolean = true, undoStopAfter: boolean = true
+	): void {
 		if (this._snippet) {
 			this.cancel();
 		}
 		this._snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
+		if (undoStopBefore) {
+			this._editor.getModel().pushStackElement();
+		}
 		this._snippet.insert();
+		if (undoStopAfter) {
+			this._editor.getModel().pushStackElement();
+		}
 		this._snippetListener = [
 			this._editor.onDidChangeModel(() => this.cancel()),
 			this._editor.onDidChangeCursorSelection(() => this._updateState())
