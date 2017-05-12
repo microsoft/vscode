@@ -236,13 +236,15 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		if (element instanceof Match) {
-			let match = <Match>element;
-			let input = <SearchResult>tree.getInput();
-			if (input.searchModel.isReplaceActive()) {
-				let preview = match.preview();
-				return nls.localize('replacePreviewResultAria', "Replace preview result, {0}", preview.before + match.replaceString + preview.after);
+			const match = <Match>element;
+			const searchModel: SearchModel = (<SearchResult>tree.getInput()).searchModel;
+			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
+			const preview = match.preview();
+			const range = match.range();
+			if (replace) {
+				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", preview.inside, match.replaceString, range.startColumn + 1, match.text());
 			}
-			return nls.localize('searchResultAria', "{0}, Search result", match.text());
+			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", preview.inside, range.startColumn + 1, match.text());
 		}
 		return undefined;
 	}
