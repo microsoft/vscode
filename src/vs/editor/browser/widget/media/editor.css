@@ -30,29 +30,6 @@
 	font-feature-settings: "liga" on, "calt" on;
 }
 
-.monaco-editor {
-	color: #333;
-	/*
-	 * WORKAROUND:
-	 * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
-	 * we are *not* using the color white (or #ffffff, rgba(255,255,255)) but something very close to white.
-	 */
-	background: #fffffe;
-}
-
-.monaco-editor.vs-dark,
-.monaco-editor.vs-dark .zone-widget .monaco-editor {
-	color: #BBB;
-	background: #1E1E1E;
-}
-
-.monaco-editor.hc-black,
-.monaco-editor.hc-black .zone-widget .monaco-editor {
-	color: #fff;
-	background: #000;
-}
-
-
 /* -------------------- Misc -------------------- */
 
 .monaco-editor .overflow-guard {
