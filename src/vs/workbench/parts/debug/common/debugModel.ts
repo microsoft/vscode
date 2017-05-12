@@ -379,7 +379,7 @@ export class Thread implements IThread {
 	constructor(public process: IProcess, public name: string, public threadId: number) {
 		this.fetchPromise = null;
 		this.stoppedDetails = null;
-		this.callStack = null;
+		this.callStack = [];
 		this.stopped = false;
 	}
 
@@ -389,7 +389,7 @@ export class Thread implements IThread {
 
 	public clearCallStack(): void {
 		this.fetchPromise = null;
-		this.callStack = null;
+		this.callStack = [];
 	}
 
 	public getCallStack(): IStackFrame[] {
@@ -779,8 +779,8 @@ export class Model implements IModel {
 		}
 	}
 
-	public fetchCallStack(thread: Thread): TPromise<void> {
-		return thread.fetchCallStack().then(() => {
+	public fetchCallStack(thread: IThread): TPromise<void> {
+		return (<Thread>thread).fetchCallStack().then(() => {
 			this._onDidChangeCallStack.fire();
 		});
 	}

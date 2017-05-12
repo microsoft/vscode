@@ -370,7 +370,7 @@ export class CallStackDataSource implements IDataSource {
 		if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
 			return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 		}
-		if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
+		if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
 			return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
 		}
 
