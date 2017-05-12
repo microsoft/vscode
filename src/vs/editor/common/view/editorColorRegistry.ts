@@ -27,26 +27,33 @@ export const editorBracketMatchBorder = registerColor('editorBracketMatch.border
 
 export const editorOverviewRulerBorder = registerColor('editorOverviewRuler.border', { dark: '#7f7f7f4d', light: '#7f7f7f4d', hc: '#7f7f7f4d' }, nls.localize('editorOverviewRulerBorder', 'Color of the overview ruler border.'));
 
+export const editorGutter = registerColor('editorGutter.background', { dark: editorBackground, light: editorBackground, hc: editorBackground }, nls.localize('editorGutter', 'Background color of the editor gutter. The gutter contains the glyph margins and the line numbers.'));
+
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {
 
 	let background = theme.getColor(editorBackground);
 	if (background) {
-		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-background, .monaco-editor.${theme.selector} .inputarea.ime-input { background-color: ${background}; }`);
+		collector.addRule(`.monaco-editor, .monaco-editor .monaco-editor-background, .monaco-editor .inputarea.ime-input { background-color: ${background}; }`);
 	}
 	let foreground = theme.getColor(editorForeground);
 	if (foreground) {
-		collector.addRule(`.monaco-editor.${theme.selector}, .monaco-editor.${theme.selector} .inputarea.ime-input { color: ${foreground}; }`);
+		collector.addRule(`.monaco-editor, .monaco-editor .inputarea.ime-input { color: ${foreground}; }`);
+	}
+
+	let gutter = theme.getColor(editorGutter);
+	if (gutter) {
+		collector.addRule(`.monaco-editor .margin { background-color: ${gutter}; }`);
 	}
 
 	let rangeHighlight = theme.getColor(editorRangeHighlight);
 	if (rangeHighlight) {
-		collector.addRule(`.monaco-editor.${theme.selector} .rangeHighlight { background-color: ${rangeHighlight}; }`);
+		collector.addRule(`.monaco-editor .rangeHighlight { background-color: ${rangeHighlight}; }`);
 	}
 	let outline = theme.getColor(activeContrastBorder);
 	if (outline) {
-		collector.addRule(`.monaco-editor.${theme.selector} .rangeHighlight { border: 1px dotted ${outline}; }; }`);
+		collector.addRule(`.monaco-editor .rangeHighlight { border: 1px dotted ${outline}; }; }`);
 	}
 
 	let invisibles = theme.getColor(editorWhitespaces);

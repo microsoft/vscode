@@ -271,7 +271,7 @@ export class CallStackController extends BaseDebugController {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === threadAndProcessIds.processId).pop();
 		const thread = process && process.getThread(threadAndProcessIds.threadId);
 		if (thread) {
-			(<Thread>thread).fetchCallStack(true)
+			(<Thread>thread).fetchCallStack()
 				.done(() => tree.refresh(), errors.onUnexpectedError);
 		}
 
@@ -363,10 +363,19 @@ export class CallStackDataSource implements IDataSource {
 
 	private getThreadChildren(thread: Thread): any[] {
 		const callStack: any[] = thread.getCallStack();
+		if (!callStack) {
+			return [];
+		}
+		if (callStack.length === 1) {
+			// To reduce flashing of the call stack view simply append the stale call stack
+			// once we have the correct data the tree will refresh and we will no longer display it.
+			return callStack.concat(thread.getStaleCallStack().slice(1));
+		}
+
 		if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
 			return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
 		}
-		if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
+		if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
 			return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
 		}
 

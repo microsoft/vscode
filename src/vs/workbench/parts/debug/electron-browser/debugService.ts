@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as paths from 'vs/base/common/paths';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import uri from 'vs/base/common/uri';
@@ -79,6 +80,7 @@ export class DebugService implements debug.IDebugService {
 	private debugType: IContextKey<string>;
 	private debugState: IContextKey<string>;
 	private breakpointsToSendOnResourceSaved: Set<string>;
+	private callStackScheduler: RunOnceScheduler;
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
@@ -117,6 +119,17 @@ export class DebugService implements debug.IDebugService {
 			this.loadExceptionBreakpoints(), this.loadWatchExpressions());
 		this.toDispose.push(this.model);
 		this.viewModel = new ViewModel(this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE, null));
+		this.callStackScheduler = new RunOnceScheduler(() => {
+			const focusedThread = this.viewModel.focusedThread;
+			if (focusedThread) {
+				const callStack = focusedThread.getCallStack();
+				// Some adapters might not respect the number levels in StackTraceRequest and might
+				// return more stackFrames than requested. For those do not send an additional stackTrace request.
+				if (callStack.length <= 1) {
+					this.model.fetchCallStack(focusedThread).done(undefined, errors.onUnexpectedError);
+				}
+			}
+		}, 420);
 
 		this.registerListeners(lifecycleService);
 	}
@@ -291,7 +304,11 @@ export class DebugService implements debug.IDebugService {
 
 				const thread = process && process.getThread(threadId);
 				if (thread) {
-					thread.fetchCallStack().then(callStack => {
+					// Call fetch call stack twice, the first only return the top stack frame.
+					// Second retrieves the rest of the call stack. For performance reasons #25605
+					this.model.fetchCallStack(thread).then(() => {
+						const callStack = thread.getCallStack();
+						this.callStackScheduler.schedule();
 						if (callStack.length > 0 && !this.viewModel.focusedStackFrame) {
 							// focus first stack frame from top that has source location if no other stack frame is focussed
 							const stackFrameToFocus = first(callStack, sf => sf.source && sf.source.available, callStack[0]);

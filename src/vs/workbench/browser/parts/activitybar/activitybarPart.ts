@@ -89,9 +89,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			this.pinnedViewlets = this.viewletService.getViewlets().map(v => v.id);
 		}
 
-		// Update viewlet switcher when external viewlets become ready
-		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
-
 		this.registerListeners();
 	}
 
@@ -250,6 +247,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		});
 
 		this.updateViewletSwitcher();
+
+		// Update viewlet switcher when external viewlets become ready
+		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
 	}
 
 	private updateViewletSwitcher() {

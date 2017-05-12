@@ -151,7 +151,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 			this._currentAcceptInput = () => {
 				if (this._inputField.value.trim().length === 0 || this._inputField.value === value) {
 					// empty or whitespace only or not changed
-					this._currentCancelInput();
+					this.cancelInput();
 					return;
 				}
 
@@ -162,12 +162,12 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 
 			let onCursorChanged = () => {
 				if (!Range.containsPosition(where, this._editor.getPosition())) {
-					this._currentCancelInput();
+					this.cancelInput();
 				}
 			};
 
 			disposeOnDone.push(this._editor.onDidChangeCursorSelection(onCursorChanged));
-			disposeOnDone.push(this._editor.onDidBlurEditor(this._currentCancelInput));
+			disposeOnDone.push(this._editor.onDidBlurEditor(() => this.cancelInput()));
 
 			this._show();
 

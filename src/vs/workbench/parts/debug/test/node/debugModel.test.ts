@@ -163,24 +163,24 @@ suite('Debug - Model', () => {
 		assert.equal(process.getAllThreads().length, 2);
 		assert.equal(thread1.name, threadName1);
 		assert.equal(thread1.stopped, true);
-		assert.equal(thread1.getCallStack(), undefined);
+		assert.equal(thread1.getCallStack().length, 0);
 		assert.equal(thread1.stoppedDetails.reason, stoppedReason);
 		assert.equal(thread2.name, threadName2);
 		assert.equal(thread2.stopped, true);
-		assert.equal(thread2.getCallStack(), undefined);
+		assert.equal(thread2.getCallStack().length, 0);
 		assert.equal(thread2.stoppedDetails.reason, stoppedReason);
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
 		thread1.fetchCallStack().then(() => {
-			assert.notEqual(thread1.getCallStack(), undefined);
-			assert.equal(thread2.getCallStack(), undefined);
+			assert.notEqual(thread1.getCallStack().length, 0);
+			assert.equal(thread2.getCallStack().length, 0);
 			assert.equal(sessionStub.callCount, 1);
 		});
 
 		thread2.fetchCallStack().then(() => {
-			assert.notEqual(thread1.getCallStack(), undefined);
-			assert.notEqual(thread2.getCallStack(), undefined);
+			assert.notEqual(thread1.getCallStack().length, 0);
+			assert.notEqual(thread2.getCallStack().length, 0);
 			assert.equal(sessionStub.callCount, 2);
 		});
 
@@ -189,17 +189,17 @@ suite('Debug - Model', () => {
 		thread1.fetchCallStack().then(() => {
 			return thread2.fetchCallStack();
 		}).then(() => {
-			assert.equal(sessionStub.callCount, 2);
+			assert.equal(sessionStub.callCount, 4);
 		});
 
 		// clearing the callstack results in the callstack not being available
 		thread1.clearCallStack();
 		assert.equal(thread1.stopped, true);
-		assert.equal(thread1.getCallStack(), undefined);
+		assert.equal(thread1.getCallStack().length, 0);
 
 		thread2.clearCallStack();
 		assert.equal(thread2.stopped, true);
-		assert.equal(thread2.getCallStack(), undefined);
+		assert.equal(thread2.getCallStack().length, 0);
 
 		model.clearThreads(process.getId(), true);
 		assert.equal(process.getThread(threadId1), null);
@@ -255,39 +255,33 @@ suite('Debug - Model', () => {
 		assert.equal(stoppedThread.name, stoppedThreadName);
 		assert.equal(stoppedThread.stopped, true);
 		assert.equal(process.getAllThreads().length, 2);
-		assert.equal(stoppedThread.getCallStack(), undefined);
+		assert.equal(stoppedThread.getCallStack().length, 0);
 		assert.equal(stoppedThread.stoppedDetails.reason, stoppedReason);
 		assert.equal(runningThread.name, runningThreadName);
 		assert.equal(runningThread.stopped, false);
-		assert.equal(runningThread.getCallStack(), undefined);
+		assert.equal(runningThread.getCallStack().length, 0);
 		assert.equal(runningThread.stoppedDetails, undefined);
 
 		// after calling getCallStack, the callstack becomes available
 		// and results in a request for the callstack in the debug adapter
 		stoppedThread.fetchCallStack().then(() => {
-			assert.notEqual(stoppedThread.getCallStack(), undefined);
-			assert.equal(runningThread.getCallStack(), undefined);
+			assert.notEqual(stoppedThread.getCallStack().length, 0);
+			assert.equal(runningThread.getCallStack().length, 0);
 			assert.equal(sessionStub.callCount, 1);
 		});
 
 		// calling getCallStack on the running thread returns empty array
 		// and does not return in a request for the callstack in the debug
 		// adapter
-		runningThread.fetchCallStack().then(callStack => {
-			assert.deepEqual(callStack, []);
-			assert.equal(sessionStub.callCount, 1);
-		});
-
-		// calling multiple times getCallStack doesn't result in multiple calls
-		// to the debug adapter
-		stoppedThread.fetchCallStack().then(() => {
+		runningThread.fetchCallStack().then(() => {
+			assert.equal(runningThread.getCallStack().length, 0);
 			assert.equal(sessionStub.callCount, 1);
 		});
 
 		// clearing the callstack results in the callstack not being available
 		stoppedThread.clearCallStack();
 		assert.equal(stoppedThread.stopped, true);
-		assert.equal(stoppedThread.getCallStack(), undefined);
+		assert.equal(stoppedThread.getCallStack().length, 0);
 
 		model.clearThreads(process.getId(), true);
 		assert.equal(process.getThread(stoppedThreadId), null);

@@ -305,6 +305,21 @@ suite('Filters', () => {
 		);
 	});
 
+	test('fuzzyScore, issue #26423', function () {
+		assertMatches(
+			'fsfsfs',
+			'dsafdsafdsafdsafdsafdsafdsafasdfdsa',
+			undefined,
+			fuzzyScore
+		);
+		assertMatches(
+			'fsfsfsfsfsfsfsf',
+			'dsafdsafdsafdsafdsafdsafdsafasdfdsafdsafdsafdsafdsfdsafdsfdfdfasdnfdsajfndsjnafjndsajlknfdsa',
+			undefined,
+			fuzzyScore
+		);
+	});
+
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
 		let topScore = -(100 * 10);
 		let topIdx = 0;

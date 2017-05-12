@@ -319,22 +319,22 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 registerThemingParticipant((theme, collector) => {
 	let selectionHighlight = theme.getColor(editorSelectionHighlight);
 	if (selectionHighlight) {
-		collector.addRule(`.monaco-editor.${theme.selector} .focused .selectionHighlight { background-color: ${selectionHighlight}; }`);
-		collector.addRule(`.monaco-editor.${theme.selector} .selectionHighlight { background-color: ${selectionHighlight.transparent(0.5)}; }`);
+		collector.addRule(`.monaco-editor .focused .selectionHighlight { background-color: ${selectionHighlight}; }`);
+		collector.addRule(`.monaco-editor .selectionHighlight { background-color: ${selectionHighlight.transparent(0.5)}; }`);
 	}
 	let wordHighlight = theme.getColor(editorWordHighlight);
 	if (wordHighlight) {
-		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlight { background-color: ${wordHighlight}; }`);
+		collector.addRule(`.monaco-editor .wordHighlight { background-color: ${wordHighlight}; }`);
 	}
 	let wordHighlightStrong = theme.getColor(editorWordHighlightStrong);
 	if (wordHighlightStrong) {
-		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
+		collector.addRule(`.monaco-editor .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
 	}
 	let hcOutline = theme.getColor(activeContrastBorder);
 	if (hcOutline) {
-		collector.addRule(`.monaco-editor.${theme.selector} .selectionHighlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlight { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
-		collector.addRule(`.monaco-editor.${theme.selector} .wordHighlightStrong { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
 	}
 
 });

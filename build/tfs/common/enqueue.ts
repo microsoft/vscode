@@ -5,10 +5,10 @@
 
 'use strict';
 
+import { execSync } from 'child_process';
 import { DocumentClient } from 'documentdb';
 import * as azure from 'azure-storage';
 import * as path from 'path';
-import { getVersion } from './util';
 
 interface Asset {
 	platform: string;
@@ -69,7 +69,7 @@ async function waitForSignedBuild(quality: string, commit: string): Promise<void
 }
 
 async function main(quality: string): Promise<void> {
-	const commit = getVersion(path.dirname(path.dirname(path.dirname(__dirname))));
+	const commit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
 
 	console.log(`Queueing signing request for '${quality}/${commit}'...`);
 	await queueSigningRequest(quality, commit);

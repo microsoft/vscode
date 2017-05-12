@@ -33,7 +33,6 @@ export class ColorThemeData implements IColorTheme {
 	label: string;
 	settingsId: string;
 	description?: string;
-	selector: string;
 	tokenColors?: ITokenColorizationRule[];
 	isLoaded: boolean;
 	path?: string;
@@ -111,7 +110,7 @@ export class ColorThemeData implements IColorTheme {
 			id: this.id,
 			label: this.label,
 			settingsId: this.settingsId,
-			selector: this.selector,
+			selector: this.id.split(' ').join('.'), // to not break old clients
 			tokenColors: this.tokenColors,
 			extensionData: this.extensionData,
 			colorMap: colorMapData
@@ -160,7 +159,6 @@ export function fromExtensionTheme(theme: IThemeExtensionPoint, normalizedAbsolu
 	themeData.id = `${baseTheme} ${themeSelector}`;
 	themeData.label = theme.label || Paths.basename(theme.path);
 	themeData.settingsId = theme.id || themeData.label;
-	themeData.selector = `${baseTheme}.${themeSelector}`;
 	themeData.description = theme.description;
 	themeData.path = normalizedAbsolutePath;
 	themeData.extensionData = extensionData;

@@ -11,9 +11,6 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-
 export class DecorationToRender {
 	_decorationToRenderBrand: void;
 
@@ -201,10 +198,3 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		return this._renderResult[lineIndex];
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	let editorBackgroundColor = theme.getColor(editorBackground);
-	if (editorBackgroundColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .glyph-margin { background-color: ${editorBackgroundColor}; }`);
-	}
-});

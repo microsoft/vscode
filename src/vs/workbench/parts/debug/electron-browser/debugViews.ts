@@ -17,7 +17,7 @@ import { IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
 import { CollapsibleViewletView, AdaptiveCollapsibleViewletView, CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IDebugService, State, IBreakpoint, IExpression, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IDebugConfiguration, IBreakpoint, IExpression, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, ExceptionBreakpoint, FunctionBreakpoint, Thread, StackFrame, Breakpoint, ThreadAndProcessIds } from 'vs/workbench/parts/debug/common/debugModel';
 import * as viewer from 'vs/workbench/parts/debug/electron-browser/debugViewer';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, AddFunctionBreakpointAction, ToggleBreakpointsActivatedAction, RemoveAllBreakpointsAction } from 'vs/workbench/parts/debug/browser/debugActions';
@@ -26,6 +26,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -59,7 +60,8 @@ export class VariablesView extends CollapsibleViewletView {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService private listService: IListService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(actionRunner, !!settings[VariablesView.MEMENTO], nls.localize('variablesSection', "Variables Section"), messageService, keybindingService, contextMenuService);
 
@@ -80,7 +82,7 @@ export class VariablesView extends CollapsibleViewletView {
 				}
 				return undefined;
 			}).done(null, errors.onUnexpectedError);
-		}, 700);
+		}, this.configurationService.getConfiguration<IDebugConfiguration>('debug').variablesDelay);
 	}
 
 	public renderHeader(container: HTMLElement): void {
@@ -116,11 +118,11 @@ export class VariablesView extends CollapsibleViewletView {
 		this.toolBar.setActions(prepareActions([collapseAction]))();
 
 		this.toDispose.push(viewModel.onDidFocusStackFrame(sf => {
-			// Only delay if the stack frames got cleared and there is no active stack frame
-			// Otherwise just update immediately
-			if (sf) {
+			// Refresh the tree immediatly if it is not visible.
+			// Otherwise postpone the refresh until user stops stepping.
+			if (!this.tree.getContentHeight()) {
 				this.onFocusStackFrameScheduler.schedule(0);
-			} else if (!this.onFocusStackFrameScheduler.isScheduled()) {
+			} else {
 				this.onFocusStackFrameScheduler.schedule();
 			}
 		}));

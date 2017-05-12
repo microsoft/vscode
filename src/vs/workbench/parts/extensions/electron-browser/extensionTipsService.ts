@@ -40,6 +40,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
 	private importantRecommendations: { [id: string]: { name: string; pattern: string; } };
 	private importantRecommendationsIgnoreList: string[];
+	private _allRecommendations: string[];
 	private _disposables: IDisposable[] = [];
 
 	constructor(
@@ -80,11 +81,23 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	}
 
 	getRecommendations(): string[] {
-		return Object.keys(this._recommendations);
+		const allRecomendations = this._getAllRecommendationsInProduct();
+		return Object.keys(this._recommendations)
+			.filter(recommendation => allRecomendations.indexOf(recommendation) !== -1);
 	}
 
 	getKeymapRecommendations(): string[] {
 		return product.keymapExtensionTips || [];
+	}
+
+	private _getAllRecommendationsInProduct(): string[] {
+		if (!this._allRecommendations) {
+			this._allRecommendations = [...Object.keys(this.importantRecommendations)];
+			forEach(this._availableRecommendations, ({ value: ids }) => {
+				this._allRecommendations.push(...ids);
+			});
+		}
+		return this._allRecommendations;
 	}
 
 	private _suggestTips() {
@@ -266,9 +279,7 @@ export class ExtensionTipsService implements IExtensionTipsService {
 	private setIgnoreRecommendationsConfig(configVal: boolean) {
 		let target = ConfigurationTarget.USER;
 		const configKey = 'extensions.ignoreRecommendations';
-		this.configurationEditingService.writeConfiguration(target, { key: configKey, value: configVal }).then(null, error => {
-			this.messageService.show(Severity.Error, error);
-		});
+		this.configurationEditingService.writeConfiguration(target, { key: configKey, value: configVal });
 		if (configVal) {
 			const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 			this.storageService.store(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);

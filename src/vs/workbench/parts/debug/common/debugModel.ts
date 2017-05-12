@@ -371,15 +371,17 @@ export class StackFrame implements IStackFrame {
 }
 
 export class Thread implements IThread {
-	private promisedCallStack: TPromise<IStackFrame[]>;
-	private cachedCallStack: IStackFrame[];
+	private fetchPromise: TPromise<void>;
+	private callStack: IStackFrame[];
+	private staleCallStack: IStackFrame[];
 	public stoppedDetails: IRawStoppedDetails;
 	public stopped: boolean;
 
 	constructor(public process: IProcess, public name: string, public threadId: number) {
-		this.promisedCallStack = null;
+		this.fetchPromise = null;
 		this.stoppedDetails = null;
-		this.cachedCallStack = null;
+		this.callStack = [];
+		this.staleCallStack = [];
 		this.stopped = false;
 	}
 
@@ -388,43 +390,48 @@ export class Thread implements IThread {
 	}
 
 	public clearCallStack(): void {
-		this.promisedCallStack = null;
-		this.cachedCallStack = null;
+		this.fetchPromise = null;
+		if (this.callStack.length) {
+			this.staleCallStack = this.callStack;
+		}
+		this.callStack = [];
 	}
 
 	public getCallStack(): IStackFrame[] {
-		return this.cachedCallStack;
+		return this.callStack;
+	}
+
+	public getStaleCallStack(): IStackFrame[] {
+		return this.staleCallStack;
 	}
 
 	/**
-	 * Queries the debug adapter for the callstack and returns a promise with
-	 * the stack frames of the callstack.
+	 * Queries the debug adapter for the callstack and returns a promise
+	 * which completes once the call stack has been retrieved.
 	 * If the thread is not stopped, it returns a promise to an empty array.
-	 * Only gets the first 20 stack frames. Calling this method consecutive times
-	 * with getAdditionalStackFrames = true gets the remainder of the call stack.
+	 * Only fetches the first stack frame for performance reasons. Calling this method consecutive times
+	 * gets the remainder of the call stack.
 	 */
-	public fetchCallStack(getAdditionalStackFrames = false): TPromise<IStackFrame[]> {
+	public fetchCallStack(): TPromise<void> {
 		if (!this.stopped) {
-			return TPromise.as([]);
+			return TPromise.as(null);
 		}
 
-		if (!this.promisedCallStack) {
-			this.promisedCallStack = this.getCallStackImpl(0).then(callStack => {
-				this.cachedCallStack = callStack;
-				return callStack;
+		if (!this.fetchPromise) {
+			this.fetchPromise = this.getCallStackImpl(0, 1).then(callStack => {
+				this.callStack = callStack || [];
 			});
-		} else if (getAdditionalStackFrames) {
-			this.promisedCallStack = this.promisedCallStack.then(callStackFirstPart => this.getCallStackImpl(callStackFirstPart.length).then(callStackSecondPart => {
-				this.cachedCallStack = callStackFirstPart.concat(callStackSecondPart);
-				return this.cachedCallStack;
+		} else {
+			this.fetchPromise = this.fetchPromise.then(() => this.getCallStackImpl(this.callStack.length, 20).then(callStackSecondPart => {
+				this.callStack = this.callStack.concat(callStackSecondPart);
 			}));
 		}
 
-		return this.promisedCallStack;
+		return this.fetchPromise;
 	}
 
-	private getCallStackImpl(startFrame: number): TPromise<IStackFrame[]> {
-		return this.process.session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
+	private getCallStackImpl(startFrame: number, levels: number): TPromise<IStackFrame[]> {
+		return this.process.session.stackTrace({ threadId: this.threadId, startFrame, levels }).then(response => {
 			if (!response || !response.body) {
 				return [];
 			}
@@ -779,6 +786,12 @@ export class Model implements IModel {
 			process.clearThreads(removeThreads, reference);
 			this._onDidChangeCallStack.fire();
 		}
+	}
+
+	public fetchCallStack(thread: IThread): TPromise<void> {
+		return (<Thread>thread).fetchCallStack().then(() => {
+			this._onDidChangeCallStack.fire();
+		});
 	}
 
 	public getBreakpoints(): Breakpoint[] {

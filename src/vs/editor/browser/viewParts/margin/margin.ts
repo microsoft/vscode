@@ -42,7 +42,7 @@ export class Margin extends ViewPart {
 
 	private _createDomNode(): FastDomNode<HTMLElement> {
 		let domNode = createFastDomNode(document.createElement('div'));
-		domNode.setClassName('margin' + ' monaco-editor-background');
+		domNode.setClassName('margin');
 		domNode.setPosition('absolute');
 		domNode.setAttribute('role', 'presentation');
 		domNode.setAttribute('aria-hidden', 'true');

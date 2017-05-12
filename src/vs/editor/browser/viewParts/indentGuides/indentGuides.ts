@@ -118,6 +118,6 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 registerThemingParticipant((theme, collector) => {
 	let editorGuideColor = theme.getColor(editorIndentGuides);
 	if (editorGuideColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .lines-content .cigr { background-color: ${editorGuideColor}; }`);
+		collector.addRule(`.monaco-editor .lines-content .cigr { background-color: ${editorGuideColor}; }`);
 	}
 });

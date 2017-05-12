@@ -176,15 +176,15 @@ class ShowHoverAction extends EditorAction {
 registerThemingParticipant((theme, collector) => {
 	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
 	if (editorHoverHighlightColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
+		collector.addRule(`.monaco-editor .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
 	}
 	let hoverBackground = theme.getColor(editorHoverBackground);
 	if (hoverBackground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover { background-color: ${hoverBackground}; }`);
+		collector.addRule(`.monaco-editor .monaco-editor-hover { background-color: ${hoverBackground}; }`);
 	}
 	let hoverBorder = theme.getColor(editorHoverBorder);
 	if (hoverBorder) {
-		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover { border: 1px solid ${hoverBorder}; }`);
-		collector.addRule(`.monaco-editor.${theme.selector} .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
+		collector.addRule(`.monaco-editor .monaco-editor-hover { border: 1px solid ${hoverBorder}; }`);
+		collector.addRule(`.monaco-editor .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
 	}
 });

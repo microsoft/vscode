@@ -197,9 +197,7 @@ export class ToggleMenuBarAction extends Action {
 			newVisibilityValue = 'default';
 		}
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue }).then(null, error => {
-			this.messageService.show(Severity.Error, error);
-		});
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue });
 
 		return TPromise.as(null);
 	}

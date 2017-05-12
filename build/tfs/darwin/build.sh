@@ -1,6 +1,19 @@
 #!/bin/sh
 set -e
 
+export VSCODE_MIXIN_PASSWORD="$1"
+export AZURE_STORAGE_ACCESS_KEY="$2"
+export AZURE_STORAGE_ACCESS_KEY_2="$3"
+export MOONCAKE_STORAGE_ACCESS_KEY="$4"
+export AZURE_DOCUMENTDB_MASTERKEY="$5"
+
+# set agent specific npm cache
+if [ -n "$AGENT_WORKFOLDER" ]
+then
+	export npm_config_cache="$AGENT_WORKFOLDER/npm-cache"
+	echo "Using npm cache: $npm_config_cache"
+fi
+
 # log build step
 STEP() {
 	echo ""

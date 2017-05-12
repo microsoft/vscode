@@ -8,7 +8,7 @@
 import 'vs/css!./codelens';
 import { RunOnceScheduler, asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Disposables, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { format, escape } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -17,7 +17,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol, Command } from 'vs/editor/common/modes';
+import { CodeLensProviderRegistry, ICodeLensSymbol, Command } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICodeLensData, getCodeLensData } from '../common/codelens';
@@ -65,37 +65,43 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	private static ID: number = 0;
 
 	// Editor.IContentWidget.allowEditorOverflow
-	readonly allowEditorOverflow = false;
-
-	public suppressMouseDown: boolean;
+	readonly allowEditorOverflow: boolean = false;
+	readonly suppressMouseDown: boolean = true;
 
 	private _id: string;
 
 	private _domNode: HTMLElement;
-	private _subscription: IDisposable;
+	private _disposables: IDisposable[] = [];
 	private _symbolRange: Range;
 	private _widgetPosition: editorBrowser.IContentWidgetPosition;
 	private _editor: editorBrowser.ICodeEditor;
 	private _commands: { [id: string]: Command } = Object.create(null);
 
-	public constructor(editor: editorBrowser.ICodeEditor, symbolRange: Range,
-		commandService: ICommandService, messageService: IMessageService) {
+	public constructor(
+		editor: editorBrowser.ICodeEditor,
+		symbolRange: Range,
+		commandService: ICommandService,
+		messageService: IMessageService
+	) {
 
 		this._id = 'codeLensWidget' + (++CodeLensContentWidget.ID);
 		this._editor = editor;
 
-		this.suppressMouseDown = true;
-
 		this.setSymbolRange(symbolRange);
 
 		this._domNode = document.createElement('span');
-		const lineHeight = editor.getConfiguration().lineHeight;
-		this._domNode.style.height = `${lineHeight}px`;
-		this._domNode.style.lineHeight = `${lineHeight}px`;
 		this._domNode.innerHTML = '&nbsp;';
 		dom.addClass(this._domNode, 'codelens-decoration');
 		dom.addClass(this._domNode, 'invisible-cl');
-		this._subscription = dom.addDisposableListener(this._domNode, 'click', e => {
+		this._updateHeight();
+
+		this._disposables.push(this._editor.onDidChangeConfiguration(e => {
+			if (e.fontInfo) {
+				this._updateHeight();
+			}
+		}));
+
+		this._disposables.push(dom.addDisposableListener(this._domNode, 'click', e => {
 			let element = <HTMLElement>e.target;
 			if (element.tagName === 'A' && element.id) {
 				let command = this._commands[element.id];
@@ -106,14 +112,22 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 					});
 				}
 			}
-		});
+		}));
 
 		this.updateVisibility();
 	}
 
 	public dispose(): void {
-		this._subscription.dispose();
+		dispose(this._disposables);
 		this._symbolRange = null;
+	}
+
+	private _updateHeight(): void {
+		const { fontInfo, lineHeight } = this._editor.getConfiguration();
+		this._domNode.style.height = `${lineHeight}px`;
+		this._domNode.style.lineHeight = `${lineHeight}px`;
+		this._domNode.style.fontSize = `${Math.round(fontInfo.fontSize * .9)}px`;
+		this._domNode.innerHTML = '&nbsp;';
 	}
 
 	public updateVisibility(): void {
@@ -406,24 +420,12 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		const providerSubscriptions = new Disposables();
-		this._localToDispose.push(providerSubscriptions);
-
-		const onEvent = () => {
-			providerSubscriptions.dispose();
-			scheduler.schedule();
-		};
-
-		const subscribeToProviders = (result: ICodeLensData[]) => {
-			const seen = new Set<CodeLensProvider>();
-
-			for (const { provider } of result) {
-				if (provider.onDidChange && !seen.has(provider)) {
-					providerSubscriptions.add(provider.onDidChange(onEvent));
-					seen.add(provider);
-				}
+		for (const provider of CodeLensProviderRegistry.all(model)) {
+			if (typeof provider.onDidChange === 'function') {
+				let registration = provider.onDidChange(() => scheduler.schedule());
+				this._localToDispose.push(registration);
 			}
-		};
+		}
 
 		this._detectVisibleLenses = new RunOnceScheduler(() => {
 			this._onViewportChanged(model.getLanguageIdentifier().language);
@@ -440,7 +442,6 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			this._currentFindCodeLensSymbolsPromise.then((result) => {
 				if (counterValue === this._modelChangeCounter) { // only the last one wins
 					this.renderCodeLensSymbols(result);
-					subscribeToProviders(result);
 					this._detectVisibleLenses.schedule();
 				}
 			}, (error) => {

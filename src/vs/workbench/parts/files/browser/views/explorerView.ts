@@ -134,7 +134,7 @@ export class ExplorerView extends CollapsibleViewletView {
 			DOM.toggleClass(this.treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
 		};
 
-		this.themeService.onDidFileIconThemeChange(onFileIconThemeChange);
+		this.toDispose.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
 		onFileIconThemeChange(this.themeService.getFileIconTheme());
 	}
 

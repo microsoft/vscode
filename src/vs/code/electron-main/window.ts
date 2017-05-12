@@ -244,14 +244,14 @@ export class VSCodeWindow {
 		}
 
 		if (isFullscreenOrMaximized) {
-			this.win.maximize();
+			this._win.maximize();
 
 			if (this.currentWindowMode === WindowMode.Fullscreen) {
-				this.win.setFullScreen(true);
+				this._win.setFullScreen(true);
 			}
 
-			if (!this.win.isVisible()) {
-				this.win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
+			if (!this._win.isVisible()) {
+				this._win.show(); // to reduce flicker from the default window size to maximize, we only show after maximize
 			}
 		}
 
@@ -386,13 +386,13 @@ export class VSCodeWindow {
 			}
 
 			// To prevent flashing, we set the window visible after the page has finished to load but before VSCode is loaded
-			if (!this.win.isVisible()) {
+			if (!this._win.isVisible()) {
 				if (this.currentWindowMode === WindowMode.Maximized) {
-					this.win.maximize();
+					this._win.maximize();
 				}
 
-				if (!this.win.isVisible()) { // maximize also makes visible
-					this.win.show();
+				if (!this._win.isVisible()) { // maximize also makes visible
+					this._win.show();
 				}
 			}
 		});
@@ -600,9 +600,12 @@ export class VSCodeWindow {
 	}
 
 	public serializeWindowState(): IWindowState {
+		if (!this._win) {
+			return null; // avoid NPE when calling this method after the window has been disposed
+		}
 
 		// fullscreen gets special treatment
-		if (this.win.isFullScreen()) {
+		if (this._win.isFullScreen()) {
 			const display = screen.getDisplayMatching(this.getBounds());
 
 			return {
@@ -621,9 +624,9 @@ export class VSCodeWindow {
 		let mode: WindowMode;
 
 		// get window mode
-		if (!platform.isMacintosh && this.win.isMaximized()) {
+		if (!platform.isMacintosh && this._win.isMaximized()) {
 			mode = WindowMode.Maximized;
-		} else if (this.win.isMinimized()) {
+		} else if (this._win.isMinimized()) {
 			mode = WindowMode.Minimized;
 		} else {
 			mode = WindowMode.Normal;
@@ -750,17 +753,17 @@ export class VSCodeWindow {
 	}
 
 	public getBounds(): Electron.Rectangle {
-		const pos = this.win.getPosition();
-		const dimension = this.win.getSize();
+		const pos = this._win.getPosition();
+		const dimension = this._win.getSize();
 
 		return { x: pos[0], y: pos[1], width: dimension[0], height: dimension[1] };
 	}
 
 	public toggleFullScreen(): void {
-		const willBeFullScreen = !this.win.isFullScreen();
+		const willBeFullScreen = !this._win.isFullScreen();
 
 		// set fullscreen flag on window
-		this.win.setFullScreen(willBeFullScreen);
+		this._win.setFullScreen(willBeFullScreen);
 
 		// respect configured menu bar visibility or default to toggle if not set
 		this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
@@ -785,22 +788,22 @@ export class VSCodeWindow {
 			return; // ignore for macOS platform
 		}
 
-		const isFullscreen = this.win.isFullScreen();
+		const isFullscreen = this._win.isFullScreen();
 
 		switch (visibility) {
 			case ('default'):
-				this.win.setMenuBarVisibility(!isFullscreen);
-				this.win.setAutoHideMenuBar(isFullscreen);
+				this._win.setMenuBarVisibility(!isFullscreen);
+				this._win.setAutoHideMenuBar(isFullscreen);
 				break;
 
 			case ('visible'):
-				this.win.setMenuBarVisibility(true);
-				this.win.setAutoHideMenuBar(false);
+				this._win.setMenuBarVisibility(true);
+				this._win.setAutoHideMenuBar(false);
 				break;
 
 			case ('toggle'):
-				this.win.setMenuBarVisibility(false);
-				this.win.setAutoHideMenuBar(true);
+				this._win.setMenuBarVisibility(false);
+				this._win.setAutoHideMenuBar(true);
 
 				if (notify) {
 					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
@@ -814,8 +817,8 @@ export class VSCodeWindow {
 				// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
 				// still show the menu. Unable to reproduce from a simple Hello World application though...
 				setTimeout(() => {
-					this.win.setMenuBarVisibility(false);
-					this.win.setAutoHideMenuBar(false);
+					this._win.setMenuBarVisibility(false);
+					this._win.setAutoHideMenuBar(false);
 				});
 				break;
 		};

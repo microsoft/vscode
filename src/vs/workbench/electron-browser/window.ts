@@ -464,7 +464,7 @@ export class ElectronWindow extends Themable {
 			newAutoSaveValue = AutoSaveConfiguration.AFTER_DELAY;
 		}
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue }).done(null, error => this.messageService.show(Severity.Error, error));
+		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ElectronWindow.AUTO_SAVE_SETTING, value: newAutoSaveValue });
 	}
 
 	private includesFolder(resources: URI[]): TPromise<boolean> {

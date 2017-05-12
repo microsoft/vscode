@@ -234,16 +234,16 @@ CommonEditorRegistry.registerEditorCommand(new AccessibilityHelpCommand({
 registerThemingParticipant((theme, collector) => {
 	let widgetBackground = theme.getColor(editorWidgetBackground);
 	if (widgetBackground) {
-		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
+		collector.addRule(`.monaco-editor .accessibilityHelpWidget { background-color: ${widgetBackground}; }`);
 	}
 
 	let widgetShadowColor = theme.getColor(widgetShadow);
 	if (widgetShadowColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
+		collector.addRule(`.monaco-editor .accessibilityHelpWidget { box-shadow: 0 2px 8px ${widgetShadowColor}; }`);
 	}
 
 	let hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
-		collector.addRule(`.monaco-editor.${theme.selector} .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
+		collector.addRule(`.monaco-editor .accessibilityHelpWidget { border: 2px solid ${hcBorder}; }`);
 	}
 });
