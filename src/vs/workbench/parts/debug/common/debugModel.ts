@@ -373,6 +373,7 @@ export class StackFrame implements IStackFrame {
 export class Thread implements IThread {
 	private fetchPromise: TPromise<void>;
 	private callStack: IStackFrame[];
+	private staleCallStack: IStackFrame[];
 	public stoppedDetails: IRawStoppedDetails;
 	public stopped: boolean;
 
@@ -380,6 +381,7 @@ export class Thread implements IThread {
 		this.fetchPromise = null;
 		this.stoppedDetails = null;
 		this.callStack = [];
+		this.staleCallStack = [];
 		this.stopped = false;
 	}
 
@@ -389,11 +391,18 @@ export class Thread implements IThread {
 
 	public clearCallStack(): void {
 		this.fetchPromise = null;
+		if (this.callStack.length) {
+			this.staleCallStack = this.callStack;
+		}
 		this.callStack = [];
 	}
 
 	public getCallStack(): IStackFrame[] {
 		return this.callStack;
+	}
+
+	public getStaleCallStack(): IStackFrame[] {
+		return this.staleCallStack;
 	}
 
 	/**
