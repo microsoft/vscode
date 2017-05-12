@@ -327,6 +327,33 @@ suite('SnippetParser', () => {
 		assertLen('${TM_SELECTED_TEXT:def}$0', 0, 3, 0);
 	});
 
+	test('parser, parent node', function () {
+		let snippet = SnippetParser.parse('This ${1:is ${2:nested}}$0');
+
+		assert.equal(snippet.placeholders.length, 3);
+		let [first, second] = snippet.placeholders;
+		assert.equal(first.index, '1');
+		assert.equal(second.index, '2');
+		assert.ok(second.parent === first);
+		assert.ok(first.parent === undefined);
+
+		snippet = SnippetParser.parse('${VAR:default${1:value}}$0');
+		assert.equal(snippet.placeholders.length, 2);
+		[first] = snippet.placeholders;
+		assert.equal(first.index, '1');
+
+		assert.ok(snippet.marker[0] instanceof Variable);
+		assert.ok(first.parent === snippet.marker[0]);
+	});
+
+	test('TextmateSnippet#enclosingPlaceholders', function () {
+		let snippet = SnippetParser.parse('This ${1:is ${2:nested}}$0');
+		let [first, second] = snippet.placeholders;
+
+		assert.deepEqual(snippet.enclosingPlaceholders(first), []);
+		assert.deepEqual(snippet.enclosingPlaceholders(second), [first]);
+	});
+
 	test('TextmateSnippet#offset', () => {
 		let snippet = SnippetParser.parse('te$1xt');
 		assert.equal(snippet.offset(snippet.marker[0]), 0);

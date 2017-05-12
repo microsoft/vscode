@@ -89,31 +89,26 @@ class OneSnippet {
 
 		this._init();
 
-		let prevGroupsIdx = -1;
-
 		if (fwd && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
-			prevGroupsIdx = this._placeholderGroupsIdx;
 			this._placeholderGroupsIdx += 1;
 
 		} else if (!fwd && this._placeholderGroupsIdx > 0) {
-			prevGroupsIdx = this._placeholderGroupsIdx;
 			this._placeholderGroupsIdx -= 1;
+
+		} else {
+			// the selection of the current placeholder might
+			// not acurate any more -> simply restore it
 		}
 
 		return this._editor.getModel().changeDecorations(accessor => {
 
-			// change stickness to never grow when typing at its edges
-			// so that in-active tabstops never grow
-			if (prevGroupsIdx !== -1) {
-				for (const placeholder of this._placeholderGroups[prevGroupsIdx]) {
-					const id = this._placeholderDecorations.get(placeholder);
-					accessor.changeDecorationOptions(id, OneSnippet._decor.inactive);
-				}
-			}
+			const activePlaceholders = new Set<Placeholder>();
 
 			// change stickiness to always grow when typing at its edges
 			// because these decorations represent the currently active
-			// tabstop. Special case: reaching the final tab stop
+			// tabstop.
+			// Special case #1: reaching the final tabstop
+			// Special case #2: placeholders enclosing active placeholders
 			const selections: Selection[] = [];
 			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
 				const id = this._placeholderDecorations.get(placeholder);
@@ -121,7 +116,23 @@ class OneSnippet {
 				selections.push(new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
 
 				accessor.changeDecorationOptions(id, placeholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
+				activePlaceholders.add(placeholder);
+
+				for (const enclosingPlaceholder of this._snippet.enclosingPlaceholders(placeholder)) {
+					const id = this._placeholderDecorations.get(enclosingPlaceholder);
+					accessor.changeDecorationOptions(id, enclosingPlaceholder.isFinalTabstop ? OneSnippet._decor.activeFinal : OneSnippet._decor.active);
+					activePlaceholders.add(enclosingPlaceholder);
+				}
 			}
+
+			// change stickness to never grow when typing at its edges
+			// so that in-active tabstops never grow
+			this._placeholderDecorations.forEach((id, placeholder) => {
+				if (!activePlaceholders.has(placeholder)) {
+					accessor.changeDecorationOptions(id, OneSnippet._decor.inactive);
+				}
+			});
+
 			return selections;
 		});
 	}

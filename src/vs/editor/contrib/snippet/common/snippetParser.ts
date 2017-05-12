@@ -132,6 +132,12 @@ export abstract class Marker {
 		return result;
 	}
 
+	parent: Marker;
+
+	protected _adopt(child: Marker): void {
+		child.parent = this;
+	}
+
 	toString() {
 		return '';
 	}
@@ -179,6 +185,7 @@ export class Placeholder extends Marker {
 
 	constructor(public index: string = '', public defaultValue: Marker[]) {
 		super();
+		defaultValue.forEach(this._adopt, this);
 	}
 	get isFinalTabstop() {
 		return this.index === '0';
@@ -194,6 +201,7 @@ export class Variable extends Marker {
 
 	constructor(public name: string = '', public defaultValue: Marker[]) {
 		super();
+		defaultValue.forEach(this._adopt, this);
 	}
 	get isDefined(): boolean {
 		return this.resolvedValue !== undefined;
@@ -268,6 +276,18 @@ export class TextmateSnippet {
 			ret += marker.len();
 			return true;
 		});
+		return ret;
+	}
+
+	enclosingPlaceholders(placeholder: Placeholder): Placeholder[] {
+		let ret: Placeholder[] = [];
+		let { parent } = placeholder;
+		while (parent) {
+			if (parent instanceof Placeholder) {
+				ret.push(parent);
+			}
+			parent = parent.parent;
+		}
 		return ret;
 	}
 
