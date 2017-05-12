@@ -803,6 +803,8 @@ export class VSCodeMenu {
 		const gotoSymbolInFile = this.createMenuItem(nls.localize({ key: 'miGotoSymbolInFile', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in File..."), 'workbench.action.gotoSymbol');
 		const gotoSymbolInWorkspace = this.createMenuItem(nls.localize({ key: 'miGotoSymbolInWorkspace', comment: ['&& denotes a mnemonic'] }, "Go to Symbol in &&Workspace..."), 'workbench.action.showAllSymbols');
 		const gotoDefinition = this.createMenuItem(nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition"), 'editor.action.goToDeclaration');
+		const gotoTypeDefinition = this.createMenuItem(nls.localize({ key: 'miGotoTypeDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Type Definition"), 'editor.action.goToTypeDefinition');
+		const goToImplementation = this.createMenuItem(nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementation"), 'editor.action.goToImplementation');
 		const gotoLine = this.createMenuItem(nls.localize({ key: 'miGotoLine', comment: ['&& denotes a mnemonic'] }, "Go to &&Line..."), 'workbench.action.gotoLine');
 
 		[
@@ -816,6 +818,8 @@ export class VSCodeMenu {
 			gotoSymbolInFile,
 			gotoSymbolInWorkspace,
 			gotoDefinition,
+			gotoTypeDefinition,
+			goToImplementation,
 			gotoLine
 		].forEach(item => gotoMenu.append(item));
 	}
