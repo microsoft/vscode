@@ -113,11 +113,15 @@ export class VSCodeApplication {
 		});
 
 		ipc.on('vscode:fetchShellEnv', (event, windowId) => {
-			const win = BrowserWindow.fromId(windowId);
+			const { webContents } = BrowserWindow.fromId(windowId);
 			getShellEnvironment().then(shellEnv => {
-				win.webContents.send('vscode:acceptShellEnv', shellEnv);
+				if (!webContents.isDestroyed()) {
+					webContents.send('vscode:acceptShellEnv', shellEnv);
+				}
 			}, err => {
-				win.webContents.send('vscode:acceptShellEnv', {});
+				if (!webContents.isDestroyed()) {
+					webContents.send('vscode:acceptShellEnv', {});
+				}
 				console.error('Error fetching shell env', err);
 			});
 		});
