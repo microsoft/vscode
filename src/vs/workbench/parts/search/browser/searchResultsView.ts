@@ -213,6 +213,8 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		templateData.actions.clear();
 		if (searchModel.isReplaceActive()) {
 			templateData.actions.push([this.instantiationService.createInstance(ReplaceAction, tree, match, this.viewlet), new RemoveAction(tree, match)], { icon: true, label: false });
+		} else {
+			templateData.actions.push([new RemoveAction(tree, match)], { icon: true, label: false });
 		}
 	}
 
