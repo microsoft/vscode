@@ -7,7 +7,6 @@
 	overflow: hidden;
 	display: inline-block;
 	text-overflow: ellipsis;
-	font-size: 90%;
 }
 
 .monaco-editor .codelens-decoration > span,
