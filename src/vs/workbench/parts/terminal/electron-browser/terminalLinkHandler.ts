@@ -55,8 +55,8 @@ export type XtermLinkMatcherHandler = (event: MouseEvent, uri: string) => boolea
 export type XtermLinkMatcherValidationCallback = (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void;
 
 export class TerminalLinkHandler {
-	private _tooltipDisposables: IDisposable[] = [];
-	private _tooltipMouseMoveDisposable: IDisposable;
+	private _hoverDisposables: IDisposable[] = [];
+	private _mouseMoveDisposable: IDisposable;
 	private _widgetManager: TerminalWidgetManager;
 
 	private _localLinkPattern: RegExp;
@@ -110,8 +110,9 @@ export class TerminalLinkHandler {
 		});
 	}
 
-	public disposeTooltipListeners(): void {
-		this._tooltipDisposables = dispose(this._tooltipDisposables);
+	public dispose(): void {
+		this._hoverDisposables = dispose(this._hoverDisposables);
+		this._mouseMoveDisposable = dispose(this._mouseMoveDisposable);
 	}
 
 	private _wrapLinkHandler(handler: (uri: string) => boolean | void): XtermLinkMatcherHandler {
@@ -166,9 +167,9 @@ export class TerminalLinkHandler {
 	private _addTooltipEventListeners(element: HTMLElement): void {
 		let timeout = null;
 		let isMessageShowing = false;
-		this._tooltipDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, e => {
+		this._hoverDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OVER, e => {
 			element.classList.toggle('active', platform.isMacintosh ? e.metaKey : e.ctrlKey);
-			this._tooltipMouseMoveDisposable = dom.addDisposableListener(element, dom.EventType.MOUSE_MOVE, e => {
+			this._mouseMoveDisposable = dom.addDisposableListener(element, dom.EventType.MOUSE_MOVE, e => {
 				element.classList.toggle('active', platform.isMacintosh ? e.metaKey : e.ctrlKey);
 			});
 			timeout = setTimeout(() => {
@@ -182,10 +183,10 @@ export class TerminalLinkHandler {
 				isMessageShowing = true;
 			}, 500);
 		}));
-		this._tooltipDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => {
+		this._hoverDisposables.push(dom.addDisposableListener(element, dom.EventType.MOUSE_OUT, () => {
 			element.classList.remove('active');
-			if (this._tooltipMouseMoveDisposable) {
-				this._tooltipMouseMoveDisposable.dispose();
+			if (this._mouseMoveDisposable) {
+				this._mouseMoveDisposable.dispose();
 			}
 			clearTimeout(timeout);
 			this._widgetManager.closeMessage();
