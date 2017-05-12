@@ -16,6 +16,7 @@ function exec([scriptblock]$cmd, [string]$errorMessage = "Error executing comman
 
 # log build step
 function STEP() {
+	Write-Host ""
 	Write-Host "********************************************************************************"
 	Write-Host "*** $args"
 	Write-Host "********************************************************************************"
