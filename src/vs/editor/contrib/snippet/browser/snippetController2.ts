@@ -52,7 +52,8 @@ export class SnippetController2 {
 		return 'snippetController2';
 	}
 
-	insert(template: string,
+	insert(
+		template: string,
 		overwriteBefore: number = 0, overwriteAfter: number = 0,
 		undoStopBefore: boolean = true, undoStopAfter: boolean = true
 	): void {
@@ -95,6 +96,12 @@ export class SnippetController2 {
 		this._hasNextTabstop.set(!this._snippet.isAtFinalPlaceholder);
 	}
 
+	finish(): void {
+		while (this._inSnippet.get()) {
+			this.next();
+		}
+	}
+
 	cancel(): void {
 		if (this._snippet) {
 			this._inSnippet.reset();
@@ -119,7 +126,6 @@ export class SnippetController2 {
 			this._updateState();
 		}
 	}
-
 }
 
 
@@ -155,4 +161,15 @@ CommonEditorRegistry.registerEditorCommand(new CommandCtor({
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
+}));
+
+CommonEditorRegistry.registerEditorCommand(new CommandCtor({
+	id: 'snippet.accept',
+	precondition: SnippetController2.InSnippetMode,
+	handler: ctrl => ctrl.finish(),
+	// kbOpts: {
+	// 	weight: CommonEditorRegistry.commandWeight(30),
+	// 	kbExpr: EditorContextKeys.textFocus,
+	// 	primary: KeyCode.Enter,
+	// }
 }));
