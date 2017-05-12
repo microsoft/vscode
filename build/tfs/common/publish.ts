@@ -6,20 +6,15 @@
 'use strict';
 
 import * as fs from 'fs';
-import * as path from 'path';
+import { execSync } from 'child_process';
 import * as crypto from 'crypto';
 import * as azure from 'azure-storage';
 import * as mime from 'mime';
 import { DocumentClient, NewDocument } from 'documentdb';
-import { getVersion } from './util';
 
 if (process.argv.length < 6) {
 	console.error('Usage: node publish.js <product> <platform> <type> <name> <version> <commit> <is_update> <file>');
 	process.exit(-1);
-}
-
-function log(...args: any[]) {
-	console.log(new Date().toISOString(), ...args);
 }
 
 function sha1hash(file: string): Promise<string> {
@@ -106,7 +101,7 @@ function createOrUpdate(commit: string, quality: string, platform: string, type:
 					if (err && err.code === 409 && updateTries < 5) { return c(update()); }
 					if (err) { return e(err); }
 
-					log('Build successfully updated.');
+					console.log('Build successfully updated.');
 					c();
 				});
 			});
@@ -118,7 +113,7 @@ function createOrUpdate(commit: string, quality: string, platform: string, type:
 			if (err && err.code === 409) { return c(update()); }
 			if (err) { return e(err); }
 
-			log('Build successfully published.');
+			console.log('Build successfully published.');
 			c();
 		});
 	});
@@ -142,29 +137,28 @@ async function uploadBlob(blobService: azure.BlobService, quality: string, blobN
 	await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, file, blobOptions, err => err ? e(err) : c()));
 }
 
-async function publish(quality: string, platform: string, type: string, name: string, version: string, _isUpdate: string, file: string): Promise<void> {
+async function publish(commit: string, quality: string, platform: string, type: string, name: string, version: string, _isUpdate: string, file: string): Promise<void> {
 	const isUpdate = _isUpdate === 'true';
 
 	const queuedBy = process.env['BUILD_QUEUEDBY'];
 	const sourceBranch = process.env['BUILD_SOURCEBRANCH'];
-	const commit = getVersion(path.dirname(path.dirname(path.dirname(__dirname))));
 	const isReleased = quality === 'insider'
 		&& /^master$|^refs\/heads\/master$/.test(sourceBranch)
 		&& /Project Collection Service Accounts|Microsoft.VisualStudio.Services.TFS/.test(queuedBy);
 
-	log('Publishing...');
-	log('Quality:', quality);
-	log('Platforn:', platform);
-	log('Type:', type);
-	log('Name:', name);
-	log('Version:', version);
-	log('Commit:', commit);
-	log('Is Update:', isUpdate);
-	log('Is Released:', isReleased);
-	log('File:', file);
+	console.log('Publishing...');
+	console.log('Quality:', quality);
+	console.log('Platforn:', platform);
+	console.log('Type:', type);
+	console.log('Name:', name);
+	console.log('Version:', version);
+	console.log('Commit:', commit);
+	console.log('Is Update:', isUpdate);
+	console.log('Is Released:', isReleased);
+	console.log('File:', file);
 
 	const hash = await sha1hash(file);
-	log('Hash:', hash);
+	console.log('Hash:', hash);
 
 	const blobName = commit + '/' + name;
 	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2'];
@@ -186,22 +180,22 @@ async function publish(quality: string, platform: string, type: string, name: st
 	]);
 
 	if (blobExists || moooncakeBlobExists) {
-		log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
+		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
 		return;
 	}
 
-	log('Uploading blobs to Azure storage...');
+	console.log('Uploading blobs to Azure storage...');
 
 	await Promise.all([
 		uploadBlob(blobService, quality, blobName, file),
 		uploadBlob(mooncakeBlobService, quality, blobName, file)
 	]);
 
-	log('Blobs successfully uploaded.');
+	console.log('Blobs successfully uploaded.');
 
 	const config = await getConfig(quality);
 
-	log('Quality config:', config);
+	console.log('Quality config:', config);
 
 	const asset: Asset = {
 		platform: platform,
@@ -231,8 +225,9 @@ async function publish(quality: string, platform: string, type: string, name: st
 
 function main(): void {
 	const [, , quality, platform, type, name, version, _isUpdate, file] = process.argv;
+	const commit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
 
-	publish(quality, platform, type, name, version, _isUpdate, file).catch(err => {
+	publish(commit, quality, platform, type, name, version, _isUpdate, file).catch(err => {
 		console.error(err);
 		process.exit(1);
 	});
