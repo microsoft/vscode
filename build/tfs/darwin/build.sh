@@ -7,9 +7,10 @@ export MOONCAKE_STORAGE_ACCESS_KEY="$3"
 export AZURE_DOCUMENTDB_MASTERKEY="$4"
 
 # set agent specific npm cache
-if [ -z "$AGENT_WORKFOLDER" ]
+if [ -n "$AGENT_WORKFOLDER" ]
 then
 	export npm_config_cache="$AGENT_WORKFOLDER/npm-cache"
+	echo "Using npm cache: $npm_config_cache"
 fi
 
 # log build step
