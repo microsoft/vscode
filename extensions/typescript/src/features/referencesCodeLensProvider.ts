@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeLens, CancellationToken, TextDocument, Range, Location, ProviderResult } from 'vscode';
+import { CodeLens, CancellationToken, TextDocument, Range, Location, ProviderResult, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
@@ -17,9 +17,15 @@ const localize = nls.loadMessageBundle();
 
 export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
-		client: ITypescriptServiceClient
+		client: ITypescriptServiceClient,
+		private readonly language: string
 	) {
-		super(client, 'referencesCodeLens.enabled');
+		super(client);
+	}
+
+	public updateConfiguration(): void {
+		const config = workspace.getConfiguration(this.language);
+		this.setEnabled(config.get('referencesCodeLens.enabled', false));
 	}
 
 	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {

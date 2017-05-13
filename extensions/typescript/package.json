@@ -107,9 +107,14 @@
           "default": true,
           "description": "%typescript.check.npmIsInstalled%"
         },
-        "typescript.referencesCodeLens.enabled": {
+        "javascript.referencesCodeLens.enabled": {
           "type": "boolean",
           "default": false,
+          "description": "%javascript.referencesCodeLens.enabled%"
+        },
+        "typescript.referencesCodeLens.enabled": {
+          "type": "boolean",
+          "default": true,
           "description": "%typescript.referencesCodeLens.enabled%"
         },
         "typescript.implementationsCodeLens.enabled": {
