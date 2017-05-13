@@ -145,6 +145,7 @@ export class EditorAccessor implements emmet.Editor {
 		if (this._hasMadeEdits) {
 			this._editor.pushUndoStop();
 		}
+		SnippetController.get(this._editor).acceptSnippet();
 	}
 
 	public getContent(): string {
