@@ -9,15 +9,17 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { QuickOpenHandler, EditorQuickOpenEntryGroup } from 'vs/workbench/browser/quickopen';
+import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
 import { QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import filters = require('vs/base/common/filters');
 import strings = require('vs/base/common/strings');
 import { Range } from 'vs/editor/common/core/range';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import labels = require('vs/base/common/labels');
 import { SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,7 +27,7 @@ import { IWorkspaceSymbolProvider, getWorkspaceSymbols } from 'vs/workbench/part
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { basename } from 'vs/base/common/paths';
 
-class SymbolEntry extends EditorQuickOpenEntryGroup {
+class SymbolEntry extends EditorQuickOpenEntry {
 
 	private _bearingResolve: TPromise<this>;
 
@@ -34,9 +36,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		private _provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEnvironmentService private _environmentService: IEnvironmentService
 	) {
-		super();
+		super(editorService);
 	}
 
 	public getLabel(): string {
@@ -48,7 +51,15 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	}
 
 	public getDescription(): string {
-		return this._bearing.containerName;
+		const containerName = this._bearing.containerName;
+		if (this._bearing.location.uri) {
+			if (containerName) {
+				return `${containerName} — ${basename(this._bearing.location.uri.fsPath)}`;
+			} else {
+				return labels.getPathLabel(this._bearing.location.uri, this._contextService, this._environmentService);
+			}
+		}
+		return containerName;
 	}
 
 	public getIcon(): string {
@@ -57,13 +68,6 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 	public getResource(): URI {
 		return this._bearing.location.uri;
-	}
-
-	public getGroupLabel(): string {
-		if (this._bearing.location.uri) {
-			return basename(this._bearing.location.uri.fsPath);
-		}
-		return '';
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
@@ -88,7 +92,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		return mode === Mode.OPEN;
 	}
 
-	public getInput(): IResourceInput {
+	public getInput(): IResourceInput | EditorInput {
 		let input: IResourceInput = {
 			resource: this._bearing.location.uri,
 			options: {
