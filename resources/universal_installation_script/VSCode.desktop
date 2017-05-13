@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Encoding=UTF-8
+Name=Visual Studio Code
+Comment=Code Editing. Redefined. Build and debug modern web and cloud applications.
+Exec=code
+Icon=VSCode.png
+Terminal=false
+Categories=Development;IDE
