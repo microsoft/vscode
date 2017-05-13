@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { MainThreadLanguagesShape } from '../node/extHost.protocol';
+import URI from 'vs/base/common/uri';
 
 export class MainThreadLanguages extends MainThreadLanguagesShape {
 
@@ -21,5 +22,9 @@ export class MainThreadLanguages extends MainThreadLanguagesShape {
 
 	$getLanguages(): TPromise<string[]> {
 		return TPromise.as(this._modeService.getRegisteredModes());
+	}
+
+	$getLanguage(resource: URI): TPromise<string> {
+		return TPromise.as(this._modeService.getModeIdByFilenameOrFirstLine(resource.fsPath));
 	}
 }

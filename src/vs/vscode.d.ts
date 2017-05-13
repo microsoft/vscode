@@ -4498,6 +4498,17 @@ declare module 'vscode' {
 		export function getLanguages(): Thenable<string[]>;
 
 		/**
+		 * Get the default language associated with a uri.
+		 *
+		 * Only retrieves language based on the resource path.
+		 *
+		 * @param uri The uri of the resource.
+		 *
+		 * @return Promise resolving to language identifier.
+		 */
+		export function getLanguage(uri: Uri): Thenable<string>;
+
+		/**
 		 * Compute the match between a document [selector](#DocumentSelector) and a document. Values
 		 * greater than zero mean the selector matches the document.
 		 *

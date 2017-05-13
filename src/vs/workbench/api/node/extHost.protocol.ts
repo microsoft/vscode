@@ -234,6 +234,7 @@ export abstract class MainThreadLanguageFeaturesShape {
 
 export abstract class MainThreadLanguagesShape {
 	$getLanguages(): TPromise<string[]> { throw ni(); }
+	$getLanguage(resource: URI): TPromise<string> { throw ni(); }
 }
 
 export abstract class MainThreadMessageServiceShape {

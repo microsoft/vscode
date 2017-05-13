@@ -8,7 +8,7 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity, TextDocument } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -356,8 +356,8 @@ class LanguageProvider {
 		}
 	}
 
-	public handles(file: string, doc: TextDocument): boolean {
-		if (doc && this.description.modeIds.indexOf(doc.languageId) >= 0) {
+	public handles(file: string, languageId: string): boolean {
+		if (this.description.modeIds.indexOf(languageId) >= 0) {
 			return true;
 		}
 
@@ -606,9 +606,9 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	}
 
 	private findLanguage(file: string): Thenable<LanguageProvider | null> {
-		return workspace.openTextDocument(this.client.asUrl(file)).then((doc: TextDocument) => {
+		return languages.getLanguage(this.client.asUrl(file)).then((languageId: string) => {
 			for (const language of this.languages) {
-				if (language.handles(file, doc)) {
+				if (language.handles(file, languageId)) {
 					return language;
 				}
 			}
