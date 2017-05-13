@@ -25,6 +25,6 @@
 	"scripts": {
 		"compile": "gulp compile-extension:python",
 		"watch": "gulp watch-extension:python",
-		"update-grammar": "node ../../build/npm/update-grammar.js MagicStack/MagicPython grammars/MagicPython.tmLanguage ./syntaxes/MagicPython.tmLanguage.json grammars/MagicRegExp.tmLanguage ./syntaxes/MagicRegExp.tmLanguage.json"
+		"update-grammar": "node ./build/update-grammars.js"
 	}
 }
