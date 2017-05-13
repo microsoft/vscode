@@ -74,7 +74,7 @@ namespace ast {
 		const spans: number[] = [];
 
 		ts.forEachChild(sourceFile, function visit(node: ts.Node) {
-			const declIdent = (<ts.Declaration>node).name;
+			const declIdent = (<ts.NamedDeclaration>node).name;
 			if (declIdent && declIdent.kind === ts.SyntaxKind.Identifier) {
 				identifiers.push((<ts.Identifier>declIdent).text);
 				spans.push(node.pos, node.end);
