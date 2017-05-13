@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity, TextDocument } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity, TextDocument, SnippetString } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -531,10 +531,15 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 					switch (selected && selected.id) {
 						case ProjectConfigAction.CreateConfig:
 							const configFile = Uri.file(path.join(rootPath, isTypeScriptProject ? 'tsconfig.json' : 'jsconfig.json'));
+							const col = window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined;
 							return workspace.openTextDocument(configFile)
-								.then(undefined, _ => workspace.openTextDocument(configFile.with({ scheme: 'untitled' })))
-								.then(doc =>
-									window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined));
+								.then(doc => {
+									return window.showTextDocument(doc, col);
+								}, _ => {
+									return workspace.openTextDocument(configFile.with({ scheme: 'untitled' }))
+										.then(doc => window.showTextDocument(doc, col))
+										.then(editor => editor.insertSnippet(new SnippetString('{\n\t$0\n}')));
+								});
 
 						case ProjectConfigAction.LearnMore:
 							if (isTypeScriptProject) {
