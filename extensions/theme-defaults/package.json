@@ -43,7 +43,7 @@
 			{
 				"id": "vs-minimal",
 				"label": "Minimal (Visual Studio Code)",
-				"path": "./fileicons/vs_minimal_icons.json"
+				"path": "./icons/vs_minimal_icons.json"
 			}
 		]
 	}
