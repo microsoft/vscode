@@ -497,3 +497,39 @@ export class ClearTerminalAction extends Action {
 		return TPromise.as(void 0);
 	}
 }
+
+export class AllowWorkspaceShellTerminalCommand extends Action {
+
+	public static ID = 'workbench.action.terminal.allowWorkspaceShell';
+	public static LABEL = nls.localize('workbench.action.terminal.allowWorkspaceShell', "Allow Workspace Shell Configuration");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.terminalService.setWorkspaceShellAllowed(true);
+		return TPromise.as(void 0);
+	}
+}
+
+export class DisallowWorkspaceShellTerminalCommand extends Action {
+
+	public static ID = 'workbench.action.terminal.disallowWorkspaceShell';
+	public static LABEL = nls.localize('workbench.action.terminal.disallowWorkspaceShell', "Disallow Workspace Shell Configuration");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		this.terminalService.setWorkspaceShellAllowed(false);
+		return TPromise.as(void 0);
+	}
+}

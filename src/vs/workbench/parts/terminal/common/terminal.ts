@@ -71,6 +71,8 @@ export interface ITerminalConfigHelper {
 	 * Merges the default shell path and args into the provided launch configuration
 	 */
 	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void;
+	/** Sets whether a workspace shell configuration is allowed or not */
+	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
 export interface ITerminalFont {
@@ -146,6 +148,7 @@ export interface ITerminalService {
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	updateConfig(): void;
 	selectDefaultWindowsShell(): TPromise<string>;
+	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
 export interface ITerminalInstance {
