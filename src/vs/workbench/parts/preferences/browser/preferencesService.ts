@@ -325,7 +325,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					}
 					return { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 				}
-				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: languageKey, value: {} }, false)
+				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: languageKey, value: {} }, { donotSave: true })
 					.then(() => {
 						setting = settingsModel.getPreference(languageKey);
 						let content = eol + this.spaces(2, configuration) + eol + this.spaces(1, configuration);

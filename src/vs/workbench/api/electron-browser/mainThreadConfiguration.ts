@@ -35,10 +35,10 @@ export class MainThreadConfiguration extends MainThreadConfigurationShape {
 	}
 
 	$updateConfigurationOption(target: ConfigurationTarget, key: string, value: any): TPromise<void> {
-		return this._configurationEditingService.writeConfiguration(target, { key, value });
+		return this._configurationEditingService.writeConfiguration(target, { key, value }, { donotNotifyError: true });
 	}
 
 	$removeConfigurationOption(target: ConfigurationTarget, key: string): TPromise<void> {
-		return this._configurationEditingService.writeConfiguration(target, { key, value: undefined });
+		return this._configurationEditingService.writeConfiguration(target, { key, value: undefined }, { donotNotifyError: true });
 	}
 }

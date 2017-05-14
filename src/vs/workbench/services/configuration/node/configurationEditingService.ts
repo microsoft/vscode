@@ -26,7 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { keyFromOverrideIdentifier } from 'vs/platform/configuration/common/model';
 import { WORKSPACE_CONFIG_DEFAULT_PATH, WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationEditingService, ConfigurationEditingErrorCode, IConfigurationEditingError, ConfigurationTarget, IConfigurationValue, IConfigurationEditingOptions } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
@@ -62,15 +62,19 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		this.queue = new Queue<void>();
 	}
 
-	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, save: boolean = true): TPromise<void> {
-		return this.queue.queue(() => this.doWriteConfiguration(target, value, save).then(() => null, error => this.onError(error, target))); // queue up writes to prevent race conditions
+	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions = {}): TPromise<void> {
+		return this.queue.queue(() => this.doWriteConfiguration(target, value, options) // queue up writes to prevent race conditions
+			.then(() => null,
+			error => {
+				return options.donotNotifyError ? TPromise.wrapError(error) : this.onError(error, target);
+			}));
 	}
 
-	private doWriteConfiguration(target: ConfigurationTarget, value: IConfigurationValue, save: boolean): TPromise<void> {
+	private doWriteConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions): TPromise<void> {
 		const operation = this.getConfigurationEditOperation(target, value);
 
-		return this.resolveAndValidate(target, operation, save)
-			.then(reference => this.writeToBuffer(reference.object.textEditorModel, operation, save)
+		return this.resolveAndValidate(target, operation, !options.donotSave)
+			.then(reference => this.writeToBuffer(reference.object.textEditorModel, operation, !options.donotSave)
 				.then(() => reference.dispose()));
 	}
 
