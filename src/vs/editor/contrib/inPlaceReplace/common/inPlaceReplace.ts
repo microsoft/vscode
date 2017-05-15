@@ -16,6 +16,8 @@ import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
 
 @commonEditorContribution
 class InPlaceReplaceController implements IEditorContribution {
@@ -179,3 +181,10 @@ class InPlaceReplaceDown extends EditorAction {
 		return controller.run(this.id, false);
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let border = theme.getColor(editorBracketMatchBorder);
+	if (border) {
+		collector.addRule(`.monaco-editor.vs .valueSetReplacement { outline: solid 2px ${border}; }`);
+	}
+});
