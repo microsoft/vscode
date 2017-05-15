@@ -12,6 +12,7 @@ import { TextmateSnippet, Placeholder, SnippetParser } from '../common/snippetPa
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
 import { EditorSnippetVariableResolver } from "vs/editor/contrib/snippet/common/snippetVariables";
 
@@ -36,17 +37,19 @@ export class OneSnippet {
 		this._editor = editor;
 		this._snippet = snippet;
 		this._offset = offset;
+
+		this._placeholderGroups = groupBy(snippet.placeholders, Placeholder.compareByIndex);
+		this._placeholderGroupsIdx = -1;
 	}
 
 	dispose(): void {
-		if (!this._placeholderDecorations) {
-			return;
+		if (this._placeholderDecorations) {
+			this._editor.changeDecorations(accessor => this._placeholderDecorations.forEach(handle => accessor.removeDecoration(handle)));
 		}
-		this._editor.changeDecorations(accessor => this._placeholderDecorations.forEach(handle => accessor.removeDecoration(handle)));
 		this._placeholderGroups.length = 0;
 	}
 
-	private _init(): void {
+	private _initDecorations(): void {
 
 		if (this._placeholderDecorations) {
 			// already initialized
@@ -57,7 +60,6 @@ export class OneSnippet {
 		const model = this._editor.getModel();
 
 		this._editor.changeDecorations(accessor => {
-
 			// create a decoration for each placeholder
 			for (const placeholder of this._snippet.placeholders) {
 				const placeholderOffset = this._snippet.offset(placeholder);
@@ -71,23 +73,11 @@ export class OneSnippet {
 				this._placeholderDecorations.set(placeholder, handle);
 			}
 		});
-
-		this._placeholderGroupsIdx = -1;
-		this._placeholderGroups = [];
-		let lastBucket: Placeholder[];
-		this._snippet.placeholders.slice(0).sort(Placeholder.compareByIndex).forEach(a => {
-			if (!lastBucket || lastBucket[0].index !== a.index) {
-				lastBucket = [a];
-				this._placeholderGroups.push(lastBucket);
-			} else {
-				lastBucket.push(a);
-			}
-		});
 	}
 
 	move(fwd: boolean): Selection[] {
 
-		this._init();
+		this._initDecorations();
 
 		if (fwd && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
 			this._placeholderGroupsIdx += 1;
