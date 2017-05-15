@@ -33,9 +33,7 @@ import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_w
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tildify } from 'vs/base/common/labels';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Themable } from 'vs/workbench/common/theme';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isLinux } from 'vs/base/common/platform';
 
 used();
@@ -100,28 +98,6 @@ const reorderedQuickLinks = [
 	'openGlobalSettings',
 	'showInteractivePlayground',
 ];
-
-class WelcomeTheming extends Themable {
-
-	constructor(
-		themeService: IThemeService,
-		private container: HTMLElement
-	) {
-		super(themeService);
-		this.update(themeService.getTheme());
-	}
-
-	protected onThemeChange(theme: ITheme): void {
-		super.onThemeChange(theme);
-		this.update(theme);
-	}
-
-	private update(theme: ITheme): void {
-		const background = theme.getColor(editorBackground);
-		const page = this.container.querySelector('.welcomePage') as HTMLElement;
-		page.classList.toggle('extra-dark', background.getLuminosity() < 0.004);
-	}
-}
 
 class WelcomePage {
 
@@ -250,8 +226,6 @@ class WelcomePage {
 				}
 			};
 		}));
-
-		this.disposables.push(new WelcomeTheming(this.themeService, container));
 	}
 
 	private pathEquals(path1: string, path2: string): boolean {

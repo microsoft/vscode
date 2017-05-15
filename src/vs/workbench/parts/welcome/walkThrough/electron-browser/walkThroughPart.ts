@@ -38,6 +38,8 @@ import { Parts, IPartService } from 'vs/workbench/services/part/common/partServi
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { Themable } from 'vs/workbench/common/theme';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -76,6 +78,27 @@ class WalkThroughCodeEditor extends CodeEditor {
 
 	getTelemetryData() {
 		return this.telemetryData;
+	}
+}
+
+class WalkThroughTheming extends Themable {
+
+	constructor(
+		themeService: IThemeService,
+		private container: HTMLElement
+	) {
+		super(themeService);
+		this.update(themeService.getTheme());
+	}
+
+	protected onThemeChange(theme: ITheme): void {
+		super.onThemeChange(theme);
+		this.update(theme);
+	}
+
+	private update(theme: ITheme): void {
+		const background = theme.getColor(editorBackground);
+		this.container.classList.toggle('extra-dark', background.getLuminosity() < 0.004);
 	}
 }
 
@@ -307,6 +330,7 @@ export class WalkThroughPart extends BaseEditor {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
 					this.updateMarkerClasses();
+					this.addThemeListener();
 					this.decorateContent();
 					if (input.onReady) {
 						input.onReady(this.content.firstElementChild as HTMLElement);
@@ -407,6 +431,7 @@ export class WalkThroughPart extends BaseEditor {
 				});
 				this.updateSizeClasses();
 				this.updateMarkerClasses();
+				this.addThemeListener();
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
@@ -442,6 +467,11 @@ export class WalkThroughPart extends BaseEditor {
 		if (true && innerContent) {
 			innerContent.classList.add('scmEnabled');
 		}
+	}
+
+	private addThemeListener() {
+		const innerContent = this.content.firstElementChild as HTMLElement;
+		this.contentDisposables.push(new WalkThroughTheming(this.themeService, innerContent));
 	}
 
 	private style(theme: ITheme, div: HTMLElement) {
