@@ -159,7 +159,7 @@ export class OneSnippet {
 
 export class SnippetSession {
 
-	static normalizeWhitespace(model: IModel, position: IPosition, template: string): string {
+	static adjustWhitespace(model: IModel, position: IPosition, template: string): string {
 
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
@@ -236,7 +236,7 @@ export class SnippetSession {
 			// adjust the template string to match the indentation and
 			// whitespace rules of this insert location (can be different for each cursor)
 			const start = snippetSelection.getStartPosition();
-			const adjustedTemplate = SnippetSession.normalizeWhitespace(model, start, template);
+			const adjustedTemplate = SnippetSession.adjustWhitespace(model, start, template);
 
 			const snippet = SnippetParser.parse(adjustedTemplate).resolveVariables(new EditorSnippetVariableResolver(model, snippetSelection));
 			const offset = model.getOffsetAt(start) + delta;

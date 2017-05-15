@@ -41,7 +41,7 @@ suite('SnippetSession', function () {
 	test('normalize whitespace', function () {
 
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
-			const actual = SnippetSession.normalizeWhitespace(model, position, input);
+			const actual = SnippetSession.adjustWhitespace(model, position, input);
 			assert.equal(actual, expected);
 		}
 
