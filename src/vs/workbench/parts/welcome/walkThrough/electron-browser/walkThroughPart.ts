@@ -377,7 +377,11 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
-					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()))));
+					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => {
+						if (snippet.textEditorModel) {
+							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()));
+						}
+					}));
 
 					this.contentDisposables.push(once(editor.onMouseDown)(() => {
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
