@@ -8,7 +8,6 @@
 import { execSync } from 'child_process';
 import { DocumentClient } from 'documentdb';
 import * as azure from 'azure-storage';
-import * as path from 'path';
 
 interface Asset {
 	platform: string;

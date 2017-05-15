@@ -23,6 +23,10 @@
 	border-bottom: 1px solid #2d2d2d;
 }
 
+.preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {
+	position: relative;
+}
+
 .settings-tabs-widget {
 	display: flex;
 	flex-wrap: wrap;
@@ -133,14 +137,6 @@
 .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
 	font-size: 14px;
 	padding-left:10px;
-}
-
-.vs-dark .preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {
-	box-shadow: -6px 0 5px -5px black;
-}
-
-.preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {
-	box-shadow: -6px 0 5px -5px #DDD;
 }
 
 .monaco-editor .settings-group-title-widget {

@@ -100,6 +100,10 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
+	public setWorkspaceShellAllowed(isAllowed: boolean): void {
+		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
+	}
+
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void {
 		// Check whether there is a workspace setting
 		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';

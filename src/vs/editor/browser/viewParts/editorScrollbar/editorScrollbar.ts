@@ -13,6 +13,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { getThemeTypeSelector } from "vs/platform/theme/common/themeService";
 
 export class EditorScrollbar extends ViewPart {
 
@@ -33,7 +34,7 @@ export class EditorScrollbar extends ViewPart {
 		let scrollbarOptions: ScrollableElementCreationOptions = {
 			canUseTranslate3d: editor.canUseTranslate3d,
 			listenOnDomNode: viewDomNode.domNode,
-			className: 'editor-scrollable' + ' ' + editor.viewInfo.theme,
+			className: 'editor-scrollable' + ' ' + getThemeTypeSelector(context.theme.type),
 			useShadows: false,
 			lazyRender: true,
 
@@ -120,10 +121,8 @@ export class EditorScrollbar extends ViewPart {
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		const editor = this._context.configuration.editor;
-
-		this.scrollbar.updateClassName('editor-scrollable' + ' ' + editor.viewInfo.theme);
 		if (e.viewInfo || e.canUseTranslate3d) {
+			const editor = this._context.configuration.editor;
 			let newOpts: ScrollableElementChangeOptions = {
 				canUseTranslate3d: editor.canUseTranslate3d,
 				handleMouseWheel: editor.viewInfo.scrollbar.handleMouseWheel,
@@ -137,6 +136,10 @@ export class EditorScrollbar extends ViewPart {
 		return true;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
+		return true;
+	}
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		this.scrollbar.updateClassName('editor-scrollable' + ' ' + getThemeTypeSelector(this._context.theme.type));
 		return true;
 	}
 

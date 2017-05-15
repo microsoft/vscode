@@ -626,6 +626,7 @@ declare module monaco {
 		 * Create a new empty range using this range's start position.
 		 */
 		static collapseToStart(range: IRange): Range;
+		static fromPositions(start: IPosition, end?: IPosition): Range;
 		/**
 		 * Create a `Range` from an `IRange`.
 		 */
@@ -727,6 +728,10 @@ declare module monaco {
 		 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 		 */
 		setStartPosition(startLineNumber: number, startColumn: number): Selection;
+		/**
+		 * Create a `Selection` from one or two positions
+		 */
+		static fromPositions(start: IPosition, end?: IPosition): Selection;
 		/**
 		 * Create a `Selection` from an `ISelection`.
 		 */

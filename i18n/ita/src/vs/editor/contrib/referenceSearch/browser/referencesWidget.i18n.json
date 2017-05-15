@@ -16,8 +16,6 @@
 	"peekViewTitleInfoForeground": "Colore delle informazioni del titolo della visualizzazione rapida.",
 	"peekViewBorder": "Colore dei bordi e della freccia della visualizzazione rapida.",
 	"peekViewResultsBackground": "Colore di sfondo dell'elenco risultati della visualizzazione rapida.",
-	"peekViewResultsMatchForeground": "Primo piano per l'immissione di corrispondenze nell'elenco risultati della visualizzazione rapida.",
-	"peekViewResultsFileForeground": "Primo piano per l'immissione di file nell'elenco risultati della visualizzazione rapida.",
 	"peekViewResultsSelectionBackground": "Colore di sfondo della voce selezionata nell'elenco risultati della visualizzazione rapida.",
 	"peekViewResultsSelectionForeground": "Colore primo piano della voce selezionata nell'elenco risultati della visualizzazione rapida.",
 	"peekViewEditorBackground": "Colore di sfondo dell'editor di visualizzazioni rapide.",

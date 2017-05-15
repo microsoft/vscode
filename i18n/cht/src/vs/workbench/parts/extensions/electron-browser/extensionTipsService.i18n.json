@@ -8,5 +8,7 @@
 	"showRecommendations": "顯示建議",
 	"neverShowAgain": "不要再顯示",
 	"close": "關閉",
-	"workspaceRecommended": "此工作區具有擴充功能建議。"
+	"workspaceRecommended": "此工作區具有擴充功能建議。",
+	"no": "否",
+	"cancel": "取消"
 }

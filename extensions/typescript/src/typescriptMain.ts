@@ -9,7 +9,7 @@
  * ------------------------------------------------------------------------------------------ */
 'use strict';
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity, TextDocument } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, TextEditor, DiagnosticSeverity, TextDocument, SnippetString } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -137,13 +137,10 @@ class LanguageProvider {
 	private readonly currentDiagnostics: DiagnosticCollection;
 	private readonly bufferSyncSupport: BufferSyncSupport;
 
-	private completionItemProvider: CompletionItemProvider;
 	private formattingProvider: FormattingProvider;
 	private formattingProviderRegistration: Disposable | null;
 	private typingsStatus: TypingsStatus;
-	private referenceCodeLensProvider: ReferenceCodeLensProvider;
-	private implementationCodeLensProvider: ImplementationCodeLensProvider;
-	private JsDocCompletionProvider: JsDocCompletionProvider;
+	private toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
 	private _validate: boolean = true;
 
@@ -205,9 +202,10 @@ class LanguageProvider {
 		const selector = this.description.modeIds;
 		const config = workspace.getConfiguration(this.id);
 
-		this.completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
-		this.completionItemProvider.updateConfiguration();
-		this.disposables.push(languages.registerCompletionItemProvider(selector, this.completionItemProvider, '.'));
+		const completionItemProvider = new CompletionItemProvider(client, this.typingsStatus);
+		completionItemProvider.updateConfiguration();
+		this.toUpdateOnConfigurationChanged.push(completionItemProvider);
+		this.disposables.push(languages.registerCompletionItemProvider(selector, completionItemProvider, '.'));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new DirectiveCommentCompletionProvider(client), '@'));
 
@@ -218,9 +216,9 @@ class LanguageProvider {
 			this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(selector, this.formattingProvider);
 		}
 
-		this.JsDocCompletionProvider = new JsDocCompletionProvider(client);
-		this.JsDocCompletionProvider.updateConfiguration();
-		this.disposables.push(languages.registerCompletionItemProvider(selector, this.JsDocCompletionProvider, '*'));
+		const jsDocCompletionProvider = new JsDocCompletionProvider(client);
+		jsDocCompletionProvider.updateConfiguration();
+		this.disposables.push(languages.registerCompletionItemProvider(selector, jsDocCompletionProvider, '*'));
 
 		this.disposables.push(languages.registerHoverProvider(selector, new HoverProvider(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new DefinitionProvider(client)));
@@ -230,20 +228,23 @@ class LanguageProvider {
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new SignatureHelpProvider(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new RenameProvider(client)));
 
-		this.referenceCodeLensProvider = new ReferenceCodeLensProvider(client);
-		this.referenceCodeLensProvider.updateConfiguration();
-		this.disposables.push(languages.registerCodeLensProvider(selector, this.referenceCodeLensProvider));
-
-		this.implementationCodeLensProvider = new ImplementationCodeLensProvider(client);
-		this.implementationCodeLensProvider.updateConfiguration();
-		this.disposables.push(languages.registerCodeLensProvider(selector, this.implementationCodeLensProvider));
-
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new CodeActionProvider(client, this.description.id)));
 
 		this.registerVersionDependentProviders();
 
 		this.description.modeIds.forEach(modeId => {
 			this.disposables.push(languages.registerWorkspaceSymbolProvider(new WorkspaceSymbolProvider(client, modeId)));
+
+			const referenceCodeLensProvider = new ReferenceCodeLensProvider(client, modeId);
+			referenceCodeLensProvider.updateConfiguration();
+			this.toUpdateOnConfigurationChanged.push(referenceCodeLensProvider);
+			this.disposables.push(languages.registerCodeLensProvider(selector, referenceCodeLensProvider));
+
+			const implementationCodeLensProvider = new ImplementationCodeLensProvider(client, modeId);
+			implementationCodeLensProvider.updateConfiguration();
+			this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
+			this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
+
 
 			this.disposables.push(languages.setLanguageConfiguration(modeId, {
 				indentationRules: {
@@ -302,15 +303,7 @@ class LanguageProvider {
 	private configurationChanged(): void {
 		const config = workspace.getConfiguration(this.id);
 		this.updateValidate(config.get(validateSetting, true));
-		if (this.completionItemProvider) {
-			this.completionItemProvider.updateConfiguration();
-		}
-		if (this.referenceCodeLensProvider) {
-			this.referenceCodeLensProvider.updateConfiguration();
-		}
-		if (this.implementationCodeLensProvider) {
-			this.implementationCodeLensProvider.updateConfiguration();
-		}
+
 		if (this.formattingProvider) {
 			this.formattingProvider.updateConfiguration(config);
 			if (!this.formattingProvider.isEnabled() && this.formattingProviderRegistration) {
@@ -321,8 +314,9 @@ class LanguageProvider {
 				this.formattingProviderRegistration = languages.registerDocumentRangeFormattingEditProvider(this.description.modeIds, this.formattingProvider);
 			}
 		}
-		if (this.JsDocCompletionProvider) {
-			this.JsDocCompletionProvider.updateConfiguration();
+
+		for (const toUpdate of this.toUpdateOnConfigurationChanged) {
+			toUpdate.updateConfiguration();
 		}
 	}
 
@@ -537,10 +531,15 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 					switch (selected && selected.id) {
 						case ProjectConfigAction.CreateConfig:
 							const configFile = Uri.file(path.join(rootPath, isTypeScriptProject ? 'tsconfig.json' : 'jsconfig.json'));
+							const col = window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined;
 							return workspace.openTextDocument(configFile)
-								.then(undefined, _ => workspace.openTextDocument(configFile.with({ scheme: 'untitled' })))
-								.then(doc =>
-									window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined));
+								.then(doc => {
+									return window.showTextDocument(doc, col);
+								}, _ => {
+									return workspace.openTextDocument(configFile.with({ scheme: 'untitled' }))
+										.then(doc => window.showTextDocument(doc, col))
+										.then(editor => editor.insertSnippet(new SnippetString('{\n\t$0\n}')));
+								});
 
 						case ProjectConfigAction.LearnMore:
 							if (isTypeScriptProject) {

@@ -18,6 +18,8 @@
 	"discard": "Ignorer les modifications",
 	"confirm discard all": "Voulez-vous vraiment ignorer TOUTES les modifications ? Cette action est IRRÉVERSIBLE.",
 	"discardAll": "Ignorer TOUTES les modifications",
+	"yes": "Oui",
+	"always": "Toujours",
 	"no changes": "Il n'existe aucun changement à valider.",
 	"commit message": "Message de validation",
 	"provide commit message": "Indiquez un message de validation",

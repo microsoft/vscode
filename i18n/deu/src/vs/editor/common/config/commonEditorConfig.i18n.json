@@ -62,6 +62,7 @@
 	"renderLineHighlight": "Steuert, wie der Editor die aktuelle Zeilenhervorhebung rendern soll. Mögliche Werte sind \"none\", \"gutter\", \"line\" und \"all\".",
 	"codeLens": "Steuert, ob der Editor CodeLenses anzeigt.",
 	"folding": "Steuert, ob für den Editor Codefaltung aktiviert ist.",
+	"hideFoldIcons": "Steuert, ob die Falt-Symbole an der Leiste automatisch ausgeblendet werden.",
 	"matchBrackets": "Übereinstimmende Klammern hervorheben, wenn eine davon ausgewählt wird.",
 	"glyphMargin": "Steuert, ob der Editor den vertikalen Glyphenrand rendert. Der Glyphenrand wird hauptsächlich zum Debuggen verwendet.",
 	"useTabStops": "Das Einfügen und Löschen von Leerzeichen folgt auf Tabstopps.",

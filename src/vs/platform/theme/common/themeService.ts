@@ -19,6 +19,14 @@ export const LIGHT = 'light';
 export const HIGH_CONTRAST = 'hc';
 export type ThemeType = 'light' | 'dark' | 'hc';
 
+export function getThemeTypeSelector(type: ThemeType): string {
+	switch (type) {
+		case DARK: return 'vs-dark';
+		case HIGH_CONTRAST: return 'hc-black';
+		default: return 'vs';
+	}
+}
+
 export interface ITheme {
 	readonly type: ThemeType;
 

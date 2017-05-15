@@ -6,7 +6,6 @@
 {
 	"selectTheme.label": "Farbdesign",
 	"installColorThemes": "Zusätzliche Farbschemas installieren...",
-	"problemChangingTheme": "Problem beim Festlegen des Designs: {0}",
 	"themes.selectTheme": "Farbdesign auswählen",
 	"selectIconTheme.label": "Dateisymboldesign",
 	"installIconThemes": "Zusätzliche Dateisymbolschemas installieren...",

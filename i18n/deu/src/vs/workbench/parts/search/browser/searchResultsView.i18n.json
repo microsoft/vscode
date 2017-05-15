@@ -6,7 +6,5 @@
 {
 	"searchMatches": "{0} Übereinstimmungen gefunden",
 	"searchMatch": "{0} Übereinstimmung gefunden",
-	"fileMatchAriaLabel": "{0} Übereinstimmungen in der Datei \"{1}\" des Ordners \"{2}\", Suchergebnis",
-	"replacePreviewResultAria": "Vorschauergebnis ersetzen, {0}",
-	"searchResultAria": "{0}, Suchergebnis"
+	"fileMatchAriaLabel": "{0} Übereinstimmungen in der Datei \"{1}\" des Ordners \"{2}\", Suchergebnis"
 }

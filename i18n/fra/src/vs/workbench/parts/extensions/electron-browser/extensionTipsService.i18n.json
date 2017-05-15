@@ -8,5 +8,7 @@
 	"showRecommendations": "Afficher les recommandations",
 	"neverShowAgain": "Ne plus afficher",
 	"close": "Fermer",
-	"workspaceRecommended": "Cet espace de travail a des recommandations d'extension."
+	"workspaceRecommended": "Cet espace de travail a des recommandations d'extension.",
+	"no": "Non",
+	"cancel": "Annuler"
 }

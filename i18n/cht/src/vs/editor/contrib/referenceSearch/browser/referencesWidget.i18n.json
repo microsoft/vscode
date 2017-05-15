@@ -16,8 +16,6 @@
 	"peekViewTitleInfoForeground": "預覽檢視標題資訊的色彩。",
 	"peekViewBorder": "預覽檢視之框線與箭頭的色彩。",
 	"peekViewResultsBackground": "預覽檢視中結果清單的背景色彩。",
-	"peekViewResultsMatchForeground": "在預覽檢視之結果清單中比對輸入時的前景。",
-	"peekViewResultsFileForeground": "在預覽檢視之結果清單中輸入檔案時的前景。",
 	"peekViewResultsSelectionBackground": "在預覽檢視之結果清單中選取項目時的背景色彩。",
 	"peekViewResultsSelectionForeground": "在預覽檢視之結果清單中選取項目時的前景色彩。",
 	"peekViewEditorBackground": "預覽檢視編輯器的背景色彩。",

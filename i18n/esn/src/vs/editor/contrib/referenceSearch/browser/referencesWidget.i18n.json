@@ -16,8 +16,6 @@
 	"peekViewTitleInfoForeground": "Color de la información del título de la vista de inspección.",
 	"peekViewBorder": "Color de los bordes y la flecha de la vista de inspección.",
 	"peekViewResultsBackground": "Color de fondo de la lista de resultados de vista de inspección.",
-	"peekViewResultsMatchForeground": "Buscar coincidencia con el primer plano de entrada de la lista de resultados de vista de inspección.",
-	"peekViewResultsFileForeground": "Primer plano de la entrada de archivo en la lista de resultados de vista de inspección.",
 	"peekViewResultsSelectionBackground": "Color de fondo de la entrada seleccionada en la lista de resultados de vista de inspección.",
 	"peekViewResultsSelectionForeground": "Color de primer plano de la entrada seleccionada en la lista de resultados de vista de inspección.",
 	"peekViewEditorBackground": "Color de fondo del editor de vista de inspección.",

@@ -41,7 +41,8 @@ const eolFilter = [
 	'!build/{lib,tslintRules}/**/*.js',
 	'!build/monaco/**',
 	'!build/win32/**',
-	'!build/**/*.sh'
+	'!build/**/*.sh',
+	'!**/Dockerfile'
 ];
 
 const indentationFilter = [

@@ -53,6 +53,9 @@ import { FindController } from 'vs/editor/contrib/find/browser/find';
 import { SelectionHighlighter } from 'vs/editor/contrib/find/common/findController';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IThemeService } from "vs/platform/theme/common/themeService";
+import { attachStylerCallback } from "vs/platform/theme/common/styler";
+import { scrollbarShadow } from "vs/platform/theme/common/colorRegistry";
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -329,7 +332,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private sash: VSash;
 
-	constructor(parent: HTMLElement, @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(parent: HTMLElement, @IInstantiationService private instantiationService: IInstantiationService, @IThemeService private themeService: IThemeService) {
 		super();
 		this.create(parent);
 	}
@@ -346,6 +349,15 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
+		this._register(attachStylerCallback(this.themeService, { scrollbarShadow }, colors => {
+			const shadow = colors.scrollbarShadow ? colors.scrollbarShadow.toString() : null;
+
+			if (shadow) {
+				this.editablePreferencesEditorContainer.style.boxShadow = `-6px 0 5px -5px ${shadow}`;
+			} else {
+				this.editablePreferencesEditorContainer.style.boxShadow = null;
+			}
+		}));
 	}
 
 	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {

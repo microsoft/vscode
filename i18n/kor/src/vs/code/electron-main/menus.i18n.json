@@ -69,7 +69,6 @@
 	"miSmartSelectShrink": "선택 영역 축소(&&S)",
 	"miViewExplorer": "탐색기(&&E)",
 	"miViewSearch": "검색(&&S)",
-	"miViewGit": "Git(&&G)",
 	"miViewDebug": "디버그(&&D)",
 	"miViewExtensions": "확장(&&X)",
 	"miToggleOutput": "출력(&&O)",

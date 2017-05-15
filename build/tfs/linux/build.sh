@@ -1,7 +1,7 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
-export ARCH="$ARCH"
+export ARCH="$1"
 export VSCODE_MIXIN_PASSWORD="$2"
 export AZURE_STORAGE_ACCESS_KEY="$3"
 export AZURE_STORAGE_ACCESS_KEY_2="$4"
@@ -26,19 +26,19 @@ STEP() {
 }
 
 STEP "Install dependencies"
-./scripts/npm.sh install --arch=x64 --unsafe-perm
+./scripts/npm.sh install --arch=$ARCH --unsafe-perm
 
 STEP "Mix in repository from vscode-distro"
 npm run gulp -- mixin
 
 STEP "Build minified"
-npm run gulp -- --max_old_space_size=4096 vscode-linux-x64-min
+npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
 STEP "Build Debian package"
-npm run gulp -- --max_old_space_size=4096 vscode-linux-x64-build-deb
+npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-deb"
 
 STEP "Build RPM package"
-npm run gulp -- --max_old_space_size=4096 vscode-linux-x64-build-rpm
+npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-rpm"
 
 STEP "Run unit tests"
 ./scripts/test.sh --xvfb --build --reporter dot
@@ -69,17 +69,17 @@ tar -czvf $TARBALL_PATH $BUILDNAME
 popd
 
 STEP "Publish tar.gz archive"
-node build/tfs/out/publish.js $VSCODE_QUALITY $PLATFORM_LINUX archive-unsigned $TARBALL_FILENAME $VERSION true $TARBALL_PATH
+node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_LINUX archive-unsigned $TARBALL_FILENAME $VERSION true $TARBALL_PATH
 
 STEP "Publish Debian package"
 DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
 DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
-node build/tfs/out/publish.js $VSCODE_QUALITY $PLATFORM_DEB package $DEB_FILENAME $VERSION true $DEB_PATH
+node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_DEB package $DEB_FILENAME $VERSION true $DEB_PATH
 
 STEP "Publish RPM package"
 RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
 RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
-node build/tfs/out/publish.js $VSCODE_QUALITY $PLATFORM_RPM package $RPM_FILENAME $VERSION true $RPM_PATH
+node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_RPM package $RPM_FILENAME $VERSION true $RPM_PATH
 
 STEP "Publish to repositories"
 if [ -z "$VSCODE_QUALITY" ]; then

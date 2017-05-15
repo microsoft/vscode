@@ -16,8 +16,6 @@
 	"peekViewTitleInfoForeground": "Цвет сведений о заголовке быстрого редактора.",
 	"peekViewBorder": "Цвет границ быстрого редактора и массива.",
 	"peekViewResultsBackground": "Цвет фона в списке результатов представления быстрого редактора.",
-	"peekViewResultsMatchForeground": "Передний план совпадений в списке результатов быстрого редактора.",
-	"peekViewResultsFileForeground": "Передний план записи файла в списке результатов быстрого редактора.",
 	"peekViewResultsSelectionBackground": "Цвет фона выбранной записи в списке результатов быстрого редактора.",
 	"peekViewResultsSelectionForeground": "Цвет переднего плана выбранной записи в списке результатов быстрого редактора.",
 	"peekViewEditorBackground": "Цвет фона быстрого редактора.",

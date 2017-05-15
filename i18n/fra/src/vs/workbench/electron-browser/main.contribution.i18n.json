@@ -41,7 +41,6 @@
 	"window.newWindowDimensions.inherit": "Permet d'ouvrir les nouvelles fenêtres avec la même dimension que la dernière fenêtre active.",
 	"window.newWindowDimensions.maximized": "Permet d'ouvrir les nouvelles fenêtres de manière agrandie.",
 	"window.newWindowDimensions.fullscreen": "Permet d'ouvrir les nouvelles fenêtres en mode plein écran.",
-	"newWindowDimensions": "Contrôle les dimensions d'ouverture d'une nouvelle fenêtre. Par défaut, une nouvelle fenêtre s'ouvre au centre de l'écran avec des dimensions réduites. Quand le paramètre a la valeur 'inherit', la fenêtre a les mêmes dimensions que la dernière fenêtre active. Quand le paramètre a la valeur 'maximized', la fenêtre s'ouvre en mode plein écran et dans sa taille maximale, si elle est configurée avec la valeur 'fullscreen'.",
 	"window.menuBarVisibility.default": "Le menu n'est masqué qu'en mode plein écran.",
 	"window.menuBarVisibility.visible": "Le menu est toujours visible même en mode plein écran.",
 	"window.menuBarVisibility.toggle": "Le menu est masqué mais il peut être affiché via la touche Alt.",

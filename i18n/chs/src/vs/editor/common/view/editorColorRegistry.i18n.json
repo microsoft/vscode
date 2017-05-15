@@ -10,5 +10,7 @@
 	"caret": "编辑器光标颜色。",
 	"editorWhitespaces": "编辑器中空白字符颜色。",
 	"editorIndentGuides": "编辑器缩进参考线颜色。",
-	"editorLineNumbers": "编辑器行号颜色。"
+	"editorLineNumbers": "编辑器行号颜色。",
+	"editorCodeLensForeground": "编辑器 CodeLens 的前景色",
+	"editorBracketMatchBackground": "匹配括号的背景色"
 }

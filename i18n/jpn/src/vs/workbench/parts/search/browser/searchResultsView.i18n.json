@@ -6,7 +6,5 @@
 {
 	"searchMatches": "一致する項目が {0} 件見つかりました",
 	"searchMatch": "一致する項目が {0} 件見つかりました",
-	"fileMatchAriaLabel": "フォルダー {2} のファイル {1} 内で {0} 件の一致、検索結果",
-	"replacePreviewResultAria": "プレビュー結果の置換、{0}",
-	"searchResultAria": "{0}、検索結果"
+	"fileMatchAriaLabel": "フォルダー {2} のファイル {1} 内で {0} 件の一致、検索結果"
 }

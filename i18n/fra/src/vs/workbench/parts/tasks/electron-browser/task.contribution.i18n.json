@@ -18,7 +18,6 @@
 	"problems": "Problèmes",
 	"manyMarkers": "99",
 	"tasks": "Tâches",
-	"TaskSystem.noHotSwap": "Le changement du moteur d'exécution de tâches nécessite le redémarrage de VS Code. Changement ignoré.",
 	"TaskService.noBuildTask": "Aucune tâche de build définie. Marquez une tâche avec 'isBuildCommand' dans le fichier tasks.json.",
 	"TaskService.noTestTask": "Aucune tâche de test définie. Marquez une tâche avec 'isTestCommand' dans le fichier tasks.json.",
 	"TaskServer.noTask": "La tâche {0} à exécuter est introuvable.",

@@ -18,7 +18,6 @@
 	"problems": "問題",
 	"manyMarkers": "99+",
 	"tasks": "工作",
-	"TaskSystem.noHotSwap": "變更工作執行引擎需要重新啟動 VS Code。已略過變更。",
 	"TaskService.noBuildTask": "未定義任何建置工作。請使用 'isBuildCommand' 標記 tasks.json 檔案中的工作。",
 	"TaskService.noTestTask": "未定義任何建置工作。請使用 'isTestCommand' 標記 tasks.json 檔案中的工作。",
 	"TaskServer.noTask": "找不到所要求要執行的工作 {0}。",

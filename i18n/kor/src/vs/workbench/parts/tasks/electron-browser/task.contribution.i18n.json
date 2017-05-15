@@ -18,7 +18,6 @@
 	"problems": "문제",
 	"manyMarkers": "99+",
 	"tasks": "작업",
-	"TaskSystem.noHotSwap": "작업 실행 엔진을 변경하면 VS Code를 다시 시작해야 합니다. 변경이 무시됩니다.",
 	"TaskService.noBuildTask": "정의된 빌드 작업이 없습니다. tasks.json 파일에서 작업을 'isBuildCommand'로 표시하세요.",
 	"TaskService.noTestTask": "정의된 테스트 작업이 없습니다. tasks.json 파일에서 작업을 'isTestCommand'로 표시하세요.",
 	"TaskServer.noTask": "실행하도록 요청한 작업 {0}을(를) 찾을 수 없습니다.",
