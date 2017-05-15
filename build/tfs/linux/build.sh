@@ -69,17 +69,17 @@ tar -czvf $TARBALL_PATH $BUILDNAME
 popd
 
 STEP "Publish tar.gz archive"
-node build/tfs/out/publish.js $VSCODE_QUALITY $PLATFORM_LINUX archive-unsigned $TARBALL_FILENAME $VERSION true $TARBALL_PATH
+node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_LINUX archive-unsigned $TARBALL_FILENAME $VERSION true $TARBALL_PATH
 
 STEP "Publish Debian package"
 DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
 DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
-node build/tfs/out/publish.js $VSCODE_QUALITY $PLATFORM_DEB package $DEB_FILENAME $VERSION true $DEB_PATH
+node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_DEB package $DEB_FILENAME $VERSION true $DEB_PATH
 
 STEP "Publish RPM package"
 RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
 RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
-node build/tfs/out/publish.js $VSCODE_QUALITY $PLATFORM_RPM package $RPM_FILENAME $VERSION true $RPM_PATH
+node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_RPM package $RPM_FILENAME $VERSION true $RPM_PATH
 
 STEP "Publish to repositories"
 if [ -z "$VSCODE_QUALITY" ]; then
