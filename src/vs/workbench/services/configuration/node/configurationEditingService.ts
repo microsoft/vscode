@@ -42,6 +42,10 @@ interface IValidationResult {
 	exists?: boolean;
 }
 
+interface ConfigurationEditingOptions extends IConfigurationEditingOptions {
+	force?: boolean;
+}
+
 export class ConfigurationEditingService implements IConfigurationEditingService {
 
 	public _serviceBrand: any;
@@ -66,16 +70,17 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return this.queue.queue(() => this.doWriteConfiguration(target, value, options) // queue up writes to prevent race conditions
 			.then(() => null,
 			error => {
-				return options.donotNotifyError ? TPromise.wrapError(error) : this.onError(error, target);
+				return options.donotNotifyError ? TPromise.wrapError(error) : this.onError(error, target, value);
 			}));
 	}
 
-	private doWriteConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: IConfigurationEditingOptions): TPromise<void> {
+	private doWriteConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options: ConfigurationEditingOptions): TPromise<void> {
 		const operation = this.getConfigurationEditOperation(target, value);
 
-		return this.resolveAndValidate(target, operation, !options.donotSave)
-			.then(reference => this.writeToBuffer(reference.object.textEditorModel, operation, !options.donotSave)
-				.then(() => reference.dispose()));
+		const checkDirtyConfiguration = !(options.force || options.donotSave);
+		const saveConfiguration = options.force || !options.donotSave;
+		return this.resolveAndValidate(target, operation, checkDirtyConfiguration)
+			.then(reference => this.writeToBuffer(reference.object.textEditorModel, operation, saveConfiguration));
 	}
 
 	private writeToBuffer(model: editorCommon.IModel, operation: IConfigurationEditOperation, save: boolean): TPromise<any> {
@@ -101,22 +106,42 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 		return false;
 	}
 
-	private onError(error: IConfigurationEditingError, target: ConfigurationTarget): TPromise<IConfigurationEditingError> {
+	private onError(error: IConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue): TPromise<IConfigurationEditingError> {
 		switch (error.code) {
 			case ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION:
+				this.onInvalidConfigurationError(error, target);
+				break;
 			case ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY:
-				this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 1)
-					.then(option => {
-						switch (option) {
-							case 0:
-								this.openSettings(target);
-						}
-					});
+				this.onConfigurationFileDirtyError(error, target, value);
 				break;
 			default:
 				this.messageService.show(Severity.Error, error.message);
 		}
 		return TPromise.wrapError(error);
+	}
+
+	private onInvalidConfigurationError(error: IConfigurationEditingError, target: ConfigurationTarget): void {
+		this.choiceService.choose(Severity.Error, error.message, [nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 1)
+			.then(option => {
+				switch (option) {
+					case 0:
+						this.openSettings(target);
+				}
+			});
+	}
+
+	private onConfigurationFileDirtyError(error: IConfigurationEditingError, target: ConfigurationTarget, value: IConfigurationValue): void {
+		this.choiceService.choose(Severity.Error, error.message, [nls.localize('saveAndRetry', "Save Settings and Retry"), nls.localize('open', "Open Settings"), nls.localize('close', "Close")], 2)
+			.then(option => {
+				switch (option) {
+					case 0:
+						this.writeConfiguration(target, value, <ConfigurationEditingOptions>{ force: true });
+						break;
+					case 1:
+						this.openSettings(target);
+						break;
+				}
+			});
 	}
 
 	private openSettings(target: ConfigurationTarget): void {
@@ -216,17 +241,17 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			return this.wrapError(ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED, target);
 		}
 
-		// Target cannot be dirty if not writing into buffer
-		const resource = operation.resource;
-		if (checkDirty && this.textFileService.isDirty(resource)) {
-			return this.wrapError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target);
-		}
-
 		return this.resolveModelReference(operation.resource)
 			.then(reference => {
 				const model = reference.object.textEditorModel;
+
 				if (this.hasParseErrors(model, operation)) {
 					return this.wrapError(ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION, target);
+				}
+
+				// Target cannot be dirty if not writing into buffer
+				if (checkDirty && this.textFileService.isDirty(operation.resource)) {
+					return this.wrapError(ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY, target);
 				}
 				return reference;
 			});
