@@ -111,12 +111,11 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		const opts = this._validatedOptions;
 		const partialEnv = this._getEnvConfiguration();
 		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, partialEnv.zoomLevel);
-		const editorClassName = this._getEditorClassName(opts.viewInfo.theme, opts.viewInfo.fontLigatures, opts.mouseStyle);
 		const env: editorOptions.IEnvironmentalOptions = {
 			outerWidth: partialEnv.outerWidth,
 			outerHeight: partialEnv.outerHeight,
 			fontInfo: this.readConfiguration(bareFontInfo),
-			editorClassName: editorClassName + ' ' + partialEnv.extraEditorClassName,
+			extraEditorClassName: partialEnv.extraEditorClassName,
 			isDominatedByLongLines: this._isDominatedByLongLines,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			canUseTranslate3d: partialEnv.canUseTranslate3d,
@@ -154,20 +153,6 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		}
 		return r ? r : 1;
 	}
-
-	private _getEditorClassName(theme: string, fontLigatures: boolean, mouseStyle: 'text' | 'default' | 'copy'): string {
-		let extra = '';
-		if (fontLigatures) {
-			extra += 'enable-ligatures ';
-		}
-		if (mouseStyle === 'default') {
-			extra += 'mouse-default ';
-		} else if (mouseStyle === 'copy') {
-			extra += 'mouse-copy ';
-		}
-		return 'monaco-editor ' + extra + theme;
-	}
-
 	protected abstract _getEnvConfiguration(): IEnvConfiguration;
 
 	protected abstract readConfiguration(styling: BareFontInfo): FontInfo;

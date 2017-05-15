@@ -158,16 +158,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		super.dispose();
 	}
 
-	public updateOptions(newOptions: IEditorOptions): void {
-		let oldTheme = this._configuration.editor.viewInfo.theme;
-		super.updateOptions(newOptions);
-		let newTheme = this._configuration.editor.viewInfo.theme;
-
-		if (oldTheme !== newTheme) {
-			this.render();
-		}
-	}
-
 	public colorizeModelLine(lineNumber: number, model: editorCommon.IModel = this.model): string {
 		if (!model) {
 			return '';

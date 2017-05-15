@@ -17,7 +17,6 @@ import { EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { marked } from 'vs/base/common/marked/marked';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -38,7 +37,7 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -94,7 +93,7 @@ export class WalkThroughPart extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IOpenerService private openerService: IOpenerService,
 		@IFileService private fileService: IFileService,
 		@IModelService protected modelService: IModelService,
@@ -328,8 +327,8 @@ export class WalkThroughPart extends BaseEditor {
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
 				innerContent.innerHTML = marked(markdown, { renderer });
-				this.style(innerContent);
-				this.contentDisposables.push(this.themeService.onDidColorThemeChange(() => this.style(innerContent)));
+				this.style(this.themeService.getTheme(), innerContent);
+				this.contentDisposables.push(this.themeService.onThemeChange(theme => this.style(theme, innerContent)));
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
@@ -378,7 +377,6 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
-					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id }))); // TODO@theme this should be done from the editor itself and not from the outside
 					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()))));
 
 					this.contentDisposables.push(once(editor.onMouseDown)(() => {
@@ -429,7 +427,6 @@ export class WalkThroughPart extends BaseEditor {
 			overviewRulerLanes: 3,
 			fixedOverflowWidgets: true,
 			lineNumbersMinChars: 1,
-			theme: this.themeService.getColorTheme().id,
 			minimap: false,
 		};
 	}
@@ -443,7 +440,7 @@ export class WalkThroughPart extends BaseEditor {
 		}
 	}
 
-	private style(div: HTMLElement) {
+	private style(theme: ITheme, div: HTMLElement) {
 		const styleElement = this.partService.getContainer(Parts.EDITOR_PART); // TODO@theme styles should come in via theme registry
 		const { color, backgroundColor, fontFamily, fontWeight, fontSize } = window.getComputedStyle(styleElement);
 		div.style.color = color;
