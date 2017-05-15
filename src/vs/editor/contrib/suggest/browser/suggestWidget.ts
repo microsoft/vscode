@@ -309,7 +309,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
-	private readonly docsWidth = 330;
 	private readonly minWidgetWidth = 400;
 
 	constructor(
@@ -827,16 +826,14 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (this.messageElement.style.display !== 'none'
 			&& this.details.element.style.display === 'none'
 			&& this.listElement.style.display === 'none') {
-			this.element.style.width = `${this.minWidgetWidth}px`;
+			addClass(this.element, 'small');
 			return;
 		}
 
 		let matches = this.element.style.maxWidth.match(/(\d+)px/);
 		if (!matches || Number(matches[1]) >= this.maxWidgetWidth) {
 			// Reset width
-			this.details.element.style.width = `${this.docsWidth}px`;
-			this.element.style.width = `${this.maxWidgetWidth}px`;
-			this.listElement.style.width = `${this.listWidth}px`;
+			removeClass(this.element, 'small');
 		}
 
 		// Reset list margin
@@ -848,28 +845,26 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
 		const cursorX = editorCoords.left + cursorCoords.left;
 		const cursorY = editorCoords.top + cursorCoords.top + cursorCoords.height;
-
 		const widgetX = this.element.offsetLeft;
 		const widgetY = this.element.offsetTop;
 
 		removeClass(this.element, 'list-right');
 
 		if (this.element.clientWidth < this.maxWidgetWidth && this.listElement.clientWidth !== this.minWidgetWidth) {
-			// Not enough space to show side by side
-			// So show docs below the list
-			this.listElement.style.width = `${this.minWidgetWidth}px`;
-			this.element.style.width = `${this.minWidgetWidth}px`;
-			this.details.element.style.width = `${this.minWidgetWidth}px`;
-		} else if (widgetX < cursorX - this.listWidth) {
+			// Not enough space to show side by side, so show docs below the list
+			addClass(this.element, 'small');
+			return;
+		}
+
+		if (widgetX < cursorX - this.listWidth) {
 			// Widget is too far to the left of cursor, swap list and docs
 			addClass(this.element, 'list-right');
 		}
 
-		// If docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
 		if (cursorY > widgetY && this.details.element.clientHeight > this.listElement.clientHeight) {
+			// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
 			this.listElement.style.marginTop = `${this.details.element.clientHeight - this.listElement.clientHeight}px`;
 		}
-
 	}
 
 	private renderDetails(): void {
