@@ -15,7 +15,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { dispose } from 'vs/base/common/lifecycle';
 import { EditorSnippetVariableResolver } from "vs/editor/contrib/snippet/common/snippetVariables";
 
-class OneSnippet {
+export class OneSnippet {
 
 	private readonly _editor: ICommonCodeEditor;
 	private readonly _snippet: TextmateSnippet;
@@ -204,41 +204,24 @@ export class SnippetSession {
 		return selection;
 	}
 
-	private readonly _editor: ICommonCodeEditor;
-	private readonly _template: string;
-	private readonly _overwriteBefore: number;
-	private readonly _overwriteAfter: number;
-	private readonly _snippets: OneSnippet[];
-
-	constructor(editor: ICommonCodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0) {
-		this._editor = editor;
-		this._template = template;
-		this._overwriteBefore = overwriteBefore;
-		this._overwriteAfter = overwriteAfter;
-		this._snippets = [];
-	}
-
-	dispose(): void {
-		dispose(this._snippets);
-	}
-
-	insert(): void {
+	static makeInsertEditsAndSnippets(editor: ICommonCodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
 
 		let delta = 0;
 		let edits: IIdentifiedSingleEditOperation[] = [];
-		let model = this._editor.getModel();
+		let snippets: OneSnippet[] = [];
+		let model = editor.getModel();
 
 		// know what text the overwrite[Before|After] extensions
 		// of the primary curser have selected because only when
 		// secondary selections extend to the same text we can grow them
-		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, this._editor.getSelection(), this._overwriteBefore, 0));
-		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, this._editor.getSelection(), 0, this._overwriteAfter));
+		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), overwriteBefore, 0));
+		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), 0, overwriteAfter));
 
 		// sort selections by their start position but remeber
 		// the original index. that allows you to create correct
 		// offset-based selection logic without changing the
 		// primary selection
-		const indexedSelection = this._editor.getSelections()
+		const indexedSelection = editor.getSelections()
 			.map((selection, idx) => ({ selection, idx }))
 			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
 
@@ -246,8 +229,8 @@ export class SnippetSession {
 
 			// extend selection with the `overwriteBefore` and `overwriteAfter` and then
 			// compare if this matches the extensions of the primary selection
-			let extensionBefore = SnippetSession.adjustSelection(model, selection, this._overwriteBefore, 0);
-			let extensionAfter = SnippetSession.adjustSelection(model, selection, 0, this._overwriteAfter);
+			let extensionBefore = SnippetSession.adjustSelection(model, selection, overwriteBefore, 0);
+			let extensionAfter = SnippetSession.adjustSelection(model, selection, 0, overwriteAfter);
 			if (firstBeforeText !== model.getValueInRange(extensionBefore)) {
 				extensionBefore = selection;
 			}
@@ -263,7 +246,7 @@ export class SnippetSession {
 			// adjust the template string to match the indentation and
 			// whitespace rules of this insert location (can be different for each cursor)
 			const start = snippetSelection.getStartPosition();
-			const adjustedTemplate = SnippetSession.normalizeWhitespace(model, start, this._template);
+			const adjustedTemplate = SnippetSession.normalizeWhitespace(model, start, template);
 
 			const snippet = SnippetParser.parse(adjustedTemplate).resolveVariables(new EditorSnippetVariableResolver(model, snippetSelection));
 			const offset = model.getOffsetAt(start) + delta;
@@ -273,8 +256,39 @@ export class SnippetSession {
 			// that ensures the primiary cursor stays primary despite not being
 			// the one with lowest start position
 			edits[idx] = EditOperation.replaceMove(snippetSelection, snippet.text);
-			this._snippets[idx] = new OneSnippet(this._editor, snippet, offset);
+			snippets[idx] = new OneSnippet(editor, snippet, offset);
 		}
+
+		return { edits, snippets };
+	}
+
+	private readonly _editor: ICommonCodeEditor;
+	private readonly _template: string;
+	private readonly _overwriteBefore: number;
+	private readonly _overwriteAfter: number;
+	private _snippets: OneSnippet[];
+
+	constructor(editor: ICommonCodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0) {
+		this._editor = editor;
+		this._template = template;
+		this._overwriteBefore = overwriteBefore;
+		this._overwriteAfter = overwriteAfter;
+		this._snippets = [];
+	}
+
+	dispose(): void {
+		dispose(this._snippets);
+	}
+
+	insert(): void {
+
+		const model = this._editor.getModel();
+		const { edits, snippets } = SnippetSession.makeInsertEditsAndSnippets(
+			this._editor, this._template, this._overwriteBefore, this._overwriteAfter
+		);
+
+		// keep snippets around
+		this._snippets = snippets;
 
 		// make insert edit and start with first selections
 		const newSelections = model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
