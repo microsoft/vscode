@@ -60,6 +60,11 @@
         }
       },
       {
+        "command": "git.openOldFile",
+        "title": "%command.openOldFile%",
+        "category": "Git"
+      },
+      {
         "command": "git.stage",
         "title": "%command.stage%",
         "category": "Git",
@@ -224,6 +229,10 @@
         },
         {
           "command": "git.openFile",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.openOldFile",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
@@ -478,6 +487,11 @@
           "group": "navigation"
         },
         {
+          "command": "git.openOldFile",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == index",
+          "group": "navigation"
+        },
+        {
           "command": "git.unstage",
           "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == index",
           "group": "1_modification"
@@ -489,6 +503,11 @@
         },
         {
           "command": "git.openChange",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
+          "group": "navigation"
+        },
+        {
+          "command": "git.openOldFile",
           "when": "config.git.enabled && scmProvider == git && gitState == idle && scmResourceGroup == workingTree",
           "group": "navigation"
         },
