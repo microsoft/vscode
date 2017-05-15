@@ -32,7 +32,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ColorId, MetadataConsts, FontStyle } from 'vs/editor/common/modes';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { registerThemingParticipant, IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IThemeService, ITheme, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { registerColor, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Color, RGBA } from 'vs/base/common/color';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
@@ -148,7 +148,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly id: number;
 
-	private _theme: string;
 	private _domElement: HTMLElement;
 	protected readonly _containerDomElement: HTMLElement;
 	private readonly _overviewDomElement: HTMLElement;
@@ -213,7 +212,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._domElement = domElement;
 		options = options || {};
 
-		this._theme = options.theme || editorOptions.EDITOR_DEFAULTS.viewInfo.theme;
 		// renderSideBySide
 		this._renderSideBySide = true;
 		if (typeof options.renderSideBySide !== 'undefined') {
@@ -240,7 +238,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._updateDecorationsRunner = this._register(new RunOnceScheduler(() => this._updateDecorations(), 0));
 
 		this._containerDomElement = document.createElement('div');
-		this._containerDomElement.className = DiffEditorWidget._getClassName(this._theme, this._renderSideBySide);
+		this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getTheme(), this._renderSideBySide);
 		this._containerDomElement.style.position = 'relative';
 		this._containerDomElement.style.height = '100%';
 		this._domElement.appendChild(this._containerDomElement);
@@ -305,11 +303,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._codeEditorService.addDiffEditor(this);
 
-		themeService.onThemeChange(t => {
+		this._register(themeService.onThemeChange(t => {
 			if (this._strategy && this._strategy.applyColors(t)) {
 				this._updateDecorationsRunner.schedule();
 			}
-		});
+			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getTheme(), this._renderSideBySide);
+		}));
 	}
 
 	public get ignoreTrimWhitespace(): boolean {
@@ -324,12 +323,12 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._renderIndicators;
 	}
 
-	private static _getClassName(theme: string, renderSideBySide: boolean): string {
+	private static _getClassName(theme: ITheme, renderSideBySide: boolean): string {
 		let result = 'monaco-diff-editor monaco-editor-background ';
 		if (renderSideBySide) {
 			result += 'side-by-side ';
 		}
-		result += theme;
+		result += getThemeTypeSelector(theme.type);
 		return result;
 	}
 
@@ -486,8 +485,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	public updateOptions(newOptions: editorOptions.IDiffEditorOptions): void {
-		// Handle new theme
-		this._theme = newOptions && newOptions.theme ? newOptions.theme : this._theme;
 
 		// Handle side by side
 		let renderSideBySideChanged = false;
@@ -523,9 +520,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			this._originalIsEditable = Boolean(newOptions.originalEditable);
 		}
 
-		// Update class name
-		this._containerDomElement.className = DiffEditorWidget._getClassName(this._theme, this._renderSideBySide);
-
 		this.modifiedEditor.updateOptions(this._adjustOptionsForRightHandSide(newOptions));
 		this.originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(newOptions, this._originalIsEditable));
 
@@ -542,6 +536,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			} else {
 				this._setStrategy(new DiffEdtorWidgetInline(this._createDataSource(), this._enableSplitViewResizing));
 			}
+			// Update class name
+			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getTheme(), this._renderSideBySide);
 		}
 	}
 
@@ -892,7 +888,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		let result = this._adjustOptionsForSubEditor(options);
 		result.readOnly = !isEditable;
 		result.overviewRulerLanes = 1;
-		result.theme = this._theme + ' original-in-monaco-diff-editor';
+		result.extraEditorClassName = 'original-in-monaco-diff-editor';
 		return result;
 	}
 
@@ -900,7 +896,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		let result = this._adjustOptionsForSubEditor(options);
 		result.revealHorizontalRightPadding = editorOptions.EDITOR_DEFAULTS.viewInfo.revealHorizontalRightPadding + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar.verticalHasArrows = false;
-		result.theme = this._theme + ' modified-in-monaco-diff-editor';
+		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
 		return result;
 	}
 

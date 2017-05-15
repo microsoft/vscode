@@ -38,11 +38,11 @@ import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 
@@ -89,7 +89,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IPanelService private panelService: IPanelService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IModelService private modelService: IModelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IListService private listService: IListService
@@ -105,7 +105,6 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
 		}));
-		this.toDispose.push(this.themeService.onDidColorThemeChange(e => this.replInput.updateOptions(this.getReplInputOptions()))); // TODO@theme this should be done from the editor itself and not from the outside
 		this.toDispose.push(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 	}
 
@@ -280,7 +279,6 @@ export class Repl extends Panel implements IPrivateReplService {
 			},
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
-			theme: this.themeService.getColorTheme().id,
 			renderLineHighlight: 'none',
 			fixedOverflowWidgets: true
 		};

@@ -125,7 +125,6 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IContextKeyService),
 			services.get(IKeybindingService),
 			services.get(IContextViewService),
-			services.get(IStandaloneThemeService),
 			services.get(IEditorWorkerService),
 			services.get(ICodeEditorService),
 			services.get(IStandaloneThemeService)
@@ -310,6 +309,13 @@ export function defineTheme(themeName: string, themeData: IStandaloneThemeData):
 }
 
 /**
+ * Switches to a theme.
+ */
+export function setTheme(themeName: string): void {
+	StaticServices.standaloneThemeService.get().setTheme(themeName);
+}
+
+/**
  * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
@@ -336,6 +342,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		colorizeModelLine: colorizeModelLine,
 		tokenize: tokenize,
 		defineTheme: defineTheme,
+		setTheme: setTheme,
 
 		// enums
 		ScrollbarVisibility: ScrollbarVisibility,
