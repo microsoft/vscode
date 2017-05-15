@@ -4,8 +4,7 @@ MAINTAINER Joao Moreno <joao.moreno@microsoft.com>
 RUN dpkg --add-architecture i386
 RUN apt-get update
 RUN apt-get install -y build-essential
-RUN apt-get install -y gcc-4.9-multilib
-RUN apt-get install -y g++-4.9-multilib
+RUN apt-get install -y gcc-multilib g++-multilib
 RUN apt-get install -y zip
 RUN apt-get install -y rpm
 RUN apt-get install -y createrepo
