@@ -211,6 +211,13 @@ export const editorBackground = registerColor('editor.background', { light: '#ff
 export const editorForeground = registerColor('editor.foreground', { light: '#333333', dark: '#BBBBBB', hc: Color.white }, nls.localize('editorForeground', "Editor default foreground color."));
 
 /**
+ * Editor widgets
+ */
+export const editorWidgetBackground = registerColor('editorWidget.background', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
+export const editorWidgetBorder = registerColor('editorWidget.border', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, nls.localize('editorWidgetBorder', 'Border color of the editor widget.'));
+
+
+/**
  * Editor selection colors.
  */
 export const editorSelection = registerColor('editor.selectionBackground', { light: '#ADD6FF', dark: '#264F78', hc: '#f3f518' }, nls.localize('editorSelection', "Color of the editor selection."));
@@ -228,19 +235,13 @@ export const editorFindRangeHighlight = registerColor('editor.findRangeHighlight
  * Editor hover
  */
 export const editorHoverHighlight = registerColor('editor.hoverHighlightBackground', { light: '#ADD6FF26', dark: '#264f7840', hc: '#ADD6FF26' }, nls.localize('hoverHighlight', 'Highlight below the word for which a hover is shown.'));
-export const editorHoverBackground = registerColor('editorHoverWidget.background', { light: '#F3F3F3', dark: '#2D2D30', hc: '#0C141F' }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
-export const editorHoverBorder = registerColor('editorHoverWidget.border', { light: '#CCCCCC', dark: '#555555', hc: '#CCCCCC' }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
+export const editorHoverBackground = registerColor('editorHoverWidget.background', { light: editorWidgetBackground, dark: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('hoverBackground', 'Background color of the editor hover.'));
+export const editorHoverBorder = registerColor('editorHoverWidget.border', { light: editorWidgetBorder, dark: editorWidgetBorder, hc: editorWidgetBorder }, nls.localize('hoverBorder', 'Border color of the editor hover.'));
 
 /**
  * Editor link colors
  */
 export const editorActiveLinkForeground = registerColor('editorLink.activeForeground', { dark: '#4E94CE', light: Color.blue, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links.'));
-
-/**
- * Find widget
- */
-export const editorWidgetBackground = registerColor('editorWidget.background', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
-
 
 // ----- color functions
 

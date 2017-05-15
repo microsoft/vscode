@@ -29,7 +29,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, editorWidgetBackground, contrastBorder, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
@@ -47,7 +47,7 @@ interface ISuggestionTemplateData {
  * Suggest widget colors
  */
 export const editorSuggestWidgetBackground = registerColor('editorSuggestWidget.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
-export const editorSuggestWidgetBorder = registerColor('editorSuggestWidget.border', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
+export const editorSuggestWidgetBorder = registerColor('editorSuggestWidget.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hc: editorWidgetBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
 export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', { dark: editorForeground, light: editorForeground, hc: editorForeground }, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: listFocusBackground, light: listFocusBackground, hc: listFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
