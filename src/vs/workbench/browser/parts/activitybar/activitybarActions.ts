@@ -84,7 +84,7 @@ export class ViewletActivityAction extends ActivityAction {
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
-		if (now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
+		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
 			return TPromise.as(true);
 		}
 		this.lastRun = now;
