@@ -21,7 +21,7 @@ export class SnippetController2 {
 		return editor.getContribution<SnippetController2>('snippetController2');
 	}
 
-	static InSnippetMode = new RawContextKey('isInSnippet', false);
+	static InSnippetMode = new RawContextKey('inSnippetMode', false);
 	static HasNextTabstop = new RawContextKey('hasNextTabstop', false);
 	static HasPrevTabstop = new RawContextKey('hasPrevTabstop', false);
 
@@ -132,7 +132,7 @@ export class SnippetController2 {
 const CommandCtor = EditorCommand.bindToContribution<SnippetController2>(SnippetController2.get);
 
 CommonEditorRegistry.registerEditorCommand(new CommandCtor({
-	id: 'snippet.next',
+	id: 'jumpToNextSnippetPlaceholder',
 	precondition: ContextKeyExpr.and(SnippetController2.InSnippetMode, SnippetController2.HasNextTabstop),
 	handler: ctrl => ctrl.next(),
 	kbOpts: {
@@ -142,7 +142,7 @@ CommonEditorRegistry.registerEditorCommand(new CommandCtor({
 	}
 }));
 CommonEditorRegistry.registerEditorCommand(new CommandCtor({
-	id: 'snippet.prev',
+	id: 'jumpToPrevSnippetPlaceholder',
 	precondition: ContextKeyExpr.and(SnippetController2.InSnippetMode, SnippetController2.HasPrevTabstop),
 	handler: ctrl => ctrl.prev(),
 	kbOpts: {
@@ -152,7 +152,7 @@ CommonEditorRegistry.registerEditorCommand(new CommandCtor({
 	}
 }));
 CommonEditorRegistry.registerEditorCommand(new CommandCtor({
-	id: 'snippet.cancel',
+	id: 'leaveSnippet',
 	precondition: SnippetController2.InSnippetMode,
 	handler: ctrl => ctrl.cancel(),
 	kbOpts: {
@@ -164,7 +164,7 @@ CommonEditorRegistry.registerEditorCommand(new CommandCtor({
 }));
 
 CommonEditorRegistry.registerEditorCommand(new CommandCtor({
-	id: 'snippet.accept',
+	id: 'acceptSnippet',
 	precondition: SnippetController2.InSnippetMode,
 	handler: ctrl => ctrl.finish(),
 	// kbOpts: {

@@ -715,12 +715,12 @@ export class SnippetController {
 	}
 }
 
-export var CONTEXT_SNIPPET_MODE = new RawContextKey<boolean>('inSnippetMode', false);
+export var CONTEXT_SNIPPET_MODE = new RawContextKey<boolean>('old.inSnippetMode', false);
 
 const SnippetCommand = EditorCommand.bindToContribution<SnippetController>(SnippetController.get);
 
 CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
-	id: 'jumpToNextSnippetPlaceholder',
+	id: 'old.jumpToNextSnippetPlaceholder',
 	precondition: CONTEXT_SNIPPET_MODE,
 	handler: x => x.jumpToNextPlaceholder(),
 	kbOpts: {
@@ -730,7 +730,7 @@ CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	}
 }));
 CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
-	id: 'jumpToPrevSnippetPlaceholder',
+	id: 'old.jumpToPrevSnippetPlaceholder',
 	precondition: CONTEXT_SNIPPET_MODE,
 	handler: x => x.jumpToPrevPlaceholder(),
 	kbOpts: {
@@ -740,7 +740,7 @@ CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	}
 }));
 CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
-	id: 'acceptSnippet',
+	id: 'old.acceptSnippet',
 	precondition: CONTEXT_SNIPPET_MODE,
 	handler: x => x.acceptSnippet(),
 	kbOpts: {
@@ -750,7 +750,7 @@ CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
 	}
 }));
 CommonEditorRegistry.registerEditorCommand(new SnippetCommand({
-	id: 'leaveSnippet',
+	id: 'old.leaveSnippet',
 	precondition: CONTEXT_SNIPPET_MODE,
 	handler: x => x.leaveSnippet(),
 	kbOpts: {
