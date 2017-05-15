@@ -23,6 +23,10 @@
 	border-bottom: 1px solid #2d2d2d;
 }
 
+.preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {
+	position: relative;
+}
+
 .settings-tabs-widget {
 	display: flex;
 	flex-wrap: wrap;
