@@ -16,12 +16,6 @@ export interface ContentSecurityPolicyArbiter {
 	isEnhancedSecurityDisableForWorkspace(): boolean;
 }
 
-const previewStrings = {
-	cspAlertMessageText: localize('preview.securityMessage.text', 'Scripts have been disabled in this document'),
-	cspAlertMessageTitle: localize('preview.securityMessage.title', 'Scripts are disabled in the markdown preview. Change the Markdown preview secuirty setting to enable scripts'),
-	cspAlertMessageLabel: localize('preview.securityMessage.label', 'Scripts Disabled Security Warning')
-};
-
 export function isMarkdownFile(document: vscode.TextDocument) {
 	return document.languageId === 'markdown'
 		&& document.uri.scheme !== 'markdown'; // prevent processing of own documents
@@ -34,22 +28,12 @@ export function getMarkdownUri(uri: vscode.Uri) {
 export class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean = false;
-	private extraStyles: Array<vscode.Uri> = [];
-	private extraScripts: Array<vscode.Uri> = [];
 
 	constructor(
 		private engine: MarkdownEngine,
 		private context: vscode.ExtensionContext,
 		private cspArbiter: ContentSecurityPolicyArbiter
 	) { }
-
-	public addScript(resource: vscode.Uri): void {
-		this.extraScripts.push(resource);
-	}
-
-	public addStyle(resource: vscode.Uri): void {
-		this.extraStyles.push(resource);
-	}
 
 	private getMediaPath(mediaFile: string): string {
 		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))).toString();
@@ -84,7 +68,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		return vscode.Uri.file(path.join(path.dirname(resource.fsPath), href)).toString();
 	}
 
-	private computeCustomStyleSheetIncludes(uri: vscode.Uri): string {
+	private computeCustomStyleSheetIncludes(uri: vscode.Uri, _nonce: string): string {
 		const styles = vscode.workspace.getConfiguration('markdown')['styles'];
 		if (styles && Array.isArray(styles) && styles.length > 0) {
 			return styles.map((style) => {
@@ -109,24 +93,6 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		</style>`;
 	}
 
-	private getStyles(uri: vscode.Uri, nonce: string): string {
-		const baseStyles = [
-			this.getMediaPath('markdown.css'),
-			this.getMediaPath('tomorrow.css')
-		].concat(this.extraStyles.map(resource => resource.toString()));
-
-		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
-			${this.getSettingsOverrideStyles(nonce)}
-			${this.computeCustomStyleSheetIncludes(uri)}`;
-	}
-
-	private getScripts(nonce: string): string {
-		const scripts = [this.getMediaPath('main.js')].concat(this.extraScripts.map(resource => resource.toString()));
-		return scripts
-			.map(source => `<script src="${source}" nonce="${nonce}"></script>`)
-			.join('\n');
-	}
-
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
 		const sourceUri = vscode.Uri.parse(uri.query);
 		return vscode.workspace.openTextDocument(sourceUri).then(document => {
@@ -138,7 +104,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 			let initialLine = 0;
 			const editor = vscode.window.activeTextEditor;
-			if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
+			if (editor && editor.document.uri.path === sourceUri.path) {
 				initialLine = editor.selection.active.line;
 			}
 
@@ -151,9 +117,15 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 				doubleClickToSwitchToEditor: !!markdownConfig.get('preview.doubleClickToSwitchToEditor', true),
 			};
 
+			const previewStrings = {
+				cspAlertMessageText: localize('preview.securityMessage.text', 'Scripts have been disabled in this document'),
+				cspAlertMessageTitle: localize('preview.securityMessage.title', 'Scripts are disabled in the markdown preview. Change the Markdown preview secuirty setting to enable scripts'),
+				cspAlertMessageLabel: localize('preview.securityMessage.label', 'Scripts Disabled Security Warning')
+			};
+
 			// Content Security Policy
 			const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
-			let csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; child-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:; font-src 'self' http: https: data:;">`;
+			let csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; child-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:;">`;
 			if (this.cspArbiter.isEnhancedSecurityDisableForWorkspace()) {
 				csp = '';
 			}
@@ -166,13 +138,15 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 					${csp}
 					<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
 					<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
-					${this.getStyles(uri, nonce)}
+					<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}">
+					<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}">
+					${this.getSettingsOverrideStyles(nonce)}
+					${this.computeCustomStyleSheetIncludes(uri, nonce)}
 					<base href="${document.uri.toString(true)}">
 				</head>
 				<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''} ${!!markdownConfig.get('preview.markEditorSelection') ? 'showEditorSelection' : ''}">
 					${body}
-					<div class="code-line" data-line="${document.lineCount}"></div>
-					${this.getScripts(nonce)}
+					<script src="${this.getMediaPath('main.js')}" nonce="${nonce}"></script>
 				</body>
 				</html>`;
 		});
