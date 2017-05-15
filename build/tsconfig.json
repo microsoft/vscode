@@ -1,17 +1,15 @@
 {
 	"compilerOptions": {
+		"target": "es5",
 		"module": "commonjs",
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es5",
 		"sourceMap": false,
 		"experimentalDecorators": true,
-		"noLib": true,
 		"newLine": "LF"
 	},
 	"exclude": [
-		"node_modules",
-		"./lib/watch/node_modules/**/*"
+		"node_modules/**"
 	]
 }
