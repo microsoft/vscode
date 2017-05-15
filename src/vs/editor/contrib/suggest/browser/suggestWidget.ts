@@ -13,7 +13,7 @@ import Event, { Emitter, chain } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { addClass, append, $, hide, removeClass, show, toggleClass } from 'vs/base/browser/dom';
+import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition } from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IDelegate, IListEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -30,7 +30,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Position } from 'vs/editor/common/core/position';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 const sticky = false; // for development purposes
@@ -308,7 +307,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	readonly onDidHide: Event<this> = this.onDidHideEmitter.event;
 	readonly onDidShow: Event<this> = this.onDidShowEmitter.event;
 
-	private preferredPosition: Position;
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
 	private readonly docsWidth = 330;
@@ -508,9 +506,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.ignoreFocusEvents = false;
 
 				this.list.setFocus([index]);
-				this.updateWidgetHeight();
 				this.list.reveal(index);
 				this.showDetails();
+				this.updateWidgetHeight(true);
 				this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
 			})
 			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
@@ -782,7 +780,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		return {
-			position: this.preferredPosition ? this.preferredPosition : this.editor.getPosition(),
+			position: this.editor.getPosition(),
 			preference: [ContentWidgetPositionPreference.BELOW, ContentWidgetPositionPreference.ABOVE]
 		};
 	}
@@ -795,7 +793,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		return SuggestWidget.ID;
 	}
 
-	private updateWidgetHeight(): number {
+	private updateWidgetHeight(adjustDocs?: boolean): number {
 		let height = 0;
 		let maxSuggestionsToShow = this.editor.getLayoutInfo().contentWidth > this.minWidgetWidth ? 11 : 5;
 
@@ -816,15 +814,14 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.adjustWidgetWidth();
 		this.editor.layoutContentWidget(this);
+		if (adjustDocs) {
+			this.adjustDocsPosition();
+		}
 
 		return height;
 	}
 
 	private adjustWidgetWidth() {
-		// Reset
-		removeClass(this.element, 'list-right');
-		removeClass(this.element, 'docs-below');
-		this.preferredPosition = this.editor.getPosition();
 
 		// Message element is shown, list and docs are not
 		if (this.messageElement.style.display !== 'none'
@@ -834,60 +831,46 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			return;
 		}
 
-		const perColumnWidth = this.editor.getLayoutInfo().contentWidth / this.editor.getLayoutInfo().viewportColumn;
-		const spaceOntheLeft = Math.floor(this.editor.getPosition().column * perColumnWidth) - this.editor.getScrollLeft();
-		const spaceOntheRight = this.editor.getLayoutInfo().contentWidth - spaceOntheLeft;
-
-		// Reset width
-		this.details.element.style.width = `${this.docsWidth}px`;
-		this.element.style.width = `${this.maxWidgetWidth}px`;
-		this.listElement.style.width = `${this.listWidth}px`;
-
-		let editorStacksModel = this.editorGroupService.getStacksModel();
-		let totalEditors = editorStacksModel.groups.length;
-		let currentEditorPosition = editorStacksModel.positionOfGroup(editorStacksModel.activeGroup);
-
-		if (spaceOntheRight > this.maxWidgetWidth ||
-			(this.editorGroupService.getGroupOrientation() === 'vertical' && currentEditorPosition < totalEditors - 1)) {
-			// There is enough space on the right, so nothing to do here.
-			return;
+		let matches = this.element.style.maxWidth.match(/(\d+)px/);
+		if (!matches || Number(matches[1]) >= this.maxWidgetWidth) {
+			// Reset width
+			this.details.element.style.width = `${this.docsWidth}px`;
+			this.element.style.width = `${this.maxWidgetWidth}px`;
+			this.listElement.style.width = `${this.listWidth}px`;
 		}
 
-		if (this.editorGroupService.getGroupOrientation() === 'horizontal' || totalEditors === 1) {
-			if (this.editor.getLayoutInfo().contentWidth > this.maxWidgetWidth) {
-				if (spaceOntheRight < this.docsWidth) {
-					this.swapDocs();
-				}
-				return;
-			}
-			this.showDocsBelow();
-			return;
+		// Reset list margin
+		this.listElement.style.marginTop = '0px';
+	}
+
+	private adjustDocsPosition() {
+		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
+		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
+		const cursorX = editorCoords.left + cursorCoords.left;
+		const cursorY = editorCoords.top + cursorCoords.top + cursorCoords.height;
+
+		const widgetX = this.element.offsetLeft;
+		const widgetY = this.element.offsetTop;
+
+		removeClass(this.element, 'list-right');
+
+		if (this.element.clientWidth < this.maxWidgetWidth && this.listElement.clientWidth !== this.minWidgetWidth) {
+			// Not enough space to show side by side
+			// So show docs below the list
+			this.listElement.style.width = `${this.minWidgetWidth}px`;
+			this.element.style.width = `${this.minWidgetWidth}px`;
+			this.details.element.style.width = `${this.minWidgetWidth}px`;
+		} else if (widgetX < cursorX - this.listWidth) {
+			// Widget is too far to the left of cursor, swap list and docs
+			addClass(this.element, 'list-right');
 		}
 
-		// Its vertical, multiple editors, active editor is the last one and not enough space on the right for widget
-		// TODO: Check if window width < this.maxDocsWidth, in which case we may have to drop the docs below.
-		if (spaceOntheRight < this.docsWidth) {
-			this.swapDocs();
+		// If docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
+		if (cursorY > widgetY && this.details.element.clientHeight > this.listElement.clientHeight) {
+			this.listElement.style.marginTop = `${this.details.element.clientHeight - this.listElement.clientHeight}px`;
 		}
 
 	}
-
-	private swapDocs() {
-		const perColumnWidth = this.editor.getLayoutInfo().contentWidth / this.editor.getLayoutInfo().viewportColumn;
-		const columnsOccupiedByDocs = Math.floor(this.docsWidth / perColumnWidth);
-		addClass(this.element, 'list-right');
-		this.preferredPosition = new Position(this.editor.getPosition().lineNumber, this.editor.getPosition().column - columnsOccupiedByDocs);
-	}
-
-	private showDocsBelow() {
-		// Not enough space to show side by side
-		// So show docs below the list
-		addClass(this.element, 'docs-below');
-		this.listElement.style.width = `${this.minWidgetWidth}px`;
-		this.element.style.width = `${this.minWidgetWidth}px`;
-		this.details.element.style.width = `${this.minWidgetWidth}px`;
-	}
-
 
 	private renderDetails(): void {
 		if (this.state === State.Details || this.state === State.Open) {
