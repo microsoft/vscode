@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-export ARCH="$ARCH"
+export ARCH="$1"
 export VSCODE_MIXIN_PASSWORD="$2"
 export AZURE_STORAGE_ACCESS_KEY="$3"
 export AZURE_STORAGE_ACCESS_KEY_2="$4"
@@ -26,19 +26,19 @@ STEP() {
 }
 
 STEP "Install dependencies"
-./scripts/npm.sh install --arch=x64 --unsafe-perm
+./scripts/npm.sh install --arch=$ARCH --unsafe-perm
 
 STEP "Mix in repository from vscode-distro"
 npm run gulp -- mixin
 
 STEP "Build minified"
-npm run gulp -- --max_old_space_size=4096 vscode-linux-x64-min
+npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
 STEP "Build Debian package"
-npm run gulp -- --max_old_space_size=4096 vscode-linux-x64-build-deb
+npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-deb"
 
 STEP "Build RPM package"
-npm run gulp -- --max_old_space_size=4096 vscode-linux-x64-build-rpm
+npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-rpm"
 
 STEP "Run unit tests"
 ./scripts/test.sh --xvfb --build --reporter dot
