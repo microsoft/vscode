@@ -135,14 +135,6 @@
 	padding-left:10px;
 }
 
-.vs-dark .preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {
-	box-shadow: -6px 0 5px -5px black;
-}
-
-.preferences-editor .side-by-side-preferences-editor > .editable-preferences-editor-container {
-	box-shadow: -6px 0 5px -5px #DDD;
-}
-
 .monaco-editor .settings-group-title-widget {
 	z-index: 1;
 }
