@@ -5,6 +5,7 @@
 'use strict';
 
 import { Range } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
 
 /**
  * A selection in the editor.
@@ -139,6 +140,13 @@ export class Selection extends Range {
 	}
 
 	// ----
+
+	/**
+	 * Create a `Selection` from one or two positions
+	 */
+	public static fromPositions(start: IPosition, end: IPosition = start): Selection {
+		return new Selection(start.lineNumber, start.column, end.lineNumber, end.column);
+	}
 
 	/**
 	 * Create a `Selection` from an `ISelection`.

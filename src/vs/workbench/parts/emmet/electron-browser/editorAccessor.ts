@@ -9,7 +9,7 @@ import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import { Range } from 'vs/editor/common/core/range';
-import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 
@@ -92,8 +92,15 @@ export class EditorAccessor implements emmet.Editor {
 		if (!range) {
 			return;
 		}
-		let codeSnippet = snippets.CodeSnippet.fromEmmet(value);
-		SnippetController.get(this._editor).runWithReplaceRange(codeSnippet, range);
+
+		const tweakedValue = snippets.CodeSnippet.fixEmmetFinalTabstop(value);
+
+		// let selection define the typing range
+		this._editor.setSelection(range);
+		SnippetController2.get(this._editor).insert(tweakedValue);
+
+		// let codeSnippet = snippets.CodeSnippet.fromEmmet(value);
+		// SnippetController.get(this._editor).runWithReplaceRange(codeSnippet, range);
 	}
 
 	public getRangeToReplace(value: string, start: number, end: number): Range {

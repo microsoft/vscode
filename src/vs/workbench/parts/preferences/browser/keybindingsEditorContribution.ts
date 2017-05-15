@@ -18,8 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ServicesAccessor, registerEditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
-import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -131,7 +130,7 @@ export class KeybindingEditorRenderer extends Disposable {
 			snippetText = smartInsertInfo.prepend + snippetText + smartInsertInfo.append;
 			this._editor.setPosition(smartInsertInfo.position);
 
-			SnippetController.get(this._editor).run(CodeSnippet.fromTextmate(snippetText), 0, 0);
+			SnippetController2.get(this._editor).insert(snippetText, 0, 0);
 		}
 	}
 }

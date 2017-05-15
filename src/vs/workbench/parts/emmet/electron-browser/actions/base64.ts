@@ -11,7 +11,7 @@ import { fileExists } from 'vs/base/node/pfs';
 import fs = require('fs');
 import { dirname, join, normalize, isValidBasename } from 'vs/base/common/paths';
 
-import { EmmetEditorAction, EmmetActionContext } from 'vs/workbench/parts/emmet/node/emmetActions';
+import { EmmetEditorAction, EmmetActionContext } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 import { Action } from 'vs/base/common/actions';
 
 import { ServicesAccessor, editorAction } from 'vs/editor/common/editorCommonExtensions';

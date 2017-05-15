@@ -6,22 +6,22 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { EmmetEditorAction, EmmetActionContext } from 'vs/workbench/parts/emmet/node/emmetActions';
+import { EmmetEditorAction, EmmetActionContext } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 
 import { ServicesAccessor, editorAction } from 'vs/editor/common/editorCommonExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IQuickOpenService, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
 
 @editorAction
-class WrapWithAbbreviationAction extends EmmetEditorAction {
+class UpdateTagAction extends EmmetEditorAction {
 
 	constructor() {
 		super({
-			id: 'editor.emmet.action.wrapWithAbbreviation',
-			label: nls.localize('wrapWithAbbreviationAction', "Emmet: Wrap with Abbreviation"),
-			alias: 'Emmet: Wrap with Abbreviation',
+			id: 'editor.emmet.action.updateTag',
+			label: nls.localize('updateTag', "Emmet: Update Tag"),
+			alias: 'Emmet: Update Tag',
 			precondition: EditorContextKeys.writable,
-			actionName: 'wrap_with_abbreviation'
+			actionName: 'update_tag'
 		});
 	}
 
@@ -29,16 +29,17 @@ class WrapWithAbbreviationAction extends EmmetEditorAction {
 		const quickOpenService = accessor.get(IQuickOpenService);
 
 		let options: IInputOptions = {
-			prompt: nls.localize('enterAbbreviation', "Enter Abbreviation"),
-			placeHolder: nls.localize('abbreviation', "Abbreviation")
+			prompt: nls.localize('enterTag', 'Enter Tag'),
+			placeHolder: nls.localize('tag', 'Tag')
 		};
-		quickOpenService.input(options).then(abbreviation => {
-			this.wrapAbbreviation(ctx, abbreviation);
+
+		quickOpenService.input(options).then(tag => {
+			this.wrapAbbreviation(ctx, tag);
 		});
 	}
 
-	private wrapAbbreviation(ctx: EmmetActionContext, abbreviation: string) {
-		if (abbreviation && !ctx.emmet.run('wrap_with_abbreviation', ctx.editorAccessor, abbreviation)) {
+	private wrapAbbreviation(ctx: EmmetActionContext, tag: string) {
+		if (tag && !ctx.emmet.run('update_tag', ctx.editorAccessor, tag)) {
 			this.noExpansionOccurred(ctx.editor);
 		}
 	}

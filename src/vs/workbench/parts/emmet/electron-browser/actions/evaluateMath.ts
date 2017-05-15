@@ -6,18 +6,18 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/node/emmetActions';
+import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 
 import { editorAction } from 'vs/editor/common/editorCommonExtensions';
 
 @editorAction
-class RemoveTagAction extends BasicEmmetEditorAction {
+class EvaluateMathAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
-			'editor.emmet.action.removeTag',
-			nls.localize('removeTag', "Emmet: Remove Tag"),
-			'Emmet: Remove Tag',
-			'remove_tag'
+			'editor.emmet.action.evaluateMath',
+			nls.localize('evaluateMathExpression', "Emmet: Evaluate Math Expression"),
+			'Emmet: Evaluate Math Expression',
+			'evaluate_math_expression'
 		);
 	}
 }

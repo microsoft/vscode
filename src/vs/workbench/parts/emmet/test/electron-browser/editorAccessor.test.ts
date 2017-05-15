@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { EditorAccessor, ILanguageIdentifierResolver, IGrammarContributions } from 'vs/workbench/parts/emmet/node/editorAccessor';
+import { EditorAccessor, ILanguageIdentifierResolver, IGrammarContributions } from 'vs/workbench/parts/emmet/electron-browser/editorAccessor';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import assert = require('assert');
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
