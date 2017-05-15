@@ -30,7 +30,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 
 const sticky = false; // for development purposes
 
@@ -316,8 +315,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IThemeService themeService: IThemeService
 	) {
 		this.isAuto = false;
 		this.focusedItem = null;
@@ -507,7 +505,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.list.setFocus([index]);
 				this.list.reveal(index);
 				this.showDetails();
-				this.updateWidgetHeight(true);
+				this.adjustDocsPosition();
 				this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
 			})
 			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
@@ -792,7 +790,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		return SuggestWidget.ID;
 	}
 
-	private updateWidgetHeight(adjustDocs?: boolean): number {
+	private updateWidgetHeight(): number {
 		let height = 0;
 		let maxSuggestionsToShow = this.editor.getLayoutInfo().contentWidth > this.minWidgetWidth ? 11 : 5;
 
@@ -813,9 +811,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.adjustWidgetWidth();
 		this.editor.layoutContentWidget(this);
-		if (adjustDocs) {
-			this.adjustDocsPosition();
-		}
 
 		return height;
 	}
