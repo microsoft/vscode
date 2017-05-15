@@ -133,6 +133,7 @@
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type {
 	opacity: 0.7;
+	word-break: break-all;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p {
