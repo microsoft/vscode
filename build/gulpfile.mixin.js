@@ -85,7 +85,7 @@ gulp.task('mixin', function () {
 					})();
 
 					// No longer need crashReporterHockeyAppSubmitURL after this
-					patch.crashReporterHockeyAppSubmitURL = void 0;
+					result.crashReporterHockeyAppSubmitURL = void 0;
 				}
 
 				return result;
