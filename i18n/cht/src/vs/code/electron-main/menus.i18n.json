@@ -69,7 +69,6 @@
 	"miSmartSelectShrink": "壓縮選取範圍(&&S)",
 	"miViewExplorer": "檔案總管(&&E)",
 	"miViewSearch": "搜尋(&&S)",
-	"miViewGit": "Git(&&G)",
 	"miViewDebug": "偵錯 (&&D)",
 	"miViewExtensions": "擴充功能(&&X)",
 	"miToggleOutput": "輸出(&&O)",

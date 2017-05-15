@@ -27,8 +27,6 @@
 	"autoSaveDelay": "控制要自動儲存已變更之檔案前必須經過的延遲時間 (毫秒)。僅當 'files.autoSave' 設為 \"{0}\" 時才適用。",
 	"watcherExclude": "將檔案路徑的 Glob 模式設定為從檔案監控排除。需要重新啟動才能變更此設定。當您發現 Code 在啟動時使用大量 CPU 時間時，可以排除較大的資料夾以降低初始負載。",
 	"hotExit.off": "停用 Hot Exit。",
-	"hotExit.onExit": "Hot Exit 將會在關閉應用程式時觸發，也就是在 Windows/Linux 上關閉上一個視窗，或是觸發 workbench.action.quit 命令 (命令選擇區、按鍵繫結關係、功能表) 時觸發。具有備份的所有視窗都會在下次啟動時還原。",
-	"hotExit.onExitAndWindowClose": "Hot Exit 將會在關閉應用程式時觸發，也就是在 Windows/Linux 上關閉上一個視窗，或是觸發 workbench.action.quit 命令 (命令選擇區、按鍵繫結關係、功能表) 時觸發，也會針對已開啟資料夾的任何視窗觸發，而不論其是否為上一個視窗。具有備份的所有視窗都會在下次啟動時還原。若要將資料夾視窗還原成關機前的狀態，請將 \"window.reopenFolders\" 設定為 \"all\"。",
 	"hotExit": "控制是否讓不同工作階段記住未儲存的檔案，並允許在結束編輯器時跳過儲存提示。",
 	"defaultLanguage": "指派給新檔案的預設語言模式。",
 	"editorConfigurationTitle": "編輯器",

@@ -6,7 +6,6 @@
 {
 	"selectTheme.label": "配色テーマ",
 	"installColorThemes": "その他の色のテーマをインストール...",
-	"problemChangingTheme": "テーマの設定で問題が発生しました: {0}",
 	"themes.selectTheme": "配色テーマの選択",
 	"selectIconTheme.label": "ファイル アイコンのテーマ",
 	"installIconThemes": "その他のファイル アイコンのテーマをインストール...",

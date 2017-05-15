@@ -18,6 +18,8 @@
 	"discard": "捨棄變更",
 	"confirm discard all": "確定要捨棄所有變更嗎? 此動作無法復原!",
 	"discardAll": "捨棄所有變更",
+	"yes": "是",
+	"always": "永遠",
 	"no changes": "沒有任何變更要認可。",
 	"commit message": "認可訊息",
 	"provide commit message": "請提供認可訊息",

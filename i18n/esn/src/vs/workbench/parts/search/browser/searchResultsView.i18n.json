@@ -6,7 +6,5 @@
 {
 	"searchMatches": "{0} coincidencias encontradas",
 	"searchMatch": "{0} coincidencia encontrada",
-	"fileMatchAriaLabel": "{0} coincidencias en el archivo {1} de la carpeta {2}, resultados de la búsqueda",
-	"replacePreviewResultAria": "Reemplazar resultado de vista previa, {0}",
-	"searchResultAria": "{0}, resultado de la búsqueda"
+	"fileMatchAriaLabel": "{0} coincidencias en el archivo {1} de la carpeta {2}, resultados de la búsqueda"
 }

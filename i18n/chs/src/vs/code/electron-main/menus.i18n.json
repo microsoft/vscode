@@ -69,7 +69,6 @@
 	"miSmartSelectShrink": "缩小选定范围(&&S)",
 	"miViewExplorer": "资源管理器(&&E)",
 	"miViewSearch": "搜索(&&S)",
-	"miViewGit": "GIT(&&G)",
 	"miViewDebug": "调试(&&D)",
 	"miViewExtensions": "扩展(&&X)",
 	"miToggleOutput": "输出(&&O)",

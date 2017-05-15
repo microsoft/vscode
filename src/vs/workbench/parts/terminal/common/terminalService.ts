@@ -210,4 +210,8 @@ export abstract class TerminalService implements ITerminalService {
 	public updateConfig(): void {
 		this.terminalInstances.forEach(instance => instance.updateConfig());
 	}
+
+	public setWorkspaceShellAllowed(isAllowed: boolean): void {
+		this.configHelper.setWorkspaceShellAllowed(isAllowed);
+	}
 }

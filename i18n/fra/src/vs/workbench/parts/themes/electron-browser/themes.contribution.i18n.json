@@ -6,7 +6,6 @@
 {
 	"selectTheme.label": "Thème de couleur",
 	"installColorThemes": "Installer des thèmes de couleurs supplémentaires...",
-	"problemChangingTheme": "Problème de définition du thème : {0}",
 	"themes.selectTheme": "Sélectionner le thème de couleur",
 	"selectIconTheme.label": "Thème d'icône de fichier",
 	"installIconThemes": "Installer des thèmes d'icônes de fichiers supplémentaires...",

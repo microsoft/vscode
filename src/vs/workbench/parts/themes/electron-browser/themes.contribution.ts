@@ -65,7 +65,6 @@ export class SelectColorThemeAction extends Action {
 
 				this.themeService.setColorTheme(theme.id, target).done(null,
 					err => {
-						this.messageService.show(Severity.Info, localize('problemChangingTheme', "Problem setting theme: {0}", err));
 						this.themeService.setColorTheme(currentTheme.id, null);
 					}
 				);

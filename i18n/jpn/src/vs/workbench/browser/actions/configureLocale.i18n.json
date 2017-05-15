@@ -7,7 +7,7 @@
 	"configureLocale": "言語を構成する",
 	"displayLanguage": "VSCode の表示言語を定義します。",
 	"doc": "サポートされている言語の一覧については、{0} をご覧ください。",
-	"restart": "VSCode の再起動に必要な値を変更します。",
+	"restart": "値を変更するには VS Code の再起動が必要です。",
 	"fail.createSettings": "'{0}' ({1}) を作成できません。",
 	"JsonSchema.locale": "使用する UI 言語。"
 }

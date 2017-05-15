@@ -18,6 +18,8 @@
 	"discard": "Änderungen verwerfen",
 	"confirm discard all": "Möchten Sie wirklich ALLE Änderungen verwerfen? Dieser Vorgang kann nicht rückgängig gemacht werden!",
 	"discardAll": "ALLE Änderungen verwerfen",
+	"yes": "Ja",
+	"always": "Immer",
 	"no changes": "Keine Änderungen zum Speichern vorhanden.",
 	"commit message": "Commit-Nachricht",
 	"provide commit message": "Geben Sie eine Commit-Nachrichte ein.",

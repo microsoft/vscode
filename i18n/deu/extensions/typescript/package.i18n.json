@@ -35,7 +35,6 @@
 	"javascript.goToProjectConfig.title": "Zur Projektkonfiguration wechseln",
 	"typescript.referencesCodeLens.enabled": "Aktiviert oder deaktiviert CodeLens-Verweise. Erfordert TypeScript 2.0.6 oder höher.",
 	"typescript.implementationsCodeLens.enabled": "Aktiviert oder deaktiviert CodeLens-Implementierungen. Erfordert TypeScript 2.2.0 oder höher.",
-	"typescript.openTsServerLog.title": "TS Server-Protokolldatei öffnen",
 	"typescript.selectTypeScriptVersion.title": "TypeScript-Version wählen",
 	"jsDocCompletion.enabled": "Automatische JSDoc-Kommentare aktivieren/deaktivieren",
 	"javascript.implicitProjectConfig.checkJs": "Aktiviert/deaktiviert die Semantikprüfung bei JavaScript-Dateien. Diese Einstellung wird von vorhandenen \"jsconfig.json\"- oder \"tsconfig.json\"-Dateien außer Kraft gesetzt. Erfordert TypeScript 2.3.1 oder höher.",

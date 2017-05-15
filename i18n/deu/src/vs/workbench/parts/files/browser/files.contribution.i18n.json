@@ -27,8 +27,6 @@
 	"autoSaveDelay": "Steuert die Verzögerung in Millisekunden, nach der eine geänderte Datei automatisch gespeichert wird. Nur gültig, wenn \"files.autoSave\" auf \"{0}\" festgelegt ist.",
 	"watcherExclude": "Konfigurieren Sie Globmuster von Dateipfaden, die aus der Dateiüberwachung ausgeschlossen werden sollen. Das Ändern dieser Einstellung erfordert einen Neustart. Wenn Ihr Code beim Starten viel CPU-Zeit benötigt, können Sie große Ordner ausschließen, um die Anfangslast zu verringern.",
 	"hotExit.off": "Hot Exit deaktivieren.",
-	"hotExit.onExit": "Hot Exit wird beim Schließen der Anwendung ausgelöst, d. h. wenn unter Windows/Linux das letzte Fenster geschlossen wird oder wenn der Befehl \"workbench.action.quit\" ausgelöst wird (Befehlspalette, Tastenzuordnung, Menü). Alle Fenster mit Sicherungen werden beim nächsten Start wiederhergestellt.",
-	"hotExit.onExitAndWindowClose": "Hot Exit wird beim Schließen der Anwendung ausgelöst, d. h. wenn unter Windows/Linux das letzte Fenster geschlossen wird oder wenn der Befehl \"workbench.action.quit\" ausgelöst wird (Befehlspalette, Tastenzuordnung, Menü) sowie für jedes Fenster mit einem geöffneten Ordner, unabhängig davon, ob dies das letzte Fenster ist. Alle Fenster ohne geöffnete Ordner werden beim nächsten Start wiederhergestellt. Legen Sie \"window.reopenFolders\" auf \"all\" fest, damit die Ordnerfenster wie vor dem Heruntergefahren wiederhergestellt werden.",
 	"hotExit": "Steuert, ob nicht gespeicherten Dateien zwischen den Sitzungen beibehlten werden, die Aufforderung zum Speichern wird beim Beenden des Editors übersprungen.",
 	"defaultLanguage": "Der Standardsprachmodus, der neuen Dateien zugewiesen wird.",
 	"editorConfigurationTitle": "Editor",

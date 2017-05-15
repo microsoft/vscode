@@ -41,7 +41,6 @@
 	"window.newWindowDimensions.inherit": "마지막 활성 창과 동일한 크기로 새 창을 엽니다.",
 	"window.newWindowDimensions.maximized": "최대화된 새 창을 엽니다.",
 	"window.newWindowDimensions.fullscreen": "전체 화면 모드에서 새 창을 엽니다.",
-	"newWindowDimensions": "새 창을 열 때 크기를 제어합니다. 기본적으로 새 창은 화면 가운데에 작은 크기로 열립니다. 'inherit'으로 설정할 경우 마지막 활성 창과 동일한 크기로 창이 열립니다. 'maximized'로 설정할 경우 창이 최대화되어 열리고 'fullscreen'으로 구성할 경우 전체 화면으로 열립니다.",
 	"window.menuBarVisibility.default": "메뉴가 전체 화면 모드에서만 숨겨집니다.",
 	"window.menuBarVisibility.visible": "메뉴가 전체 화면 모드에서도 항상 표시됩니다.",
 	"window.menuBarVisibility.toggle": "메뉴가 숨겨져 있지만 <Alt> 키를 통해 메뉴를 표시할 수 있습니다.",

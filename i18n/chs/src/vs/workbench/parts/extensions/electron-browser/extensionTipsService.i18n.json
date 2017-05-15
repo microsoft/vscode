@@ -8,5 +8,8 @@
 	"showRecommendations": "显示建议",
 	"neverShowAgain": "不再显示",
 	"close": "关闭",
-	"workspaceRecommended": "此工作区具有扩展建议。"
+	"workspaceRecommended": "此工作区具有扩展建议。",
+	"ignoreAll": "是，忽略全部",
+	"no": "否",
+	"cancel": "取消"
 }

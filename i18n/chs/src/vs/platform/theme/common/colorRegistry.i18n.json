@@ -28,8 +28,6 @@
 	"listActiveSelectionBackground": "已选项在列表或树活动时的背景颜色。活动的列表或树具有键盘焦点，非活动的没有。",
 	"listInactiveSelectionBackground": "已选项在列表或树非活动时的背景颜色。活动的列表或树具有键盘焦点，非活动的没有。",
 	"listActiveSelectionForeground": "已选项在列表或树活动时的前景颜色。活动的列表或树具有键盘焦点，非活动的没有。",
-	"listFocusAndSelectionBackground": "被选中且聚焦的项目在列表或树活动时的背景颜色。活动的列表或树具有键盘焦点，非活动的没有。此颜色比单独的选择和焦点颜色的优先级高。",
-	"listFocusAndSelectionForeground": "被选中且聚焦的项目在列表或树活动时的前景颜色。活动的列表或树具有键盘焦点，非活动的没有。此颜色比单独的选择和焦点颜色的优先级高。",
 	"listHoverBackground": "使用鼠标移动项目时，列表或树的背景颜色。",
 	"listDropBackground": "使用鼠标移动项目时，列表或树进行拖放的背景颜色。",
 	"highlight": "在列表或树中搜索时，其中匹配内容的高亮颜色。",
@@ -50,7 +48,9 @@
 	"editorFindMatch": "当前搜索匹配项的颜色。",
 	"findMatchHighlight": "其他搜索匹配项的颜色。",
 	"findRangeHighlight": "限制搜索的范围的颜色。",
+	"hoverHighlight": "在显示软键盘的字下方突出显示。",
+	"hoverBackground": "编辑器软键盘背景色。",
+	"hoverBorder": "编辑器软键盘边框颜色。",
 	"activeLinkForeground": "活动链接颜色。",
-	"linkForeground": "链接颜色。",
 	"editorWidgetBackground": "编辑器组件(如查找/替换)背景颜色。"
 }

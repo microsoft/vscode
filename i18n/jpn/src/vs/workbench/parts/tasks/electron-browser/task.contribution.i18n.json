@@ -14,7 +14,7 @@
 	"ConfigureTaskRunnerAction.label": "タスク ランナーの構成",
 	"ConfigureBuildTaskAction.label": "ビルド タスクを構成します",
 	"CloseMessageAction.label": "閉じる",
-	"ShowTerminalAction.label": "端末の表示",
+	"ShowTerminalAction.label": "ターミナルの表示",
 	"problems": "問題",
 	"manyMarkers": "99+",
 	"tasks": "タスク",

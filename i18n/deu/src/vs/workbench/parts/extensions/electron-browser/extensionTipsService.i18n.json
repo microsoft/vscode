@@ -8,5 +8,7 @@
 	"showRecommendations": "Empfehlungen anzeigen",
 	"neverShowAgain": "Nicht mehr anzeigen",
 	"close": "Schließen",
-	"workspaceRecommended": "Für diesen Arbeitsbereich sind Extensionempfehlungen verfügbar."
+	"workspaceRecommended": "Für diesen Arbeitsbereich sind Extensionempfehlungen verfügbar.",
+	"no": "Nein",
+	"cancel": "Abbrechen"
 }

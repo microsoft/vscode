@@ -988,7 +988,10 @@ export class SearchViewlet extends Viewlet {
 		let isDone = false;
 		const outputChannel = this.outputService.getChannel('search');
 		let onComplete = (completed?: ISearchComplete) => {
-			outputChannel.append('\n');
+			if (query.useRipgrep) {
+				outputChannel.append('\n');
+			}
+
 			isDone = true;
 
 			// Complete up to 100% as needed
@@ -1102,7 +1105,10 @@ export class SearchViewlet extends Viewlet {
 		};
 
 		let onError = (e: any) => {
-			outputChannel.append('\n');
+			if (query.useRipgrep) {
+				outputChannel.append('\n');
+			}
+
 			if (errors.isPromiseCanceledError(e)) {
 				onComplete(null);
 			} else {

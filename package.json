@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.13.0",
   "electronVersion": "1.6.6",
-  "distro": "e040c79dac021045cd488b8192515113014d67d4",
+  "distro": "299457aa71fc00d449a7d85f18289203a14065ef",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -103,7 +103,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^4.3.1",
-    "typescript": "2.3.2",
+    "typescript": "2.3.3-insiders.20170512",
     "typescript-formatter": "4.0.1",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",

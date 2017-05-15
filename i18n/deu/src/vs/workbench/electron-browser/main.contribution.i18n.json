@@ -41,7 +41,6 @@
 	"window.newWindowDimensions.inherit": "Öffnet neue Fenster mit den gleichen Abmessungen wie das letzte aktive Fenster.",
 	"window.newWindowDimensions.maximized": "Öffnet neue Fenster maximiert.",
 	"window.newWindowDimensions.fullscreen": "Öffnet neue Fenster im Vollbildmodus.",
-	"newWindowDimensions": "Steuert die Abmessungen beim Öffnen eines neuen Fensters. Standardmäßig wird in der Mitte des Bildschirms ein neues Fenster mit kleinen Abmessungen geöffnet. Bei der Einstellung \"inherit\" erhält das Fenster die gleichen Abmessungen wie das letzte aktive Fenster. Bei der Einstellung \"maximized\" wird das Fenster maximiert geöffnet, und bei \"fullscreen\" wird es im Vollbildmodus geöffnet.",
 	"window.menuBarVisibility.default": "Das Menü ist nur im Vollbildmodus ausgeblendet.",
 	"window.menuBarVisibility.visible": "Das Menu wird immer angezeigt, auch im Vollbildmodus.",
 	"window.menuBarVisibility.toggle": "Das Menu ist ausgeblendet, kann aber mit der Alt-Taste angezeigt werden.",

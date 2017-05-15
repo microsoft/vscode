@@ -41,7 +41,6 @@
 	"window.newWindowDimensions.inherit": "Apre nuove finestre le cui dimensioni sono uguali a quelle dell'ultima finestra attiva.",
 	"window.newWindowDimensions.maximized": "Apre nuove finestre ingrandite a schermo intero.",
 	"window.newWindowDimensions.fullscreen": "Apre nuove finestre nella modalità a schermo intero.",
-	"newWindowDimensions": "Controlla le dimensioni relative all'apertura di una nuova finestra. Per impostazione predefinita, una nuova finestra di dimensioni ridotte viene aperta al centro della schermata. Se è impostata su 'inherit', la finestra assumerà le stesse dimensioni dell'ultima finestra attiva. Se è impostata su 'maximized', la finestra aperta risulterà ingrandita, mentre con 'fullscreen' verrà visualizzata a schermo intero.",
 	"window.menuBarVisibility.default": "Il menu è nascosto solo nella modalità a schermo intero.",
 	"window.menuBarVisibility.visible": "Il menu è sempre visibile, anche nella modalità a schermo intero.",
 	"window.menuBarVisibility.toggle": "Il menu è nascosto ma può essere visualizzato premendo ALT.",

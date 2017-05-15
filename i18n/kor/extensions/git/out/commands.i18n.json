@@ -18,6 +18,8 @@
 	"discard": "변경 내용 취소",
 	"confirm discard all": "모든 변경 내용을 취소하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
 	"discardAll": "모든 변경 내용 취소",
+	"yes": "예",
+	"always": "항상",
 	"no changes": "커밋할 변경 내용이 없습니다.",
 	"commit message": "커밋 메시지",
 	"provide commit message": "커밋 메시지를 제공하세요.",
