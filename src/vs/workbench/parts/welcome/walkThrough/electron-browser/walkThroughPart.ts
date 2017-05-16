@@ -34,10 +34,10 @@ import { once } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 
@@ -328,8 +328,6 @@ export class WalkThroughPart extends BaseEditor {
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
 				innerContent.innerHTML = marked(markdown, { renderer });
-				this.style(this.themeService.getTheme(), innerContent);
-				this.contentDisposables.push(this.themeService.onThemeChange(theme => this.style(theme, innerContent)));
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
@@ -433,16 +431,6 @@ export class WalkThroughPart extends BaseEditor {
 			lineNumbersMinChars: 1,
 			minimap: false,
 		};
-	}
-
-	private style(theme: ITheme, div: HTMLElement) {
-		const styleElement = this.partService.getContainer(Parts.EDITOR_PART); // TODO@theme styles should come in via theme registry
-		const { color, backgroundColor, fontFamily, fontWeight, fontSize } = window.getComputedStyle(styleElement);
-		div.style.color = color;
-		div.style.backgroundColor = backgroundColor;
-		div.style.fontFamily = fontFamily;
-		div.style.fontWeight = fontWeight;
-		div.style.fontSize = fontSize;
 	}
 
 	private expandMacros(input: string) {
