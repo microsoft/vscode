@@ -203,14 +203,14 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
 		const sourceUri = vscode.Uri.parse(uri.query);
 
+		let initialLine: number | undefined = undefined;
+		const editor = vscode.window.activeTextEditor;
+		if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
+			initialLine = editor.selection.active.line;
+		}
+
 		return vscode.workspace.openTextDocument(sourceUri).then(document => {
 			this.config = MarkdownPreviewConfig.getCurrentConfig();
-
-			let initialLine: number | undefined = undefined;
-			const editor = vscode.window.activeTextEditor;
-			if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
-				initialLine = editor.selection.active.line;
-			}
 
 			const initialData = {
 				previewUri: uri.toString(),
