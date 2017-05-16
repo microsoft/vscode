@@ -9,12 +9,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
-import { ICursorPositionChangedEvent, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
-import { EditorInput, IGroupEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorCloseEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, IFileService, FileChangeType, isEqual } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -28,6 +28,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { ParsedExpression, parse, IExpression } from 'vs/base/common/glob';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -213,7 +214,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	private onEditorClosed(event: IGroupEvent): void {
+	private onEditorClosed(event: IEditorCloseEvent): void {
 
 		// Track closing of pinned editor to support to reopen closed editors
 		if (event.pinned) {
@@ -247,17 +248,67 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 	}
 
-	public forward(): void {
+	public forward(acrossEditors?: boolean): void {
 		if (this.stack.length > this.index + 1) {
-			this.index++;
-			this.navigate();
+			if (acrossEditors) {
+				this.doForwardAcrossEditors();
+			} else {
+				this.doForwardInEditors();
+			}
 		}
 	}
 
-	public back(): void {
+	private doForwardInEditors(): void {
+		this.index++;
+		this.navigate();
+	}
+
+	private doForwardAcrossEditors(): void {
+		let currentIndex = this.index;
+		const currentEntry = this.stack[this.index];
+
+		// Find the next entry that does not match our current entry
+		while (this.stack.length > currentIndex + 1) {
+			currentIndex++;
+
+			const previousEntry = this.stack[currentIndex];
+			if (!this.matches(currentEntry.input, previousEntry.input)) {
+				this.index = currentIndex;
+				this.navigate(true /* across editors */);
+				break;
+			}
+		}
+	}
+
+	public back(acrossEditors?: boolean): void {
 		if (this.index > 0) {
-			this.index--;
-			this.navigate();
+			if (acrossEditors) {
+				this.doBackAcrossEditors();
+			} else {
+				this.doBackInEditors();
+			}
+		}
+	}
+
+	private doBackInEditors(): void {
+		this.index--;
+		this.navigate();
+	}
+
+	private doBackAcrossEditors(): void {
+		let currentIndex = this.index;
+		const currentEntry = this.stack[this.index];
+
+		// Find the next previous entry that does not match our current entry
+		while (currentIndex > 0) {
+			currentIndex--;
+
+			const previousEntry = this.stack[currentIndex];
+			if (!this.matches(currentEntry.input, previousEntry.input)) {
+				this.index = currentIndex;
+				this.navigate(true /* across editors */);
+				break;
+			}
 		}
 	}
 
@@ -270,14 +321,14 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.recentlyClosedFiles = [];
 	}
 
-	private navigate(): void {
+	private navigate(acrossEditors?: boolean): void {
 		const entry = this.stack[this.index];
 
 		let options = entry.options;
-		if (options) {
-			options.revealIfVisible = true;
+		if (options && !acrossEditors /* ignore line/col options when going across editors */) {
+			options.revealIfOpened = true;
 		} else {
-			options = { revealIfVisible: true };
+			options = { revealIfOpened: true };
 		}
 
 		this.navigatingInStack = true;
@@ -590,12 +641,12 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		if (arg2 instanceof EditorInput) {
 			const file = toResource(arg2, { filter: 'file' });
 
-			return file && isEqual(file.fsPath, resource.fsPath);
+			return file && file.toString() === resource.toString();
 		}
 
 		const resourceInput = arg2 as IResourceInput;
 
-		return resourceInput && isEqual(resourceInput.resource.fsPath, resource.fsPath);
+		return resourceInput && resourceInput.resource.toString() === resource.toString();
 	}
 
 	public getHistory(): (IEditorInput | IResourceInput)[] {

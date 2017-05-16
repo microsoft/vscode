@@ -23,10 +23,9 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IOptions } from 'vs/workbench/common/options';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions, TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -39,7 +38,6 @@ import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbe
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { QuickOpenController } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
 import { getServices } from 'vs/platform/instantiation/common/extensions';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { WorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Position, Parts, IPartService, ILayoutOptions } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -65,7 +63,7 @@ import { ConfigurationResolverService } from 'vs/workbench/services/configuratio
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
@@ -106,6 +104,7 @@ interface WorkbenchParams {
 interface IZenModeSettings {
 	fullScreen: boolean;
 	hideTabs: boolean;
+	hideActivityBar: boolean;
 	hideStatusBar: boolean;
 	restore: boolean;
 }
@@ -200,7 +199,6 @@ export class Workbench implements IPartService {
 		options: IOptions,
 		serviceCollection: ServiceCollection,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
@@ -313,18 +311,10 @@ export class Workbench implements IPartService {
 
 			// Load Editors
 			const editorRestoreStopWatch = StopWatch.create();
-			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputsWithOptions => {
-				let editorOpenPromise: TPromise<BaseEditor[]>;
-				if (inputsWithOptions.length) {
-					const editors = inputsWithOptions.map(inputWithOptions => {
-						return {
-							input: inputWithOptions.input,
-							options: inputWithOptions.options,
-							position: EditorPosition.ONE
-						};
-					});
-
-					editorOpenPromise = this.editorPart.openEditors(editors);
+			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputs => {
+				let editorOpenPromise: TPromise<IEditor[]>;
+				if (inputs.length) {
+					editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
 				} else {
 					editorOpenPromise = this.editorPart.restoreEditors();
 				}
@@ -347,8 +337,8 @@ export class Workbench implements IPartService {
 				if (this.callbacks && this.callbacks.onWorkbenchStarted) {
 					this.callbacks.onWorkbenchStarted({
 						customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-						restoreViewletDuration: viewletRestoreStopWatch ? viewletRestoreStopWatch.elapsed() : 0,
-						restoreEditorsDuration: editorRestoreStopWatch.elapsed(),
+						restoreViewletDuration: viewletRestoreStopWatch ? Math.round(viewletRestoreStopWatch.elapsed()) : 0,
+						restoreEditorsDuration: Math.round(editorRestoreStopWatch.elapsed()),
 						pinnedViewlets: this.activitybarPart.getPinned(),
 					});
 				}
@@ -370,7 +360,7 @@ export class Workbench implements IPartService {
 		}
 	}
 
-	private resolveEditorsToOpen(): TPromise<{ input: EditorInput, options?: EditorOptions }[]> {
+	private resolveEditorsToOpen(): TPromise<IResourceInputType[]> {
 
 		// Files to open, diff or create
 		if (this.hasFilesToCreateOpenOrDiff) {
@@ -381,45 +371,34 @@ export class Workbench implements IPartService {
 
 			// Files to diff is exclusive
 			if (filesToDiff && filesToDiff.length === 2) {
-				return this.editorService.createInput({ leftResource: filesToDiff[0].resource, rightResource: filesToDiff[1].resource }).then(input => [{ input, options: EditorOptions.create({ pinned: true }) }]);
+				return TPromise.as([<IResourceDiffInput>{
+					leftResource: filesToDiff[0].resource,
+					rightResource: filesToDiff[1].resource,
+					options: { pinned: true }
+				}]);
 			}
 
 			// Otherwise: Open/Create files
 			else {
-				const inputs: EditorInput[] = [];
-				const options: EditorOptions[] = [];
-
-				// Files to create
-				inputs.push(...filesToCreate.map(resourceInput => this.untitledEditorService.createOrGet(resourceInput.resource)));
-				options.push(...filesToCreate.map(r => EditorOptions.create({ pinned: true })));
-
-				// Files to open
-				let filesToOpenInputPromise = filesToOpen.map(resourceInput => this.editorService.createInput(resourceInput));
-
-				return TPromise.join<EditorInput>(filesToOpenInputPromise).then((inputsToOpen) => {
-					inputs.push(...inputsToOpen);
-					options.push(...filesToOpen.map(resourceInput => {
-						const options: EditorOptions = TextEditorOptions.from(resourceInput) || EditorOptions.create({ pinned: true });
-						options.pinned = true;
-
-						return options;
-					}));
-
-					return inputs.map((input, index) => { return { input, options: options[index] }; });
+				const filesToCreateInputs: IUntitledResourceInput[] = filesToCreate.map(resourceInput => {
+					return <IUntitledResourceInput>{
+						filePath: resourceInput.resource.fsPath,
+						options: { pinned: true }
+					};
 				});
+
+				return TPromise.as([].concat(filesToOpen).concat(filesToCreateInputs));
 			}
 		}
 
 		// Empty workbench: some first time users will not have an untiled file; returning users will always have one
-		else if (!this.contextService.hasWorkspace() &&
-			this.telemetryService.getExperiments().openUntitledFile &&
-			!this.configurationService.lookup('workbench.welcome.enabled').value) {
+		else if (!this.contextService.hasWorkspace() && this.telemetryService.getExperiments().openUntitledFile && !this.configurationService.lookup('workbench.welcome.enabled').value) {
 			return this.backupFileService.hasBackups().then(hasBackups => {
 				if (hasBackups) {
 					return TPromise.as([]); // do not open any empty untitled file if we have backups to restore
 				}
 
-				return TPromise.as([{ input: this.untitledEditorService.createOrGet() }]);
+				return TPromise.as([<IUntitledResourceInput>{}]);
 			});
 		}
 
@@ -673,11 +652,16 @@ export class Workbench implements IPartService {
 		}
 
 		const windowConfig = this.configurationService.getConfiguration<IWindowConfiguration>();
+		if (windowConfig && windowConfig.window) {
+			const useNativeTabs = windowConfig.window.nativeTabs;
+			if (useNativeTabs) {
+				return null; // native tabs on sierra do not work with custom title style
+			}
 
-		const style = windowConfig && windowConfig.window && windowConfig.window.titleBarStyle;
-
-		if (style === 'custom') {
-			return style;
+			const style = windowConfig.window.titleBarStyle;
+			if (style === 'custom') {
+				return style;
+			}
 		}
 
 		return null;
@@ -713,7 +697,7 @@ export class Workbench implements IPartService {
 			this.workbench.removeClass('nosidebar');
 		}
 
-		let promise = TPromise.as(null);
+		let promise = TPromise.as<any>(null);
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
 			promise = this.sidebarPart.hideActiveViewlet().then(() => {
@@ -758,7 +742,7 @@ export class Workbench implements IPartService {
 			this.workbench.removeClass('nopanel');
 		}
 
-		let promise = TPromise.as(null);
+		let promise = TPromise.as<any>(null);
 		// If panel part becomes hidden, also hide the current active panel if any
 		if (hidden && this.panelPart.getActivePanel()) {
 			promise = this.panelPart.hideActivePanel().then(() => {
@@ -1113,7 +1097,9 @@ export class Workbench implements IPartService {
 			this.setPanelHidden(true, true).done(undefined, errors.onUnexpectedError);
 			this.setSideBarHidden(true, true).done(undefined, errors.onUnexpectedError);
 
-			this.setActivityBarHidden(true, true);
+			if (config.hideActivityBar) {
+				this.setActivityBarHidden(true, true);
+			}
 			if (config.hideStatusBar) {
 				this.setStatusBarHidden(true, true);
 			}
@@ -1145,6 +1131,21 @@ export class Workbench implements IPartService {
 			this.windowService.toggleFullScreen().done(undefined, errors.onUnexpectedError);
 		}
 	}
+
+	// Resize requested part along the main axis
+	// layout will do all the math for us and adjusts the other Parts
+	public resizePart(part: Parts, sizeChange: number): void {
+		switch (part) {
+			case Parts.SIDEBAR_PART:
+			case Parts.PANEL_PART:
+			case Parts.EDITOR_PART:
+				this.workbenchLayout.resizePart(part, sizeChange);
+				break;
+			default:
+				return; // Cannot resize other parts
+		}
+	}
+
 
 	private shouldRestoreLastOpenedViewlet(): boolean {
 		if (!this.environmentService.isBuilt) {

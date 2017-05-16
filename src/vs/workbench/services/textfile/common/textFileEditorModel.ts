@@ -16,7 +16,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import paths = require('vs/base/common/paths');
 import diagnostics = require('vs/base/common/diagnostics');
 import types = require('vs/base/common/types');
-import { EventType as EditorEventType } from 'vs/editor/common/editorCommon';
 import { IMode } from 'vs/editor/common/modes';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITextFileService, IAutoSaveConfiguration, ModelState, ITextFileEditorModel, IModelSaveOptions, ISaveErrorHandler, ISaveParticipant, StateChange, SaveReason, IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -129,14 +128,32 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private onFileChanges(e: FileChangesEvent): void {
 
-		// Handle added if we are in orphan mode
-		if (this.inOrphanMode && e.contains(this.resource, FileChangeType.ADDED)) {
-			this.setOrphaned(false);
-		}
+		// Track ADD and DELETES for updates of this model to orphan-mode
+		const newInOrphanModeGuess = e.contains(this.resource, FileChangeType.DELETED) && !e.contains(this.resource, FileChangeType.ADDED);
+		if (this.inOrphanMode !== newInOrphanModeGuess) {
+			let checkOrphanedPromise: TPromise<boolean>;
+			if (newInOrphanModeGuess) {
+				// We have received reports of users seeing delete events even though the file still
+				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+				// Since we do not want to mark the model as orphaned, we have to check if the
+				// file is really gone and not just a faulty file event (TODO@Ben revisit when we
+				// have a more stable file watcher in place for this scenario).
+				checkOrphanedPromise = TPromise.timeout(100).then(() => {
+					if (this.disposed) {
+						return true;
+					}
 
-		// Handle deletes
-		if (!this.inOrphanMode && e.contains(this.resource, FileChangeType.DELETED)) {
-			this.setOrphaned(true);
+					return this.fileService.existsFile(this.resource).then(exists => !exists);
+				});
+			} else {
+				checkOrphanedPromise = TPromise.as(false);
+			}
+
+			checkOrphanedPromise.done(newInOrphanModeValidated => {
+				if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
+					this.setOrphaned(newInOrphanModeValidated);
+				}
+			});
 		}
 	}
 
@@ -274,7 +291,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					mtime: Date.now(),
 					etag: void 0,
 					value: '', /* will be filled later from backup */
-					encoding: this.fileService.getEncoding(this.resource)
+					encoding: this.fileService.getEncoding(this.resource, this.preferredEncoding)
 				};
 
 				return this.loadWithContent(content, backup);
@@ -330,7 +347,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		// Otherwise bubble up the error
-		return TPromise.wrapError(error);
+		return TPromise.wrapError<EditorModel>(error);
 	}
 
 	private loadWithContent(content: IRawTextContent | IContent, backup?: URI): TPromise<EditorModel> {
@@ -417,25 +434,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					this.setDirty(false);
 				}
 
-				this.toDispose.push(this.textEditorModel.addBulkListener((events) => {
-					let hasContentChangeEvent = false;
-					for (let i = 0, len = events.length; i < len; i++) {
-						let eventType = events[i].getType();
-						if (eventType === EditorEventType.ModelContentChanged2) {
-							hasContentChangeEvent = true;
-							break;
-						}
-					}
-					if (hasContentChangeEvent) {
-						this.onModelContentChanged();
-					}
+				this.toDispose.push(this.textEditorModel.onDidChangeContent((e) => {
+					this.onModelContentChanged();
 				}));
 
 				return this;
 			}, error => {
 				this.createTextEditorModelPromise = null;
 
-				return TPromise.wrapError(error);
+				return TPromise.wrapError<TextFileEditorModel>(error);
 			});
 		});
 
@@ -697,10 +704,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private doTouch(): TPromise<void> {
-		if (this.inOrphanMode) {
-			return TPromise.as(void 0); // do not create the file if this model is orphaned
-		}
-
 		return this.fileService.touchFile(this.resource).then(stat => {
 
 			// Updated resolved stat with updated stat since touching it might have changed mtime

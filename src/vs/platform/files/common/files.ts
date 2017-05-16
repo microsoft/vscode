@@ -142,7 +142,7 @@ export interface IFileService {
 	/**
 	 * Returns the preferred encoding to use for a given resource.
 	 */
-	getEncoding(resource: URI): string;
+	getEncoding(resource: URI, preferredEncoding?: string): string;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -495,6 +495,11 @@ export interface IResolveContentOptions {
 	 * the contents of the file.
 	 */
 	encoding?: string;
+
+	/**
+	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
+	 */
+	autoGuessEncoding?: boolean;
 }
 
 export interface IUpdateContentOptions {
@@ -575,6 +580,8 @@ export interface IFilesConfiguration {
 		exclude: glob.IExpression;
 		watcherExclude: { [filepattern: string]: boolean };
 		encoding: string;
+		autoGuessEncoding: boolean;
+		defaultLanguage: string;
 		trimTrailingWhitespace: boolean;
 		autoSave: string;
 		autoSaveDelay: number;
@@ -797,17 +804,17 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelShort: 'ISO 8859-11',
 		order: 42
 	},
-	'koi8-ru': {
+	koi8ru: {
 		labelLong: 'Cyrillic (KOI8-RU)',
 		labelShort: 'KOI8-RU',
 		order: 43
 	},
-	'koi8-t': {
+	koi8t: {
 		labelLong: 'Tajik (KOI8-T)',
 		labelShort: 'KOI8-T',
 		order: 44
 	},
-	GB2312: {
+	gb2312: {
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
 		order: 45

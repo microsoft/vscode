@@ -39,7 +39,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private static NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 	private static NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 	private static TITLE_DIRTY = '\u25cf ';
-	private static TITLE_SEPARATOR = ' - ';
+	private static TITLE_SEPARATOR = ' — ';
 
 	private titleContainer: Builder;
 	private title: Builder;
@@ -71,7 +71,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		this.isPure = true;
 		this.activeEditorListeners = [];
-		this.workspacePath = contextService.hasWorkspace() ? labels.tildify(labels.getPathLabel(contextService.getWorkspace().resource), environmentService.userHome) : '';
+		this.workspacePath = contextService.hasWorkspace() ? labels.getPathLabel(contextService.getWorkspace().resource, void 0, environmentService) : '';
 
 		this.init();
 
@@ -234,8 +234,10 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Part container
 		const container = this.getContainer();
-		container.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
-		container.style('background-color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND));
+		if (container) {
+			container.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
+			container.style('background-color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND));
+		}
 	}
 
 	private onTitleDoubleclick(): void {

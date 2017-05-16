@@ -9,7 +9,6 @@ import nls = require('vs/nls');
 import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
 import * as path from 'path';
-import { isUUID } from 'vs/base/common/uuid';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { LinkedMap as Map } from 'vs/base/common/map';
@@ -189,7 +188,7 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
-		return TPromise.wrapError('not available');
+		return TPromise.wrapError<string>('not available');
 	}
 
 	getChangelog(): TPromise<string> {
@@ -200,7 +199,7 @@ class Extension implements IExtension {
 		const changelogUrl = this.local && this.local.changelogUrl;
 
 		if (!changelogUrl) {
-			return TPromise.wrapError('not available');
+			return TPromise.wrapError<string>('not available');
 		}
 
 		const uri = URI.parse(changelogUrl);
@@ -209,7 +208,7 @@ class Extension implements IExtension {
 			return readFile(uri.fsPath, 'utf8');
 		}
 
-		return TPromise.wrapError('not available');
+		return TPromise.wrapError<string>('not available');
 	}
 
 	get dependencies(): string[] {
@@ -375,13 +374,13 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 					return TPromise.as(singlePagePager([]));
 				}
 
-				return TPromise.wrapError(err);
+				return TPromise.wrapError<IPager<IExtension>>(err);
 			});
 	}
 
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies> {
 		if (!extension.dependencies.length) {
-			return TPromise.wrap(null);
+			return TPromise.wrap<IExtensionDependencies>(null);
 		}
 
 		return this.galleryService.getAllDependencies((<Extension>extension).gallery)
@@ -444,13 +443,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			return TPromise.as(null);
 		}
 
-		// Workaround untill market place fixes the query by names with case insensitve ids.
-		let ids = this.installed
-			.filter(e => e.type === LocalExtensionType.User && !!e.local && !!e.local.metadata && !!e.local.metadata.id && isUUID(e.local.metadata.id))
-			.map(e => e.local.metadata.id);
-		ids = ids.length ? ids : void 0;
-
-		return this.queryGallery({ names, ids, pageSize: names.length }) as TPromise<any>;
+		return this.queryGallery({ names, pageSize: names.length }) as TPromise<any>;
 	}
 
 	private eventuallyAutoUpdateExtensions(): void {
@@ -540,7 +533,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			nls.localize('enable', "Yes"),
 			nls.localize('doNotEnable', "No")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, true)
+		return this.choiceService.choose(Severity.Info, message, options, 1, true)
 			.then<void>(value => {
 				if (value === 0) {
 					return this.checkAndSetEnablement(extension, dependencies, true, workspace);
@@ -556,7 +549,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			nls.localize('disableAll', "All"),
 			nls.localize('cancel', "Cancel")
 		];
-		return this.choiceService.choose(Severity.Info, message, options, true)
+		return this.choiceService.choose(Severity.Info, message, options, 2, true)
 			.then<void>(value => {
 				if (value === 0) {
 					return this.checkAndSetEnablement(extension, [], false, workspace);
@@ -715,7 +708,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		this._onChange.fire();
 	}
 
-	private onDidUninstallExtension({id, error}: DidUninstallExtensionEvent): void {
+	private onDidUninstallExtension({ id, error }: DidUninstallExtensionEvent): void {
 		if (!error) {
 			this.installed = this.installed.filter(e => e.local.id !== id);
 		}

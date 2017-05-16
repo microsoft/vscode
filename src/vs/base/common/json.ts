@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { localize } from 'vs/nls';
-
 export enum ScanError {
 	None,
 	UnexpectedEndOfComment,
 	UnexpectedEndOfString,
 	UnexpectedEndOfNumber,
 	InvalidUnicode,
-	InvalidEscapeCharacter
+	InvalidEscapeCharacter,
+	InvalidCharacter
 }
 
 export enum SyntaxKind {
@@ -224,10 +223,15 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 				start = pos;
 				continue;
 			}
-			if (isLineBreak(ch)) {
-				result += text.substring(start, pos);
-				scanError = ScanError.UnexpectedEndOfString;
-				break;
+			if (ch >= 0 && ch <= 0x1f) {
+				if (isLineBreak(ch)) {
+					result += text.substring(start, pos);
+					scanError = ScanError.UnexpectedEndOfString;
+					break;
+				} else {
+					scanError = ScanError.InvalidCharacter;
+					// mark as error but continue with string
+				}
 			}
 			pos++;
 		}
@@ -631,22 +635,6 @@ export enum ParseErrorCode {
 	EndOfFileExpected
 }
 
-export function getParseErrorMessage(errorCode: ParseErrorCode): string {
-	switch (errorCode) {
-		case ParseErrorCode.InvalidSymbol: return localize('error.invalidSymbol', 'Invalid symbol');
-		case ParseErrorCode.InvalidNumberFormat: return localize('error.invalidNumberFormat', 'Invalid number format');
-		case ParseErrorCode.PropertyNameExpected: return localize('error.propertyNameExpected', 'Property name expected');
-		case ParseErrorCode.ValueExpected: return localize('error.valueExpected', 'Value expected');
-		case ParseErrorCode.ColonExpected: return localize('error.colonExpected', 'Colon expected');
-		case ParseErrorCode.CommaExpected: return localize('error.commaExpected', 'Comma expected');
-		case ParseErrorCode.CloseBraceExpected: return localize('error.closeBraceExpected', 'Closing brace expected');
-		case ParseErrorCode.CloseBracketExpected: return localize('error.closeBracketExpected', 'Closing bracket expected');
-		case ParseErrorCode.EndOfFileExpected: return localize('error.endOfFileExpected', 'End of file expected');
-		default:
-			return '';
-	}
-}
-
 export type NodeType = 'object' | 'array' | 'property' | 'string' | 'number' | 'boolean' | 'null';
 
 function getLiteralNodeType(value: any): NodeType {
@@ -725,7 +713,7 @@ export function getLocation(text: string, position: number): Location {
 				}
 				previousNode = void 0;
 				isAtPropertyKey = position > offset;
-				segments.push(''); // push a placeholder (will be replaced or removed)
+				segments.push(''); // push a placeholder (will be replaced)
 			},
 			onObjectProperty: (name: string, offset: number, length: number) => {
 				if (position < offset) {
@@ -794,9 +782,6 @@ export function getLocation(text: string, position: number): Location {
 		}
 	}
 
-	if (segments[segments.length - 1] === '') {
-		segments.pop();
-	}
 	return {
 		path: segments,
 		previousNode,
@@ -972,7 +957,7 @@ export function getNodeValue(node: Node): any {
 	if (node.type === 'array') {
 		return node.children.map(getNodeValue);
 	} else if (node.type === 'object') {
-		let obj: any = {};
+		let obj = {};
 		for (let prop of node.children) {
 			obj[prop.children[0].value] = getNodeValue(prop.children[1]);
 		}

@@ -16,11 +16,17 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 
+interface IRegExp {
+	pattern: string;
+	flags?: string;
+}
+
 interface ILanguageConfiguration {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
 	autoClosingPairs?: (CharacterPair | IAutoClosingPairConditional)[];
 	surroundingPairs?: (CharacterPair | IAutoClosingPair)[];
+	wordPattern?: string | IRegExp;
 }
 
 export class LanguageConfigurationFileHandler {
@@ -83,6 +89,26 @@ export class LanguageConfigurationFileHandler {
 
 		if (configuration.surroundingPairs) {
 			richEditConfig.surroundingPairs = this._mapCharacterPairs(configuration.surroundingPairs);
+		}
+
+		if (configuration.wordPattern) {
+			let pattern = '';
+			let flags = '';
+
+			if (typeof configuration.wordPattern === 'string') {
+				pattern = configuration.wordPattern;
+			} else if (typeof configuration.wordPattern === 'object') {
+				pattern = configuration.wordPattern.pattern;
+				flags = configuration.wordPattern.flags;
+			}
+
+			if (pattern) {
+				try {
+					richEditConfig.wordPattern = new RegExp(pattern, flags);
+				} catch (error) {
+					// Malformed regexes are ignored
+				}
+			}
 		}
 
 		LanguageConfigurationRegistry.register(languageIdentifier, richEditConfig);
@@ -208,6 +234,25 @@ const schema: IJSONSchema = {
 				}]
 			}
 		},
+		wordPattern: {
+			default: '',
+			description: nls.localize('schema.wordPattern', 'The word definition for the language.'),
+			type: ['string', 'object'],
+			properties: {
+				pattern: {
+					type: 'string',
+					description: nls.localize('schema.wordPattern.pattern', 'The RegExp pattern used to match words.'),
+					default: '',
+				},
+				flags: {
+					type: 'string',
+					description: nls.localize('schema.wordPattern.flags', 'The RegExp flags used to match words.'),
+					default: 'g',
+					pattern: '^([gimuy]+)$',
+					patternErrorMessage: nls.localize('schema.wordPattern.flags.errorMessage', 'Must match the pattern `/^([gimuy]+)$/`.')
+				}
+			}
+		}
 	}
 };
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);

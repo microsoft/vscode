@@ -22,6 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/group/common/groupService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 
 export class SplitEditorAction extends Action {
 
@@ -1114,6 +1115,26 @@ export class ReopenClosedEditorAction extends Action {
 	}
 }
 
+export class ClearRecentFilesAction extends Action {
+
+	public static ID = 'workbench.action.clearRecentFiles';
+	public static LABEL = nls.localize('clearRecentFiles', "Clear Recent Files");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.windowsService.clearRecentPathsList();
+
+		return TPromise.as(false);
+	}
+}
+
 export const NAVIGATE_IN_GROUP_ONE_PREFIX = 'edt one ';
 
 export class ShowEditorsInGroupOneAction extends QuickOpenAction {
@@ -1297,6 +1318,38 @@ export class OpenPreviousEditorFromHistoryAction extends Action {
 		this.quickOpenService.show(null, { quickNavigateConfiguration: { keybindings: keys } });
 
 		return TPromise.as(true);
+	}
+}
+
+export class OpenNextRecentlyUsedEditorAction extends Action {
+
+	public static ID = 'workbench.action.openNextRecentlyUsedEditor';
+	public static LABEL = nls.localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.historyService.forward(true);
+
+		return TPromise.as(null);
+	}
+}
+
+export class OpenPreviousRecentlyUsedEditorAction extends Action {
+
+	public static ID = 'workbench.action.openPreviousRecentlyUsedEditor';
+	public static LABEL = nls.localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor");
+
+	constructor(id: string, label: string, @IHistoryService private historyService: IHistoryService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.historyService.back(true);
+
+		return TPromise.as(null);
 	}
 }
 

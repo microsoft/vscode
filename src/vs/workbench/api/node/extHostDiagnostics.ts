@@ -80,7 +80,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 				.map((tuple, idx) => ({ tuple, idx }))
 				.sort(DiagnosticCollection._compareIndexedTuplesByUri);
 
-			for (const {tuple} of sortedTuples) {
+			for (const { tuple } of sortedTuples) {
 				const [uri, diagnostics] = tuple;
 				if (!lastUri || uri.toString() !== lastUri.toString()) {
 					if (lastUri && this._data.get(lastUri.toString()).length === 0) {
@@ -241,7 +241,7 @@ export class ExtHostDiagnostics extends ExtHostDiagnosticsShape {
 			name = '_generated_diagnostic_collection_name_#' + ExtHostDiagnostics._idPool++;
 		}
 
-		const {_collections, _proxy} = this;
+		const { _collections, _proxy } = this;
 		const result = new class extends DiagnosticCollection {
 			constructor() {
 				super(name, _proxy);

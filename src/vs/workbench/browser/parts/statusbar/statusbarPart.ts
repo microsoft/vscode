@@ -27,9 +27,9 @@ import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_INFO_ITEM_BACKGROUND, STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -139,10 +139,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		container.style('color', this.getColor(STATUS_BAR_FOREGROUND));
 		container.style('background-color', this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND));
 
-		const useBorder = this.isHighContrastTheme;
-		container.style('border-top-width', useBorder ? '1px' : null);
-		container.style('border-top-style', useBorder ? 'solid' : null);
-		container.style('border-top-color', useBorder ? this.getColor(highContrastBorder) : null);
+		const contrastBorderColor = this.getColor(contrastBorder);
+		container.style('border-top-width', contrastBorderColor ? '1px' : null);
+		container.style('border-top-style', contrastBorderColor ? 'solid' : null);
+		container.style('border-top-color', contrastBorderColor);
 	}
 
 	private doCreateStatusItem(alignment: StatusbarAlignment, priority: number = 0): HTMLElement {
@@ -169,7 +169,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// Create new
 		let statusDispose: IDisposable;
 		let showHandle = setTimeout(() => {
-			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, Number.MIN_VALUE);
+			statusDispose = this.addEntry({ text: message }, StatusbarAlignment.LEFT, -Number.MAX_VALUE /* far right on left hand side */);
 			showHandle = null;
 		}, delayBy);
 		let hideHandle: number;
@@ -330,13 +330,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]):not(.disabled) { background-color: ${statusBarItemActiveBackground}; }`);
 	}
 
-	const statusBarInfoItemBackground = theme.getColor(STATUS_BAR_INFO_ITEM_BACKGROUND);
-	if (statusBarInfoItemBackground) {
-		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item .status-bar-info { background-color: ${statusBarInfoItemBackground}; }`);
+	const statusBarProminentItemBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
+	if (statusBarProminentItemBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item .status-bar-info { background-color: ${statusBarProminentItemBackground}; }`);
 	}
 
-	const statusBarInfoItemHoverBackground = theme.getColor(STATUS_BAR_INFO_ITEM_HOVER_BACKGROUND);
-	if (statusBarInfoItemHoverBackground) {
-		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover:not([disabled]):not(.disabled) { background-color: ${statusBarInfoItemHoverBackground}; }`);
+	const statusBarProminentItemHoverBackground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND);
+	if (statusBarProminentItemHoverBackground) {
+		collector.addRule(`.monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover:not([disabled]):not(.disabled) { background-color: ${statusBarProminentItemHoverBackground}; }`);
 	}
 });

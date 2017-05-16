@@ -10,7 +10,7 @@ import { relative } from 'path';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { fromRange } from 'vs/workbench/api/node/extHostTypeConverters';
+import { fromRange, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
 import { MainContext, MainThreadWorkspaceShape } from './extHost.protocol';
 import * as vscode from 'vscode';
 
@@ -80,7 +80,8 @@ export class ExtHostWorkspace {
 				resourceEdits.push({
 					resource: <URI>uri,
 					newText: edit.newText,
-					range: fromRange(edit.range)
+					newEol: EndOfLine.from(edit.newEol),
+					range: edit.range && fromRange(edit.range)
 				});
 			}
 		}

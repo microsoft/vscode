@@ -9,6 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { ICursorRevealRangeEvent } from 'vs/editor/common/controller/cursorEvents';
 
 export interface ICursorPositionChangedEvent {
 	readonly position: Position;
@@ -71,12 +72,17 @@ export class ViewModelCursors {
 		eventsCollector.emit(new viewEvents.ViewCursorSelectionChangedEvent(e.viewSelection, e.secondaryViewSelections));
 	}
 
-	public onCursorRevealRange(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorRevealRangeEvent): void {
+	public onCursorRevealRange(eventsCollector: ViewEventsCollector, e: ICursorRevealRangeEvent): void {
+		// Ensure event has viewRange
+		const viewRange = (
+			e.viewRange
+				? e.viewRange
+				: this.coordinatesConverter.convertModelRangeToViewRange(e.range)
+		);
 		eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
-			e.viewRange,
+			viewRange,
 			e.verticalType,
-			e.revealHorizontal,
-			e.revealCursor
+			e.revealHorizontal
 		));
 	}
 
@@ -103,9 +109,5 @@ export class ViewModelCursors {
 			};
 			this.onCursorSelectionChanged(eventsCollector, e);
 		}
-	}
-
-	public onCursorScrollRequest(eventsCollector: ViewEventsCollector, e: editorCommon.ICursorScrollRequestEvent): void {
-		eventsCollector.emit(new viewEvents.ViewScrollRequestEvent(e.deltaLines, e.revealCursor));
 	}
 }

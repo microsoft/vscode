@@ -21,6 +21,7 @@ export abstract class TerminalService implements ITerminalService {
 	protected _onInstancesChanged: Emitter<string>;
 	protected _onInstanceDisposed: Emitter<ITerminalInstance>;
 	protected _onInstanceProcessIdReady: Emitter<ITerminalInstance>;
+	protected _onInstanceData: Emitter<{ instance: ITerminalInstance, data: string }>;
 	protected _onInstanceTitleChanged: Emitter<string>;
 	protected _terminalInstances: ITerminalInstance[];
 
@@ -31,6 +32,7 @@ export abstract class TerminalService implements ITerminalService {
 	public get onActiveInstanceChanged(): Event<string> { return this._onActiveInstanceChanged.event; }
 	public get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
 	public get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
+	public get onInstanceData(): Event<{ instance: ITerminalInstance, data: string }> { return this._onInstanceData.event; }
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
 	public get onInstancesChanged(): Event<string> { return this._onInstancesChanged.event; }
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
@@ -50,6 +52,7 @@ export abstract class TerminalService implements ITerminalService {
 		this._onActiveInstanceChanged = new Emitter<string>();
 		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
 		this._onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
+		this._onInstanceData = new Emitter<{ instance: ITerminalInstance, data: string }>();
 		this._onInstanceTitleChanged = new Emitter<string>();
 		this._onInstancesChanged = new Emitter<string>();
 
@@ -60,20 +63,29 @@ export abstract class TerminalService implements ITerminalService {
 	}
 
 	protected abstract _showTerminalCloseConfirmation(): boolean;
-	public abstract createInstance(shell?: IShellLaunchConfig): ITerminalInstance;
+	public abstract createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
+	public abstract selectDefaultWindowsShell(): TPromise<string>;
 	public abstract setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	private _onWillShutdown(): boolean {
-		if (!this.configHelper.config.confirmOnExit) {
-			// Don't veto if configured to skip confirmation
-			return false;
-		}
 		if (this.terminalInstances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
 		}
-		// Veto based on response to message
-		return this._showTerminalCloseConfirmation();
+
+		if (this.configHelper.config.confirmOnExit) {
+			// veto if configured to show confirmation and the user choosed not to exit
+			if (this._showTerminalCloseConfirmation()) {
+				return true;
+			}
+		}
+
+		// Dispose all terminal instances and don't veto
+		this.terminalInstances.forEach(instance => {
+			instance.dispose();
+		});
+		return false;
 	}
 
 	public getInstanceLabels(): string[] {
@@ -105,6 +117,7 @@ export abstract class TerminalService implements ITerminalService {
 	public getActiveInstance(): ITerminalInstance {
 		if (this.activeTerminalInstanceIndex < 0 || this.activeTerminalInstanceIndex >= this.terminalInstances.length) {
 			return null;
+
 		}
 		return this.terminalInstances[this.activeTerminalInstanceIndex];
 	}
@@ -196,5 +209,9 @@ export abstract class TerminalService implements ITerminalService {
 
 	public updateConfig(): void {
 		this.terminalInstances.forEach(instance => instance.updateConfig());
+	}
+
+	public setWorkspaceShellAllowed(isAllowed: boolean): void {
+		this.configHelper.setWorkspaceShellAllowed(isAllowed);
 	}
 }

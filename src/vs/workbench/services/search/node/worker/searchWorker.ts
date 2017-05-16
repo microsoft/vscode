@@ -86,10 +86,10 @@ export class SearchWorkerEngine {
 
 	private _searchBatch(args: ISearchWorkerSearchArgs, contentPattern: RegExp, fileEncoding: string): TPromise<ISearchWorkerSearchResult> {
 		if (this.isCanceled) {
-			return TPromise.wrap(null);
+			return TPromise.wrap<ISearchWorkerSearchResult>(null);
 		}
 
-		return new TPromise(batchDone => {
+		return new TPromise<ISearchWorkerSearchResult>(batchDone => {
 			const result: ISearchWorkerSearchResult = {
 				matches: [],
 				numMatches: 0,
@@ -209,7 +209,7 @@ export class SearchWorkerEngine {
 
 						// Detect encoding and mime when this is the beginning of the file
 						if (isFirstRead) {
-							const mimeAndEncoding = detectMimeAndEncodingFromBuffer({ buffer, bytesRead });
+							const mimeAndEncoding = detectMimeAndEncodingFromBuffer({ buffer, bytesRead }, false);
 							if (mimeAndEncoding.mimes[mimeAndEncoding.mimes.length - 1] !== baseMime.MIME_TEXT) {
 								return clb(null); // skip files that seem binary
 							}

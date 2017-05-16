@@ -127,10 +127,7 @@ function invertColor(color) {
 }
 
 function getLanguageMappings() {
-	var langToExt = {
-		'csharp': ['cs', 'csx']
-	};
-
+	let langMappings = {}
 	var allExtensions = fs.readdirSync('..');
 	for (var i= 0; i < allExtensions.length; i++) {
 		let dirPath = path.join('..', allExtensions[i], 'package.json');
@@ -140,17 +137,24 @@ function getLanguageMappings() {
 			let languages = jsonContent.contributes && jsonContent.contributes.languages;
 			if (Array.isArray(languages)) {
 				for (var k = 0; k < languages.length; k++) {
-					var extensions = languages[k].extensions;
 					var languageId = languages[k].id;
-					if (Array.isArray(extensions) && languageId) {
-						langToExt[languageId] = extensions.map(function (e) { return e.substr(1); });
+					if (languageId) {
+						var extensions = languages[k].extensions;
+						var mapping = {};
+						if (Array.isArray(extensions)) {
+							mapping.extensions = extensions.map(function (e) { return e.substr(1).toLowerCase(); });
+						}
+						var filenames = languages[k].filenames;
+						if (Array.isArray(filenames)) {
+							mapping.fileNames = filenames.map(function (f) { return f.toLowerCase(); });
+						}
+						langMappings[languageId] = mapping;
 					}
 				}
 			}
 		}
 	}
-
-	return langToExt;
+	return langMappings;
 }
 
 //var font = 'https://raw.githubusercontent.com/jesseweed/seti-ui/master/styles/_fonts/seti/seti.woff';
@@ -258,20 +262,32 @@ exports.update = function () {
 				def2ColorId[def] = colorId;
 			}
 			// replace extensions for languageId
-			var langToExt = getLanguageMappings();
-			for (var lang in langToExt) {
-				var exts = langToExt[lang];
+			var langMappings = getLanguageMappings();
+			for (var lang in langMappings) {
+				var mappings = langMappings[lang];
+				var exts = mappings.extensions || [];
+				var fileNames = mappings.fileNames || [];
 				var preferredDef = null;
 				// use the first file association for the preferred definition
-				for (var i1 = 0; i1 < exts.length && !preferredDef; i1++) {
+				for (let i1 = 0; i1 < exts.length && !preferredDef; i1++) {
 					preferredDef = ext2Def[exts[i1]];
+				}
+				// use the first file association for the preferred definition
+				for (let i1 = 0; i1 < fileNames.length && !preferredDef; i1++) {
+					preferredDef = fileName2Def[fileNames[i1]];
 				}
 				if (preferredDef) {
 					lang2Def[lang] = preferredDef;
-					for (var i2 = 0; i2 < exts.length; i2++) {
-						// remove the extention association, unless it is different from the preferred
+					for (let i2 = 0; i2 < exts.length; i2++) {
+						// remove the extension association, unless it is different from the preferred
 						if (ext2Def[exts[i2]] === preferredDef) {
 							delete ext2Def[exts[i2]];
+						}
+					}
+					for (let i2 = 0; i2 < fileNames.length; i2++) {
+						// remove the fileName association, unless it is different from the preferred
+						if (fileName2Def[fileNames[i2]] === preferredDef) {
+							delete fileName2Def[fileNames[i2]];
 						}
 					}
 				}

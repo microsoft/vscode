@@ -7,7 +7,7 @@
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TextEditorCursorStyle } from 'vs/editor/common/editorCommon';
+import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -84,8 +84,8 @@ export class ViewCursor {
 		this._renderData = null;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
 	}
 
 	public getIsInEditableRange(): boolean {
@@ -114,7 +114,7 @@ export class ViewCursor {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.cursorStyle) {
+		if (e.viewInfo) {
 			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		}
 		if (e.fontInfo) {
@@ -145,7 +145,7 @@ export class ViewCursor {
 			}
 			let width: number;
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
-				width = this._isSecondary ? 1 : 2;
+				width = 2;
 			} else {
 				width = 1;
 			}

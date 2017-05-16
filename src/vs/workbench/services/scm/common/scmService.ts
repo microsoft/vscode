@@ -5,11 +5,13 @@
 
 'use strict';
 
-import { IDisposable, toDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { memoize } from 'vs/base/common/decorators';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ISCMService, ISCMProvider, ISCMInput } from './scm';
+import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ISCMService, ISCMProvider, ISCMInput, DefaultSCMProviderIdStorageKey } from './scm';
 
 class SCMInput implements ISCMInput {
 
@@ -32,9 +34,9 @@ export class SCMService implements ISCMService {
 
 	_serviceBrand;
 
-	private providerChangeDisposable: IDisposable = EmptyDisposable;
+	private activeProviderDisposable: IDisposable = EmptyDisposable;
+	private statusBarDisposable: IDisposable = EmptyDisposable;
 	private activeProviderContextKey: IContextKey<string | undefined>;
-	private activeProviderStateContextKey: IContextKey<string | undefined>;
 
 	private _activeProvider: ISCMProvider | undefined;
 
@@ -43,22 +45,8 @@ export class SCMService implements ISCMService {
 	}
 
 	set activeProvider(provider: ISCMProvider | undefined) {
-		if (!provider) {
-			throw new Error('invalid provider');
-		}
-
-		if (provider && this._providers.indexOf(provider) === -1) {
-			throw new Error('Provider not registered');
-		}
-
-		this._activeProvider = provider;
-		this.activeProviderContextKey.set(provider ? provider.id : void 0);
-
-		this.providerChangeDisposable.dispose();
-		this.providerChangeDisposable = provider.onDidChange(this.onDidChangeProviderState, this);
-		this.onDidChangeProviderState();
-
-		this._onDidChangeProvider.fire(provider);
+		this.setActiveSCMProdiver(provider);
+		this.storageService.store(DefaultSCMProviderIdStorageKey, provider.id, StorageScope.WORKSPACE);
 	}
 
 	private _providers: ISCMProvider[] = [];
@@ -71,17 +59,40 @@ export class SCMService implements ISCMService {
 	get input(): ISCMInput { return new SCMInput(); }
 
 	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService private storageService: IStorageService,
+		@IStatusbarService private statusbarService: IStatusbarService
 	) {
 		this.activeProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', void 0);
-		this.activeProviderStateContextKey = contextKeyService.createKey<string | undefined>('scmProviderState', void 0);
+	}
+
+	private setActiveSCMProdiver(provider: ISCMProvider): void {
+		this.activeProviderDisposable.dispose();
+
+		if (!provider) {
+			throw new Error('invalid provider');
+		}
+
+		if (provider && this._providers.indexOf(provider) === -1) {
+			throw new Error('Provider not registered');
+		}
+
+		this._activeProvider = provider;
+
+		this.activeProviderDisposable = provider.onDidChange(() => this.onDidProviderChange(provider));
+		this.onDidProviderChange(provider);
+
+		this.activeProviderContextKey.set(provider ? provider.id : void 0);
+		this._onDidChangeProvider.fire(provider);
 	}
 
 	registerSCMProvider(provider: ISCMProvider): IDisposable {
-		this._providers = [provider, ...this._providers];
+		this._providers.push(provider);
 
-		if (this._providers.length === 1) {
-			this.activeProvider = provider;
+		const defaultProviderId = this.storageService.get(DefaultSCMProviderIdStorageKey, StorageScope.WORKSPACE);
+
+		if (this._providers.length === 1 || defaultProviderId === provider.id) {
+			this.setActiveSCMProdiver(provider);
 		}
 
 		return toDisposable(() => {
@@ -99,7 +110,16 @@ export class SCMService implements ISCMService {
 		});
 	}
 
-	private onDidChangeProviderState(): void {
-		this.activeProviderStateContextKey.set(this.activeProvider.state);
+	private onDidProviderChange(provider: ISCMProvider): void {
+		this.statusBarDisposable.dispose();
+
+		const commands = provider.statusBarCommands || [];
+		const disposables = commands.map(c => this.statusbarService.addEntry({
+			text: c.title,
+			tooltip: c.tooltip,
+			command: c.id
+		}, MainThreadStatusBarAlignment.LEFT, 10000));
+
+		this.statusBarDisposable = combinedDisposable(disposables);
 	}
 }

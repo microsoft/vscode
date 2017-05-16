@@ -15,10 +15,9 @@ class WindowManager {
 	private _fullscreen: boolean;
 
 	private _zoomLevel: number = 0;
-	private _zoomFactor: number = 0;
+	private _lastZoomLevelChangeTime: number = 0;
 
-	private _pixelRatioCache: number = 0;
-	private _pixelRatioComputed: boolean = false;
+	private _zoomFactor: number = 0;
 
 	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
 	public onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
@@ -30,13 +29,18 @@ class WindowManager {
 		return this._zoomLevel;
 	}
 
-	public setZoomLevel(zoomLevel: number): void {
+	public getTimeSinceLastZoomLevelChanged(): number {
+		return Date.now() - this._lastZoomLevelChangeTime;
+	}
+
+	public setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
 		if (this._zoomLevel === zoomLevel) {
 			return;
 		}
 
 		this._zoomLevel = zoomLevel;
-		this._pixelRatioComputed = false;
+		// See https://github.com/Microsoft/vscode/issues/26151
+		this._lastZoomLevelChangeTime = isTrusted ? 0 : Date.now();
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
@@ -49,14 +53,6 @@ class WindowManager {
 	}
 
 	public getPixelRatio(): number {
-		if (!this._pixelRatioComputed) {
-			this._pixelRatioCache = this._computePixelRatio();
-			this._pixelRatioComputed = true;
-		}
-		return this._pixelRatioCache;
-	}
-
-	private _computePixelRatio(): number {
 		let ctx = document.createElement('canvas').getContext('2d');
 		let dpr = window.devicePixelRatio || 1;
 		let bsr = (<any>ctx).webkitBackingStorePixelRatio ||
@@ -82,8 +78,15 @@ class WindowManager {
 }
 
 /** A zoom index, e.g. 1, 2, 3 */
+export function setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
+	WindowManager.INSTANCE.setZoomLevel(zoomLevel, isTrusted);
+}
 export function getZoomLevel(): number {
 	return WindowManager.INSTANCE.getZoomLevel();
+}
+/** Returns the time (in ms) since the zoom level was changed */
+export function getTimeSinceLastZoomLevelChanged(): number {
+	return WindowManager.INSTANCE.getTimeSinceLastZoomLevelChanged();
 }
 /** The zoom scale for an index, e.g. 1, 1.2, 1.4 */
 export function getZoomFactor(): number {
@@ -91,9 +94,6 @@ export function getZoomFactor(): number {
 }
 export function getPixelRatio(): number {
 	return WindowManager.INSTANCE.getPixelRatio();
-}
-export function setZoomLevel(zoomLevel: number): void {
-	WindowManager.INSTANCE.setZoomLevel(zoomLevel);
 }
 export function setZoomFactor(zoomFactor: number): void {
 	WindowManager.INSTANCE.setZoomFactor(zoomFactor);
@@ -124,7 +124,34 @@ export const isChrome = (userAgent.indexOf('Chrome') >= 0);
 export const isSafari = (userAgent.indexOf('Chrome') === -1) && (userAgent.indexOf('Safari') >= 0);
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
 
-export const canUseTranslate3d = !isFirefox;
+export const isChromev56 = (
+	userAgent.indexOf('Chrome/56.') >= 0
+	// Edge likes to impersonate Chrome sometimes
+	&& userAgent.indexOf('Edge/') === -1
+);
+
+export const supportsTranslate3d = !isFirefox;
+
+export function canUseTranslate3d(): boolean {
+	if (!supportsTranslate3d) {
+		return false;
+	}
+
+	if (getZoomLevel() !== 0) {
+		return false;
+	}
+
+	// see https://github.com/Microsoft/vscode/issues/24483
+	if (isChromev56) {
+		const pixelRatio = getPixelRatio();
+		if (Math.floor(pixelRatio) !== pixelRatio) {
+			// Not an integer
+			return false;
+		}
+	}
+
+	return true;
+}
 
 export const enableEmptySelectionClipboard = isWebKit;
 

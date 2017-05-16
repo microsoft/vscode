@@ -31,6 +31,7 @@ suite('Search Actions', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IKeybindingService, {});
 		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: Keybinding) => [new USLayoutResolvedKeybinding(keybinding, OS)]);
+		instantiationService.stub(IKeybindingService, 'lookupKeybinding', (id: string) => null);
 		counter = 0;
 	});
 
@@ -130,7 +131,7 @@ suite('Search Actions', () => {
 			resource: URI.file('somepath' + ++counter),
 			lineMatches: []
 		};
-		return instantiationService.createInstance(FileMatch, null, null, rawMatch);
+		return instantiationService.createInstance(FileMatch, null, null, null, rawMatch);
 	}
 
 	function aMatch(fileMatch: FileMatch): Match {

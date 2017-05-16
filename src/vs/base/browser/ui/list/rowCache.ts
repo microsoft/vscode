@@ -58,7 +58,7 @@ export class RowCache<T> implements IDisposable {
 	}
 
 	private releaseRow(row: IRow): void {
-		const {domNode, templateId} = row;
+		const { domNode, templateId } = row;
 		removeClass(domNode, 'scrolling');
 		removeFromParent(domNode);
 

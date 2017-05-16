@@ -26,11 +26,21 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Themable } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { localize } from 'vs/nls';
 
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 
-export class DebugActionsWidget implements IWorkbenchContribution {
+export const debugToolBarBackground = registerColor('debugToolBar.background', {
+	dark: '#333333',
+	light: '#F3F3F3',
+	hc: '#000000'
+}, localize('debugToolBarBackground', "Debug toolbar background color."));
+
+export class DebugActionsWidget extends Themable implements IWorkbenchContribution {
 	private static ID = 'debug.actionsWidget';
 
 	private $el: builder.Builder;
@@ -42,7 +52,6 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 
 	private isVisible: boolean;
 	private isBuilt: boolean;
-	private focusProcessActionItem: FocusProcessActionItem;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -51,8 +60,11 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IStorageService private storageService: IStorageService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IThemeService themeService: IThemeService
 	) {
+		super(themeService);
+
 		this.$el = $().div().addClass('debug-actions-widget').style('top', `${partService.getTitleBarOffset()}px`);
 		this.dragArea = $().div().addClass('drag-area');
 		this.$el.append(this.dragArea);
@@ -66,17 +78,14 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusProcessAction.ID) {
-					if (!this.focusProcessActionItem) {
-						this.focusProcessActionItem = this.instantiationService.createInstance(FocusProcessActionItem, action);
-						this.toDispose.push(this.focusProcessActionItem);
-					}
-
-					return this.focusProcessActionItem;
+					return this.instantiationService.createInstance(FocusProcessActionItem, action);
 				}
 
 				return null;
 			}
 		});
+
+		this.updateStyles();
 
 		this.toDispose.push(this.actionBar);
 		this.registerListeners();
@@ -88,7 +97,7 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 	private registerListeners(): void {
 		this.toDispose.push(this.debugService.onDidChangeState(state => this.update(state)));
 		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.update(this.debugService.state)));
-		this.toDispose.push(this.actionBar.actionRunner.addListener2(EventType.RUN, (e: any) => {
+		this.toDispose.push(this.actionBar.actionRunner.addListener(EventType.RUN, (e: any) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
 				this.messageService.show(severity.Error, e.error);
@@ -129,6 +138,22 @@ export class DebugActionsWidget implements IWorkbenchContribution {
 
 		this.toDispose.push(this.partService.onTitleBarVisibilityChange(() => this.positionDebugWidget()));
 		this.toDispose.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		if (this.$el) {
+			this.$el.style('background-color', this.getColor(debugToolBarBackground));
+
+			const widgetShadowColor = this.getColor(widgetShadow);
+			this.$el.style('box-shadow', widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null);
+
+			const contrastBorderColor = this.getColor(contrastBorder);
+			this.$el.style('border-style', contrastBorderColor ? 'solid' : null);
+			this.$el.style('border-width', contrastBorderColor ? '1px' : null);
+			this.$el.style('border-color', contrastBorderColor);
+		}
 	}
 
 	private positionDebugWidget(): void {

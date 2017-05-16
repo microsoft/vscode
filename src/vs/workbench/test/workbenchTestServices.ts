@@ -21,7 +21,7 @@ import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
@@ -50,7 +50,7 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IThemeService, ITheme, IThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ITheme, IThemingParticipant, ThemeType } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { isLinux } from 'vs/base/common/platform';
@@ -158,7 +158,7 @@ export class TestTextFileService extends TextFileService {
 			const error = this.resolveTextContentError;
 			this.resolveTextContentError = null;
 
-			return TPromise.wrapError(error);
+			return TPromise.wrapError<IRawTextContent>(error);
 		}
 
 		return this.fileService.resolveContent(resource, options).then((content) => {
@@ -191,8 +191,6 @@ export class TestTextFileService extends TextFileService {
 		this.cleanupBackupsBeforeShutdownCalled = true;
 		return TPromise.as(void 0);
 	}
-
-	public showHotExitMessage(): void { }
 }
 
 export function workbenchInstantiationService(): IInstantiationService {
@@ -332,6 +330,8 @@ export class TestPartService implements IPartService {
 	public getWorkbenchElementId(): string { return ''; }
 
 	public toggleZenMode(): void { }
+
+	public resizePart(part: Parts, sizeChange: number): void { }
 }
 
 export class TestStorageService extends EventEmitter implements IStorageService {
@@ -457,6 +457,10 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return 'vertical';
 	}
 
+	public resizeGroup(position: Position, groupSizeChange: number): void {
+
+	}
+
 	public pinEditor(group: IEditorGroup, input: IEditorInput): void;
 	public pinEditor(position: Position, input: IEditorInput): void;
 	public pinEditor(arg1: any, input: IEditorInput): void {
@@ -562,8 +566,8 @@ export class TestEditorService implements IWorkbenchEditorService {
 		return TPromise.as(null);
 	}
 
-	public createInput(input: IResourceInput): TPromise<IEditorInput> {
-		return TPromise.as(null);
+	public createInput(input: IResourceInput): IEditorInput {
+		return null;
 	}
 }
 
@@ -769,6 +773,10 @@ export class TestWindowService implements IWindowService {
 
 	public _serviceBrand: any;
 
+	isFocused(): TPromise<boolean> {
+		return TPromise.as(false);
+	}
+
 	getCurrentWindowId(): number {
 		return 0;
 	}
@@ -880,6 +888,10 @@ export class TestWindowsService implements IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 
+	isFocused(windowId: number): TPromise<boolean> {
+		return TPromise.as(false);
+	}
+
 	openFileFolderPicker(windowId: number, forceNewWindow?: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -912,6 +924,9 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+	clearRecentPathsList(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
@@ -973,8 +988,8 @@ export class TestWindowsService implements IWindowsService {
 
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
-	openExternal(url: string): TPromise<void> {
-		return TPromise.as(void 0);
+	openExternal(url: string): TPromise<boolean> {
+		return TPromise.as(true);
 	}
 
 	// TODO: this is a bit backwards
@@ -984,14 +999,13 @@ export class TestWindowsService implements IWindowsService {
 }
 
 export class TestTheme implements ITheme {
-	selector: string;
-	type: 'light' | 'dark' | 'hc';
+	type: ThemeType;
 
 	getColor(color: string, useDefault?: boolean): Color {
 		throw new Error('Method not implemented.');
 	}
 
-	isDefault(color: string): boolean {
+	defines(color: string): boolean {
 		throw new Error('Method not implemented.');
 	}
 }

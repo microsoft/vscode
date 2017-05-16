@@ -4,12 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { KeyMod, KeyChord, USER_SETTINGS, createKeybinding } from 'vs/base/common/keyCodes';
+import { USER_SETTINGS, Keybinding, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
-import { IKeybindingItem } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ScanCodeBinding, ScanCodeUtils } from 'vs/workbench/services/keybinding/common/scanCode';
+
+export interface IUserKeybindingItem {
+	firstPart: SimpleKeybinding | ScanCodeBinding;
+	chordPart: SimpleKeybinding | ScanCodeBinding;
+	command: string;
+	commandArgs?: any;
+	when: ContextKeyExpr;
+}
 
 export class KeybindingIO {
 
@@ -30,139 +38,131 @@ export class KeybindingIO {
 		out.write('}');
 	}
 
-	public static readKeybindingItem(input: IUserFriendlyKeybinding, index: number, OS: OperatingSystem): IKeybindingItem {
-		let key: number = 0;
-		if (typeof input.key === 'string') {
-			key = KeybindingIO.readKeybinding(input.key, OS);
-		}
-
-		let when: ContextKeyExpr = null;
-		if (typeof input.when === 'string') {
-			when = ContextKeyExpr.deserialize(input.when);
-		}
-
-		let command: string = null;
-		if (typeof input.command === 'string') {
-			command = input.command;
-		}
-
-		let commandArgs: any = null;
-		if (typeof input.args !== 'undefined') {
-			commandArgs = input.args;
-		}
-
+	public static readUserKeybindingItem(input: IUserFriendlyKeybinding, OS: OperatingSystem): IUserKeybindingItem {
+		const [firstPart, chordPart] = (typeof input.key === 'string' ? this._readUserBinding(input.key) : [null, null]);
+		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : null);
+		const command = (typeof input.command === 'string' ? input.command : null);
+		const commandArgs = (typeof input.args !== 'undefined' ? input.args : null);
 		return {
-			keybinding: createKeybinding(key, OS),
+			firstPart: firstPart,
+			chordPart: chordPart,
 			command: command,
 			commandArgs: commandArgs,
-			when: when,
-			weight1: 1000,
-			weight2: index
+			when: when
 		};
 	}
 
-	private static _cachedKeybindingRegex: string = null;
-
-	/**
-	 * @internal
-	 */
-	public static getUserSettingsKeybindingRegex(): string {
-		if (!this._cachedKeybindingRegex) {
-			let numpadKey = 'numpad(0|1|2|3|4|5|6|7|8|9|_multiply|_add|_subtract|_decimal|_divide|_separator)';
-			let oemKey = '`|\\-|=|\\[|\\]|\\\\\\\\|;|\'|,|\\.|\\/|oem_8|oem_102';
-			let specialKey = 'left|up|right|down|pageup|pagedown|end|home|tab|enter|escape|space|backspace|delete|pausebreak|capslock|insert|contextmenu|numlock|scrolllock';
-			let casualKey = '[a-z]|[0-9]|f(1|2|3|4|5|6|7|8|9|10|11|12|13|14|15|16|17|18|19)';
-			let key = '((' + [numpadKey, oemKey, specialKey, casualKey].join(')|(') + '))';
-			let mod = '((ctrl|shift|alt|cmd|win|meta)\\+)*';
-			let keybinding = '(' + mod + key + ')';
-
-			this._cachedKeybindingRegex = '"\\s*(' + keybinding + '(\\s+' + keybinding + ')?' + ')\\s*"';
-		}
-		return this._cachedKeybindingRegex;
-	}
-
-	public static readKeybinding(input: string, OS: OperatingSystem): number {
-		if (!input) {
-			return 0;
-		}
+	private static _readModifiers(input: string) {
 		input = input.toLowerCase().trim();
 
-		let ctrlCmd = false,
-			shift = false,
-			alt = false,
-			winCtrl = false,
-			key: string = '';
+		let ctrl = false;
+		let shift = false;
+		let alt = false;
+		let meta = false;
 
-		while (/^(ctrl|shift|alt|meta|win|cmd)(\+|\-)/.test(input)) {
+		let matchedModifier: boolean;
+
+		do {
+			matchedModifier = false;
 			if (/^ctrl(\+|\-)/.test(input)) {
-				if (OS === OperatingSystem.Macintosh) {
-					winCtrl = true;
-				} else {
-					ctrlCmd = true;
-				}
+				ctrl = true;
 				input = input.substr('ctrl-'.length);
+				matchedModifier = true;
 			}
 			if (/^shift(\+|\-)/.test(input)) {
 				shift = true;
 				input = input.substr('shift-'.length);
+				matchedModifier = true;
 			}
 			if (/^alt(\+|\-)/.test(input)) {
 				alt = true;
 				input = input.substr('alt-'.length);
+				matchedModifier = true;
 			}
 			if (/^meta(\+|\-)/.test(input)) {
-				if (OS === OperatingSystem.Macintosh) {
-					ctrlCmd = true;
-				} else {
-					winCtrl = true;
-				}
+				meta = true;
 				input = input.substr('meta-'.length);
+				matchedModifier = true;
 			}
 			if (/^win(\+|\-)/.test(input)) {
-				if (OS === OperatingSystem.Macintosh) {
-					ctrlCmd = true;
-				} else {
-					winCtrl = true;
-				}
+				meta = true;
 				input = input.substr('win-'.length);
+				matchedModifier = true;
 			}
 			if (/^cmd(\+|\-)/.test(input)) {
-				if (OS === OperatingSystem.Macintosh) {
-					ctrlCmd = true;
-				} else {
-					winCtrl = true;
-				}
+				meta = true;
 				input = input.substr('cmd-'.length);
+				matchedModifier = true;
 			}
-		}
+		} while (matchedModifier);
 
-		let chord: number = 0;
+		let key: string;
 
-		let firstSpaceIdx = input.indexOf(' ');
+		const firstSpaceIdx = input.indexOf(' ');
 		if (firstSpaceIdx > 0) {
 			key = input.substring(0, firstSpaceIdx);
-			chord = KeybindingIO.readKeybinding(input.substring(firstSpaceIdx), OS);
+			input = input.substring(firstSpaceIdx);
 		} else {
 			key = input;
+			input = '';
 		}
 
-		let keyCode = USER_SETTINGS.toKeyCode(key);
+		return {
+			remains: input,
+			ctrl,
+			shift,
+			alt,
+			meta,
+			key
+		};
+	}
 
-		let result = 0;
-		if (ctrlCmd) {
-			result |= KeyMod.CtrlCmd;
+	private static _readSimpleKeybinding(input: string): [SimpleKeybinding, string] {
+		const mods = this._readModifiers(input);
+		const keyCode = USER_SETTINGS.toKeyCode(mods.key);
+		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
+	}
+
+	public static readKeybinding(input: string, OS: OperatingSystem): Keybinding {
+		if (!input) {
+			return null;
 		}
-		if (shift) {
-			result |= KeyMod.Shift;
+
+		let [firstPart, remains] = this._readSimpleKeybinding(input);
+		let chordPart: SimpleKeybinding = null;
+		if (remains.length > 0) {
+			[chordPart] = this._readSimpleKeybinding(remains);
 		}
-		if (alt) {
-			result |= KeyMod.Alt;
+
+		if (chordPart) {
+			return new ChordKeybinding(firstPart, chordPart);
 		}
-		if (winCtrl) {
-			result |= KeyMod.WinCtrl;
+		return firstPart;
+	}
+
+	private static _readSimpleUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, string] {
+		const mods = this._readModifiers(input);
+		const scanCodeMatch = mods.key.match(/^\[([^\]]+)\]$/);
+		if (scanCodeMatch) {
+			const strScanCode = scanCodeMatch[1];
+			const scanCode = ScanCodeUtils.lowerCaseToEnum(strScanCode);
+			return [new ScanCodeBinding(mods.ctrl, mods.shift, mods.alt, mods.meta, scanCode), mods.remains];
 		}
-		result |= keyCode;
-		return KeyChord(result, chord);
+		const keyCode = USER_SETTINGS.toKeyCode(mods.key);
+		return [new SimpleKeybinding(mods.ctrl, mods.shift, mods.alt, mods.meta, keyCode), mods.remains];
+	}
+
+	static _readUserBinding(input: string): [SimpleKeybinding | ScanCodeBinding, SimpleKeybinding | ScanCodeBinding] {
+		if (!input) {
+			return [null, null];
+		}
+
+		let [firstPart, remains] = this._readSimpleUserBinding(input);
+		let chordPart: SimpleKeybinding | ScanCodeBinding = null;
+		if (remains.length > 0) {
+			[chordPart] = this._readSimpleUserBinding(remains);
+		}
+		return [firstPart, chordPart];
 	}
 }
 

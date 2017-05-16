@@ -54,8 +54,8 @@ export class SearchService implements IRawSearchService {
 			const collector = new BatchedCollector<ISerializedFileMatch>(SearchService.BATCH_SIZE, p);
 			engine.search((match) => {
 				collector.addItem(match, match.numMatches);
-			}, (progress) => {
-				p(progress);
+			}, (message) => {
+				p(message);
 			}, (error, stats) => {
 				collector.flush();
 

@@ -18,6 +18,8 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IDebugService, IBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { once } from 'vs/base/common/functional';
+import { attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const $ = dom.$;
 const EXPRESSION_PLACEHOLDER = nls.localize('breakpointWidgetExpressionPlaceholder', "Break when expression evaluates to true. 'Enter' to accept, 'esc' to cancel.");
@@ -35,7 +37,8 @@ export class BreakpointWidget extends ZoneWidget {
 
 	constructor(editor: ICodeEditor, private lineNumber: number, private column: number,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IDebugService private debugService: IDebugService
+		@IDebugService private debugService: IDebugService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
 
@@ -69,6 +72,7 @@ export class BreakpointWidget extends ZoneWidget {
 		this.hitCountContext = breakpoint && breakpoint.hitCondition && !breakpoint.condition;
 		const selected = this.hitCountContext ? 1 : 0;
 		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count")], selected);
+		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(dom.append(container, $('.breakpoint-select-container')));
 		selectBox.onDidSelect(e => {
 			this.hitCountContext = e === 'Hit Count';
@@ -88,6 +92,7 @@ export class BreakpointWidget extends ZoneWidget {
 			placeholder: this.placeholder,
 			ariaLabel: this.ariaLabel
 		});
+		this.toDispose.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.toDispose.push(this.inputBox);
 
 		dom.addClass(this.inputBox.inputElement, isWindows ? 'windows' : isMacintosh ? 'mac' : 'linux');

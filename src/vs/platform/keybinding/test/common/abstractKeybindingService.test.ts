@@ -57,6 +57,10 @@ suite('AbstractKeybindingService', () => {
 			return this.resolveKeybinding(keybinding)[0];
 		}
 
+		public resolveUserBinding(userBinding: string): ResolvedKeybinding[] {
+			return [];
+		}
+
 		public testDispatch(kb: number): boolean {
 			const keybinding = createSimpleKeybinding(kb, OS);
 			return this._dispatch({
@@ -136,7 +140,7 @@ suite('AbstractKeybindingService', () => {
 				}
 			};
 
-			let resolver = new KeybindingResolver(items, [], false);
+			let resolver = new KeybindingResolver(items, []);
 
 			return new TestKeybindingService(resolver, contextKeyService, commandService, messageService, statusbarService);
 		};

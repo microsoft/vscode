@@ -25,8 +25,6 @@
 
 .monaco-editor .monaco-editor-overlaymessage .message {
 	padding: 1px 4px;
-	background: #1382CE;
-	color: white;
 }
 
 .monaco-editor .monaco-editor-overlaymessage .anchor {
@@ -36,6 +34,5 @@
 	border-style: solid;
 	z-index: 1000;
 	border-width: 8px;
-	border-top-color: #1382CE;
 	position: absolute;
 }

@@ -18,12 +18,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { HtmlInput } from 'vs/workbench/parts/html/common/htmlInput';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 
 import Webview from './webview';
+
 
 /**
  * An implementation of editor for showing HTML content in an IFrame by leveraging the HTML input.
@@ -48,7 +49,7 @@ export class HtmlPreviewPart extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IOpenerService openerService: IOpenerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IPartService private partService: IPartService
@@ -75,9 +76,7 @@ export class HtmlPreviewPart extends BaseEditor {
 
 	protected createEditor(parent: Builder): void {
 		this._container = document.createElement('div');
-		this._container.style.paddingLeft = '20px';
 		this._container.style.position = 'absolute';
-		this._container.style.zIndex = '300';
 		parent.getHTMLElement().appendChild(this._container);
 	}
 
@@ -116,8 +115,8 @@ export class HtmlPreviewPart extends BaseEditor {
 			this._webviewDisposables = dispose(this._webviewDisposables);
 			this._webview = undefined;
 		} else {
-			this._themeChangeSubscription = this.themeService.onDidColorThemeChange(themeId => this.webview.style(themeId));
-			this.webview.style(this.themeService.getColorTheme());
+			this._themeChangeSubscription = this.themeService.onThemeChange(themeId => this.webview.style(themeId));
+			this.webview.style(this.themeService.getTheme());
 
 			if (this._hasValidModel()) {
 				this._modelChangeSubscription = this.model.onDidChangeContent(() => this.webview.contents = this.model.getLinesContent());
@@ -131,10 +130,12 @@ export class HtmlPreviewPart extends BaseEditor {
 	}
 
 	public layout(dimension: Dimension): void {
-		const {width, height} = dimension;
-		// we take the padding we set on create into account
-		this._container.style.width = `${Math.max(width - 20, 0)}px`;
+		const { width, height } = dimension;
+		this._container.style.width = `${width}px`;
 		this._container.style.height = `${height}px`;
+		if (this._webview) {
+			this._webview.layout();
+		}
 	}
 
 	public focus(): void {

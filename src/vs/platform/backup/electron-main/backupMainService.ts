@@ -186,7 +186,7 @@ export class BackupMainService implements IBackupMainService {
 
 		// Clean up stale backups
 		staleBackupWorkspaces.forEach(staleBackupWorkspace => {
-			const {backupPath, workspaceIdentifier, isEmptyWorkspace} = staleBackupWorkspace;
+			const { backupPath, workspaceIdentifier, isEmptyWorkspace } = staleBackupWorkspace;
 
 			try {
 				extfs.delSync(backupPath);

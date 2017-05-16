@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import uri from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
 import Event from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IModel as EditorIModel, IEditorContribution, IRange } from 'vs/editor/common/editorCommon';
+import { IModel as EditorIModel, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -36,6 +37,11 @@ export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFo
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
+export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
+	enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
+	default: 'openOnFirstSessionStart',
+	description: nls.localize('internalConsoleOptions', "Controls behavior of the internal debug console.")
+};
 
 // raw
 
@@ -63,12 +69,16 @@ export interface ITreeElement {
 	getId(): string;
 }
 
+export interface IReplElement extends ITreeElement {
+	toString(): string;
+}
+
 export interface IExpressionContainer extends ITreeElement {
 	hasChildren: boolean;
 	getChildren(): TPromise<IExpression[]>;
 }
 
-export interface IExpression extends ITreeElement, IExpressionContainer {
+export interface IExpression extends IReplElement, IExpressionContainer {
 	name: string;
 	value: string;
 	valueChanged?: boolean;
@@ -77,6 +87,7 @@ export interface IExpression extends ITreeElement, IExpressionContainer {
 
 export interface ISession {
 	stackTrace(args: DebugProtocol.StackTraceArguments): TPromise<DebugProtocol.StackTraceResponse>;
+	exceptionInfo(args: DebugProtocol.ExceptionInfoArguments): TPromise<DebugProtocol.ExceptionInfoResponse>;
 	scopes(args: DebugProtocol.ScopesArguments): TPromise<DebugProtocol.ScopesResponse>;
 	variables(args: DebugProtocol.VariablesArguments): TPromise<DebugProtocol.VariablesResponse>;
 	evaluate(args: DebugProtocol.EvaluateArguments): TPromise<DebugProtocol.EvaluateResponse>;
@@ -85,7 +96,7 @@ export interface ISession {
 	disconnect(restart?: boolean, force?: boolean): TPromise<DebugProtocol.DisconnectResponse>;
 	custom(request: string, args: any): TPromise<DebugProtocol.Response>;
 	onDidEvent: Event<DebugProtocol.Event>;
-	restartFrame(args: DebugProtocol.RestartFrameArguments): TPromise<DebugProtocol.RestartFrameResponse>;
+	restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse>;
 
 	next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse>;
 	stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse>;
@@ -134,6 +145,11 @@ export interface IThread extends ITreeElement {
 	stoppedDetails: IRawStoppedDetails;
 
 	/**
+	 * Information about the exception if an 'exception' stopped event raised and DA supports the 'exceptionInfo' request, otherwise null.
+	 */
+	exceptionInfo: TPromise<IExceptionInfo>;
+
+	/**
 	 * Gets the callstack if it has already been received from the debug
 	 * adapter, otherwise it returns null.
 	 */
@@ -168,9 +184,8 @@ export interface IScope extends IExpressionContainer {
 export interface IStackFrame extends ITreeElement {
 	thread: IThread;
 	name: string;
-	lineNumber: number;
-	column: number;
 	frameId: number;
+	range: IRange;
 	source: Source;
 	getScopes(): TPromise<IScope[]>;
 	getMostSpecificScopes(range: IRange): TPromise<IScope[]>;
@@ -194,7 +209,9 @@ export interface IRawBreakpoint {
 export interface IBreakpoint extends IEnablement {
 	uri: uri;
 	lineNumber: number;
+	endLineNumber?: number;
 	column: number;
+	endColumn?: number;
 	condition: string;
 	hitCondition: string;
 	verified: boolean;
@@ -212,6 +229,13 @@ export interface IFunctionBreakpoint extends IEnablement {
 export interface IExceptionBreakpoint extends IEnablement {
 	filter: string;
 	label: string;
+}
+
+export interface IExceptionInfo {
+	id?: string;
+	description?: string;
+	breakMode: string;
+	details?: DebugProtocol.ExceptionDetails;
 }
 
 // model interfaces
@@ -257,7 +281,7 @@ export interface IModel extends ITreeElement {
 	getFunctionBreakpoints(): IFunctionBreakpoint[];
 	getExceptionBreakpoints(): IExceptionBreakpoint[];
 	getWatchExpressions(): IExpression[];
-	getReplElements(): ITreeElement[];
+	getReplElements(): IReplElement[];
 
 	onDidChangeBreakpoints: Event<void>;
 	onDidChangeCallStack: Event<void>;
@@ -281,6 +305,8 @@ export interface IDebugConfiguration {
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;
+	internalConsoleOptions: string;
+	variablesDelay: number;
 }
 
 export interface IGlobalConfig {
@@ -295,6 +321,7 @@ export interface IEnvConfig {
 	request: string;
 	internalConsoleOptions?: string;
 	preLaunchTask?: string;
+	__restart?: any;
 	debugServer?: number;
 	noDebug?: boolean;
 	port?: number;

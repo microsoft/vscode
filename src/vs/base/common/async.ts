@@ -46,7 +46,7 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 export function wireCancellationToken<T>(token: CancellationToken, promise: TPromise<T>, resolveAsUndefinedWhenCancelled?: boolean): Thenable<T> {
 	const subscription = token.onCancellationRequested(() => promise.cancel());
 	if (resolveAsUndefinedWhenCancelled) {
-		promise = promise.then(undefined, err => {
+		promise = promise.then<T>(undefined, err => {
 			if (!errors.isPromiseCanceledError(err)) {
 				return TPromise.wrapError(err);
 			}
@@ -145,7 +145,7 @@ export class Throttler {
 // TODO@Joao: can the previous throttler be replaced with this?
 export class SimpleThrottler {
 
-	private current = TPromise.as(null);
+	private current = TPromise.as<any>(null);
 
 	queue<T>(promiseTask: ITask<TPromise<T>>): TPromise<T> {
 		return this.current = this.current.then(() => promiseTask());

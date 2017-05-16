@@ -22,7 +22,8 @@ export interface IRawSearch {
 	maxFilesize?: number;
 	fileEncoding?: string;
 	useRipgrep?: boolean;
-	useIgnoreFiles?: boolean;
+	disregardIgnoreFiles?: boolean;
+	searchPaths?: string[];
 }
 
 export interface IRawSearchService {

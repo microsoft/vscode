@@ -104,7 +104,8 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 					// last item
 					let previous = parent.children[removalIndex - 1];
 					let offset = previous.offset + previous.length;
-					edit = { offset, length: parent.length - 2 - offset, content: '' };
+					let parentEndOffset = parent.offset + parent.length;
+					edit = { offset, length: parentEndOffset - 2 - offset, content: '' };
 				} else {
 					edit = { offset: toRemove.offset, length: parent.children[removalIndex + 1].offset - toRemove.offset, content: '' };
 				}

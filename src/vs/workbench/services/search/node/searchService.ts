@@ -42,17 +42,19 @@ export class SearchService implements ISearchService {
 
 		// Configuration: Encoding
 		if (!query.fileEncoding) {
-			let fileEncoding = configuration && configuration.files && configuration.files.encoding;
+			const fileEncoding = configuration && configuration.files && configuration.files.encoding;
 			query.fileEncoding = fileEncoding;
 		}
 
 		// Configuration: File Excludes
-		let fileExcludes = configuration && configuration.files && configuration.files.exclude;
-		if (fileExcludes) {
-			if (!query.excludePattern) {
-				query.excludePattern = fileExcludes;
-			} else {
-				objects.mixin(query.excludePattern, fileExcludes, false /* no overwrite */);
+		if (!query.disregardExcludeSettings) {
+			const fileExcludes = configuration && configuration.files && configuration.files.exclude;
+			if (fileExcludes) {
+				if (!query.excludePattern) {
+					query.excludePattern = fileExcludes;
+				} else {
+					objects.mixin(query.excludePattern, fileExcludes, false /* no overwrite */);
+				}
 			}
 		}
 	}
@@ -133,7 +135,7 @@ export class SearchService implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch, false);
+				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch, false, query.maxResults);
 				if (matches.length) {
 					let fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
@@ -230,7 +232,8 @@ export class DiskSearch {
 			sortByScore: query.sortByScore,
 			cacheKey: query.cacheKey,
 			useRipgrep: query.useRipgrep,
-			useIgnoreFiles: query.useIgnoreFiles
+			disregardIgnoreFiles: query.disregardIgnoreFiles,
+			searchPaths: query.searchPaths
 		};
 
 		if (query.type === QueryType.Text) {

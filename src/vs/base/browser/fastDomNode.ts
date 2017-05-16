@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 
 export abstract class FastDomNode<T extends HTMLElement> {
 
-	private _domNode: T;
+	public readonly domNode: T;
 	private _maxWidth: number;
 	private _width: number;
 	private _height: number;
@@ -27,12 +27,8 @@ export abstract class FastDomNode<T extends HTMLElement> {
 	private _visibility: string;
 	private _transform: string;
 
-	public get domNode(): T {
-		return this._domNode;
-	}
-
 	constructor(domNode: T) {
-		this._domNode = domNode;
+		this.domNode = domNode;
 		this._maxWidth = -1;
 		this._width = -1;
 		this._height = -1;
@@ -57,7 +53,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._maxWidth = maxWidth;
-		this._domNode.style.maxWidth = this._maxWidth + 'px';
+		this.domNode.style.maxWidth = this._maxWidth + 'px';
 	}
 
 	public setWidth(width: number): void {
@@ -65,7 +61,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._width = width;
-		this._domNode.style.width = this._width + 'px';
+		this.domNode.style.width = this._width + 'px';
 	}
 
 	public unsetWidth(): void {
@@ -73,7 +69,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._width = -1;
-		this._domNode.style.width = '';
+		this.domNode.style.width = '';
 	}
 
 	public setHeight(height: number): void {
@@ -81,7 +77,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._height = height;
-		this._domNode.style.height = this._height + 'px';
+		this.domNode.style.height = this._height + 'px';
 	}
 
 	public getHeight(): number {
@@ -93,7 +89,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._height = -1;
-		this._domNode.style.height = '';
+		this.domNode.style.height = '';
 	}
 
 	public setTop(top: number): void {
@@ -101,7 +97,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._top = top;
-		this._domNode.style.top = this._top + 'px';
+		this.domNode.style.top = this._top + 'px';
 	}
 
 	public getTop(): number {
@@ -113,7 +109,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._top = -1;
-		this._domNode.style.top = '';
+		this.domNode.style.top = '';
 	}
 
 	public setLeft(left: number): void {
@@ -121,7 +117,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._left = left;
-		this._domNode.style.left = this._left + 'px';
+		this.domNode.style.left = this._left + 'px';
 	}
 
 	public setBottom(bottom: number): void {
@@ -129,7 +125,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._bottom = bottom;
-		this._domNode.style.bottom = this._bottom + 'px';
+		this.domNode.style.bottom = this._bottom + 'px';
 	}
 
 	public setRight(right: number): void {
@@ -137,7 +133,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._right = right;
-		this._domNode.style.right = this._right + 'px';
+		this.domNode.style.right = this._right + 'px';
 	}
 
 	public setFontFamily(fontFamily: string): void {
@@ -145,7 +141,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._fontFamily = fontFamily;
-		this._domNode.style.fontFamily = this._fontFamily;
+		this.domNode.style.fontFamily = this._fontFamily;
 	}
 
 	public setFontWeight(fontWeight: string): void {
@@ -153,7 +149,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._fontWeight = fontWeight;
-		this._domNode.style.fontWeight = this._fontWeight;
+		this.domNode.style.fontWeight = this._fontWeight;
 	}
 
 	public setFontSize(fontSize: number): void {
@@ -161,7 +157,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._fontSize = fontSize;
-		this._domNode.style.fontSize = this._fontSize + 'px';
+		this.domNode.style.fontSize = this._fontSize + 'px';
 	}
 
 	public setLineHeight(lineHeight: number): void {
@@ -169,7 +165,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._lineHeight = lineHeight;
-		this._domNode.style.lineHeight = this._lineHeight + 'px';
+		this.domNode.style.lineHeight = this._lineHeight + 'px';
 	}
 
 	public setLetterSpacing(letterSpacing: number): void {
@@ -177,7 +173,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._letterSpacing = letterSpacing;
-		this._domNode.style.letterSpacing = this._letterSpacing + 'px';
+		this.domNode.style.letterSpacing = this._letterSpacing + 'px';
 	}
 
 	public setClassName(className: string): void {
@@ -185,22 +181,22 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._className = className;
-		this._domNode.className = this._className;
+		this.domNode.className = this._className;
 	}
 
 	public toggleClassName(className: string, shouldHaveIt?: boolean): void {
-		dom.toggleClass(this._domNode, className, shouldHaveIt);
-		this._className = this._domNode.className;
+		dom.toggleClass(this.domNode, className, shouldHaveIt);
+		this._className = this.domNode.className;
 	}
 
 	public addClassName(className: string): void {
-		dom.addClass(this._domNode, className);
-		this._className = this._domNode.className;
+		dom.addClass(this.domNode, className);
+		this._className = this.domNode.className;
 	}
 
 	public removeClassName(className: string): void {
-		dom.removeClass(this._domNode, className);
-		this._className = this._domNode.className;
+		dom.removeClass(this.domNode, className);
+		this._className = this.domNode.className;
 	}
 
 	public setDisplay(display: string): void {
@@ -208,7 +204,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._display = display;
-		this._domNode.style.display = this._display;
+		this.domNode.style.display = this._display;
 	}
 
 	public setPosition(position: string): void {
@@ -216,7 +212,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._position = position;
-		this._domNode.style.position = this._position;
+		this.domNode.style.position = this._position;
 	}
 
 	public setVisibility(visibility: string): void {
@@ -224,7 +220,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._visibility = visibility;
-		this._domNode.style.visibility = this._visibility;
+		this.domNode.style.visibility = this._visibility;
 	}
 
 	public setTransform(transform: string): void {
@@ -232,25 +228,33 @@ export abstract class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._transform = transform;
-		this._setTransform(this._domNode, this._transform);
+		this._setTransform(this.domNode, this._transform);
 	}
 
 	protected abstract _setTransform(domNode: T, transform: string): void;
 
 	public setAttribute(name: string, value: string): void {
-		this._domNode.setAttribute(name, value);
+		this.domNode.setAttribute(name, value);
 	}
 
 	public getAttribute(name: string): string {
-		return this._domNode.getAttribute(name);
+		return this.domNode.getAttribute(name);
 	}
 
 	public removeAttribute(name: string): void {
-		this._domNode.removeAttribute(name);
+		this.domNode.removeAttribute(name);
 	}
 
 	public hasAttribute(name: string): boolean {
-		return this._domNode.hasAttribute(name);
+		return this.domNode.hasAttribute(name);
+	}
+
+	public appendChild(child: FastDomNode<any>): void {
+		this.domNode.appendChild(child.domNode);
+	}
+
+	public removeChild(child: FastDomNode<any>): void {
+		this.domNode.removeChild(child.domNode);
 	}
 }
 

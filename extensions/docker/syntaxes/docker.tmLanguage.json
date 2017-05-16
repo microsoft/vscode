@@ -7,6 +7,14 @@
 		{
 			"captures": {
 				"1": {
+					"name": "keyword.other.special-method.dockerfile"
+				}
+			},
+			"match": "\\s*(?:(FROM|AS))\\s"
+		},
+		{
+			"captures": {
+				"1": {
 					"name": "keyword.control.dockerfile"
 				},
 				"2": {
@@ -86,5 +94,5 @@
 	],
 	"scopeName": "source.dockerfile",
 	"uuid": "a39d8795-59d2-49af-aa00-fe74ee29576e",
-	"version": "https://github.com/docker/docker/commit/4cb71f80823af345d063cf0ad657e73ce9caa75f"
+	"version": "https://github.com/moby/moby/commit/4cb71f80823af345d063cf0ad657e73ce9caa75f"
 }

@@ -40,17 +40,22 @@ const eolFilter = [
 	'!**/*.{svg,exe,png,bmp,scpt,bat,cmd,cur,ttf,woff,eot}',
 	'!build/{lib,tslintRules}/**/*.js',
 	'!build/monaco/**',
-	'!build/win32/**'
+	'!build/win32/**',
+	'!build/**/*.sh',
+	'!**/Dockerfile'
 ];
 
 const indentationFilter = [
 	'**',
 	'!ThirdPartyNotices.txt',
 	'!**/*.md',
+	'!**/*.ps1',
 	'!**/*.template',
 	'!**/*.yml',
 	'!**/lib/**',
-	'!**/*.d.ts',
+	'!extensions/**/*.d.ts',
+	'!src/typings/**/*.d.ts',
+	'!src/vs/*/**/*.d.ts',
 	'!**/*.d.ts.recipe',
 	'!test/assert.js',
 	'!**/package.json',
@@ -92,7 +97,6 @@ const copyrightFilter = [
 const tslintFilter = [
 	'src/**/*.ts',
 	'extensions/**/*.ts',
-	'!**/*.d.ts',
 	'!**/fixtures/**',
 	'!**/typings/**',
 	'!**/node_modules/**',

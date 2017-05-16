@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 /**
@@ -187,6 +186,14 @@ export const enum KeyCode {
 	NUMPAD_DIVIDE = 108,	// VK_DIVIDE, 0x6F,
 
 	/**
+	 * Cover all key codes when IME is processing input.
+	 */
+	KEY_IN_COMPOSITION = 109,
+
+	ABNT_C1 = 110, // Brazilian (ABNT) Keyboard
+	ABNT_C2 = 111, // Brazilian (ABNT) Keyboard
+
+	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
@@ -340,6 +347,8 @@ let STRING = createMapping((TO_STRING_MAP) => {
 	TO_STRING_MAP[KeyCode.US_DOT] = '.';
 	TO_STRING_MAP[KeyCode.US_SLASH] = '/';
 	TO_STRING_MAP[KeyCode.US_BACKTICK] = '`';
+	TO_STRING_MAP[KeyCode.ABNT_C1] = 'ABNT_C1';
+	TO_STRING_MAP[KeyCode.ABNT_C2] = 'ABNT_C2';
 	TO_STRING_MAP[KeyCode.US_OPEN_SQUARE_BRACKET] = '[';
 	TO_STRING_MAP[KeyCode.US_BACKSLASH] = '\\';
 	TO_STRING_MAP[KeyCode.US_CLOSE_SQUARE_BRACKET] = ']';
@@ -391,6 +400,8 @@ export let USER_SETTINGS = createMapping((TO_USER_SETTINGS_MAP) => {
 	FROM_USER_SETTINGS_MAP['OEM_PERIOD'] = KeyCode.US_DOT;
 	FROM_USER_SETTINGS_MAP['OEM_2'] = KeyCode.US_SLASH;
 	FROM_USER_SETTINGS_MAP['OEM_3'] = KeyCode.US_BACKTICK;
+	FROM_USER_SETTINGS_MAP['ABNT_C1'] = KeyCode.ABNT_C1;
+	FROM_USER_SETTINGS_MAP['ABNT_C2'] = KeyCode.ABNT_C2;
 	FROM_USER_SETTINGS_MAP['OEM_4'] = KeyCode.US_OPEN_SQUARE_BRACKET;
 	FROM_USER_SETTINGS_MAP['OEM_5'] = KeyCode.US_BACKSLASH;
 	FROM_USER_SETTINGS_MAP['OEM_6'] = KeyCode.US_CLOSE_SQUARE_BRACKET;
@@ -514,6 +525,18 @@ export class SimpleKeybinding {
 			|| this.keyCode === KeyCode.Shift
 		);
 	}
+
+	/**
+	 * Does this keybinding refer to the key code of a modifier and it also has the modifier flag?
+	 */
+	public isDuplicateModifierCase(): boolean {
+		return (
+			(this.ctrlKey && this.keyCode === KeyCode.Ctrl)
+			|| (this.shiftKey && this.keyCode === KeyCode.Shift)
+			|| (this.altKey && this.keyCode === KeyCode.Alt)
+			|| (this.metaKey && this.keyCode === KeyCode.Meta)
+		);
+	}
 }
 
 export class ChordKeybinding {
@@ -530,8 +553,27 @@ export class ChordKeybinding {
 
 export type Keybinding = SimpleKeybinding | ChordKeybinding;
 
+export class ResolvedKeybindingPart {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+
+	readonly keyLabel: string;
+	readonly keyAriaLabel: string;
+
+	constructor(ctrlKey: boolean, shiftKey: boolean, altKey: boolean, metaKey: boolean, kbLabel: string, kbAriaLabel: string) {
+		this.ctrlKey = ctrlKey;
+		this.shiftKey = shiftKey;
+		this.altKey = altKey;
+		this.metaKey = metaKey;
+		this.keyLabel = kbLabel;
+		this.keyAriaLabel = kbAriaLabel;
+	}
+}
+
 /**
- * A resolved keybinding.
+ * A resolved keybinding. Can be a simple keybinding or a chord keybinding.
  */
 export abstract class ResolvedKeybinding {
 	/**
@@ -543,10 +585,6 @@ export abstract class ResolvedKeybinding {
 	 */
 	public abstract getAriaLabel(): string;
 	/**
-	 * This prints the binding in a format suitable for displaying in the UI.
-	 */
-	public abstract getHTMLLabel(): IHTMLContentElement[];
-	/**
 	 * This prints the binding in a format suitable for electron's accelerators.
 	 * See https://github.com/electron/electron/blob/master/docs/api/accelerator.md
 	 */
@@ -555,34 +593,23 @@ export abstract class ResolvedKeybinding {
 	 * This prints the binding in a format suitable for user settings.
 	 */
 	public abstract getUserSettingsLabel(): string;
+	/**
+	 * Is the user settings label reflecting the label?
+	 */
+	public abstract isWYSIWYG(): boolean;
 
 	/**
 	 * Is the binding a chord?
 	 */
 	public abstract isChord(): boolean;
-	/**
-	 * Does this binding use the ctrl modifier key.
-	 * If it is a chord, it always returns false.
-	 */
-	public abstract hasCtrlModifier(): boolean;
-	/**
-	 * Does this binding use the shift modifier key.
-	 * If it is a chord, it always returns false.
-	 */
-	public abstract hasShiftModifier(): boolean;
-	/**
-	 * Does this binding use the alt modifier key.
-	 * If it is a chord, it always returns false.
-	 */
-	public abstract hasAltModifier(): boolean;
-	/**
-	 * Does this binding use the meta modifier key.
-	 * If it is a chord, it always returns false.
-	 */
-	public abstract hasMetaModifier(): boolean;
 
 	/**
 	 * Returns the firstPart, chordPart that should be used for dispatching.
 	 */
 	public abstract getDispatchParts(): [string, string];
+	/**
+	 * Returns the firstPart, chordPart of the keybinding.
+	 * For simple keybindings, the second element will be null.
+	 */
+	public abstract getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart];
 }

@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./list';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
+import { range } from 'vs/base/common/arrays';
+import { once } from 'vs/base/common/functional';
 import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, createEmptyEvent, any } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, any } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
+import { Color } from 'vs/base/common/color';
+import { mixin } from 'vs/base/common/objects';
 
 export interface IIdentityProvider<T> {
 	(element: T): string;
@@ -34,48 +38,83 @@ class CombinedSpliceable<T> implements ISpliceable<T> {
 	}
 }
 
-interface ITraitTemplateData<D> {
-	container: HTMLElement;
-	data: D;
-}
-
 interface ITraitChangeEvent {
 	indexes: number[];
 }
 
-class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData<D>>
+interface ITraitTemplateData {
+	container: HTMLElement;
+	elementDisposable: IDisposable;
+}
+
+interface IRenderedElement {
+	templateData: ITraitTemplateData;
+	index: number;
+}
+
+class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
 {
-	constructor(
-		private controller: Trait<T>,
-		private renderer: IRenderer<T, D>
-	) { }
+	private rendered: IRenderedElement[] = [];
 
-	public get templateId(): string {
-		return this.renderer.templateId;
+	constructor(private trait: Trait<T>) { }
+
+	get templateId(): string {
+		return `template:${this.trait.trait}`;
 	}
 
-	renderTemplate(container: HTMLElement): ITraitTemplateData<D> {
-		const data = this.renderer.renderTemplate(container);
-		return { container, data };
+	renderTemplate(container: HTMLElement): ITraitTemplateData {
+		const elementDisposable = EmptyDisposable;
+		return { container, elementDisposable };
 	}
 
-	renderElement(element: T, index: number, templateData: ITraitTemplateData<D>): void {
-		this.controller.renderElement(element, index, templateData.container);
+	renderElement(element: T, index: number, templateData: ITraitTemplateData): void {
+		templateData.elementDisposable.dispose();
 
-		this.renderer.renderElement(element, index, templateData.data);
+		const rendered = { index, templateData };
+		this.rendered.push(rendered);
+		templateData.elementDisposable = toDisposable(once(() => this.rendered.splice(this.rendered.indexOf(rendered), 1)));
+
+		this.trait.renderIndex(index, templateData.container);
 	}
 
-	disposeTemplate(templateData: ITraitTemplateData<D>): void {
-		return this.renderer.disposeTemplate(templateData.data);
+	renderIndexes(indexes: number[]): void {
+		this.rendered
+			.filter(({ index }) => indexes.indexOf(index) > -1)
+			.forEach(({ index, templateData }) => this.trait.renderIndex(index, templateData.container));
+	}
+
+	splice(start: number, deleteCount: number): void {
+		for (let i = 0; i < deleteCount; i++) {
+			const key = `key_${start + i}`;
+			const data = this.rendered[key];
+
+			if (data) {
+				data.elementDisposable.dispose();
+			}
+		}
+	}
+
+	disposeTemplate(templateData: ITraitTemplateData): void {
+		templateData.elementDisposable.dispose();
 	}
 }
 
 class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
+	/**
+	 * Sorted indexes which have this trait.
+	 */
 	private indexes: number[];
 
 	private _onChange = new Emitter<ITraitChangeEvent>();
-	get onChange() { return this._onChange.event; }
+	get onChange(): Event<ITraitChangeEvent> { return this._onChange.event; }
+
+	get trait(): string { return this._trait; }
+
+	@memoize
+	get renderer(): TraitRenderer<T, any> {
+		return new TraitRenderer<T, any>(this);
+	}
 
 	constructor(private _trait: string) {
 		this.indexes = [];
@@ -90,10 +129,11 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 			...this.indexes.filter(i => i >= end).map(i => i + diff)
 		];
 
+		this.renderer.splice(start, deleteCount);
 		this.set(indexes);
 	}
 
-	renderElement(element: T, index: number, container: HTMLElement): void {
+	renderIndex(index: number, container: HTMLElement): void {
 		DOM.toggleClass(container, this._trait, this.contains(index));
 	}
 
@@ -106,6 +146,10 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	set(indexes: number[]): number[] {
 		const result = this.indexes;
 		this.indexes = indexes;
+
+		const toRender = disjunction(result, indexes);
+		this.renderer.renderIndexes(toRender);
+
 		this._onChange.fire({ indexes });
 		return result;
 	}
@@ -116,10 +160,6 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
 	contains(index: number): boolean {
 		return this.indexes.some(i => i === index);
-	}
-
-	wrapRenderer<D>(renderer: IRenderer<T, D>): IRenderer<T, ITraitTemplateData<D>> {
-		return new TraitRenderer<T, D>(this, renderer);
 	}
 
 	dispose() {
@@ -136,8 +176,8 @@ class FocusTrait<T> extends Trait<T> {
 		super('focused');
 	}
 
-	renderElement(element: T, index: number, container: HTMLElement): void {
-		super.renderElement(element, index, container);
+	renderIndex(index: number, container: HTMLElement): void {
+		super.renderIndex(index, container);
 		container.setAttribute('role', 'treeitem');
 		container.setAttribute('id', this.getDomId(index));
 	}
@@ -232,6 +272,22 @@ class KeyboardController<T> implements IDisposable {
 	}
 }
 
+function isSelectionSingleChangeEvent(event: IListMouseEvent<any>): boolean {
+	return platform.isMacintosh ? event.metaKey : event.ctrlKey;
+}
+
+function isSelectionRangeChangeEvent(event: IListMouseEvent<any>): boolean {
+	return event.shiftKey;
+}
+
+function isSelectionChangeEvent(event: IListMouseEvent<any>): boolean {
+	return isSelectionSingleChangeEvent(event) || isSelectionRangeChangeEvent(event);
+}
+
+export interface IMouseControllerOptions {
+	selectOnMouseDown?: boolean;
+}
+
 class MouseController<T> implements IDisposable {
 
 	private disposables: IDisposable[];
@@ -259,7 +315,8 @@ class MouseController<T> implements IDisposable {
 
 	constructor(
 		private list: List<T>,
-		private view: ListView<T>
+		private view: ListView<T>,
+		private options: IMouseControllerOptions = {}
 	) {
 		this.disposables = [];
 		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
@@ -267,20 +324,62 @@ class MouseController<T> implements IDisposable {
 		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 	}
 
-	private onMouseDown(e: IListMouseEvent<T>) {
-		e.preventDefault();
-		e.stopPropagation();
-	}
-
-	private onPointer(e: IListMouseEvent<T>) {
+	private onMouseDown(e: IListMouseEvent<T>): void {
 		e.preventDefault();
 		e.stopPropagation();
 		this.view.domNode.focus();
 
+		let reference = this.list.getFocus()[0];
+		reference = reference === undefined ? this.list.getSelection()[0] : reference;
+
+		if (isSelectionRangeChangeEvent(e)) {
+			return this.changeSelection(e, reference);
+		}
+
 		const focus = e.index;
 		this.list.setFocus([focus]);
 
-		if (platform.isMacintosh ? e.altKey : e.ctrlKey) {
+		if (isSelectionChangeEvent(e)) {
+			return this.changeSelection(e, reference);
+		}
+
+		if (this.options.selectOnMouseDown) {
+			this.list.setSelection([focus]);
+			this.list.open([focus]);
+		}
+	}
+
+	private onPointer(e: IListMouseEvent<T>): void {
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (isSelectionChangeEvent(e)) {
+			return;
+		}
+
+		const focus = this.list.getFocus();
+		this.list.setSelection(focus);
+		this.list.open(focus);
+	}
+
+	private changeSelection(e: IListMouseEvent<T>, reference: number | undefined): void {
+		const focus = e.index;
+
+		if (isSelectionRangeChangeEvent(e) && reference !== undefined) {
+			const min = Math.min(reference, focus);
+			const max = Math.max(reference, focus);
+			const rangeSelection = range(max + 1, min);
+			const selection = this.list.getSelection();
+			const contiguousRange = getContiguousRangeContaining(disjunction(selection, [reference]), reference);
+
+			if (contiguousRange.length === 0) {
+				return;
+			}
+
+			const newSelection = disjunction(rangeSelection, relativeComplement(selection, contiguousRange));
+			this.list.setSelection(newSelection);
+
+		} else if (isSelectionSingleChangeEvent(e)) {
 			const selection = this.list.getSelection();
 			const newSelection = selection.filter(i => i !== focus);
 
@@ -289,9 +388,6 @@ class MouseController<T> implements IDisposable {
 			} else {
 				this.list.setSelection(newSelection);
 			}
-		} else {
-			this.list.setSelection([focus]);
-			this.list.open([focus]);
 		}
 	}
 
@@ -300,23 +396,105 @@ class MouseController<T> implements IDisposable {
 	}
 }
 
-export interface IListOptions<T> extends IListViewOptions {
+export interface IListOptions<T> extends IListViewOptions, IMouseControllerOptions, IListStyles {
 	identityProvider?: IIdentityProvider<T>;
 	ariaLabel?: string;
 	mouseSupport?: boolean;
 	keyboardSupport?: boolean;
 }
 
+export interface IListStyles {
+	listFocusBackground?: Color;
+	listFocusForeground?: Color;
+	listActiveSelectionBackground?: Color;
+	listActiveSelectionForeground?: Color;
+	listFocusAndSelectionBackground?: Color;
+	listFocusAndSelectionForeground?: Color;
+	listInactiveSelectionBackground?: Color;
+	listInactiveSelectionForeground?: Color;
+	listInactiveFocusBackground?: Color;
+	listHoverBackground?: Color;
+	listHoverForeground?: Color;
+	listDropBackground?: Color;
+	listFocusOutline?: Color;
+	listInactiveFocusOutline?: Color;
+	listSelectionOutline?: Color;
+	listHoverOutline?: Color;
+}
+
+const defaultStyles: IListStyles = {
+	listFocusBackground: Color.fromHex('#073655'),
+	listActiveSelectionBackground: Color.fromHex('#0E639C'),
+	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
+	listFocusAndSelectionBackground: Color.fromHex('#094771'),
+	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
+	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
+	listHoverBackground: Color.fromHex('#2A2D2E'),
+	listDropBackground: Color.fromHex('#383B3D')
+};
+
 const DefaultOptions: IListOptions<any> = {
 	keyboardSupport: true,
 	mouseSupport: true
 };
 
+// TODO@Joao: move these utils into a SortedArray class
+
+function getContiguousRangeContaining(range: number[], value: number): number[] {
+	const index = range.indexOf(value);
+
+	if (index === -1) {
+		return [];
+	}
+
+	const result = [];
+	let i = index - 1;
+	while (i >= 0 && range[i] === value - (index - i)) {
+		result.push(range[i--]);
+	}
+
+	result.reverse();
+	i = index;
+	while (i < range.length && range[i] === value + (i - index)) {
+		result.push(range[i++]);
+	}
+
+	return result;
+}
+
 /**
- * Given two sorted collections of numbers, returns the exclusive
- * disjunction between them (XOR).
+ * Given two sorted collections of numbers, returns the intersection
+ * betweem them (OR).
  */
-function exclusiveDisjunction(one: number[], other: number[]): number[] {
+function disjunction(one: number[], other: number[]): number[] {
+	const result = [];
+	let i = 0, j = 0;
+
+	while (i < one.length || j < other.length) {
+		if (i >= one.length) {
+			result.push(other[j++]);
+		} else if (j >= other.length) {
+			result.push(one[i++]);
+		} else if (one[i] === other[j]) {
+			result.push(one[i]);
+			i++;
+			j++;
+			continue;
+		} else if (one[i] < other[j]) {
+			result.push(one[i++]);
+		} else {
+			result.push(other[j++]);
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Given two sorted collections of numbers, returns the relative
+ * complement between them (XOR).
+ */
+function relativeComplement(one: number[], other: number[]): number[] {
 	const result = [];
 	let i = 0, j = 0;
 
@@ -332,7 +510,7 @@ function exclusiveDisjunction(one: number[], other: number[]): number[] {
 		} else if (one[i] < other[j]) {
 			result.push(one[i++]);
 		} else {
-			result.push(other[j++]);
+			j++;
 		}
 	}
 
@@ -340,6 +518,30 @@ function exclusiveDisjunction(one: number[], other: number[]): number[] {
 }
 
 const numericSort = (a: number, b: number) => a - b;
+
+class PipelineRenderer<T> implements IRenderer<T, any> {
+
+	constructor(
+		private _templateId: string,
+		private renderers: IRenderer<T, any>[]
+	) { }
+
+	get templateId(): string {
+		return this._templateId;
+	}
+
+	renderTemplate(container: HTMLElement): any[] {
+		return this.renderers.map(r => r.renderTemplate(container));
+	}
+
+	renderElement(element: T, index: number, templateData: any[]): void {
+		this.renderers.forEach((r, i) => r.renderElement(element, index, templateData[i]));
+	}
+
+	disposeTemplate(templateData: any[]): void {
+		this.renderers.forEach((r, i) => r.disposeTemplate(templateData[i]));
+	}
+}
 
 export class List<T> implements ISpliceable<T>, IDisposable {
 
@@ -352,6 +554,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private view: ListView<T>;
 	private spliceable: ISpliceable<T>;
 	private disposables: IDisposable[];
+	private styleElement: HTMLStyleElement;
 
 	@memoize get onFocusChange(): Event<IListEvent<T>> {
 		return mapEvent(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
@@ -361,7 +564,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return mapEvent(this.eventBufferer.wrapEvent(this.selection.onChange), e => this.toListEvent(e));
 	}
 
-	private _onContextMenu: Event<IListContextMenuEvent<T>> = createEmptyEvent();
+	private _onContextMenu: Event<IListContextMenuEvent<T>> = Event.None;
 	get onContextMenu(): Event<IListContextMenuEvent<T>> {
 		return this._onContextMenu;
 	}
@@ -389,16 +592,16 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
 		this.eventBufferer = new EventBufferer();
+		mixin(options, defaultStyles, false);
 
-		renderers = renderers.map(r => {
-			r = this.focus.wrapRenderer(r);
-			r = this.selection.wrapRenderer(r);
-			return r;
-		});
+		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [this.focus.renderer, this.selection.renderer, r]));
 
 		this.view = new ListView(container, delegate, renderers, options);
 		this.view.domNode.setAttribute('role', 'tree');
+		DOM.addClass(this.view.domNode, this.idPrefix);
 		this.view.domNode.tabIndex = 0;
+
+		this.styleElement = DOM.createStyleSheet(this.view.domNode);
 
 		this.spliceable = new CombinedSpliceable([
 			new TraitSpliceable(this.focus, this.view, options.identityProvider),
@@ -418,16 +621,19 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		if (typeof options.mouseSupport !== 'boolean' || options.mouseSupport) {
-			const controller = new MouseController(this, this.view);
+			const controller = new MouseController(this, this.view, options);
 			this.disposables.push(controller);
 			this._onContextMenu = controller.onContextMenu;
 		}
 
 		this.onFocusChange(this._onFocusChange, this, this.disposables);
+		this.onSelectionChange(this._onSelectionChange, this, this.disposables);
 
 		if (options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
 		}
+
+		this.style(options);
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
@@ -456,12 +662,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	setSelection(indexes: number[]): void {
 		indexes = indexes.sort(numericSort);
-
-		this.eventBufferer.bufferEvents(() => {
-			const oldIndexes = this.selection.set(indexes);
-			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
-			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
-		});
+		this.selection.set(indexes);
 	}
 
 	selectNext(n = 1, loop = false): void {
@@ -485,14 +686,13 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.selection.get();
 	}
 
+	getSelectedElements(): T[] {
+		return this.getSelection().map(i => this.view.element(i));
+	}
+
 	setFocus(indexes: number[]): void {
 		indexes = indexes.sort(numericSort);
-
-		this.eventBufferer.bufferEvents(() => {
-			const oldIndexes = this.focus.set(indexes);
-			const diffIndexes = exclusiveDisjunction(oldIndexes, indexes);
-			diffIndexes.forEach(i => this.view.splice(i, 1, [this.view.element(i)]));
-		});
+		this.focus.set(indexes);
 	}
 
 	focusNext(n = 1, loop = false): void {
@@ -555,6 +755,16 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
+	focusLast(): void {
+		if (this.length === 0) { return; }
+		this.setFocus([this.length - 1]);
+	}
+
+	focusFirst(): void {
+		if (this.length === 0) { return; }
+		this.setFocus([0]);
+	}
+
 	getFocus(): number[] {
 		return this.focus.get();
 	}
@@ -603,6 +813,75 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this._onOpen.fire(indexes);
 	}
 
+	style(styles: IListStyles): void {
+		const content: string[] = [];
+
+		if (styles.listFocusBackground) {
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
+		}
+
+		if (styles.listFocusForeground) {
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
+		}
+
+		if (styles.listActiveSelectionBackground) {
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`); // overwrite :hover style in this case!
+		}
+
+		if (styles.listActiveSelectionForeground) {
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
+		}
+
+		if (styles.listFocusAndSelectionBackground) {
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { background-color: ${styles.listFocusAndSelectionBackground}; }`);
+		}
+
+		if (styles.listFocusAndSelectionForeground) {
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected.focused { color: ${styles.listFocusAndSelectionForeground}; }`);
+		}
+
+		if (styles.listInactiveFocusBackground) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`);
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.focused:hover { background-color:  ${styles.listInactiveFocusBackground}; }`); // overwrite :hover style in this case!
+		}
+
+		if (styles.listInactiveSelectionBackground) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected { background-color:  ${styles.listInactiveSelectionBackground}; }`);
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected:hover { background-color:  ${styles.listInactiveSelectionBackground}; }`); // overwrite :hover style in this case!
+		}
+
+		if (styles.listInactiveSelectionForeground) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected { color: ${styles.listInactiveSelectionForeground}; }`);
+		}
+
+		if (styles.listHoverBackground) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row:hover { background-color:  ${styles.listHoverBackground}; }`);
+		}
+
+		if (styles.listHoverForeground) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row:hover { color:  ${styles.listHoverForeground}; }`);
+		}
+
+		if (styles.listSelectionOutline) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.selected { outline: 1px dotted ${styles.listSelectionOutline}; }`);
+		}
+
+		if (styles.listFocusOutline) {
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
+		}
+
+		if (styles.listInactiveFocusOutline) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row.focused { outline: 1px dotted ${styles.listInactiveFocusOutline}; outline-offset: -1px; }`);
+		}
+
+		if (styles.listHoverOutline) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
+		}
+
+		this.styleElement.innerHTML = content.join('\n');
+	}
+
 	private toListEvent({ indexes }: ITraitChangeEvent) {
 		return { indexes, elements: indexes.map(i => this.view.element(i)) };
 	}
@@ -618,6 +897,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.view.domNode.setAttribute('role', 'tree');
 		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
+	}
+
+	private _onSelectionChange(): void {
+		const selection = this.selection.get();
+
+		DOM.toggleClass(this.view.domNode, 'selection-none', selection.length === 0);
+		DOM.toggleClass(this.view.domNode, 'selection-single', selection.length === 1);
+		DOM.toggleClass(this.view.domNode, 'selection-multiple', selection.length > 1);
 	}
 
 	dispose(): void {

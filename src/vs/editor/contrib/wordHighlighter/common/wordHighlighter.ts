@@ -15,14 +15,12 @@ import { CommonEditorRegistry, commonEditorContribution } from 'vs/editor/common
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
+import { registerColor, editorSelectionHighlight, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
-import { registerColor, editorSelectionHighlightColor } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
-
-export const editorWordHighlight = registerColor('editorWordHighlight', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable'));
-export const editorWordHighlightString = registerColor('editorWordHighlightStrong', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable'));
-
+export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
+export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
 
 export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
 
@@ -78,7 +76,7 @@ class WordHighlighter {
 		this.occurrencesHighlight = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
-		this.toUnhook.push(editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
+		this.toUnhook.push(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			this._onPositionChanged(e);
 		}));
 		this.toUnhook.push(editor.onDidChangeModel((e) => {
@@ -138,7 +136,7 @@ class WordHighlighter {
 		}
 	}
 
-	private _onPositionChanged(e: editorCommon.ICursorPositionChangedEvent): void {
+	private _onPositionChanged(e: ICursorPositionChangedEvent): void {
 
 		// disabled
 		if (!this.occurrencesHighlight) {
@@ -147,7 +145,7 @@ class WordHighlighter {
 		}
 
 		// ignore typing & other
-		if (e.reason !== editorCommon.CursorChangeReason.Explicit) {
+		if (e.reason !== CursorChangeReason.Explicit) {
 			this._stopAll();
 			return;
 		}
@@ -318,20 +316,25 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	let selectionHighlightColor = theme.getColor(editorSelectionHighlightColor);
-	if (selectionHighlightColor) {
-		addBackgroundColorRule(theme, '.focused .selectionHighlight', selectionHighlightColor, collector);
-		addBackgroundColorRule(theme, '.selectionHighlight', selectionHighlightColor.transparent(0.5), collector);
+registerThemingParticipant((theme, collector) => {
+	let selectionHighlight = theme.getColor(editorSelectionHighlight);
+	if (selectionHighlight) {
+		collector.addRule(`.monaco-editor .focused .selectionHighlight { background-color: ${selectionHighlight}; }`);
+		collector.addRule(`.monaco-editor .selectionHighlight { background-color: ${selectionHighlight.transparent(0.5)}; }`);
 	}
-
-	addBackgroundColorRule(theme, '.wordHighlight', theme.getColor(editorWordHighlight), collector);
-	addBackgroundColorRule(theme, '.wordHighlightStrong', theme.getColor(editorWordHighlightString), collector);
+	let wordHighlight = theme.getColor(editorWordHighlight);
+	if (wordHighlight) {
+		collector.addRule(`.monaco-editor .wordHighlight { background-color: ${wordHighlight}; }`);
+	}
+	let wordHighlightStrong = theme.getColor(editorWordHighlightStrong);
+	if (wordHighlightStrong) {
+		collector.addRule(`.monaco-editor .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
+	}
+	let hcOutline = theme.getColor(activeContrastBorder);
+	if (hcOutline) {
+		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+	}
 
 });
-
-function addBackgroundColorRule(theme: ITheme, selector: string, color: Color, collector: ICssStyleCollector): void {
-	if (color) {
-		collector.addRule(`.monaco-editor.${theme.selector} ${selector} { background-color: ${color}; }`);
-	}
-}

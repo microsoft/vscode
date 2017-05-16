@@ -81,6 +81,7 @@ export class FileService implements IFileService {
 		const fileServiceConfig: IFileServiceOptions = {
 			errorLogger: (msg: string) => this.onFileServiceError(msg),
 			encoding: configuration.files && configuration.files.encoding,
+			autoGuessEncoding: configuration.files && configuration.files.autoGuessEncoding,
 			encodingOverride,
 			watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,
@@ -286,8 +287,8 @@ export class FileService implements IFileService {
 		this.raw.unwatchFileChanges(arg1);
 	}
 
-	public getEncoding(resource: uri): string {
-		return this.raw.getEncoding(resource);
+	public getEncoding(resource: uri, preferredEncoding?: string): string {
+		return this.raw.getEncoding(resource, preferredEncoding);
 	}
 
 	public dispose(): void {

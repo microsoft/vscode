@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, workspace, } from 'vscode';
+import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, ProviderResult, } from 'vscode';
 import * as Proto from '../protocol';
 
 import { ITypescriptServiceClient } from '../typescriptService';
@@ -21,35 +21,32 @@ export class ReferencesCodeLens extends CodeLens {
 }
 
 export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider {
-	private enabled: boolean = false;
+	private enabled: boolean = true;
 	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
 	public constructor(
-		protected client: ITypescriptServiceClient,
-		private toggleSettingName: string
+		protected client: ITypescriptServiceClient
 	) { }
 
 	public get onDidChangeCodeLenses(): Event<void> {
 		return this.onDidChangeCodeLensesEmitter.event;
 	}
 
-	public updateConfiguration(): void {
-		const typeScriptConfig = workspace.getConfiguration('typescript');
-		const wasEnabled = this.enabled;
-		this.enabled = typeScriptConfig.get(this.toggleSettingName, false);
-		if (wasEnabled !== this.enabled) {
+	protected setEnabled(enabled: false): void {
+		if (this.enabled !== enabled) {
+			this.enabled = enabled;
 			this.onDidChangeCodeLensesEmitter.fire();
 		}
 	}
 
-	provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
+	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
 		if (!this.enabled) {
-			return Promise.resolve([]);
+			return [];
 		}
 
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return Promise.resolve([]);
+			return [];
 		}
 		return this.client.execute('navtree', { file: filepath }, token).then(response => {
 			if (!response) {
@@ -61,6 +58,9 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 				tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
 			}
 			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
+		}, (err: any) => {
+			this.client.error(`'navtree' request failed with error.`, err);
+			return [];
 		});
 	}
 

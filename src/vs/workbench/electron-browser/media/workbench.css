@@ -36,25 +36,3 @@
 	width: 100%;
 	z-index: 10000;
 }
-
-/* TODO@theme (widgets) */
-
-.vs-dark .monaco-workbench .monaco-scrollable-element .shadow.top {
-	box-shadow: #000 0 6px 6px -6px inset;
-}
-
-.vs-dark .monaco-workbench .monaco-scrollable-element .shadow.left {
-	box-shadow: #000 6px 0 6px -6px inset;
-}
-
-.vs-dark .monaco-workbench .monaco-scrollable-element .shadow.top.left {
-	box-shadow: #000 6px 6px 6px -6px inset;
-}
-
-.vs-dark .monaco-workbench .monaco-scrollable-element .slider.active {
-	background-color: rgba(85, 85, 85, .8);
-}
-
-.hc-black .monaco-workbench .monaco-action-bar .action-item.disabled .action-label.disabled {
-	opacity: 0.4;
-}

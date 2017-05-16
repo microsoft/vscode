@@ -6,7 +6,8 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
-import { ICommonCodeEditor, IIdentifiedSingleEditOperation, EditorContextKeys, ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IIdentifiedSingleEditOperation, ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -152,7 +153,7 @@ export class IndentationToSpacesAction extends EditorAction {
 			id: IndentationToSpacesAction.ID,
 			label: nls.localize('indentationToSpaces', "Convert Indentation to Spaces"),
 			alias: 'Convert Indentation to Spaces',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 
@@ -179,7 +180,7 @@ export class IndentationToTabsAction extends EditorAction {
 			id: IndentationToTabsAction.ID,
 			label: nls.localize('indentationToTabs', "Convert Indentation to Tabs"),
 			alias: 'Convert Indentation to Tabs',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 
@@ -300,7 +301,7 @@ export class ReindentLinesAction extends EditorAction {
 			id: 'editor.action.reindentlines',
 			label: nls.localize('editor.reindentlines', "Reindent Lines"),
 			alias: 'Reindent Lines',
-			precondition: EditorContextKeys.Writable
+			precondition: EditorContextKeys.writable
 		});
 	}
 

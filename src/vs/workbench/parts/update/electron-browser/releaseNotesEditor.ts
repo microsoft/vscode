@@ -12,7 +12,7 @@ import { Builder } from 'vs/base/browser/builder';
 import { append, $ } from 'vs/base/browser/dom';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ReleaseNotesInput } from './releaseNotesInput';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import WebView from 'vs/workbench/parts/html/browser/webview';
@@ -26,7 +26,7 @@ function renderBody(body: string): string {
 		<html>
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src http: https: data:; script-src 'none'; style-src file: http: https:; child-src 'none'; frame-src 'none';">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: data:; media-src http: https: data:; script-src 'none'; style-src file: http: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
 				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
 			</head>
 			<body>${body}</body>
@@ -44,7 +44,7 @@ export class ReleaseNotesEditor extends BaseEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IOpenerService private openerService: IOpenerService,
 		@IModeService private modeService: IModeService,
 		@IPartService private partService: IPartService
@@ -58,6 +58,10 @@ export class ReleaseNotesEditor extends BaseEditor {
 	}
 
 	setInput(input: ReleaseNotesInput, options: EditorOptions): TPromise<void> {
+		if (this.input && this.input.matches(input)) {
+			return TPromise.as(undefined);
+		}
+
 		const { text } = input;
 
 		this.contentDisposables = dispose(this.contentDisposables);
@@ -88,18 +92,20 @@ export class ReleaseNotesEditor extends BaseEditor {
 			.then<void>(body => {
 				this.webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART));
 				this.webview.baseUrl = `https://code.visualstudio.com/raw/`;
-				this.webview.style(this.themeService.getColorTheme());
+				this.webview.style(this.themeService.getTheme());
 				this.webview.contents = [body];
 
 				this.webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
-				this.themeService.onDidColorThemeChange(themeId => this.webview.style(themeId), null, this.contentDisposables);
+				this.themeService.onThemeChange(themeId => this.webview.style(themeId), null, this.contentDisposables);
 				this.contentDisposables.push(this.webview);
 				this.contentDisposables.push(toDisposable(() => this.webview = null));
 			});
 	}
 
 	layout(): void {
-		// noop
+		if (this.webview) {
+			this.webview.layout();
+		}
 	}
 
 	focus(): void {

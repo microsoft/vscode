@@ -6,12 +6,13 @@
 
 import { localize } from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { IModel, IPosition } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { ISuggestion, LanguageId } from 'vs/editor/common/modes';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/common/suggest';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { Position } from 'vs/editor/common/core/position';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
@@ -26,10 +27,10 @@ export interface ISnippetsService {
 
 export interface ISnippet {
 	name: string;
-	owner: string;
 	prefix: string;
 	description: string;
 	codeSnippet: string;
+	extensionName?: string;
 }
 
 interface ISnippetSuggestion extends ISuggestion {
@@ -39,6 +40,8 @@ interface ISnippetSuggestion extends ISuggestion {
 class SnippetsService implements ISnippetsService {
 
 	_serviceBrand: any;
+
+	private static _defaultDetail = localize('detail.userSnippet', "User Snippet");
 
 	private _snippets = new Map<LanguageId, Map<string, ISnippet[]>>();
 
@@ -72,7 +75,7 @@ class SnippetsService implements ISnippetsService {
 		}
 	}
 
-	private _getLanguageIdAtPosition(model: IModel, position: IPosition): LanguageId {
+	private _getLanguageIdAtPosition(model: IModel, position: Position): LanguageId {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
@@ -85,7 +88,7 @@ class SnippetsService implements ISnippetsService {
 		return languageId;
 	}
 
-	private _getSnippetCompletions(model: IModel, position: IPosition): ISuggestion[] {
+	private _getSnippetCompletions(model: IModel, position: Position): ISuggestion[] {
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		if (!this._snippets.has(languageId)) {
 			return undefined;
@@ -119,9 +122,10 @@ class SnippetsService implements ISnippetsService {
 				type: 'snippet',
 				label: s.prefix,
 				get disambiguateLabel() { return localize('snippetSuggest.longLabel', "{0}, {1}", s.prefix, s.name); },
-				detail: s.owner,
+				detail: s.extensionName || SnippetsService._defaultDetail,
 				documentation: s.description,
 				insertText: s.codeSnippet,
+				sortText: `${s.prefix}-${s.extensionName || ''}`,
 				noAutoAccept: true,
 				snippetType: 'textmate',
 				overwriteBefore
@@ -155,7 +159,7 @@ export interface ISimpleModel {
 	getLineContent(lineNumber): string;
 }
 
-export function getNonWhitespacePrefix(model: ISimpleModel, position: IPosition): string {
+export function getNonWhitespacePrefix(model: ISimpleModel, position: Position): string {
 	/**
 	 * Do not analyze more characters
 	 */

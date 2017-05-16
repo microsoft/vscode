@@ -11,9 +11,11 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
 import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
-import { EditorLayoutInfo, IPosition, IRange } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
+import { Color, RGBA } from 'vs/base/common/color';
+import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -22,12 +24,23 @@ export interface IOptions {
 	className?: string;
 	isAccessible?: boolean;
 	isResizeable?: boolean;
+	frameColor?: Color;
+	arrowColor?: Color;
 }
+
+export interface IStyles {
+	frameColor?: Color;
+	arrowColor?: Color;
+}
+
+const defaultColor = Color.fromRGBA(new RGBA(0, 122, 204));
 
 const defaultOptions: IOptions = {
 	showArrow: true,
 	showFrame: true,
-	className: ''
+	className: '',
+	frameColor: defaultColor,
+	arrowColor: defaultColor
 };
 
 const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
@@ -106,7 +119,8 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 	constructor(editor: ICodeEditor, options: IOptions = {}) {
 		super();
 		this.editor = editor;
-		this.options = objects.mixin(objects.clone(defaultOptions), options);
+		this.options = objects.clone(options);
+		objects.mixin(this.options, defaultOptions, false);
 		this.domNode = document.createElement('div');
 		if (!this.options.isAccessible) {
 			this.domNode.setAttribute('aria-hidden', 'true');
@@ -151,9 +165,31 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 			this.arrow = document.createElement('div');
 			this.arrow.className = 'zone-widget-arrow below';
 		}
-
 		this._fillContainer(this.container);
 		this._initSash();
+		this._applyStyles();
+	}
+
+	public style(styles: IStyles): void {
+		if (styles.frameColor) {
+			this.options.frameColor = styles.frameColor;
+		}
+		if (styles.arrowColor) {
+			this.options.arrowColor = styles.arrowColor;
+		}
+		this._applyStyles();
+	}
+
+	protected _applyStyles(): void {
+		if (this.container) {
+			let frameColor = this.options.frameColor.toString();
+			this.container.style.borderTopColor = frameColor;
+			this.container.style.borderBottomColor = frameColor;
+		}
+		if (this.arrow) {
+			let arrowColor = this.options.arrowColor.toString();
+			this.arrow.style.borderBottomColor = arrowColor;
+		}
 	}
 
 	private _getWidth(info: EditorLayoutInfo = this.editor.getLayoutInfo()): number {
@@ -174,7 +210,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this._resizeSash.layout();
 	}
 
-	public get position(): IPosition {
+	public get position(): Position {
 		const [id] = this._positionMarkerId;
 		if (id) {
 			return this.editor.getModel().getDecorationRange(id).getStartPosition();
@@ -238,9 +274,17 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this.editor.revealPosition(position);
 
 		// Render the widget as zone (rendering) and widget (lifecycle)
-		let viewZoneDomNode = document.createElement('div'),
-			lineHeight = this.editor.getConfiguration().lineHeight,
-			arrowHeight = 0, frameThickness = 0;
+		const viewZoneDomNode = document.createElement('div');
+		const lineHeight = this.editor.getConfiguration().lineHeight;
+
+		// adjust heightInLines to viewport
+		const maxHeightInLines = (this.editor.getLayoutInfo().height / lineHeight) * .8;
+		if (heightInLines >= maxHeightInLines) {
+			heightInLines = maxHeightInLines;
+		}
+
+		let arrowHeight = 0;
+		let frameThickness = 0;
 
 		// Render the arrow one 1/3 of an editor line height
 		if (this.options.showArrow) {
@@ -346,7 +390,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		}
 
 		let data: { startY: number; heightInLines: number; };
-		this._disposables.add(this._resizeSash.addListener2('start', (e: ISashEvent) => {
+		this._disposables.add(this._resizeSash.addListener('start', (e: ISashEvent) => {
 			if (this._viewZone) {
 				data = {
 					startY: e.startY,
@@ -355,11 +399,11 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 			}
 		}));
 
-		this._disposables.add(this._resizeSash.addListener2('end', () => {
+		this._disposables.add(this._resizeSash.addListener('end', () => {
 			data = undefined;
 		}));
 
-		this._disposables.add(this._resizeSash.addListener2('change', (evt: ISashEvent) => {
+		this._disposables.add(this._resizeSash.addListener('change', (evt: ISashEvent) => {
 			if (data) {
 				let lineDelta = (evt.currentY - data.startY) / this.editor.getConfiguration().lineHeight;
 				let roundedLineDelta = lineDelta < 0 ? Math.ceil(lineDelta) : Math.floor(lineDelta);

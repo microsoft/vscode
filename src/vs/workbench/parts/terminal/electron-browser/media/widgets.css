@@ -12,8 +12,7 @@
 }
 
 .monaco-workbench .terminal-message-widget {
-	/* This font list is sourced from a .monaco-shell style */
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", "Ubuntu", "Droid Sans", sans-serif;
+	font-family: system-ui;
 	font-size: 14px;
 	line-height: 19px;
 	padding: 4px 5px;

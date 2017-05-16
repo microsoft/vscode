@@ -30,7 +30,11 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 		}
 		builder.addEditOperation(new Range(this.targetPosition.lineNumber, this.targetPosition.column, this.targetPosition.lineNumber, this.targetPosition.column), text);
 
-		if (this.selection.containsPosition(this.targetPosition)) {
+		if (this.selection.containsPosition(this.targetPosition) && !(
+			this.copy && (
+				this.selection.getEndPosition().equals(this.targetPosition) || this.selection.getStartPosition().equals(this.targetPosition)
+			) // we allow users to paste content beside the selection
+		)) {
 			this.targetSelection = this.selection;
 			return;
 		}

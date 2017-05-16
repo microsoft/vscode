@@ -100,6 +100,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get disableExtensions(): boolean { return this._args['disable-extensions']; }
 
+	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
+
 	@memoize
 	get debugExtensionHost(): { port: number; break: boolean; } { return parseExtensionHostPort(this._args, this.isBuilt); }
 
@@ -129,7 +131,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get sharedIPCHandle(): string { return getIPCHandle(this.userDataPath, 'shared'); }
 
 	@memoize
-	get nodeCachedDataDir(): string { return path.join(this.userDataPath, 'CachedData'); }
+	get nodeCachedDataDir(): string { return this.isBuilt ? path.join(this.userDataPath, 'CachedData', product.commit) : undefined; }
 
 	constructor(private _args: ParsedArgs, private _execPath: string) { }
 }

@@ -53,7 +53,8 @@
 .monaco-workbench > .part > .title > .title-actions .action-label {
 	display: block;
 	height: 35px;
-	width: 28px;
+	line-height: 35px;
+	min-width: 28px;
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;

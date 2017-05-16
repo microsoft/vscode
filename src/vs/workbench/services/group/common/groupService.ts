@@ -99,6 +99,11 @@ export interface IEditorGroupService {
 	getGroupOrientation(): GroupOrientation;
 
 	/**
+	 * Resize visible editor groups
+	 */
+	resizeGroup(position: Position, groupSizeChange: number): void;
+
+	/**
 	 * Adds the pinned state to an editor, removing it from being a preview editor.
 	 */
 	pinEditor(group: IEditorGroup, input: IEditorInput): void;

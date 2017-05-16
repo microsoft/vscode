@@ -6,22 +6,23 @@
 
 import * as nls from 'vs/nls';
 import { flatten } from 'vs/base/common/arrays';
-import { IStringDictionary, forEach, values } from 'vs/base/common/collections';
+import { IStringDictionary, forEach, values, groupBy, size } from 'vs/base/common/collections';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModelResolverService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IFileService, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, IRange, ISelection, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Range, IRange } from 'vs/editor/common/core/range';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
+import { IIdentifiedSingleEditOperation, IModel, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 
 export interface IResourceEdit {
 	resource: URI;
 	range?: IRange;
 	newText: string;
+	newEol?: EndOfLineSequence;
 }
 
 interface IRecording {
@@ -74,6 +75,7 @@ class EditTask implements IDisposable {
 	private get _model(): IModel { return this._modelReference.object.textEditorModel; }
 	private _modelReference: IReference<ITextEditorModel>;
 	private _edits: IIdentifiedSingleEditOperation[];
+	private _newEol: EndOfLineSequence;
 
 	constructor(modelReference: IReference<ITextEditorModel>) {
 		this._endCursorSelection = null;
@@ -82,23 +84,41 @@ class EditTask implements IDisposable {
 	}
 
 	public addEdit(edit: IResourceEdit): void {
-		let range: IRange;
-		if (!edit.range) {
-			range = this._model.getFullModelRange();
-		} else {
-			range = edit.range;
+
+		if (typeof edit.newEol === 'number') {
+			// honor eol-change
+			this._newEol = edit.newEol;
 		}
-		this._edits.push(EditOperation.replaceMove(Range.lift(range), edit.newText));
+
+		if (edit.range || edit.newText) {
+			// create edit operation
+			let range: Range;
+			if (!edit.range) {
+				range = this._model.getFullModelRange();
+			} else {
+				range = Range.lift(edit.range);
+			}
+			this._edits.push(EditOperation.replaceMove(range, edit.newText));
+		}
 	}
 
 	public apply(): void {
-		if (this._edits.length === 0) {
-			return;
-		}
-		this._edits.sort(EditTask._editCompare);
+		if (this._edits.length > 0) {
 
-		this._initialSelections = this._getInitialSelections();
-		this._model.pushEditOperations(this._initialSelections, this._edits, (edits) => this._getEndCursorSelections(edits));
+			this._edits = this._edits.map((value, index) => ({ value, index })).sort((a, b) => {
+				let ret = Range.compareRangesUsingStarts(a.value.range, b.value.range);
+				if (ret === 0) {
+					ret = a.index - b.index;
+				}
+				return ret;
+			}).map(element => element.value);
+
+			this._initialSelections = this._getInitialSelections();
+			this._model.pushEditOperations(this._initialSelections, this._edits, (edits) => this._getEndCursorSelections(edits));
+		}
+		if (this._newEol !== undefined) {
+			this._model.setEOL(this._newEol);
+		}
 	}
 
 	protected _getInitialSelections(): Selection[] {
@@ -137,10 +157,6 @@ class EditTask implements IDisposable {
 
 	public getEndCursorSelection(): Selection {
 		return this._endCursorSelection;
-	}
-
-	private static _editCompare(a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation): number {
-		return Range.compareRangesUsingStarts(a.range, b.range);
 	}
 
 	dispose() {
@@ -274,6 +290,7 @@ export interface BulkEdit {
 	progress(progress: IProgressRunner);
 	add(edit: IResourceEdit[]): void;
 	finish(): TPromise<ISelection>;
+	ariaMessage(): string;
 }
 
 export function bulkEdit(textModelResolverService: ITextModelResolverService, editor: ICommonCodeEditor, edits: IResourceEdit[], fileService?: IFileService, progress: IProgressRunner = null): TPromise<any> {
@@ -321,7 +338,7 @@ export function createBulkEdit(textModelResolverService: ITextModelResolverServi
 
 		let concurrentEdits = getConcurrentEdits();
 		if (concurrentEdits) {
-			return TPromise.wrapError(concurrentEdits);
+			return TPromise.wrapError<ISelection>(concurrentEdits);
 		}
 
 		let uri: URI;
@@ -349,9 +366,22 @@ export function createBulkEdit(textModelResolverService: ITextModelResolverServi
 		});
 	}
 
+	function ariaMessage(): string {
+		let editCount = all.length;
+		let resourceCount = size(groupBy(all, edit => edit.resource.toString()));
+		if (editCount === 0) {
+			return nls.localize('summary.0', "Made no edits");
+		} else if (editCount > 1 && resourceCount > 1) {
+			return nls.localize('summary.nm', "Made {0} text edits in {1} files", editCount, resourceCount);
+		} else {
+			return nls.localize('summary.n0', "Made {0} text edits in one file", editCount, resourceCount);
+		}
+	}
+
 	return {
 		progress,
 		add,
-		finish
+		finish,
+		ariaMessage
 	};
 }

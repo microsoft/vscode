@@ -10,13 +10,14 @@ import * as objects from 'vs/base/common/objects';
 import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IEditor, ICommonCodeEditor, IEditorViewState, IEditorOptions as ICodeEditorOptions, IModel } from 'vs/editor/common/editorCommon';
+import { IEditor, ICommonCodeEditor, IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
 import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { SyncDescriptor, AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
 
@@ -49,6 +50,10 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
  */
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
+export interface IFileInputFactory {
+	createFileInput(resource: URI, encoding: string, instantiationService: IInstantiationService): IFileEditorInput;
+}
+
 export interface IEditorRegistry {
 
 	/**
@@ -79,20 +84,14 @@ export interface IEditorRegistry {
 	getEditors(): IEditorDescriptor[];
 
 	/**
-	 * Registers the default input to be used for files in the workbench.
-	 *
-	 * @param editorInputDescriptor a descriptor that resolves to an instance of EditorInput that
-	 * should be used to handle file inputs.
+	 * Registers the file input factory to use for file inputs.
 	 */
-	registerDefaultFileInput(editorInputDescriptor: AsyncDescriptor<IFileEditorInput>): void;
+	registerFileInputFactory(factory: IFileInputFactory): void;
 
 	/**
-	 * Returns a descriptor of the default input to be used for files in the workbench.
-	 *
-	 * @return a descriptor that resolves to an instance of EditorInput that should be used to handle
-	 * file inputs.
+	 * Returns the file input factory to use for file inputs.
 	 */
-	getDefaultFileInput(): AsyncDescriptor<IFileEditorInput>;
+	getFileInputFactory(): IFileInputFactory;
 
 	/**
 	 * Registers a editor input factory for the given editor input to the registry. An editor input factory
@@ -210,7 +209,7 @@ export abstract class EditorInput implements IEditorInput {
 	 *
 	 * Subclasses should extend if they can contribute.
 	 */
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		return { typeId: this.getTypeId() };
 	}
 
@@ -330,14 +329,14 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 	getResource(): URI;
 
 	/**
-	 * Sets the absolute file resource URI this input is about.
-	 */
-	setResource(resource: URI): void;
-
-	/**
 	 * Sets the preferred encodingt to use for this input.
 	 */
 	setPreferredEncoding(encoding: string): void;
+
+	/**
+	 * Forces this file input to open as binary instead of text.
+	 */
+	setForceOpenAsBinary(): void;
 }
 
 /**
@@ -379,7 +378,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.revert();
 	}
 
-	public getTelemetryDescriptor(): { [key: string]: any; } {
+	public getTelemetryDescriptor(): object {
 		const descriptor = this.master.getTelemetryDescriptor();
 		return objects.assign(descriptor, super.getTelemetryDescriptor());
 	}
@@ -514,6 +513,7 @@ export class EditorOptions implements IEditorOptions {
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
+		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 		options.inactive = settings.inactive;
@@ -529,6 +529,7 @@ export class EditorOptions implements IEditorOptions {
 			this.preserveFocus = other.preserveFocus;
 			this.forceOpen = other.forceOpen;
 			this.revealIfVisible = other.revealIfVisible;
+			this.revealIfOpened = other.revealIfOpened;
 			this.pinned = other.pinned;
 			this.index = other.index;
 			this.inactive = other.inactive;
@@ -552,6 +553,11 @@ export class EditorOptions implements IEditorOptions {
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
 	 */
 	public revealIfVisible: boolean;
+
+	/**
+	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
+	 */
+	public revealIfOpened: boolean;
 
 	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
@@ -582,12 +588,12 @@ export class TextEditorOptions extends EditorOptions {
 
 	private revealInCenterIfOutsideViewport: boolean;
 	private editorViewState: IEditorViewState;
-	private editorOptions: ICodeEditorOptions;
+	private editorOptions: editorOptions.IEditorOptions;
 
 	public static from(input: IBaseResourceInput): TextEditorOptions {
 		let options: TextEditorOptions = null;
 		if (input && input.options) {
-			if (input.options.selection || input.options.viewState || input.options.forceOpen || input.options.revealIfVisible || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
+			if (input.options.selection || input.options.viewState || input.options.forceOpen || input.options.revealIfVisible || input.options.revealIfOpened || input.options.preserveFocus || input.options.pinned || input.options.inactive || typeof input.options.index === 'number') {
 				options = new TextEditorOptions();
 			}
 
@@ -602,6 +608,10 @@ export class TextEditorOptions extends EditorOptions {
 
 			if (input.options.revealIfVisible) {
 				options.revealIfVisible = true;
+			}
+
+			if (input.options.revealIfOpened) {
+				options.revealIfOpened = true;
 			}
 
 			if (input.options.preserveFocus) {
@@ -640,6 +650,7 @@ export class TextEditorOptions extends EditorOptions {
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
+		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 		options.inactive = settings.inactive;
@@ -784,6 +795,7 @@ export class TextDiffEditorOptions extends TextEditorOptions {
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
 		options.revealIfVisible = settings.revealIfVisible;
+		options.revealIfOpened = settings.revealIfOpened;
 		options.pinned = settings.pinned;
 		options.index = settings.index;
 
@@ -832,7 +844,9 @@ export interface IStacksModelChangeEvent {
 export interface IEditorStacksModel {
 
 	onModelChanged: Event<IStacksModelChangeEvent>;
-	onEditorClosed: Event<IGroupEvent>;
+
+	onWillCloseEditor: Event<IEditorCloseEvent>;
+	onEditorClosed: Event<IEditorCloseEvent>;
 
 	groups: IEditorGroup[];
 	activeGroup: IEditorGroup;
@@ -846,7 +860,6 @@ export interface IEditorStacksModel {
 	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
 	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
 
-	isOpen(editor: IEditorInput): boolean;
 	isOpen(resource: URI): boolean;
 
 	toString(): string;
@@ -864,8 +877,7 @@ export interface IEditorGroup {
 	getEditor(resource: URI): IEditorInput;
 	indexOf(editor: IEditorInput): number;
 
-	contains(editor: IEditorInput): boolean;
-	contains(resource: URI): boolean;
+	contains(editorOrResource: IEditorInput | URI): boolean;
 
 	getEditors(mru?: boolean): IEditorInput[];
 	isActive(editor: IEditorInput): boolean;
@@ -883,8 +895,7 @@ export interface IEditorContext extends IEditorIdentifier {
 	event?: any;
 }
 
-export interface IGroupEvent {
-	editor: IEditorInput;
+export interface IEditorCloseEvent extends IEditorIdentifier {
 	pinned: boolean;
 	index: number;
 }
@@ -909,6 +920,7 @@ export interface IWorkbenchEditorConfiguration {
 			closeOnFileDelete: boolean;
 			openPositioning: 'left' | 'right' | 'first' | 'last';
 			revealIfOpen: boolean;
+			swipeToNavigate: boolean
 		}
 	};
 }

@@ -60,4 +60,20 @@ suite('Mime', () => {
 			done();
 		}, done);
 	});
+
+	test('autoGuessEncoding (ShiftJIS)', function (done: () => void) {
+		const file = require.toUrl('./fixtures/some.shiftjis.txt');
+		mime.detectMimesFromFile(file, { autoGuessEncoding: true }).then(mimes => {
+			assert.equal(mimes.encoding, 'shiftjis');
+			done();
+		}, done);
+	});
+
+	test('autoGuessEncoding (CP1252)', function (done: () => void) {
+		const file = require.toUrl('./fixtures/some.cp1252.txt');
+		mime.detectMimesFromFile(file, { autoGuessEncoding: true }).then(mimes => {
+			assert.equal(mimes.encoding, 'windows1252');
+			done();
+		}, done);
+	});
 });

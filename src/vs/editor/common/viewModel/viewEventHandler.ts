@@ -5,12 +5,14 @@
 'use strict';
 
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class ViewEventHandler {
+export class ViewEventHandler extends Disposable {
 
 	private _shouldRender: boolean;
 
 	constructor() {
+		super();
 		this._shouldRender = true;
 	}
 
@@ -68,9 +70,6 @@ export class ViewEventHandler {
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return false;
 	}
-	public onScrollRequest(e: viewEvents.ViewScrollRequestEvent): boolean {
-		return false;
-	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return false;
 	}
@@ -78,6 +77,9 @@ export class ViewEventHandler {
 		return false;
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
+		return false;
+	}
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		return false;
 	}
 
@@ -164,12 +166,6 @@ export class ViewEventHandler {
 					}
 					break;
 
-				case viewEvents.ViewEventType.ViewScrollRequest:
-					if (this.onScrollRequest(e)) {
-						shouldRender = true;
-					}
-					break;
-
 				case viewEvents.ViewEventType.ViewTokensChanged:
 					if (this.onTokensChanged(e)) {
 						shouldRender = true;
@@ -184,6 +180,13 @@ export class ViewEventHandler {
 
 				case viewEvents.ViewEventType.ViewZonesChanged:
 					if (this.onZonesChanged(e)) {
+						shouldRender = true;
+					}
+					break;
+
+
+				case viewEvents.ViewEventType.ViewThemeChanged:
+					if (this.onThemeChanged(e)) {
 						shouldRender = true;
 					}
 					break;

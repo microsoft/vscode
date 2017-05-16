@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { VerticalRevealType, IConfigurationChangedEvent, IViewConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollEvent } from 'vs/base/common/scrollable';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,
@@ -23,24 +24,30 @@ export const enum ViewEventType {
 	ViewLinesInserted = 10,
 	ViewRevealRangeRequest = 11,
 	ViewScrollChanged = 12,
-	ViewScrollRequest = 13,
-	ViewTokensChanged = 14,
-	ViewTokensColorsChanged = 15,
-	ViewZonesChanged = 16,
+	ViewTokensChanged = 13,
+	ViewTokensColorsChanged = 14,
+	ViewZonesChanged = 15,
+	ViewThemeChanged = 16
 }
 
 export class ViewConfigurationChangedEvent {
 
 	public readonly type = ViewEventType.ViewConfigurationChanged;
 
+	public readonly canUseTranslate3d: boolean;
+	public readonly pixelRatio: boolean;
+	public readonly editorClassName: boolean;
 	public readonly lineHeight: boolean;
 	public readonly readOnly: boolean;
 	public readonly layoutInfo: boolean;
 	public readonly fontInfo: boolean;
-	public readonly viewInfo: IViewConfigurationChangedEvent;
+	public readonly viewInfo: boolean;
 	public readonly wrappingInfo: boolean;
 
 	constructor(source: IConfigurationChangedEvent) {
+		this.canUseTranslate3d = source.canUseTranslate3d;
+		this.pixelRatio = source.pixelRatio;
+		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight;
 		this.readOnly = source.readOnly;
 		this.layoutInfo = source.layoutInfo;
@@ -203,16 +210,11 @@ export class ViewRevealRangeRequestEvent {
 	 * If false: there should be just a vertical revealing
 	 */
 	public readonly revealHorizontal: boolean;
-	/**
-	 * If true: cursor is revealed if outside viewport
-	 */
-	public readonly revealCursor: boolean;
 
-	constructor(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, revealCursor: boolean) {
+	constructor(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean) {
 		this.range = range;
 		this.verticalType = verticalType;
 		this.revealHorizontal = revealHorizontal;
-		this.revealCursor = revealCursor;
 	}
 }
 
@@ -243,19 +245,6 @@ export class ViewScrollChangedEvent {
 	}
 }
 
-export class ViewScrollRequestEvent {
-
-	public readonly type = ViewEventType.ViewScrollRequest;
-
-	public readonly deltaLines: number;
-	public readonly revealCursor: boolean;
-
-	constructor(deltaLines: number, revealCursor: boolean) {
-		this.deltaLines = deltaLines;
-		this.revealCursor = revealCursor;
-	}
-}
-
 export class ViewTokensChangedEvent {
 
 	public readonly type = ViewEventType.ViewTokensChanged;
@@ -273,6 +262,14 @@ export class ViewTokensChangedEvent {
 
 	constructor(ranges: { fromLineNumber: number; toLineNumber: number; }[]) {
 		this.ranges = ranges;
+	}
+}
+
+export class ViewThemeChangedEvent {
+
+	public readonly type = ViewEventType.ViewThemeChanged;
+
+	constructor() {
 	}
 }
 
@@ -307,8 +304,8 @@ export type ViewEvent = (
 	| ViewLinesInsertedEvent
 	| ViewRevealRangeRequestEvent
 	| ViewScrollChangedEvent
-	| ViewScrollRequestEvent
 	| ViewTokensChangedEvent
 	| ViewTokensColorsChangedEvent
 	| ViewZonesChangedEvent
+	| ViewThemeChangedEvent
 );

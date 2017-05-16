@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { IEnvConfiguration } from "vs/editor/common/config/commonEditorConfig";
 
 suite('Common Editor Config', () => {
 	test('Zoom Level', () => {
@@ -52,8 +53,15 @@ suite('Common Editor Config', () => {
 	});
 
 	class TestWrappingConfiguration extends TestConfiguration {
-		protected getOuterWidth(): number {
-			return 1000;
+		protected _getEnvConfiguration(): IEnvConfiguration {
+			return {
+				extraEditorClassName: '',
+				outerWidth: 1000,
+				outerHeight: 100,
+				canUseTranslate3d: true,
+				pixelRatio: 1,
+				zoomLevel: 0
+			};
 		}
 	}
 

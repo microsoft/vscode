@@ -42,17 +42,22 @@ class SyncedBuffer {
 	}
 
 	public open(): void {
-		let args: Proto.OpenRequestArgs = {
+		const args: Proto.OpenRequestArgs = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
 		};
+
 		if (this.client.apiVersion.has203Features()) {
 			const scriptKind = Mode2ScriptKind[this.document.languageId];
 			if (scriptKind) {
 				args.scriptKindName = scriptKind;
 			}
-
 		}
+
+		if (workspace.rootPath && this.client.apiVersion.has230Features()) {
+			args.projectRootPath = workspace.rootPath;
+		}
+
 		this.client.execute('open', args, false);
 	}
 
@@ -102,7 +107,6 @@ export default class BufferSyncSupport {
 
 	private _validate: boolean;
 	private modeIds: ObjectMap<boolean>;
-	private extensions: ObjectMap<boolean>;
 	private diagnostics: Diagnostics;
 	private disposables: Disposable[] = [];
 	private syncedBuffers: ObjectMap<SyncedBuffer>;
@@ -114,12 +118,11 @@ export default class BufferSyncSupport {
 	private emitQueue: LinkedMap<string>;
 	private checkGlobalTSCVersion: boolean;
 
-	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, extensions: ObjectMap<boolean>, validate: boolean = true) {
+	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, validate: boolean = true) {
 		this.client = client;
 		this.modeIds = Object.create(null);
 		modeIds.forEach(modeId => this.modeIds[modeId] = true);
 		this.diagnostics = diagnostics;
-		this.extensions = extensions;
 		this._validate = validate;
 
 		this.projectValidationRequested = false;
