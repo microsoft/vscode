@@ -13,10 +13,11 @@ import * as os from 'os';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, Disposable, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
+import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
 import { TypeScriptServerPlugin } from './utils/plugins';
+import Logger from './utils/logger';
 
 import * as VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
@@ -141,7 +142,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _checkGlobalTSCVersion: boolean;
 	private _experimentalAutoBuild: boolean;
 	private trace: Trace;
-	private _output: OutputChannel;
+	private readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
 	private tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
 	private servicePromise: Thenable<cp.ChildProcess> | null;
@@ -291,13 +292,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._onTypesInstallerInitializationFailed.event;
 	}
 
-	private get output(): OutputChannel {
-		if (!this._output) {
-			this._output = window.createOutputChannel(localize('channelName', 'TypeScript'));
-		}
-		return this._output;
-	}
-
 	private readTrace(): Trace {
 		let result: Trace = Trace.fromString(workspace.getConfiguration().get<string>('typescript.tsserver.trace', 'off'));
 		if (result === Trace.Off && !!process.env.TSS_TRACE) {
@@ -331,54 +325,20 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._onReady.promise;
 	}
 
-	private data2String(data: any): string {
-		if (data instanceof Error) {
-			if (is.string(data.stack)) {
-				return data.stack;
-			}
-			return (data as Error).message;
-		}
-		if (is.boolean(data.success) && !data.success && is.string(data.message)) {
-			return data.message;
-		}
-		if (is.string(data)) {
-			return data;
-		}
-		return data.toString();
-	}
-
 	public info(message: string, data?: any): void {
-		this.output.appendLine(`[Info  - ${(new Date().toLocaleTimeString())}] ${message}`);
-		if (data) {
-			this.output.appendLine(this.data2String(data));
-		}
+		this.logger.info(message, data);
 	}
 
 	public warn(message: string, data?: any): void {
-		this.output.appendLine(`[Warn  - ${(new Date().toLocaleTimeString())}] ${message}`);
-		if (data) {
-			this.output.appendLine(this.data2String(data));
-		}
+		this.logger.warn(message, data);
 	}
 
 	public error(message: string, data?: any): void {
-		// See https://github.com/Microsoft/TypeScript/issues/10496
-		if (data && data.message === 'No content available.') {
-			return;
-		}
-		this.output.appendLine(`[Error - ${(new Date().toLocaleTimeString())}] ${message}`);
-		if (data) {
-			this.output.appendLine(this.data2String(data));
-		}
-		// this.output.show(true);
+		this.logger.error(message, data);
 	}
 
 	private logTrace(message: string, data?: any): void {
-		this.output.appendLine(`[Trace - ${(new Date().toLocaleTimeString())}] ${message}`);
-		if (data) {
-			this.output.appendLine(this.data2String(data));
-		}
-		// this.output.show(true);
+		this.logger.logLevel('Trace', message, data);
 	}
 
 	private get packageInfo(): IPackageInfo | null {
