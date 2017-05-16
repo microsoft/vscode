@@ -170,11 +170,9 @@ export interface IEditorOptions {
 	 */
 	roundedSelection?: boolean;
 	/**
-	 * Theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
-	 * You can create custom themes via `monaco.editor.defineTheme`.
+	 * Class name to be added to the editor.
 	 */
-	theme?: string;
+	extraEditorClassName?: string;
 	/**
 	 * Should the editor be read only.
 	 * Defaults to false.
@@ -683,7 +681,7 @@ export interface EditorWrappingInfo {
 }
 
 export interface InternalEditorViewOptions {
-	readonly theme: string;
+	readonly extraEditorClassName: string;
 	readonly disableMonospaceOptimizations: boolean;
 	readonly experimentalScreenReader: boolean;
 	readonly rulers: number[];
@@ -893,7 +891,7 @@ export class InternalEditorOptions {
 	 */
 	private static _equalsViewOptions(a: InternalEditorViewOptions, b: InternalEditorViewOptions): boolean {
 		return (
-			a.theme === b.theme
+			a.extraEditorClassName === b.extraEditorClassName
 			&& a.disableMonospaceOptimizations === b.disableMonospaceOptimizations
 			&& a.experimentalScreenReader === b.experimentalScreenReader
 			&& this._equalsNumberArrays(a.rulers, b.rulers)
@@ -1179,7 +1177,7 @@ export interface IEnvironmentalOptions {
 	readonly outerWidth: number;
 	readonly outerHeight: number;
 	readonly fontInfo: FontInfo;
-	readonly editorClassName: string;
+	readonly extraEditorClassName: string;
 	readonly isDominatedByLongLines: boolean;
 	readonly lineNumbersDigitCount: number;
 	readonly canUseTranslate3d: boolean;
@@ -1473,7 +1471,7 @@ export class EditorOptionsValidator {
 		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);
 
 		return {
-			theme: _string(opts.theme, defaults.theme),
+			extraEditorClassName: _string(opts.extraEditorClassName, defaults.extraEditorClassName),
 			disableMonospaceOptimizations: disableMonospaceOptimizations,
 			experimentalScreenReader: _boolean(opts.experimentalScreenReader, defaults.experimentalScreenReader),
 			rulers: rulers,
@@ -1630,10 +1628,26 @@ export class InternalEditorOptionsFactory {
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
 		};
 
+		let className = 'monaco-editor';
+		if (opts.viewInfo.extraEditorClassName) {
+			className += ' ' + opts.viewInfo.extraEditorClassName;
+		}
+		if (env.extraEditorClassName) {
+			className += ' ' + env.extraEditorClassName;
+		}
+		if (opts.viewInfo.fontLigatures) {
+			className += ' enable-ligatures';
+		}
+		if (opts.mouseStyle === 'default') {
+			className += ' mouse-default';
+		} else if (opts.mouseStyle === 'copy') {
+			className += ' mouse-copy';
+		}
+
 		return new InternalEditorOptions({
 			canUseTranslate3d: opts.disableTranslate3d ? false : env.canUseTranslate3d,
 			pixelRatio: env.pixelRatio,
-			editorClassName: env.editorClassName,
+			editorClassName: className,
 			lineHeight: env.fontInfo.lineHeight,
 			readOnly: opts.readOnly,
 			wordSeparators: opts.wordSeparators,
@@ -1853,7 +1867,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	useTabStops: true,
 
 	viewInfo: {
-		theme: 'vs',
+		extraEditorClassName: '',
 		disableMonospaceOptimizations: false,
 		experimentalScreenReader: true,
 		rulers: [],

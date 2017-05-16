@@ -5,6 +5,7 @@
 
 'use strict';
 
+import * as sinon from 'sinon';
 import assert = require('assert');
 import os = require('os');
 import path = require('path');
@@ -55,12 +56,13 @@ class SettingsTestEnvironmentService extends EnvironmentService {
 
 suite('ConfigurationEditingService', () => {
 
-	let instantiationService;
+	let instantiationService: TestInstantiationService;
 	let testObject: ConfigurationEditingService;
 	let parentDir;
 	let workspaceDir;
 	let globalSettingsFile;
 	let workspaceSettingsDir;
+	let choiceService;
 
 	suiteSetup(() => {
 		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
@@ -126,7 +128,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 		instantiationService.stub(ITextModelResolverService, <ITextModelResolverService>instantiationService.createInstance(TextModelResolverService));
 		instantiationService.stub(IBackupFileService, new TestBackupFileService());
-		instantiationService.stub(IChoiceService, {
+		choiceService = instantiationService.stub(IChoiceService, {
 			choose: (severity, message, options, cancelId): TPromise<number> => {
 				return TPromise.as(cancelId);
 			}
@@ -195,6 +197,24 @@ suite('ConfigurationEditingService', () => {
 		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' })
 			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
 			(error: IConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY));
+	});
+
+	test('dirty error is not thrown if not asked to save', () => {
+		instantiationService.stub(ITextFileService, 'isDirty', true);
+		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotSave: true })
+			.then(() => null, error => assert.fail('Should not fail.'));
+	});
+
+	test('do not notify error', () => {
+		instantiationService.stub(ITextFileService, 'isDirty', true);
+		const target = sinon.stub();
+		instantiationService.stubPromise(IChoiceService, 'choose', target);
+		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
+			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
+			(error: IConfigurationEditingError) => {
+				assert.equal(false, target.calledOnce);
+				assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+			});
 	});
 
 	test('write one setting - empty file', () => {

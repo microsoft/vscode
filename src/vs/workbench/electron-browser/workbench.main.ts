@@ -81,7 +81,7 @@ import 'vs/workbench/parts/relauncher/electron-browser/relauncher.contribution';
 import 'vs/workbench/parts/tasks/electron-browser/task.contribution';
 
 import 'vs/workbench/parts/emmet/browser/emmet.browser.contribution';
-import 'vs/workbench/parts/emmet/node/emmet.contribution';
+import 'vs/workbench/parts/emmet/electron-browser/emmet.contribution';
 
 // Code Editor enhacements
 import 'vs/workbench/parts/codeEditor/codeEditor.contribution';

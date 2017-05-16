@@ -11,6 +11,8 @@ import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
+import { scrollbarShadow } from "vs/platform/theme/common/colorRegistry";
 
 export class ScrollDecorationViewPart extends ViewPart {
 
@@ -86,3 +88,10 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._domNode.setClassName(this._shouldShow ? 'scroll-decoration' : '');
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let shadow = theme.getColor(scrollbarShadow);
+	if (shadow) {
+		collector.addRule(`.monaco-editor .scroll-decoration { box-shadow: ${shadow} 0 6px 6px -6px inset; }`);
+	}
+});

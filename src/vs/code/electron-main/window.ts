@@ -42,7 +42,7 @@ export interface IWindowCreationOptions {
 export enum WindowMode {
 	Maximized,
 	Normal,
-	Minimized,
+	Minimized, // not used anymore, but also cannot remove due to existing stored UI state (needs migration)
 	Fullscreen
 }
 
@@ -600,9 +600,6 @@ export class VSCodeWindow {
 	}
 
 	public serializeWindowState(): IWindowState {
-		if (!this._win) {
-			return null; // avoid NPE when calling this method after the window has been disposed
-		}
 
 		// fullscreen gets special treatment
 		if (this._win.isFullScreen()) {
@@ -626,8 +623,6 @@ export class VSCodeWindow {
 		// get window mode
 		if (!platform.isMacintosh && this._win.isMaximized()) {
 			mode = WindowMode.Maximized;
-		} else if (this._win.isMinimized()) {
-			mode = WindowMode.Minimized;
 		} else {
 			mode = WindowMode.Normal;
 		}
@@ -635,7 +630,7 @@ export class VSCodeWindow {
 		// we don't want to save minimized state, only maximized or normal
 		if (mode === WindowMode.Maximized) {
 			state.mode = WindowMode.Maximized;
-		} else if (mode !== WindowMode.Minimized) {
+		} else {
 			state.mode = WindowMode.Normal;
 		}
 

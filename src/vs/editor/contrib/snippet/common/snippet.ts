@@ -7,7 +7,7 @@
 
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
-import { Marker, Variable, Placeholder, Text, SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
+import { Marker, Variable, Placeholder, Text, SnippetParser, walk } from 'vs/editor/contrib/snippet/common/snippetParser';
 
 export interface IIndentationNormalizer {
 	normalizeIndentation(str: string): string;
@@ -52,7 +52,67 @@ export class CodeSnippet implements ICodeSnippet {
 		return snippet;
 	}
 
+	static fixEmmetFinalTabstop(template: string): string {
+
+		let matchFinalStops = template.match(/\$\{0\}|\$0/g);
+		if (!matchFinalStops || matchFinalStops.length === 1) {
+			return template;
+		}
+
+		// string to string conversion that tries to fix the
+		// snippet in-place
+
+		let marker = new SnippetParser(true, false).parse(template);
+		let maxIndex = -Number.MIN_VALUE;
+
+		// find highest placeholder index
+		walk(marker, candidate => {
+			if (candidate instanceof Placeholder) {
+				let index = Number(candidate.index);
+				if (index > maxIndex) {
+					maxIndex = index;
+				}
+			}
+			return true;
+		});
+
+		// rewrite final tabstops
+		walk(marker, candidate => {
+			if (candidate instanceof Placeholder) {
+				if (candidate.isFinalTabstop) {
+					candidate.index = String(++maxIndex);
+				}
+			}
+			return true;
+		});
+
+		// write back as string
+		function toSnippetString(marker: Marker): string {
+			if (marker instanceof Text) {
+				return marker.string;
+			} else if (marker instanceof Placeholder) {
+				if (marker.defaultValue.length > 0) {
+					return `\${${marker.index}:${marker.defaultValue.map(toSnippetString).join('')}}`;
+				} else {
+					return `\$${marker.index}`;
+				}
+			} else if (marker instanceof Variable) {
+				if (marker.defaultValue.length > 0) {
+					return `\${${marker.name}:${marker.defaultValue.map(toSnippetString).join('')}}`;
+				} else {
+					return `\$${marker.name}`;
+				}
+			} else {
+				throw new Error('unexpected marker: ' + marker);
+			}
+		}
+		return marker.map(toSnippetString).join('');
+	}
+
 	static fromEmmet(template: string): CodeSnippet {
+
+		CodeSnippet.fixEmmetFinalTabstop(template);
+
 		let matchFinalStops = template.match(/\$\{0\}|\$0/g);
 		if (!matchFinalStops || matchFinalStops.length === 1) {
 			return CodeSnippet.fromTextmate(template);
@@ -65,8 +125,8 @@ export class CodeSnippet implements ICodeSnippet {
 		let getMaxTabStop = (markers: Marker[]): number => {
 			let currentMaxTabStop = -1;
 			markers.forEach(marker => {
-				if (marker instanceof Placeholder && /^\d+$/.test(marker['name'])) {
-					let currentTabStop = Number(marker['name']);
+				if (marker instanceof Placeholder && /^\d+$/.test(marker['index'])) {
+					let currentTabStop = Number(marker['index']);
 					let nestedMaxTabStop = getMaxTabStop(marker['defaultValue'] || []);
 					currentMaxTabStop = Math.max(currentMaxTabStop, currentTabStop, nestedMaxTabStop);
 				}
@@ -79,8 +139,8 @@ export class CodeSnippet implements ICodeSnippet {
 		let setNextTabStop = (markers: Marker[]) => {
 			markers.forEach(marker => {
 				if (marker instanceof Placeholder) {
-					if (marker['name'] === '0') {
-						marker['name'] = ++maxTabStop + '';
+					if (marker['index'] === '0') {
+						marker['index'] = ++maxTabStop + '';
 					}
 					setNextTabStop(marker['defaultValue'] || []);
 				}
@@ -262,10 +322,10 @@ function _fillCodeSnippetFromMarker(snippet: CodeSnippet, marker: Marker[]) {
 
 		} else if (marker instanceof Placeholder) {
 
-			let placeHolder = placeHolders[marker.name];
+			let placeHolder = placeHolders[marker.index];
 			if (!placeHolder) {
-				placeHolders[marker.name] = placeHolder = {
-					id: marker.name,
+				placeHolders[marker.index] = placeHolder = {
+					id: marker.index,
 					value: Marker.toString(marker.defaultValue),
 					occurences: []
 				};

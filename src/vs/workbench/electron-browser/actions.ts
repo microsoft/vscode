@@ -246,7 +246,7 @@ export abstract class BaseZoomAction extends Action {
 			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 		};
 
-		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }).done(() => applyZoom(), error => applyZoom());
+		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }, { donotNotifyError: true }).done(() => applyZoom(), error => applyZoom());
 	}
 }
 

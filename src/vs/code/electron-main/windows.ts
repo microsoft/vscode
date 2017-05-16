@@ -1204,6 +1204,10 @@ export class WindowsManager implements IWindowsMainService {
 				detail: nls.localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 				noLink: true
 			}, result => {
+				if (!vscodeWindow.win) {
+					return; // Return early if the window has been going down already
+				}
+
 				if (result === 0) {
 					vscodeWindow.reload();
 				} else if (result === 2) {
@@ -1223,6 +1227,10 @@ export class WindowsManager implements IWindowsMainService {
 				detail: nls.localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
 				noLink: true
 			}, result => {
+				if (!vscodeWindow.win) {
+					return; // Return early if the window has been going down already
+				}
+
 				if (result === 0) {
 					vscodeWindow.reload();
 				} else if (result === 1) {

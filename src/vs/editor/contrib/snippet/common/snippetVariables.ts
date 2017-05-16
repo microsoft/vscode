@@ -6,14 +6,61 @@
 'use strict';
 
 import { basename, dirname, normalize } from 'vs/base/common/paths';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ISnippetVariableResolver } from './snippet';
+
+
+export class EditorSnippetVariableResolver {
+
+	constructor(
+		private readonly _model: IModel,
+		private readonly _selection: Selection
+	) {
+		//
+	}
+
+	resolve(name: string): string {
+		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
+			return this._model.getValueInRange(this._selection);
+
+		} else if (name === 'TM_CURRENT_LINE') {
+			return this._model.getLineContent(this._selection.positionLineNumber);
+
+		} else if (name === 'TM_CURRENT_WORD') {
+			const info = this._model.getWordAtPosition({
+				lineNumber: this._selection.positionLineNumber,
+				column: this._selection.positionColumn
+			});
+			return info ? info.word : '';
+
+		} else if (name === 'TM_LINE_INDEX') {
+			return String(this._selection.positionLineNumber - 1);
+
+		} else if (name === 'TM_LINE_NUMBER') {
+			return String(this._selection.positionLineNumber);
+
+		} else if (name === 'TM_FILENAME') {
+			return basename(this._model.uri.fsPath);
+
+		} else if (name === 'TM_DIRECTORY') {
+			const dir = dirname(this._model.uri.fsPath);
+			return dir !== '.' ? dir : '';
+
+		} else if (name === 'TM_FILEPATH') {
+			return this._model.uri.fsPath;
+
+		} else {
+			return undefined;
+		}
+	}
+}
 
 export class SnippetVariablesResolver implements ISnippetVariableResolver {
 
-	private _editor: editorCommon.ICommonCodeEditor;
+	private readonly _editor: ICommonCodeEditor;
 
-	constructor(editor: editorCommon.ICommonCodeEditor) {
+	constructor(editor: ICommonCodeEditor) {
 		this._editor = editor;
 	}
 

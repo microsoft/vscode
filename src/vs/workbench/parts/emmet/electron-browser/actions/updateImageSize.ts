@@ -6,18 +6,18 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/node/emmetActions';
+import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 
 import { editorAction } from 'vs/editor/common/editorCommonExtensions';
 
 @editorAction
-class SplitJoinTagAction extends BasicEmmetEditorAction {
+class UpdateImageSizeAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
-			'editor.emmet.action.splitJoinTag',
-			nls.localize('splitJoinTag', "Emmet: Split/Join Tag"),
-			'Emmet: Split/Join Tag',
-			'split_join_tag'
+			'editor.emmet.action.updateImageSize',
+			nls.localize('updateImageSize', "Emmet: Update Image Size"),
+			'Emmet: Update Image Size',
+			'update_image_size'
 		);
 	}
 }

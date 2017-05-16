@@ -21,8 +21,8 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { CodeSnippet } from 'vs/editor/contrib/snippet/common/snippet';
-import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { SnippetParser } from 'vs/editor/contrib/snippet/common/snippetParser';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { Context as SuggestContext } from './suggest';
 import { SuggestModel, State } from './suggestModel';
 import { ICompletionItem } from './completionModel';
@@ -177,18 +177,17 @@ export class SuggestController implements IEditorContribution {
 				this._editor.pushUndoStop();
 			}
 
-			if (suggestion.snippetType === 'textmate') {
-				SnippetController.get(this._editor).insertSnippet(
-					suggestion.insertText,
-					suggestion.overwriteBefore + columnDelta,
-					suggestion.overwriteAfter);
-			} else {
-				SnippetController.get(this._editor).run(
-					CodeSnippet.fromInternal(suggestion.insertText),
-					suggestion.overwriteBefore + columnDelta,
-					suggestion.overwriteAfter
-				);
+			let { insertText } = suggestion;
+			if (suggestion.snippetType !== 'textmate') {
+				insertText = SnippetParser.escape(insertText);
 			}
+
+			SnippetController2.get(this._editor).insert(
+				insertText,
+				suggestion.overwriteBefore + columnDelta,
+				suggestion.overwriteAfter
+			);
+
 
 			if (suggestion.command) {
 				this._commandService.executeCommand(suggestion.command.id, ...suggestion.command.arguments).done(undefined, onUnexpectedError);

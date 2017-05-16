@@ -11,7 +11,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 import { TextEditorCursorStyle, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -361,10 +361,10 @@ export class MainThreadTextEditor {
 			return false;
 		}
 
-		const snippetController = SnippetController.get(this._codeEditor);
+		const snippetController = SnippetController2.get(this._codeEditor);
 
-		// cancel previous snippet mode
-		snippetController.leaveSnippet();
+		// // cancel previous snippet mode
+		// snippetController.leaveSnippet();
 
 		// set selection, focus editor
 		const selections = ranges.map(r => new Selection(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn));
@@ -372,13 +372,7 @@ export class MainThreadTextEditor {
 		this._codeEditor.focus();
 
 		// make modifications
-		if (opts.undoStopBefore) {
-			this._codeEditor.pushUndoStop();
-		}
-		snippetController.insertSnippet(template, 0, 0);
-		if (opts.undoStopAfter) {
-			this._codeEditor.pushUndoStop();
-		}
+		snippetController.insert(template, 0, 0, opts.undoStopBefore, opts.undoStopAfter);
 
 		return true;
 	}

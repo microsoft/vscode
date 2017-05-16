@@ -6,18 +6,18 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/node/emmetActions';
+import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 
 import { editorAction } from 'vs/editor/common/editorCommonExtensions';
 
 @editorAction
-class UpdateImageSizeAction extends BasicEmmetEditorAction {
+class RemoveTagAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
-			'editor.emmet.action.updateImageSize',
-			nls.localize('updateImageSize', "Emmet: Update Image Size"),
-			'Emmet: Update Image Size',
-			'update_image_size'
+			'editor.emmet.action.removeTag',
+			nls.localize('removeTag', "Emmet: Remove Tag"),
+			'Emmet: Remove Tag',
+			'remove_tag'
 		);
 	}
 }

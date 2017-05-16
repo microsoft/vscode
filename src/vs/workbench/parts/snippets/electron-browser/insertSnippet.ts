@@ -8,12 +8,12 @@ import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { SnippetController } from 'vs/editor/contrib/snippet/common/snippetController';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageId } from 'vs/editor/common/modes';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ISnippetsService, ISnippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsService';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 interface ISnippetPick extends IPickOpenEntry {
@@ -128,7 +128,7 @@ class InsertSnippetAction extends EditorAction {
 			}
 		}).then(snippet => {
 			if (snippet) {
-				SnippetController.get(editor).insertSnippet(snippet.codeSnippet, 0, 0);
+				SnippetController2.get(editor).insert(snippet.codeSnippet, 0, 0);
 			}
 		});
 	}

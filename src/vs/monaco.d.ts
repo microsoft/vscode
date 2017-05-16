@@ -626,6 +626,7 @@ declare module monaco {
 		 * Create a new empty range using this range's start position.
 		 */
 		static collapseToStart(range: IRange): Range;
+		static fromPositions(start: IPosition, end?: IPosition): Range;
 		/**
 		 * Create a `Range` from an `IRange`.
 		 */
@@ -727,6 +728,10 @@ declare module monaco {
 		 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 		 */
 		setStartPosition(startLineNumber: number, startColumn: number): Selection;
+		/**
+		 * Create a `Selection` from one or two positions
+		 */
+		static fromPositions(start: IPosition, end?: IPosition): Selection;
 		/**
 		 * Create a `Selection` from an `ISelection`.
 		 */
@@ -887,6 +892,11 @@ declare module monaco.editor {
 	 */
 	export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
 
+	/**
+	 * Switches to a theme.
+	 */
+	export function setTheme(themeName: string): void;
+
 	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
 
 	export interface IStandaloneThemeData {
@@ -960,12 +970,26 @@ declare module monaco.editor {
 		 * To not create automatically a model, use `model: null`.
 		 */
 		language?: string;
+		/**
+		 * Initial theme to be used for rendering.
+		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+		 * You can create custom themes via `monaco.editor.defineTheme`.
+		 * To switch a theme, use `monaco.editor.setTheme`
+		 */
+		theme?: string;
 	}
 
 	/**
 	 * The options to create a diff editor.
 	 */
 	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+		/**
+		 * Initial theme to be used for rendering.
+		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+		 * You can create custom themes via `monaco.editor.defineTheme`.
+		 * To switch a theme, use `monaco.editor.setTheme`
+		 */
+		theme?: string;
 	}
 
 	export interface IStandaloneCodeEditor extends ICodeEditor {
@@ -2712,11 +2736,9 @@ declare module monaco.editor {
 		 */
 		roundedSelection?: boolean;
 		/**
-		 * Theme to be used for rendering.
-		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
-		 * You can create custom themes via `monaco.editor.defineTheme`.
+		 * Class name to be added to the editor.
 		 */
-		theme?: string;
+		extraEditorClassName?: string;
 		/**
 		 * Should the editor be read only.
 		 * Defaults to false.
@@ -3158,7 +3180,7 @@ declare module monaco.editor {
 	}
 
 	export interface InternalEditorViewOptions {
-		readonly theme: string;
+		readonly extraEditorClassName: string;
 		readonly disableMonospaceOptimizations: boolean;
 		readonly experimentalScreenReader: boolean;
 		readonly rulers: number[];

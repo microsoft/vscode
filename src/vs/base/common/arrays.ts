@@ -66,6 +66,20 @@ export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
 	return low;
 }
 
+export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
+	const result: T[][] = [];
+	let currentGroup: T[];
+	for (const element of data.slice(0).sort(compare)) {
+		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
+			currentGroup = [element];
+			result.push(currentGroup);
+		} else {
+			currentGroup.push(element);
+		}
+	}
+	return result;
+}
+
 /**
  * Takes two *sorted* arrays and computes their delta (removed, added elements).
  * Finishes in `Math.min(before.length, after.length)` steps.

@@ -9,6 +9,17 @@
 	width: 660px;
 }
 
+.monaco-editor .suggest-widget > .tree,
+.monaco-editor .suggest-widget > .details {
+	width: 330px;
+}
+
+.monaco-editor .suggest-widget.small,
+.monaco-editor .suggest-widget.small > .tree,
+.monaco-editor .suggest-widget.small > .details {
+	width: 400px;
+}
+
 .monaco-editor .suggest-widget.visible {
 	-webkit-transition: left .05s ease-in-out;
 	-moz-transition: left .05s ease-in-out;
@@ -18,7 +29,6 @@
 
 .monaco-editor .suggest-widget > .message {
 	padding-left: 22px;
-	opacity: 0.7;
 }
 
 .monaco-editor .suggest-widget > .tree {

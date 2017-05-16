@@ -49,12 +49,13 @@ import * as BuildStatus from './utils/buildStatus';
 import * as ProjectStatus from './utils/projectStatus';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import * as VersionStatus from './utils/versionStatus';
+import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from "./utils/plugins";
 
 interface LanguageDescription {
 	id: string;
 	diagnosticSource: string;
 	modeIds: string[];
-	configFile: string;
+	configFile?: string;
 }
 
 enum ProjectConfigAction {
@@ -67,12 +68,14 @@ interface ProjectConfigMessageItem extends MessageItem {
 	id: ProjectConfigAction;
 }
 
+
 export function activate(context: ExtensionContext): void {
 	const MODE_ID_TS = 'typescript';
 	const MODE_ID_TSX = 'typescriptreact';
 	const MODE_ID_JS = 'javascript';
 	const MODE_ID_JSX = 'javascriptreact';
 
+	const plugins = getContributedTypeScriptServerPlugins();
 	const clientHost = new TypeScriptServiceClientHost([
 		{
 			id: 'typescript',
@@ -86,7 +89,7 @@ export function activate(context: ExtensionContext): void {
 			modeIds: [MODE_ID_JS, MODE_ID_JSX],
 			configFile: 'jsconfig.json'
 		}
-	], context.storagePath, context.globalState, context.workspaceState);
+	], context.storagePath, context.globalState, context.workspaceState, plugins);
 	context.subscriptions.push(clientHost);
 
 	const client = clientHost.serviceClient;
@@ -129,6 +132,7 @@ export function activate(context: ExtensionContext): void {
 	});
 	BuildStatus.update({ queueLength: 0 });
 }
+
 
 const validateSetting = 'validate.enable';
 
@@ -421,7 +425,8 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		descriptions: LanguageDescription[],
 		storagePath: string | undefined,
 		globalState: Memento,
-		workspaceState: Memento
+		workspaceState: Memento,
+		plugins: TypeScriptServerPlugin[]
 	) {
 		const handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
@@ -438,7 +443,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
-		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState, this.disposables);
+		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState, plugins, this.disposables);
 		this.languagePerId = Object.create(null);
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description);
@@ -446,6 +451,30 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 			this.disposables.push(manager);
 			this.languagePerId[description.id] = manager;
 		}
+
+		this.client.onReady().then(() => {
+			if (!this.client.apiVersion.has230Features()) {
+				return;
+			}
+
+			const langauges = new Set<string>();
+			for (const plugin of plugins) {
+				for (const language of plugin.languages) {
+					langauges.add(language);
+				}
+			}
+			if (langauges.size) {
+				const description: LanguageDescription = {
+					id: 'typescript-plugins',
+					modeIds: Array.from(langauges.values()),
+					diagnosticSource: 'ts-plugins'
+				};
+				const manager = new LanguageProvider(this.client, description);
+				this.languages.push(manager);
+				this.disposables.push(manager);
+				this.languagePerId[description.id] = manager;
+			}
+		});
 	}
 
 	public dispose(): void {
@@ -459,15 +488,6 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 
 	public get serviceClient(): TypeScriptServiceClient {
 		return this.client;
-	}
-
-	public restartTsServer(): void {
-		this.client.restartTsServer();
-		if (this.languages) {
-			for (const provider of this.languages) {
-				provider.reInitialize();
-			}
-		}
 	}
 
 	public reloadProjects(): void {

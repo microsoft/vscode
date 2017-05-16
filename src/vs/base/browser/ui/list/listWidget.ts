@@ -405,6 +405,7 @@ export interface IListOptions<T> extends IListViewOptions, IMouseControllerOptio
 
 export interface IListStyles {
 	listFocusBackground?: Color;
+	listFocusForeground?: Color;
 	listActiveSelectionBackground?: Color;
 	listActiveSelectionForeground?: Color;
 	listFocusAndSelectionBackground?: Color;
@@ -413,6 +414,7 @@ export interface IListStyles {
 	listInactiveSelectionForeground?: Color;
 	listInactiveFocusBackground?: Color;
 	listHoverBackground?: Color;
+	listHoverForeground?: Color;
 	listDropBackground?: Color;
 	listFocusOutline?: Color;
 	listInactiveFocusOutline?: Color;
@@ -818,6 +820,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
 		}
 
+		if (styles.listFocusForeground) {
+			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
+		}
+
 		if (styles.listActiveSelectionBackground) {
 			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
 			content.push(`.monaco-list.${this.idPrefix}:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`); // overwrite :hover style in this case!
@@ -851,6 +857,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (styles.listHoverBackground) {
 			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row:hover { background-color:  ${styles.listHoverBackground}; }`);
+		}
+
+		if (styles.listHoverForeground) {
+			content.push(`.monaco-list.${this.idPrefix} .monaco-list-row:hover { color:  ${styles.listHoverForeground}; }`);
 		}
 
 		if (styles.listSelectionOutline) {

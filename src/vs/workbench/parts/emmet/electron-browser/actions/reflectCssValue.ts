@@ -6,18 +6,18 @@
 'use strict';
 
 import nls = require('vs/nls');
-import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/node/emmetActions';
+import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 
 import { editorAction } from 'vs/editor/common/editorCommonExtensions';
 
 @editorAction
-class ToggleCommentAction extends BasicEmmetEditorAction {
+class ReflectCSSValueAction extends BasicEmmetEditorAction {
 	constructor() {
 		super(
-			'editor.emmet.action.toggleComment',
-			nls.localize('toggleComment', "Emmet: Toggle Comment"),
-			'Emmet: Toggle Comment',
-			'toggle_comment'
+			'editor.emmet.action.reflectCSSValue',
+			nls.localize('reflectCSSValue', "Emmet: Reflect CSS Value"),
+			'Emmet: Reflect CSS Value',
+			'reflect_css_value'
 		);
 	}
 }

@@ -665,6 +665,7 @@ export interface ITreeOptions extends ITreeStyles {
 
 export interface ITreeStyles {
 	listFocusBackground?: Color;
+	listFocusForeground?: Color;
 	listActiveSelectionBackground?: Color;
 	listActiveSelectionForeground?: Color;
 	listFocusAndSelectionBackground?: Color;
@@ -672,6 +673,7 @@ export interface ITreeStyles {
 	listInactiveSelectionBackground?: Color;
 	listInactiveSelectionForeground?: Color;
 	listHoverBackground?: Color;
+	listHoverForeground?: Color;
 	listDropBackground?: Color;
 	listFocusOutline?: Color;
 }
