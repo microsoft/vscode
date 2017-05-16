@@ -7,7 +7,7 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { join } from 'path';
+import { join, basename } from 'path';
 import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,7 +26,7 @@ export class NodeCachedDataManager {
 		this._telemetryService = telemetryService;
 		this._environmentService = environmentService;
 
-		this._handleCachedDataErrors();
+		this._handleCachedDataInfo();
 		this._manageCachedDataSoon();
 	}
 
@@ -34,20 +34,24 @@ export class NodeCachedDataManager {
 		this._disposables = dispose(this._disposables);
 	}
 
-	private _handleCachedDataErrors(): void {
-		const onNodeCachedDataError = (err) => {
-			this._telemetryService.publicLog('nodeCachedData', { errorCode: err.errorCode, path: err.path });
+	private _handleCachedDataInfo(): void {
+		const onNodeCachedData = (err, data) => {
+			if (err) {
+				this._telemetryService.publicLog('nodeCachedData', { errorCode: err.errorCode, path: basename(err.path) });
+			} else if (data) {
+				this._telemetryService.publicLog('nodeCachedDataProduced', { path: basename(data.path) });
+			}
 		};
 
 		// handle future and past errors
-		(<any>self).require.config({ onNodeCachedDataError });
-		(<any[]>(<any>window).MonacoEnvironment.nodeCachedDataErrors).forEach(onNodeCachedDataError);
-		delete (<any>window).MonacoEnvironment.nodeCachedDataErrors;
+		(<any>self).require.config({ onNodeCachedData });
+		(<any[]>(<any>window).MonacoEnvironment.onNodeCachedData).forEach(args => onNodeCachedData.apply(undefined, args));
+		delete (<any>window).MonacoEnvironment.onNodeCachedData;
 
 		// stop when being disposed
 		this._disposables.push({
 			dispose() {
-				(<any>self).require.config({ onNodeCachedDataError: undefined }, true);
+				(<any>self).require.config({ onNodeCachedData: undefined }, true);
 			}
 		});
 	}

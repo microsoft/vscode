@@ -18,14 +18,14 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const MAX_REPL_LENGTH = 10000;
 
-export abstract class AbstractOutputElement implements ITreeElement {
+export abstract class AbstractOutputElement implements IReplElement {
 	private static ID_COUNTER = 0;
 
 	constructor(private id = AbstractOutputElement.ID_COUNTER++) {
@@ -35,6 +35,8 @@ export abstract class AbstractOutputElement implements ITreeElement {
 	public getId(): string {
 		return `outputelement:${this.id}`;
 	}
+
+	abstract toString(): string;
 }
 
 export class OutputElement extends AbstractOutputElement {
@@ -47,6 +49,10 @@ export class OutputElement extends AbstractOutputElement {
 	) {
 		super();
 		this.counter = 1;
+	}
+
+	public toString(): string {
+		return this.value;
 	}
 }
 
@@ -87,6 +93,10 @@ export class OutputNameValueElement extends AbstractOutputElement implements IEx
 		}
 
 		return TPromise.as(result);
+	}
+
+	public toString(): string {
+		return `${this.name}: ${this.value}`;
 	}
 }
 
@@ -197,6 +207,10 @@ export class ExpressionContainer implements IExpressionContainer {
 			ExpressionContainer.allValues.get(this.getId()) !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues.get(this.getId()) !== value;
 		ExpressionContainer.allValues.set(this.getId(), value);
 	}
+
+	public toString(): string {
+		return this.value;
+	}
 }
 
 export class Expression extends ExpressionContainer implements IExpression {
@@ -244,6 +258,10 @@ export class Expression extends ExpressionContainer implements IExpression {
 			this.reference = 0;
 		});
 	}
+
+	public toString(): string {
+		return `${this.name}\n${this.value}`;
+	}
 }
 
 export class Variable extends ExpressionContainer implements IExpression {
@@ -284,6 +302,10 @@ export class Variable extends ExpressionContainer implements IExpression {
 		}, err => {
 			this.errorMessage = err.message;
 		});
+	}
+
+	public toString(): string {
+		return `${this.name}: ${this.value}`;
 	}
 }
 
@@ -714,7 +736,7 @@ export class Model implements IModel {
 
 	private processes: Process[];
 	private toDispose: lifecycle.IDisposable[];
-	private replElements: ITreeElement[];
+	private replElements: IReplElement[];
 	private _onDidChangeBreakpoints: Emitter<void>;
 	private _onDidChangeCallStack: Emitter<void>;
 	private _onDidChangeWatchExpressions: Emitter<IExpression>;
@@ -902,7 +924,7 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public getReplElements(): ITreeElement[] {
+	public getReplElements(): IReplElement[] {
 		return this.replElements;
 	}
 
@@ -939,7 +961,7 @@ export class Model implements IModel {
 		this._onDidChangeREPLElements.fire();
 	}
 
-	private addReplElements(newElements: ITreeElement[]): void {
+	private addReplElements(newElements: IReplElement[]): void {
 		this.replElements.push(...newElements);
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);

@@ -13,9 +13,11 @@ import * as os from 'os';
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
 
-import { workspace, window, extensions, Uri, CancellationToken, Disposable, OutputChannel, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
+import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, QuickPickItem, EventEmitter, Event, commands, WorkspaceConfiguration } from 'vscode';
 import * as Proto from './protocol';
 import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './typescriptService';
+import { TypeScriptServerPlugin } from './utils/plugins';
+import Logger from './utils/logger';
 
 import * as VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
@@ -121,12 +123,6 @@ interface MyMessageItem extends MessageItem {
 	id: MessageAction;
 }
 
-interface TypeScriptServerPlugin {
-	path: string;
-	name: string;
-}
-
-
 export default class TypeScriptServiceClient implements ITypescriptServiceClient {
 	private static useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
 	private static tsdkMigratedStorageKey = 'typescript.tsdkMigrated';
@@ -146,7 +142,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _checkGlobalTSCVersion: boolean;
 	private _experimentalAutoBuild: boolean;
 	private trace: Trace;
-	private _output: OutputChannel;
+	private readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
 	private tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
 	private servicePromise: Thenable<cp.ChildProcess> | null;
@@ -171,7 +167,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private telemetryReporter: TelemetryReporter;
 	private checkJs: boolean;
 
-	constructor(host: ITypescriptServiceClientHost, storagePath: string | undefined, globalState: Memento, private workspaceState: Memento, disposables: Disposable[]) {
+	constructor(
+		host: ITypescriptServiceClientHost,
+		storagePath: string | undefined,
+		globalState: Memento,
+		private workspaceState: Memento,
+		private plugins: TypeScriptServerPlugin[],
+		disposables: Disposable[]
+	) {
 		this.host = host;
 		this.storagePath = storagePath;
 		this.globalState = globalState;
@@ -289,13 +292,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._onTypesInstallerInitializationFailed.event;
 	}
 
-	private get output(): OutputChannel {
-		if (!this._output) {
-			this._output = window.createOutputChannel(localize('channelName', 'TypeScript'));
-		}
-		return this._output;
-	}
-
 	private readTrace(): Trace {
 		let result: Trace = Trace.fromString(workspace.getConfiguration().get<string>('typescript.tsserver.trace', 'off'));
 		if (result === Trace.Off && !!process.env.TSS_TRACE) {
@@ -329,54 +325,20 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._onReady.promise;
 	}
 
-	private data2String(data: any): string {
-		if (data instanceof Error) {
-			if (is.string(data.stack)) {
-				return data.stack;
-			}
-			return (data as Error).message;
-		}
-		if (is.boolean(data.success) && !data.success && is.string(data.message)) {
-			return data.message;
-		}
-		if (is.string(data)) {
-			return data;
-		}
-		return data.toString();
-	}
-
 	public info(message: string, data?: any): void {
-		this.output.appendLine(`[Info  - ${(new Date().toLocaleTimeString())}] ${message}`);
-		if (data) {
-			this.output.appendLine(this.data2String(data));
-		}
+		this.logger.info(message, data);
 	}
 
 	public warn(message: string, data?: any): void {
-		this.output.appendLine(`[Warn  - ${(new Date().toLocaleTimeString())}] ${message}`);
-		if (data) {
-			this.output.appendLine(this.data2String(data));
-		}
+		this.logger.warn(message, data);
 	}
 
 	public error(message: string, data?: any): void {
-		// See https://github.com/Microsoft/TypeScript/issues/10496
-		if (data && data.message === 'No content available.') {
-			return;
-		}
-		this.output.appendLine(`[Error - ${(new Date().toLocaleTimeString())}] ${message}`);
-		if (data) {
-			this.output.appendLine(this.data2String(data));
-		}
-		// this.output.show(true);
+		this.logger.error(message, data);
 	}
 
 	private logTrace(message: string, data?: any): void {
-		this.output.appendLine(`[Trace - ${(new Date().toLocaleTimeString())}] ${message}`);
-		if (data) {
-			this.output.appendLine(this.data2String(data));
-		}
-		// this.output.show(true);
+		this.logger.logLevel('Trace', message, data);
 	}
 
 	private get packageInfo(): IPackageInfo | null {
@@ -573,16 +535,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 
 					if (this.apiVersion.has230Features()) {
-						const plugins = this.getContributedTypeScriptServerPlugins();
-						if (plugins.length) {
-							args.push('--globalPlugins', plugins.map(x => x.name).join(','));
+						if (this.plugins.length) {
+							args.push('--globalPlugins', this.plugins.map(x => x.name).join(','));
 							if (modulePath === this.globalTypescriptPath) {
-								args.push('--pluginProbeLocations', plugins.map(x => x.path).join(','));
+								args.push('--pluginProbeLocations', this.plugins.map(x => x.path).join(','));
 							}
 						}
 					}
 
-					electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
+					electron.fork(modulePath, args, options, this.logger, (err: any, childProcess: cp.ChildProcess) => {
 						if (err) {
 							this.lastError = err;
 							this.error('Starting TSServer failed with error.', err);
@@ -820,22 +781,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			return undefined;
 		}
 		return desc.version;
-	}
-
-	private getContributedTypeScriptServerPlugins(): TypeScriptServerPlugin[] {
-		const plugins: TypeScriptServerPlugin[] = [];
-		for (const extension of extensions.all) {
-			const pack = extension.packageJSON;
-			if (pack.contributes && pack.contributes.typescriptServerPlugins && Array.isArray(pack.contributes.typescriptServerPlugins)) {
-				for (const plugin of pack.contributes.typescriptServerPlugins) {
-					plugins.push({
-						name: plugin.name,
-						path: extension.extensionPath
-					});
-				}
-			}
-		}
-		return plugins;
 	}
 
 	private serviceExited(restart: boolean): void {

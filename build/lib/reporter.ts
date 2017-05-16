@@ -48,7 +48,7 @@ function log(): void {
 	const messages = errors
 		.map(err => regex.exec(err))
 		.filter(match => !!match)
-		.map(([, path, line, column, message]) => ({ path, line: Number.parseInt(line), column: Number.parseInt(column), message }));
+		.map(([, path, line, column, message]) => ({ path, line: parseInt(line), column: parseInt(column), message }));
 
 	try {
 

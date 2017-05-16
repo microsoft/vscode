@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-"use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var path = require("path");
 var fs = require("fs");
@@ -527,7 +527,6 @@ var workbenchResources = [
     { name: 'vs/workbench/parts/extensions', project: workbenchProject },
     { name: 'vs/workbench/parts/feedback', project: workbenchProject },
     { name: 'vs/workbench/parts/files', project: workbenchProject },
-    { name: 'vs/workbench/parts/git', project: workbenchProject },
     { name: 'vs/workbench/parts/html', project: workbenchProject },
     { name: 'vs/workbench/parts/markers', project: workbenchProject },
     { name: 'vs/workbench/parts/nps', project: workbenchProject },
@@ -557,30 +556,30 @@ var workbenchResources = [
 ];
 function getResource(sourceFile) {
     var resource;
-    if (sourceFile.startsWith('vs/platform')) {
+    if (/^vs\/platform/.test(sourceFile)) {
         return { name: 'vs/platform', project: editorProject };
     }
-    else if (sourceFile.startsWith('vs/editor/contrib')) {
+    else if (/^vs\/editor\/contrib/.test(sourceFile)) {
         return { name: 'vs/editor/contrib', project: editorProject };
     }
-    else if (sourceFile.startsWith('vs/editor')) {
+    else if (/^vs\/editor/.test(sourceFile)) {
         return { name: 'vs/editor', project: editorProject };
     }
-    else if (sourceFile.startsWith('vs/base')) {
+    else if (/^vs\/base/.test(sourceFile)) {
         return { name: 'vs/base', project: editorProject };
     }
-    else if (sourceFile.startsWith('vs/code')) {
+    else if (/^vs\/code/.test(sourceFile)) {
         return { name: 'vs/code', project: workbenchProject };
     }
-    else if (sourceFile.startsWith('vs/workbench/parts')) {
+    else if (/^vs\/workbench\/parts/.test(sourceFile)) {
         resource = sourceFile.split('/', 4).join('/');
         return { name: resource, project: workbenchProject };
     }
-    else if (sourceFile.startsWith('vs/workbench/services')) {
+    else if (/^vs\/workbench\/services/.test(sourceFile)) {
         resource = sourceFile.split('/', 4).join('/');
         return { name: resource, project: workbenchProject };
     }
-    else if (sourceFile.startsWith('vs/workbench')) {
+    else if (/^vs\/workbench/.test(sourceFile)) {
         return { name: 'vs/workbench', project: workbenchProject };
     }
     throw new Error("Could not identify the XLF bundle for " + sourceFile);
@@ -914,7 +913,7 @@ function prepareJsonFiles() {
             resolvedFiles.forEach(function (file) {
                 var messages = file.messages, translatedFile;
                 // ISL file path always starts with 'build/'
-                if (file.originalFilePath.startsWith('build/')) {
+                if (/^build\//.test(file.originalFilePath)) {
                     var defaultLanguages = { 'zh-hans': true, 'zh-hant': true, 'ko': true };
                     if (path.basename(file.originalFilePath) === 'Default' && !defaultLanguages[file.language]) {
                         return;

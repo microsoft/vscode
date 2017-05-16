@@ -6,6 +6,7 @@
 'use strict';
 
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { stableSort } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -33,7 +34,8 @@ export function getCodeLensData(model: IModel): TPromise<ICodeLensData[]> {
 	}, onUnexpectedExternalError));
 
 	return TPromise.join(promises).then(() => {
-		return symbols.sort((a, b) => {
+
+		return stableSort(symbols, (a, b) => {
 			// sort by lineNumber, provider-rank, and column
 			if (a.symbol.range.startLineNumber < b.symbol.range.startLineNumber) {
 				return -1;

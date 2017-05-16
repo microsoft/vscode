@@ -224,6 +224,7 @@ const configurationValueWhitelist = [
 	'editor.fontWeight',
 	'editor.scrollBeyondLastLine',
 	'editor.lineNumbers',
+	'editor.letterSpacing',
 	'editor.wrappingIndent',
 	'editor.renderControlCharacters',
 	'editor.autoClosingBrackets',

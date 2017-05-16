@@ -892,6 +892,11 @@ declare module monaco.editor {
 	 */
 	export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
 
+	/**
+	 * Switches to a theme.
+	 */
+	export function setTheme(themeName: string): void;
+
 	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
 
 	export interface IStandaloneThemeData {
@@ -965,12 +970,26 @@ declare module monaco.editor {
 		 * To not create automatically a model, use `model: null`.
 		 */
 		language?: string;
+		/**
+		 * Initial theme to be used for rendering.
+		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+		 * You can create custom themes via `monaco.editor.defineTheme`.
+		 * To switch a theme, use `monaco.editor.setTheme`
+		 */
+		theme?: string;
 	}
 
 	/**
 	 * The options to create a diff editor.
 	 */
 	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+		/**
+		 * Initial theme to be used for rendering.
+		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+		 * You can create custom themes via `monaco.editor.defineTheme`.
+		 * To switch a theme, use `monaco.editor.setTheme`
+		 */
+		theme?: string;
 	}
 
 	export interface IStandaloneCodeEditor extends ICodeEditor {
@@ -2717,11 +2736,9 @@ declare module monaco.editor {
 		 */
 		roundedSelection?: boolean;
 		/**
-		 * Theme to be used for rendering.
-		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
-		 * You can create custom themes via `monaco.editor.defineTheme`.
+		 * Class name to be added to the editor.
 		 */
-		theme?: string;
+		extraEditorClassName?: string;
 		/**
 		 * Should the editor be read only.
 		 * Defaults to false.
@@ -3010,6 +3027,10 @@ declare module monaco.editor {
 		 * The line height
 		 */
 		lineHeight?: number;
+		/**
+		 * The letter spacing
+		 */
+		letterSpacing?: number;
 	}
 
 	/**
@@ -3163,7 +3184,7 @@ declare module monaco.editor {
 	}
 
 	export interface InternalEditorViewOptions {
-		readonly theme: string;
+		readonly extraEditorClassName: string;
 		readonly disableMonospaceOptimizations: boolean;
 		readonly experimentalScreenReader: boolean;
 		readonly rulers: number[];
@@ -3807,6 +3828,7 @@ declare module monaco.editor {
 		readonly fontWeight: string;
 		readonly fontSize: number;
 		readonly lineHeight: number;
+		readonly letterSpacing: number;
 	}
 }
 

@@ -163,13 +163,13 @@ function main() {
 
 		window.MonacoEnvironment = {};
 
-		const nodeCachedDataErrors = window.MonacoEnvironment.nodeCachedDataErrors = [];
+		const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
 			recordStats: !!configuration.performance,
 			nodeCachedDataDir: configuration.nodeCachedDataDir,
-			onNodeCachedDataError: function (err) { nodeCachedDataErrors.push(err) },
+			onNodeCachedData: function () { onNodeCachedData.push(arguments) },
 			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 		});
 

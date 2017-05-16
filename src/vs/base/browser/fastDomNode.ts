@@ -20,6 +20,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 	private _fontWeight: string;
 	private _fontSize: number;
 	private _lineHeight: number;
+	private _letterSpacing: number;
 	private _className: string;
 	private _display: string;
 	private _position: string;
@@ -39,6 +40,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this._fontWeight = '';
 		this._fontSize = -1;
 		this._lineHeight = -1;
+		this._letterSpacing = -100;
 		this._className = '';
 		this._display = '';
 		this._position = '';
@@ -164,6 +166,14 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		}
 		this._lineHeight = lineHeight;
 		this.domNode.style.lineHeight = this._lineHeight + 'px';
+	}
+
+	public setLetterSpacing(letterSpacing: number): void {
+		if (this._letterSpacing === letterSpacing) {
+			return;
+		}
+		this._letterSpacing = letterSpacing;
+		this.domNode.style.letterSpacing = this._letterSpacing + 'px';
 	}
 
 	public setClassName(className: string): void {

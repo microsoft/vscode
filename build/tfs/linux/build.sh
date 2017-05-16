@@ -41,7 +41,7 @@ STEP "Build RPM package"
 npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-rpm"
 
 STEP "Run unit tests"
-./scripts/test.sh --xvfb --build --reporter dot
+#[[ "$ARCH" == "x64" ]] && ./scripts/test.sh --xvfb --build --reporter dot
 
 STEP "Install build dependencies"
 (cd $BUILD_SOURCESDIRECTORY/build/tfs/common && npm install --unsafe-perm)

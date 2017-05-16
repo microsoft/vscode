@@ -48,7 +48,7 @@ import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData'
 import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/editorScrollbar';
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -118,6 +118,7 @@ export class View extends ViewEventHandler {
 		this._register(themeService.onThemeChange(theme => {
 			this._context.theme = theme;
 			this.eventDispatcher.emit(new viewEvents.ViewThemeChangedEvent());
+			this.render(true, false);
 		}));
 
 		this.viewParts = [];
@@ -144,7 +145,7 @@ export class View extends ViewEventHandler {
 		this.linesContent.setPosition('absolute');
 
 		this.domNode = createFastDomNode(document.createElement('div'));
-		this.domNode.setClassName(this._context.configuration.editor.editorClassName);
+		this.domNode.setClassName(this.getEditorClassName());
 
 		this.overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.overflowGuardContainer, PartFingerprint.OverflowGuard);
@@ -305,11 +306,15 @@ export class View extends ViewEventHandler {
 
 	}
 
+	private getEditorClassName() {
+		return this._context.configuration.editor.editorClassName + ' ' + getThemeTypeSelector(this._context.theme.type);
+	}
+
 	// --- begin event handlers
 
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.editorClassName) {
-			this.domNode.setClassName(this._context.configuration.editor.editorClassName);
+			this.domNode.setClassName(this.getEditorClassName());
 		}
 		if (e.layoutInfo) {
 			this._setLayout();
@@ -327,6 +332,10 @@ export class View extends ViewEventHandler {
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		this.outgoingEvents.emitScrollChanged(e);
+		return false;
+	}
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		this.domNode.setClassName(this.getEditorClassName());
 		return false;
 	}
 
