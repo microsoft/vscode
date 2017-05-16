@@ -1,5 +1,6 @@
 #!/bin/sh
-set -e
+
+. build/tfs/common/common.sh
 
 export VSCODE_MIXIN_PASSWORD="$1"
 export AZURE_STORAGE_ACCESS_KEY="$2"
@@ -14,42 +15,27 @@ machine monacotools.visualstudio.com
 	password $VSO_PAT
 END
 
-# set agent specific npm cache
-if [ -n "$AGENT_WORKFOLDER" ]
-then
-	export npm_config_cache="$AGENT_WORKFOLDER/npm-cache"
-	echo "Using npm cache: $npm_config_cache"
-fi
+step "Install dependencies" \
+	./scripts/npm.sh install
 
-# log build step
-STEP() {
-	echo ""
-	echo "********************************************************************************"
-	echo "*** $*"
-	echo "********************************************************************************"
-	echo ""
-}
+step "Mix in repository from vscode-distro" \
+	npm run gulp -- mixin
 
-STEP "Install dependencies"
-./scripts/npm.sh install
+step "Install distro dependencies" \
+	npm run install-distro
 
-STEP "Mix in repository from vscode-distro"
-npm run gulp -- mixin
+step "Build minified & upload source maps" \
+	npm run gulp -- --max_old_space_size=4096 vscode-darwin-min upload-vscode-sourcemaps
 
-STEP "Install distro dependencies"
-npm run install-distro
+step "Run unit tests" \
+	./scripts/test.sh --build --reporter dot
 
-STEP "Build minified & upload source maps"
-npm run gulp -- --max_old_space_size=4096 vscode-darwin-min upload-vscode-sourcemaps
+step "Run integration tests" \
+	./scripts/test-integration.sh
 
-STEP "Run unit tests"
-./scripts/test.sh --build --reporter dot
-
-STEP "Run integration tests"
-./scripts/test-integration.sh
-
-STEP "Install build dependencies"
-(cd $BUILD_SOURCESDIRECTORY/build/tfs/common && npm i)
+(cd $BUILD_SOURCESDIRECTORY/build/tfs/common && \
+	step "Install build dependencies" \
+	npm i)
 
 REPO=`pwd`
 ZIP=$REPO/../VSCode-darwin-selfsigned.zip
@@ -58,11 +44,13 @@ BUILD=$REPO/../VSCode-darwin
 PACKAGEJSON=`ls $BUILD/*.app/Contents/Resources/app/package.json`
 VERSION=`node -p "require(\"$PACKAGEJSON\").version"`
 
-STEP "Create unsigned archive"
-( rm -rf $UNSIGNEDZIP ; cd $BUILD && zip -r -X -y $UNSIGNEDZIP * )
+rm -rf $UNSIGNEDZIP
+(cd $BUILD && \
+	step "Create unsigned archive" \
+	zip -r -X -y $UNSIGNEDZIP *)
 
-STEP "Publish unsigned archive"
-node build/tfs/common/publish.js $VSCODE_QUALITY darwin archive-unsigned VSCode-darwin-$VSCODE_QUALITY-unsigned.zip $VERSION false $UNSIGNEDZIP
+step "Publish unsigned archive" \
+	node build/tfs/common/publish.js $VSCODE_QUALITY darwin archive-unsigned VSCode-darwin-$VSCODE_QUALITY-unsigned.zip $VERSION false $UNSIGNEDZIP
 
-STEP "Sign build"
-node build/tfs/common/enqueue.js $VSCODE_QUALITY
+step "Sign build" \
+	node build/tfs/common/enqueue.js $VSCODE_QUALITY
