@@ -37,9 +37,9 @@ import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService'
 import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Themable } from 'vs/workbench/common/theme';
+import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -78,27 +78,6 @@ class WalkThroughCodeEditor extends CodeEditor {
 
 	getTelemetryData() {
 		return this.telemetryData;
-	}
-}
-
-class WalkThroughTheming extends Themable {
-
-	constructor(
-		themeService: IThemeService,
-		private container: HTMLElement
-	) {
-		super(themeService);
-		this.update(themeService.getTheme());
-	}
-
-	protected onThemeChange(theme: ITheme): void {
-		super.onThemeChange(theme);
-		this.update(theme);
-	}
-
-	private update(theme: ITheme): void {
-		const background = theme.getColor(editorBackground);
-		this.container.classList.toggle('extra-dark', background.getLuminosity() < 0.004);
 	}
 }
 
@@ -329,7 +308,6 @@ export class WalkThroughPart extends BaseEditor {
 				if (!strings.endsWith(input.getResource().path, '.md')) {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
-					this.addThemeListener();
 					this.decorateContent();
 					if (input.onReady) {
 						input.onReady(this.content.firstElementChild as HTMLElement);
@@ -429,7 +407,6 @@ export class WalkThroughPart extends BaseEditor {
 					}));
 				});
 				this.updateSizeClasses();
-				this.addThemeListener();
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
@@ -456,11 +433,6 @@ export class WalkThroughPart extends BaseEditor {
 			lineNumbersMinChars: 1,
 			minimap: false,
 		};
-	}
-
-	private addThemeListener() {
-		const innerContent = this.content.firstElementChild as HTMLElement;
-		this.contentDisposables.push(new WalkThroughTheming(this.themeService, innerContent));
 	}
 
 	private style(theme: ITheme, div: HTMLElement) {
@@ -552,3 +524,15 @@ export class WalkThroughPart extends BaseEditor {
 		super.dispose();
 	}
 }
+
+// theming
+
+const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hc: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
+
+registerThemingParticipant((theme, collector) => {
+	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: 'rgba(0,0,0,.08)', hc: null });
+	if (color) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor-background,
+			.monaco-workbench > .part.editor > .content .walkThroughContent .margin-view-overlays { background: ${color}; }`);
+	}
+});
