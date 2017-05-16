@@ -696,9 +696,13 @@ var AMDLoader;
                     if (AMDLoader.isElectronRenderer) {
                         var driveLetterMatch = vmScriptSrc.match(/^([a-z])\:(.*)/i);
                         if (driveLetterMatch) {
-                            vmScriptSrc = driveLetterMatch[1].toUpperCase() + ':' + driveLetterMatch[2];
+                            // windows
+                            vmScriptSrc = "file:///" + (driveLetterMatch[1].toUpperCase() + ':' + driveLetterMatch[2]).replace(/\\/g, '/');
                         }
-                        vmScriptSrc = 'file:///' + vmScriptSrc.replace(/\\/g, '/');
+                        else {
+                            // nix
+                            vmScriptSrc = "file://" + vmScriptSrc;
+                        }
                     }
                     var contents, prefix = '(function (require, define, __filename, __dirname) { ', suffix = '\n});';
                     if (data.charCodeAt(0) === NodeScriptLoader._BOM) {
