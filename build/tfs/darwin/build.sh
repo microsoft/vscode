@@ -33,11 +33,11 @@ STEP() {
 STEP "Install dependencies"
 ./scripts/npm.sh install
 
-STEP "Install distro dependencies"
-npm run install-distro
-
 STEP "Mix in repository from vscode-distro"
 npm run gulp -- mixin
+
+STEP "Install distro dependencies"
+npm run install-distro
 
 STEP "Build minified & upload source maps"
 npm run gulp -- --max_old_space_size=4096 vscode-darwin-min upload-vscode-sourcemaps
