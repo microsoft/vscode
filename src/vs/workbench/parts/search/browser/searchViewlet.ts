@@ -175,6 +175,7 @@ export class SearchViewlet extends Viewlet {
 		const exclusionsUsePattern = this.viewletSettings['query.exclusionsUsePattern'];
 		const includesUsePattern = this.viewletSettings['query.includesUsePattern'];
 		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
 		const useIgnoreFiles = typeof this.viewletSettings['query.useIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useIgnoreFiles'] :
 			this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault;
@@ -268,7 +269,7 @@ export class SearchViewlet extends Viewlet {
 			this.actionRegistry[action.id] = action;
 		});
 
-		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '') {
+		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '') {
 			this.toggleQueryDetails(true, true, true);
 		}
 
@@ -849,6 +850,7 @@ export class SearchViewlet extends Viewlet {
 
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
+		this.viewletSettings['query.queryDetailsExpanded'] = show;
 		skipLayout = Boolean(skipLayout);
 
 		if (show) {
