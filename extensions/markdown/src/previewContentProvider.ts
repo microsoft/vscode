@@ -206,7 +206,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		return vscode.workspace.openTextDocument(sourceUri).then(document => {
 			this.config = MarkdownPreviewConfig.getCurrentConfig();
 
-			let initialLine = 0;
+			let initialLine: number | undefined = undefined;
 			const editor = vscode.window.activeTextEditor;
 			if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
 				initialLine = editor.selection.active.line;
