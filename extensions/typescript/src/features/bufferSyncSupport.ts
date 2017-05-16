@@ -7,11 +7,10 @@
 import * as cp from 'child_process';
 import * as fs from 'fs';
 
-import { workspace, window, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable, MessageItem } from 'vscode';
+import { workspace, window, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable, MessageItem, Uri, commands } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypescriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
-import LinkedMap from './linkedMap';
 
 import * as nls from 'vscode-nls';
 let localize = nls.loadMessageBundle();
@@ -29,17 +28,12 @@ const Mode2ScriptKind: ObjectMap<'TS' | 'JS' | 'TSX' | 'JSX'> = {
 
 class SyncedBuffer {
 
-	private document: TextDocument;
-	private filepath: string;
-	private diagnosticRequestor: IDiagnosticRequestor;
-	private client: ITypescriptServiceClient;
-
-	constructor(document: TextDocument, filepath: string, diagnosticRequestor: IDiagnosticRequestor, client: ITypescriptServiceClient) {
-		this.document = document;
-		this.filepath = filepath;
-		this.diagnosticRequestor = diagnosticRequestor;
-		this.client = client;
-	}
+	constructor(
+		private readonly document: TextDocument,
+		private readonly filepath: string,
+		private readonly diagnosticRequestor: IDiagnosticRequestor,
+		private readonly client: ITypescriptServiceClient
+	) { }
 
 	public open(): void {
 		const args: Proto.OpenRequestArgs = {
@@ -66,23 +60,22 @@ class SyncedBuffer {
 	}
 
 	public close(): void {
-		let args: Proto.FileRequestArgs = {
+		const args: Proto.FileRequestArgs = {
 			file: this.filepath
 		};
 		this.client.execute('close', args, false);
 	}
 
-	onContentChanged(events: TextDocumentContentChangeEvent[]): void {
-		let filePath = this.client.normalizePath(this.document.uri);
+	public onContentChanged(events: TextDocumentContentChangeEvent[]): void {
+		const filePath = this.client.normalizePath(this.document.uri);
 		if (!filePath) {
 			return;
 		}
 
-		for (let i = 0; i < events.length; i++) {
-			let event = events[i];
-			let range = event.range;
-			let text = event.text;
-			let args: Proto.ChangeRequestArgs = {
+		for (const event of events) {
+			const range = event.range;
+			const text = event.text;
+			const args: Proto.ChangeRequestArgs = {
 				file: filePath,
 				line: range.start.line + 1,
 				offset: range.start.character + 1,
@@ -115,7 +108,6 @@ export default class BufferSyncSupport {
 
 	private pendingDiagnostics: { [key: string]: number; };
 	private diagnosticDelayer: Delayer<any>;
-	private emitQueue: LinkedMap<string>;
 	private checkGlobalTSCVersion: boolean;
 
 	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, validate: boolean = true) {
@@ -131,7 +123,6 @@ export default class BufferSyncSupport {
 		this.diagnosticDelayer = new Delayer<any>(300);
 
 		this.syncedBuffers = Object.create(null);
-		this.emitQueue = new LinkedMap<string>();
 
 		const tsConfig = workspace.getConfiguration('typescript');
 		this.checkGlobalTSCVersion = client.checkGlobalTSCVersion && this.modeIds['typescript'] === true && tsConfig.get(checkTscVersionSettingKey, true);
@@ -297,21 +288,6 @@ export default class BufferSyncSupport {
 			id: number;
 		}
 
-		function openUrl(url: string) {
-			let cmd: string;
-			switch (process.platform) {
-				case 'darwin':
-					cmd = 'open';
-					break;
-				case 'win32':
-					cmd = 'start';
-					break;
-				default:
-					cmd = 'xdg-open';
-			}
-			return cp.exec(cmd + ' ' + url);
-		}
-
 		let tscVersion: string | undefined = undefined;
 		try {
 			let out = cp.execSync('tsc --version', { encoding: 'utf8' });
@@ -345,7 +321,7 @@ export default class BufferSyncSupport {
 				}
 				switch (selected.id) {
 					case 1:
-						openUrl('http://go.microsoft.com/fwlink/?LinkId=826239');
+						commands.executeCommand('vscode.open', Uri.parse('http://go.microsoft.com/fwlink/?LinkId=826239'));
 						break;
 					case 2:
 						const tsConfig = workspace.getConfiguration('typescript');
