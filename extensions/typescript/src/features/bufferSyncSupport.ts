@@ -103,7 +103,7 @@ export default class BufferSyncSupport {
 
 	private _validate: boolean;
 	private readonly modeIds: Set<string>;
-	private diagnostics: Diagnostics;
+	private readonly diagnostics: Diagnostics;
 	private readonly disposables: Disposable[] = [];
 	private readonly syncedBuffers: ObjectMap<SyncedBuffer>;
 
@@ -123,7 +123,7 @@ export default class BufferSyncSupport {
 		this.syncedBuffers = Object.create(null);
 
 		const tsConfig = workspace.getConfiguration('typescript');
-		this.checkGlobalTSCVersion = client.checkGlobalTSCVersion && this.modeIds.has('typescript') === true && tsConfig.get(checkTscVersionSettingKey, true);
+		this.checkGlobalTSCVersion = client.checkGlobalTSCVersion && this.modeIds.has('typescript') && tsConfig.get(checkTscVersionSettingKey, true);
 	}
 
 	public listen(): void {

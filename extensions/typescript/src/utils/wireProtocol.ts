@@ -172,24 +172,3 @@ export class Reader<T> {
 		}
 	}
 }
-
-export class Writer<T> {
-
-	private writable: stream.Writable;
-
-	public constructor(writable: stream.Writable) {
-		this.writable = writable;
-	}
-
-	public write(msg: T): void {
-		let json = JSON.stringify(msg);
-		let buffer: string[] = [
-			ContentLength,
-			Buffer.byteLength(json, 'utf8').toString(),
-			'\r\n\r\n',
-			json,
-			'\r\n'
-		];
-		this.writable.write(buffer.join(''), 'utf8');
-	}
-}
