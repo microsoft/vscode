@@ -275,7 +275,7 @@ function packageTask(platform, arch, opts) {
 			.pipe(util.cleanNodeModule('gc-signals', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('v8-profiler', ['binding.gyp', 'build/**', 'src/**', 'deps/**'], ['**/*.node', 'src/index.js']))
 			.pipe(util.cleanNodeModule('node-pty', ['binding.gyp', 'build/**', 'src/**', 'tools/**'], ['build/Release/**']))
-			.pipe(util.cleanNodeModule('vsda', ['**'], ['package.json', 'index.js', '**/*.node']));
+			.pipe(util.cleanNodeModule('vsda', ['binding.gyp', 'build/**', '*.bat', '*.sh', '*.cpp', '*.h'], ['**/*.node']));
 
 		let all = es.merge(
 			packageJsonStream,
