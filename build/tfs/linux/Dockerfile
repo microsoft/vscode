@@ -1,4 +1,4 @@
-FROM microsoft/vsts-agent:ubuntu-16.04-standard
+FROM microsoft/vsts-agent:ubuntu-14.04-standard
 MAINTAINER Joao Moreno <joao.moreno@microsoft.com>
 
 RUN dpkg --add-architecture i386
