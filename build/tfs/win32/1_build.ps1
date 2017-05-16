@@ -12,7 +12,7 @@ $env:HOME=$env:USERPROFILE
 @"
 machine monacotools.visualstudio.com
 password ${vsoPAT}
-"@ | Out-File ~/_netrc -Encoding ASCII
+"@ | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
 
 STEP "Install dependencies"
 exec { & .\scripts\npm.bat install }
