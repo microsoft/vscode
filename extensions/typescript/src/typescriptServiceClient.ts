@@ -543,7 +543,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						}
 					}
 
-					electron.fork(modulePath, args, options, (err: any, childProcess: cp.ChildProcess) => {
+					electron.fork(modulePath, args, options, this.logger, (err: any, childProcess: cp.ChildProcess) => {
 						if (err) {
 							this.lastError = err;
 							this.error('Starting TSServer failed with error.', err);

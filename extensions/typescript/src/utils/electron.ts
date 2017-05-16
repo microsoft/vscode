@@ -9,6 +9,7 @@ import path = require('path');
 import os = require('os');
 import net = require('net');
 import cp = require('child_process');
+import Logger from './logger';
 
 export interface IForkOptions {
 	cwd?: string;
@@ -60,7 +61,8 @@ export function fork(
 	modulePath: string,
 	args: string[],
 	options: IForkOptions,
-	callback: (error: any, cp: cp.ChildProcess | null) => void
+	logger: Logger,
+	callback: (error: any, cp: cp.ChildProcess | null) => void,
 ): void {
 
 	var callbackCalled = false;
@@ -86,7 +88,6 @@ export function fork(
 
 
 	const newEnv = generatePatchedEnv(process.env, stdInPipeName, stdOutPipeName, stdErrPipeName);
-
 	var childProcess: cp.ChildProcess;
 
 	// Begin listening to stderr pipe
@@ -123,6 +124,8 @@ export function fork(
 	};
 
 	// Create the process
+	logger.info('Forking TSServer', `PATH: ${newEnv['PATH']}`);
+
 	const bootstrapperPath = path.join(__dirname, 'electronForkStart');
 	childProcess = cp.fork(bootstrapperPath, [modulePath].concat(args), <any>{
 		silent: true,
