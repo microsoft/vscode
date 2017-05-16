@@ -6,7 +6,7 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import { getLocation, visit } from 'jsonc-parser';
+import { getLocation, visit, parse } from 'jsonc-parser';
 import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
 
@@ -70,15 +70,17 @@ function registerExtensionsCompletions(): vscode.Disposable {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'recommendations') {
-				const config = vscode.workspace && vscode.workspace.getConfiguration('extensions.json');
-				const alreadyEnteredExtensions = config.get<string[]>('recommendations') || [];
-				return vscode.extensions.all
-					.filter(e => !(
-						e.id.startsWith('vscode.')
-						|| e.id === 'Microsoft.vscode-markdown'
-						|| alreadyEnteredExtensions.indexOf(e.id) > -1
-					))
-					.map(e => newSimpleCompletionItem(e.id, range, undefined, '"' + e.id + '"'));
+				const config = parse(document.getText());
+				const alreadyEnteredExtensions = config && config.recommendations || [];
+				if (Array.isArray(alreadyEnteredExtensions)) {
+					return vscode.extensions.all
+						.filter(e => !(
+							e.id.startsWith('vscode.')
+							|| e.id === 'Microsoft.vscode-markdown'
+							|| alreadyEnteredExtensions.indexOf(e.id) > -1
+						))
+						.map(e => newSimpleCompletionItem(e.id, range, undefined, '"' + e.id + '"'));
+				}
 			}
 			return [];
 		}
