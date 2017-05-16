@@ -99,22 +99,21 @@ export interface Diagnostics {
 const checkTscVersionSettingKey = 'check.tscVersion';
 export default class BufferSyncSupport {
 
-	private client: ITypescriptServiceClient;
+	private readonly client: ITypescriptServiceClient;
 
 	private _validate: boolean;
-	private modeIds: ObjectMap<boolean>;
+	private readonly modeIds: Set<string>;
 	private diagnostics: Diagnostics;
-	private disposables: Disposable[] = [];
-	private syncedBuffers: ObjectMap<SyncedBuffer>;
+	private readonly disposables: Disposable[] = [];
+	private readonly syncedBuffers: ObjectMap<SyncedBuffer>;
 
 	private pendingDiagnostics: { [key: string]: number; };
-	private diagnosticDelayer: Delayer<any>;
+	private readonly diagnosticDelayer: Delayer<any>;
 	private checkGlobalTSCVersion: boolean;
 
 	constructor(client: ITypescriptServiceClient, modeIds: string[], diagnostics: Diagnostics, validate: boolean = true) {
 		this.client = client;
-		this.modeIds = Object.create(null);
-		modeIds.forEach(modeId => this.modeIds[modeId] = true);
+		this.modeIds = new Set<string>(modeIds);
 		this.diagnostics = diagnostics;
 		this._validate = validate;
 
@@ -124,7 +123,7 @@ export default class BufferSyncSupport {
 		this.syncedBuffers = Object.create(null);
 
 		const tsConfig = workspace.getConfiguration('typescript');
-		this.checkGlobalTSCVersion = client.checkGlobalTSCVersion && this.modeIds['typescript'] === true && tsConfig.get(checkTscVersionSettingKey, true);
+		this.checkGlobalTSCVersion = client.checkGlobalTSCVersion && this.modeIds.has('typescript') === true && tsConfig.get(checkTscVersionSettingKey, true);
 	}
 
 	public listen(): void {
@@ -163,7 +162,7 @@ export default class BufferSyncSupport {
 	}
 
 	private onDidOpenTextDocument(document: TextDocument): void {
-		if (!this.modeIds[document.languageId]) {
+		if (!this.modeIds.has(document.languageId)) {
 			return;
 		}
 		let resource = document.uri;
