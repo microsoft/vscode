@@ -152,7 +152,7 @@ declare module 'vscode' {
 		 * that the returned object is *not* live and changes to the
 		 * document are not reflected.
 		 *
-		 * @param line A line number in [0, lineCount).
+		 * @param line A line number in [0, lineCount].
 		 * @return A [line](#TextLine).
 		 */
 		lineAt(line: number): TextLine;
