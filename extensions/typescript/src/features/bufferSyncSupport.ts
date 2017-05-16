@@ -19,12 +19,15 @@ interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
 }
 
-const Mode2ScriptKind: ObjectMap<'TS' | 'JS' | 'TSX' | 'JSX'> = {
-	'typescript': 'TS',
-	'typescriptreact': 'TSX',
-	'javascript': 'JS',
-	'javascriptreact': 'JSX'
-};
+function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
+	switch (mode) {
+		case 'typescript': return 'TS';
+		case 'typescriptreact': return 'TSX';
+		case 'javascript': return 'JS';
+		case 'javascriptreact': return 'JSX';
+	}
+	return undefined;
+}
 
 class SyncedBuffer {
 
@@ -42,7 +45,7 @@ class SyncedBuffer {
 		};
 
 		if (this.client.apiVersion.has203Features()) {
-			const scriptKind = Mode2ScriptKind[this.document.languageId];
+			const scriptKind = mode2ScriptKind(this.document.languageId);
 			if (scriptKind) {
 				args.scriptKindName = scriptKind;
 			}
@@ -104,8 +107,6 @@ export default class BufferSyncSupport {
 	private disposables: Disposable[] = [];
 	private syncedBuffers: ObjectMap<SyncedBuffer>;
 
-	private projectValidationRequested: boolean;
-
 	private pendingDiagnostics: { [key: string]: number; };
 	private diagnosticDelayer: Delayer<any>;
 	private checkGlobalTSCVersion: boolean;
@@ -116,8 +117,6 @@ export default class BufferSyncSupport {
 		modeIds.forEach(modeId => this.modeIds[modeId] = true);
 		this.diagnostics = diagnostics;
 		this._validate = validate;
-
-		this.projectValidationRequested = false;
 
 		this.pendingDiagnostics = Object.create(null);
 		this.diagnosticDelayer = new Delayer<any>(300);
