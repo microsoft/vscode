@@ -40,7 +40,7 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this._fontWeight = '';
 		this._fontSize = -1;
 		this._lineHeight = -1;
-		this._letterSpacing = -1;
+		this._letterSpacing = -100;
 		this._className = '';
 		this._display = '';
 		this._position = '';
