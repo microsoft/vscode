@@ -36,7 +36,6 @@ export class NodeCachedDataManager {
 
 	private _handleCachedDataInfo(): void {
 		const onNodeCachedData = (err, data) => {
-			console.log('onNodeCachedDatare', err, data);
 			if (err) {
 				this._telemetryService.publicLog('nodeCachedData', { errorCode: err.errorCode, path: basename(err.path) });
 			} else if (data) {
