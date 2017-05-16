@@ -329,7 +329,6 @@ export class WalkThroughPart extends BaseEditor {
 				if (!strings.endsWith(input.getResource().path, '.md')) {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
-					this.updateMarkerClasses();
 					this.addThemeListener();
 					this.decorateContent();
 					if (input.onReady) {
@@ -430,7 +429,6 @@ export class WalkThroughPart extends BaseEditor {
 					}));
 				});
 				this.updateSizeClasses();
-				this.updateMarkerClasses();
 				this.addThemeListener();
 				if (input.onReady) {
 					input.onReady(innerContent);
@@ -458,15 +456,6 @@ export class WalkThroughPart extends BaseEditor {
 			lineNumbersMinChars: 1,
 			minimap: false,
 		};
-	}
-
-	private updateMarkerClasses() {
-		const innerContent = this.content.firstElementChild;
-
-		// TODO@christof
-		if (true && innerContent) {
-			innerContent.classList.add('scmEnabled');
-		}
 	}
 
 	private addThemeListener() {

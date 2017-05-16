@@ -301,16 +301,3 @@
 .monaco-workbench.linux > .part.editor > .content .welcomePage li.linux-only {
 	display: list-item;
 }
-
-.monaco-workbench > .part.editor > .content .welcomePageContainer .scm-only {
-	display: none;
-}
-.monaco-workbench > .part.editor > .content .welcomePageContainer.scmEnabled .scm-only {
-	display: initial;
-}
-.monaco-workbench > .part.editor > .content .welcomePageContainer.scmEnabled li.scm-only {
-	display: list-item;
-}
-.monaco-workbench > .part.editor > .content .welcomePageContainer.scmEnabled .git-only {
-	display: none;
-}

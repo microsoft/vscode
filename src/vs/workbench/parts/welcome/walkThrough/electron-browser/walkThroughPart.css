@@ -161,16 +161,6 @@
 	display: initial;
 }
 
-.monaco-workbench > .part.editor > .content .walkThroughContent .scm-only {
-	display: none;
-}
-.monaco-workbench > .part.editor > .content .walkThroughContent.scmEnabled .scm-only {
-	display: initial;
-}
-.monaco-workbench > .part.editor > .content .walkThroughContent.scmEnabled .git-only {
-	display: none;
-}
-
 .vs .monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor-background,
 .vs .monaco-workbench > .part.editor > .content .walkThroughContent .glyph-margin {
 	background:rgba(0,0,0,.08);
