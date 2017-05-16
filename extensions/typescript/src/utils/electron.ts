@@ -12,8 +12,6 @@ import cp = require('child_process');
 
 export interface IForkOptions {
 	cwd?: string;
-	env?: any;
-	encoding?: string;
 	execArgv?: string[];
 }
 
@@ -82,7 +80,7 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 	let stdErrPipeName = generatePipeName();
 
 
-	var newEnv = generatePatchedEnv(options.env || process.env, stdInPipeName, stdOutPipeName, stdErrPipeName);
+	var newEnv = generatePatchedEnv(process.env, stdInPipeName, stdOutPipeName, stdErrPipeName);
 
 	var childProcess: cp.ChildProcess;
 
