@@ -45,8 +45,8 @@ export class NodeCachedDataManager {
 
 		// handle future and past errors
 		(<any>self).require.config({ onNodeCachedData });
-		delete (<any>window).MonacoEnvironment.onNodeCachedData;
 		(<any[]>(<any>window).MonacoEnvironment.onNodeCachedData).forEach(args => onNodeCachedData.apply(undefined, args));
+		delete (<any>window).MonacoEnvironment.onNodeCachedData;
 
 		// stop when being disposed
 		this._disposables.push({
