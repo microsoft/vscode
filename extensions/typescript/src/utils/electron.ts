@@ -56,17 +56,22 @@ function generatePatchedEnv(env: any, stdInPipeName: string, stdOutPipeName: str
 	return newEnv;
 }
 
-export function fork(modulePath: string, args: string[], options: IForkOptions, callback: (error: any, cp: cp.ChildProcess | null) => void): void {
+export function fork(
+	modulePath: string,
+	args: string[],
+	options: IForkOptions,
+	callback: (error: any, cp: cp.ChildProcess | null) => void
+): void {
 
 	var callbackCalled = false;
-	var resolve = (result: cp.ChildProcess) => {
+	const resolve = (result: cp.ChildProcess) => {
 		if (callbackCalled) {
 			return;
 		}
 		callbackCalled = true;
 		callback(null, result);
 	};
-	var reject = (err: any) => {
+	const reject = (err: any) => {
 		if (callbackCalled) {
 			return;
 		}
@@ -75,12 +80,12 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 	};
 
 	// Generate three unique pipe names
-	var stdInPipeName = generatePipeName();
-	var stdOutPipeName = generatePipeName();
-	let stdErrPipeName = generatePipeName();
+	const stdInPipeName = generatePipeName();
+	const stdOutPipeName = generatePipeName();
+	const stdErrPipeName = generatePipeName();
 
 
-	var newEnv = generatePatchedEnv(process.env, stdInPipeName, stdOutPipeName, stdErrPipeName);
+	const newEnv = generatePatchedEnv(process.env, stdInPipeName, stdOutPipeName, stdErrPipeName);
 
 	var childProcess: cp.ChildProcess;
 
@@ -108,7 +113,7 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 	stdOutServer.listen(stdOutPipeName);
 
 	var serverClosed = false;
-	var closeServer = () => {
+	const closeServer = () => {
 		if (serverClosed) {
 			return;
 		}
@@ -118,7 +123,7 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 	};
 
 	// Create the process
-	let bootstrapperPath = path.join(__dirname, 'electronForkStart');
+	const bootstrapperPath = path.join(__dirname, 'electronForkStart');
 	childProcess = cp.fork(bootstrapperPath, [modulePath].concat(args), <any>{
 		silent: true,
 		cwd: options.cwd,
