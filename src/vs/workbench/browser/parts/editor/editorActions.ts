@@ -60,8 +60,7 @@ export class SplitEditorAction extends Action {
 		let options: EditorOptions;
 		const codeEditor = getCodeEditor(editorToSplit);
 		if (codeEditor) {
-			options = new TextEditorOptions();
-			(<TextEditorOptions>options).fromEditor(codeEditor);
+			options = TextEditorOptions.fromEditor(codeEditor);
 		} else {
 			options = new EditorOptions();
 		}
@@ -317,9 +316,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 			let options: EditorOptions;
 			const codeEditor = getCodeEditor(referenceEditor);
 			if (codeEditor) {
-				options = new TextEditorOptions();
-				options.pinned = true;
-				(<TextEditorOptions>options).fromEditor(codeEditor);
+				options = TextEditorOptions.fromEditor(codeEditor, { pinned: true });
 			} else {
 				options = EditorOptions.create({ pinned: true });
 			}
