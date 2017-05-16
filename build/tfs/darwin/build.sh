@@ -6,6 +6,13 @@ export AZURE_STORAGE_ACCESS_KEY="$2"
 export AZURE_STORAGE_ACCESS_KEY_2="$3"
 export MOONCAKE_STORAGE_ACCESS_KEY="$4"
 export AZURE_DOCUMENTDB_MASTERKEY="$5"
+VSO_PAT="$6"
+
+# Create a .netrc file to download distro dependencies
+cat > ~/.netrc <<END
+machine monacotools.visualstudio.com
+	password $VSO_PAT
+END
 
 # set agent specific npm cache
 if [ -n "$AGENT_WORKFOLDER" ]
@@ -25,6 +32,9 @@ STEP() {
 
 STEP "Install dependencies"
 ./scripts/npm.sh install
+
+STEP "Install distro dependencies"
+npm run install-distro
 
 STEP "Mix in repository from vscode-distro"
 npm run gulp -- mixin

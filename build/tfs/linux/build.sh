@@ -8,6 +8,13 @@ export AZURE_STORAGE_ACCESS_KEY_2="$4"
 export MOONCAKE_STORAGE_ACCESS_KEY="$5"
 export AZURE_DOCUMENTDB_MASTERKEY="$6"
 export LINUX_REPO_PASSWORD="$7"
+VSO_PAT="$8"
+
+# Create a .netrc file to download distro dependencies
+cat > ~/.netrc <<END
+machine monacotools.visualstudio.com
+	password $VSO_PAT
+END
 
 # set agent specific npm cache
 if [ -n "$AGENT_WORKFOLDER" ]
@@ -30,6 +37,9 @@ STEP "Install dependencies"
 
 STEP "Mix in repository from vscode-distro"
 npm run gulp -- mixin
+
+STEP "Install distro dependencies"
+npm run install-distro
 
 STEP "Build minified"
 npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
