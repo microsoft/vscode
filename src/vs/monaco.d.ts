@@ -3027,6 +3027,10 @@ declare module monaco.editor {
 		 * The line height
 		 */
 		lineHeight?: number;
+		/**
+		 * The letter spacing
+		 */
+		letterSpacing?: number;
 	}
 
 	/**
@@ -3824,6 +3828,7 @@ declare module monaco.editor {
 		readonly fontWeight: string;
 		readonly fontSize: number;
 		readonly lineHeight: number;
+		readonly letterSpacing: number;
 	}
 }
 
