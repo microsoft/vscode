@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { parse } from 'vs/base/common/json';
 import { readFile } from 'vs/base/node/pfs';
-import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, CommentRule, IRegExp } from 'vs/editor/common/modes/languageConfiguration';
+import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, CommentRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -15,6 +15,11 @@ import { Registry } from 'vs/platform/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
+
+interface IRegExp {
+	pattern: string;
+	flags?: string;
+}
 
 interface ILanguageConfiguration {
 	comments?: CommentRule;
