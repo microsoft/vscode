@@ -253,14 +253,20 @@ var AMDLoader;
             if (typeof options.nodeCachedDataWriteDelay !== 'number' || options.nodeCachedDataWriteDelay < 0) {
                 options.nodeCachedDataWriteDelay = 1000 * 7;
             }
-            if (typeof options.onNodeCachedDataError !== 'function') {
-                options.onNodeCachedDataError = function (err) {
-                    if (err.errorCode === 'cachedDataRejected') {
+            if (typeof options.onNodeCachedData !== 'function') {
+                options.onNodeCachedData = function (err, data) {
+                    if (!err) {
+                        // ignore
+                    }
+                    else if (err.errorCode === 'cachedDataRejected') {
                         console.warn('Rejected cached data from file: ' + err.path);
                     }
                     else if (err.errorCode === 'unlink' || err.errorCode === 'writeFile') {
                         console.error('Problems writing cached data file: ' + err.path);
                         console.error(err.detail);
+                    }
+                    else {
+                        console.error(err);
                     }
                 };
             }
@@ -742,31 +748,40 @@ var AMDLoader;
             var _this = this;
             if (script.cachedDataRejected) {
                 // data rejected => delete cache file
-                moduleManager.getConfig().getOptionsLiteral().onNodeCachedDataError({
+                moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
                     errorCode: 'cachedDataRejected',
                     path: cachedDataPath
                 });
-                NodeScriptLoader._runSoon(function () { return _this._fs.unlink(cachedDataPath, function (err) {
-                    if (err) {
-                        moduleManager.getConfig().getOptionsLiteral().onNodeCachedDataError({
-                            errorCode: 'unlink',
-                            path: cachedDataPath,
-                            detail: err
-                        });
-                    }
-                }); }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
+                NodeScriptLoader._runSoon(function () {
+                    return _this._fs.unlink(cachedDataPath, function (err) {
+                        if (err) {
+                            moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                                errorCode: 'unlink',
+                                path: cachedDataPath,
+                                detail: err
+                            });
+                        }
+                    });
+                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
             }
             else if (script.cachedDataProduced) {
+                // data produced => tell outside world
+                moduleManager.getConfig().getOptionsLiteral().onNodeCachedData(undefined, {
+                    path: cachedDataPath,
+                    length: script.cachedData.length
+                });
                 // data produced => write cache file
-                NodeScriptLoader._runSoon(function () { return _this._fs.writeFile(cachedDataPath, script.cachedData, function (err) {
-                    if (err) {
-                        moduleManager.getConfig().getOptionsLiteral().onNodeCachedDataError({
-                            errorCode: 'writeFile',
-                            path: cachedDataPath,
-                            detail: err
-                        });
-                    }
-                }); }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
+                NodeScriptLoader._runSoon(function () {
+                    return _this._fs.writeFile(cachedDataPath, script.cachedData, function (err) {
+                        if (err) {
+                            moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                                errorCode: 'writeFile',
+                                path: cachedDataPath,
+                                detail: err
+                            });
+                        }
+                    });
+                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
             }
         };
         NodeScriptLoader._runSoon = function (callback, minTimeout) {
