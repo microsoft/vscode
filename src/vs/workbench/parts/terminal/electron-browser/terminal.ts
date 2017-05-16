@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as os from 'os';
 import * as cp from 'child_process';
-import platform = require('vs/base/common/platform');
-import processes = require('vs/base/node/processes');
+import * as os from 'os';
+import * as platform from 'vs/base/common/platform';
+import * as processes from 'vs/base/node/processes';
 
 export const TERMINAL_DEFAULT_SHELL_LINUX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';
 export const TERMINAL_DEFAULT_SHELL_OSX = !platform.isWindows ? (process.env.SHELL || 'sh') : 'sh';

@@ -27,6 +27,9 @@ export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boole
 /** A keybinding context key that is set when the integrated terminal does not have text selected. */
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED: ContextKeyExpr = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
+export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
+export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
+
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
 export const TerminalCursorStyle = {
@@ -46,6 +49,7 @@ export interface ITerminalConfiguration {
 		osx: string[];
 		windows: string[];
 	};
+	enableBold: boolean;
 	rightClickCopyPaste: boolean;
 	cursorBlinking: boolean;
 	cursorStyle: string;
@@ -62,8 +66,13 @@ export interface ITerminalConfiguration {
 
 export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
-	getTheme(baseThemeId: string): string[];
 	getFont(): ITerminalFont;
+	/**
+	 * Merges the default shell path and args into the provided launch configuration
+	 */
+	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void;
+	/** Sets whether a workspace shell configuration is allowed or not */
+	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
 export interface ITerminalFont {
@@ -79,8 +88,12 @@ export interface IShellLaunchConfig {
 	name?: string;
 	/** The shell executable (bash, cmd, etc.). */
 	executable?: string;
-	/** The CLI arguments to use with executable. */
-	args?: string[];
+	/**
+	 * The CLI arguments to use with executable, a string[] is in argv format and will be escaped,
+	 * a string is in "CommandLine" pre-escaped format and will be used as is. The string option is
+	 * only supported on Windows and will throw an exception if used on macOS or Linux.
+	 */
+	args?: string[] | string;
 	/**
 	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
 	 * settings key.
@@ -98,6 +111,13 @@ export interface IShellLaunchConfig {
 	ignoreConfigurationCwd?: boolean;
 	/** Whether to wait for a key press before closing the terminal. */
 	waitOnExit?: boolean;
+	/**
+	 * A string including ANSI escape sequences that will be written to the terminal emulator
+	 * _before_ the terminal process has launched, a trailing \n is added at the end of the string.
+	 * This allows for example the terminal instance to display a styled message as the first line
+	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
+	 */
+	initialText?: string;
 }
 
 export interface ITerminalService {
@@ -108,11 +128,12 @@ export interface ITerminalService {
 	onActiveInstanceChanged: Event<string>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
+	onInstanceData: Event<{ instance: ITerminalInstance, data: string }>;
 	onInstancesChanged: Event<string>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 
-	createInstance(shell?: IShellLaunchConfig): ITerminalInstance;
+	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceLabels(): string[];
 	getActiveInstance(): ITerminalInstance;
@@ -120,11 +141,14 @@ export interface ITerminalService {
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	setActiveInstanceToNext(): void;
 	setActiveInstanceToPrevious(): void;
+	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 
 	showPanel(focus?: boolean): TPromise<void>;
 	hidePanel(): void;
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	updateConfig(): void;
+	selectDefaultWindowsShell(): TPromise<string>;
+	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
 
 export interface ITerminalInstance {
@@ -294,4 +318,9 @@ export interface ITerminalInstance {
 	 * @param shell The new launch configuration.
 	 */
 	reuseTerminal(shell?: IShellLaunchConfig): void;
+
+	/**
+	 * Experimental: Call to enable onData to be passed over IPC to the extension host.
+	 */
+	enableApiOnData(): void;
 }

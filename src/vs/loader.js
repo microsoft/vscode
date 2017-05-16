@@ -253,14 +253,20 @@ var AMDLoader;
             if (typeof options.nodeCachedDataWriteDelay !== 'number' || options.nodeCachedDataWriteDelay < 0) {
                 options.nodeCachedDataWriteDelay = 1000 * 7;
             }
-            if (typeof options.onNodeCachedDataError !== 'function') {
-                options.onNodeCachedDataError = function (err) {
-                    if (err.errorCode === 'cachedDataRejected') {
+            if (typeof options.onNodeCachedData !== 'function') {
+                options.onNodeCachedData = function (err, data) {
+                    if (!err) {
+                        // ignore
+                    }
+                    else if (err.errorCode === 'cachedDataRejected') {
                         console.warn('Rejected cached data from file: ' + err.path);
                     }
                     else if (err.errorCode === 'unlink' || err.errorCode === 'writeFile') {
                         console.error('Problems writing cached data file: ' + err.path);
                         console.error(err.detail);
+                    }
+                    else {
+                        console.error(err);
                     }
                 };
             }
@@ -583,17 +589,78 @@ var AMDLoader;
     }());
     var NodeScriptLoader = (function () {
         function NodeScriptLoader() {
-            this._initialized = false;
+            this._didInitialize = false;
+            this._didPatchNodeRequire = false;
+            // js-flags have an impact on cached data
+            this._jsflags = '';
+            for (var _i = 0, _a = process.argv; _i < _a.length; _i++) {
+                var arg = _a[_i];
+                if (arg.indexOf('--js-flags=') === 0) {
+                    this._jsflags = arg;
+                    break;
+                }
+            }
         }
         NodeScriptLoader.prototype._init = function (nodeRequire) {
-            if (this._initialized) {
+            if (this._didInitialize) {
                 return;
             }
-            this._initialized = true;
+            this._didInitialize = true;
             this._fs = nodeRequire('fs');
             this._vm = nodeRequire('vm');
             this._path = nodeRequire('path');
             this._crypto = nodeRequire('crypto');
+        };
+        // patch require-function of nodejs such that we can manually create a script
+        // from cached data. this is done by overriding the `Module._compile` function
+        NodeScriptLoader.prototype._initNodeRequire = function (nodeRequire, moduleManager) {
+            var nodeCachedDataDir = moduleManager.getConfig().getOptionsLiteral().nodeCachedDataDir;
+            if (!nodeCachedDataDir || this._didPatchNodeRequire) {
+                return;
+            }
+            this._didPatchNodeRequire = true;
+            var that = this;
+            var Module = nodeRequire('module');
+            function makeRequireFunction(mod) {
+                var Module = mod.constructor;
+                var require = function require(path) {
+                    try {
+                        return mod.require(path);
+                    }
+                    finally {
+                        // nothing
+                    }
+                };
+                require.resolve = function resolve(request) {
+                    return Module._resolveFilename(request, mod);
+                };
+                require.main = process.mainModule;
+                require.extensions = Module._extensions;
+                require.cache = Module._cache;
+                return require;
+            }
+            Module.prototype._compile = function (content, filename) {
+                // remove shebang
+                content = content.replace(/^#!.*/, '');
+                // create wrapper function
+                var wrapper = Module.wrap(content);
+                var cachedDataPath = that._getCachedDataPath(nodeCachedDataDir, filename);
+                var options = { filename: filename };
+                try {
+                    options.cachedData = that._fs.readFileSync(cachedDataPath);
+                }
+                catch (e) {
+                    options.produceCachedData = true;
+                }
+                var script = new that._vm.Script(wrapper, options);
+                var compileWrapper = script.runInThisContext(options);
+                var dirname = that._path.dirname(filename);
+                var require = makeRequireFunction(this);
+                var args = [this.exports, require, this, filename, dirname, process, AMDLoader.global, Buffer];
+                var result = compileWrapper.apply(this.exports, args);
+                that._processCachedData(moduleManager, script, cachedDataPath);
+                return result;
+            };
         };
         NodeScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
             var _this = this;
@@ -601,6 +668,7 @@ var AMDLoader;
             var nodeRequire = (opts.nodeRequire || AMDLoader.global.nodeRequire);
             var nodeInstrumenter = (opts.nodeInstrumenter || function (c) { return c; });
             this._init(nodeRequire);
+            this._initNodeRequire(nodeRequire, moduleManager);
             var recorder = moduleManager.getRecorder();
             if (/^node\|/.test(scriptSrc)) {
                 var pieces = scriptSrc.split('|');
@@ -622,14 +690,19 @@ var AMDLoader;
                         errorback(err);
                         return;
                     }
-                    var vmScriptSrc = _this._path.normalize(scriptSrc);
+                    var normalizedScriptSrc = _this._path.normalize(scriptSrc);
+                    var vmScriptSrc = normalizedScriptSrc;
                     // Make the script src friendly towards electron
                     if (AMDLoader.isElectronRenderer) {
                         var driveLetterMatch = vmScriptSrc.match(/^([a-z])\:(.*)/i);
                         if (driveLetterMatch) {
-                            vmScriptSrc = driveLetterMatch[1].toUpperCase() + ':' + driveLetterMatch[2];
+                            // windows
+                            vmScriptSrc = "file:///" + (driveLetterMatch[1].toUpperCase() + ':' + driveLetterMatch[2]).replace(/\\/g, '/');
                         }
-                        vmScriptSrc = 'file:///' + vmScriptSrc.replace(/\\/g, '/');
+                        else {
+                            // nix
+                            vmScriptSrc = "file://" + vmScriptSrc;
+                        }
                     }
                     var contents, prefix = '(function (require, define, __filename, __dirname) { ', suffix = '\n});';
                     if (data.charCodeAt(0) === NodeScriptLoader._BOM) {
@@ -638,51 +711,23 @@ var AMDLoader;
                     else {
                         contents = prefix + data + suffix;
                     }
-                    contents = nodeInstrumenter(contents, vmScriptSrc);
+                    contents = nodeInstrumenter(contents, normalizedScriptSrc);
                     if (!opts.nodeCachedDataDir) {
                         _this._loadAndEvalScript(scriptSrc, vmScriptSrc, contents, { filename: vmScriptSrc }, recorder);
                         callback();
                     }
                     else {
                         var cachedDataPath_1 = _this._getCachedDataPath(opts.nodeCachedDataDir, scriptSrc);
-                        _this._fs.readFile(cachedDataPath_1, function (err, data) {
+                        _this._fs.readFile(cachedDataPath_1, function (err, cachedData) {
                             // create script options
-                            var scriptOptions = {
+                            var options = {
                                 filename: vmScriptSrc,
-                                produceCachedData: typeof data === 'undefined',
-                                cachedData: data
+                                produceCachedData: typeof cachedData === 'undefined',
+                                cachedData: cachedData
                             };
-                            var script = _this._loadAndEvalScript(scriptSrc, vmScriptSrc, contents, scriptOptions, recorder);
+                            var script = _this._loadAndEvalScript(scriptSrc, vmScriptSrc, contents, options, recorder);
                             callback();
-                            // cached code after math
-                            if (script.cachedDataRejected) {
-                                // data rejected => delete cache file
-                                opts.onNodeCachedDataError({
-                                    errorCode: 'cachedDataRejected',
-                                    path: cachedDataPath_1
-                                });
-                                NodeScriptLoader._runSoon(function () { return _this._fs.unlink(cachedDataPath_1, function (err) {
-                                    if (err) {
-                                        moduleManager.getConfig().getOptionsLiteral().onNodeCachedDataError({
-                                            errorCode: 'unlink',
-                                            path: cachedDataPath_1,
-                                            detail: err
-                                        });
-                                    }
-                                }); }, opts.nodeCachedDataWriteDelay);
-                            }
-                            else if (script.cachedDataProduced) {
-                                // data produced => write cache file
-                                NodeScriptLoader._runSoon(function () { return _this._fs.writeFile(cachedDataPath_1, script.cachedData, function (err) {
-                                    if (err) {
-                                        moduleManager.getConfig().getOptionsLiteral().onNodeCachedDataError({
-                                            errorCode: 'writeFile',
-                                            path: cachedDataPath_1,
-                                            detail: err
-                                        });
-                                    }
-                                }); }, opts.nodeCachedDataWriteDelay);
-                            }
+                            _this._processCachedData(moduleManager, script, cachedDataPath_1);
                         });
                     }
                 });
@@ -698,10 +743,50 @@ var AMDLoader;
             recorder.record(AMDLoader.LoaderEventType.NodeEndEvaluatingScript, scriptSrc);
             return script;
         };
-        NodeScriptLoader.prototype._getCachedDataPath = function (baseDir, filename) {
-            var hash = this._crypto.createHash('md5').update(filename, 'utf8').digest('hex');
+        NodeScriptLoader.prototype._getCachedDataPath = function (basedir, filename) {
+            var hash = this._crypto.createHash('md5').update(filename, 'utf8').update(this._jsflags, 'utf8').digest('hex');
             var basename = this._path.basename(filename).replace(/\.js$/, '');
-            return this._path.join(baseDir, hash + "-" + basename + ".code");
+            return this._path.join(basedir, basename + "-" + hash + ".code");
+        };
+        NodeScriptLoader.prototype._processCachedData = function (moduleManager, script, cachedDataPath) {
+            var _this = this;
+            if (script.cachedDataRejected) {
+                // data rejected => delete cache file
+                moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                    errorCode: 'cachedDataRejected',
+                    path: cachedDataPath
+                });
+                NodeScriptLoader._runSoon(function () {
+                    return _this._fs.unlink(cachedDataPath, function (err) {
+                        if (err) {
+                            moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                                errorCode: 'unlink',
+                                path: cachedDataPath,
+                                detail: err
+                            });
+                        }
+                    });
+                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
+            }
+            else if (script.cachedDataProduced) {
+                // data produced => tell outside world
+                moduleManager.getConfig().getOptionsLiteral().onNodeCachedData(undefined, {
+                    path: cachedDataPath,
+                    length: script.cachedData.length
+                });
+                // data produced => write cache file
+                NodeScriptLoader._runSoon(function () {
+                    return _this._fs.writeFile(cachedDataPath, script.cachedData, function (err) {
+                        if (err) {
+                            moduleManager.getConfig().getOptionsLiteral().onNodeCachedData({
+                                errorCode: 'writeFile',
+                                path: cachedDataPath,
+                                detail: err
+                            });
+                        }
+                    });
+                }, moduleManager.getConfig().getOptionsLiteral().nodeCachedDataWriteDelay);
+            }
         };
         NodeScriptLoader._runSoon = function (callback, minTimeout) {
             var timeout = minTimeout + Math.ceil(Math.random() * minTimeout);

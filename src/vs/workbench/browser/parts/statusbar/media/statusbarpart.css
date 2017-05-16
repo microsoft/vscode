@@ -12,11 +12,6 @@
 	overflow: hidden;
 }
 
-.hc-black .monaco-workbench > .part.statusbar {
-	border-top-width: 1px;
-	border-top-style: solid;
-}
-
 .monaco-workbench > .part.statusbar > .statusbar-item {
 	display: inline-block;
 	line-height: 22px;
@@ -60,49 +55,4 @@
 
 .monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled) {
 	text-decoration: none;
-}
-
-/* TODO@theme */
-
-.vs .monaco-workbench > .part.statusbar,
-.vs-dark .monaco-workbench > .part.statusbar,
-.hc-black .monaco-workbench > .part.statusbar {
-	color: white;
-}
-
-.vs .monaco-workbench > .part.statusbar,
-.vs-dark .monaco-workbench > .part.statusbar {
-	background: #007ACC;
-}
-
-.hc-black .monaco-workbench > .part.statusbar {
-	border-top-color: #6FC3DF;
-	background-color: #000;
-}
-
-.vs .monaco-workbench.no-workspace > .part.statusbar,
-.vs-dark .monaco-workbench.no-workspace > .part.statusbar {
-	background: #68217A;
-}
-
-.vs .monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled),
-.vs-dark .monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled),
-.hc-black .monaco-workbench > .part.statusbar > .statusbar-item a:hover:not([disabled]):not(.disabled) {
-	background-color: rgba(255, 255, 255, 0.12);
-}
-
-.vs .monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]):not(.disabled),
-.vs-dark .monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]):not(.disabled),
-.hc-black .monaco-workbench > .part.statusbar > .statusbar-item a:active:not([disabled]):not(.disabled) {
-	background-color: rgba(255, 255, 255, 0.18);
-}
-
-.vs .monaco-workbench > .part.statusbar > .statusbar-item .status-bar-info,
-.vs-dark .monaco-workbench > .part.statusbar > .statusbar-item .status-bar-info {
-	background-color: #388a34;
-}
-
-.vs .monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover:not([disabled]):not(.disabled),
-.vs-dark .monaco-workbench > .part.statusbar > .statusbar-item a.status-bar-info:hover:not([disabled]):not(.disabled) {
-	background-color: #369432;
 }

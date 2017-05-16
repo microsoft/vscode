@@ -13,7 +13,7 @@ import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/wo
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Scope } from 'vs/workbench/browser/actionBarRegistry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -24,6 +24,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
@@ -41,7 +44,8 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(
 			messageService,
@@ -51,11 +55,13 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			partService,
 			keybindingService,
 			instantiationService,
+			themeService,
 			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets),
 			SidebarPart.activeViewletSettingsKey,
 			'sideBar',
 			'viewlet',
 			Scope.VIEWLET,
+			SIDE_BAR_TITLE_FOREGROUND,
 			id,
 			{ hasTitle: true }
 		);
@@ -69,13 +75,31 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		return this._onDidCompositeClose.event;
 	}
 
+	public updateStyles(): void {
+		super.updateStyles();
+
+		// Part container
+		const container = this.getContainer();
+
+		container.style('background-color', this.getColor(SIDE_BAR_BACKGROUND));
+
+		const contrastBorderColor = this.getColor(contrastBorder);
+		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
+		container.style('border-right-width', contrastBorderColor && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', contrastBorderColor && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', isPositionLeft ? contrastBorderColor : null);
+		container.style('border-left-width', contrastBorderColor && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', contrastBorderColor && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', !isPositionLeft ? contrastBorderColor : null);
+	}
+
 	public openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
 		if (this.blockOpeningViewlet) {
 			return TPromise.as(null); // Workaround against a potential race condition
 		}
 
 		// First check if sidebar is hidden and show if so
-		let promise = TPromise.as(null);
+		let promise = TPromise.as<any>(null);
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			try {
 				this.blockOpeningViewlet = true;

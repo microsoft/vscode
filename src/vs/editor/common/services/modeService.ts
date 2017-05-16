@@ -41,7 +41,6 @@ export interface IValidLanguageExtensionPoint {
 export interface IModeService {
 	_serviceBrand: any;
 
-	onDidAddModes: Event<string[]>;
 	onDidCreateMode: Event<IMode>;
 
 	// --- reading

@@ -63,10 +63,6 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 	instantiationService.invokeFunction(accessor => {
 		const appenders: AppInsightsAppender[] = [];
 
-		if (product.aiConfig && product.aiConfig.key) {
-			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.key));
-		}
-
 		if (product.aiConfig && product.aiConfig.asimovKey) {
 			appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
 		}
@@ -111,7 +107,7 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 
 function setupIPC(hook: string): TPromise<Server> {
 	function setup(retry: boolean): TPromise<Server> {
-		return serve(hook).then(null, err => {
+		return serve(hook).then<Server>(null, err => {
 			if (!retry || platform.isWindows || err.code !== 'EADDRINUSE') {
 				return TPromise.wrapError(err);
 			}

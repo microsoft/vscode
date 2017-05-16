@@ -28,7 +28,6 @@ import product from 'vs/platform/node/product';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 
@@ -49,7 +48,6 @@ export class TextFileService extends AbstractTextFileService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IMessageService messageService: IMessageService,
 		@IBackupFileService backupFileService: IBackupFileService,
-		@IStorageService private storageService: IStorageService,
 		@IWindowsService windowsService: IWindowsService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
@@ -137,23 +135,6 @@ export class TextFileService extends AbstractTextFileService {
 		const choice = this.windowService.getWindow().showMessageBox(opts);
 
 		return buttons[choice].result;
-	}
-
-	public showHotExitMessage(): void {
-		const key = 'hotExit/hasShownMessage';
-		const hasShownMessage = !!this.storageService.get(key, StorageScope.GLOBAL);
-		if (!hasShownMessage) {
-			this.storageService.store(key, true, StorageScope.GLOBAL);
-			const opts: Electron.ShowMessageBoxOptions = {
-				title: product.nameLong,
-				message: nls.localize('hotExitEducationalMessage', "Hot Exit is now enabled by default"),
-				type: 'info',
-				detail: nls.localize('hotExitEducationalDetail', "Hot Exit remembers any unsaved files between sessions, so you don't have to save your files before you exit. You can disable this feature with the 'files.hotExit' setting."),
-				buttons: [nls.localize('ok', "OK")],
-				noLink: true
-			};
-			this.windowService.getWindow().showMessageBox(opts);
-		}
 	}
 
 	private mnemonicLabel(label: string): string {

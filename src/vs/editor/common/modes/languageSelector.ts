@@ -42,7 +42,7 @@ export function score(selector: LanguageSelector, candidateUri: URI, candidateLa
 		// '*' -> { language: '*', scheme: '*' }
 		if (selector === '*') {
 			return 5;
-		} else if (selector === candidateLanguage && _defaultSchemes[candidateUri.scheme]) {
+		} else if (selector === candidateLanguage) {
 			return 10;
 		} else {
 			return 0;
@@ -82,24 +82,9 @@ export function score(selector: LanguageSelector, candidateUri: URI, candidateLa
 			}
 		}
 
-		if (!_defaultSchemes[candidateUri.scheme] && !scheme && language !== '*') {
-			// undo match when the uri-scheme is special and not
-			// explicitly selected
-			return 0;
-		} else {
-			return ret;
-		}
+		return ret;
 
 	} else {
 		return 0;
 	}
 }
-
-interface DefaultSchemes {
-	file: 'file';
-	untitled: 'untitled';
-}
-
-const _defaultSchemes: DefaultSchemes = Object.create(null);
-_defaultSchemes.file = 'file';
-_defaultSchemes.untitled = 'untitled';

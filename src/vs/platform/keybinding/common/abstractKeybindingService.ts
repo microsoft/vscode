@@ -5,51 +5,17 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { ResolvedKeybinding, SimpleKeybinding, Keybinding } from 'vs/base/common/keyCodes';
-import { KeybindingLabels } from 'vs/platform/keybinding/common/keybindingLabels';
+import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver, IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IKeybindingEvent, IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEvent, IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Event, { Emitter } from 'vs/base/common/event';
-import { KeybindingIO, OutputBuilder } from 'vs/platform/keybinding/common/keybindingIO';
-import { NormalizedKeybindingItem } from 'vs/platform/keybinding/common/normalizedKeybindingItem';
-
-export class SimpleResolvedKeybinding extends ResolvedKeybinding {
-
-	private readonly _actual: Keybinding;
-
-	constructor(actual: Keybinding) {
-		super();
-		this._actual = actual;
-	}
-
-	public getLabel(): string {
-		return KeybindingLabels._toUSLabel(this._actual);
-	}
-
-	public getAriaLabel(): string {
-		return KeybindingLabels._toUSAriaLabel(this._actual);
-	}
-
-	public getHTMLLabel(): IHTMLContentElement[] {
-		return KeybindingLabels._toUSHTMLLabel(this._actual);
-	}
-
-	public getElectronAccelerator(): string {
-		return KeybindingLabels._toElectronAccelerator(this._actual);
-	}
-
-	public getUserSettingsLabel(): string {
-		return KeybindingLabels.toUserSettingsLabel(this._actual);
-	}
-}
+import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 interface CurrentChord {
 	keypress: string;
@@ -91,74 +57,33 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		this.toDispose = dispose(this.toDispose);
 	}
 
-	protected abstract _getResolver(): KeybindingResolver;
-	protected abstract _createResolvedKeybinding(kb: Keybinding): ResolvedKeybinding;
-
 	get onDidUpdateKeybindings(): Event<IKeybindingEvent> {
 		return this._onDidUpdateKeybindings ? this._onDidUpdateKeybindings.event : Event.None; // Sinon stubbing walks properties on prototype
 	}
 
-	public resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding {
-		return this._createResolvedKeybinding(keybinding);
+	protected abstract _getResolver(): KeybindingResolver;
+	public abstract resolveKeybinding(keybinding: Keybinding): ResolvedKeybinding[];
+	public abstract resolveKeyboardEvent(keyboardEvent: IKeyboardEvent): ResolvedKeybinding;
+	public abstract resolveUserBinding(userBinding: string): ResolvedKeybinding[];
+
+	public getDefaultKeybindingsContent(): string {
+		return '';
 	}
 
-	public getDefaultKeybindings(): string {
-		const resolver = this._getResolver();
-		const defaultKeybindings = resolver.getDefaultKeybindings();
-		const boundCommands = resolver.getDefaultBoundCommands();
-		return (
-			AbstractKeybindingService._getDefaultKeybindings(defaultKeybindings)
-			+ '\n\n'
-			+ AbstractKeybindingService._getAllCommandsAsComment(boundCommands)
-		);
+	public getDefaultKeybindings(): ResolvedKeybindingItem[] {
+		return this._getResolver().getDefaultKeybindings();
 	}
 
-	private static _getDefaultKeybindings(defaultKeybindings: NormalizedKeybindingItem[]): string {
-		let out = new OutputBuilder();
-		out.writeLine('[');
-
-		let lastIndex = defaultKeybindings.length - 1;
-		defaultKeybindings.forEach((k, index) => {
-			KeybindingIO.writeKeybindingItem(out, k);
-			if (index !== lastIndex) {
-				out.writeLine(',');
-			} else {
-				out.writeLine();
-			}
-		});
-		out.writeLine(']');
-		return out.toString();
-	}
-
-	private static _getAllCommandsAsComment(boundCommands: Map<string, boolean>): string {
-		const commands = CommandsRegistry.getCommands();
-		const unboundCommands: string[] = [];
-
-		for (let id in commands) {
-			if (id[0] === '_' || id.indexOf('vscode.') === 0) { // private command
-				continue;
-			}
-			if (typeof commands[id].description === 'object'
-				&& !isFalsyOrEmpty((<ICommandHandlerDescription>commands[id].description).args)) { // command with args
-				continue;
-			}
-			if (boundCommands.get(id) === true) {
-				continue;
-			}
-			unboundCommands.push(id);
-		}
-
-		let pretty = unboundCommands.sort().join('\n// - ');
-
-		return '// ' + nls.localize('unboundCommands', "Here are other available commands: ") + '\n// - ' + pretty;
+	public getKeybindings(): ResolvedKeybindingItem[] {
+		return this._getResolver().getKeybindings();
 	}
 
 	public customKeybindingsCount(): number {
 		return 0;
 	}
 
-	public lookupKeybindings(commandId: string): Keybinding[] {
-		return this._getResolver().lookupKeybindings(commandId).map(item => item.keybinding);
+	public lookupKeybindings(commandId: string): ResolvedKeybinding[] {
+		return this._getResolver().lookupKeybindings(commandId).map(item => item.resolvedKeybinding);
 	}
 
 	public lookupKeybinding(commandId: string): ResolvedKeybinding {
@@ -166,38 +91,49 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		if (!result) {
 			return null;
 		}
-		return this._createResolvedKeybinding(result.keybinding);
+		return result.resolvedKeybinding;
 	}
 
-	public resolve(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): IResolveResult {
-		if (keybinding.isModifierKey()) {
+	public softDispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult {
+		const keybinding = this.resolveKeyboardEvent(e);
+		if (keybinding.isChord()) {
+			console.warn('Unexpected keyboard event mapped to a chord');
+			return null;
+		}
+		const [firstPart,] = keybinding.getDispatchParts();
+		if (firstPart === null) {
+			// cannot be dispatched, probably only modifier keys
 			return null;
 		}
 
-		const contextValue = this._contextKeyService.getContextValue(target);
+		const contextValue = this._contextKeyService.getContext(target);
 		const currentChord = this._currentChord ? this._currentChord.keypress : null;
-		const keypress = keybinding.value.toString();
-		return this._getResolver().resolve(contextValue, currentChord, keypress);
+		return this._getResolver().resolve(contextValue, currentChord, firstPart);
 	}
 
-	protected _dispatch(keybinding: SimpleKeybinding, target: IContextKeyServiceTarget): boolean {
-		// Check modifier key here and cancel early, it's also checked in resolve as the function
-		// is used externally.
+	protected _dispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
 		let shouldPreventDefault = false;
-		if (keybinding.isModifierKey()) {
+
+		const keybinding = this.resolveKeyboardEvent(e);
+		if (keybinding.isChord()) {
+			console.warn('Unexpected keyboard event mapped to a chord');
+			return null;
+		}
+		const [firstPart,] = keybinding.getDispatchParts();
+		if (firstPart === null) {
+			// cannot be dispatched, probably only modifier keys
 			return shouldPreventDefault;
 		}
 
-		const contextValue = this._contextKeyService.getContextValue(target);
+		const contextValue = this._contextKeyService.getContext(target);
 		const currentChord = this._currentChord ? this._currentChord.keypress : null;
-		const keypress = keybinding.value.toString();
-		const keypressLabel = this._createResolvedKeybinding(keybinding).getLabel();
-		const resolveResult = this._getResolver().resolve(contextValue, currentChord, keypress);
+		const keypressLabel = keybinding.getLabel();
+		const resolveResult = this._getResolver().resolve(contextValue, currentChord, firstPart);
 
 		if (resolveResult && resolveResult.enterChord) {
 			shouldPreventDefault = true;
 			this._currentChord = {
-				keypress: keypress,
+				keypress: firstPart,
 				label: keypressLabel
 			};
 			if (this._statusService) {

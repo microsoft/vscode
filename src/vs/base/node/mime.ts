@@ -51,33 +51,59 @@ import encoding = require('vs/base/node/encoding');
  * 	mimes.push('application/octet-stream')    // last element: least specific
  */
 
-const BUFFER_READ_MAX_LEN = 512; // max buffer len to use when detecting encoding/mime
+const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to decide about a file being binary or not
+
+const NO_GUESS_BUFFER_MAX_LEN = 512; 		// when not auto guessing the encoding, small number of bytes are enough
+const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; // with auto guessing we want a lot more content to be read for guessing
+
+function maxBufferLen(arg1?: DetectMimesOption | boolean): number {
+	let autoGuessEncoding: boolean;
+	if (typeof arg1 === 'boolean') {
+		autoGuessEncoding = arg1;
+	} else {
+		autoGuessEncoding = arg1 && arg1.autoGuessEncoding;
+	}
+
+	return autoGuessEncoding ? AUTO_GUESS_BUFFER_MAX_LEN : NO_GUESS_BUFFER_MAX_LEN;
+}
 
 export interface IMimeAndEncoding {
 	encoding: string;
 	mimes: string[];
 }
 
-function doDetectMimesFromStream(instream: streams.Readable): TPromise<IMimeAndEncoding> {
-	return stream.readExactlyByStream(instream, BUFFER_READ_MAX_LEN).then(detectMimeAndEncodingFromBuffer);
+export interface DetectMimesOption {
+	autoGuessEncoding?: boolean;
 }
 
-function doDetectMimesFromFile(absolutePath: string): TPromise<IMimeAndEncoding> {
-	return stream.readExactlyByFile(absolutePath, BUFFER_READ_MAX_LEN).then(detectMimeAndEncodingFromBuffer);
+function doDetectMimesFromStream(instream: streams.Readable, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return stream.readExactlyByStream(instream, maxBufferLen(option)).then((readResult: stream.ReadResult) => {
+		return detectMimeAndEncodingFromBuffer(readResult, option && option.autoGuessEncoding);
+	});
 }
 
-export function detectMimeAndEncodingFromBuffer({buffer, bytesRead}: stream.ReadResult): IMimeAndEncoding {
+function doDetectMimesFromFile(absolutePath: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return stream.readExactlyByFile(absolutePath, maxBufferLen(option)).then((readResult: stream.ReadResult) => {
+		return detectMimeAndEncodingFromBuffer(readResult, option && option.autoGuessEncoding);
+	});
+}
+
+export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.ReadResult, autoGuessEncoding?: boolean): IMimeAndEncoding {
 	let enc = encoding.detectEncodingByBOMFromBuffer(buffer, bytesRead);
 
 	// Detect 0 bytes to see if file is binary (ignore for UTF 16 though)
 	let isText = true;
 	if (enc !== encoding.UTF16be && enc !== encoding.UTF16le) {
-		for (let i = 0; i < bytesRead && i < BUFFER_READ_MAX_LEN; i++) {
+		for (let i = 0; i < bytesRead && i < ZERO_BYTE_DETECTION_BUFFER_MAX_LEN; i++) {
 			if (buffer.readInt8(i) === 0) {
 				isText = false;
 				break;
 			}
 		}
+	}
+
+	if (autoGuessEncoding && isText && !enc) {
+		enc = encoding.guessEncodingByBuffer(buffer.slice(0, bytesRead));
 	}
 
 	return {
@@ -87,17 +113,17 @@ export function detectMimeAndEncodingFromBuffer({buffer, bytesRead}: stream.Read
 }
 
 function filterAndSortMimes(detectedMimes: string[], guessedMimes: string[]): string[] {
-	let mimes = detectedMimes;
+	const mimes = detectedMimes;
 
 	// Add extension based mime as first element as this is the desire of whoever created the file.
 	// Never care about application/octet-stream or application/unknown as guessed mime, as this is the fallback of the guess which is never accurate
-	let guessedMime = guessedMimes[0];
+	const guessedMime = guessedMimes[0];
 	if (guessedMime !== mime.MIME_BINARY && guessedMime !== mime.MIME_UNKNOWN) {
 		mimes.unshift(guessedMime);
 	}
 
 	// Remove duplicate elements from array and sort unspecific mime to the end
-	let uniqueSortedMimes = mimes.filter((element, position) => {
+	const uniqueSortedMimes = mimes.filter((element, position) => {
 		return element && mimes.indexOf(element) === position;
 	}).sort((mimeA, mimeB) => {
 		if (mimeA === mime.MIME_BINARY) { return 1; }
@@ -116,8 +142,8 @@ function filterAndSortMimes(detectedMimes: string[], guessedMimes: string[]): st
  * @param instream the readable stream to detect the mime types from.
  * @param nameHint an additional hint that can be used to detect a mime from a file extension.
  */
-export function detectMimesFromStream(instream: streams.Readable, nameHint: string): TPromise<IMimeAndEncoding> {
-	return doDetectMimesFromStream(instream).then(encoding =>
+export function detectMimesFromStream(instream: streams.Readable, nameHint: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return doDetectMimesFromStream(instream, option).then(encoding =>
 		handleMimeResult(nameHint, encoding)
 	);
 }
@@ -126,15 +152,14 @@ export function detectMimesFromStream(instream: streams.Readable, nameHint: stri
  * Opens the given file to detect its mime type. Returns an array of mime types sorted from most specific to unspecific.
  * @param absolutePath the absolute path of the file.
  */
-export function detectMimesFromFile(absolutePath: string): TPromise<IMimeAndEncoding> {
-	return doDetectMimesFromFile(absolutePath).then(encoding =>
+export function detectMimesFromFile(absolutePath: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
+	return doDetectMimesFromFile(absolutePath, option).then(encoding =>
 		handleMimeResult(absolutePath, encoding)
 	);
 }
 
 function handleMimeResult(nameHint: string, result: IMimeAndEncoding): IMimeAndEncoding {
-
-	let filterAndSortedMimes = filterAndSortMimes(result.mimes, mime.guessMimeTypes(nameHint));
+	const filterAndSortedMimes = filterAndSortMimes(result.mimes, mime.guessMimeTypes(nameHint));
 	result.mimes = filterAndSortedMimes;
 
 	return result;

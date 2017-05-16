@@ -17,6 +17,7 @@ import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Action } from 'vs/base/common/actions';
+import { ResourceMap } from 'vs/base/common/map';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMessageService, IMessageWithAction, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -38,7 +39,7 @@ export class FileService implements IFileService {
 	private raw: IFileService;
 
 	private toUnbind: IDisposable[];
-	private activeOutOfWorkspaceWatchers: { [resource: string]: boolean; };
+	private activeOutOfWorkspaceWatchers: ResourceMap<uri>;
 
 	private _onFileChanges: Emitter<FileChangesEvent>;
 	private _onAfterOperation: Emitter<FileOperationEvent>;
@@ -54,7 +55,7 @@ export class FileService implements IFileService {
 		@IStorageService private storageService: IStorageService
 	) {
 		this.toUnbind = [];
-		this.activeOutOfWorkspaceWatchers = Object.create(null);
+		this.activeOutOfWorkspaceWatchers = new ResourceMap<uri>();
 
 		this._onFileChanges = new Emitter<FileChangesEvent>();
 		this.toUnbind.push(this._onFileChanges);
@@ -80,8 +81,9 @@ export class FileService implements IFileService {
 		const fileServiceConfig: IFileServiceOptions = {
 			errorLogger: (msg: string) => this.onFileServiceError(msg),
 			encoding: configuration.files && configuration.files.encoding,
-			encodingOverride: encodingOverride,
-			watcherIgnoredPatterns: watcherIgnoredPatterns,
+			autoGuessEncoding: configuration.files && configuration.files.autoGuessEncoding,
+			encodingOverride,
+			watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,
 		};
 
@@ -146,27 +148,28 @@ export class FileService implements IFileService {
 	}
 
 	private handleOutOfWorkspaceWatchers(): void {
-		const visibleOutOfWorkspaceResources = this.editorService.getVisibleEditors().map(editor => {
+		const visibleOutOfWorkspacePaths = new ResourceMap<uri>();
+		this.editorService.getVisibleEditors().map(editor => {
 			return toResource(editor.input, { supportSideBySide: true, filter: 'file' });
 		}).filter(fileResource => {
 			return !!fileResource && !this.contextService.isInsideWorkspace(fileResource);
-		}).map(fileResource => {
-			return fileResource.toString();
+		}).forEach(resource => {
+			visibleOutOfWorkspacePaths.set(resource, resource);
 		});
 
 		// Handle no longer visible out of workspace resources
-		Object.keys(this.activeOutOfWorkspaceWatchers).forEach(watchedResource => {
-			if (visibleOutOfWorkspaceResources.indexOf(watchedResource) < 0) {
-				this.unwatchFileChanges(watchedResource);
-				delete this.activeOutOfWorkspaceWatchers[watchedResource];
+		this.activeOutOfWorkspaceWatchers.forEach(resource => {
+			if (!visibleOutOfWorkspacePaths.get(resource)) {
+				this.unwatchFileChanges(resource);
+				this.activeOutOfWorkspaceWatchers.delete(resource);
 			}
 		});
 
 		// Handle newly visible out of workspace resources
-		visibleOutOfWorkspaceResources.forEach(resourceToWatch => {
-			if (!this.activeOutOfWorkspaceWatchers[resourceToWatch]) {
-				this.watchFileChanges(uri.parse(resourceToWatch));
-				this.activeOutOfWorkspaceWatchers[resourceToWatch] = true;
+		visibleOutOfWorkspacePaths.forEach(resource => {
+			if (!this.activeOutOfWorkspaceWatchers.get(resource)) {
+				this.watchFileChanges(resource);
+				this.activeOutOfWorkspaceWatchers.set(resource, resource);
 			}
 		});
 	}
@@ -284,18 +287,16 @@ export class FileService implements IFileService {
 		this.raw.unwatchFileChanges(arg1);
 	}
 
-	public getEncoding(resource: uri): string {
-		return this.raw.getEncoding(resource);
+	public getEncoding(resource: uri, preferredEncoding?: string): string {
+		return this.raw.getEncoding(resource, preferredEncoding);
 	}
 
 	public dispose(): void {
 		this.toUnbind = dispose(this.toUnbind);
 
 		// Dispose watchers if any
-		for (const key in this.activeOutOfWorkspaceWatchers) {
-			this.unwatchFileChanges(key);
-		}
-		this.activeOutOfWorkspaceWatchers = Object.create(null);
+		this.activeOutOfWorkspaceWatchers.forEach(resource => this.unwatchFileChanges(resource));
+		this.activeOutOfWorkspaceWatchers.clear();
 
 		// Dispose service
 		this.raw.dispose();

@@ -221,12 +221,12 @@
 	},
 	{
 		"c": "<?php",
-		"t": "text.html.php meta.embedded.block.php punctuation.section.embedded.begin.metatag.php",
+		"t": "text.html.php meta.embedded.block.php punctuation.section.embedded.begin.php",
 		"r": {
-			"dark_plus": "punctuation.section.embedded.begin.metatag.php: #569CD6",
-			"light_plus": "punctuation.section.embedded.begin.metatag.php: #800000",
-			"dark_vs": "punctuation.section.embedded.begin.metatag.php: #569CD6",
-			"light_vs": "punctuation.section.embedded.begin.metatag.php: #800000",
+			"dark_plus": "punctuation.section.embedded.begin.php: #569CD6",
+			"light_plus": "punctuation.section.embedded.begin.php: #800000",
+			"dark_vs": "punctuation.section.embedded.begin.php: #569CD6",
+			"light_vs": "punctuation.section.embedded.begin.php: #800000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
@@ -3235,23 +3235,23 @@
 	},
 	{
 		"c": "?",
-		"t": "text.html.php meta.embedded.block.php punctuation.section.embedded.end.metatag.php source.php",
+		"t": "text.html.php meta.embedded.block.php punctuation.section.embedded.end.php source.php",
 		"r": {
-			"dark_plus": "punctuation.section.embedded.end.metatag.php: #569CD6",
-			"light_plus": "punctuation.section.embedded.end.metatag.php: #800000",
-			"dark_vs": "punctuation.section.embedded.end.metatag.php: #569CD6",
-			"light_vs": "punctuation.section.embedded.end.metatag.php: #800000",
+			"dark_plus": "punctuation.section.embedded.end.php: #569CD6",
+			"light_plus": "punctuation.section.embedded.end.php: #800000",
+			"dark_vs": "punctuation.section.embedded.end.php: #569CD6",
+			"light_vs": "punctuation.section.embedded.end.php: #800000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": ">",
-		"t": "text.html.php meta.embedded.block.php punctuation.section.embedded.end.metatag.php",
+		"t": "text.html.php meta.embedded.block.php punctuation.section.embedded.end.php",
 		"r": {
-			"dark_plus": "punctuation.section.embedded.end.metatag.php: #569CD6",
-			"light_plus": "punctuation.section.embedded.end.metatag.php: #800000",
-			"dark_vs": "punctuation.section.embedded.end.metatag.php: #569CD6",
-			"light_vs": "punctuation.section.embedded.end.metatag.php: #800000",
+			"dark_plus": "punctuation.section.embedded.end.php: #569CD6",
+			"light_plus": "punctuation.section.embedded.end.php: #800000",
+			"dark_vs": "punctuation.section.embedded.end.php: #569CD6",
+			"light_vs": "punctuation.section.embedded.end.php: #800000",
 			"hc_black": "default: #FFFFFF"
 		}
 	},

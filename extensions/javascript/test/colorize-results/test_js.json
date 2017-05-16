@@ -133,7 +133,7 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -276,7 +276,7 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -419,7 +419,7 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -562,7 +562,7 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -705,7 +705,7 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -848,7 +848,7 @@
 	},
 	{
 		"c": "tsb",
-		"t": "source.js meta.var.expr.js variable.other.object.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -859,7 +859,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.var.expr.js punctuation.accessor.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -870,7 +870,7 @@
 	},
 	{
 		"c": "create",
-		"t": "source.js meta.var.expr.js entity.name.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -892,7 +892,7 @@
 	},
 	{
 		"c": "assign",
-		"t": "source.js meta.var.expr.js entity.name.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1024,7 +1024,7 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -1134,7 +1134,7 @@
 	},
 	{
 		"c": "gulp",
-		"t": "source.js variable.other.object.js",
+		"t": "source.js meta.function-call.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1145,7 +1145,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js punctuation.accessor.js",
+		"t": "source.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1156,7 +1156,7 @@
 	},
 	{
 		"c": "task",
-		"t": "source.js entity.name.function.js",
+		"t": "source.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1321,7 +1321,7 @@
 	},
 	{
 		"c": "gulp",
-		"t": "source.js meta.function.expression.js meta.block.js variable.other.object.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1332,7 +1332,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.function.expression.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1343,7 +1343,7 @@
 	},
 	{
 		"c": "src",
-		"t": "source.js meta.function.expression.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1552,7 +1552,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.function.expression.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1563,7 +1563,7 @@
 	},
 	{
 		"c": "pipe",
-		"t": "source.js meta.function.expression.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1585,7 +1585,7 @@
 	},
 	{
 		"c": "compilation",
-		"t": "source.js meta.function.expression.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1618,7 +1618,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.function.expression.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1629,7 +1629,7 @@
 	},
 	{
 		"c": "pipe",
-		"t": "source.js meta.function.expression.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1651,7 +1651,7 @@
 	},
 	{
 		"c": "gulp",
-		"t": "source.js meta.function.expression.js meta.block.js variable.other.object.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1662,7 +1662,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.function.expression.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1673,7 +1673,7 @@
 	},
 	{
 		"c": "dest",
-		"t": "source.js meta.function.expression.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -1772,7 +1772,7 @@
 	},
 	{
 		"c": "gulp",
-		"t": "source.js variable.other.object.js",
+		"t": "source.js meta.function-call.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1783,7 +1783,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js punctuation.accessor.js",
+		"t": "source.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1794,7 +1794,7 @@
 	},
 	{
 		"c": "task",
-		"t": "source.js entity.name.function.js",
+		"t": "source.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2003,7 +2003,7 @@
 	},
 	{
 		"c": "gulp",
-		"t": "source.js meta.function.expression.js meta.block.js meta.var.expr.js variable.other.object.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.var.expr.js meta.function-call.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2014,7 +2014,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.function.expression.js meta.block.js meta.var.expr.js punctuation.accessor.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.var.expr.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2025,7 +2025,7 @@
 	},
 	{
 		"c": "src",
-		"t": "source.js meta.function.expression.js meta.block.js meta.var.expr.js entity.name.function.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.var.expr.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2267,7 +2267,7 @@
 	},
 	{
 		"c": "watcher",
-		"t": "source.js meta.function.expression.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2476,7 +2476,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.function.expression.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2487,7 +2487,7 @@
 	},
 	{
 		"c": "pipe",
-		"t": "source.js meta.function.expression.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2509,7 +2509,7 @@
 	},
 	{
 		"c": "util",
-		"t": "source.js meta.function.expression.js meta.block.js variable.other.object.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2520,7 +2520,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.function.expression.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2531,7 +2531,7 @@
 	},
 	{
 		"c": "incremental",
-		"t": "source.js meta.function.expression.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2619,7 +2619,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.function.expression.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2630,7 +2630,7 @@
 	},
 	{
 		"c": "pipe",
-		"t": "source.js meta.function.expression.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2652,7 +2652,7 @@
 	},
 	{
 		"c": "gulp",
-		"t": "source.js meta.function.expression.js meta.block.js variable.other.object.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2663,7 +2663,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.function.expression.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2674,7 +2674,7 @@
 	},
 	{
 		"c": "dest",
-		"t": "source.js meta.function.expression.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.expression.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -2773,7 +2773,7 @@
 	},
 	{
 		"c": "gulp",
-		"t": "source.js variable.other.object.js",
+		"t": "source.js meta.function-call.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -2784,7 +2784,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js punctuation.accessor.js",
+		"t": "source.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -2795,7 +2795,7 @@
 	},
 	{
 		"c": "task",
-		"t": "source.js entity.name.function.js",
+		"t": "source.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3048,7 +3048,7 @@
 	},
 	{
 		"c": "_",
-		"t": "source.js meta.function.js meta.block.js variable.other.object.js",
+		"t": "source.js meta.function.js meta.block.js meta.function-call.js variable.other.object.js",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -3059,7 +3059,7 @@
 	},
 	{
 		"c": ".",
-		"t": "source.js meta.function.js meta.block.js punctuation.accessor.js",
+		"t": "source.js meta.function.js meta.block.js meta.function-call.js punctuation.accessor.js",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -3070,7 +3070,7 @@
 	},
 	{
 		"c": "foo",
-		"t": "source.js meta.function.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",
@@ -3664,7 +3664,7 @@
 	},
 	{
 		"c": "doClone",
-		"t": "source.js meta.function.js meta.block.js meta.block.js entity.name.function.js",
+		"t": "source.js meta.function.js meta.block.js meta.block.js meta.function-call.js entity.name.function.js",
 		"r": {
 			"dark_plus": "entity.name.function: #DCDCAA",
 			"light_plus": "entity.name.function: #795E26",

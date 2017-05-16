@@ -9,15 +9,14 @@ import path = require('path');
 import os = require('os');
 import net = require('net');
 import cp = require('child_process');
+import Logger from './logger';
 
 export interface IForkOptions {
 	cwd?: string;
-	env?: any;
-	encoding?: string;
 	execArgv?: string[];
 }
 
-function makeRandomHexString(length: number): string {
+export function makeRandomHexString(length: number): string {
 	let chars = ['0', '1', '2', '3', '4', '5', '6', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
 	let result = '';
 	for (let i = 0; i < length; i++) {
@@ -28,14 +27,19 @@ function makeRandomHexString(length: number): string {
 }
 
 function generatePipeName(): string {
-	var randomName = 'vscode-' + makeRandomHexString(40);
+	return getPipeName(makeRandomHexString(40));
+}
+
+export function getPipeName(name: string): string {
+	const fullName = 'vscode-' + name;
 	if (process.platform === 'win32') {
-		return '\\\\.\\pipe\\' + randomName + '-sock';
+		return '\\\\.\\pipe\\' + fullName + '-sock';
 	}
 
 	// Mac/Unix: use socket file
-	return path.join(os.tmpdir(), randomName + '.sock');
+	return path.join(os.tmpdir(), fullName + '.sock');
 }
+
 
 function generatePatchedEnv(env: any, stdInPipeName: string, stdOutPipeName: string, stdErrPipeName: string): any {
 	// Set the two unique pipe names and the electron flag as process env
@@ -53,17 +57,23 @@ function generatePatchedEnv(env: any, stdInPipeName: string, stdOutPipeName: str
 	return newEnv;
 }
 
-export function fork(modulePath: string, args: string[], options: IForkOptions, callback: (error: any, cp: cp.ChildProcess | null) => void): void {
+export function fork(
+	modulePath: string,
+	args: string[],
+	options: IForkOptions,
+	logger: Logger,
+	callback: (error: any, cp: cp.ChildProcess | null) => void,
+): void {
 
 	var callbackCalled = false;
-	var resolve = (result: cp.ChildProcess) => {
+	const resolve = (result: cp.ChildProcess) => {
 		if (callbackCalled) {
 			return;
 		}
 		callbackCalled = true;
 		callback(null, result);
 	};
-	var reject = (err: any) => {
+	const reject = (err: any) => {
 		if (callbackCalled) {
 			return;
 		}
@@ -72,13 +82,12 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 	};
 
 	// Generate three unique pipe names
-	var stdInPipeName = generatePipeName();
-	var stdOutPipeName = generatePipeName();
-	let stdErrPipeName = generatePipeName();
+	const stdInPipeName = generatePipeName();
+	const stdOutPipeName = generatePipeName();
+	const stdErrPipeName = generatePipeName();
 
 
-	var newEnv = generatePatchedEnv(options.env || process.env, stdInPipeName, stdOutPipeName, stdErrPipeName);
-
+	const newEnv = generatePatchedEnv(process.env, stdInPipeName, stdOutPipeName, stdErrPipeName);
 	var childProcess: cp.ChildProcess;
 
 	// Begin listening to stderr pipe
@@ -105,7 +114,7 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 	stdOutServer.listen(stdOutPipeName);
 
 	var serverClosed = false;
-	var closeServer = () => {
+	const closeServer = () => {
 		if (serverClosed) {
 			return;
 		}
@@ -115,7 +124,9 @@ export function fork(modulePath: string, args: string[], options: IForkOptions, 
 	};
 
 	// Create the process
-	let bootstrapperPath = path.join(__dirname, 'electronForkStart');
+	logger.info('Forking TSServer', `PATH: ${newEnv['PATH']}`);
+
+	const bootstrapperPath = path.join(__dirname, 'electronForkStart');
 	childProcess = cp.fork(bootstrapperPath, [modulePath].concat(args), <any>{
 		silent: true,
 		cwd: options.cwd,

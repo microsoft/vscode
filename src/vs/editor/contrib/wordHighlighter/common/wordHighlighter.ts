@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import nls = require('vs/nls');
+
 import { sequence, asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -13,6 +15,12 @@ import { CommonEditorRegistry, commonEditorContribution } from 'vs/editor/common
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
+import { registerColor, editorSelectionHighlight, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+
+export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
+export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
 
 export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, position: Position): TPromise<DocumentHighlight[]> {
 
@@ -68,7 +76,7 @@ class WordHighlighter {
 		this.occurrencesHighlight = this.editor.getConfiguration().contribInfo.occurrencesHighlight;
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
-		this.toUnhook.push(editor.onDidChangeCursorPosition((e: editorCommon.ICursorPositionChangedEvent) => {
+		this.toUnhook.push(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			this._onPositionChanged(e);
 		}));
 		this.toUnhook.push(editor.onDidChangeModel((e) => {
@@ -128,7 +136,7 @@ class WordHighlighter {
 		}
 	}
 
-	private _onPositionChanged(e: editorCommon.ICursorPositionChangedEvent): void {
+	private _onPositionChanged(e: ICursorPositionChangedEvent): void {
 
 		// disabled
 		if (!this.occurrencesHighlight) {
@@ -137,7 +145,7 @@ class WordHighlighter {
 		}
 
 		// ignore typing & other
-		if (e.reason !== editorCommon.CursorChangeReason.Explicit) {
+		if (e.reason !== CursorChangeReason.Explicit) {
 			this._stopAll();
 			return;
 		}
@@ -307,3 +315,26 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 		this.wordHighligher.dispose();
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let selectionHighlight = theme.getColor(editorSelectionHighlight);
+	if (selectionHighlight) {
+		collector.addRule(`.monaco-editor .focused .selectionHighlight { background-color: ${selectionHighlight}; }`);
+		collector.addRule(`.monaco-editor .selectionHighlight { background-color: ${selectionHighlight.transparent(0.5)}; }`);
+	}
+	let wordHighlight = theme.getColor(editorWordHighlight);
+	if (wordHighlight) {
+		collector.addRule(`.monaco-editor .wordHighlight { background-color: ${wordHighlight}; }`);
+	}
+	let wordHighlightStrong = theme.getColor(editorWordHighlightStrong);
+	if (wordHighlightStrong) {
+		collector.addRule(`.monaco-editor .wordHighlightStrong { background-color: ${wordHighlightStrong}; }`);
+	}
+	let hcOutline = theme.getColor(activeContrastBorder);
+	if (hcOutline) {
+		collector.addRule(`.monaco-editor .selectionHighlight { border: 1px dotted ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .wordHighlight { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+		collector.addRule(`.monaco-editor .wordHighlightStrong { border: 1px dashed ${hcOutline}; box-sizing: border-box; }`);
+	}
+
+});

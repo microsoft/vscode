@@ -30,8 +30,10 @@ export interface IWindowsService {
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void>;
 	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void>;
 	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
+	clearRecentPathsList(): TPromise<void>;
 	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(windowId: number): TPromise<void>;
+	isFocused(windowId: number): TPromise<boolean>;
 	isMaximized(windowId: number): TPromise<boolean>;
 	maximizeWindow(windowId: number): TPromise<void>;
 	unmaximizeWindow(windowId: number): TPromise<void>;
@@ -56,7 +58,7 @@ export interface IWindowsService {
 
 	// This needs to be handled from browser process to prevent
 	// foreground ordering issues on Windows
-	openExternal(url: string): TPromise<void>;
+	openExternal(url: string): TPromise<boolean>;
 
 	// TODO: this is a bit backwards
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void>;
@@ -82,6 +84,7 @@ export interface IWindowService {
 	removeFromRecentlyOpen(paths: string[]): TPromise<void>;
 	getRecentlyOpen(): TPromise<{ files: string[]; folders: string[]; }>;
 	focusWindow(): TPromise<void>;
+	isFocused(): TPromise<boolean>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	isMaximized(): TPromise<boolean>;
 	maximizeWindow(): TPromise<void>;
@@ -100,4 +103,6 @@ export interface IWindowSettings {
 	autoDetectHighContrast: boolean;
 	menuBarVisibility: MenuBarVisibility;
 	newWindowDimensions: 'default' | 'inherit' | 'maximized' | 'fullscreen';
+	nativeTabs: boolean;
+	enableMenuBarMnemonics: boolean;
 }

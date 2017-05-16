@@ -17,7 +17,9 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { SimpleResolvedKeybinding } from 'vs/platform/keybinding/common/abstractKeybindingService';
+import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
+import { OS } from 'vs/base/common/platform';
+import { Keybinding } from 'vs/base/common/keyCodes';
 
 suite('Search Actions', () => {
 
@@ -28,7 +30,8 @@ suite('Search Actions', () => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		instantiationService.stub(IKeybindingService, {});
-		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding) => new SimpleResolvedKeybinding(keybinding));
+		instantiationService.stub(IKeybindingService, 'resolveKeybinding', (keybinding: Keybinding) => [new USLayoutResolvedKeybinding(keybinding, OS)]);
+		instantiationService.stub(IKeybindingService, 'lookupKeybinding', (id: string) => null);
 		counter = 0;
 	});
 
@@ -128,7 +131,7 @@ suite('Search Actions', () => {
 			resource: URI.file('somepath' + ++counter),
 			lineMatches: []
 		};
-		return instantiationService.createInstance(FileMatch, null, null, rawMatch);
+		return instantiationService.createInstance(FileMatch, null, null, null, rawMatch);
 	}
 
 	function aMatch(fileMatch: FileMatch): Match {

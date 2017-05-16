@@ -10,9 +10,11 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommonCodeEditor, ICursorPositionChangedEvent, EditorContextKeys, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { TokenSelectionSupport, ILogicalSelectionEntry } from './tokenSelectionSupport';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
 // --- selection state machine
 
@@ -170,7 +172,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 			alias: 'Expand Select',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.RightArrow,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.RightArrow }
 			}
@@ -187,7 +189,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 			alias: 'Shrink Select',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.LeftArrow,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyMod.Shift | KeyCode.LeftArrow }
 			}

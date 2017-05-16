@@ -21,9 +21,11 @@ import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DEFAULT_INDENTATION, DEFAULT_TRIM_AUTO_WHITESPACE } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_MODEL_DEFAULTS } from "vs/editor/common/config/editorOptions";
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IRawTextSource, TextSource, RawTextSource } from 'vs/editor/common/model/textSource';
+import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+import { ClassName } from 'vs/editor/common/model/textModelWithDecorations';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -112,6 +114,7 @@ class ModelMarkerHandler {
 		let className: string;
 		let color: string;
 		let darkColor: string;
+		let hcColor: string;
 
 		switch (marker.severity) {
 			case Severity.Ignore:
@@ -119,20 +122,22 @@ class ModelMarkerHandler {
 				break;
 			case Severity.Warning:
 			case Severity.Info:
-				className = editorCommon.ClassName.EditorWarningDecoration;
+				className = ClassName.EditorWarningDecoration;
 				color = 'rgba(18,136,18,0.7)';
 				darkColor = 'rgba(18,136,18,0.7)';
+				hcColor = 'rgba(50,255,50,1)';
 				break;
 			case Severity.Error:
 			default:
-				className = editorCommon.ClassName.EditorErrorDecoration;
+				className = ClassName.EditorErrorDecoration;
 				color = 'rgba(255,18,18,0.7)';
 				darkColor = 'rgba(255,18,18,0.7)';
+				hcColor = 'rgba(255,50,50,1)';
 				break;
 		}
 
 		let hoverMessage: MarkedString[] = null;
-		let {message, source} = marker;
+		let { message, source } = marker;
 
 		if (typeof message === 'string') {
 			message = message.trim();
@@ -155,6 +160,7 @@ class ModelMarkerHandler {
 			overviewRuler: {
 				color,
 				darkColor,
+				hcColor,
 				position: editorCommon.OverviewRulerLane.Right
 			}
 		};
@@ -217,7 +223,7 @@ export class ModelServiceImpl implements IModelService {
 	}
 
 	private static _readModelOptions(config: IRawConfig): editorCommon.ITextModelCreationOptions {
-		let tabSize = DEFAULT_INDENTATION.tabSize;
+		let tabSize = EDITOR_MODEL_DEFAULTS.tabSize;
 		if (config.editor && typeof config.editor.tabSize !== 'undefined') {
 			let parsedTabSize = parseInt(config.editor.tabSize, 10);
 			if (!isNaN(parsedTabSize)) {
@@ -225,7 +231,7 @@ export class ModelServiceImpl implements IModelService {
 			}
 		}
 
-		let insertSpaces = DEFAULT_INDENTATION.insertSpaces;
+		let insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
 		if (config.editor && typeof config.editor.insertSpaces !== 'undefined') {
 			insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
 		}
@@ -238,12 +244,12 @@ export class ModelServiceImpl implements IModelService {
 			newDefaultEOL = editorCommon.DefaultEndOfLine.LF;
 		}
 
-		let trimAutoWhitespace = DEFAULT_TRIM_AUTO_WHITESPACE;
+		let trimAutoWhitespace = EDITOR_MODEL_DEFAULTS.trimAutoWhitespace;
 		if (config.editor && typeof config.editor.trimAutoWhitespace !== 'undefined') {
 			trimAutoWhitespace = (config.editor.trimAutoWhitespace === 'false' ? false : Boolean(config.editor.trimAutoWhitespace));
 		}
 
-		let detectIndentation = DEFAULT_INDENTATION.detectIndentation;
+		let detectIndentation = EDITOR_MODEL_DEFAULTS.detectIndentation;
 		if (config.editor && typeof config.editor.detectIndentation !== 'undefined') {
 			detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
 		}
@@ -464,7 +470,7 @@ export class ModelServiceImpl implements IModelService {
 		// First look for dispose
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.getType() === editorCommon.EventType.ModelDispose) {
+			if (e.type === textModelEvents.TextModelEventType.ModelDispose) {
 				this._onModelDisposing(modelData.model);
 				// no more processing since model got disposed
 				return;
@@ -474,9 +480,9 @@ export class ModelServiceImpl implements IModelService {
 		// Second, look for mode change
 		for (let i = 0, len = events.length; i < len; i++) {
 			let e = events[i];
-			if (e.getType() === editorCommon.EventType.ModelLanguageChanged) {
+			if (e.type === textModelEvents.TextModelEventType.ModelLanguageChanged) {
 				const model = modelData.model;
-				const oldModeId = (<editorCommon.IModelLanguageChangedEvent>e.getData()).oldLanguage;
+				const oldModeId = (<textModelEvents.IModelLanguageChangedEvent>e.data).oldLanguage;
 				const newModeId = model.getLanguageIdentifier().language;
 				const oldOptions = this.getCreationOptions(oldModeId);
 				const newOptions = this.getCreationOptions(newModeId);

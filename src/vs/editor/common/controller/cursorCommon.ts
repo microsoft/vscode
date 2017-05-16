@@ -7,11 +7,44 @@
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { IModeConfiguration } from 'vs/editor/common/controller/oneCursor';
-import { ICommand, CursorChangeReason, IConfigurationChangedEvent, TextModelResolvedOptions, IConfiguration } from 'vs/editor/common/editorCommon';
+import { ICommand, TextModelResolvedOptions, IConfiguration, IModel } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { CursorChangeReason, VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
+
+export interface IColumnSelectData {
+	toViewLineNumber: number;
+	toViewVisualColumn: number;
+}
+
+export const enum RevealTarget {
+	Primary = 0,
+	TopMost = 1,
+	BottomMost = 2
+}
+
+export interface ICursors {
+	readonly context: CursorContext;
+	getPrimaryCursor(): CursorState;
+	getLastAddedCursorIndex(): number;
+	getAll(): CursorState[];
+
+	getColumnSelectData(): IColumnSelectData;
+	setColumnSelectData(columnSelectData: IColumnSelectData): void;
+
+	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
+	reveal(horizontal: boolean, target: RevealTarget): void;
+	revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: VerticalRevealType);
+
+	scrollTo(desiredScrollTop: number): void;
+}
 
 export interface CharacterMap {
 	[char: string]: string;
@@ -20,10 +53,12 @@ export interface CharacterMap {
 export class CursorConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
+	public readonly readOnly: boolean;
 	public readonly tabSize: number;
 	public readonly insertSpaces: boolean;
 	public readonly oneIndent: string;
 	public readonly pageSize: number;
+	public readonly lineHeight: number;
 	public readonly useTabStops: boolean;
 	public readonly wordSeparators: string;
 	public readonly autoClosingBrackets: boolean;
@@ -38,32 +73,86 @@ export class CursorConfiguration {
 			|| e.wordSeparators
 			|| e.autoClosingBrackets
 			|| e.useTabStops
+			|| e.lineHeight
+			|| e.readOnly
 		);
 	}
 
 	constructor(
+		languageIdentifier: LanguageIdentifier,
 		oneIndent: string,
 		modelOptions: TextModelResolvedOptions,
-		configuration: IConfiguration,
-		modeConfiguration: IModeConfiguration
+		configuration: IConfiguration
 	) {
 		let c = configuration.editor;
 
+		this.readOnly = c.readOnly;
 		this.tabSize = modelOptions.tabSize;
 		this.insertSpaces = modelOptions.insertSpaces;
 		this.oneIndent = oneIndent;
 		this.pageSize = Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2;
+		this.lineHeight = c.lineHeight;
 		this.useTabStops = c.useTabStops;
 		this.wordSeparators = c.wordSeparators;
 		this.autoClosingBrackets = c.autoClosingBrackets;
-		this.autoClosingPairsOpen = modeConfiguration.autoClosingPairsOpen;
-		this.autoClosingPairsClose = modeConfiguration.autoClosingPairsClose;
-		this.surroundingPairs = modeConfiguration.surroundingPairs;
-		this.electricChars = modeConfiguration.electricChars;
+
+		this.autoClosingPairsOpen = {};
+		this.autoClosingPairsClose = {};
+		this.surroundingPairs = {};
+		this.electricChars = {};
+
+		let electricChars = CursorConfiguration._getElectricCharacters(languageIdentifier);
+		if (electricChars) {
+			for (let i = 0; i < electricChars.length; i++) {
+				this.electricChars[electricChars[i]] = true;
+			}
+		}
+
+		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
+		if (autoClosingPairs) {
+			for (let i = 0; i < autoClosingPairs.length; i++) {
+				this.autoClosingPairsOpen[autoClosingPairs[i].open] = autoClosingPairs[i].close;
+				this.autoClosingPairsClose[autoClosingPairs[i].close] = autoClosingPairs[i].open;
+			}
+		}
+
+		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
+		if (surroundingPairs) {
+			for (let i = 0; i < surroundingPairs.length; i++) {
+				this.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
+			}
+		}
 	}
 
 	public normalizeIndentation(str: string): string {
 		return TextModel.normalizeIndentation(str, this.tabSize, this.insertSpaces);
+	}
+
+	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] {
+		try {
+			return LanguageConfigurationRegistry.getElectricCharacters(languageIdentifier.id);
+		} catch (e) {
+			onUnexpectedError(e);
+			return null;
+		}
+	}
+
+	private static _getAutoClosingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] {
+		try {
+			return LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
+		} catch (e) {
+			onUnexpectedError(e);
+			return null;
+		}
+	}
+
+	private static _getSurroundingPairs(languageIdentifier: LanguageIdentifier): IAutoClosingPair[] {
+		try {
+			return LanguageConfigurationRegistry.getSurroundingPairs(languageIdentifier.id);
+		} catch (e) {
+			onUnexpectedError(e);
+			return null;
+		}
 	}
 }
 
@@ -118,48 +207,21 @@ export class SingleCursorState {
 		return (!this.selection.isEmpty() || !this.selectionStart.isEmpty());
 	}
 
-	public withSelectionStartLeftoverVisibleColumns(selectionStartLeftoverVisibleColumns: number): SingleCursorState {
-		return new SingleCursorState(
-			this.selectionStart,
-			selectionStartLeftoverVisibleColumns,
-			this.position,
-			this.leftoverVisibleColumns
-		);
-	}
-
-	public withSelectionStart(selectionStart: Range): SingleCursorState {
-		return new SingleCursorState(
-			selectionStart,
-			0,
-			this.position,
-			this.leftoverVisibleColumns
-		);
-	}
-
-	public collapse(): SingleCursorState {
-		return new SingleCursorState(
-			new Range(this.position.lineNumber, this.position.column, this.position.lineNumber, this.position.column),
-			0,
-			this.position,
-			0
-		);
-	}
-
-	public move(inSelectionMode: boolean, position: Position, leftoverVisibleColumns: number): SingleCursorState {
+	public move(inSelectionMode: boolean, lineNumber: number, column: number, leftoverVisibleColumns: number): SingleCursorState {
 		if (inSelectionMode) {
 			// move just position
 			return new SingleCursorState(
 				this.selectionStart,
 				this.selectionStartLeftoverVisibleColumns,
-				position,
+				new Position(lineNumber, column),
 				leftoverVisibleColumns
 			);
 		} else {
 			// move everything
 			return new SingleCursorState(
-				new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+				new Range(lineNumber, column, lineNumber, column),
 				leftoverVisibleColumns,
-				position,
+				new Position(lineNumber, column),
 				leftoverVisibleColumns
 			);
 		}
@@ -194,42 +256,183 @@ export class SingleCursorState {
 	}
 }
 
-export class EditOperationResult {
-	_editOperationBrand: void;
+export interface IViewModelHelper {
+
+	coordinatesConverter: ICoordinatesConverter;
+
+	viewModel: ICursorSimpleModel;
+
+	getScrollTop(): number;
+
+	getCompletelyVisibleViewRange(): Range;
+
+	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+
+	getVerticalOffsetForViewLineNumber(viewLineNumber: number): number;
+}
+
+export class CursorContext {
+	_cursorContextBrand: void;
+
+	public readonly model: IModel;
+	public readonly viewModel: ICursorSimpleModel;
+	public readonly config: CursorConfiguration;
+
+	private readonly _viewModelHelper: IViewModelHelper;
+	private readonly _coordinatesConverter: ICoordinatesConverter;
+
+	constructor(model: IModel, viewModelHelper: IViewModelHelper, config: CursorConfiguration) {
+		this.model = model;
+		this.viewModel = viewModelHelper.viewModel;
+		this.config = config;
+		this._viewModelHelper = viewModelHelper;
+		this._coordinatesConverter = viewModelHelper.coordinatesConverter;
+	}
+
+	public validateViewPosition(viewPosition: Position, modelPosition: Position): Position {
+		return this._coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
+	}
+
+	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
+		return this._coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
+	}
+
+	public convertViewRangeToModelRange(viewRange: Range): Range {
+		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+	}
+
+	public convertViewPositionToModelPosition(lineNumber: number, column: number): Position {
+		return this._coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, column));
+	}
+
+	public convertModelPositionToViewPosition(modelPosition: Position): Position {
+		return this._coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+	}
+
+	public convertModelRangeToViewRange(modelRange: Range): Range {
+		return this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
+	}
+
+	public getScrollTop(): number {
+		return this._viewModelHelper.getScrollTop();
+	}
+
+	public getCompletelyVisibleViewRange(): Range {
+		return this._viewModelHelper.getCompletelyVisibleViewRange();
+	}
+
+	public getCompletelyVisibleModelRange(): Range {
+		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRange();
+		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+	}
+
+	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
+		return this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+	}
+
+	public getCompletelyVisibleModelRangeAtScrollTop(scrollTop: number): Range {
+		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+	}
+
+	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
+		return this._viewModelHelper.getVerticalOffsetForViewLineNumber(viewLineNumber);
+	}
+}
+
+export class CursorState {
+	_cursorStateBrand: void;
+
+	public static fromModelState(modelState: SingleCursorState): CursorState {
+		return new CursorState(modelState, null);
+	}
+
+	public static fromViewState(viewState: SingleCursorState): CursorState {
+		return new CursorState(null, viewState);
+	}
+
+	public static ensureInEditableRange(context: CursorContext, states: CursorState[]): CursorState[] {
+		const model = context.model;
+		if (!model.hasEditableRange()) {
+			return states;
+		}
+
+		const modelEditableRange = model.getEditableRange();
+		const viewEditableRange = context.convertModelRangeToViewRange(modelEditableRange);
+
+		let result: CursorState[] = [];
+		for (let i = 0, len = states.length; i < len; i++) {
+			const state = states[i];
+
+			if (state.modelState) {
+				const newModelState = CursorState._ensureInEditableRange(state.modelState, modelEditableRange);
+				result[i] = newModelState ? CursorState.fromModelState(newModelState) : state;
+			} else {
+				const newViewState = CursorState._ensureInEditableRange(state.viewState, viewEditableRange);
+				result[i] = newViewState ? CursorState.fromViewState(newViewState) : state;
+			}
+		}
+		return result;
+	}
+
+	private static _ensureInEditableRange(state: SingleCursorState, editableRange: Range): SingleCursorState {
+		const position = state.position;
+
+		if (position.lineNumber < editableRange.startLineNumber || (position.lineNumber === editableRange.startLineNumber && position.column < editableRange.startColumn)) {
+			return new SingleCursorState(
+				state.selectionStart, state.selectionStartLeftoverVisibleColumns,
+				new Position(editableRange.startLineNumber, editableRange.startColumn), 0
+			);
+		}
+
+		if (position.lineNumber > editableRange.endLineNumber || (position.lineNumber === editableRange.endLineNumber && position.column > editableRange.endColumn)) {
+			return new SingleCursorState(
+				state.selectionStart, state.selectionStartLeftoverVisibleColumns,
+				new Position(editableRange.endLineNumber, editableRange.endColumn), 0
+			);
+		}
+
+		return null;
+	}
+
+	readonly modelState: SingleCursorState;
+	readonly viewState: SingleCursorState;
+
+	constructor(modelState: SingleCursorState, viewState: SingleCursorState) {
+		this.modelState = modelState;
+		this.viewState = viewState;
+	}
+}
+
+export class CommandResult {
+	_commandResultBrand: void;
 
 	readonly command: ICommand;
+	readonly isAutoWhitespaceCommand: boolean;
+
+	constructor(command: ICommand, isAutoWhitespaceCommand: boolean) {
+		this.command = command;
+		this.isAutoWhitespaceCommand = isAutoWhitespaceCommand;
+	}
+}
+
+export class EditOperationResult {
+	_editOperationResultBrand: void;
+
+	readonly commands: CommandResult[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
-	readonly isAutoWhitespaceCommand: boolean;
-	readonly shouldRevealHorizontal: boolean;
-	readonly cursorPositionChangeReason: CursorChangeReason;
 
 	constructor(
-		command: ICommand,
+		commands: CommandResult[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
-			isAutoWhitespaceCommand?: boolean;
-			shouldRevealHorizontal?: boolean;
-			cursorPositionChangeReason?: CursorChangeReason;
 		}
 	) {
-		this.command = command;
+		this.commands = commands;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
-		this.isAutoWhitespaceCommand = false;
-		this.shouldRevealHorizontal = true;
-		this.cursorPositionChangeReason = CursorChangeReason.NotSet;
-
-		if (typeof opts.isAutoWhitespaceCommand !== 'undefined') {
-			this.isAutoWhitespaceCommand = opts.isAutoWhitespaceCommand;
-		}
-		if (typeof opts.shouldRevealHorizontal !== 'undefined') {
-			this.shouldRevealHorizontal = opts.shouldRevealHorizontal;
-		}
-		if (typeof opts.cursorPositionChangeReason !== 'undefined') {
-			this.cursorPositionChangeReason = opts.cursorPositionChangeReason;
-		}
 	}
 }
 

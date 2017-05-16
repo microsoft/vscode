@@ -8,6 +8,7 @@
 
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
+import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -15,14 +16,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { CollapsibleRegion, getCollapsibleRegionsToFoldAtLine, getCollapsibleRegionsToUnfoldAtLine, doesLineBelongsToCollapsibleRegion, IFoldingRange } from 'vs/editor/contrib/folding/common/foldingModel';
 import { computeRanges, limitByIndent } from 'vs/editor/contrib/folding/common/indentFoldStrategy';
 import { IFoldingController, ID } from 'vs/editor/contrib/folding/common/folding';
 import { Selection } from 'vs/editor/common/core/selection';
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 
 @editorContribution
 export class FoldingController implements IFoldingController {
@@ -35,6 +36,7 @@ export class FoldingController implements IFoldingController {
 
 	private editor: ICodeEditor;
 	private _isEnabled: boolean;
+	private _hideFoldIcons: boolean;
 	private globalToDispose: IDisposable[];
 
 	private computeToken: number;
@@ -47,6 +49,7 @@ export class FoldingController implements IFoldingController {
 	constructor(editor: ICodeEditor) {
 		this.editor = editor;
 		this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
+		this._hideFoldIcons = this.editor.getConfiguration().contribInfo.hideFoldIcons;
 
 		this.globalToDispose = [];
 		this.localToDispose = [];
@@ -54,11 +57,16 @@ export class FoldingController implements IFoldingController {
 		this.computeToken = 0;
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
-		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: editorCommon.IConfigurationChangedEvent) => {
+		this.globalToDispose.push(this.editor.onDidChangeConfiguration((e: IConfigurationChangedEvent) => {
 			let oldIsEnabled = this._isEnabled;
 			this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
 			if (oldIsEnabled !== this._isEnabled) {
 				this.onModelChanged();
+			}
+			let oldHideFoldIcons = this._hideFoldIcons;
+			this._hideFoldIcons = this.editor.getConfiguration().contribInfo.hideFoldIcons;
+			if (oldHideFoldIcons !== this._hideFoldIcons) {
+				this.updateHideFoldIconClass();
 			}
 		}));
 
@@ -72,6 +80,13 @@ export class FoldingController implements IFoldingController {
 	public dispose(): void {
 		this.cleanState();
 		this.globalToDispose = dispose(this.globalToDispose);
+	}
+
+	private updateHideFoldIconClass(): void {
+		let domNode = this.editor.getDomNode();
+		if (domNode) {
+			dom.toggleClass(domNode, 'alwaysShowFoldIcons', this._hideFoldIcons === false);
+		}
 	}
 
 	/**
@@ -190,6 +205,7 @@ export class FoldingController implements IFoldingController {
 
 	private onModelChanged(): void {
 		this.cleanState();
+		this.updateHideFoldIconClass();
 
 		let model = this.editor.getModel();
 		if (!this._isEnabled || !model) {
@@ -273,11 +289,11 @@ export class FoldingController implements IFoldingController {
 
 		let iconClicked = false;
 		switch (e.target.type) {
-			case editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS:
+			case MouseTargetType.GUTTER_LINE_DECORATIONS:
 				iconClicked = true;
 				break;
-			case editorCommon.MouseTargetType.CONTENT_EMPTY:
-			case editorCommon.MouseTargetType.CONTENT_TEXT:
+			case MouseTargetType.CONTENT_EMPTY:
+			case MouseTargetType.CONTENT_TEXT:
 				if (range.isEmpty && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
 					break;
 				}
@@ -304,7 +320,7 @@ export class FoldingController implements IFoldingController {
 		let model = this.editor.getModel();
 
 		if (iconClicked) {
-			if (e.target.type !== editorCommon.MouseTargetType.GUTTER_LINE_DECORATIONS) {
+			if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
 				return;
 			}
 		} else {
@@ -332,18 +348,13 @@ export class FoldingController implements IFoldingController {
 		let model = this.editor.getModel();
 		var selections: Selection[] = this.editor.getSelections();
 		var updateSelections = false;
-		let hiddenAreas: editorCommon.IRange[] = [];
+		let hiddenAreas: Range[] = [];
 		this.decorations.filter(dec => dec.isCollapsed).forEach(dec => {
 			let decRange = dec.getDecorationRange(model);
 			if (!decRange) {
 				return;
 			}
-			hiddenAreas.push({
-				startLineNumber: decRange.startLineNumber + 1,
-				startColumn: 1,
-				endLineNumber: decRange.endLineNumber,
-				endColumn: 1
-			});
+			hiddenAreas.push(new Range(decRange.startLineNumber + 1, 1, decRange.endLineNumber, 1));
 			selections.forEach((selection, i) => {
 				if (Range.containsPosition(decRange, selection.getStartPosition())) {
 					selections[i] = selection = selection.setStartPosition(decRange.startLineNumber, model.getLineMaxColumn(decRange.startLineNumber));
@@ -546,7 +557,7 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 			alias: 'Unfold',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET
@@ -582,7 +593,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 			alias: 'Unfold Recursively',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET)
 			}
 		});
@@ -603,7 +614,7 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 			alias: 'Fold',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET
@@ -616,7 +627,7 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 						name: 'Fold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
 							* 'levels': Number of levels to fold
-							* 'up': If 'true' folds given number of levels up otherwise folds down
+							* 'up': If 'true', folds given number of levels up otherwise folds down
 						`,
 						constraint: foldingArgumentsConstraint
 					}
@@ -641,7 +652,7 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 			alias: 'Fold Recursively',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET)
 			}
 		});
@@ -662,7 +673,7 @@ class FoldAllAction extends FoldingAction<void> {
 			alias: 'Fold All',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_0)
 			}
 		});
@@ -683,7 +694,7 @@ class UnfoldAllAction extends FoldingAction<void> {
 			alias: 'Unfold All',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_J)
 			}
 		});
@@ -719,7 +730,7 @@ for (let i = 1; i <= 9; i++) {
 			alias: `Fold Level ${i}`,
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | (KeyCode.KEY_0 + i))
 			}
 		})

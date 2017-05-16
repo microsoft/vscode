@@ -31,6 +31,9 @@ import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEdi
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
+import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { badgeBackground, badgeForeground, contrastBorder } from "vs/platform/theme/common/colorRegistry";
 
 const $ = dom.$;
 
@@ -64,7 +67,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		@IListService private listService: IListService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IViewletService private viewletService: IViewletService
+		@IViewletService private viewletService: IViewletService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(actionRunner, OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel()), !!settings[OpenEditorsView.MEMENTO_COLLAPSED], nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"), keybindingService, contextMenuService);
 
@@ -84,6 +88,20 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		titleSpan.textContent = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 		this.dirtyCountElement = dom.append(titleDiv, $('.monaco-count-badge'));
+
+		this.toDispose.push((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+
+			this.dirtyCountElement.style.backgroundColor = background;
+			this.dirtyCountElement.style.color = foreground;
+
+			this.dirtyCountElement.style.borderWidth = border ? '1px' : null;
+			this.dirtyCountElement.style.borderStyle = border ? 'solid' : null;
+			this.dirtyCountElement.style.borderColor = border;
+		})));
+
 		this.updateDirtyIndicator();
 
 		super.renderHeader(container);
@@ -123,18 +141,21 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 				keyboardSupport: false
 			});
 
+		// Theme styler
+		this.toDispose.push(attachListStyler(this.tree, this.themeService));
+
 		// Register to list service
 		this.toDispose.push(this.listService.register(this.tree, [this.explorerFocussedContext, this.openEditorsFocussedContext]));
 
 		// Open when selecting via keyboard
-		this.toDispose.push(this.tree.addListener2('selection', event => {
+		this.toDispose.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				controller.openEditor(this.tree.getFocus(), { pinned: false, sideBySide: false, preserveFocus: false });
 			}
 		}));
 
 		// Prevent collapsing of editor groups
-		this.toDispose.push(this.tree.addListener2('item:collapsed', (event: IItemCollapseEvent) => {
+		this.toDispose.push(this.tree.addListener('item:collapsed', (event: IItemCollapseEvent) => {
 			if (event.item && event.item.getElement() instanceof EditorGroup) {
 				setTimeout(() => this.tree.expand(event.item.getElement())); // unwind from callback
 			}

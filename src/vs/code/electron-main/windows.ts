@@ -9,7 +9,6 @@ import * as path from 'path';
 import * as fs from 'original-fs';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
-import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin } from 'vs/base/common/objects';
@@ -31,6 +30,9 @@ import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
 import { OpenContext } from 'vs/code/common/windows';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
+import * as nativeKeymap from 'native-keymap';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -155,7 +157,7 @@ export class WindowsManager implements IWindowsMainService {
 	onWindowReload: CommonEvent<number> = this._onWindowReload.event;
 
 	private _onPathsOpen = new Emitter<IPath[]>();
-	onPathsOpen: CommonEvent<IPath> = this._onPathsOpen.event;
+	onPathsOpen: CommonEvent<IPath[]> = this._onPathsOpen.event;
 
 	constructor(
 		@ILogService private logService: ILogService,
@@ -234,8 +236,8 @@ export class WindowsManager implements IWindowsMainService {
 				// Send to windows
 				if (target) {
 					const otherWindowsWithTarget = WindowsManager.WINDOWS.filter(w => w.id !== windowId && typeof w.openedWorkspacePath === 'string');
-					const directTargetMatch = otherWindowsWithTarget.filter(w => this.isPathEqual(target, w.openedWorkspacePath));
-					const parentTargetMatch = otherWindowsWithTarget.filter(w => paths.isEqualOrParent(target, w.openedWorkspacePath));
+					const directTargetMatch = otherWindowsWithTarget.filter(w => isEqual(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
+					const parentTargetMatch = otherWindowsWithTarget.filter(w => isParent(target, w.openedWorkspacePath, !platform.isLinux /* ignorecase */));
 
 					const targetWindow = directTargetMatch.length ? directTargetMatch[0] : parentTargetMatch[0]; // prefer direct match over parent match
 					if (targetWindow) {
@@ -250,6 +252,9 @@ export class WindowsManager implements IWindowsMainService {
 		// Update our windows state before quitting and before closing windows
 		this.lifecycleService.onBeforeWindowClose(win => this.onBeforeWindowClose(win));
 		this.lifecycleService.onBeforeQuit(() => this.onBeforeQuit());
+
+		// Keyboard layout changes
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(isISOKeyboard => this.sendToAll('vscode:keyboardLayoutChanged', isISOKeyboard));
 	}
 
 	// Note that onBeforeQuit() and onBeforeWindowClose() are fired in different order depending on the OS:
@@ -263,7 +268,7 @@ export class WindowsManager implements IWindowsMainService {
 		const currentWindowsState: IWindowsState = {
 			openedFolders: [],
 			lastPluginDevelopmentHostWindow: this.windowsState.lastPluginDevelopmentHostWindow,
-			lastActiveWindow: this.lastClosedWindowState //will be set on Win/Linux if last window was closed, resulting in an exit
+			lastActiveWindow: this.lastClosedWindowState
 		};
 
 		// 1.) Find a last active window (pick any other first window otherwise)
@@ -317,7 +322,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Any non extension host window with same workspace
 		else if (!win.isExtensionDevelopmentHost && !!win.openedWorkspacePath) {
 			this.windowsState.openedFolders.forEach(o => {
-				if (this.isPathEqual(o.workspacePath, win.openedWorkspacePath)) {
+				if (isEqual(o.workspacePath, win.openedWorkspacePath, !platform.isLinux /* ignorecase */)) {
 					o.uiState = state.uiState;
 				}
 			});
@@ -325,16 +330,20 @@ export class WindowsManager implements IWindowsMainService {
 
 		// On Windows and Linux closing the last window will trigger quit. Since we are storing all UI state
 		// before quitting, we need to remember the UI state of this window to be able to persist it.
-		if (!platform.isMacintosh && this.getWindowCount() === 1) {
+		// On macOS we keep the last closed window state ready in case the user wants to quit right after or
+		// wants to open another window, in which case we use this state over the persisted one.
+		if (this.getWindowCount() === 1) {
 			this.lastClosedWindowState = state;
 		}
 	}
 
 	private onBroadcast(event: string, payload: any): void {
-
 		// Theme changes
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
-			this.storageService.setItem(VSCodeWindow.themeStorageKey, payload);
+
+			let data = JSON.parse(payload);
+			this.storageService.setItem(VSCodeWindow.themeStorageKey, data.id);
+			this.storageService.setItem(VSCodeWindow.themeBackgroundStorageKey, data.background);
 		}
 	}
 	public reload(win: VSCodeWindow, cli?: ParsedArgs): void {
@@ -510,7 +519,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Open remaining ones
 			allFoldersToOpen.forEach(folderToOpen => {
-				if (windowsOnWorkspacePath.some(win => this.isPathEqual(win.openedWorkspacePath, folderToOpen))) {
+				if (windowsOnWorkspacePath.some(win => isEqual(win.openedWorkspacePath, folderToOpen, !platform.isLinux /* ignorecase */))) {
 					return; // ignore folders that are already open
 				}
 
@@ -684,7 +693,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Reload an existing extension development host window on the same path
 		// We currently do not allow more than one extension development window
 		// on the same extension path.
-		let res = WindowsManager.WINDOWS.filter(w => w.config && this.isPathEqual(w.config.extensionDevelopmentPath, openConfig.cli.extensionDevelopmentPath));
+		let res = WindowsManager.WINDOWS.filter(w => w.config && isEqual(w.config.extensionDevelopmentPath, openConfig.cli.extensionDevelopmentPath, !platform.isLinux /* ignorecase */));
 		if (res && res.length === 1) {
 			this.reload(res[0], openConfig.cli);
 			res[0].focus(); // make sure it gets focus and is restored
@@ -722,7 +731,8 @@ export class WindowsManager implements IWindowsMainService {
 		configuration.filesToOpen = filesToOpen;
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
-		configuration.nodeCachedDataDir = this.environmentService.isBuilt && this.environmentService.nodeCachedDataDir;
+		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
+		configuration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
 
 		return configuration;
 	}
@@ -772,7 +782,7 @@ export class WindowsManager implements IWindowsMainService {
 		// No path argument, check settings for what to do now
 		else {
 			let reopenFolders: string;
-			if (this.lifecycleService.wasUpdated) {
+			if (this.lifecycleService.wasRestarted) {
 				reopenFolders = ReopenFoldersSetting.ALL; // always reopen all folders when an update was applied
 			} else {
 				const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
@@ -833,7 +843,7 @@ export class WindowsManager implements IWindowsMainService {
 
 			// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
 			else {
-				allowFullscreen = this.lifecycleService.wasUpdated || (windowConfig && windowConfig.restoreFullscreen);
+				allowFullscreen = this.lifecycleService.wasRestarted || (windowConfig && windowConfig.restoreFullscreen);
 			}
 
 			if (state.mode === WindowMode.Fullscreen && !allowFullscreen) {
@@ -843,8 +853,7 @@ export class WindowsManager implements IWindowsMainService {
 			vscodeWindow = new VSCodeWindow({
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
-				isExtensionTestHost: !!configuration.extensionTestsPath,
-				titleBarStyle: windowConfig ? windowConfig.titleBarStyle : void 0
+				isExtensionTestHost: !!configuration.extensionTestsPath
 			},
 				this.logService,
 				this.environmentService,
@@ -906,7 +915,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Known Folder - load from stored settings if any
 		if (configuration.workspacePath) {
-			const stateForWorkspace = this.windowsState.openedFolders.filter(o => this.isPathEqual(o.workspacePath, configuration.workspacePath)).map(o => o.uiState);
+			const stateForWorkspace = this.windowsState.openedFolders.filter(o => isEqual(o.workspacePath, configuration.workspacePath, !platform.isLinux /* ignorecase */)).map(o => o.uiState);
 			if (stateForWorkspace.length) {
 				return stateForWorkspace[0];
 			}
@@ -914,8 +923,9 @@ export class WindowsManager implements IWindowsMainService {
 
 		// First Window
 		const lastActive = this.getLastActiveWindow();
-		if (!lastActive && this.windowsState.lastActiveWindow) {
-			return this.windowsState.lastActiveWindow.uiState;
+		const lastActiveState = this.lastClosedWindowState || this.windowsState.lastActiveWindow;
+		if (!lastActive && lastActiveState) {
+			return lastActiveState.uiState;
 		}
 
 		//
@@ -1103,22 +1113,22 @@ export class WindowsManager implements IWindowsMainService {
 			const res = windowsToTest.filter(w => {
 
 				// match on workspace
-				if (typeof w.openedWorkspacePath === 'string' && (this.isPathEqual(w.openedWorkspacePath, workspacePath))) {
+				if (typeof w.openedWorkspacePath === 'string' && (isEqual(w.openedWorkspacePath, workspacePath, !platform.isLinux /* ignorecase */))) {
 					return true;
 				}
 
 				// match on file
-				if (typeof w.openedFilePath === 'string' && this.isPathEqual(w.openedFilePath, filePath)) {
+				if (typeof w.openedFilePath === 'string' && isEqual(w.openedFilePath, filePath, !platform.isLinux /* ignorecase */)) {
 					return true;
 				}
 
 				// match on file path
-				if (typeof w.openedWorkspacePath === 'string' && filePath && paths.isEqualOrParent(filePath, w.openedWorkspacePath)) {
+				if (typeof w.openedWorkspacePath === 'string' && filePath && isEqualOrParent(filePath, w.openedWorkspacePath, !platform.isLinux /* ignorecase */)) {
 					return true;
 				}
 
 				// match on extension development path
-				if (typeof extensionDevelopmentPath === 'string' && w.extensionDevelopmentPath === extensionDevelopmentPath) {
+				if (typeof extensionDevelopmentPath === 'string' && isEqual(w.extensionDevelopmentPath, extensionDevelopmentPath, !platform.isLinux /* ignorecase */)) {
 					return true;
 				}
 
@@ -1194,6 +1204,10 @@ export class WindowsManager implements IWindowsMainService {
 				detail: nls.localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 				noLink: true
 			}, result => {
+				if (!vscodeWindow.win) {
+					return; // Return early if the window has been going down already
+				}
+
 				if (result === 0) {
 					vscodeWindow.reload();
 				} else if (result === 2) {
@@ -1213,6 +1227,10 @@ export class WindowsManager implements IWindowsMainService {
 				detail: nls.localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
 				noLink: true
 			}, result => {
+				if (!vscodeWindow.win) {
+					return; // Return early if the window has been going down already
+				}
+
 				if (result === 0) {
 					vscodeWindow.reload();
 				} else if (result === 1) {
@@ -1234,30 +1252,6 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Emit
 		this._onWindowClose.fire(win.id);
-	}
-
-	private isPathEqual(pathA: string, pathB: string): boolean {
-		if (pathA === pathB) {
-			return true;
-		}
-
-		if (!pathA || !pathB) {
-			return false;
-		}
-
-		pathA = path.normalize(pathA);
-		pathB = path.normalize(pathB);
-
-		if (pathA === pathB) {
-			return true;
-		}
-
-		if (!platform.isLinux) {
-			pathA = pathA.toLowerCase();
-			pathB = pathB.toLowerCase();
-		}
-
-		return pathA === pathB;
 	}
 
 	public updateWindowsJumpList(): void {
@@ -1334,8 +1328,67 @@ export class WindowsManager implements IWindowsMainService {
 		// Otherwise: normal quit
 		else {
 			setTimeout(() => {
-				app.quit();
+				this.lifecycleService.quit();
 			}, 10 /* delay to unwind callback stack (IPC) */);
 		}
+	}
+}
+
+class KeyboardLayoutMonitor {
+
+	public static INSTANCE = new KeyboardLayoutMonitor();
+
+	private _emitter: Emitter<boolean>;
+	private _registered: boolean;
+	private _isISOKeyboard: boolean;
+
+	private constructor() {
+		this._emitter = new Emitter<boolean>();
+		this._registered = false;
+		this._isISOKeyboard = this._readIsISOKeyboard();
+	}
+
+	public onDidChangeKeyboardLayout(callback: (isISOKeyboard: boolean) => void): IDisposable {
+		if (!this._registered) {
+			this._registered = true;
+
+			nativeKeymap.onDidChangeKeyboardLayout(() => {
+				this._emitter.fire(this._isISOKeyboard);
+			});
+
+			if (platform.isMacintosh) {
+				// See https://github.com/Microsoft/vscode/issues/24153
+				// On OSX, on ISO keyboards, Chromium swaps the scan codes
+				// of IntlBackslash and Backquote.
+				//
+				// The C++ methods can give the current keyboard type (ISO or not)
+				// only after a NSEvent was handled.
+				//
+				// We therefore poll.
+				setInterval(() => {
+					let newValue = this._readIsISOKeyboard();
+					if (this._isISOKeyboard === newValue) {
+						// no change
+						return;
+					}
+
+					this._isISOKeyboard = newValue;
+					this._emitter.fire(this._isISOKeyboard);
+
+				}, 3000);
+			}
+		}
+		return this._emitter.event(callback);
+	}
+
+	private _readIsISOKeyboard(): boolean {
+		if (platform.isMacintosh) {
+			return nativeKeymap.isISOKeyboard();
+		}
+		return false;
+	}
+
+	public isISOKeyboard(): boolean {
+		return this._isISOKeyboard;
 	}
 }

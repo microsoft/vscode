@@ -10,11 +10,22 @@ import * as path from 'path';
 import { MarkdownEngine } from './markdownEngine';
 
 import * as nls from 'vscode-nls';
+import { Logger } from "./logger";
 const localize = nls.loadMessageBundle();
 
 export interface ContentSecurityPolicyArbiter {
-	isEnhancedSecurityDisableForWorkspace(): boolean;
+	isEnhancedSecurityDisableForWorkspace(rootPath: string): boolean;
+
+	addTrustedWorkspace(rootPath: string): Thenable<void>;
+
+	removeTrustedWorkspace(rootPath: string): Thenable<void>;
 }
+
+const previewStrings = {
+	cspAlertMessageText: localize('preview.securityMessage.text', 'Scripts have been disabled in this document'),
+	cspAlertMessageTitle: localize('preview.securityMessage.title', 'Scripts are disabled in the markdown preview. Change the Markdown preview secuirty setting to enable scripts'),
+	cspAlertMessageLabel: localize('preview.securityMessage.label', 'Scripts Disabled Security Warning')
+};
 
 export function isMarkdownFile(document: vscode.TextDocument) {
 	return document.languageId === 'markdown'
@@ -22,25 +33,108 @@ export function isMarkdownFile(document: vscode.TextDocument) {
 }
 
 export function getMarkdownUri(uri: vscode.Uri) {
-	return uri.with({ scheme: 'markdown', path: uri.path + '.rendered', query: uri.toString() });
+	if (uri.scheme === 'markdown') {
+		return uri;
+	}
+
+	return uri.with({
+		scheme: 'markdown',
+		path: uri.fsPath + '.rendered',
+		query: uri.toString()
+	});
+}
+
+class MarkdownPreviewConfig {
+	public static getCurrentConfig() {
+		return new MarkdownPreviewConfig();
+	}
+
+	public readonly scrollBeyondLastLine: boolean;
+	public readonly wordWrap: boolean;
+	public readonly previewFrontMatter: string;
+	public readonly doubleClickToSwitchToEditor: boolean;
+	public readonly scrollEditorWithPreview: boolean;
+	public readonly scrollPreviewWithEditorSelection: boolean;
+	public readonly markEditorSelection: boolean;
+
+	public readonly lineHeight: number;
+	public readonly fontSize: number;
+	public readonly fontFamily: string | undefined;
+	public readonly styles: string[];
+
+	private constructor() {
+		const editorConfig = vscode.workspace.getConfiguration('editor');
+		const markdownConfig = vscode.workspace.getConfiguration('markdown');
+
+		this.scrollBeyondLastLine = editorConfig.get<boolean>('scrollBeyondLastLine', false);
+		this.wordWrap = editorConfig.get<string>('wordWrap', 'off') !== 'off';
+
+		this.previewFrontMatter = markdownConfig.get<string>('previewFrontMatter', 'hide');
+		this.scrollPreviewWithEditorSelection = !!markdownConfig.get<boolean>('preview.scrollPreviewWithEditorSelection', true);
+		this.scrollEditorWithPreview = !!markdownConfig.get<boolean>('preview.scrollEditorWithPreview', true);
+		this.doubleClickToSwitchToEditor = !!markdownConfig.get<boolean>('preview.doubleClickToSwitchToEditor', true);
+		this.markEditorSelection = !!markdownConfig.get<boolean>('preview.markEditorSelection', true);
+
+		this.fontFamily = markdownConfig.get<string | undefined>('preview.fontFamily', undefined);
+		this.fontSize = +markdownConfig.get<number>('preview.fontSize', NaN);
+		this.lineHeight = +markdownConfig.get<number>('preview.lineHeight', NaN);
+
+		this.styles = markdownConfig.get<string[]>('styles', []);
+	}
+
+	public isEqualTo(otherConfig: MarkdownPreviewConfig) {
+		for (let key in this) {
+			if (this.hasOwnProperty(key) && key !== 'styles') {
+				if (this[key] !== otherConfig[key]) {
+					return false;
+				}
+			}
+		}
+
+		// Check styles
+		if (this.styles.length !== otherConfig.styles.length) {
+			return false;
+		}
+		for (let i = 0; i < this.styles.length; ++i) {
+			if (this.styles[i] !== otherConfig.styles[i]) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	[key: string]: any;
 }
 
 export class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean = false;
 
+	private config: MarkdownPreviewConfig;
+
+	private extraStyles: Array<vscode.Uri> = [];
+	private extraScripts: Array<vscode.Uri> = [];
+
 	constructor(
 		private engine: MarkdownEngine,
 		private context: vscode.ExtensionContext,
-		private cspArbiter: ContentSecurityPolicyArbiter
-	) { }
+		private cspArbiter: ContentSecurityPolicyArbiter,
+		private logger: Logger
+	) {
+		this.config = MarkdownPreviewConfig.getCurrentConfig();
+	}
+
+	public addScript(resource: vscode.Uri): void {
+		this.extraScripts.push(resource);
+	}
+
+	public addStyle(resource: vscode.Uri): void {
+		this.extraStyles.push(resource);
+	}
 
 	private getMediaPath(mediaFile: string): string {
 		return vscode.Uri.file(this.context.asAbsolutePath(path.join('media', mediaFile))).toString();
-	}
-
-	private isAbsolute(p: string): boolean {
-		return path.normalize(p + '/') === path.normalize(path.resolve(p) + '/');
 	}
 
 	private fixHref(resource: vscode.Uri, href: string): string {
@@ -49,12 +143,13 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		}
 
 		// Use href if it is already an URL
-		if (vscode.Uri.parse(href).scheme) {
-			return href;
+		const hrefUri = vscode.Uri.parse(href);
+		if (['file', 'http', 'https'].indexOf(hrefUri.scheme) >= 0) {
+			return hrefUri.toString();
 		}
 
 		// Use href as file URI if it is absolute
-		if (this.isAbsolute(href)) {
+		if (path.isAbsolute(href)) {
 			return vscode.Uri.file(href).toString();
 		}
 
@@ -68,10 +163,9 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		return vscode.Uri.file(path.join(path.dirname(resource.fsPath), href)).toString();
 	}
 
-	private computeCustomStyleSheetIncludes(uri: vscode.Uri, _nonce: string): string {
-		const styles = vscode.workspace.getConfiguration('markdown')['styles'];
-		if (styles && Array.isArray(styles) && styles.length > 0) {
-			return styles.map((style) => {
+	private computeCustomStyleSheetIncludes(uri: vscode.Uri): string {
+		if (this.config.styles && Array.isArray(this.config.styles)) {
+			return this.config.styles.map((style) => {
 				return `<link rel="stylesheet" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
 			}).join('\n');
 		}
@@ -79,58 +173,64 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	}
 
 	private getSettingsOverrideStyles(nonce: string): string {
-		const previewSettings = vscode.workspace.getConfiguration('markdown')['preview'];
-		if (!previewSettings) {
-			return '';
-		}
-		const { fontFamily, fontSize, lineHeight } = previewSettings;
 		return `<style nonce="${nonce}">
 			body {
-				${fontFamily ? `font-family: ${fontFamily};` : ''}
-				${+fontSize > 0 ? `font-size: ${fontSize}px;` : ''}
-				${+lineHeight > 0 ? `line-height: ${lineHeight};` : ''}
+				${this.config.fontFamily ? `font-family: ${this.config.fontFamily};` : ''}
+				${this.config.fontSize > 0 ? `font-size: ${this.config.fontSize}px;` : ''}
+				${this.config.lineHeight > 0 ? `line-height: ${this.config.lineHeight};` : ''}
 			}
 		</style>`;
 	}
 
+	private getStyles(uri: vscode.Uri, nonce: string): string {
+		const baseStyles = [
+			this.getMediaPath('markdown.css'),
+			this.getMediaPath('tomorrow.css')
+		].concat(this.extraStyles.map(resource => resource.toString()));
+
+		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
+			${this.getSettingsOverrideStyles(nonce)}
+			${this.computeCustomStyleSheetIncludes(uri)}`;
+	}
+
+	private getScripts(nonce: string): string {
+		const scripts = [this.getMediaPath('main.js')].concat(this.extraScripts.map(resource => resource.toString()));
+		return scripts
+			.map(source => `<script src="${source}" nonce="${nonce}"></script>`)
+			.join('\n');
+	}
+
 	public provideTextDocumentContent(uri: vscode.Uri): Thenable<string> {
 		const sourceUri = vscode.Uri.parse(uri.query);
-		return vscode.workspace.openTextDocument(sourceUri).then(document => {
-			const scrollBeyondLastLine = vscode.workspace.getConfiguration('editor')['scrollBeyondLastLine'];
-			const wordWrap = vscode.workspace.getConfiguration('editor')['wordWrap'];
 
-			const markdownConfig = vscode.workspace.getConfiguration('markdown');
-			const previewFrontMatter = markdownConfig.get('previewFrontMatter', 'hide');
+		return vscode.workspace.openTextDocument(sourceUri).then(document => {
+			this.config = MarkdownPreviewConfig.getCurrentConfig();
 
 			let initialLine = 0;
 			const editor = vscode.window.activeTextEditor;
-			if (editor && editor.document.uri.path === sourceUri.path) {
+			if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
 				initialLine = editor.selection.active.line;
 			}
 
 			const initialData = {
-				previewUri: encodeURIComponent(uri.toString(true)),
-				source: encodeURIComponent(sourceUri.toString(true)),
+				previewUri: uri.toString(),
+				source: sourceUri.toString(),
 				line: initialLine,
-				scrollPreviewWithEditorSelection: !!markdownConfig.get('preview.scrollPreviewWithEditorSelection', true),
-				scrollEditorWithPreview: !!markdownConfig.get('preview.scrollEditorWithPreview', true),
-				doubleClickToSwitchToEditor: !!markdownConfig.get('preview.doubleClickToSwitchToEditor', true),
+				scrollPreviewWithEditorSelection: this.config.scrollPreviewWithEditorSelection,
+				scrollEditorWithPreview: this.config.scrollEditorWithPreview,
+				doubleClickToSwitchToEditor: this.config.doubleClickToSwitchToEditor
 			};
 
-			const previewStrings = {
-				cspAlertMessageText: localize('preview.securityMessage.text', 'Scripts have been disabled in this document'),
-				cspAlertMessageTitle: localize('preview.securityMessage.title', 'Scripts are disabled in the markdown preview. Change the Markdown preview secuirty setting to enable scripts'),
-				cspAlertMessageLabel: localize('preview.securityMessage.label', 'Scripts Disabled Security Warning')
-			};
+			this.logger.log('provideTextDocumentContent', initialData);
 
 			// Content Security Policy
 			const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
-			let csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; child-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:;">`;
-			if (this.cspArbiter.isEnhancedSecurityDisableForWorkspace()) {
+			let csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' http: https: data:; media-src 'self' http: https: data:; child-src 'none'; script-src 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' http: https: data:; font-src 'self' http: https: data:;">`;
+			if (this.cspArbiter.isEnhancedSecurityDisableForWorkspace(vscode.workspace.rootPath || sourceUri.toString())) {
 				csp = '';
 			}
 
-			const body = this.engine.render(sourceUri, previewFrontMatter === 'hide', document.getText());
+			const body = this.engine.render(sourceUri, this.config.previewFrontMatter === 'hide', document.getText());
 			return `<!DOCTYPE html>
 				<html>
 				<head>
@@ -138,19 +238,29 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 					${csp}
 					<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
 					<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
-					<link rel="stylesheet" type="text/css" href="${this.getMediaPath('markdown.css')}">
-					<link rel="stylesheet" type="text/css" href="${this.getMediaPath('tomorrow.css')}">
-					${this.getSettingsOverrideStyles(nonce)}
-					${this.computeCustomStyleSheetIncludes(uri, nonce)}
+					${this.getStyles(uri, nonce)}
 					<base href="${document.uri.toString(true)}">
 				</head>
-				<body class="${scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${wordWrap ? 'wordWrap' : ''} ${!!markdownConfig.get('preview.markEditorSelection') ? 'showEditorSelection' : ''}">
+				<body class="vscode-body ${this.config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${this.config.wordWrap ? 'wordWrap' : ''} ${this.config.markEditorSelection ? 'showEditorSelection' : ''}">
 					${body}
 					<div class="code-line" data-line="${document.lineCount}"></div>
-					<script src="${this.getMediaPath('main.js')}" nonce="${nonce}"></script>
+					${this.getScripts(nonce)}
 				</body>
 				</html>`;
 		});
+	}
+
+	public updateConfiguration() {
+		const newConfig = MarkdownPreviewConfig.getCurrentConfig();
+		if (!this.config.isEqualTo(newConfig)) {
+			this.config = newConfig;
+			// update all generated md documents
+			vscode.workspace.textDocuments.forEach(document => {
+				if (document.uri.scheme === 'markdown') {
+					this.update(document.uri);
+				}
+			});
+		}
 	}
 
 	get onDidChange(): vscode.Event<vscode.Uri> {

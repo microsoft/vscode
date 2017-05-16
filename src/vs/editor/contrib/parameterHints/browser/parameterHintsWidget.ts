@@ -17,11 +17,15 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
-import { ICommonCodeEditor, ICursorSelectionChangedEvent, IConfigurationChangedEvent } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from '../common/parameterHints';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
+import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 
@@ -470,3 +474,18 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.model = null;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let border = theme.getColor(editorHoverBorder);
+	if (border) {
+		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
+		collector.addRule(`.monaco-editor .parameter-hints-widget { border: ${borderWidth}px solid ${border}; }`);
+		collector.addRule(`.monaco-editor .parameter-hints-widget.multiple .body { border-left: 1px solid ${border.transparent(0.5)}; }`);
+		collector.addRule(`.monaco-editor .parameter-hints-widget .signature.has-docs { border-bottom: 1px solid ${border.transparent(0.5)}; }`);
+
+	}
+	let background = theme.getColor(editorHoverBackground);
+	if (background) {
+		collector.addRule(`.monaco-editor .parameter-hints-widget { background-color: ${background}; }`);
+	}
+});

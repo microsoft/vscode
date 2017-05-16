@@ -10,6 +10,8 @@ import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common/view/editorColorRegistry';
 
 export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
@@ -35,6 +37,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	public dispose(): void {
 		this._context.removeEventHandler(this);
 		this._context = null;
+		super.dispose();
 	}
 
 	// --- begin event handlers
@@ -43,7 +46,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.renderLineHighlight) {
+		if (e.viewInfo) {
 			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 		}
 		if (e.layoutInfo) {
@@ -103,3 +106,18 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		return (this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all') && this._primaryCursorIsInEditableRange;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let lineHighlight = theme.getColor(editorLineHighlight);
+	if (lineHighlight) {
+		collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { background-color: ${lineHighlight}; border: none; }`);
+	} else {
+		let lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
+		if (lineHighlightBorder) {
+			collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border: 2px solid ${lineHighlightBorder}; }`);
+		}
+		if (theme.type === 'hc') {
+			collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border-width: 1px; }`);
+		}
+	}
+});

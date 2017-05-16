@@ -240,7 +240,7 @@ export class DropdownMenuActionItem extends BaseActionItem {
 		};
 
 		// Reemit events for running actions
-		this.toUnbind = this.addEmitter2(this.dropdownMenu);
+		this.toUnbind = this.addEmitter(this.dropdownMenu);
 	}
 
 	public setActionContext(newContext: any): void {

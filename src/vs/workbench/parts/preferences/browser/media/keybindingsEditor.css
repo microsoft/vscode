@@ -1,0 +1,214 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.keybindings-editor {
+	padding: 11px 0px 0px 27px;
+}
+
+/* header styling */
+
+.keybindings-editor > .keybindings-header {
+	padding: 0px 10px 11px 0;
+}
+
+.keybindings-editor > .keybindings-header > .search-container {
+	position: relative;
+}
+
+.keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence {
+	position: absolute;
+	top: 0;
+	right: 10px;
+	margin-top: 5px;
+	background: url('sort_precedence.svg') center center no-repeat;
+}
+
+.hc-black .keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence,
+.vs-dark .keybindings-editor > .keybindings-header > .search-container > .sort-by-precedence {
+	background: url('sort_precedence_inverse.svg') center center no-repeat;
+}
+
+.keybindings-editor > .keybindings-header .search-container > .settings-search-input {
+	vertical-align: middle;
+}
+
+.keybindings-editor > .keybindings-header .search-container > .settings-search-input > .monaco-inputbox {
+	height: 30px;
+}
+
+.keybindings-editor > .keybindings-header .search-container > .settings-search-input > .monaco-inputbox {
+	border: 1px solid #ddd;
+}
+
+.keybindings-editor > .keybindings-header .search-container > .settings-search-input > .monaco-inputbox .input {
+	font-size: 14px;
+	padding-left:10px;
+}
+
+.keybindings-editor > .keybindings-header .open-keybindings-container {
+	margin-top: 10px;
+	color: #aaa;
+	display: flex;
+}
+
+.keybindings-editor > .keybindings-header .open-keybindings-container > .file-name {
+	text-decoration: underline;
+	cursor: pointer;
+	margin-left: 4px;
+}
+
+/* body styling */
+
+.keybindings-editor > .keybindings-body {
+	border-top: 1px solid #efeff2;
+}
+
+.vs-dark .keybindings-editor > .keybindings-body {
+	border-top: 1px solid #2d2d2d;
+}
+
+
+/** List based styling **/
+
+.keybindings-editor > .keybindings-body .keybindings-list-container {
+	width: 100%;
+	border-spacing: 0;
+	border-collapse: separate;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row {
+	cursor: default;
+	display: flex;
+}
+
+.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header.focused,
+.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header.selected,
+.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row.keybindings-list-header:hover,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.keybindings-list-header,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.even:not(.focused):not(.selected):not(:hover),
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(:focus) .monaco-list-row.focused.even:not(.selected):not(:hover),
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(.focused) .monaco-list-row.focused.even:not(.selected):not(:hover) {
+	background-color: rgba(130, 130, 130, 0.04);
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row:hover {
+	background-color: rgba(128, 128, 128, 0.15);
+}
+
+.keybindings-editor > .keybindings-body .keybindings-list-container .monaco-list-row > .header {
+	text-align: left;
+	font-weight: bold;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .header,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .column {
+	align-items: center;
+	display: flex;
+	overflow: hidden;
+	margin-right: 6px;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .actions {
+	width: 24px;
+	padding-right: 2px;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command {
+	flex: 0.75;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command.vertical-align-column {
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: center;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command .command-default-label {
+	opacity: 0.8;
+	margin-top: 2px;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding {
+	flex: 0.5;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .keybinding .monaco-highlighted-label {
+	padding-left: 10px;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .source {
+	flex: 0.25;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .when {
+	flex: 1;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .when .empty {
+	padding-left: 4px;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column > .code {
+	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 90%;
+	opacity: 0.8;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column > .code.strong {
+	padding: 1px 4px;
+	background-color: rgba(128, 128, 128, 0.17);
+	border-radius: 4px;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .highlight {
+	color: #007ACC;
+	font-weight: bold;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.selected > .column .highlight {
+	color: #1b3c53;
+}
+
+.vs-dark .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.selected > .column .highlight,
+.hc-black .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.selected > .column .highlight {
+	color: #049aff;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar {
+	display: none;
+	flex: 1;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.selected > .column.actions .monaco-action-bar,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list.focused .monaco-list-row.focused > .column.actions .monaco-action-bar,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row:hover > .column.actions .monaco-action-bar {
+	display: flex;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon {
+	width:16px;
+	height: 16px;
+	cursor: pointer;
+	margin-top: 3px;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.edit {
+	background: url('edit.svg') center center no-repeat;
+	transform: rotate(-90deg);
+}
+
+.hc-black .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.edit,
+.vs-dark .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.edit {
+	background: url('edit_inverse.svg') center center no-repeat;
+}
+
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.add {
+	background: url('add.svg') center center no-repeat;
+}
+
+.hc-black .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.add,
+.vs-dark .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .monaco-action-bar .action-item > .icon.add {
+	background: url('add_inverse.svg') center center no-repeat;
+}

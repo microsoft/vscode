@@ -7,8 +7,6 @@
 import 'vs/css!./welcomePage';
 import URI from 'vs/base/common/uri';
 import * as path from 'path';
-import * as platform from 'vs/base/common/platform';
-import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -34,6 +32,9 @@ import { IExtensionEnablementService, IExtensionManagementService, IExtensionGal
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { tildify } from 'vs/base/common/labels';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { isLinux } from 'vs/base/common/platform';
 
 used();
 
@@ -116,6 +117,7 @@ class WelcomePage {
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IThemeService private themeService: IThemeService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.disposables.push(lifecycleService.onShutdown(() => this.dispose()));
@@ -142,14 +144,13 @@ class WelcomePage {
 			showOnStartup.setAttribute('checked', 'checked');
 		}
 		showOnStartup.addEventListener('click', e => {
-			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: enabledKey, value: showOnStartup.checked })
-				.then(null, error => this.messageService.show(Severity.Error, error));
+			this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: enabledKey, value: showOnStartup.checked });
 		});
 
-		recentlyOpened.then(({folders}) => {
+		recentlyOpened.then(({ folders }) => {
 			if (this.contextService.hasWorkspace()) {
 				const current = this.contextService.getWorkspace().resource.fsPath;
-				folders = folders.filter(folder => folder !== current);
+				folders = folders.filter(folder => !this.pathEquals(folder, current));
 			}
 			if (!folders.length) {
 				const recent = container.querySelector('.welcomePage') as HTMLElement;
@@ -184,10 +185,7 @@ class WelcomePage {
 
 				const span = document.createElement('span');
 				span.classList.add('path');
-				if ((platform.isMacintosh || platform.isLinux) && strings.startsWith(parentFolder, this.environmentService.userHome)) {
-					parentFolder = `~${parentFolder.substr(this.environmentService.userHome.length)}`;
-				}
-				span.innerText = parentFolder;
+				span.innerText = tildify(parentFolder, this.environmentService.userHome);
 				span.title = folder;
 				li.appendChild(span);
 
@@ -228,6 +226,15 @@ class WelcomePage {
 				}
 			};
 		}));
+	}
+
+	private pathEquals(path1: string, path2: string): boolean {
+		if (!isLinux) {
+			path1 = path1.toLowerCase();
+			path2 = path2.toLowerCase();
+		}
+
+		return path1 === path2;
 	}
 
 	private installKeymap(keymapName: string, keymapIdentifier: string): void {

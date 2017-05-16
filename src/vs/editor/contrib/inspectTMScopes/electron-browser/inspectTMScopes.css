@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .tm-inspect-widget {
-	background-color: #F3F3F3;
-	border: 1px solid #CCC;
 	z-index: 50;
 	-webkit-user-select: text;
 	-ms-user-select: text;
@@ -16,12 +14,13 @@
 	padding: 10px;
 }
 
-.monaco-editor.vs-dark .tm-inspect-widget { background-color: #2D2D30; border-color: #555; }
-
-.monaco-editor.hc-black .tm-inspect-widget { background-color: #0C141F; }
-
 .tm-token {
 	font-family: monospace;
+}
+
+.tm-metadata-separator {
+	height: 1px;
+	border: 0;
 }
 
 .tm-token-length {

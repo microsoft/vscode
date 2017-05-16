@@ -19,9 +19,13 @@ const electron = require('electron');
 const remote = electron.remote;
 const ipc = electron.ipcRenderer;
 
-
 process.lazyEnv = new Promise(function (resolve) {
+	const handle = setTimeout(function () {
+		resolve();
+		console.warn('renderer did not receive lazyEnv in time')
+	}, 10000);
 	ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
+		clearTimeout(handle);
 		assign(process.env, shellEnv);
 		resolve(process.env);
 	});
@@ -144,7 +148,7 @@ function main() {
 
 	// disable pinch zoom & apply zoom level early to avoid glitches
 	const zoomLevel = configuration.zoomLevel;
-	webFrame.setZoomLevelLimits(1, 1);
+	webFrame.setVisualZoomLevelLimits(1, 1);
 	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
 		webFrame.setZoomLevel(zoomLevel);
 	}
@@ -159,13 +163,13 @@ function main() {
 
 		window.MonacoEnvironment = {};
 
-		const nodeCachedDataErrors = window.MonacoEnvironment.nodeCachedDataErrors = [];
+		const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
 		require.config({
 			baseUrl: rootUrl,
 			'vs/nls': nlsConfig,
 			recordStats: !!configuration.performance,
 			nodeCachedDataDir: configuration.nodeCachedDataDir,
-			onNodeCachedDataError: function (err) { nodeCachedDataErrors.push(err) },
+			onNodeCachedData: function () { onNodeCachedData.push(arguments) },
 			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 		});
 
@@ -179,10 +183,10 @@ function main() {
 		const timers = window.MonacoEnvironment.timers = {
 			isInitialStartup: !!configuration.isInitialStartup,
 			hasAccessibilitySupport: !!configuration.accessibilitySupport,
-			start: new Date(configuration.perfStartTime),
-			appReady: new Date(configuration.perfAppReady),
-			windowLoad: new Date(configuration.perfWindowLoadTime),
-			beforeLoadWorkbenchMain: new Date()
+			start: configuration.perfStartTime,
+			appReady: configuration.perfAppReady,
+			windowLoad: configuration.perfWindowLoadTime,
+			beforeLoadWorkbenchMain: Date.now()
 		};
 
 		require([
@@ -190,7 +194,7 @@ function main() {
 			'vs/nls!vs/workbench/electron-browser/workbench.main',
 			'vs/css!vs/workbench/electron-browser/workbench.main'
 		], function () {
-			timers.afterLoadWorkbenchMain = new Date();
+			timers.afterLoadWorkbenchMain = Date.now();
 
 			process.lazyEnv.then(function () {
 				require('vs/workbench/electron-browser/main')

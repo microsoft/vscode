@@ -12,6 +12,10 @@
 	visibility: hidden !important;
 }
 
+.monaco-workbench > .sidebar > .title > .title-label span {
+	text-transform: uppercase;
+}
+
 .monaco-workbench .viewlet .collapsible.header .title {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -50,26 +54,4 @@
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;
-}
-
-/* TODO@theme */
-
-.vs .monaco-workbench > .sidebar > .title > .title-actions {
-	background-color: rgb(243, 243, 243);
-}
-
-.vs-dark .monaco-workbench > .sidebar > .title > .title-actions {
-	background-color: rgb(37, 37, 38);
-}
-
-.hc-black .monaco-workbench > .sidebar.left {
-	border-right: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .sidebar.right {
-	border-left: 1px solid #6FC3DF;
-}
-
-.hc-black .monaco-workbench > .sidebar > .title > .title-actions {
-	background-color: #000;
 }

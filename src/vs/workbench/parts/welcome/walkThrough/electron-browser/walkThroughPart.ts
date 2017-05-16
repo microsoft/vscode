@@ -11,15 +11,12 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
-import { IEditorOptions, IEditorViewState } from 'vs/editor/common/editorCommon';
 import { $, Dimension, Builder } from 'vs/base/browser/builder';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { marked } from 'vs/base/common/marked/marked';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -34,10 +31,15 @@ import { Scope } from 'vs/workbench/common/memento';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
-import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
 import { isObject } from 'vs/base/common/types';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { Themable } from 'vs/workbench/common/theme';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -49,7 +51,7 @@ interface IViewState {
 	scrollLeft: number;
 }
 
-interface IWalkThroughEditorViewState extends IEditorViewState {
+interface IWalkThroughEditorViewState {
 	viewState: IViewState;
 }
 
@@ -68,13 +70,35 @@ class WalkThroughCodeEditor extends CodeEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
 	}
 
 	getTelemetryData() {
 		return this.telemetryData;
+	}
+}
+
+class WalkThroughTheming extends Themable {
+
+	constructor(
+		themeService: IThemeService,
+		private container: HTMLElement
+	) {
+		super(themeService);
+		this.update(themeService.getTheme());
+	}
+
+	protected onThemeChange(theme: ITheme): void {
+		super.onThemeChange(theme);
+		this.update(theme);
+	}
+
+	private update(theme: ITheme): void {
+		const background = theme.getColor(editorBackground);
+		this.container.classList.toggle('extra-dark', background.getLuminosity() < 0.004);
 	}
 }
 
@@ -92,7 +116,7 @@ export class WalkThroughPart extends BaseEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IOpenerService private openerService: IOpenerService,
 		@IFileService private fileService: IFileService,
 		@IModelService protected modelService: IModelService,
@@ -100,9 +124,11 @@ export class WalkThroughPart extends BaseEditor {
 		@IStorageService private storageService: IStorageService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IModeService private modeService: IModeService
+		@IModeService private modeService: IModeService,
+		@IMessageService private messageService: IMessageService,
+		@IPartService private partService: IPartService
 	) {
-		super(WalkThroughPart.ID, telemetryService);
+		super(WalkThroughPart.ID, telemetryService, themeService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
 	}
 
@@ -207,6 +233,10 @@ export class WalkThroughPart extends BaseEditor {
 				from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
 			});
 		}
+		if (uri.scheme === 'command' && uri.path === 'git.clone' && !CommandsRegistry.getCommand('git.clone')) {
+			this.messageService.show(Severity.Info, localize('walkThrough.gitNotFound', "It looks like Git is not installed on your system."));
+			return;
+		}
 		this.openerService.open(this.addFrom(uri));
 	}
 
@@ -300,6 +330,7 @@ export class WalkThroughPart extends BaseEditor {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
 					this.updateMarkerClasses();
+					this.addThemeListener();
 					this.decorateContent();
 					if (input.onReady) {
 						input.onReady(this.content.firstElementChild as HTMLElement);
@@ -320,8 +351,8 @@ export class WalkThroughPart extends BaseEditor {
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
 				innerContent.innerHTML = marked(markdown, { renderer });
-				this.style(innerContent);
-				this.contentDisposables.push(this.themeService.onDidColorThemeChange(() => this.style(innerContent)));
+				this.style(this.themeService.getTheme(), innerContent);
+				this.contentDisposables.push(this.themeService.onThemeChange(theme => this.style(theme, innerContent)));
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
@@ -370,8 +401,11 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
-					this.contentDisposables.push(this.themeService.onDidColorThemeChange(theme => editor.updateOptions({ theme: theme.id })));
-					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()))));
+					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => {
+						if (snippet.textEditorModel) {
+							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()));
+						}
+					}));
 
 					this.contentDisposables.push(once(editor.onMouseDown)(() => {
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
@@ -397,6 +431,7 @@ export class WalkThroughPart extends BaseEditor {
 				});
 				this.updateSizeClasses();
 				this.updateMarkerClasses();
+				this.addThemeListener();
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
@@ -411,25 +446,37 @@ export class WalkThroughPart extends BaseEditor {
 		return {
 			...isObject(config) ? config : Object.create(null),
 			scrollBeyondLastLine: false,
-			scrollbar: DefaultConfig.editor.scrollbar,
+			scrollbar: {
+				verticalScrollbarSize: 14,
+				horizontal: 'auto',
+				useShadows: true,
+				verticalHasArrows: false,
+				horizontalHasArrows: false
+			},
 			overviewRulerLanes: 3,
 			fixedOverflowWidgets: true,
 			lineNumbersMinChars: 1,
-			theme: this.themeService.getColorTheme().id,
 			minimap: false,
 		};
 	}
 
 	private updateMarkerClasses() {
 		const innerContent = this.content.firstElementChild;
-		if (SCMPreview.enabled && innerContent) {
+
+		// TODO@christof
+		if (true && innerContent) {
 			innerContent.classList.add('scmEnabled');
 		}
 	}
 
-	private style(div: HTMLElement) {
-		const styleElement = document.querySelector('.monaco-editor-background');
-		const {color, backgroundColor, fontFamily, fontWeight, fontSize} = window.getComputedStyle(styleElement);
+	private addThemeListener() {
+		const innerContent = this.content.firstElementChild as HTMLElement;
+		this.contentDisposables.push(new WalkThroughTheming(this.themeService, innerContent));
+	}
+
+	private style(theme: ITheme, div: HTMLElement) {
+		const styleElement = this.partService.getContainer(Parts.EDITOR_PART); // TODO@theme styles should come in via theme registry
+		const { color, backgroundColor, fontFamily, fontWeight, fontSize } = window.getComputedStyle(styleElement);
 		div.style.color = color;
 		div.style.backgroundColor = backgroundColor;
 		div.style.fontFamily = fontFamily;

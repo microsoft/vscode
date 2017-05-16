@@ -41,23 +41,23 @@ export interface IConstructorSignature3<A1, A2, A3, T> {
 }
 
 export interface IConstructorSignature4<A1, A2, A3, A4, T> {
-	new (first: A1, second: A2, third: A3, forth: A4, ...services: { _serviceBrand: any; }[]): T;
+	new (first: A1, second: A2, third: A3, fourth: A4, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature5<A1, A2, A3, A4, A5, T> {
-	new (first: A1, second: A2, third: A3, forth: A4, fifth: A5, ...services: { _serviceBrand: any; }[]): T;
+	new (first: A1, second: A2, third: A3, fourth: A4, fifth: A5, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature6<A1, A2, A3, A4, A5, A6, T> {
-	new (first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, ...services: { _serviceBrand: any; }[]): T;
+	new (first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature7<A1, A2, A3, A4, A5, A6, A7, T> {
-	new (first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7, ...services: { _serviceBrand: any; }[]): T;
+	new (first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface IConstructorSignature8<A1, A2, A3, A4, A5, A6, A7, A8, T> {
-	new (first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8, ...services: { _serviceBrand: any; }[]): T;
+	new (first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8, ...services: { _serviceBrand: any; }[]): T;
 }
 
 export interface ServicesAccessor {
@@ -81,23 +81,23 @@ export interface IFunctionSignature3<A1, A2, A3, R> {
 }
 
 export interface IFunctionSignature4<A1, A2, A3, A4, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4): R;
+	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4): R;
 }
 
 export interface IFunctionSignature5<A1, A2, A3, A4, A5, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4, fifth: A5): R;
+	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5): R;
 }
 
 export interface IFunctionSignature6<A1, A2, A3, A4, A5, A6, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6): R;
+	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6): R;
 }
 
 export interface IFunctionSignature7<A1, A2, A3, A4, A5, A6, A7, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7): R;
+	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7): R;
 }
 
 export interface IFunctionSignature8<A1, A2, A3, A4, A5, A6, A7, A8, R> {
-	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, forth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
+	(accessor: ServicesAccessor, first: A1, second: A2, third: A3, fourth: A4, fifth: A5, sixth: A6, seventh: A7, eigth: A8): R;
 }
 
 export const IInstantiationService = createDecorator<IInstantiationService>('instantiationService');

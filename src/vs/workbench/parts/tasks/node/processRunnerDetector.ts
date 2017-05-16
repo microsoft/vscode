@@ -225,7 +225,7 @@ export class ProcessRunnerDetector {
 		return result;
 	}
 
-	private tryDetectGulp(list: boolean): TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectGulp(list: boolean): TPromise<DetectorResult> {
 		return this.fileService.resolveFile(this.contextService.toResource('gulpfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('gulp');
 			let process = new LineProcess('gulp', [config.arg, '--no-color'], true, { cwd: this._cwd });
@@ -235,7 +235,7 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectGrunt(list: boolean): TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectGrunt(list: boolean): TPromise<DetectorResult> {
 		return this.fileService.resolveFile(this.contextService.toResource('Gruntfile.js')).then((stat) => {
 			let config = ProcessRunnerDetector.detectorConfig('grunt');
 			let process = new LineProcess('grunt', [config.arg, '--no-color'], true, { cwd: this._cwd });
@@ -245,7 +245,7 @@ export class ProcessRunnerDetector {
 		});
 	}
 
-	private tryDetectJake(list: boolean): TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; stderr: string[]; }> {
+	private tryDetectJake(list: boolean): TPromise<DetectorResult> {
 		let run = () => {
 			let config = ProcessRunnerDetector.detectorConfig('jake');
 			let process = new LineProcess('jake', [config.arg], true, { cwd: this._cwd });
@@ -320,9 +320,7 @@ export class ProcessRunnerDetector {
 			tasks.forEach((task) => {
 				taskConfigs.push({
 					taskName: task,
-					identifier: task,
-					args: [],
-					isWatching: false
+					args: []
 				});
 			});
 		} else {
@@ -339,10 +337,8 @@ export class ProcessRunnerDetector {
 				this._stdout.push(nls.localize('TaskSystemDetector.buildTaskDetected', 'Build task named \'{0}\' detected.', name));
 				taskConfigs.push({
 					taskName: name,
-					identifier: name,
 					args: [],
 					isBuildCommand: true,
-					isWatching: false,
 					problemMatcher: problemMatchers
 				});
 			}
@@ -351,7 +347,6 @@ export class ProcessRunnerDetector {
 				this._stdout.push(nls.localize('TaskSystemDetector.testTaskDetected', 'Test task named \'{0}\' detected.', name));
 				taskConfigs.push({
 					taskName: name,
-					identifier: name,
 					args: [],
 					isTestCommand: true
 				});

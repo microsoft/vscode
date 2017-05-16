@@ -43,7 +43,7 @@ class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 }
 
 export class TerminalInstance implements ITerminalInstance {
-	private static readonly EOL_REGEX = /\r?\n/g;
+	private static readonly WINDOWS_EOL_REGEX = /\r?\n/g;
 
 	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _lastKnownDimensions: Dimension = null;
@@ -56,6 +56,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _isVisible: boolean;
 	private _isDisposed: boolean;
 	private _onDisposed: Emitter<ITerminalInstance>;
+	private _onDataForApi: Emitter<{ instance: ITerminalInstance, data: string }>;
 	private _onProcessIdReady: Emitter<TerminalInstance>;
 	private _onTitleChanged: Emitter<string>;
 	private _process: cp.ChildProcess;
@@ -77,6 +78,7 @@ export class TerminalInstance implements ITerminalInstance {
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
+	public get onDataForApi(): Event<{ instance: ITerminalInstance, data: string }> { return this._onDataForApi.event; }
 	public get onProcessIdReady(): Event<TerminalInstance> { return this._onProcessIdReady.event; }
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	public get title(): string { return this._title; }
@@ -107,6 +109,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalHasTextContextKey = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.bindTo(this._contextKeyService);
 
 		this._onDisposed = new Emitter<TerminalInstance>();
+		this._onDataForApi = new Emitter<{ instance: ITerminalInstance, data: string }>();
 		this._onProcessIdReady = new Emitter<TerminalInstance>();
 		this._onTitleChanged = new Emitter<string>();
 
@@ -188,6 +191,9 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm = xterm({
 			scrollback: this._configHelper.config.scrollback
 		});
+		if (this._shellLaunchConfig.initialText) {
+			this._xterm.writeln(this._shellLaunchConfig.initialText);
+		}
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
 			if (this._process) {
@@ -198,6 +204,8 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 			return false;
 		});
+		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform);
+		this._linkHandler.registerLocalLinkHandler();
 	}
 
 	public attachToElement(container: HTMLElement): void {
@@ -220,8 +228,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// Skip processing by xterm.js of keyboard events that resolve to commands described
 			// within commandsToSkipShell
 			const standardKeyboardEvent = new StandardKeyboardEvent(event);
-			const keybinding = standardKeyboardEvent.toKeybinding();
-			const resolveResult = this._keybindingService.resolve(keybinding, standardKeyboardEvent.target);
+			const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
 			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
 				event.preventDefault();
 				return false;
@@ -281,8 +288,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 		this._wrapperElement.appendChild(this._xtermElement);
 		this._widgetManager = new TerminalWidgetManager(this._configHelper, this._wrapperElement);
-		this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._widgetManager, this._xterm, platform.platform);
-		this._linkHandler.registerLocalLinkHandler();
+		this._linkHandler.setWidgetManager(this._widgetManager);
 		this._container.appendChild(this._wrapperElement);
 
 		const computedStyle = window.getComputedStyle(this._container);
@@ -314,10 +320,13 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public clearSelection(): void {
-		document.getSelection().empty();
+		window.getSelection().empty();
 	}
 
 	public dispose(): void {
+		if (this._linkHandler) {
+			this._linkHandler.dispose();
+		}
 		if (this._xterm && this._xterm.element) {
 			this._hadFocusOnExit = DOM.hasClass(this._xterm.element, 'focus');
 		}
@@ -359,8 +368,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {
-		if (addNewLine && text.substr(text.length - os.EOL.length) !== os.EOL) {
-			text += os.EOL;
+		text = this._sanitizeInput(text);
+		if (addNewLine && text.substr(text.length - 1) !== '\r') {
+			text += '\r';
 		}
 		this._process.send({
 			event: 'input',
@@ -417,7 +427,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _sanitizeInput(data: any) {
-		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
+		return typeof data === 'string' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
 	}
 
 	protected _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
@@ -482,7 +492,12 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
 		if (message.type === 'data') {
-			this._xterm.write(message.content);
+			if (this._widgetManager) {
+				this._widgetManager.closeMessage();
+			}
+			if (this._xterm) {
+				this._xterm.write(message.content);
+			}
 		}
 	}
 
@@ -509,16 +524,20 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.writeln(nls.localize('terminal.integrated.waitOnExit', 'Press any key to close the terminal'));
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
-			this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
-				this.dispose();
-				event.preventDefault();
-			}));
+			if (this._xterm.textarea) {
+				this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+					this.dispose();
+					event.preventDefault();
+				}));
+			}
 		} else {
 			this.dispose();
 			if (exitCode) {
 				if (this._isLaunching) {
 					let args = '';
-					if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
+					if (typeof this._shellLaunchConfig.args === 'string') {
+						args = this._shellLaunchConfig.args;
+					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
 						args = ' ' + this._shellLaunchConfig.args.map(a => {
 							if (a.indexOf(' ') !== -1) {
 								return `'${a}'`;
@@ -549,6 +568,11 @@ export class TerminalInstance implements ITerminalInstance {
 		// Ensure new processes' output starts at start of new line
 		this._xterm.write('\n\x1b[G');
 
+		// Print initialText if specified
+		if (shell.initialText) {
+			this._xterm.writeln(shell.initialText);
+		}
+
 		// Initialize new process
 		const oldTitle = this._title;
 		this._createProcess(this._contextService.getWorkspace(), shell);
@@ -574,9 +598,11 @@ export class TerminalInstance implements ITerminalInstance {
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		if (shell.args) {
-			shell.args.forEach((arg, i) => {
-				env[`PTYSHELLARG${i}`] = arg;
-			});
+			if (typeof shell.args === 'string') {
+				env[`PTYSHELLCMDLINE`] = shell.args;
+			} else {
+				shell.args.forEach((arg, i) => env[`PTYSHELLARG${i}`] = arg);
+			}
 		}
 		env['PTYCWD'] = cwd;
 		env['LANG'] = TerminalInstance._getLangEnvVariable(locale);
@@ -709,6 +735,11 @@ export class TerminalInstance implements ITerminalInstance {
 				rows: this._rows
 			});
 		}
+	}
+
+	public enableApiOnData(): void {
+		// Only send data through IPC if the API explicitly requests it.
+		this.onData(data => this._onDataForApi.fire({ instance: this, data }));
 	}
 
 	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {

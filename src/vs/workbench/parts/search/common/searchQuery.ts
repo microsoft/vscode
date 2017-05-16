@@ -24,11 +24,13 @@ export class QueryBuilder {
 	private query(type: QueryType, contentPattern: IPatternInfo, options: IQueryOptions = {}): ISearchQuery {
 		const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
 
-		const excludePattern = getExcludes(configuration);
-		if (!options.excludePattern) {
-			options.excludePattern = excludePattern;
-		} else {
-			mixin(options.excludePattern, excludePattern, false /* no overwrite */);
+		const settingsExcludePattern = getExcludes(configuration);
+		if (!options.disregardExcludeSettings) {
+			if (options.excludePattern) {
+				mixin(options.excludePattern, settingsExcludePattern, false /* no overwrite */);
+			} else {
+				options.excludePattern = settingsExcludePattern;
+			}
 		}
 
 		return {
@@ -42,7 +44,11 @@ export class QueryBuilder {
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
 			fileEncoding: options.fileEncoding,
-			contentPattern: contentPattern
+			contentPattern: contentPattern,
+			useRipgrep: configuration.search.useRipgrep,
+			disregardIgnoreFiles: options.disregardIgnoreFiles,
+			disregardExcludeSettings: options.disregardExcludeSettings,
+			searchPaths: options.searchPaths
 		};
 	}
 }

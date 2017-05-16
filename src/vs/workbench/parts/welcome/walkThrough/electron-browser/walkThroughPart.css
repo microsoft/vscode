@@ -173,12 +173,17 @@
 
 .vs .monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor-background,
 .vs .monaco-workbench > .part.editor > .content .walkThroughContent .glyph-margin {
-	background-color: #eee;
+	background:rgba(0,0,0,.08);
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor-background,
 .vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent .glyph-margin {
-	background-color: #111;
+	background: rgba(0, 0, 0, .4);
+}
+
+.vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent.extra-dark .monaco-editor-background,
+.vs-dark .monaco-workbench > .part.editor > .content .walkThroughContent.extra-dark .glyph-margin {
+	background: rgba(200, 235, 255, .064);
 }
 
 .hc-black .monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor {

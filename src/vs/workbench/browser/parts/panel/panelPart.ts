@@ -23,7 +23,10 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ClosePanelAction, PanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND, PANEL_BORDER_COLOR, PANEL_ACTIVE_TITLE_COLOR, PANEL_INACTIVE_TITLE_COLOR, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
+import { activeContrastBorder, focusBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -44,7 +47,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPartService partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(
 			messageService,
@@ -54,11 +58,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			partService,
 			keybindingService,
 			instantiationService,
+			themeService,
 			Registry.as<PanelRegistry>(PanelExtensions.Panels),
 			PanelPart.activePanelSettingsKey,
 			'panel',
 			'panel',
 			Scope.PANEL,
+			null,
 			id,
 			{ hasTitle: true }
 		);
@@ -91,13 +97,23 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this._onDidCompositeClose.event;
 	}
 
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		const container = this.getContainer();
+		container.style('background-color', this.getColor(PANEL_BACKGROUND));
+
+		const title = this.getTitleArea();
+		title.style('border-top-color', this.getColor(PANEL_BORDER_COLOR) || this.getColor(contrastBorder));
+	}
+
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {
 		if (this.blockOpeningPanel) {
 			return TPromise.as(null); // Workaround against a potential race condition
 		}
 
 		// First check if panel is hidden and show if so
-		let promise = TPromise.as(null);
+		let promise = TPromise.as<any>(null);
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			try {
 				this.blockOpeningPanel = true;
@@ -116,7 +132,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	protected getActions(): IAction[] {
-		return [this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)];
+		return [
+			this.instantiationService.createInstance(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL),
+			this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
+		];
 	}
 
 	public getActivePanel(): IPanel {
@@ -152,6 +171,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				if (action) {
 					action.label = title;
 				}
+			},
+			updateStyles: () => {
+				// Handled via theming participant
 			}
 		};
 	}
@@ -169,3 +191,58 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}));
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Title Active
+	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_COLOR);
+	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
+	collector.addRule(`
+		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
+		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked {
+			color: ${titleActive};
+			border-bottom-color: ${titleActiveBorder};
+		}
+	`);
+
+	// Title Inactive
+	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_COLOR);
+	collector.addRule(`
+		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
+			color: ${titleInactive};
+		}
+	`);
+
+	// Title focus
+	const focusBorderColor = theme.getColor(focusBorder);
+	collector.addRule(`
+		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:focus {
+			color: ${titleActive};
+			border-bottom-color: ${focusBorderColor} !important;
+			border-bottom: 1px solid;
+			outline: none;
+		}
+	`);
+
+	// Styling with Outline color (e.g. high contrast theme)
+	const outline = theme.getColor(activeContrastBorder);
+	if (outline) {
+		const outline = theme.getColor(activeContrastBorder);
+
+		collector.addRule(`
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label.checked,
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+				outline-color: ${outline};
+				outline-width: 1px;
+				outline-style: solid;
+				border-bottom: none;
+				padding-bottom: 0;
+				outline-offset: 3px;
+			}
+
+			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover:not(.checked) {
+				outline-style: dashed;
+			}
+		`);
+	}
+});

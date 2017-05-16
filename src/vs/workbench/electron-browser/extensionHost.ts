@@ -30,7 +30,7 @@ import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net
 import { createServer, Server } from 'net';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
+import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
@@ -76,7 +76,8 @@ export class ExtensionHostProcessWorker {
 
 	private isExtensionDevelopmentHost: boolean;
 	private isExtensionDevelopmentTestFromCli: boolean;
-	private isExtensionDevelopmentDebugging: boolean;
+	private isExtensionDevelopmentDebug: boolean;
+	private isExtensionDevelopmentDebugBrk: boolean;
 
 	public readonly messagingProtocol = new LazyMessagePassingProtol();
 
@@ -95,7 +96,8 @@ export class ExtensionHostProcessWorker {
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this.isExtensionDevelopmentHost = environmentService.isExtensionDevelopment;
-		this.isExtensionDevelopmentDebugging = !!environmentService.debugExtensionHost.break;
+		this.isExtensionDevelopmentDebug = (typeof environmentService.debugExtensionHost.port === 'number');
+		this.isExtensionDevelopmentDebugBrk = !!environmentService.debugExtensionHost.break;
 		this.isExtensionDevelopmentTestFromCli = this.isExtensionDevelopmentHost && !!environmentService.extensionTestsPath && !environmentService.debugExtensionHost.break;
 
 		lifecycleService.onWillShutdown(this._onWillShutdown, this);
@@ -124,7 +126,7 @@ export class ExtensionHostProcessWorker {
 				// (i.e. extension host) is taken down in a brutal fashion by the OS
 				detached: !!isWindows,
 				execArgv: port
-					? ['--nolazy', (this.isExtensionDevelopmentDebugging ? '--debug-brk=' : '--debug=') + port]
+					? ['--nolazy', (this.isExtensionDevelopmentDebugBrk ? '--debug-brk=' : '--debug=') + port]
 					: undefined
 			};
 
@@ -156,7 +158,7 @@ export class ExtensionHostProcessWorker {
 			let startupTimeoutHandle: number;
 			if (!this.environmentService.isBuilt || this.isExtensionDevelopmentHost) {
 				startupTimeoutHandle = setTimeout(() => {
-					const msg = this.isExtensionDevelopmentDebugging
+					const msg = this.isExtensionDevelopmentDebugBrk
 						? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
 						: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
@@ -187,7 +189,7 @@ export class ExtensionHostProcessWorker {
 	private tryFindDebugPort(): TPromise<number> {
 		const extensionHostPort = this.environmentService.debugExtensionHost.port;
 		if (typeof extensionHostPort !== 'number') {
-			return TPromise.wrap(void 0);
+			return TPromise.wrap<number>(void 0);
 		}
 		return new TPromise<number>((c, e) => {
 			findFreePort(extensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, (port) => {
@@ -198,7 +200,7 @@ export class ExtensionHostProcessWorker {
 				if (port !== extensionHostPort) {
 					console.warn(`%c[Extension Host] %cProvided debugging port ${extensionHostPort} is not free, using ${port} instead.`, 'color: blue', 'color: black');
 				}
-				if (this.isExtensionDevelopmentDebugging) {
+				if (this.isExtensionDevelopmentDebugBrk) {
 					console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color: black');
 				} else {
 					console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color: black');
@@ -246,7 +248,8 @@ export class ExtensionHostProcessWorker {
 					extensionDevelopmentPath: this.environmentService.extensionDevelopmentPath,
 					extensionTestsPath: this.environmentService.extensionTestsPath,
 					// globally disable proposed api when built and not insiders developing extensions
-					enableProposedApi: !this.environmentService.isBuilt || (!!this.environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0)
+					enableProposedApiForAll: !this.environmentService.isBuilt || (!!this.environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0),
+					enableProposedApiFor: this.environmentService.args['enable-proposed-api'] || []
 				},
 				contextService: {
 					workspace: this.contextService.getWorkspace()
@@ -346,7 +349,7 @@ export class ExtensionHostProcessWorker {
 
 		// If the extension development host was started without debugger attached we need
 		// to communicate this back to the main side to terminate the debug session
-		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTestFromCli && !this.isExtensionDevelopmentDebugging) {
+		if (this.isExtensionDevelopmentHost && !this.isExtensionDevelopmentTestFromCli && !this.isExtensionDevelopmentDebug) {
 			this.windowService.broadcast({
 				channel: EXTENSION_TERMINATE_BROADCAST_CHANNEL,
 				payload: true

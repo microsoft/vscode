@@ -18,7 +18,7 @@ if (!globals.Monaco) {
 globals.Monaco.Diagnostics = {};
 
 var switches = globals.Monaco.Diagnostics;
-var map = {};
+var map = new Map<string, Function[]>();
 var data: any[] = [];
 
 function fifo(array: any[], size: number) {
@@ -41,9 +41,9 @@ export function register(what: string, fn: Function): (...args: any[]) => void {
 	switches[what] = flag;
 
 	// register function
-	var tracers = map[what] || [];
+	var tracers = map.get(what) || [];
 	tracers.push(fn);
-	map[what] = tracers;
+	map.set(what, tracers);
 
 	var result = function (...args: any[]) {
 

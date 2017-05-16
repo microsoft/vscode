@@ -298,6 +298,47 @@ export class DiffComputer {
 	}
 
 	public computeDiff(): ILineChange[] {
+
+		if (this.original.getLength() === 1 && this.original.getElementHash(0).length === 0) {
+			// empty original => fast path
+			return [{
+				originalStartLineNumber: 1,
+				originalEndLineNumber: 1,
+				modifiedStartLineNumber: 1,
+				modifiedEndLineNumber: this.modified.getLength(),
+				charChanges: [{
+					modifiedEndColumn: 0,
+					modifiedEndLineNumber: 0,
+					modifiedStartColumn: 0,
+					modifiedStartLineNumber: 0,
+					originalEndColumn: 0,
+					originalEndLineNumber: 0,
+					originalStartColumn: 0,
+					originalStartLineNumber: 0
+				}]
+			}];
+		}
+
+		if (this.modified.getLength() === 1 && this.modified.getElementHash(0).length === 0) {
+			// empty modified => fast path
+			return [{
+				originalStartLineNumber: 1,
+				originalEndLineNumber: this.original.getLength(),
+				modifiedStartLineNumber: 1,
+				modifiedEndLineNumber: 1,
+				charChanges: [{
+					modifiedEndColumn: 0,
+					modifiedEndLineNumber: 0,
+					modifiedStartColumn: 0,
+					modifiedStartLineNumber: 0,
+					originalEndColumn: 0,
+					originalEndLineNumber: 0,
+					originalStartColumn: 0,
+					originalStartLineNumber: 0
+				}]
+			}];
+		}
+
 		this.computationStartTime = (new Date()).getTime();
 
 		var rawChanges = computeDiff(this.original, this.modified, this._continueProcessingPredicate.bind(this));
