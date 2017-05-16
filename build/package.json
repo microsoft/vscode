@@ -17,6 +17,7 @@
   },
   "scripts": {
     "compile": "tsc",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "postinstall": "npm run compile"
   }
 }
