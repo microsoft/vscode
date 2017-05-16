@@ -23,7 +23,7 @@ export const defaultExperiments: ITelemetryExperiments = {
 	showNewUserWatermark: false,
 	openUntitledFile: true,
 	enableWelcomePage: true,
-	reorderQuickLinks: false,
+	mergeQuickLinks: false,
 };
 
 export const NullTelemetryService = {
@@ -57,7 +57,7 @@ export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperimen
 		showNewUserWatermark,
 		openUntitledFile,
 		enableWelcomePage,
-		reorderQuickLinks,
+		mergeQuickLinks,
 	} = splitExperimentsRandomness();
 
 	const newUserDuration = 24 * 60 * 60 * 1000;
@@ -72,7 +72,7 @@ export function loadExperiments(accessor: ServicesAccessor): ITelemetryExperimen
 		showNewUserWatermark,
 		openUntitledFile,
 		enableWelcomePage,
-		reorderQuickLinks,
+		mergeQuickLinks,
 	});
 }
 
@@ -95,13 +95,13 @@ function splitExperimentsRandomness(): ITelemetryExperiments {
 	const random1 = getExperimentsRandomness();
 	const [random2, showNewUserWatermark] = splitRandom(random1);
 	const [random3, openUntitledFile] = splitRandom(random2);
-	const [random4, reorderQuickLinks] = splitRandom(random3);
+	const [random4, mergeQuickLinks] = splitRandom(random3);
 	const [, enableWelcomePage] = splitRandom(random4);
 	return {
 		showNewUserWatermark,
 		openUntitledFile,
 		enableWelcomePage,
-		reorderQuickLinks,
+		mergeQuickLinks,
 	};
 }
 

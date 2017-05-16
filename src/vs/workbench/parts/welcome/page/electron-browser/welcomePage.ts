@@ -195,13 +195,22 @@ class WelcomePage {
 			});
 		}).then(null, onUnexpectedError);
 
-		if (this.telemetryService.getExperiments().reorderQuickLinks) {
+		const customize = container.querySelector('.commands .section.customize');
+		const learn = container.querySelector('.commands .section.learn');
+		const quickLinks = container.querySelector('.commands .section.quickLinks');
+		if (this.telemetryService.getExperiments().mergeQuickLinks) {
+			const ul = quickLinks.querySelector('ul');
 			reorderedQuickLinks.forEach(clazz => {
 				const link = container.querySelector(`.commands .${clazz}`);
 				if (link) {
-					link.parentElement.appendChild(link);
+					ul.appendChild(link);
 				}
 			});
+			customize.remove();
+			learn.remove();
+			container.querySelector('.keybindingsReferenceLink').remove();
+		} else {
+			quickLinks.remove();
 		}
 
 		container.addEventListener('click', event => {
