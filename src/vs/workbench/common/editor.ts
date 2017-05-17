@@ -685,24 +685,26 @@ export class TextEditorOptions extends EditorOptions {
 	}
 
 	/**
-	 * Sets the view state to be used when the editor is opening.
+	 * Create a TextEditorOptions inline to be used when the editor is opening.
 	 */
-	public fromEditor(editor: IEditor): void {
+	public static fromEditor(editor: IEditor, settings?: IEditorOptions): TextEditorOptions {
+		const options = TextEditorOptions.create(settings);
 
 		// View state
-		this.editorViewState = editor.saveViewState();
+		options.editorViewState = editor.saveViewState();
 
 		// Selected editor options
 		const codeEditor = <ICommonCodeEditor>editor;
 		if (typeof codeEditor.getConfiguration === 'function') {
 			const config = codeEditor.getConfiguration();
 			if (config && config.viewInfo && config.wrappingInfo) {
-				this.editorOptions = Object.create(null);
-				this.editorOptions.renderWhitespace = config.viewInfo.renderWhitespace;
-				this.editorOptions.renderControlCharacters = config.viewInfo.renderControlCharacters;
-				this.editorOptions.wordWrap = config.wrappingInfo.isViewportWrapping ? 'on' : 'off';
+				options.editorOptions = Object.create(null);
+				options.editorOptions.renderWhitespace = config.viewInfo.renderWhitespace;
+				options.editorOptions.renderControlCharacters = config.viewInfo.renderControlCharacters;
+				options.editorOptions.wordWrap = config.wrappingInfo.isViewportWrapping ? 'on' : 'off';
 			}
 		}
+		return options;
 	}
 
 	/**
