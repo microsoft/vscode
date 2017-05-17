@@ -44,7 +44,7 @@ define([], function () {
 			started = Date.now();
 		}
 		if (_starts.has(name)) {
-			throw new Error(`${name} already exists`);
+			throw new Error("${name}" + " already exists");
 		}
 		_starts.set(name, { name, started });
 		const stop = stopTimer.bind(undefined, name);
