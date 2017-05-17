@@ -185,7 +185,7 @@ const enum State {
 class SuggestionDetails {
 
 	private el: HTMLElement;
-	private back: HTMLElement;
+	private close: HTMLElement;
 	private header: HTMLElement;
 	private scrollbar: DomScrollableElement;
 	private body: HTMLElement;
@@ -214,8 +214,8 @@ class SuggestionDetails {
 		this.header = append(this.body, $('.header'));
 		this.type = append(this.header, $('p.type'));
 
-		this.back = append(this.header, $('span.go-back'));
-		this.back.title = nls.localize('goback', "Read less...{0}", triggerKeybindingLabel);
+		this.close = append(this.header, $('span.close'));
+		this.close.title = nls.localize('readLess', "Read less...{0}", triggerKeybindingLabel);
 
 		this.docs = append(this.body, $('p.docs'));
 		this.ariaLabel = null;
@@ -245,11 +245,11 @@ class SuggestionDetails {
 
 		this.el.style.height = this.type.clientHeight + this.docs.clientHeight + 8 + 'px';
 
-		this.back.onmousedown = e => {
+		this.close.onmousedown = e => {
 			e.preventDefault();
 			e.stopPropagation();
 		};
-		this.back.onclick = e => {
+		this.close.onclick = e => {
 			e.preventDefault();
 			e.stopPropagation();
 			this.widget.toggleDetails();
@@ -299,8 +299,8 @@ class SuggestionDetails {
 
 		this.el.style.fontSize = fontSizePx;
 		this.type.style.fontFamily = fontFamily;
-		this.back.style.height = lineHeightPx;
-		this.back.style.width = lineHeightPx;
+		this.close.style.height = lineHeightPx;
+		this.close.style.width = lineHeightPx;
 	}
 
 	dispose(): void {
