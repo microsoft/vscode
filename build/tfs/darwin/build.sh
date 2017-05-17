@@ -9,11 +9,7 @@ export MOONCAKE_STORAGE_ACCESS_KEY="$4"
 export AZURE_DOCUMENTDB_MASTERKEY="$5"
 VSO_PAT="$6"
 
-# Create a .netrc file to download distro dependencies
-cat > ~/.netrc <<END
-machine monacotools.visualstudio.com
-	password $VSO_PAT
-END
+echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
 step "Install dependencies" \
 	./scripts/npm.sh install
