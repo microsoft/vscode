@@ -60,6 +60,7 @@ const vscodeResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur,html}',
+	'out-build/vs/base/common/startupTimers.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
