@@ -266,6 +266,12 @@ export class SuggestController implements IEditorContribution {
 			this._widget.toggleDetails();
 		}
 	}
+
+	toggleSuggestionFocus(): void {
+		if (this._widget) {
+			this._widget.toggleDetailsFocus();
+		}
+	}
 }
 
 @editorAction
@@ -406,5 +412,17 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
+	}
+}));
+
+CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+	id: 'toggleSuggestionFocus',
+	precondition: SuggestContext.Visible,
+	handler: x => x.toggleSuggestionFocus(),
+	kbOpts: {
+		weight: weight,
+		kbExpr: EditorContextKeys.textFocus,
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Space,
+		mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Space }
 	}
 }));
