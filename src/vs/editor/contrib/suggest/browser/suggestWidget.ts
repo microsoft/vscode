@@ -186,7 +186,6 @@ class SuggestionDetails {
 
 	private el: HTMLElement;
 	private close: HTMLElement;
-	private header: HTMLElement;
 	private scrollbar: DomScrollableElement;
 	private body: HTMLElement;
 	private type: HTMLElement;
@@ -211,11 +210,10 @@ class SuggestionDetails {
 		append(this.el, this.scrollbar.getDomNode());
 		this.disposables.push(this.scrollbar);
 
-		this.header = append(this.body, $('.header'));
-		this.type = append(this.header, $('p.type'));
-
-		this.close = append(this.header, $('span.close'));
+		this.close = append(this.body, $('span.close'));
 		this.close.title = nls.localize('readLess', "Read less...{0}", triggerKeybindingLabel);
+		this.type = append(this.body, $('p.type'));
+
 
 		this.docs = append(this.body, $('p.docs'));
 		this.ariaLabel = null;
@@ -243,7 +241,7 @@ class SuggestionDetails {
 		this.type.innerText = item.suggestion.detail || '';
 		this.docs.textContent = item.suggestion.documentation;
 
-		this.el.style.height = this.header.offsetHeight + this.docs.offsetHeight + 'px';
+		this.el.style.height = this.type.offsetHeight + this.docs.offsetHeight + 'px';
 
 		this.close.onmousedown = e => {
 			e.preventDefault();

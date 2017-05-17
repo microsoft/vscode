@@ -87,7 +87,7 @@
 	font-weight: bold;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details {
 	opacity: 0.6;
 	background-position: center center;
@@ -96,15 +96,16 @@
 	cursor: pointer;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close {
 	background-image: url('./close.svg');
+	float: right;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details {
 	background-image: url('./info.svg');
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close:hover,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close:hover,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details:hover {
 	opacity: 1;
 }
@@ -203,14 +204,7 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header {
-	padding: 4px 5px;
-	display: flex;
-	box-sizing: border-box;
-	border-bottom: 1px solid rgba(204, 204, 204, 0.5);
-}
-
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .type {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type {
 	flex: 2;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -231,8 +225,8 @@
 
 /* High Contrast and Dark Theming */
 
-.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
-.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
+.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .close,
+.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .close {
 	background-image: url('./close-dark.svg');
 }
 
