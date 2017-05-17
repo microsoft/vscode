@@ -70,7 +70,7 @@ export class SelectColorThemeAction extends Action {
 				);
 			};
 
-			const placeHolder = localize('themes.selectTheme', "Select Color Theme");
+			const placeHolder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
 			const autoFocusIndex = firstIndex(picks, p => p.id === currentTheme.id);
 			const delayer = new Delayer<void>(100);
 
