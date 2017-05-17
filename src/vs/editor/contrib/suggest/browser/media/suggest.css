@@ -72,6 +72,57 @@
 	font-weight: bold;
 }
 
+.monaco-editor .suggest-widget .details > .header > .go-back,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details {
+	opacity: 0.6;
+	background-position: center center;
+	background-repeat: no-repeat;
+	background-size: 70%;
+}
+
+.monaco-editor .suggest-widget .details > .header > .go-back {
+	background-image: url('./back.svg');
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details {
+	background-image: url('./info.svg');
+}
+
+.monaco-editor .suggest-widget .details > .header > .go-back,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details  {
+	color: #0035DD;
+}
+
+.monaco-editor .suggest-widget .details > .header > .go-back:hover,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details:hover {
+	opacity: 1;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label {
+	margin-left: 0.8em;
+	flex: 1;
+	text-align: right;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	opacity: 0.7;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label > .monaco-tokenized-source {
+	display: inline;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label,
+.monaco-editor .suggest-widget.docs-expanded .monaco-list .monaco-list-row.focused > .contents > .main > .docs-details,
+.monaco-editor .suggest-widget.docs-expanded .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
+	display: none;
+}
+
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .docs-details,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
+	display: inline;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon {
 	display: block;
 	height: 16px;
@@ -141,9 +192,20 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .type {
+.monaco-editor .suggest-widget .details > .header {
+	padding: 4px 5px;
+	display: flex;
+	box-sizing: border-box;		  	box-sizing: border-box;
+	border-bottom: 1px solid rgba(204, 204, 204, 0.5);
+}
+
+.monaco-editor .suggest-widget .details > .header > .type {
+	flex: 2;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	opacity: 0.7;
 	word-break: break-all;
+	margin: 0;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p {
@@ -155,11 +217,18 @@
 	display: none;
 }
 
-/* High Contrast Theming */
+/* Dark theme */
 
-.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .docs {
-	color: #C07A7A;
+.monaco-editor.vs-dark .suggest-widget .details > .header {
+	border-color: rgba(85,85,85,0.5);
 }
+
+.monaco-editor.vs-dark .suggest-widget .details > .header > .go-back,
+.monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details {
+	color: #4E94CE;
+}
+
+/* High Contrast Theming */
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon,
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon { background-image: url('Misc_inverse_16x.svg'); }

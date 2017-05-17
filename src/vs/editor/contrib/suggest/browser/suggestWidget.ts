@@ -38,6 +38,8 @@ interface ISuggestionTemplateData {
 	icon: HTMLElement;
 	colorspan: HTMLElement;
 	highlightedLabel: HighlightedLabel;
+	typeLabel: HTMLElement;
+	documentationDetails: HTMLElement;
 	disposables: IDisposable[];
 }
 
@@ -93,6 +95,11 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		const main = append(text, $('.main'));
 		data.highlightedLabel = new HighlightedLabel(main);
 		data.disposables.push(data.highlightedLabel);
+		data.typeLabel = append(main, $('span.type-label'));
+
+		data.documentationDetails = append(main, $('span.docs-details'));
+		data.documentationDetails.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
+
 		const configureFont = () => {
 			const configuration = this.editor.getConfiguration();
 			const fontFamily = configuration.fontInfo.fontFamily;
@@ -106,6 +113,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			main.style.lineHeight = lineHeightPx;
 			data.icon.style.height = lineHeightPx;
 			data.icon.style.width = lineHeightPx;
+			data.documentationDetails.style.height = lineHeightPx;
+			data.documentationDetails.style.width = lineHeightPx;
 		};
 
 		configureFont();
@@ -139,7 +148,24 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		}
 
 		data.highlightedLabel.set(suggestion.label, createMatches(element.matches));
+		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
+		if (canExpandCompletionItem(element)) {
+			show(data.documentationDetails);
+			data.documentationDetails.onmousedown = e => {
+				e.stopPropagation();
+				e.preventDefault();
+			};
+			data.documentationDetails.onclick = e => {
+				e.stopPropagation();
+				e.preventDefault();
+				this.widget.toggleDetails();
+			};
+		} else {
+			hide(data.documentationDetails);
+			data.documentationDetails.onmousedown = null;
+			data.documentationDetails.onclick = null;
+		}
 
 	}
 
@@ -161,6 +187,8 @@ const enum State {
 class SuggestionDetails {
 
 	private el: HTMLElement;
+	private back: HTMLElement;
+	private header: HTMLElement;
 	private scrollbar: DomScrollableElement;
 	private body: HTMLElement;
 	private type: HTMLElement;
@@ -178,13 +206,19 @@ class SuggestionDetails {
 		this.el = append(container, $('.details'));
 		this.disposables.push(toDisposable(() => container.removeChild(this.el)));
 
+		this.header = append(this.el, $('.header'));
+		this.type = append(this.header, $('p.type'));
+
+		this.back = append(this.header, $('span.go-back'));
+		this.back.title = nls.localize('goback', "Go back");
+
 		this.body = $('.body');
 
 		this.scrollbar = new DomScrollableElement(this.body, { canUseTranslate3d: false });
 		append(this.el, this.scrollbar.getDomNode());
 		this.disposables.push(this.scrollbar);
 
-		this.type = append(this.body, $('p.type'));
+
 		this.docs = append(this.body, $('p.docs'));
 		this.ariaLabel = null;
 
@@ -211,7 +245,17 @@ class SuggestionDetails {
 		this.type.innerText = item.suggestion.detail || '';
 		this.docs.textContent = item.suggestion.documentation;
 
-		this.el.style.height = this.type.clientHeight + this.docs.clientHeight + 'px';
+		this.el.style.height = this.header.clientHeight + this.docs.clientHeight + 'px';
+
+		this.back.onmousedown = e => {
+			e.preventDefault();
+			e.stopPropagation();
+		};
+		this.back.onclick = e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.widget.toggleDetails();
+		};
 
 		this.body.scrollTop = 0;
 		this.scrollbar.scanDomNode();
@@ -251,10 +295,14 @@ class SuggestionDetails {
 		const configuration = this.editor.getConfiguration();
 		const fontFamily = configuration.fontInfo.fontFamily;
 		const fontSize = configuration.contribInfo.suggestFontSize || configuration.fontInfo.fontSize;
+		const lineHeight = configuration.contribInfo.suggestLineHeight || configuration.fontInfo.lineHeight;
 		const fontSizePx = `${fontSize}px`;
+		const lineHeightPx = `${lineHeight}px`;
 
 		this.el.style.fontSize = fontSizePx;
 		this.type.style.fontFamily = fontFamily;
+		this.back.style.height = lineHeightPx;
+		this.back.style.width = lineHeightPx;
 	}
 
 	dispose(): void {
@@ -308,7 +356,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
-	private readonly minWidgetWidth = 400;
+	private readonly minWidgetWidth = 430;
+
+	private expandDocs: boolean = false;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -547,8 +597,11 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.show();
 				break;
 			case State.Open:
-				hide(this.messageElement);
-				show(this.listElement, this.details.element);
+				hide(this.messageElement, this.details.element);
+				show(this.listElement);
+				if (this.expandDocs) {
+					show(this.details.element);
+				}
 				this.show();
 				break;
 			case State.Frozen:
@@ -738,6 +791,18 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		} else if (this.state === State.Open) {
 			this.setState(State.Details);
 		}
+	}
+
+	toggleDetails(): void {
+		if (this.expandDocs) {
+			hide(this.details.element);
+			removeClass(this.element, 'docs-expanded');
+		} else {
+			show(this.details.element);
+			addClass(this.element, 'docs-expanded');
+			this.show();
+		}
+		this.expandDocs = !this.expandDocs;
 	}
 
 	showDetails(): void {

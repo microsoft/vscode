@@ -263,7 +263,7 @@ export class SuggestController implements IEditorContribution {
 
 	toggleSuggestionDetails(): void {
 		if (this._widget) {
-			this._widget.toggleDetailsFocus();
+			this._widget.toggleDetails();
 		}
 	}
 }
