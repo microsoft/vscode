@@ -16,7 +16,7 @@ import { Delayer } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import assert = require('vs/base/common/assert');
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { startTimer } from 'vs/base/common/startupTimers';
+import { startTimer } from 'vs/base/node/startupTimers';
 import errors = require('vs/base/common/errors');
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';

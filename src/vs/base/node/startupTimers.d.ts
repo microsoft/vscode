@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Profile } from './profiler'
+
 declare interface TickStart {
 	name: string;
 	started: number;
@@ -14,6 +16,7 @@ export declare class Tick {
 	readonly name: string;
 	readonly started: number;
 	readonly stopped: number;
+	readonly profile: Profile;
 
 	static compareByStart(a: Tick, b: Tick): number;
 }
@@ -28,5 +31,7 @@ export function startTimer(name: string, started?: number): TickController;
 export function stopTimer(name: string, stopped?: number);
 
 export function ticks(): ReadonlyArray<Tick>;
+
+export function setProfileList(names: string[]): void;
 
 export function disable(): void;
