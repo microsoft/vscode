@@ -288,7 +288,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
  */
 export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IEditorQuickOpenEntry {
 
-	public getInput(): IEditorInput {
+	public getInput(): IEditorInput | IResourceInput {
 		return null;
 	}
 
