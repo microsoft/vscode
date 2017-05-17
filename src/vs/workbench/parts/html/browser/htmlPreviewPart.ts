@@ -33,8 +33,6 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	static ID: string = 'workbench.editor.htmlPreviewPart';
 
-	private _textModelResolverService: ITextModelResolverService;
-	private _openerService: IOpenerService;
 	private _webview: Webview;
 	private _webviewDisposables: IDisposable[];
 	private _container: HTMLDivElement;
@@ -50,17 +48,15 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ITextModelResolverService textModelResolverService: ITextModelResolverService,
-		@IThemeService protected themeService: IThemeService,
-		@IOpenerService openerService: IOpenerService,
+		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@IThemeService themeService: IThemeService,
+		@IOpenerService private openerService: IOpenerService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IPartService private partService: IPartService,
 		@IStorageService storageService: IStorageService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, storageService);
 
-		this._textModelResolverService = textModelResolverService;
-		this._openerService = openerService;
 		this._baseUrl = contextService.toResource('/');
 	}
 
@@ -95,7 +91,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 			this._webviewDisposables = [
 				this._webview,
-				this._webview.onDidClickLink(uri => this._openerService.open(uri)),
+				this._webview.onDidClickLink(uri => this.openerService.open(uri)),
 				this._webview.onDidLoadContent(data => this.telemetryService.publicLog('previewHtml', data.stats)),
 				this._webview.onDidScroll(data => {
 					this.scrollYPercentage = data.scrollYPercentage;
@@ -200,7 +196,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 
 		return super.setInput(input, options).then(() => {
 			const resourceUri = input.getResource();
-			return this._textModelResolverService.createModelReference(resourceUri).then(ref => {
+			return this.textModelResolverService.createModelReference(resourceUri).then(ref => {
 				const model = ref.object;
 
 				if (model instanceof BaseTextEditorModel) {

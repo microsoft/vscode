@@ -93,7 +93,7 @@ export default class Webview {
 			addDisposableListener(this._webview, 'dom-ready', () => {
 				this.layout();
 			}),
-			addDisposableListener(this._webview, 'crashed', function () {
+			addDisposableListener(this._webview, 'crashed', () => {
 				console.error('embedded page crashed');
 			}),
 			addDisposableListener(this._webview, 'ipc-message', (event) => {
