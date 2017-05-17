@@ -14,7 +14,7 @@ if (window.location.search.indexOf('prof-startup') >= 0) {
 
 /*global window,document,define*/
 
-const startTimer = require('../../../base/common/startupTimers').startTimer;
+const startTimer = require('../../../base/node/startupTimers').startTimer;
 const path = require('path');
 const electron = require('electron');
 const remote = electron.remote;
