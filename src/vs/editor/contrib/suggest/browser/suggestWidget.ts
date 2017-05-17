@@ -243,7 +243,7 @@ class SuggestionDetails {
 		this.type.innerText = item.suggestion.detail || '';
 		this.docs.textContent = item.suggestion.documentation;
 
-		this.el.style.height = this.type.clientHeight + this.docs.clientHeight + 8 + 'px';
+		this.el.style.height = this.header.offsetHeight + this.docs.offsetHeight + 'px';
 
 		this.close.onmousedown = e => {
 			e.preventDefault();
@@ -488,10 +488,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 		let borderColor = theme.getColor(editorSuggestWidgetBorder);
 		if (borderColor) {
-			let borderWidth = theme.type === 'hc' ? 2 : 1;
-			this.listElement.style.border = `${borderWidth}px solid ${borderColor}`;
-			this.details.element.style.border = `${borderWidth}px solid ${borderColor}`;
-			this.messageElement.style.border = `${borderWidth}px solid ${borderColor}`;
+			this.listElement.style.borderColor = borderColor.toString();
+			this.details.element.style.borderColor = borderColor.toString();
+			this.messageElement.style.borderColor = borderColor.toString();
 		}
 	}
 

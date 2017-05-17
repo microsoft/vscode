@@ -9,9 +9,21 @@
 	width: 660px;
 }
 
-.monaco-editor .suggest-widget.docs-expanded > .tree,
-.monaco-editor .suggest-widget > .details {
+.monaco-editor .suggest-widget.docs-expanded > .tree {
 	width: 330px;
+}
+
+.monaco-editor .suggest-widget > .details {
+	/* .details does not use border-box, so subtract the border height here (2px). This is the case
+	because the height of .details is set prorammatically based on .header and .docs, we don't want
+	our JS to care about the size of the border (which changes based on theme type). */
+	width: 328px;
+}
+
+.monaco-editor .suggest-widget > .details,
+.monaco-editor .suggest-widget > .tree {
+	border-style: solid;
+	border-width: 1px;
 }
 
 .monaco-editor .suggest-widget.small,
@@ -30,6 +42,8 @@
 
 .monaco-editor .suggest-widget > .message {
 	padding-left: 22px;
+	border-style: solid;
+	border-width: 1px;
 }
 
 .monaco-editor .suggest-widget > .tree {
@@ -171,7 +185,6 @@
 	display: flex;
 	flex-direction: column;
 	cursor: default;
-	box-sizing: border-box;
 }
 
 .monaco-editor .suggest-widget .details.no-docs {
@@ -222,6 +235,17 @@
 }
 
 /* High Contrast Theming */
+
+
+.monaco-editor.hc-black .suggest-widget > .tree,
+.monaco-editor.hc-black .suggest-widget > .message {
+	border-width: 2px;
+}
+
+.monaco-editor.hc-black .suggest-widget > .details {
+	border-width: 2px;
+	width: 326px;
+}
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon,
 .monaco-editor.hc-black .suggest-widget .monaco-list .monaco-list-row .icon { background-image: url('Misc_inverse_16x.svg'); }
