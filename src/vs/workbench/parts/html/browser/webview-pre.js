@@ -24,8 +24,15 @@
 	/**
 	 * @return {HTMLIFrameElement}
 	 */
-	function getTarget() {
-		return document.getElementById('_target');
+	function getActiveFrame() {
+		return document.getElementById('active-frame');
+	}
+
+	/**
+	 * @return {HTMLIFrameElement}
+	 */
+	function getPendingFrame() {
+		return document.getElementById('pending-frame');
 	}
 
 	/**
@@ -89,7 +96,7 @@
 			initData.activeTheme = activeTheme;
 
 			// webview
-			var target = getTarget()
+			var target = getActiveFrame()
 			if (!target) {
 				return;
 			}
@@ -105,7 +112,7 @@
 
 		// propagate focus
 		ipcRenderer.on('focus', function () {
-			const target = getTarget();
+			const target = getActiveFrame();
 			if (target) {
 				target.contentWindow.focus();
 			}
@@ -144,10 +151,7 @@
 
 			styleBody(newDocument.body);
 
-			const frame = getTarget();
-			if (frame) {
-				frame.setAttribute('id', '_oldTarget');
-			}
+			const frame = getActiveFrame();
 
 			// keep current scrollTop around and use later
 			let setInitialScrollPosition;
@@ -161,15 +165,22 @@
 				setInitialScrollPosition = function (body, window) {
 					body.scrollTop = 0;
 					if (!isNaN(initData.initialScrollProgress)) {
-						window.addEventListener('load', function() {
+						window.addEventListener('load', function () {
 							body.scrollTop = body.clientHeight * initData.initialScrollProgress
 						});
 					}
 				}
 			}
 
+			// Clean up old pending frames and set current one as new one
+			const previousPendingFrame = getPendingFrame();
+			if (previousPendingFrame) {
+				previousPendingFrame.setAttribute('id', '');
+				document.body.removeChild(previousPendingFrame);
+			}
+
 			const newFrame = document.createElement('iframe');
-			newFrame.setAttribute('id', '_target');
+			newFrame.setAttribute('id', 'pending-frame');
 			newFrame.setAttribute('frameborder', '0');
 			newFrame.setAttribute('sandbox', 'allow-scripts allow-forms allow-same-origin');
 			newFrame.style.cssText = "margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; display: none";
@@ -194,15 +205,13 @@
 					contentDocument.body.addEventListener('click', handleInnerClick);
 				}
 
-				// Clean up old frames
-				[].forEach.call(document.body.getElementsByTagName('iframe'), function (frame) {
-					if (frame.id !== '_target') {
-						document.body.removeChild(frame);
-					}
-				});
-
-				const newFrame = getTarget();
+				const newFrame = getPendingFrame();
 				if (newFrame.contentDocument === contentDocument) {
+					const oldActiveFrame = getActiveFrame();
+					if (oldActiveFrame) {
+						document.body.removeChild(oldActiveFrame);
+					}
+					newFrame.setAttribute('id', 'active-frame');
 					newFrame.style.display = 'block';
 					this.addEventListener('scroll', handleInnerScroll);
 				}
@@ -219,7 +228,7 @@
 
 		// Forward message to the embedded iframe
 		ipcRenderer.on('message', function (event, data) {
-			const target = getTarget();
+			const target = getActiveFrame();
 			if (target) {
 				target.contentWindow.postMessage(data, document.location.origin);
 			}
