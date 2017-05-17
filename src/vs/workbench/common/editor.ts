@@ -645,7 +645,7 @@ export class TextEditorOptions extends EditorOptions {
 	/**
 	 * Helper to create TextEditorOptions inline.
 	 */
-	public static create(settings: ITextEditorOptions): TextEditorOptions {
+	public static create(settings: ITextEditorOptions = Object.create(null)): TextEditorOptions {
 		const options = new TextEditorOptions();
 		options.preserveFocus = settings.preserveFocus;
 		options.forceOpen = settings.forceOpen;
