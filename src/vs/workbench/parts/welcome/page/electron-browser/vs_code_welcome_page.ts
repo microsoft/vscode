@@ -32,6 +32,7 @@ export default () => `
 					<h2>${escape(localize('welcomePage.recent', "Recent"))}</h2>
 					<ul class="list">
 						<!-- Filled programmatically -->
+						<li class="moreRecent"><a href="command:workbench.action.openRecent">${escape(localize('welcomePage.moreRecent', "More..."))}</a><span class="path if_shortcut" data-command="workbench.action.openRecent">(<span class="shortcut" data-command="workbench.action.openRecent"></span>)</span></li>
 					</ul>
 					<p class="none">${escape(localize('welcomePage.noRecentFolders', "No recent folders"))}</p>
 				</div>

@@ -138,6 +138,10 @@
 	display: initial;
 }
 
+.monaco-workbench > .part.editor > .content .welcomePage .splash .recent li.moreRecent {
+	margin-top: 5px;
+}
+
 .monaco-workbench > .part.editor > .content .welcomePage .splash .recent li {
 	min-width: 0;
 	white-space: nowrap;

@@ -160,6 +160,7 @@ class WelcomePage {
 				return;
 			}
 			const ul = container.querySelector('.recent ul');
+			const before = ul.firstElementChild;
 			folders.slice(0, 5).forEach(folder => {
 				const li = document.createElement('li');
 
@@ -191,7 +192,7 @@ class WelcomePage {
 				span.title = folder;
 				li.appendChild(span);
 
-				ul.appendChild(li);
+				ul.insertBefore(li, before);
 			});
 		}).then(null, onUnexpectedError);
 

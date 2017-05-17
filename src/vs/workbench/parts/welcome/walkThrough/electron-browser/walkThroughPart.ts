@@ -309,6 +309,7 @@ export class WalkThroughPart extends BaseEditor {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
 					this.decorateContent();
+					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
 					if (input.onReady) {
 						input.onReady(this.content.firstElementChild as HTMLElement);
 					}
@@ -447,9 +448,19 @@ export class WalkThroughPart extends BaseEditor {
 			const command = key.getAttribute('data-command');
 			const keybinding = command && this.keybindingService.lookupKeybinding(command);
 			const label = keybinding ? keybinding.getLabel() : UNBOUND_COMMAND;
+			while (key.firstChild) {
+				key.removeChild(key.firstChild);
+			}
 			key.appendChild(document.createTextNode(label));
 		});
+		const ifkeys = this.content.querySelectorAll('.if_shortcut[data-command]');
+		Array.prototype.forEach.call(ifkeys, (key: HTMLElement) => {
+			const command = key.getAttribute('data-command');
+			const keybinding = command && this.keybindingService.lookupKeybinding(command);
+			key.style.display = !keybinding ? 'none' : '';
+		});
 	}
+
 	private saveTextEditorViewState(resource: URI): void {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 		let editorViewStateMemento = memento[WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY];
