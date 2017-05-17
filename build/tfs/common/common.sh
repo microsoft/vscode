@@ -8,7 +8,7 @@ then
 	echo "Using npm cache: $npm_config_cache"
 fi
 
-SUMMARY=""
+SUMMARY="Task;Duration"$'\n'
 step() {
 	START=$SECONDS
 	TASK=$1; shift
@@ -17,17 +17,23 @@ step() {
 	echo "Start: $TASK"
 	echo "*****************************************************************************"
 	"$@"
-	DURATION=$(echo "$SECONDS - $START" | bc)
+
+	# Calculate total duration
+	TOTAL=$(echo "$SECONDS - $START" | bc)
+	M=$(echo "$TOTAL / 60" | bc)
+	S=$(echo "$TOTAL % 60" | bc)
+	DURATION="$(printf "%02d" $M):$(printf "%02d" $S)"
+
 	echo "*****************************************************************************"
-	echo "End: $TASK, $DURATION seconds"
+	echo "End: $TASK, Total: $DURATION"
 	echo "*****************************************************************************"
-	SUMMARY="$SUMMARY$TASK;$DURATION seconds"$'\n'
+	SUMMARY="$SUMMARY$TASK;$DURATION"$'\n'
 }
 
 done_steps() {
 	echo ""
-	echo "Task Summary"
-	echo "============"
+	echo "Build Summary"
+	echo "============="
 	echo "${SUMMARY}" | column -t -s';'
 }
 
