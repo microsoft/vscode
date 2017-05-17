@@ -52,6 +52,8 @@ export default class Webview {
 	private _onDidClickLink = new Emitter<URI>();
 	private _onDidLoadContent = new Emitter<{ stats: any }>();
 
+	private _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
+
 	constructor(
 		private parent: HTMLElement,
 		private _styleElement: Element
@@ -108,6 +110,13 @@ export default class Webview {
 					this.layout();
 					return;
 				}
+
+				if (event.channel === 'did-scroll') {
+					if (event.args && typeof event.args[0] === 'number') {
+						this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
+					}
+					return;
+				}
 			})
 		];
 
@@ -134,10 +143,18 @@ export default class Webview {
 		return this._onDidLoadContent.event;
 	}
 
+	get onDidScroll(): Event<{ scrollYPercentage: number }> {
+		return this._onDidScroll.event;
+	}
+
 	private _send(channel: string, ...args: any[]): void {
 		this._ready
 			.then(() => this._webview.send(channel, ...args))
 			.done(void 0, console.error);
+	}
+
+	set initialScrollProgress(value: number) {
+		this._send('initial-scroll-position', value);
 	}
 
 	set contents(value: string[]) {

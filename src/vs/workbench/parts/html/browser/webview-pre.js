@@ -9,7 +9,9 @@
 	const ipcRenderer = require('electron').ipcRenderer;
 
 
-	const initData = {};
+	const initData = {
+		initialScrollProgress: undefined
+	};
 
 	function styleBody(body) {
 		if (!body) {
@@ -26,10 +28,14 @@
 		return document.getElementById('_target');
 	}
 
+	/**
+	 * @param {MouseEvent} event
+	 */
 	function handleInnerClick(event) {
 		if (!event || !event.view || !event.view.document) {
 			return;
 		}
+		/** @type {any} */
 		var node = event.target;
 		while (node) {
 			if (node.tagName === "A" && node.href) {
@@ -51,6 +57,27 @@
 		}
 	}
 
+	var isHandlingScroll = false;
+	function handleInnerScroll(event) {
+		if (isHandlingScroll) {
+			return;
+		}
+
+		const progress = event.target.body.scrollTop / event.target.body.clientHeight;
+		if (isNaN(progress)) {
+			return;
+		}
+
+		isHandlingScroll = true;
+		window.requestAnimationFrame(function () {
+			try {
+				ipcRenderer.sendToHost('did-scroll', progress);
+			} catch (e) {
+				// noop
+			}
+			isHandlingScroll = false;
+		});
+	}
 
 	document.addEventListener("DOMContentLoaded", function (event) {
 		ipcRenderer.on('baseUrl', function (event, value) {
@@ -123,7 +150,23 @@
 			}
 
 			// keep current scrollTop around and use later
-			const scrollTop = frame && frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
+			let setInitialScrollPosition;
+			if (frame) {
+				const scrollY = frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
+				setInitialScrollPosition = function (body) {
+					body.scrollTop = scrollY;
+				}
+			} else {
+				// First load
+				setInitialScrollPosition = function (body, window) {
+					body.scrollTop = 0;
+					if (!isNaN(initData.initialScrollProgress)) {
+						window.addEventListener('load', function() {
+							body.scrollTop = body.clientHeight * initData.initialScrollProgress
+						});
+					}
+				}
+			}
 
 			const newFrame = document.createElement('iframe');
 			newFrame.setAttribute('id', '_target');
@@ -140,17 +183,12 @@
 			};
 
 			newFrame.contentWindow.addEventListener('DOMContentLoaded', function (e) {
-				/**
-				 * @type {any}
-				 */
+				/** @type {any} */
 				const contentDocument = e.target;
 				if (contentDocument.body) {
-
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
 					// check new scrollTop and reset if neccessary
-					if (scrollTop !== contentDocument.body.scrollTop) {
-						contentDocument.body.scrollTop = scrollTop;
-					}
+					setInitialScrollPosition(contentDocument.body, this);
 
 					// Bubble out link clicks
 					contentDocument.body.addEventListener('click', handleInnerClick);
@@ -166,6 +204,7 @@
 				const newFrame = getTarget();
 				if (newFrame.contentDocument === contentDocument) {
 					newFrame.style.display = 'block';
+					this.addEventListener('scroll', handleInnerScroll);
 				}
 			});
 
@@ -184,6 +223,10 @@
 			if (target) {
 				target.contentWindow.postMessage(data, document.location.origin);
 			}
+		});
+
+		ipcRenderer.on('initial-scroll-position', function (event, progress) {
+			initData.initialScrollProgress = progress;
 		});
 
 		// forward messages from the embedded iframe
