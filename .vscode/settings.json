@@ -16,8 +16,6 @@
 		"i18n/**": true,
 		"extensions/**/out/**": true
 	},
-	"tslint.enable": true,
-	"tslint.rulesDirectory": "build/lib/tslint",
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
 		"./.build/coverage-single/lcov.info"
