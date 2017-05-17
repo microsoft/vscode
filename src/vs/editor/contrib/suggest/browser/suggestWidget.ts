@@ -69,15 +69,12 @@ function canExpandCompletionItem(item: ICompletionItem) {
 
 class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 
-	private triggerKeybindingLabel: string;
-
 	constructor(
 		private widget: SuggestWidget,
 		private editor: ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService
+		private triggerKeybindingLabel: string
 	) {
-		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
-		this.triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
+
 	}
 
 	get templateId(): string {
@@ -200,7 +197,8 @@ class SuggestionDetails {
 	constructor(
 		container: HTMLElement,
 		private widget: SuggestWidget,
-		private editor: ICodeEditor
+		private editor: ICodeEditor,
+		private triggerKeybindingLabel: string
 	) {
 		this.disposables = [];
 
@@ -217,7 +215,7 @@ class SuggestionDetails {
 		this.type = append(this.header, $('p.type'));
 
 		this.back = append(this.header, $('span.go-back'));
-		this.back.title = nls.localize('goback', "Go back");
+		this.back.title = nls.localize('goback', "Read less...{0}", triggerKeybindingLabel);
 
 		this.docs = append(this.body, $('p.docs'));
 		this.ariaLabel = null;
@@ -365,8 +363,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
+		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
+
 		this.isAuto = false;
 		this.focusedItem = null;
 		this.storageService = storageService;
@@ -378,9 +380,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
-		this.details = new SuggestionDetails(this.element, this, this.editor);
+		this.details = new SuggestionDetails(this.element, this, this.editor, triggerKeybindingLabel);
 
-		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
+		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
 
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,

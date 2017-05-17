@@ -79,6 +79,8 @@
 	background-position: center center;
 	background-repeat: no-repeat;
 	background-size: 70%;
+	color: #0035DD;
+	cursor: pointer;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .go-back {
@@ -87,11 +89,6 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details {
 	background-image: url('./info.svg');
-}
-
-.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .go-back,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details  {
-	color: #0035DD;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .go-back:hover,
@@ -197,7 +194,7 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header {
 	padding: 4px 5px;
 	display: flex;
-	box-sizing: border-box;		  	box-sizing: border-box;
+	box-sizing: border-box;
 	border-bottom: 1px solid rgba(204, 204, 204, 0.5);
 }
 
