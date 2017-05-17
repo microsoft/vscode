@@ -12,6 +12,7 @@ $env:npm_config_disturl="https://atom.io/download/electron"
 $env:npm_config_target="1.6.6"
 $env:npm_config_runtime="electron"
 $env:npm_config_cache="$HOME/.npm-electron"
+$env:npm_config_arch="ia32"
 # mkdir -p "$env:npm_config_cache"
 
 # Create a _netrc file to download distro dependencies
