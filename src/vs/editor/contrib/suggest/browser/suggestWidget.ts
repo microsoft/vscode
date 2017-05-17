@@ -13,7 +13,7 @@ import Event, { Emitter, chain } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition } from 'vs/base/browser/dom';
+import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass } from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IDelegate, IListEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -810,6 +810,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (this.state !== State.Open && this.state !== State.Details) {
 			return;
 		}
+		if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
+			addClass(this.element, 'docs-expanded');
+		}
 
 		this.show();
 		this.editor.focus();
@@ -858,7 +861,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private updateWidgetHeight(): number {
 		let height = 0;
-		let maxSuggestionsToShow = this.editor.getLayoutInfo().contentWidth > this.minWidgetWidth ? 11 : 5;
+		let maxSuggestionsToShow = 11;
+		if (hasClass(this.element, 'small')) {
+			maxSuggestionsToShow = 5;
+		}
 
 		if (this.state === State.Empty || this.state === State.Loading) {
 			height = this.unfocusedHeight;

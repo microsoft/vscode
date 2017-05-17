@@ -9,15 +9,16 @@
 	width: 660px;
 }
 
-.monaco-editor .suggest-widget > .tree,
+.monaco-editor .suggest-widget.docs-expanded > .tree,
 .monaco-editor .suggest-widget > .details {
 	width: 330px;
 }
 
 .monaco-editor .suggest-widget.small,
-.monaco-editor .suggest-widget.small > .tree,
+.monaco-editor .suggest-widget > .tree,
+.monaco-editor .suggest-widget.small.docs-expanded > .tree,
 .monaco-editor .suggest-widget.small > .details {
-	width: 400px;
+	width: 430px;
 }
 
 .monaco-editor .suggest-widget.visible {
@@ -119,7 +120,8 @@
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .docs-details,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .type-label,
+.monaco-editor .suggest-widget.docs-expanded.small .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
 	display: inline;
 }
 
