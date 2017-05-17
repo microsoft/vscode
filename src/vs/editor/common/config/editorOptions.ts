@@ -469,6 +469,10 @@ export interface IEditorOptions {
 	 * The line height
 	 */
 	lineHeight?: number;
+	/**
+	 * The letter spacing
+	 */
+	letterSpacing?: number;
 }
 
 /**
@@ -1831,6 +1835,7 @@ export const EDITOR_FONT_DEFAULTS = {
 		platform.isMacintosh ? 12 : 14
 	),
 	lineHeight: 0,
+	letterSpacing: 0,
 };
 
 /**

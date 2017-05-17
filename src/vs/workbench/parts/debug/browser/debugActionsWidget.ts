@@ -114,7 +114,9 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			const mouseClickEvent = new StandardMouseEvent(event);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
-				this.setXCoordinate(0.5 * window.innerWidth);
+				const widgetWidth = this.$el.getHTMLElement().clientWidth;
+				this.setXCoordinate(window.innerWidth - widgetWidth);
+				this.storePosition();
 			}
 		});
 
@@ -129,8 +131,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				// Reduce x by width of drag handle to reduce jarring #16604
 				this.setXCoordinate(mouseMoveEvent.posx - 14);
 			}).once('mouseup', (e: MouseEvent) => {
-				const mouseMoveEvent = new StandardMouseEvent(e);
-				this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, mouseMoveEvent.posx / window.innerWidth, StorageScope.WORKSPACE);
+				this.storePosition();
 				this.dragArea.removeClass('dragged');
 				$window.off('mousemove');
 			});
@@ -138,6 +139,12 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		this.toDispose.push(this.partService.onTitleBarVisibilityChange(() => this.positionDebugWidget()));
 		this.toDispose.push(browser.onDidChangeZoomLevel(() => this.positionDebugWidget()));
+	}
+
+	private storePosition(): void {
+		const position = parseFloat(this.$el.getComputedStyle().left) / window.innerWidth;
+		this.storageService.store(DEBUG_ACTIONS_WIDGET_POSITION_KEY, position, StorageScope.WORKSPACE);
+		this.telemetryService.publicLog(DEBUG_ACTIONS_WIDGET_POSITION_KEY, { position });
 	}
 
 	protected updateStyles(): void {
@@ -167,7 +174,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			return;
 		}
 		if (x === undefined) {
-			x = parseFloat(this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE, '0.5')) * window.innerWidth;
+			x = parseFloat(this.storageService.get(DEBUG_ACTIONS_WIDGET_POSITION_KEY, StorageScope.WORKSPACE, '1')) * window.innerWidth;
 		}
 
 		const widgetWidth = this.$el.getHTMLElement().clientWidth;

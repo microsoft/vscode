@@ -48,7 +48,6 @@ gulp.task('mixin', function () {
 		.pipe(util.rebase(1));
 
 	if (quality) {
-		const build = all.pipe(filter('build/**'));
 		const productJsonFilter = filter('product.json', { restore: true });
 		const arch = process.env.VSCODE_ELECTRON_PLATFORM || process.arch;
 
@@ -92,7 +91,7 @@ gulp.task('mixin', function () {
 			}))
 			.pipe(productJsonFilter.restore);
 
-		all = es.merge(build, mixin);
+		all = es.merge(mixin);
 	}
 
 	return all

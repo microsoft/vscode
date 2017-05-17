@@ -140,23 +140,23 @@ class TextModel {
 }
 
 export class XLF {
-    private buffer: string[];
+	private buffer: string[];
 	private files: Map<Item[]>;
 
-    constructor(public project: string) {
-        this.buffer = [];
+	constructor(public project: string) {
+		this.buffer = [];
 		this.files = Object.create(null);
 	}
 
-    public toString(): string {
-        this.appendHeader();
+	public toString(): string {
+		this.appendHeader();
 
 		for (let file in this.files) {
 			this.appendNewLine(`<file original="${file}" source-language="en" datatype="plaintext"><body>`, 2);
 			for (let item of this.files[file]) {
 				this.addStringItem(item);
 			}
-       		this.appendNewLine('</body></file>', 2);
+			this.appendNewLine('</body></file>', 2);
 		}
 
 		this.appendFooter();
@@ -190,43 +190,43 @@ export class XLF {
 		}
 	}
 
-    private addStringItem(item: Item): void {
-        if (!item.id || !item.message) {
-            throw new Error('No item ID or value specified.');
-        }
+	private addStringItem(item: Item): void {
+		if (!item.id || !item.message) {
+			throw new Error('No item ID or value specified.');
+		}
 
-        this.appendNewLine(`<trans-unit id="${item.id}">`, 4);
-        this.appendNewLine(`<source xml:lang="en">${item.message}</source>`, 6);
+		this.appendNewLine(`<trans-unit id="${item.id}">`, 4);
+		this.appendNewLine(`<source xml:lang="en">${item.message}</source>`, 6);
 
-        if (item.comment) {
-            this.appendNewLine(`<note>${item.comment}</note>`, 6);
-        }
+		if (item.comment) {
+			this.appendNewLine(`<note>${item.comment}</note>`, 6);
+		}
 
-        this.appendNewLine('</trans-unit>', 4);
+		this.appendNewLine('</trans-unit>', 4);
 	}
 
-    private appendHeader(): void {
-        this.appendNewLine('<?xml version="1.0" encoding="utf-8"?>', 0);
-        this.appendNewLine('<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">', 0);
+	private appendHeader(): void {
+		this.appendNewLine('<?xml version="1.0" encoding="utf-8"?>', 0);
+		this.appendNewLine('<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">', 0);
 	}
 
-    private appendFooter(): void {
-        this.appendNewLine('</xliff>', 0);
-    }
+	private appendFooter(): void {
+		this.appendNewLine('</xliff>', 0);
+	}
 
-    private appendNewLine(content: string, indent?: number): void {
-        let line = new Line(indent);
-        line.append(content);
-        this.buffer.push(line.toString());
-    }
+	private appendNewLine(content: string, indent?: number): void {
+		let line = new Line(indent);
+		line.append(content);
+		this.buffer.push(line.toString());
+	}
 
-	static parse = function(xlfString: string) : Promise<ParsedXLF[]> {
+	static parse = function (xlfString: string): Promise<ParsedXLF[]> {
 		return new Promise((resolve, reject) => {
 			let parser = new xml2js.Parser();
 
 			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
 
-			parser.parseString(xlfString, function(err, result) {
+			parser.parseString(xlfString, function (err, result) {
 				if (err) {
 					reject(`Failed to parse XLIFF string. ${err}`);
 				}
@@ -372,7 +372,7 @@ function stripComments(content: string): string {
 			// A line comment. If it ends in \r?\n then keep it.
 			let length = m4.length;
 			if (length > 2 && m4[length - 1] === '\n') {
-				return m4[length - 2] === '\r' ? '\r\n': '\n';
+				return m4[length - 2] === '\r' ? '\r\n' : '\n';
 			} else {
 				return '';
 			}
@@ -384,11 +384,11 @@ function stripComments(content: string): string {
 	return result;
 }
 
-function escapeCharacters(value:string):string {
-	var result:string[] = [];
+function escapeCharacters(value: string): string {
+	var result: string[] = [];
 	for (var i = 0; i < value.length; i++) {
 		var ch = value.charAt(i);
-		switch(ch) {
+		switch (ch) {
 			case '\'':
 				result.push('\\\'');
 				break;
@@ -420,7 +420,7 @@ function escapeCharacters(value:string):string {
 	return result.join('');
 }
 
-function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter: any) {
+function processCoreBundleFormat(fileHeader: string, json: BundledFormat, emitter: any) {
 	let keysSection = json.keys;
 	let messageSection = json.messages;
 	let bundleSection = json.bundles;
@@ -511,12 +511,12 @@ function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter
 					return;
 				}
 				messages.forEach((message, index) => {
-					contents.push(`\t\t"${escapeCharacters(message)}${index < messages.length ? '",': '"'}`);
+					contents.push(`\t\t"${escapeCharacters(message)}${index < messages.length ? '",' : '"'}`);
 				});
 				contents.push(index < modules.length - 1 ? '\t],' : '\t]');
 			});
 			contents.push('});');
-			emitter.emit('data', new File( { path: bundle + '.nls.' + language.iso639_2 + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
+			emitter.emit('data', new File({ path: bundle + '.nls.' + language.iso639_2 + '.js', contents: new Buffer(contents.join('\n'), 'utf-8') }));
 		});
 	});
 	Object.keys(statistics).forEach(key => {
@@ -536,8 +536,8 @@ function processCoreBundleFormat(fileHeader:string, json: BundledFormat, emitter
 	});
 }
 
-export function processNlsFiles(opts:{fileHeader:string;}): ThroughStream {
-	return through(function(file: File) {
+export function processNlsFiles(opts: { fileHeader: string; }): ThroughStream {
+	return through(function (file: File) {
 		let fileName = path.basename(file.path);
 		if (fileName === 'nls.metadata.json') {
 			let json = null;
@@ -637,27 +637,27 @@ const workbenchResources: Resource[] = [
 export function getResource(sourceFile: string): Resource {
 	let resource: string;
 
-	if (sourceFile.startsWith('vs/platform')) {
+	if (/^vs\/platform/.test(sourceFile)) {
 		return { name: 'vs/platform', project: editorProject };
-	} else if (sourceFile.startsWith('vs/editor/contrib')) {
+	} else if (/^vs\/editor\/contrib/.test(sourceFile)) {
 		return { name: 'vs/editor/contrib', project: editorProject };
-	} else if (sourceFile.startsWith('vs/editor')) {
+	} else if (/^vs\/editor/.test(sourceFile)) {
 		return { name: 'vs/editor', project: editorProject };
-	} else if (sourceFile.startsWith('vs/base')) {
+	} else if (/^vs\/base/.test(sourceFile)) {
 		return { name: 'vs/base', project: editorProject };
- 	} else if (sourceFile.startsWith('vs/code')) {
+	} else if (/^vs\/code/.test(sourceFile)) {
 		return { name: 'vs/code', project: workbenchProject };
-	} else if (sourceFile.startsWith('vs/workbench/parts')) {
+	} else if (/^vs\/workbench\/parts/.test(sourceFile)) {
 		resource = sourceFile.split('/', 4).join('/');
 		return { name: resource, project: workbenchProject };
-	} else if (sourceFile.startsWith('vs/workbench/services')) {
+	} else if (/^vs\/workbench\/services/.test(sourceFile)) {
 		resource = sourceFile.split('/', 4).join('/');
 		return { name: resource, project: workbenchProject };
-	} else if (sourceFile.startsWith('vs/workbench')) {
+	} else if (/^vs\/workbench/.test(sourceFile)) {
 		return { name: 'vs/workbench', project: workbenchProject };
 	}
 
-	throw new Error (`Could not identify the XLF bundle for ${sourceFile}`);
+	throw new Error(`Could not identify the XLF bundle for ${sourceFile}`);
 }
 
 
@@ -681,7 +681,7 @@ function importBundleJson(file: File, json: BundledFormat, stream: ThroughStream
 
 	for (let resource in bundleXlfs) {
 		const newFilePath = `${bundleXlfs[resource].project}/${resource.replace(/\//g, '_')}.xlf`;
-		const xlfFile = new File({ path: newFilePath, contents: new Buffer(bundleXlfs[resource].toString(), 'utf-8')});
+		const xlfFile = new File({ path: newFilePath, contents: new Buffer(bundleXlfs[resource].toString(), 'utf-8') });
 		stream.emit('data', xlfFile);
 	}
 }
@@ -723,7 +723,7 @@ function importModuleOrPackageJson(file: File, json: ModuleJsonFormat | PackageJ
 	// Check if XLF is populated with file nodes to emit it
 	if (++extensions[extensionName].processed === localizationFilesCount) {
 		const newFilePath = path.join(projectName, extensionName + '.xlf');
-		const xlfFile = new File({ path: newFilePath, contents: new Buffer(extension.xlf.toString(), 'utf-8')});
+		const xlfFile = new File({ path: newFilePath, contents: new Buffer(extension.xlf.toString(), 'utf-8') });
 		stream.emit('data', xlfFile);
 	}
 }
@@ -774,12 +774,12 @@ function importIsl(file: File, stream: ThroughStream) {
 		}
 	});
 
-	const originalPath = file.path.substring(file.cwd.length+1, file.path.split('.')[0].length).replace(/\\/g, '/');
+	const originalPath = file.path.substring(file.cwd.length + 1, file.path.split('.')[0].length).replace(/\\/g, '/');
 	xlf.addFile(originalPath, keys, messages);
 
 	// Emit only upon all ISL files combined into single XLF instance
 	const newFilePath = path.join(projectName, resourceFile);
-	const xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8')});
+	const xlfFile = new File({ path: newFilePath, contents: new Buffer(xlf.toString(), 'utf-8') });
 	stream.emit('data', xlfFile);
 }
 
@@ -787,7 +787,7 @@ export function pushXlfFiles(apiHostname: string, username: string, password: st
 	let tryGetPromises = [];
 	let updateCreatePromises = [];
 
-	return through(function(file: File) {
+	return through(function (file: File) {
 		const project = path.dirname(file.relative);
 		const fileName = path.basename(file.path);
 		const slug = fileName.substr(0, fileName.length - '.xlf'.length);
@@ -805,7 +805,7 @@ export function pushXlfFiles(apiHostname: string, username: string, password: st
 			updateCreatePromises.push(promise);
 		});
 
-	}, function() {
+	}, function () {
 		// End the pipe only after all the communication with Transifex API happened
 		Promise.all(tryGetPromises).then(() => {
 			Promise.all(updateCreatePromises).then(() => {
@@ -880,7 +880,7 @@ function createResource(project: string, slug: string, xlfFile: File, apiHostnam
  * The following link provides information about how Transifex handles updates of a resource file:
  * https://dev.befoolish.co/tx-docs/public/projects/updating-content#what-happens-when-you-update-files
  */
-function updateResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: string) : Promise<any> {
+function updateResource(project: string, slug: string, xlfFile: File, apiHostname: string, credentials: string): Promise<any> {
 	return new Promise((resolve, reject) => {
 		const data = JSON.stringify({ content: xlfFile.contents.toString() });
 		const options = {
@@ -956,7 +956,7 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 	let expectedTranslationsCount = languages.length * resources.length;
 	let translationsRetrieved = 0, called = false;
 
-	return readable(function(count, callback) {
+	return readable(function (count, callback) {
 		// Mark end of stream when all resources were retrieved
 		if (translationsRetrieved === expectedTranslationsCount) {
 			return this.emit('end');
@@ -967,8 +967,8 @@ export function pullXlfFiles(projectName: string, apiHostname: string, username:
 			const stream = this;
 
 			// Retrieve XLF files from main projects
-			languages.map(function(language) {
-				resources.map(function(resource) {
+			languages.map(function (language) {
+				resources.map(function (resource) {
 					retrieveResource(language, resource, apiHostname, credentials).then((file: File) => {
 						stream.emit('data', file);
 						translationsRetrieved++;
@@ -994,14 +994,14 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 		};
 
 		let request = http.request(options, (res) => {
-				let xlfBuffer: Buffer[] = [];
-				res.on('data', (chunk) => xlfBuffer.push(chunk));
-				res.on('end', () => {
-					if (res.statusCode === 200) {
-						resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${iso639_2_to_3[language]}/${slug}.xlf` }));
-					}
-					reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
-				});
+			let xlfBuffer: Buffer[] = [];
+			res.on('data', (chunk: Buffer) => xlfBuffer.push(chunk));
+			res.on('end', () => {
+				if (res.statusCode === 200) {
+					resolve(new File({ contents: Buffer.concat(xlfBuffer), path: `${project}/${iso639_2_to_3[language]}/${slug}.xlf` }));
+				}
+				reject(`${slug} in ${project} returned no data. Response code: ${res.statusCode}.`);
+			});
 		});
 		request.on('error', (err) => {
 			reject(`Failed to query resource ${slug} with the following error: ${err}`);
@@ -1013,17 +1013,17 @@ function retrieveResource(language: string, resource: Resource, apiHostname, cre
 export function prepareJsonFiles(): ThroughStream {
 	let parsePromises: Promise<ParsedXLF[]>[] = [];
 
-	return through(function(xlf: File) {
+	return through(function (xlf: File) {
 		let stream = this;
 		let parsePromise = XLF.parse(xlf.contents.toString());
 		parsePromises.push(parsePromise);
 		parsePromise.then(
-			function(resolvedFiles) {
+			function (resolvedFiles) {
 				resolvedFiles.forEach(file => {
 					let messages = file.messages, translatedFile;
 
 					// ISL file path always starts with 'build/'
-					if (file.originalFilePath.startsWith('build/')) {
+					if (/^build\//.test(file.originalFilePath)) {
 						const defaultLanguages = { 'zh-hans': true, 'zh-hant': true, 'ko': true };
 						if (path.basename(file.originalFilePath) === 'Default' && !defaultLanguages[file.language]) {
 							return;
@@ -1037,11 +1037,11 @@ export function prepareJsonFiles(): ThroughStream {
 					stream.emit('data', translatedFile);
 				});
 			},
-			function(rejectReason) {
+			function (rejectReason) {
 				throw new Error(`XLF parsing error: ${rejectReason}`);
 			}
 		);
-	}, function() {
+	}, function () {
 		Promise.all(parsePromises)
 			.then(() => { this.emit('end'); })
 			.catch(reason => { throw new Error(reason); });
@@ -1161,6 +1161,6 @@ function encodeEntities(value: string): string {
 	return result.join('');
 }
 
-function decodeEntities(value:string): string {
+function decodeEntities(value: string): string {
 	return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 }

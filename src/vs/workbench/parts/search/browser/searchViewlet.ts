@@ -57,7 +57,7 @@ import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/act
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
@@ -175,6 +175,7 @@ export class SearchViewlet extends Viewlet {
 		const exclusionsUsePattern = this.viewletSettings['query.exclusionsUsePattern'];
 		const includesUsePattern = this.viewletSettings['query.includesUsePattern'];
 		const patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
+		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
 		const useIgnoreFiles = typeof this.viewletSettings['query.useIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useIgnoreFiles'] :
 			this.configurationService.getConfiguration<ISearchConfiguration>().search.useIgnoreFilesByDefault;
@@ -268,7 +269,7 @@ export class SearchViewlet extends Viewlet {
 			this.actionRegistry[action.id] = action;
 		});
 
-		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '') {
+		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '') {
 			this.toggleQueryDetails(true, true, true);
 		}
 
@@ -849,6 +850,7 @@ export class SearchViewlet extends Viewlet {
 
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
+		this.viewletSettings['query.queryDetailsExpanded'] = show;
 		skipLayout = Boolean(skipLayout);
 
 		if (show) {
@@ -1367,9 +1369,35 @@ export class SearchViewlet extends Viewlet {
 }
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	let matchHighlightColor = theme.getColor(editorFindMatchHighlight);
+	const matchHighlightColor = theme.getColor(editorFindMatchHighlight);
 	if (matchHighlightColor) {
-		collector.addRule(`.search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
-		collector.addRule(`.search-viewlet .highlight { background-color: ${matchHighlightColor}; }`);
+		collector.addRule(`.monaco-workbench .search-viewlet .findInFileMatch { background-color: ${matchHighlightColor}; }`);
+	}
+
+	const diffInsertedColor = theme.getColor(diffInserted);
+	if (diffInsertedColor) {
+		collector.addRule(`.monaco-workbench .search-viewlet .replaceMatch { background-color: ${diffInsertedColor}; }`);
+	}
+
+	const diffRemovedColor = theme.getColor(diffRemoved);
+	if (diffRemovedColor) {
+		collector.addRule(`.monaco-workbench .search-viewlet .replace.findInFileMatch { background-color: ${diffRemovedColor}; }`);
+	}
+
+	const diffInsertedOutlineColor = theme.getColor(diffInsertedOutline);
+	if (diffInsertedOutlineColor) {
+		collector.addRule(`.monaco-workbench .search-viewlet .replaceMatch:not(:empty) { border: 1px dashed ${diffInsertedOutlineColor}; }`);
+	}
+
+	const diffRemovedOutlineColor = theme.getColor(diffRemovedOutline);
+	if (diffRemovedOutlineColor) {
+		collector.addRule(`.monaco-workbench .search-viewlet .replace.findInFileMatch { border: 1px dashed ${diffRemovedOutlineColor}; }`);
+	}
+
+	const activeContrastBorderColor = theme.getColor(activeContrastBorder);
+	if (activeContrastBorderColor) {
+		collector.addRule(`
+			.monaco-workbench .search-viewlet .findInFileMatch { border: 1px dashed ${activeContrastBorderColor}; }
+		`);
 	}
 });

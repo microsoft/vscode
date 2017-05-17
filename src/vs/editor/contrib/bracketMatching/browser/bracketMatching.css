@@ -4,5 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor .bracket-match {
-	background-color: rgba(0, 100, 0, 0.1);
+	box-sizing: border-box;
 }

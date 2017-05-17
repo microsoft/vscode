@@ -141,5 +141,5 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
 		{ primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C },
 		KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED
 	),
-	'Open New Command Prompt'
+	baseplatform.isWindows ? 'Open New Command Prompt' : 'Open New Terminal'
 );

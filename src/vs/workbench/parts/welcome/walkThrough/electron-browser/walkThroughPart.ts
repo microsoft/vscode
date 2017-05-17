@@ -34,12 +34,12 @@ import { once } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { Parts, IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Themable } from 'vs/workbench/common/theme';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -78,27 +78,6 @@ class WalkThroughCodeEditor extends CodeEditor {
 
 	getTelemetryData() {
 		return this.telemetryData;
-	}
-}
-
-class WalkThroughTheming extends Themable {
-
-	constructor(
-		themeService: IThemeService,
-		private container: HTMLElement
-	) {
-		super(themeService);
-		this.update(themeService.getTheme());
-	}
-
-	protected onThemeChange(theme: ITheme): void {
-		super.onThemeChange(theme);
-		this.update(theme);
-	}
-
-	private update(theme: ITheme): void {
-		const background = theme.getColor(editorBackground);
-		this.container.classList.toggle('extra-dark', background.getLuminosity() < 0.004);
 	}
 }
 
@@ -329,8 +308,6 @@ export class WalkThroughPart extends BaseEditor {
 				if (!strings.endsWith(input.getResource().path, '.md')) {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
-					this.updateMarkerClasses();
-					this.addThemeListener();
 					this.decorateContent();
 					if (input.onReady) {
 						input.onReady(this.content.firstElementChild as HTMLElement);
@@ -351,8 +328,6 @@ export class WalkThroughPart extends BaseEditor {
 				innerContent.classList.add('walkThroughContent'); // only for markdown files
 				const markdown = this.expandMacros(content);
 				innerContent.innerHTML = marked(markdown, { renderer });
-				this.style(this.themeService.getTheme(), innerContent);
-				this.contentDisposables.push(this.themeService.onThemeChange(theme => this.style(theme, innerContent)));
 				this.content.appendChild(innerContent);
 
 				model.snippets.forEach((snippet, i) => {
@@ -430,8 +405,6 @@ export class WalkThroughPart extends BaseEditor {
 					}));
 				});
 				this.updateSizeClasses();
-				this.updateMarkerClasses();
-				this.addThemeListener();
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
@@ -458,30 +431,6 @@ export class WalkThroughPart extends BaseEditor {
 			lineNumbersMinChars: 1,
 			minimap: false,
 		};
-	}
-
-	private updateMarkerClasses() {
-		const innerContent = this.content.firstElementChild;
-
-		// TODO@christof
-		if (true && innerContent) {
-			innerContent.classList.add('scmEnabled');
-		}
-	}
-
-	private addThemeListener() {
-		const innerContent = this.content.firstElementChild as HTMLElement;
-		this.contentDisposables.push(new WalkThroughTheming(this.themeService, innerContent));
-	}
-
-	private style(theme: ITheme, div: HTMLElement) {
-		const styleElement = this.partService.getContainer(Parts.EDITOR_PART); // TODO@theme styles should come in via theme registry
-		const { color, backgroundColor, fontFamily, fontWeight, fontSize } = window.getComputedStyle(styleElement);
-		div.style.color = color;
-		div.style.backgroundColor = backgroundColor;
-		div.style.fontFamily = fontFamily;
-		div.style.fontWeight = fontWeight;
-		div.style.fontSize = fontSize;
 	}
 
 	private expandMacros(input: string) {
@@ -563,3 +512,15 @@ export class WalkThroughPart extends BaseEditor {
 		super.dispose();
 	}
 }
+
+// theming
+
+const embeddedEditorBackground = registerColor('walkThrough.embeddedEditorBackground', { dark: null, light: null, hc: null }, localize('walkThrough.embeddedEditorBackground', 'Background color for the embedded editors on the Interactive Playground.'));
+
+registerThemingParticipant((theme, collector) => {
+	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: 'rgba(0,0,0,.08)', hc: null });
+	if (color) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .walkThroughContent .monaco-editor-background,
+			.monaco-workbench > .part.editor > .content .walkThroughContent .margin-view-overlays { background: ${color}; }`);
+	}
+});

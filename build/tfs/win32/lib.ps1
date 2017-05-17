@@ -14,11 +14,29 @@ function exec([scriptblock]$cmd, [string]$errorMessage = "Error executing comman
 	}
 }
 
-# log build step
-function STEP() {
-	Write-Host ""
-	Write-Host "********************************************************************************"
-	Write-Host "*** $args"
-	Write-Host "********************************************************************************"
-	Write-Host ""
+$Summary = @()
+function step($Task, $Step) {
+	echo ""
+	echo "*****************************************************************************"
+	echo "Start: $Task"
+	echo "*****************************************************************************"
+	echo ""
+
+	$Stopwatch = [Diagnostics.Stopwatch]::StartNew()
+	Invoke-Command $Step
+	$Stopwatch.Stop()
+	$Formatted = "{0:g}" -f $Stopwatch.Elapsed
+
+	echo "*****************************************************************************"
+	echo "End: $Task, Total: $Formatted"
+	echo "*****************************************************************************"
+
+	$global:Summary += @{ "$Task" = $Formatted }
+}
+
+function done() {
+	echo ""
+	echo "Build Summary"
+	echo "============="
+	$global:Summary | Format-Table @{L="Task";E={$_.Name}}, @{L="Duration";E={$_.Value}}
 }

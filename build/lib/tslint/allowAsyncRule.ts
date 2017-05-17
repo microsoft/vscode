@@ -34,7 +34,7 @@ class AsyncRuleWalker extends Lint.RuleWalker {
 			return;
 		}
 
-		const path = node.getSourceFile().path;
+		const path = (node.getSourceFile() as any).path;
 		const pathParts = path.split(/\\|\//);
 
 		if (pathParts.some(part => this.allowed.some(allowed => part === allowed))) {

@@ -25,7 +25,7 @@ export interface ITelemetryExperiments {
 	showNewUserWatermark: boolean;
 	openUntitledFile: boolean;
 	enableWelcomePage: boolean;
-	reorderQuickLinks: boolean;
+	mergeQuickLinks: boolean;
 }
 
 export interface ITelemetryService {

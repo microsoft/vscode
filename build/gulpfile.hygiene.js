@@ -42,6 +42,7 @@ const eolFilter = [
 	'!build/monaco/**',
 	'!build/win32/**',
 	'!build/**/*.sh',
+	'!build/tfs/**/*.js',
 	'!**/Dockerfile'
 ];
 

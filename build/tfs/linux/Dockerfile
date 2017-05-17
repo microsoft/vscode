@@ -1,4 +1,4 @@
-FROM microsoft/vsts-agent:ubuntu-16.04-standard
+FROM microsoft/vsts-agent:ubuntu-14.04-standard
 MAINTAINER Joao Moreno <joao.moreno@microsoft.com>
 
 RUN dpkg --add-architecture i386
@@ -25,3 +25,4 @@ RUN apt-get install -y libxkbfile-dev:i386
 RUN apt-get install -y libxss1 libxss1:i386
 RUN apt-get install -y libx11-xcb-dev libx11-xcb-dev:i386
 RUN apt-get install -y libxkbfile-dev
+RUN apt-get install -y bc bsdmainutils

@@ -64,6 +64,7 @@ export class BareFontInfo {
 		fontWeight?: string;
 		fontSize?: number | string;
 		lineHeight?: number | string;
+		letterSpacing?: number | string;
 	}, zoomLevel: number): BareFontInfo {
 
 		let fontFamily = _string(opts.fontFamily, EDITOR_FONT_DEFAULTS.fontFamily);
@@ -85,6 +86,9 @@ export class BareFontInfo {
 			lineHeight = 8;
 		}
 
+		let letterSpacing = safeParseFloat(opts.letterSpacing, 0);;
+		letterSpacing = clamp(letterSpacing, -20, 20);
+
 		let editorZoomLevelMultiplier = 1 + (EditorZoom.getZoomLevel() * 0.1);
 		fontSize *= editorZoomLevelMultiplier;
 		lineHeight *= editorZoomLevelMultiplier;
@@ -94,7 +98,8 @@ export class BareFontInfo {
 			fontFamily: fontFamily,
 			fontWeight: fontWeight,
 			fontSize: fontSize,
-			lineHeight: lineHeight
+			lineHeight: lineHeight,
+			letterSpacing: letterSpacing
 		});
 	}
 
@@ -103,6 +108,7 @@ export class BareFontInfo {
 	readonly fontWeight: string;
 	readonly fontSize: number;
 	readonly lineHeight: number;
+	readonly letterSpacing: number;
 
 	/**
 	 * @internal
@@ -113,19 +119,21 @@ export class BareFontInfo {
 		fontWeight: string;
 		fontSize: number;
 		lineHeight: number;
+		letterSpacing: number;
 	}) {
 		this.zoomLevel = opts.zoomLevel;
 		this.fontFamily = String(opts.fontFamily);
 		this.fontWeight = String(opts.fontWeight);
 		this.fontSize = opts.fontSize;
 		this.lineHeight = opts.lineHeight | 0;
+		this.letterSpacing = opts.letterSpacing;
 	}
 
 	/**
 	 * @internal
 	 */
 	public getId(): string {
-		return this.zoomLevel + '-' + this.fontFamily + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.lineHeight;
+		return this.zoomLevel + '-' + this.fontFamily + '-' + this.fontWeight + '-' + this.fontSize + '-' + this.lineHeight + '-' + this.letterSpacing;
 	}
 }
 
@@ -148,6 +156,7 @@ export class FontInfo extends BareFontInfo {
 		fontWeight: string;
 		fontSize: number;
 		lineHeight: number;
+		letterSpacing: number;
 		isMonospace: boolean;
 		typicalHalfwidthCharacterWidth: number;
 		typicalFullwidthCharacterWidth: number;
@@ -172,6 +181,7 @@ export class FontInfo extends BareFontInfo {
 			&& this.fontWeight === other.fontWeight
 			&& this.fontSize === other.fontSize
 			&& this.lineHeight === other.lineHeight
+			&& this.letterSpacing === other.letterSpacing
 			&& this.typicalHalfwidthCharacterWidth === other.typicalHalfwidthCharacterWidth
 			&& this.typicalFullwidthCharacterWidth === other.typicalFullwidthCharacterWidth
 			&& this.spaceWidth === other.spaceWidth

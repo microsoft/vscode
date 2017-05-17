@@ -33,8 +33,10 @@ import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_w
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tildify } from 'vs/base/common/labels';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { isLinux } from 'vs/base/common/platform';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 
 used();
 
@@ -193,13 +195,22 @@ class WelcomePage {
 			});
 		}).then(null, onUnexpectedError);
 
-		if (this.telemetryService.getExperiments().reorderQuickLinks) {
+		const customize = container.querySelector('.commands .section.customize');
+		const learn = container.querySelector('.commands .section.learn');
+		const quickLinks = container.querySelector('.commands .section.quickLinks');
+		if (this.telemetryService.getExperiments().mergeQuickLinks) {
+			const ul = quickLinks.querySelector('ul');
 			reorderedQuickLinks.forEach(clazz => {
 				const link = container.querySelector(`.commands .${clazz}`);
 				if (link) {
-					link.parentElement.appendChild(link);
+					ul.appendChild(link);
 				}
 			});
+			customize.remove();
+			learn.remove();
+			container.querySelector('.keybindingsReferenceLink').remove();
+		} else {
+			quickLinks.remove();
 		}
 
 		container.addEventListener('click', event => {
@@ -361,3 +372,19 @@ class WelcomePage {
 		this.disposables = dispose(this.disposables);
 	}
 }
+
+// theming
+
+const quickLinkBackground = registerColor('welcomePage.quickLinkBackground', { dark: null, light: null, hc: null }, localize('welcomePage.quickLinkBackground', 'Background color for the quick links on the Welcome page.'));
+const quickLinkHoverBackground = registerColor('welcomePage.quickLinkHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.quickLinkHoverBackground', 'Hover background color for the quick links on the Welcome page.'));
+
+registerThemingParticipant((theme, collector) => {
+	const color = getExtraColor(theme, quickLinkBackground, { dark: 'rgba(0, 0, 0, .2)', extra_dark: 'rgba(200, 235, 255, .042)', light: 'rgba(0,0,0,.04)', hc: 'black' });
+	if (color) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button { background: ${color}; }`);
+	}
+	const hover = getExtraColor(theme, quickLinkHoverBackground, { dark: 'rgba(200, 235, 255, .072)', extra_dark: 'rgba(200, 235, 255, .072)', light: 'rgba(0,0,0,.10)', hc: null });
+	if (hover) {
+		collector.addRule(`.monaco-workbench > .part.editor > .content .welcomePage .commands li button:hover { background: ${hover}; }`);
+	}
+});
