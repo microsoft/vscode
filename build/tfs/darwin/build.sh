@@ -1,6 +1,7 @@
 #!/bin/sh
 
-. build/tfs/common/common.sh
+. ./scripts/env.sh
+. ./build/tfs/common/common.sh
 
 export VSCODE_MIXIN_PASSWORD="$1"
 export AZURE_STORAGE_ACCESS_KEY="$2"
@@ -12,7 +13,7 @@ VSO_PAT="$6"
 echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
 step "Install dependencies" \
-	./scripts/npm.sh install
+	npm install
 
 step "Mix in repository from vscode-distro" \
 	npm run gulp -- mixin

@@ -1,6 +1,7 @@
 #!/bin/bash
 
-. build/tfs/common/common.sh
+. ./scripts/env.sh
+. ./build/tfs/common/common.sh
 
 export ARCH="$1"
 export VSCODE_MIXIN_PASSWORD="$2"
@@ -14,7 +15,7 @@ VSO_PAT="$8"
 echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
 step "Install dependencies" \
-	./scripts/npm.sh install --arch=$ARCH --unsafe-perm
+	npm install --arch=$ARCH --unsafe-perm
 
 step "Mix in repository from vscode-distro" \
 	npm run gulp -- mixin
