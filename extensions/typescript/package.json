@@ -307,6 +307,11 @@
           "type": "boolean",
           "default": false,
           "description": "%javascript.implicitProjectConfig.checkJs%"
+        },
+        "javascript.nameSuggestions": {
+          "type": "boolean",
+          "default": true,
+          "description": "%javascript.nameSuggestions%"
         }
       }
     },

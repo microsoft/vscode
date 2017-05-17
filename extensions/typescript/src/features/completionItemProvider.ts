@@ -128,11 +128,13 @@ class MyCompletionItem extends CompletionItem {
 }
 
 interface Configuration {
-	useCodeSnippetsOnMethodSuggest?: boolean;
+	useCodeSnippetsOnMethodSuggest: boolean;
+	nameSuggestions: boolean;
 }
 
 namespace Configuration {
 	export const useCodeSnippetsOnMethodSuggest = 'useCodeSnippetsOnMethodSuggest';
+	export const nameSuggestions = 'nameSuggestions';
 }
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
@@ -143,13 +145,19 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		private client: ITypescriptServiceClient,
 		private typingsStatus: TypingsStatus
 	) {
-		this.config = { useCodeSnippetsOnMethodSuggest: false };
+		this.config = {
+			useCodeSnippetsOnMethodSuggest: false,
+			nameSuggestions: true
+		};
 	}
 
 	public updateConfiguration(): void {
 		// Use shared setting for js and ts
 		const typeScriptConfig = workspace.getConfiguration('typescript');
 		this.config.useCodeSnippetsOnMethodSuggest = typeScriptConfig.get(Configuration.useCodeSnippetsOnMethodSuggest, false);
+
+		const jsConfig = workspace.getConfiguration('javascript');
+		this.config.nameSuggestions = jsConfig.get(Configuration.nameSuggestions, true);
 	}
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
@@ -208,6 +216,9 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				}
 
 				for (const element of body) {
+					if (element.kind === PConst.Kind.warning && !this.config.nameSuggestions) {
+						continue;
+					}
 					const item = new MyCompletionItem(position, document, element, enableDotCompletions, !this.config.useCodeSnippetsOnMethodSuggest);
 					completionItems.push(item);
 				}
