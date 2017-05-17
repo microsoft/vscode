@@ -149,7 +149,6 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		super.clearInput();
 	}
 
-
 	public shutdown(): void {
 		if (this.input instanceof ReleaseNotesInput) {
 			this.saveViewState(this.input.version, {
