@@ -15,9 +15,9 @@ if (typeof define !== "function" && typeof module === "object" && typeof module.
 define([], function () {
 
 	function Tick(name, started, stopped) {
-		this.name = name
-		this.started = started
-		this.stopped = stopped
+		this.name = name;
+		this.started = started;
+		this.stopped = stopped;
 		this.duration = stopped - started;
 	}
 	Tick.compareByStart = function (a, b) {
