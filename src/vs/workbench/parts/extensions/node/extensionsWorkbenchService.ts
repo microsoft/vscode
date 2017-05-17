@@ -799,6 +799,32 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			});
 	}
 
+	addToWorkspaceRecommendations(extension: IExtension): TPromise<void> {
+		return this.tipsService.addToWorkspaceRecommendations(extension.id);
+	}
+
+	installAllWorkspaceRecommendations(): TPromise<void> {
+		return this.tipsService.getWorkspaceRecommendations()
+			.then(extensions => {
+				this.queryGallery({ names: extensions })
+					.done(result => {
+						if (result.total < 1) {
+							return;
+						}
+
+						const extension = result.firstPage[0];
+						const promises = [this.open(extension)];
+
+						if (this.local.every(local => local.id !== extension.id)) {
+							promises.push(this.install(extension));
+						}
+
+						TPromise.join(promises)
+							.done(null, error => this.onError(error));
+					});
+			});
+	}
+
 	dispose(): void {
 		this.syncDelayer.cancel();
 		this.disposables = dispose(this.disposables);

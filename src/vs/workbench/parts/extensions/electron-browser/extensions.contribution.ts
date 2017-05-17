@@ -22,8 +22,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService } from '../common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
-	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction,
-	ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, UpdateAllAction, ConfigureWorkspaceRecommendedExtensionsAction,
+	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, UpdateAllAction, ConfigureWorkspaceRecommendedExtensionsAction,
 	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { OpenExtensionsFolderAction, InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
@@ -117,6 +116,9 @@ actionRegistry.registerWorkbenchAction(keymapRecommendationsActionDescriptor, 'P
 
 const workspaceRecommendationsActionDescriptor = new SyncActionDescriptor(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, ShowWorkspaceRecommendedExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(workspaceRecommendationsActionDescriptor, 'Extensions: Show Workspace Recommended Extensions', ExtensionsLabel);
+
+const installWorkspaceRecommendationsActionDescriptor = new SyncActionDescriptor(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, InstallWorkspaceRecommendedExtensionsAction.LABEL);
+actionRegistry.registerWorkbenchAction(installWorkspaceRecommendationsActionDescriptor, 'Extensions: Install Workspace Recommended Extensions', ExtensionsLabel);
 
 const popularActionDescriptor = new SyncActionDescriptor(ShowPopularExtensionsAction, ShowPopularExtensionsAction.ID, ShowPopularExtensionsAction.LABEL);
 actionRegistry.registerWorkbenchAction(popularActionDescriptor, 'Extensions: Show Popular Extensions', ExtensionsLabel);

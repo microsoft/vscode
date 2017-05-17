@@ -80,6 +80,27 @@ export class ExtensionTipsService implements IExtensionTipsService {
 		}, err => []);
 	}
 
+	addToWorkspaceRecommendations(extensionId: string): TPromise<void> {
+		if (!this.contextService.hasWorkspace()) {
+			return TPromise.as(void 0);
+		}
+		const resource = this.contextService.toResource(paths.join('.vscode', 'extensions.json'));
+		return this.fileService.resolveContent(resource).then(content => {
+			const extensionsContent = <IExtensionsContent>json.parse(content.value, []);
+			const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+			let recommendations = extensionsContent.recommendations || [];
+			recommendations = recommendations.filter((element, position) => {
+				return recommendations.indexOf(element) === position && regEx.test(element);
+			});
+			if (recommendations.indexOf(extensionId) === -1) {
+				recommendations.push(extensionId);
+			}
+			extensionsContent.recommendations = recommendations;
+			return this.fileService.updateContent(resource, JSON.stringify(extensionsContent, null, 2))
+				.then(() => recommendations);
+		}, err => []).then(() => void 0);
+	}
+
 	getRecommendations(): string[] {
 		const allRecomendations = this._getAllRecommendationsInProduct();
 		return Object.keys(this._recommendations)

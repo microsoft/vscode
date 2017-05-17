@@ -77,6 +77,8 @@ export interface IExtensionsWorkbenchService {
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 	checkForUpdates(): TPromise<void>;
+	addToWorkspaceRecommendations(extension: IExtension): TPromise<void>;
+	installAllWorkspaceRecommendations(): TPromise<void>;
 }
 
 export const ConfigurationKey = 'extensions';

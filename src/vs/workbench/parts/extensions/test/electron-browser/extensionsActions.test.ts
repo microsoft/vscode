@@ -489,6 +489,11 @@ suite('ExtensionsActions Test', () => {
 		});
 	});
 
+	test('Test AddToWorkspaceRecommendationsAction when there is no extension', () => {
+		const testObject: ExtensionsActions.AddToWorkspaceRecommendationsAction = instantiationService.createInstance(ExtensionsActions.AddToWorkspaceRecommendationsAction, 'id');
+		assert.ok(!testObject.enabled);
+	});
+
 	test('Test EnableForWorkspaceAction when there is no extension', () => {
 		const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction, 'id');
 

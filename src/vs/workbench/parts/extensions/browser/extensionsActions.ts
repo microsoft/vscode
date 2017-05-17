@@ -358,6 +358,7 @@ export class ManageExtensionAction extends Action {
 				instantiationService.createInstance(EnableGloballyAction, localize('enableAlwaysAction.label', "Enable (Always)"))
 			],
 			[
+				instantiationService.createInstance(AddToWorkspaceRecommendationsAction, localize('addToWorkspaceRecommendationsAction.label', "Add to Workspace Recommendations")),
 				instantiationService.createInstance(DisableForWorkspaceAction, localize('disableForWorkspaceAction.label', "Disable (Workspace)")),
 				instantiationService.createInstance(DisableGloballyAction, localize('disableAlwaysAction.label', "Disable (Always)"))
 			],
@@ -394,6 +395,48 @@ export class ManageExtensionAction extends Action {
 	}
 }
 
+export class AddToWorkspaceRecommendationsAction extends Action implements IExtensionAction {
+
+	static ID = 'extensions.addToWorkspaceRecommendationsAction';
+	static LABEL = localize('addToWorkspaceRecommendationsAction', "Workspace");
+
+	private disposables: IDisposable[] = [];
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	constructor(label: string,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super(AddToWorkspaceRecommendationsAction.ID, label);
+
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		this.enabled = !!this.extension;
+	}
+
+	run(): TPromise<any> {
+		const action = <Action>this.instantiationService.createInstance(
+			ConfigureWorkspaceRecommendedExtensionsAction,
+			ConfigureWorkspaceRecommendedExtensionsAction.ID,
+			ConfigureWorkspaceRecommendedExtensionsAction.LABEL
+		);
+		return action.run()
+			.then(() => this.extensionsWorkbenchService.addToWorkspaceRecommendations(this.extension));
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
 export class EnableForWorkspaceAction extends Action implements IExtensionAction {
 
 	static ID = 'extensions.enableForWorkspace';
@@ -1013,6 +1056,30 @@ export class ShowWorkspaceRecommendedExtensionsAction extends Action {
 				viewlet.search('@recommended:workspace ');
 				viewlet.focus();
 			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
+export class InstallWorkspaceRecommendedExtensionsAction extends Action {
+
+	static ID = 'workbench.extensions.action.installWorkspaceRecommendedExtensions';
+	static LABEL = localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IViewletService private viewletService: IViewletService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, null, contextService.hasWorkspace());
+	}
+
+	run(): TPromise<void> {
+		return this.extensionsWorkbenchService.installAllWorkspaceRecommendations();
 	}
 
 	protected isEnabled(): boolean {
