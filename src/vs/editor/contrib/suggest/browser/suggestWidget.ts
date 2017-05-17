@@ -13,7 +13,7 @@ import Event, { Emitter, chain } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition } from 'vs/base/browser/dom';
+import { addClass, append, $, hide, removeClass, show, toggleClass, getDomNodePagePosition, hasClass } from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IDelegate, IListEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -30,6 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const sticky = false; // for development purposes
 
@@ -38,6 +39,8 @@ interface ISuggestionTemplateData {
 	icon: HTMLElement;
 	colorspan: HTMLElement;
 	highlightedLabel: HighlightedLabel;
+	typeLabel: HTMLElement;
+	documentationDetails: HTMLElement;
 	disposables: IDisposable[];
 }
 
@@ -66,15 +69,12 @@ function canExpandCompletionItem(item: ICompletionItem) {
 
 class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 
-	private triggerKeybindingLabel: string;
-
 	constructor(
 		private widget: SuggestWidget,
 		private editor: ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService
+		private triggerKeybindingLabel: string
 	) {
-		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
-		this.triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
+
 	}
 
 	get templateId(): string {
@@ -93,6 +93,11 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		const main = append(text, $('.main'));
 		data.highlightedLabel = new HighlightedLabel(main);
 		data.disposables.push(data.highlightedLabel);
+		data.typeLabel = append(main, $('span.type-label'));
+
+		data.documentationDetails = append(main, $('span.docs-details'));
+		data.documentationDetails.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
+
 		const configureFont = () => {
 			const configuration = this.editor.getConfiguration();
 			const fontFamily = configuration.fontInfo.fontFamily;
@@ -106,6 +111,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			main.style.lineHeight = lineHeightPx;
 			data.icon.style.height = lineHeightPx;
 			data.icon.style.width = lineHeightPx;
+			data.documentationDetails.style.height = lineHeightPx;
+			data.documentationDetails.style.width = lineHeightPx;
 		};
 
 		configureFont();
@@ -139,7 +146,24 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		}
 
 		data.highlightedLabel.set(suggestion.label, createMatches(element.matches));
+		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
+		if (canExpandCompletionItem(element)) {
+			show(data.documentationDetails);
+			data.documentationDetails.onmousedown = e => {
+				e.stopPropagation();
+				e.preventDefault();
+			};
+			data.documentationDetails.onclick = e => {
+				e.stopPropagation();
+				e.preventDefault();
+				this.widget.toggleDetails();
+			};
+		} else {
+			hide(data.documentationDetails);
+			data.documentationDetails.onmousedown = null;
+			data.documentationDetails.onclick = null;
+		}
 
 	}
 
@@ -161,6 +185,8 @@ const enum State {
 class SuggestionDetails {
 
 	private el: HTMLElement;
+	private back: HTMLElement;
+	private header: HTMLElement;
 	private scrollbar: DomScrollableElement;
 	private body: HTMLElement;
 	private type: HTMLElement;
@@ -171,7 +197,8 @@ class SuggestionDetails {
 	constructor(
 		container: HTMLElement,
 		private widget: SuggestWidget,
-		private editor: ICodeEditor
+		private editor: ICodeEditor,
+		private triggerKeybindingLabel: string
 	) {
 		this.disposables = [];
 
@@ -184,7 +211,12 @@ class SuggestionDetails {
 		append(this.el, this.scrollbar.getDomNode());
 		this.disposables.push(this.scrollbar);
 
-		this.type = append(this.body, $('p.type'));
+		this.header = append(this.body, $('.header'));
+		this.type = append(this.header, $('p.type'));
+
+		this.back = append(this.header, $('span.go-back'));
+		this.back.title = nls.localize('goback', "Read less...{0}", triggerKeybindingLabel);
+
 		this.docs = append(this.body, $('p.docs'));
 		this.ariaLabel = null;
 
@@ -211,7 +243,17 @@ class SuggestionDetails {
 		this.type.innerText = item.suggestion.detail || '';
 		this.docs.textContent = item.suggestion.documentation;
 
-		this.el.style.height = this.type.clientHeight + this.docs.clientHeight + 'px';
+		this.el.style.height = this.type.clientHeight + this.docs.clientHeight + 8 + 'px';
+
+		this.back.onmousedown = e => {
+			e.preventDefault();
+			e.stopPropagation();
+		};
+		this.back.onclick = e => {
+			e.preventDefault();
+			e.stopPropagation();
+			this.widget.toggleDetails();
+		};
 
 		this.body.scrollTop = 0;
 		this.scrollbar.scanDomNode();
@@ -251,10 +293,14 @@ class SuggestionDetails {
 		const configuration = this.editor.getConfiguration();
 		const fontFamily = configuration.fontInfo.fontFamily;
 		const fontSize = configuration.contribInfo.suggestFontSize || configuration.fontInfo.fontSize;
+		const lineHeight = configuration.contribInfo.suggestLineHeight || configuration.fontInfo.lineHeight;
 		const fontSizePx = `${fontSize}px`;
+		const lineHeightPx = `${lineHeight}px`;
 
 		this.el.style.fontSize = fontSizePx;
 		this.type.style.fontFamily = fontFamily;
+		this.back.style.height = lineHeightPx;
+		this.back.style.width = lineHeightPx;
 	}
 
 	dispose(): void {
@@ -308,18 +354,24 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
-	private readonly minWidgetWidth = 400;
+	private readonly minWidgetWidth = 430;
+	private storageService: IStorageService;
 
 	constructor(
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
+		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
+
 		this.isAuto = false;
 		this.focusedItem = null;
-
+		this.storageService = storageService;
 		this.element = $('.editor-widget.suggest-widget');
 
 		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
@@ -328,9 +380,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		this.messageElement = append(this.element, $('.message'));
 		this.listElement = append(this.element, $('.tree'));
-		this.details = new SuggestionDetails(this.element, this, this.editor);
+		this.details = new SuggestionDetails(this.element, this, this.editor, triggerKeybindingLabel);
 
-		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor);
+		let renderer: IRenderer<ICompletionItem, any> = instantiationService.createInstance(Renderer, this, this.editor, triggerKeybindingLabel);
 
 		this.list = new List(this.listElement, this, [renderer], {
 			useShadows: false,
@@ -547,8 +599,11 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.show();
 				break;
 			case State.Open:
-				hide(this.messageElement);
-				show(this.listElement, this.details.element);
+				hide(this.messageElement, this.details.element);
+				show(this.listElement);
+				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
+					show(this.details.element);
+				}
 				this.show();
 				break;
 			case State.Frozen:
@@ -740,9 +795,25 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 
+	toggleDetails(): void {
+		let expandDocs = this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
+		if (expandDocs) {
+			hide(this.details.element);
+			removeClass(this.element, 'docs-expanded');
+		} else {
+			show(this.details.element);
+			addClass(this.element, 'docs-expanded');
+			this.show();
+		}
+		this.storageService.store('expandSuggestionDocs', !expandDocs, StorageScope.GLOBAL);
+	}
+
 	showDetails(): void {
 		if (this.state !== State.Open && this.state !== State.Details) {
 			return;
+		}
+		if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
+			addClass(this.element, 'docs-expanded');
 		}
 
 		this.show();
@@ -792,7 +863,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private updateWidgetHeight(): number {
 		let height = 0;
-		let maxSuggestionsToShow = this.editor.getLayoutInfo().contentWidth > this.minWidgetWidth ? 11 : 5;
+		let maxSuggestionsToShow = 11;
+		if (hasClass(this.element, 'small')) {
+			maxSuggestionsToShow = 5;
+		}
 
 		if (this.state === State.Empty || this.state === State.Loading) {
 			height = this.unfocusedHeight;
