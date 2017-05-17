@@ -112,7 +112,9 @@ export default class Webview {
 				}
 
 				if (event.channel === 'did-scroll') {
-					this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
+					if (event.args && typeof event.args[0] === 'number') {
+						this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
+					}
 					return;
 				}
 			})

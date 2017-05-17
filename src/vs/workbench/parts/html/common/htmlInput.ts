@@ -7,11 +7,5 @@
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 
 export class HtmlInput extends ResourceEditorInput {
-	private _scrollYPercentage: number = 0;
-
-	get scrollYPercentage(): number { return this._scrollYPercentage; }
-
-	updateScroll(scrollYPercentage: number) {
-		this._scrollYPercentage = scrollYPercentage;
-	}
+	// marker class
 }
