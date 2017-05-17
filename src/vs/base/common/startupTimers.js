@@ -46,12 +46,12 @@ define([], function () {
 		if (_starts.has(name)) {
 			throw new Error("${name}" + " already exists");
 		}
-		_starts.set(name, { name, started });
+		_starts.set(name, { name: name, started: started });
 		const stop = stopTimer.bind(undefined, name);
 		return {
-			stop,
-			while(thenable) {
-				thenable.then(function() { stop() }, function() { stop() });
+			stop: stop,
+			while: function (thenable) {
+				thenable.then(function () { stop(); }, function () { stop(); });
 				return thenable;
 			}
 		};
@@ -80,11 +80,11 @@ define([], function () {
 	};
 
 	function disable() {
-		const emptyController = Object.freeze({ while(t) { return t }, stop() { } });
+		const emptyController = Object.freeze({ while: function (t) { return t; }, stop: function () { } });
 		const emptyTicks = Object.create([]);
-		exports.startTimer = function () { return emptyController; }
+		exports.startTimer = function () { return emptyController; };
 		exports.stopTimer = function () { };
-		exports.ticks = function () { return emptyTicks; }
+		exports.ticks = function () { return emptyTicks; };
 
 		delete global._perfStarts;
 		delete global._perfTicks;
