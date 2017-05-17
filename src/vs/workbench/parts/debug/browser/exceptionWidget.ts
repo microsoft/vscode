@@ -33,7 +33,7 @@ export class ExceptionWidget extends ZoneWidget {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		super(editor, { showFrame: true, showArrow: true, frameWidth: 1 });
+		super(editor, { showFrame: true, showArrow: true, frameWidth: 1, className: 'exception-widget-container' });
 
 		this._backgroundColor = Color.white;
 

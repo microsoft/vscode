@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-editor .zone-widget.exception-widget-container {
+	overflow: hidden;
+}
+
 .monaco-editor .zone-widget .zone-widget-container.exception-widget {
 	padding: 6px 10px;
 	white-space: pre-wrap;

@@ -275,6 +275,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 
 		// Render the widget as zone (rendering) and widget (lifecycle)
 		const viewZoneDomNode = document.createElement('div');
+		viewZoneDomNode.style.overflow = 'hidden';
 		const lineHeight = this.editor.getConfiguration().lineHeight;
 
 		// adjust heightInLines to viewport
