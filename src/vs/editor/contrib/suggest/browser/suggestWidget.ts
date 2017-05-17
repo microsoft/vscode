@@ -356,6 +356,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private readonly listWidth = 330;
 	private readonly minWidgetWidth = 430;
 	private storageService: IStorageService;
+	private expandDocs: boolean;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -366,6 +367,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		@IStorageService storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
+		this.expandDocs = storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
 		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
 		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
 
@@ -556,9 +558,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 				this.list.setFocus([index]);
 				this.list.reveal(index);
-				this.showDetails();
-				this.adjustDocsPosition();
-				this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
+
+				if (this.expandDocs) {
+					this.showDetails();
+					this.adjustDocsPosition();
+					this._ariaAlert(this.details.getAriaLabel());
+				}
 			})
 			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
 			.then(() => this.currentSuggestionDetails = null);
@@ -599,10 +604,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.show();
 				break;
 			case State.Open:
-				hide(this.messageElement, this.details.element);
+				hide(this.messageElement);
 				show(this.listElement);
-				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
+				if (this.expandDocs) {
 					show(this.details.element);
+				} else {
+					hide(this.details.element);
 				}
 				this.show();
 				break;
@@ -704,10 +711,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		switch (this.state) {
 			case State.Hidden:
 				return false;
-			case State.Details:
-				this.list.focusNext(1, true);
-				this.renderDetails();
-				return true;
 			case State.Loading:
 				return !this.isAuto;
 			default:
@@ -750,10 +753,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		switch (this.state) {
 			case State.Hidden:
 				return false;
-			case State.Details:
-				this.list.focusPrevious(1, true);
-				this.renderDetails();
-				return true;
 			case State.Loading:
 				return !this.isAuto;
 			default:
@@ -796,23 +795,23 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	toggleDetails(): void {
-		let expandDocs = this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
-		if (expandDocs) {
+		this.expandDocs = !this.expandDocs;
+		this.storageService.store('expandSuggestionDocs', this.expandDocs, StorageScope.GLOBAL);
+
+		if (!this.expandDocs) {
 			hide(this.details.element);
 			removeClass(this.element, 'docs-expanded');
 		} else {
-			show(this.details.element);
-			addClass(this.element, 'docs-expanded');
-			this.show();
+			this.showDetails();
 		}
-		this.storageService.store('expandSuggestionDocs', !expandDocs, StorageScope.GLOBAL);
 	}
 
 	showDetails(): void {
 		if (this.state !== State.Open && this.state !== State.Details) {
 			return;
 		}
-		if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
+		if (this.expandDocs) {
+			show(this.details.element);
 			addClass(this.element, 'docs-expanded');
 		}
 
