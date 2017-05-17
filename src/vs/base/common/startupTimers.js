@@ -39,7 +39,10 @@ define([], function () {
 	const _starts = global._perfStarts;
 	const _ticks = global._perfTicks;
 
-	function startTimer(name, started = Date.now()) {
+	function startTimer(name, started) {
+		if (typeof started !== 'number') {
+			started = Date.now();
+		}
 		if (_starts.has(name)) {
 			throw new Error(`${name} already exists`);
 		}
@@ -48,13 +51,16 @@ define([], function () {
 		return {
 			stop,
 			while(thenable) {
-				thenable.then(_ => stop(), _ => stop());
+				thenable.then(function() { stop() }, function() { stop() });
 				return thenable;
 			}
 		};
 	}
 
-	function stopTimer(name, stopped = Date.now()) {
+	function stopTimer(name, stopped) {
+		if (typeof stopped !== 'number') {
+			stopped = Date.now();
+		}
 		const start = _starts.get(name);
 		const tick = new Tick(start.name, start.started, stopped);
 		_ticks.push(tick);
