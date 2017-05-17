@@ -30,6 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const sticky = false; // for development purposes
 
@@ -357,19 +358,19 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
 	private readonly minWidgetWidth = 430;
-
-	private expandDocs: boolean = false;
+	private storageService: IStorageService;
 
 	constructor(
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService
 	) {
 		this.isAuto = false;
 		this.focusedItem = null;
-
+		this.storageService = storageService;
 		this.element = $('.editor-widget.suggest-widget');
 
 		if (!this.editor.getConfiguration().contribInfo.iconsInSuggestions) {
@@ -599,7 +600,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Open:
 				hide(this.messageElement, this.details.element);
 				show(this.listElement);
-				if (this.expandDocs) {
+				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
 					show(this.details.element);
 				}
 				this.show();
@@ -794,7 +795,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	toggleDetails(): void {
-		if (this.expandDocs) {
+		let expandDocs = this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
+		if (expandDocs) {
 			hide(this.details.element);
 			removeClass(this.element, 'docs-expanded');
 		} else {
@@ -802,7 +804,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			addClass(this.element, 'docs-expanded');
 			this.show();
 		}
-		this.expandDocs = !this.expandDocs;
+		this.storageService.store('expandSuggestionDocs', !expandDocs, StorageScope.GLOBAL);
 	}
 
 	showDetails(): void {
