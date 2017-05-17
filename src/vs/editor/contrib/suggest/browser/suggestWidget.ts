@@ -29,7 +29,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const sticky = false; // for development purposes
@@ -357,6 +357,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private readonly minWidgetWidth = 430;
 	private storageService: IStorageService;
 	private expandDocs: boolean;
+	private detailsFocusBorderColor: string;
+	private detailsBorderColor: string;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -491,6 +493,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.listElement.style.borderColor = borderColor.toString();
 			this.details.element.style.borderColor = borderColor.toString();
 			this.messageElement.style.borderColor = borderColor.toString();
+		}
+		let focusBorderColor = theme.getColor(focusBorder);
+		if (focusBorderColor) {
+			this.detailsFocusBorderColor = focusBorderColor.toString();
 		}
 	}
 
@@ -788,8 +794,14 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	toggleDetailsFocus(): void {
 		if (this.state === State.Details) {
 			this.setState(State.Open);
+			if (this.detailsBorderColor) {
+				this.details.element.style.borderColor = this.detailsBorderColor;
+			}
 		} else if (this.state === State.Open) {
 			this.setState(State.Details);
+			if (this.detailsFocusBorderColor) {
+				this.details.element.style.borderColor = this.detailsFocusBorderColor;
+			}
 		}
 	}
 

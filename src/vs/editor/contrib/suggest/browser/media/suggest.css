@@ -228,14 +228,13 @@
 	display: none;
 }
 
-/* Dark theme */
 
-.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close{
+/* High Contrast and Dark Theming */
+
+.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close,
+.monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .header > .close {
 	background-image: url('./close-dark.svg');
 }
-
-/* High Contrast Theming */
-
 
 .monaco-editor.hc-black .suggest-widget > .tree,
 .monaco-editor.hc-black .suggest-widget > .message {
