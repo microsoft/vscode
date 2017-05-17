@@ -68,7 +68,26 @@ gulp.task('mixin', function () {
 			.pipe(buffer())
 			.pipe(json(function (patch) {
 				const original = require('../product.json');
-				return assign(original, patch);
+				const result = assign(original, patch);
+
+				// HockeyApp Support
+				if (patch.crashReporterHockeyAppSubmitURL && result.crashReporter) {
+
+					// Receive submitURL for the platform we are building for
+					result.crashReporter.submitURL = (function () {
+						if (process.platform === 'win32') { return patch.crashReporterHockeyAppSubmitURL.win32; }
+						if (process.platform === 'darwin') { return patch.crashReporterHockeyAppSubmitURL.darwin; }
+						if (process.platform === 'linux' && arch === 'x64') { return patch.crashReporterHockeyAppSubmitURL.linux64; }
+						if (process.platform === 'linux' && arch !== 'x64') { return patch.crashReporterHockeyAppSubmitURL.linux32; }
+
+						return void 0;
+					})();
+
+					// No longer need crashReporterHockeyAppSubmitURL after this
+					result.crashReporterHockeyAppSubmitURL = void 0;
+				}
+
+				return result;
 			}))
 			.pipe(productJsonFilter.restore);
 
