@@ -207,18 +207,17 @@ class SuggestionDetails {
 		this.el = append(container, $('.details'));
 		this.disposables.push(toDisposable(() => container.removeChild(this.el)));
 
-		this.header = append(this.el, $('.header'));
-		this.type = append(this.header, $('p.type'));
-
-		this.back = append(this.header, $('span.go-back'));
-		this.back.title = nls.localize('goback', "Go back");
-
 		this.body = $('.body');
 
 		this.scrollbar = new DomScrollableElement(this.body, { canUseTranslate3d: false });
 		append(this.el, this.scrollbar.getDomNode());
 		this.disposables.push(this.scrollbar);
 
+		this.header = append(this.body, $('.header'));
+		this.type = append(this.header, $('p.type'));
+
+		this.back = append(this.header, $('span.go-back'));
+		this.back.title = nls.localize('goback', "Go back");
 
 		this.docs = append(this.body, $('p.docs'));
 		this.ariaLabel = null;
@@ -246,7 +245,7 @@ class SuggestionDetails {
 		this.type.innerText = item.suggestion.detail || '';
 		this.docs.textContent = item.suggestion.documentation;
 
-		this.el.style.height = this.header.clientHeight + this.docs.clientHeight + 'px';
+		this.el.style.height = this.type.clientHeight + this.docs.clientHeight + 8 + 'px';
 
 		this.back.onmousedown = e => {
 			e.preventDefault();

@@ -72,7 +72,7 @@
 	font-weight: bold;
 }
 
-.monaco-editor .suggest-widget .details > .header > .go-back,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .go-back,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details {
 	opacity: 0.6;
 	background-position: center center;
@@ -80,7 +80,7 @@
 	background-size: 70%;
 }
 
-.monaco-editor .suggest-widget .details > .header > .go-back {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .go-back {
 	background-image: url('./back.svg');
 }
 
@@ -88,12 +88,12 @@
 	background-image: url('./info.svg');
 }
 
-.monaco-editor .suggest-widget .details > .header > .go-back,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .go-back,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details  {
 	color: #0035DD;
 }
 
-.monaco-editor .suggest-widget .details > .header > .go-back:hover,
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .go-back:hover,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details:hover {
 	opacity: 1;
 }
@@ -192,14 +192,14 @@
 	white-space: pre-wrap;
 }
 
-.monaco-editor .suggest-widget .details > .header {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header {
 	padding: 4px 5px;
 	display: flex;
 	box-sizing: border-box;		  	box-sizing: border-box;
 	border-bottom: 1px solid rgba(204, 204, 204, 0.5);
 }
 
-.monaco-editor .suggest-widget .details > .header > .type {
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .type {
 	flex: 2;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -219,11 +219,11 @@
 
 /* Dark theme */
 
-.monaco-editor.vs-dark .suggest-widget .details > .header {
+.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .header {
 	border-color: rgba(85,85,85,0.5);
 }
 
-.monaco-editor.vs-dark .suggest-widget .details > .header > .go-back,
+.monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .header > .go-back,
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details {
 	color: #4E94CE;
 }
