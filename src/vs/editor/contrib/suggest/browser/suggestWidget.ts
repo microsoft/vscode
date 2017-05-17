@@ -810,6 +810,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (!this.expandDocs) {
 			hide(this.details.element);
 			removeClass(this.element, 'docs-expanded');
+			this.editor.layoutContentWidget(this);
 		} else {
 			this.showDetails();
 		}

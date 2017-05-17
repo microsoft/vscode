@@ -6,6 +6,9 @@
 /* Suggest */
 .monaco-editor .suggest-widget {
 	z-index: 40;
+}
+
+.monaco-editor .suggest-widget.docs-expanded {
 	width: 660px;
 }
 
@@ -26,7 +29,7 @@
 	border-width: 1px;
 }
 
-.monaco-editor .suggest-widget.small,
+.monaco-editor .suggest-widget,
 .monaco-editor .suggest-widget > .tree,
 .monaco-editor .suggest-widget.small.docs-expanded > .tree,
 .monaco-editor .suggest-widget.small > .details {
