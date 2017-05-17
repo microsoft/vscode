@@ -1,5 +1,6 @@
 #!/bin/bash
-set -e
+
+. build/tfs/common/common.sh
 
 export ARCH="$1"
 export VSCODE_MIXIN_PASSWORD="$2"
@@ -8,43 +9,34 @@ export AZURE_STORAGE_ACCESS_KEY_2="$4"
 export MOONCAKE_STORAGE_ACCESS_KEY="$5"
 export AZURE_DOCUMENTDB_MASTERKEY="$6"
 export LINUX_REPO_PASSWORD="$7"
+VSO_PAT="$8"
 
-# set agent specific npm cache
-if [ -n "$AGENT_WORKFOLDER" ]
-then
-	export npm_config_cache="$AGENT_WORKFOLDER/npm-cache"
-	echo "Using npm cache: $npm_config_cache"
-fi
+echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
-# log build step
-STEP() {
-	echo ""
-	echo "********************************************************************************"
-	echo "*** $*"
-	echo "********************************************************************************"
-	echo ""
-}
+step "Install dependencies" \
+	./scripts/npm.sh install --arch=$ARCH --unsafe-perm
 
-STEP "Install dependencies"
-./scripts/npm.sh install --arch=$ARCH --unsafe-perm
+step "Mix in repository from vscode-distro" \
+	npm run gulp -- mixin
 
-STEP "Mix in repository from vscode-distro"
-npm run gulp -- mixin
+step "Install distro dependencies" \
+	npm run install-distro
 
-STEP "Build minified"
-npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
+step "Build minified" \
+	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
-STEP "Build Debian package"
-npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-deb"
+step "Build Debian package" \
+	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-deb"
 
-STEP "Build RPM package"
-npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-rpm"
+step "Build RPM package" \
+	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-rpm"
 
-STEP "Run unit tests"
-#[[ "$ARCH" == "x64" ]] && ./scripts/test.sh --xvfb --build --reporter dot
+#step "Run unit tests" \
+	#[[ "$ARCH" == "x64" ]] && ./scripts/test.sh --xvfb --build --reporter dot
 
-STEP "Install build dependencies"
-(cd $BUILD_SOURCESDIRECTORY/build/tfs/common && npm install --unsafe-perm)
+(cd $BUILD_SOURCESDIRECTORY/build/tfs/common && \
+	step "Install build dependencies" \
+	npm install --unsafe-perm)
 
 # Variables
 PLATFORM_LINUX="linux-$ARCH"
@@ -62,26 +54,26 @@ TARBALL_PATH="$ROOT/$TARBALL_FILENAME"
 PACKAGEJSON="$BUILD/resources/app/package.json"
 VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
 
-STEP "Create tar.gz archive"
 rm -rf $ROOT/code-*.tar.*
-pushd $ROOT
-tar -czvf $TARBALL_PATH $BUILDNAME
-popd
+(cd $ROOT && \
+	step "Create tar.gz archive" \
+	tar -czvf $TARBALL_PATH $BUILDNAME)
 
-STEP "Publish tar.gz archive"
-node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_LINUX archive-unsigned $TARBALL_FILENAME $VERSION true $TARBALL_PATH
+step "Publish tar.gz archive" \
+	node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_LINUX archive-unsigned $TARBALL_FILENAME $VERSION true $TARBALL_PATH
 
-STEP "Publish Debian package"
 DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
 DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
-node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_DEB package $DEB_FILENAME $VERSION true $DEB_PATH
 
-STEP "Publish RPM package"
+step "Publish Debian package" \
+	node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_DEB package $DEB_FILENAME $VERSION true $DEB_PATH
+
 RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
 RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
-node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_RPM package $RPM_FILENAME $VERSION true $RPM_PATH
 
-STEP "Publish to repositories"
+step "Publish RPM package" \
+	node build/tfs/common/publish.js $VSCODE_QUALITY $PLATFORM_RPM package $RPM_FILENAME $VERSION true $RPM_PATH
+
 if [ -z "$VSCODE_QUALITY" ]; then
 	echo "VSCODE_QUALITY is not set, skipping repo package publish"
 else
@@ -102,7 +94,9 @@ else
 				eval echo '{ \"name\": \"$PACKAGE_NAME\", \"version\": \"$PACKAGE_VERSION\", \"repositoryId\": \"58a4adf642421134a1a48d1a\", \"sourceUrl\": \"$DEB_URL\" }' > apt-addpkg.json
 				echo "Submitting apt-addpkg.json:"
 				cat apt-addpkg.json
-				./repoapi_client.sh -config apt-config.json -addpkg apt-addpkg.json
+
+				step "Publish to repositories" \
+					./repoapi_client.sh -config apt-config.json -addpkg apt-addpkg.json
 			fi
 			# Submit to yum repo (disabled as it's manual until signing is automated)
 			# eval echo '{ \"server\": \"azure-apt-cat.cloudapp.net\", \"protocol\": \"https\", \"port\": \"443\", \"repositoryId\": \"58a4ae3542421134a1a48d1b\", \"username\": \"$LINUX_REPO_USERNAME\", \"password\": \"$LINUX_REPO_PASSWORD\" }' > yum-config.json

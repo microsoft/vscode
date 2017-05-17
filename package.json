@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.13.0",
   "electronVersion": "1.6.6",
-  "distro": "f47ad59ab4e6bfa34219867471d8b282a2cde33b",
+  "distro": "a08520285a5d8cb174da73cbec07cc7aff0cee3b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -18,7 +18,8 @@
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
     "gulp": "gulp",
-    "7z": "7z"
+    "7z": "7z",
+    "install-distro": "node build/tfs/common/installDistro.js"
   },
   "dependencies": {
     "applicationinsights": "0.17.1",

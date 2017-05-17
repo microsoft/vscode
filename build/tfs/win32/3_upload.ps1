@@ -16,18 +16,16 @@ $Build = "$Root\VSCode-win32"
 $PackageJson = Get-Content -Raw -Path "$Build\resources\app\package.json" | ConvertFrom-Json
 $Version = $PackageJson.version
 $Quality = "$env:VSCODE_QUALITY"
-
-STEP "Install build dependencies"
-pushd "$Repo\build\tfs\common"
-exec { & npm i }
-popd
-
 $env:AZURE_STORAGE_ACCESS_KEY_2 = $storageKey
 $env:MOONCAKE_STORAGE_ACCESS_KEY = $mooncakeStorageKey
 $env:AZURE_DOCUMENTDB_MASTERKEY = $documentDbKey
 
-STEP "Publish archive"
-exec { & node build/tfs/common/publish.js $Quality win32-archive archive "VSCode-win32-$Version.zip" $Version true $Zip }
+step "Publish archive" {
+  exec { & node build/tfs/common/publish.js $Quality win32-archive archive "VSCode-win32-$Version.zip" $Version true $Zip }
+}
 
-STEP "Publish setup package"
-exec { & node build/tfs/common/publish.js $Quality win32 setup "VSCodeSetup-$Version.exe" $Version true $Exe }
+step "Publish setup package" {
+  exec { & node build/tfs/common/publish.js $Quality win32 setup "VSCodeSetup-$Version.exe" $Version true $Exe }
+}
+
+done
