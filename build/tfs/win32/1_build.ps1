@@ -12,7 +12,7 @@ $env:npm_config_disturl="https://atom.io/download/electron"
 $env:npm_config_target="1.6.6"
 $env:npm_config_runtime="electron"
 $env:npm_config_cache="$HOME/.npm-electron"
-mkdir -p "$env:npm_config_cache"
+# mkdir -p "$env:npm_config_cache"
 
 # Create a _netrc file to download distro dependencies
 "machine monacotools.visualstudio.com password ${vsoPAT}" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
