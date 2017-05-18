@@ -196,7 +196,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	private getScripts(nonce: string): string {
 		const scripts = [this.getMediaPath('main.js')].concat(this.extraScripts.map(resource => resource.toString()));
 		return scripts
-			.map(source => `<script src="${source}" nonce="${nonce}"></script>`)
+			.map(source => `<script async src="${source}" nonce="${nonce}"></script>`)
 			.join('\n');
 	}
 
