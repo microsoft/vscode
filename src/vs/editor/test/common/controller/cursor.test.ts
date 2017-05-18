@@ -13,7 +13,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import {
 	EndOfLinePreference, Handler,
 	DefaultEndOfLine, ITextModelCreationOptions, ICommand,
-	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData
+	ITokenizedModel, IEditOperationBuilder, ICursorStateComputerData, EndOfLineSequence
 } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
@@ -1749,6 +1749,42 @@ suite('Editor Controller - Regression tests', () => {
 
 			assert.equal(cursor.getSelections().length, LINE_CNT);
 			assert.equal(cursor.getSelections()[LINE_CNT - 1].startLineNumber, LINE_CNT);
+		});
+	});
+
+	test('issue #23983: Calling model.setEOL does not reset cursor position', () => {
+		usingCursor({
+			text: [
+				'first line',
+				'second line'
+			]
+		}, (model, cursor) => {
+			model.setEOL(EndOfLineSequence.CRLF);
+
+			cursor.setSelections('test', [new Selection(2, 2, 2, 2)]);
+			model.setEOL(EndOfLineSequence.LF);
+
+			assertCursor(cursor, new Selection(2, 2, 2, 2));
+		});
+	});
+
+	test('issue #23983: Calling model.setValue() resets cursor position', () => {
+		usingCursor({
+			text: [
+				'first line',
+				'second line'
+			]
+		}, (model, cursor) => {
+			model.setEOL(EndOfLineSequence.CRLF);
+
+			cursor.setSelections('test', [new Selection(2, 2, 2, 2)]);
+			model.setValue([
+				'different first line',
+				'different second line',
+				'new third line'
+			].join('\n'));
+
+			assertCursor(cursor, new Selection(1, 1, 1, 1));
 		});
 	});
 });

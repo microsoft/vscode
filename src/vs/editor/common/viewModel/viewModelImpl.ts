@@ -317,6 +317,10 @@ export class ViewModel extends ViewEventEmitter implements IViewModel {
 								}
 								break;
 							}
+							case textModelEvents.RawContentChangedType.EOLChanged: {
+								// Nothing to do. The new version will be accepted below
+								break;
+							}
 						}
 					}
 					this.lines.acceptVersionId(versionId);
