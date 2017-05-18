@@ -7,22 +7,23 @@
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { SingleCursorState, CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
 import * as strings from 'vs/base/common/strings';
 import { ICommand } from "vs/editor/common/editorCommon";
 
 export class DeleteOperations {
 
-	public static deleteRight(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): EditOperationResult {
+	public static deleteRight(config: CursorConfiguration, model: ICursorSimpleModel, cursors: Selection[]): [boolean, ICommand[]] {
 		let commands: ICommand[] = [];
 		let shouldPushStackElementBefore = false;
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
 
-			let deleteSelection: Range = cursor.selection;
+			let deleteSelection: Range = cursor;
 
 			if (deleteSelection.isEmpty()) {
-				let position = cursor.position;
+				let position = cursor.getPosition();
 				let rightOfPosition = MoveOperations.right(config, model, position.lineNumber, position.column);
 				deleteSelection = new Range(
 					rightOfPosition.lineNumber,
@@ -44,21 +45,17 @@ export class DeleteOperations {
 
 			commands[i] = new ReplaceCommand(deleteSelection, '');
 		}
-		return new EditOperationResult(commands, {
-			shouldPushStackElementBefore: shouldPushStackElementBefore,
-			shouldPushStackElementAfter: false
-		});
+		return [shouldPushStackElementBefore, commands];
 	}
 
-	private static _isAutoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): boolean {
+	private static _isAutoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursors: Selection[]): boolean {
 		if (!config.autoClosingBrackets) {
 			return false;
 		}
 
 		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const selection = cursor.selection;
-			const position = cursor.position;
+			const selection = cursors[i];
+			const position = selection.getPosition();
 
 			if (!selection.isEmpty()) {
 				return false;
@@ -82,11 +79,11 @@ export class DeleteOperations {
 		return true;
 	}
 
-	private static _runAutoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): EditOperationResult {
+	private static _runAutoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, cursors: Selection[]): [boolean, ICommand[]] {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			const position = cursor.position;
+			const position = cursor.getPosition();
 			const deleteSelection = new Range(
 				position.lineNumber,
 				position.column - 1,
@@ -95,13 +92,10 @@ export class DeleteOperations {
 			);
 			commands[i] = new ReplaceCommand(deleteSelection, '');
 		}
-		return new EditOperationResult(commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: false
-		});
+		return [true, commands];
 	}
 
-	public static deleteLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): EditOperationResult {
+	public static deleteLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursors: Selection[]): [boolean, ICommand[]] {
 
 		if (this._isAutoClosingPairDelete(config, model, cursors)) {
 			return this._runAutoClosingPairDelete(config, model, cursors);
@@ -112,10 +106,10 @@ export class DeleteOperations {
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
 
-			let deleteSelection: Range = cursor.selection;
+			let deleteSelection: Range = cursor;
 
 			if (deleteSelection.isEmpty()) {
-				let position = cursor.position;
+				let position = cursor.getPosition();
 
 				if (config.useTabStops && position.column > 1) {
 					let lineContent = model.getLineContent(position.lineNumber);
@@ -158,10 +152,7 @@ export class DeleteOperations {
 
 			commands[i] = new ReplaceCommand(deleteSelection, '');
 		}
-		return new EditOperationResult(commands, {
-			shouldPushStackElementBefore: shouldPushStackElementBefore,
-			shouldPushStackElementAfter: false
-		});
+		return [shouldPushStackElementBefore, commands];
 	}
 
 	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): EditOperationResult {

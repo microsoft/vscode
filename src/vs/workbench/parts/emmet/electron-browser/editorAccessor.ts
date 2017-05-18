@@ -5,13 +5,14 @@
 
 'use strict';
 
-import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
 import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import { Range } from 'vs/editor/common/core/range';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
+import { CoreEditingCommands } from "vs/editor/common/controller/coreCommands";
 
 import emmet = require('emmet');
 
@@ -140,7 +141,7 @@ export class EditorAccessor implements emmet.Editor {
 		// During Expand Abbreviation action, if the expanded abbr is the same as the text it intends to replace,
 		// then treat it as a no-op and return TAB to the editor
 		if (this._emmetActionName === 'expand_abbreviation' && (value === textToReplace || value === textToReplace + '${0}')) {
-			this._editor.trigger('emmet', Handler.Tab, {});
+			CoreEditingCommands.Tab.runEditorCommand(null, this._editor, null);
 			return null;
 		}
 

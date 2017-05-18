@@ -24,7 +24,9 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands';
+import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
+import { withMockCodeEditor } from "vs/editor/test/common/mocks/mockCodeEditor";
+import { TextModel } from "vs/editor/common/model/textModel";
 
 let H = Handler;
 
@@ -1119,22 +1121,24 @@ class IndentRulesMode extends MockMode {
 
 suite('Editor Controller - Regression tests', () => {
 	test('Bug 9121: Auto indent + undo + redo is funky', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				''
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
 				trimAutoWhitespace: false
-			}
-		}, (model, cursor) => {
+			},
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
 
-			cursorCommand(cursor, H.Tab, {});
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t', 'assert2');
 
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
@@ -1146,16 +1150,16 @@ suite('Editor Controller - Regression tests', () => {
 			CoreNavigationCommands.CursorLeft.runCoreEditorCommand(cursor, {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert5');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\nx', 'assert6');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\tx', 'assert7');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert8');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert9');
 
 			cursorCommand(cursor, H.Undo, {});
@@ -1176,219 +1180,234 @@ suite('Editor Controller - Regression tests', () => {
 			cursorCommand(cursor, H.Redo, {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert15');
 		});
+
+		model.dispose();
 	});
-
-
 
 	test('bug #16543: Tab should indent to correct indentation spot immediately', () => {
 		let mode = new OnEnterMode(IndentAction.Indent);
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'function baz() {',
 				'\tfunction hello() { // something here',
 				'\t',
 				'',
 				'\t}',
 				'}'
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (model, cursor) => {
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 4, 1, false);
 			assertCursor(cursor, new Selection(4, 1, 4, 1));
 
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(4), '\t\t');
 		});
+
+		model.dispose();
 		mode.dispose();
 	});
 
 	test('bug #2938 (1): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
 		let mode = new OnEnterMode(IndentAction.Indent);
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'\tfunction baz() {',
 				'\t\tfunction hello() { // something here',
 				'\t\t',
 				'\t',
 				'\t\t}',
 				'\t}'
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (model, cursor) => {
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 4, 2, false);
 			assertCursor(cursor, new Selection(4, 2, 4, 2));
 
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(4), '\t\t\t');
 		});
+
+		model.dispose();
 		mode.dispose();
 	});
 
 
 	test('bug #2938 (2): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
 		let mode = new OnEnterMode(IndentAction.Indent);
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'\tfunction baz() {',
 				'\t\tfunction hello() { // something here',
 				'\t\t',
 				'    ',
 				'\t\t}',
 				'\t}'
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (model, cursor) => {
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 4, 1, false);
 			assertCursor(cursor, new Selection(4, 1, 4, 1));
 
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(4), '\t\t\t');
 		});
+
+		model.dispose();
 		mode.dispose();
 	});
 
 	test('bug #2938 (3): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
 		let mode = new OnEnterMode(IndentAction.Indent);
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'\tfunction baz() {',
 				'\t\tfunction hello() { // something here',
 				'\t\t',
 				'\t\t\t',
 				'\t\t}',
 				'\t}'
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (model, cursor) => {
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 4, 3, false);
 			assertCursor(cursor, new Selection(4, 3, 4, 3));
 
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(4), '\t\t\t\t');
 		});
+
+		model.dispose();
 		mode.dispose();
 	});
 
 	test('bug #2938 (4): When pressing Tab on white-space only lines, indent straight to the right spot (similar to empty lines)', () => {
 		let mode = new OnEnterMode(IndentAction.Indent);
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'\tfunction baz() {',
 				'\t\tfunction hello() { // something here',
 				'\t\t',
 				'\t\t\t\t',
 				'\t\t}',
 				'\t}'
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (model, cursor) => {
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 4, 4, false);
 			assertCursor(cursor, new Selection(4, 4, 4, 4));
 
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(4), '\t\t\t\t\t');
 		});
+
+		model.dispose();
 		mode.dispose();
-	});
-
-	test('Bug 18276:[editor] Indentation broken when selection is empty', () => {
-		usingCursor({
-			text: [
-				'function baz() {'
-			],
-			modelOpts: {
-				defaultEOL: DefaultEndOfLine.LF,
-				detectIndentation: false,
-				insertSpaces: false,
-				tabSize: 4,
-				trimAutoWhitespace: true
-			},
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 2, false);
-			assertCursor(cursor, new Selection(1, 2, 1, 2));
-
-			cursorCommand(cursor, H.Indent, null, 'keyboard');
-			assert.equal(model.getLineContent(1), '\tfunction baz() {');
-
-			assertCursor(cursor, new Selection(1, 3, 1, 3));
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
-			assert.equal(model.getLineContent(1), '\tf\tunction baz() {');
-		});
 	});
 
 	test('bug #16815:Shift+Tab doesn\'t go back to tabstop', () => {
 		let mode = new OnEnterMode(IndentAction.IndentOutdent);
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'     function baz() {'
-			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
+			].join('\n'),
+			{
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				trimAutoWhitespace: true
+			},
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 1, 6, false);
 			assertCursor(cursor, new Selection(1, 6, 1, 6));
 
-			cursorCommand(cursor, H.Outdent, null, 'keyboard');
+			CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    function baz() {');
 			assertCursor(cursor, new Selection(1, 5, 1, 5));
 		});
+
+		model.dispose();
 		mode.dispose();
 	});
 
 	test('Bug #18293:[regression][editor] Can\'t outdent whitespace line', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'      '
-			],
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
+			].join('\n'),
+			{
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				trimAutoWhitespace: true
+			}
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
 
-			cursorCommand(cursor, H.Outdent, null, 'keyboard');
+			CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    ');
 			assertCursor(cursor, new Selection(1, 5, 1, 5));
 		});
+
+		model.dispose();
 	});
 
 	test('Bug #16657: [editor] Tab on empty line of zero indentation moves cursor to position (1,1)', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'function baz() {',
 				'\tfunction hello() { // something here',
 				'\t',
@@ -1396,22 +1415,26 @@ suite('Editor Controller - Regression tests', () => {
 				'\t}',
 				'}',
 				''
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
 				trimAutoWhitespace: true
 			},
-		}, (model, cursor) => {
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 7, 1, false);
 			assertCursor(cursor, new Selection(7, 1, 7, 1));
 
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(7), '\t');
 			assertCursor(cursor, new Selection(7, 2, 7, 2));
 		});
+
+		model.dispose();
 	});
 
 	test('bug #16740: [editor] Cut line doesn\'t quite cut the last line', () => {
@@ -1480,24 +1503,33 @@ suite('Editor Controller - Regression tests', () => {
 
 	test('issue #1140: Backspace stops prematurely', () => {
 		let mode = new SurroundingMode();
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'function baz() {',
 				'  return 1;',
 				'};'
-			],
-			languageIdentifier: mode.getLanguageIdentifier(),
-			modelOpts: { tabSize: 4, insertSpaces: true, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
+			].join('\n'),
+			{
+				tabSize: 4,
+				insertSpaces: true,
+				detectIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				trimAutoWhitespace: true
+			},
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 3, 2, false);
 			moveTo(cursor, 1, 14, true);
 			assertCursor(cursor, new Selection(3, 2, 1, 14));
 
-			cursorCommand(cursor, H.DeleteLeft);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assertCursor(cursor, new Selection(1, 14, 1, 14));
 			assert.equal(model.getLineCount(), 1);
 			assert.equal(model.getLineContent(1), 'function baz(;');
 		});
+
+		model.dispose();
 		mode.dispose();
 	});
 
@@ -1520,15 +1552,22 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('issue #3071: Investigate why undo stack gets corrupted', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'some lines',
 				'and more lines',
 				'just some text',
-			],
-			languageIdentifier: null,
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
+			].join('\n'),
+			{
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				trimAutoWhitespace: true
+			}
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 1, 1, false);
 			moveTo(cursor, 3, 4, true);
 
@@ -1540,7 +1579,7 @@ suite('Editor Controller - Regression tests', () => {
 				}
 			});
 
-			cursorCommand(cursor, H.Tab);
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(), [
 				'\t just some text'
 			].join('\n'), '001');
@@ -1559,6 +1598,8 @@ suite('Editor Controller - Regression tests', () => {
 				'just some text',
 			].join('\n'), '003');
 		});
+
+		model.dispose();
 	});
 
 	test('issue #12950: Cannot Double Click To Insert Emoji Using OSX Emoji Panel', () => {
@@ -1584,35 +1625,55 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('issue #3463: pressing tab adds spaces, but not as many as for a tab', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'function a() {',
 				'\tvar a = {',
 				'\t\tx: 3',
 				'\t};',
 				'}',
-			],
-			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
+			].join('\n'),
+			{
+				insertSpaces: true,
+				tabSize: 4,
+				detectIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				trimAutoWhitespace: true
+			}
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 3, 2, false);
-			cursorCommand(cursor, H.Tab);
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(3), '\t    \tx: 3');
 		});
+
+		model.dispose();
 	});
 
 	test('issue #4312: trying to type a tab character over a sequence of spaces results in unexpected behaviour', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'var foo = 123;       // this is a comment',
 				'var bar = 4;       // another comment'
-			],
-			modelOpts: { insertSpaces: false, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
+			].join('\n'),
+			{
+				insertSpaces: false,
+				tabSize: 4,
+				detectIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				trimAutoWhitespace: true
+			}
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 1, 15, false);
 			moveTo(cursor, 1, 22, true);
-			cursorCommand(cursor, H.Tab);
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'var foo = 123;\t// this is a comment');
 		});
+
+		model.dispose();
 	});
 
 	test('issue #832: word right', () => {
@@ -1810,70 +1871,80 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('Cursor honors insertSpaces configuration on tab', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'    \tMy First Line\t ',
 				'My Second Line123',
 				'    Third Line',
 				'',
 				'1'
-			],
-			modelOpts: { insertSpaces: true, tabSize: 13, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
-		}, (model, cursor) => {
+			].join('\n'),
+			{
+				insertSpaces: true,
+				tabSize: 13,
+				detectIndentation: false,
+				defaultEOL: DefaultEndOfLine.LF,
+				trimAutoWhitespace: true
+			}
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			// Tab on column 1
 			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 1) }, 'keyboard');
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '             My Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 2
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 2) }, 'keyboard');
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'M            y Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 3
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 3) }, 'keyboard');
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My            Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 4
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 4) }, 'keyboard');
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My           Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 5) }, 'keyboard');
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 5) }, 'keyboard');
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 13
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 13) }, 'keyboard');
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My Second Li ne123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 14
 			assert.equal(model.getLineContent(2), 'My Second Line123');
 			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 14) }, 'keyboard');
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My Second Lin             e123');
 		});
+
+		model.dispose();
 	});
 
 	test('Enter auto-indents with insertSpaces setting 1', () => {
@@ -1928,48 +1999,6 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getValue(EndOfLinePreference.CRLF), '\thell(\r\n        \r\n    )');
 		});
 		mode.dispose();
-	});
-
-	test('Insert line after', () => {
-		let testInsertLineAfter = (lineNumber: number, column: number, callback: (model: Model, cursor: Cursor) => void) => {
-			usingCursor({
-				text: [
-					'First line',
-					'Second line',
-					'Third line'
-				],
-			}, (model, cursor) => {
-				moveTo(cursor, lineNumber, column, false);
-				assertCursor(cursor, new Position(lineNumber, column));
-
-				cursorCommand(cursor, H.LineInsertAfter, null, 'keyboard');
-				callback(model, cursor);
-			});
-		};
-
-		testInsertLineAfter(1, 3, (model, cursor) => {
-			assertCursor(cursor, new Selection(2, 1, 2, 1));
-			assert.equal(model.getLineContent(1), 'First line');
-			assert.equal(model.getLineContent(2), '');
-			assert.equal(model.getLineContent(3), 'Second line');
-			assert.equal(model.getLineContent(4), 'Third line');
-		});
-
-		testInsertLineAfter(2, 3, (model, cursor) => {
-			assertCursor(cursor, new Selection(3, 1, 3, 1));
-			assert.equal(model.getLineContent(1), 'First line');
-			assert.equal(model.getLineContent(2), 'Second line');
-			assert.equal(model.getLineContent(3), '');
-			assert.equal(model.getLineContent(4), 'Third line');
-		});
-
-		testInsertLineAfter(3, 3, (model, cursor) => {
-			assertCursor(cursor, new Selection(4, 1, 4, 1));
-			assert.equal(model.getLineContent(1), 'First line');
-			assert.equal(model.getLineContent(2), 'Second line');
-			assert.equal(model.getLineContent(3), 'Third line');
-			assert.equal(model.getLineContent(4), '');
-		});
 	});
 
 	test('removeAutoWhitespace off', () => {
@@ -2071,25 +2100,27 @@ suite('Editor Controller - Cursor Configuration', () => {
 	});
 
 	test('removeAutoWhitespace on: removes only whitespace the cursor added 2', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'    if (a) {',
 				'        ',
 				'',
 				'',
 				'    }'
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				trimAutoWhitespace: true
 			}
-		}, (model, cursor) => {
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 
 			moveTo(cursor, 3, 1);
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    if (a) {');
 			assert.equal(model.getLineContent(2), '        ');
 			assert.equal(model.getLineContent(3), '    ');
@@ -2097,7 +2128,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(5), '    }');
 
 			moveTo(cursor, 4, 1);
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    if (a) {');
 			assert.equal(model.getLineContent(2), '        ');
 			assert.equal(model.getLineContent(3), '');
@@ -2112,21 +2143,25 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(4), '');
 			assert.equal(model.getLineContent(5), '    }something');
 		});
+
+		model.dispose();
 	});
 
 	test('removeAutoWhitespace on: test 1', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'    some  line abc  '
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				trimAutoWhitespace: true
 			}
-		}, (model, cursor) => {
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 
 			// Move cursor to the end, verify that we do not trim whitespaces if line has values
 			moveTo(cursor, 1, model.getLineContent(1).length + 1);
@@ -2141,7 +2176,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(3), '    ');
 
 			// More whitespaces
-			cursorCommand(cursor, H.Tab, null, 'keyboard');
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    some  line abc  ');
 			assert.equal(model.getLineContent(2), '');
 			assert.equal(model.getLineContent(3), '        ');
@@ -2172,63 +2207,65 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(4), '');
 			assert.equal(model.getLineContent(5), '');
 		});
+
+		model.dispose();
 	});
 
 	test('UseTabStops is off', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'    x',
 				'        a    ',
 				'    '
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				trimAutoWhitespace: true
-			},
-			editorOpts: {
-				useTabStops: false
 			}
-		}, (model, cursor) => {
+		);
+
+		withMockCodeEditor(null, { model: model, useTabStops: false }, (editor, cursor) => {
 			// DeleteLeft removes just one whitespace
 			moveTo(cursor, 2, 9);
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '       a    ');
 		});
+
+		model.dispose();
 	});
 
 	test('Backspace removes whitespaces with tab size', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				' \t \t     x',
 				'        a    ',
 				'    '
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				insertSpaces: true,
 				tabSize: 4,
 				detectIndentation: false,
 				defaultEOL: DefaultEndOfLine.LF,
 				trimAutoWhitespace: true
-			},
-			editorOpts: {
-				useTabStops: true
 			}
-		}, (model, cursor) => {
+		);
+
+		withMockCodeEditor(null, { model: model, useTabStops: true }, (editor, cursor) => {
 			// DeleteLeft does not remove tab size, because some text exists before
 			moveTo(cursor, 2, model.getLineContent(2).length + 1);
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '        a   ');
 
 			// DeleteLeft removes tab size = 4
 			moveTo(cursor, 2, 9);
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '    a   ');
 
 			// DeleteLeft removes tab size = 4
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'a   ');
 
 			// Undo DeleteLeft - get us back to original indentation
@@ -2237,57 +2274,61 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 			// Nothing is broken when cursor is in (1,1)
 			moveTo(cursor, 1, 1);
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), ' \t \t     x');
 
 			// DeleteLeft stops at tab stops even in mixed whitespace case
 			moveTo(cursor, 1, 10);
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), ' \t \t    x');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), ' \t \tx');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), ' \tx');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'x');
 
 			// DeleteLeft on last line
 			moveTo(cursor, 3, model.getLineContent(3).length + 1);
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(3), '');
 
 			// DeleteLeft with removing new line symbol
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'x\n        a   ');
 
 			// In case of selection DeleteLeft only deletes selected text
 			moveTo(cursor, 2, 3);
 			moveTo(cursor, 2, 4, true);
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '       a   ');
 		});
+
+		model.dispose();
 	});
 
 	test('PR #5423: Auto indent + undo + redo is funky', () => {
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				''
-			],
-			modelOpts: {
+			].join('\n'),
+			{
 				defaultEOL: DefaultEndOfLine.LF,
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
 				trimAutoWhitespace: true
 			}
-		}, (model, cursor) => {
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
 
-			cursorCommand(cursor, H.Tab, {});
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t', 'assert2');
 
 			cursorCommand(cursor, H.Type, { text: 'y' }, 'keyboard');
@@ -2302,19 +2343,19 @@ suite('Editor Controller - Cursor Configuration', () => {
 			CoreNavigationCommands.CursorLeft.runCoreEditorCommand(cursor, {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert5');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\nx', 'assert6');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\tyx', 'assert7');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\tx', 'assert8');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\nx', 'assert9');
 
-			cursorCommand(cursor, H.DeleteLeft, {});
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert10');
 
 			cursorCommand(cursor, H.Undo, {});
@@ -2335,6 +2376,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 			cursorCommand(cursor, H.Redo, {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'x', 'assert16');
 		});
+
+		model.dispose();
 	});
 });
 
@@ -3247,23 +3290,26 @@ suite('autoClosingPairs', () => {
 
 	test('All cursors should do the same thing when deleting left', () => {
 		let mode = new AutoClosingMode();
-		usingCursor({
-			text: [
+		let model = Model.createFromString(
+			[
 				'var a = ()'
-			],
-			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
+			].join('\n'),
+			TextModel.DEFAULT_CREATION_OPTIONS,
+			mode.getLanguageIdentifier()
+		);
 
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			cursor.setSelections('test', [
 				new Selection(1, 4, 1, 4),
 				new Selection(1, 10, 1, 10),
 			]);
 
 			// delete left
-			cursorCommand(cursor, H.DeleteLeft, null, 'keyboard');
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 
 			assert.equal(model.getValue(), 'va a = )');
 		});
+		model.dispose();
 		mode.dispose();
 	});
 });

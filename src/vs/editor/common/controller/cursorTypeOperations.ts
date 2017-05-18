@@ -21,38 +21,32 @@ import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
 
 export class TypeOperations {
 
-	public static indent(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): EditOperationResult {
+	public static indent(config: CursorConfiguration, model: ICursorSimpleModel, cursors: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			commands[i] = new ShiftCommand(cursor.selection, {
+			commands[i] = new ShiftCommand(cursor, {
 				isUnshift: false,
 				tabSize: config.tabSize,
 				oneIndent: config.oneIndent,
 				useTabStops: config.useTabStops
 			});
 		}
-		return new EditOperationResult(commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
-		});
+		return commands;
 	}
 
-	public static outdent(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): EditOperationResult {
+	public static outdent(config: CursorConfiguration, model: ICursorSimpleModel, cursors: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			commands[i] = new ShiftCommand(cursor.selection, {
+			commands[i] = new ShiftCommand(cursor, {
 				isUnshift: true,
 				tabSize: config.tabSize,
 				oneIndent: config.oneIndent,
 				useTabStops: config.useTabStops
 			});
 		}
-		return new EditOperationResult(commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
-		});
+		return commands;
 	}
 
 	public static shiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
@@ -172,11 +166,10 @@ export class TypeOperations {
 		return new ReplaceCommand(selection, typeText, insertsAutoWhitespace);
 	}
 
-	public static tab(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[]): EditOperationResult {
+	public static tab(config: CursorConfiguration, model: ITokenizedModel, cursors: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			let selection = cursor.selection;
+			const selection = cursors[i];
 
 			if (selection.isEmpty()) {
 
@@ -211,10 +204,7 @@ export class TypeOperations {
 				});
 			}
 		}
-		return new EditOperationResult(commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
-		});
+		return commands;
 	}
 
 	public static replacePreviousChar(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], txt: string, replaceCharCnt: number): EditOperationResult {
@@ -600,29 +590,23 @@ export class TypeOperations {
 		return commands;
 	}
 
-	public static lineInsertAfter(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[]): EditOperationResult {
+	public static lineInsertAfter(config: CursorConfiguration, model: ITokenizedModel, cursors: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			let position = cursor.position;
-			let column = model.getLineMaxColumn(position.lineNumber);
-			commands[i] = this._enter(config, model, false, new Range(position.lineNumber, column, position.lineNumber, column));
+			let lineNumber = cursor.positionLineNumber;
+			let column = model.getLineMaxColumn(lineNumber);
+			commands[i] = this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
 		}
-		return new EditOperationResult(commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: false,
-		});
+		return commands;
 	}
 
-	public static lineBreakInsert(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[]): EditOperationResult {
+	public static lineBreakInsert(config: CursorConfiguration, model: ITokenizedModel, cursors: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			commands[i] = this._enter(config, model, true, cursor.selection);
+			commands[i] = this._enter(config, model, true, cursor);
 		}
-		return new EditOperationResult(commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: false,
-		});
+		return commands;
 	}
 }

@@ -29,6 +29,7 @@ import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ViewModelCursors } from "vs/editor/common/viewModel/viewModelCursors";
+import { CommonEditorRegistry } from "vs/editor/common/editorCommonExtensions";
 
 let EDITOR_ID = 0;
 
@@ -667,6 +668,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			return;
 		}
 
+		// Special case for pasting
 		if (handlerId === editorCommon.Handler.Paste) {
 			if (!this.cursor || typeof payload.text !== 'string' || payload.text.length === 0) {
 				// nothing to do
@@ -683,15 +685,25 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			return;
 		}
 
-		let candidate = this.getAction(handlerId);
-		if (candidate !== null) {
-			TPromise.as(candidate.run()).done(null, onUnexpectedError);
-		} else {
-			if (!this.cursor) {
-				return;
-			}
-			this.cursor.trigger(source, handlerId, payload);
+		const action = this.getAction(handlerId);
+		if (action) {
+			TPromise.as(action.run()).done(null, onUnexpectedError);
+			return;
 		}
+
+		if (!this.cursor) {
+			return;
+		}
+
+		const command = CommonEditorRegistry.getEditorCommand(handlerId);
+		if (command) {
+			payload = payload || {};
+			payload.source = source;
+			TPromise.as(command.runEditorCommand(null, this, payload)).done(null, onUnexpectedError);
+			return;
+		}
+
+		this.cursor.trigger(source, handlerId, payload);
 	}
 
 	public _getCursors(): ICursors {

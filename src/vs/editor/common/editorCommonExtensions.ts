@@ -74,22 +74,6 @@ export abstract class EditorAction extends ConfigEditorCommand {
 	public abstract run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
 }
 
-export interface IHandlerActionOptions extends IActionOptions {
-	handlerId: string;
-}
-export abstract class HandlerEditorAction extends EditorAction {
-	private _handlerId: string;
-
-	constructor(opts: IHandlerActionOptions) {
-		super(opts);
-		this._handlerId = opts.handlerId;
-	}
-
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		editor.trigger(this.id, this._handlerId, null);
-	}
-}
-
 // --- Editor Actions
 
 export function editorAction(ctor: { new (): EditorAction; }): void {

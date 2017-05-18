@@ -9,16 +9,17 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { Handler, ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
 import { MoveLinesCommand } from './moveLinesCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
+import { CoreEditingCommands } from "vs/editor/common/controller/coreCommands";
 
 // copy lines
 
@@ -296,36 +297,44 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 }
 
 @editorAction
-class IndentLinesAction extends HandlerEditorAction {
+export class IndentLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.indentLines',
 			label: nls.localize('lines.indent', "Indent Line"),
 			alias: 'Indent Line',
 			precondition: EditorContextKeys.writable,
-			handlerId: Handler.Indent,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_CLOSE_SQUARE_BRACKET
 			}
 		});
 	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, TypeOperations.indent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+		editor.pushUndoStop();
+	}
 }
 
 @editorAction
-class OutdentLinesAction extends HandlerEditorAction {
+class OutdentLinesAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.outdentLines',
 			label: nls.localize('lines.outdent', "Outdent Line"),
 			alias: 'Outdent Line',
 			precondition: EditorContextKeys.writable,
-			handlerId: Handler.Outdent,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.US_OPEN_SQUARE_BRACKET
 			}
 		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
 	}
 }
 
@@ -351,19 +360,23 @@ export class InsertLineBeforeAction extends EditorAction {
 }
 
 @editorAction
-class InsertLineAfterAction extends HandlerEditorAction {
+export class InsertLineAfterAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertLineAfter',
 			label: nls.localize('lines.insertAfter', "Insert Line Below"),
 			alias: 'Insert Line Below',
 			precondition: EditorContextKeys.writable,
-			handlerId: Handler.LineInsertAfter,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Enter
 			}
 		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 	}
 }
 

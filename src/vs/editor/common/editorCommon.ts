@@ -2071,18 +2071,8 @@ export var Handler = {
 	CompositionEnd: 'compositionEnd',
 	Paste: 'paste',
 
-	Tab: 'tab',
-	Indent: 'indent',
-	Outdent: 'outdent',
-
-	DeleteLeft: 'deleteLeft',
-	DeleteRight: 'deleteRight',
-
 	Cut: 'cut',
 
 	Undo: 'undo',
 	Redo: 'redo',
-
-	LineInsertAfter: 'lineInsertAfter',
-	LineBreakInsert: 'lineBreakInsert',
 };

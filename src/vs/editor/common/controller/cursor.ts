@@ -504,20 +504,11 @@ export class Cursor extends Disposable implements ICursors {
 	private _registerHandlers(): void {
 		let H = editorCommon.Handler;
 
-		this._handlers[H.LineInsertAfter] = (args) => this._lineInsertAfter(args);
-		this._handlers[H.LineBreakInsert] = (args) => this._lineBreakInsert(args);
-
 		this._handlers[H.Type] = (args) => this._type(args);
 		this._handlers[H.ReplacePreviousChar] = (args) => this._replacePreviousChar(args);
 		this._handlers[H.CompositionStart] = (args) => this._compositionStart(args);
 		this._handlers[H.CompositionEnd] = (args) => this._compositionEnd(args);
-		this._handlers[H.Tab] = (args) => this._tab(args);
-		this._handlers[H.Indent] = (args) => this._indent(args);
-		this._handlers[H.Outdent] = (args) => this._outdent(args);
 		this._handlers[H.Paste] = (args) => this._paste(args);
-
-		this._handlers[H.DeleteLeft] = (args) => this._deleteLeft(args);
-		this._handlers[H.DeleteRight] = (args) => this._deleteRight(args);
 
 		this._handlers[H.Cut] = (args) => this._cut(args);
 
@@ -542,6 +533,7 @@ export class Cursor extends Disposable implements ICursors {
 
 	// -------------------- START editing operations
 
+	// TODO@Alex: remove
 	private _getAllCursorsModelState(sorted: boolean = false): SingleCursorState[] {
 		let cursors = this._cursors.getAll();
 
@@ -556,14 +548,6 @@ export class Cursor extends Disposable implements ICursors {
 			r[i] = cursors[i].modelState;
 		}
 		return r;
-	}
-
-	private _lineInsertAfter(args: CursorOperationArgs<void>): EditOperationResult {
-		return TypeOperations.lineInsertAfter(this.context.config, this.context.model, this._getAllCursorsModelState());
-	}
-
-	private _lineBreakInsert(args: CursorOperationArgs<void>): EditOperationResult {
-		return TypeOperations.lineBreakInsert(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
 	private _type(args: CursorOperationArgs<{ text: string; }>): EditOperationResult {
@@ -613,18 +597,6 @@ export class Cursor extends Disposable implements ICursors {
 		return null;
 	}
 
-	private _tab(args: CursorOperationArgs<void>): EditOperationResult {
-		return TypeOperations.tab(this.context.config, this.context.model, this._getAllCursorsModelState());
-	}
-
-	private _indent(args: CursorOperationArgs<void>): EditOperationResult {
-		return TypeOperations.indent(this.context.config, this.context.model, this._getAllCursorsModelState());
-	}
-
-	private _outdent(args: CursorOperationArgs<void>): EditOperationResult {
-		return TypeOperations.outdent(this.context.config, this.context.model, this._getAllCursorsModelState());
-	}
-
 	private _distributePasteToCursors(args: CursorOperationArgs<{ pasteOnNewLine: boolean; text: string; }>): string[] {
 		if (args.eventData.pasteOnNewLine) {
 			return null;
@@ -657,14 +629,6 @@ export class Cursor extends Disposable implements ICursors {
 		} else {
 			return TypeOperations.paste(this.context.config, this.context.model, this._getAllCursorsModelState(), args.eventData.text, args.eventData.pasteOnNewLine);
 		}
-	}
-
-	private _deleteLeft(args: CursorOperationArgs<void>): EditOperationResult {
-		return DeleteOperations.deleteLeft(this.context.config, this.context.model, this._getAllCursorsModelState());
-	}
-
-	private _deleteRight(args: CursorOperationArgs<void>): EditOperationResult {
-		return DeleteOperations.deleteRight(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
 	private _cut(args: CursorOperationArgs<void>): EditOperationResult {

@@ -24,6 +24,8 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/platform/editor/common/editor';
+import { TypeOperations } from "vs/editor/common/controller/cursorTypeOperations";
+import { DeleteOperations } from "vs/editor/common/controller/cursorDeleteOperations";
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 
@@ -1398,6 +1400,120 @@ export namespace CoreNavigationCommands {
 }
 
 export namespace CoreEditingCommands {
+
+	export const LineBreakInsert: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+		constructor() {
+			super({
+				id: 'lineBreakInsert',
+				precondition: EditorContextKeys.writable,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textFocus,
+					primary: null,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_O }
+				}
+			});
+		}
+
+		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+			editor.pushUndoStop();
+			editor.executeCommands(this.id, TypeOperations.lineBreakInsert(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+		}
+	});
+
+	export const Outdent: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+		constructor() {
+			super({
+				id: 'outdent',
+				precondition: EditorContextKeys.writable,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: ContextKeyExpr.and(
+						EditorContextKeys.textFocus,
+						EditorContextKeys.tabDoesNotMoveFocus
+					),
+					primary: KeyMod.Shift | KeyCode.Tab
+				}
+			});
+		}
+
+		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+			editor.pushUndoStop();
+			editor.executeCommands(this.id, TypeOperations.outdent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+			editor.pushUndoStop();
+		}
+	});
+
+	export const Tab: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+		constructor() {
+			super({
+				id: 'tab',
+				precondition: EditorContextKeys.writable,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: ContextKeyExpr.and(
+						EditorContextKeys.textFocus,
+						EditorContextKeys.tabDoesNotMoveFocus
+					),
+					primary: KeyCode.Tab
+				}
+			});
+		}
+
+		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+			editor.pushUndoStop();
+			editor.executeCommands(this.id, TypeOperations.tab(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
+			editor.pushUndoStop();
+		}
+	});
+
+	export const DeleteLeft: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+		constructor() {
+			super({
+				id: 'deleteLeft',
+				precondition: EditorContextKeys.writable,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textFocus,
+					primary: KeyCode.Backspace,
+					secondary: [KeyMod.Shift | KeyCode.Backspace],
+					mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KEY_H, KeyMod.WinCtrl | KeyCode.Backspace] }
+				}
+			});
+		}
+
+		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+			if (shouldPushStackElementBefore) {
+				editor.pushUndoStop();
+			}
+			editor.executeCommands(this.id, commands);
+		}
+	});
+
+	export const DeleteRight: EditorCommand = registerEditorCommand(new class extends EditorCommand {
+		constructor() {
+			super({
+				id: 'deleteRight',
+				precondition: EditorContextKeys.writable,
+				kbOpts: {
+					weight: CORE_WEIGHT,
+					kbExpr: EditorContextKeys.textFocus,
+					primary: KeyCode.Delete,
+					mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KEY_D, KeyMod.WinCtrl | KeyCode.Delete] }
+				}
+			});
+		}
+
+		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+			if (shouldPushStackElementBefore) {
+				editor.pushUndoStop();
+			}
+			editor.executeCommands(this.id, commands);
+		}
+	});
+
 }
 
 namespace Config {
@@ -1412,87 +1528,9 @@ namespace Config {
 		return getCodeEditor(activeEditor);
 	}
 
-	function withCodeEditorFromCommandHandler(accessor: ServicesAccessor, callback: (editor: editorCommon.ICommonCodeEditor) => void): void {
-		let editor = findFocusedEditor(accessor);
-		if (editor) {
-			callback(editor);
-		}
-	}
-
-	function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, args: any): void {
-		withCodeEditorFromCommandHandler(accessor, (editor) => {
-			editor.trigger('keyboard', handlerId, args);
-		});
-	}
-
-	class CoreCommand extends Command {
-		public runCommand(accessor: ServicesAccessor, args: any): void {
-			triggerEditorHandler(this.id, accessor, args);
-		}
-	}
-
 	function registerCommand(command: Command) {
 		KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
 	}
-
-	registerCommand(new CoreCommand({
-		id: H.Tab,
-		precondition: EditorContextKeys.writable,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: ContextKeyExpr.and(
-				EditorContextKeys.textFocus,
-				EditorContextKeys.tabDoesNotMoveFocus
-			),
-			primary: KeyCode.Tab
-		}
-	}));
-	registerCommand(new CoreCommand({
-		id: H.Outdent,
-		precondition: EditorContextKeys.writable,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: ContextKeyExpr.and(
-				EditorContextKeys.textFocus,
-				EditorContextKeys.tabDoesNotMoveFocus
-			),
-			primary: KeyMod.Shift | KeyCode.Tab
-		}
-	}));
-
-	registerCommand(new CoreCommand({
-		id: H.DeleteLeft,
-		precondition: EditorContextKeys.writable,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textFocus,
-			primary: KeyCode.Backspace,
-			secondary: [KeyMod.Shift | KeyCode.Backspace],
-			mac: { primary: KeyCode.Backspace, secondary: [KeyMod.Shift | KeyCode.Backspace, KeyMod.WinCtrl | KeyCode.KEY_H, KeyMod.WinCtrl | KeyCode.Backspace] }
-		}
-	}));
-	registerCommand(new CoreCommand({
-		id: H.DeleteRight,
-		precondition: EditorContextKeys.writable,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textFocus,
-			primary: KeyCode.Delete,
-			mac: { primary: KeyCode.Delete, secondary: [KeyMod.WinCtrl | KeyCode.KEY_D, KeyMod.WinCtrl | KeyCode.Delete] }
-		}
-	}));
-
-	registerCommand(new CoreCommand({
-		id: H.LineBreakInsert,
-		precondition: EditorContextKeys.writable,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textFocus,
-			primary: null,
-			mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_O }
-		}
-	}));
-
 
 	class BaseTextInputAwareCommand extends Command {
 
