@@ -40,7 +40,7 @@ interface ISuggestionTemplateData {
 	colorspan: HTMLElement;
 	highlightedLabel: HighlightedLabel;
 	typeLabel: HTMLElement;
-	documentationDetails: HTMLElement;
+	readMore: HTMLElement;
 	disposables: IDisposable[];
 }
 
@@ -95,8 +95,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		data.disposables.push(data.highlightedLabel);
 		data.typeLabel = append(main, $('span.type-label'));
 
-		data.documentationDetails = append(main, $('span.docs-details'));
-		data.documentationDetails.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
+		data.readMore = append(main, $('span.readMore'));
+		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
 
 		const configureFont = () => {
 			const configuration = this.editor.getConfiguration();
@@ -111,8 +111,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			main.style.lineHeight = lineHeightPx;
 			data.icon.style.height = lineHeightPx;
 			data.icon.style.width = lineHeightPx;
-			data.documentationDetails.style.height = lineHeightPx;
-			data.documentationDetails.style.width = lineHeightPx;
+			data.readMore.style.height = lineHeightPx;
+			data.readMore.style.width = lineHeightPx;
 		};
 
 		configureFont();
@@ -149,20 +149,20 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		if (canExpandCompletionItem(element)) {
-			show(data.documentationDetails);
-			data.documentationDetails.onmousedown = e => {
+			show(data.readMore);
+			data.readMore.onmousedown = e => {
 				e.stopPropagation();
 				e.preventDefault();
 			};
-			data.documentationDetails.onclick = e => {
+			data.readMore.onclick = e => {
 				e.stopPropagation();
 				e.preventDefault();
 				this.widget.toggleDetails();
 			};
 		} else {
-			hide(data.documentationDetails);
-			data.documentationDetails.onmousedown = null;
-			data.documentationDetails.onclick = null;
+			hide(data.readMore);
+			data.readMore.onmousedown = null;
+			data.readMore.onclick = null;
 		}
 
 	}

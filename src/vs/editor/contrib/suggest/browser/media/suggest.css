@@ -6,34 +6,11 @@
 /* Suggest */
 .monaco-editor .suggest-widget {
 	z-index: 40;
+	width: 430px;
 }
 
 .monaco-editor .suggest-widget.docs-expanded {
 	width: 660px;
-}
-
-.monaco-editor .suggest-widget.docs-expanded > .tree {
-	width: 330px;
-}
-
-.monaco-editor .suggest-widget > .details {
-	/* .details does not use border-box, so subtract the border height here (2px). This is the case
-	because the height of .details is set prorammatically based on .header and .docs, we don't want
-	our JS to care about the size of the border (which changes based on theme type). */
-	width: 328px;
-}
-
-.monaco-editor .suggest-widget > .details,
-.monaco-editor .suggest-widget > .tree {
-	border-style: solid;
-	border-width: 1px;
-}
-
-.monaco-editor .suggest-widget,
-.monaco-editor .suggest-widget > .tree,
-.monaco-editor .suggest-widget.small.docs-expanded > .tree,
-.monaco-editor .suggest-widget.small > .details {
-	width: 430px;
 }
 
 .monaco-editor .suggest-widget.visible {
@@ -49,10 +26,14 @@
 	border-width: 1px;
 }
 
+/** Styles for the list element **/
 .monaco-editor .suggest-widget > .tree {
 	height: 100%;
+	width: 430px;
 	float: left;
 	box-sizing: border-box;
+	border-style: solid;
+	border-width: 1px;
 }
 
 .monaco-editor .suggest-widget.list-right > .tree {
@@ -62,6 +43,16 @@
 .monaco-editor .suggest-widget.docs-below > .tree {
 	float: none;
 }
+
+.monaco-editor .suggest-widget.docs-expanded > .tree {
+	width: 330px;
+}
+
+.monaco-editor .suggest-widget.small.docs-expanded > .tree {
+	width: 430px;
+}
+
+/** Styles for each row in the list element **/
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row {
 	display: flex;
@@ -90,8 +81,10 @@
 	font-weight: bold;
 }
 
+/** Icon styles **/
+
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
 	opacity: 0.6;
 	background-position: center center;
 	background-repeat: no-repeat;
@@ -104,14 +97,16 @@
 	float: right;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore {
 	background-image: url('./info.svg');
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .close:hover,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details:hover {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore:hover {
 	opacity: 1;
 }
+
+/** Type Info and icon next to the label in the focused completion item **/
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label {
 	margin-left: 0.8em;
@@ -126,18 +121,20 @@
 	display: inline;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .docs-details,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label,
-.monaco-editor .suggest-widget.docs-expanded .monaco-list .monaco-list-row.focused > .contents > .main > .docs-details,
+.monaco-editor .suggest-widget.docs-expanded .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
 .monaco-editor .suggest-widget.docs-expanded .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
 	display: none;
 }
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .docs-details,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .type-label,
 .monaco-editor .suggest-widget.docs-expanded.small .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
 	display: inline;
 }
+
+/** Styles for each row in the list **/
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row .icon {
 	display: block;
@@ -184,11 +181,22 @@
 	display: inline-block;
 }
 
+/** Styles for the docs of the completion item in focus **/
 .monaco-editor .suggest-widget .details {
 	max-height: 216px;
 	display: flex;
 	flex-direction: column;
 	cursor: default;
+	/* .details does not use border-box, so subtract the border height here (2px). This is the case
+	because the height of .details is set prorammatically based on .header and .docs, we don't want
+	our JS to care about the size of the border (which changes based on theme type). */
+	width: 328px;
+	border-style: solid;
+	border-width: 1px;
+}
+
+.monaco-editor .suggest-widget.small > .details {
+	width: 430px;
 }
 
 .monaco-editor .suggest-widget .details.no-docs {
