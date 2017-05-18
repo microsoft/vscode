@@ -3232,7 +3232,6 @@ declare module monaco.editor {
 		readonly acceptSuggestionOnEnter: boolean;
 		readonly acceptSuggestionOnCommitCharacter: boolean;
 		readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
-		readonly emptySelectionClipboard: boolean;
 		readonly wordBasedSuggestions: boolean;
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
@@ -3259,6 +3258,7 @@ declare module monaco.editor {
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
+		readonly emptySelectionClipboard: boolean;
 		readonly layoutInfo: EditorLayoutInfo;
 		readonly fontInfo: FontInfo;
 		readonly viewInfo: InternalEditorViewOptions;
@@ -3388,6 +3388,7 @@ declare module monaco.editor {
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
+		readonly emptySelectionClipboard: boolean;
 		readonly layoutInfo: boolean;
 		readonly fontInfo: boolean;
 		readonly viewInfo: boolean;

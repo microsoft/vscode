@@ -385,7 +385,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.emptySelectionClipboard': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.emptySelectionClipboard,
+			'default': EDITOR_DEFAULTS.emptySelectionClipboard,
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
 		'editor.wordBasedSuggestions': {

@@ -17,7 +17,7 @@ import { createMonacoLanguagesAPI } from 'vs/editor/browser/standalone/standalon
 import { EDITOR_DEFAULTS, WrappingIndent } from "vs/editor/common/config/editorOptions";
 
 // Set defaults for standalone editor
-EDITOR_DEFAULTS.wrappingIndent = WrappingIndent.None;
+(<any>EDITOR_DEFAULTS).wrappingIndent = WrappingIndent.None;
 (<any>EDITOR_DEFAULTS.contribInfo).folding = false;
 (<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
 
