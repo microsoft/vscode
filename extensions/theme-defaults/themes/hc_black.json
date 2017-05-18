@@ -2,6 +2,11 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Dark High Contrast",
 	"include": "./hc_black_defaults.json",
+	"colors": {
+		"selection.background": "#008000",
+		"statusBar.background": "#008000",
+		"editor.selectionBackground": "#FFFFFF"
+	},
 	"tokenColors": [
 		{
 			"name": "Function declarations",
