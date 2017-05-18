@@ -3,14 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Suggest */
+/* Suggest widget*/
 .monaco-editor .suggest-widget {
 	z-index: 40;
-	width: 430px;
-}
-
-.monaco-editor .suggest-widget.docs-expanded {
-	width: 660px;
 }
 
 .monaco-editor .suggest-widget.visible {
@@ -20,36 +15,62 @@
 	transition: left .05s ease-in-out;
 }
 
+/** Initial widths **/
+
+.monaco-editor .suggest-widget {
+	width: 430px;
+}
+
+.monaco-editor .suggest-widget > .tree,
+.monaco-editor .suggest-widget > .details {
+	width: 428px;
+	border-style: solid;
+	border-width: 1px;
+}
+
+.monaco-editor.hc-black .suggest-widget > .tree,
+.monaco-editor.hc-black .suggest-widget > .details {
+	width: 426px;
+	border-width: 2px;
+}
+
+/** Adjust width when docs are expanded to the side **/
+.monaco-editor .suggest-widget.docs-side {
+	width: 660px;
+}
+
+.monaco-editor .suggest-widget.docs-side > .tree,
+.monaco-editor .suggest-widget.docs-side > .details {
+	width: 328px;
+}
+
+.monaco-editor.hc-black .suggest-widget.docs-side > .tree,
+.monaco-editor.hc-black .suggest-widget.docs-side > .details {
+	width: 326px;
+}
+
+/* Styles for Message element for when widget is loading or is empty */
 .monaco-editor .suggest-widget > .message {
 	padding-left: 22px;
 	border-style: solid;
 	border-width: 1px;
 }
 
+.monaco-editor.hc-black  .suggest-widget > .message {
+	border-width: 2px;
+}
+
 /** Styles for the list element **/
 .monaco-editor .suggest-widget > .tree {
 	height: 100%;
-	width: 430px;
+}
+
+.monaco-editor .suggest-widget.docs-side > .tree {
 	float: left;
-	box-sizing: border-box;
-	border-style: solid;
-	border-width: 1px;
 }
 
-.monaco-editor .suggest-widget.list-right > .tree {
+.monaco-editor .suggest-widget.docs-side.list-right > .tree {
 	float: right
-}
-
-.monaco-editor .suggest-widget.docs-below > .tree {
-	float: none;
-}
-
-.monaco-editor .suggest-widget.docs-expanded > .tree {
-	width: 330px;
-}
-
-.monaco-editor .suggest-widget.small.docs-expanded > .tree {
-	width: 430px;
 }
 
 /** Styles for each row in the list element **/
@@ -123,14 +144,14 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .readMore,
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .type-label,
-.monaco-editor .suggest-widget.docs-expanded .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
-.monaco-editor .suggest-widget.docs-expanded .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
+.monaco-editor .suggest-widget.docs-side .monaco-list .monaco-list-row.focused > .contents > .main > .type-label,
+.monaco-editor .suggest-widget.docs-below .monaco-list .monaco-list-row.focused > .contents > .main > .readMore {
 	display: none;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .readMore,
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .type-label,
-.monaco-editor .suggest-widget.docs-expanded.small .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row.focused > .contents > .main > .type-label {
 	display: inline;
 }
 
@@ -187,16 +208,6 @@
 	display: flex;
 	flex-direction: column;
 	cursor: default;
-	/* .details does not use border-box, so subtract the border height here (2px). This is the case
-	because the height of .details is set prorammatically based on .header and .docs, we don't want
-	our JS to care about the size of the border (which changes based on theme type). */
-	width: 328px;
-	border-style: solid;
-	border-width: 1px;
-}
-
-.monaco-editor .suggest-widget.small > .details {
-	width: 430px;
 }
 
 .monaco-editor .suggest-widget .details.no-docs {
@@ -239,16 +250,6 @@
 .monaco-editor.vs-dark .suggest-widget .details > .monaco-scrollable-element > .body > .close,
 .monaco-editor.hc-black .suggest-widget .details > .monaco-scrollable-element > .body > .close {
 	background-image: url('./close-dark.svg');
-}
-
-.monaco-editor.hc-black .suggest-widget > .tree,
-.monaco-editor.hc-black .suggest-widget > .message {
-	border-width: 2px;
-}
-
-.monaco-editor.hc-black .suggest-widget > .details {
-	border-width: 2px;
-	width: 326px;
 }
 
 .monaco-editor.vs-dark .suggest-widget .monaco-list .monaco-list-row .icon,

@@ -565,7 +565,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 					this.adjustDocsPosition();
 					this._ariaAlert(this.details.getAriaLabel());
 				} else {
-					removeClass(this.element, 'docs-expanded');
+					removeClass(this.element, 'docs-side');
 				}
 			})
 			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
@@ -808,7 +808,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
 			this.storageService.store('expandSuggestionDocs', false, StorageScope.GLOBAL);
 			hide(this.details.element);
-			removeClass(this.element, 'docs-expanded');
+			removeClass(this.element, 'docs-side');
 			this.editor.layoutContentWidget(this);
 		} else {
 			this.storageService.store('expandSuggestionDocs', true, StorageScope.GLOBAL);
@@ -822,7 +822,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		show(this.details.element);
-		addClass(this.element, 'docs-expanded');
+		addClass(this.element, 'docs-side');
 
 		this.show();
 		this.editor.focus();
@@ -903,7 +903,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (this.messageElement.style.display !== 'none'
 			&& this.details.element.style.display === 'none'
 			&& this.listElement.style.display === 'none') {
-			addClass(this.element, 'small');
+
 			return;
 		}
 
@@ -929,7 +929,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		if (this.element.clientWidth < this.maxWidgetWidth && this.listElement.clientWidth !== this.minWidgetWidth) {
 			// Not enough space to show side by side, so show docs below the list
-			addClass(this.element, 'small');
+			addClass(this.element, 'docs-below');
+			removeClass(this.element, 'docs-side');
 			return;
 		}
 
