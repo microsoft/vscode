@@ -411,7 +411,7 @@ export class TextAreaHandler extends ViewPart {
 			ta.setFontSize(1);
 			// Chrome does not generate input events in empty textareas that end
 			// up having a line height smaller than 1 screen pixel.
-			ta.setLineHeight(Math.ceil(1 / this._pixelRatio));
+			ta.setLineHeight(Math.ceil(Math.max(this._pixelRatio, 1 / this._pixelRatio)));
 		}
 
 		ta.setTop(top);
