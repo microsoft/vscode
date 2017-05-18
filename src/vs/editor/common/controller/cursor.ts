@@ -33,11 +33,6 @@ class CursorOperationArgs<T> {
 	}
 }
 
-interface IExecContext {
-	selectionStartMarkers: string[];
-	positionMarkers: string[];
-}
-
 interface ICommandData {
 	operations: editorCommon.IIdentifiedSingleEditOperation[];
 	hadTrackedEditOperation: boolean;
@@ -343,17 +338,11 @@ export class Cursor extends Disposable implements ICursors {
 
 		this._columnSelectData = null;
 
-		if (opResult) {
-			const execCtx: IExecContext = {
-				selectionStartMarkers: [],
-				positionMarkers: []
-			};
-
-			this._innerExecuteCommands(execCtx, opResult.commands);
-
-			for (let i = 0; i < execCtx.selectionStartMarkers.length; i++) {
-				this._model._removeMarker(execCtx.selectionStartMarkers[i]);
-				this._model._removeMarker(execCtx.positionMarkers[i]);
+		if (opResult && !this._configuration.editor.readOnly) {
+			const result = CommandExecutor.executeCommands(this._model, this._cursors.getSelections(), opResult.commands);
+			if (result) {
+				// The commands were applied correctly
+				this._interpretCommandResult(result);
 			}
 		}
 
@@ -422,279 +411,6 @@ export class Cursor extends Disposable implements ICursors {
 
 		this._cursors.setSelections(cursorState);
 	}
-
-	private _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand): ICommandData {
-		// This method acts as a transaction, if the command fails
-		// everything it has done is ignored
-		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
-		let operationMinor = 0;
-
-		const addEditOperation = (selection: Range, text: string) => {
-			if (selection.isEmpty() && text === '') {
-				// This command wants to add a no-op => no thank you
-				return;
-			}
-			operations.push({
-				identifier: {
-					major: majorIdentifier,
-					minor: operationMinor++
-				},
-				range: selection,
-				text: text,
-				forceMoveMarkers: false,
-				isAutoWhitespaceEdit: command.insertsAutoWhitespace
-			});
-		};
-
-		let hadTrackedEditOperation = false;
-		const addTrackedEditOperation = (selection: Range, text: string) => {
-			hadTrackedEditOperation = true;
-			addEditOperation(selection, text);
-		};
-
-		const trackSelection = (selection: Selection, trackPreviousOnEmpty?: boolean) => {
-			let selectionMarkerStickToPreviousCharacter: boolean;
-			let positionMarkerStickToPreviousCharacter: boolean;
-
-			if (selection.isEmpty()) {
-				// Try to lock it with surrounding text
-				if (typeof trackPreviousOnEmpty === 'boolean') {
-					selectionMarkerStickToPreviousCharacter = trackPreviousOnEmpty;
-					positionMarkerStickToPreviousCharacter = trackPreviousOnEmpty;
-				} else {
-					const maxLineColumn = this._model.getLineMaxColumn(selection.startLineNumber);
-					if (selection.startColumn === maxLineColumn) {
-						selectionMarkerStickToPreviousCharacter = true;
-						positionMarkerStickToPreviousCharacter = true;
-					} else {
-						selectionMarkerStickToPreviousCharacter = false;
-						positionMarkerStickToPreviousCharacter = false;
-					}
-				}
-			} else {
-				if (selection.getDirection() === SelectionDirection.LTR) {
-					selectionMarkerStickToPreviousCharacter = false;
-					positionMarkerStickToPreviousCharacter = true;
-				} else {
-					selectionMarkerStickToPreviousCharacter = true;
-					positionMarkerStickToPreviousCharacter = false;
-				}
-			}
-
-			const l = ctx.selectionStartMarkers.length;
-			ctx.selectionStartMarkers[l] = this._model._addMarker(0, selection.selectionStartLineNumber, selection.selectionStartColumn, selectionMarkerStickToPreviousCharacter);
-			ctx.positionMarkers[l] = this._model._addMarker(0, selection.positionLineNumber, selection.positionColumn, positionMarkerStickToPreviousCharacter);
-			return l.toString();
-		};
-
-		const editOperationBuilder: editorCommon.IEditOperationBuilder = {
-			addEditOperation: addEditOperation,
-			addTrackedEditOperation: addTrackedEditOperation,
-			trackSelection: trackSelection
-		};
-
-		try {
-			command.getEditOperations(this._model, editOperationBuilder);
-		} catch (e) {
-			e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
-			onUnexpectedError(e);
-			return {
-				operations: [],
-				hadTrackedEditOperation: false
-			};
-		}
-
-		return {
-			operations: operations,
-			hadTrackedEditOperation: hadTrackedEditOperation
-		};
-	}
-
-	private _getEditOperations(ctx: IExecContext, commands: editorCommon.ICommand[]): ICommandsData {
-		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
-		let hadTrackedEditOperation: boolean = false;
-
-		for (let i = 0, len = commands.length; i < len; i++) {
-			if (commands[i]) {
-				const r = this._getEditOperationsFromCommand(ctx, i, commands[i]);
-				operations = operations.concat(r.operations);
-				hadTrackedEditOperation = hadTrackedEditOperation || r.hadTrackedEditOperation;
-			}
-		}
-		return {
-			operations: operations,
-			hadTrackedEditOperation: hadTrackedEditOperation
-		};
-	}
-
-	private _getLoserCursorMap(operations: editorCommon.IIdentifiedSingleEditOperation[]): { [index: string]: boolean; } {
-		// This is destructive on the array
-		operations = operations.slice(0);
-
-		// Sort operations with last one first
-		operations.sort((a: editorCommon.IIdentifiedSingleEditOperation, b: editorCommon.IIdentifiedSingleEditOperation): number => {
-			// Note the minus!
-			return -(Range.compareRangesUsingEnds(a.range, b.range));
-		});
-
-		// Operations can not overlap!
-		let loserCursorsMap: { [index: string]: boolean; } = {};
-
-		for (let i = 1; i < operations.length; i++) {
-			const previousOp = operations[i - 1];
-			const currentOp = operations[i];
-
-			if (previousOp.range.getStartPosition().isBefore(currentOp.range.getEndPosition())) {
-
-				let loserMajor: number;
-
-				if (previousOp.identifier.major > currentOp.identifier.major) {
-					// previousOp loses the battle
-					loserMajor = previousOp.identifier.major;
-				} else {
-					loserMajor = currentOp.identifier.major;
-				}
-
-				loserCursorsMap[loserMajor.toString()] = true;
-
-				for (let j = 0; j < operations.length; j++) {
-					if (operations[j].identifier.major === loserMajor) {
-						operations.splice(j, 1);
-						if (j < i) {
-							i--;
-						}
-						j--;
-					}
-				}
-
-				if (i > 0) {
-					i--;
-				}
-			}
-		}
-
-		return loserCursorsMap;
-	}
-
-	private _arrayIsEmpty(commands: editorCommon.ICommand[]): boolean {
-		for (let i = 0, len = commands.length; i < len; i++) {
-			if (commands[i]) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[]): void {
-
-		if (this._configuration.editor.readOnly) {
-			return;
-		}
-
-		if (this._arrayIsEmpty(commands)) {
-			return;
-		}
-
-		const selectionsBefore = this._cursors.getSelections();
-
-		const commandsData = this._getEditOperations(ctx, commands);
-		if (commandsData.operations.length === 0) {
-			return;
-		}
-
-		const rawOperations = commandsData.operations;
-
-		const editableRange = this._model.getEditableRange();
-		const editableRangeStart = editableRange.getStartPosition();
-		const editableRangeEnd = editableRange.getEndPosition();
-		for (let i = 0, len = rawOperations.length; i < len; i++) {
-			const operationRange = rawOperations[i].range;
-			if (!editableRangeStart.isBeforeOrEqual(operationRange.getStartPosition()) || !operationRange.getEndPosition().isBeforeOrEqual(editableRangeEnd)) {
-				// These commands are outside of the editable range
-				return;
-			}
-		}
-
-		const loserCursorsMap = this._getLoserCursorMap(rawOperations);
-		if (loserCursorsMap.hasOwnProperty('0')) {
-			// These commands are very messed up
-			console.warn('Ignoring commands');
-			return;
-		}
-
-		// Remove operations belonging to losing cursors
-		let filteredOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
-		for (let i = 0, len = rawOperations.length; i < len; i++) {
-			if (!loserCursorsMap.hasOwnProperty(rawOperations[i].identifier.major.toString())) {
-				filteredOperations.push(rawOperations[i]);
-			}
-		}
-
-		// TODO@Alex: find a better way to do this.
-		// give the hint that edit operations are tracked to the model
-		if (commandsData.hadTrackedEditOperation && filteredOperations.length > 0) {
-			filteredOperations[0]._isTracked = true;
-		}
-		const selectionsAfter = this._model.pushEditOperations(selectionsBefore, filteredOperations, (inverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[]): Selection[] => {
-			let groupedInverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[][] = [];
-			for (let i = 0; i < selectionsBefore.length; i++) {
-				groupedInverseEditOperations[i] = [];
-			}
-			for (let i = 0; i < inverseEditOperations.length; i++) {
-				const op = inverseEditOperations[i];
-				if (!op.identifier) {
-					// perhaps auto whitespace trim edits
-					continue;
-				}
-				groupedInverseEditOperations[op.identifier.major].push(op);
-			}
-			const minorBasedSorter = (a: editorCommon.IIdentifiedSingleEditOperation, b: editorCommon.IIdentifiedSingleEditOperation) => {
-				return a.identifier.minor - b.identifier.minor;
-			};
-			let cursorSelections: Selection[] = [];
-			for (let i = 0; i < selectionsBefore.length; i++) {
-				if (groupedInverseEditOperations[i].length > 0) {
-					groupedInverseEditOperations[i].sort(minorBasedSorter);
-					cursorSelections[i] = commands[i].computeCursorState(this._model, {
-						getInverseEditOperations: () => {
-							return groupedInverseEditOperations[i];
-						},
-
-						getTrackedSelection: (id: string) => {
-							const idx = parseInt(id, 10);
-							const selectionStartMarker = this._model._getMarker(ctx.selectionStartMarkers[idx]);
-							const positionMarker = this._model._getMarker(ctx.positionMarkers[idx]);
-							return new Selection(selectionStartMarker.lineNumber, selectionStartMarker.column, positionMarker.lineNumber, positionMarker.column);
-						}
-					});
-				} else {
-					cursorSelections[i] = selectionsBefore[i];
-				}
-			}
-			return cursorSelections;
-		});
-
-		// Extract losing cursors
-		let losingCursors: number[] = [];
-		for (let losingCursorIndex in loserCursorsMap) {
-			if (loserCursorsMap.hasOwnProperty(losingCursorIndex)) {
-				losingCursors.push(parseInt(losingCursorIndex, 10));
-			}
-		}
-
-		// Sort losing cursors descending
-		losingCursors.sort((a: number, b: number): number => {
-			return b - a;
-		});
-
-		// Remove losing cursors
-		for (let i = 0; i < losingCursors.length; i++) {
-			selectionsAfter.splice(losingCursors[i], 1);
-		}
-
-		this._interpretCommandResult(selectionsAfter);
-	}
-
 
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- emitting events
@@ -1025,5 +741,300 @@ export class Cursor extends Disposable implements ICursors {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: true
 		});
+	}
+}
+
+interface IExecContext {
+	readonly model: editorCommon.IModel;
+	readonly selectionsBefore: Selection[];
+	readonly selectionStartMarkers: string[];
+	readonly positionMarkers: string[];
+}
+
+class CommandExecutor {
+
+	public static executeCommands(model: editorCommon.IModel, selectionsBefore: Selection[], commands: editorCommon.ICommand[]): Selection[] {
+
+		const ctx: IExecContext = {
+			model: model,
+			selectionsBefore: selectionsBefore,
+			selectionStartMarkers: [],
+			positionMarkers: []
+		};
+
+		const result = this._innerExecuteCommands(ctx, commands);
+
+		for (let i = 0; i < ctx.selectionStartMarkers.length; i++) {
+			ctx.model._removeMarker(ctx.selectionStartMarkers[i]);
+			ctx.model._removeMarker(ctx.positionMarkers[i]);
+		}
+
+		return result;
+	}
+
+	private static _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[]): Selection[] {
+
+		if (this._arrayIsEmpty(commands)) {
+			return null;
+		}
+
+		const commandsData = this._getEditOperations(ctx, commands);
+		if (commandsData.operations.length === 0) {
+			return null;
+		}
+
+		const rawOperations = commandsData.operations;
+
+		const editableRange = ctx.model.getEditableRange();
+		const editableRangeStart = editableRange.getStartPosition();
+		const editableRangeEnd = editableRange.getEndPosition();
+		for (let i = 0, len = rawOperations.length; i < len; i++) {
+			const operationRange = rawOperations[i].range;
+			if (!editableRangeStart.isBeforeOrEqual(operationRange.getStartPosition()) || !operationRange.getEndPosition().isBeforeOrEqual(editableRangeEnd)) {
+				// These commands are outside of the editable range
+				return null;
+			}
+		}
+
+		const loserCursorsMap = this._getLoserCursorMap(rawOperations);
+		if (loserCursorsMap.hasOwnProperty('0')) {
+			// These commands are very messed up
+			console.warn('Ignoring commands');
+			return null;
+		}
+
+		// Remove operations belonging to losing cursors
+		let filteredOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		for (let i = 0, len = rawOperations.length; i < len; i++) {
+			if (!loserCursorsMap.hasOwnProperty(rawOperations[i].identifier.major.toString())) {
+				filteredOperations.push(rawOperations[i]);
+			}
+		}
+
+		// TODO@Alex: find a better way to do this.
+		// give the hint that edit operations are tracked to the model
+		if (commandsData.hadTrackedEditOperation && filteredOperations.length > 0) {
+			filteredOperations[0]._isTracked = true;
+		}
+		const selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, filteredOperations, (inverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[]): Selection[] => {
+			let groupedInverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[][] = [];
+			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
+				groupedInverseEditOperations[i] = [];
+			}
+			for (let i = 0; i < inverseEditOperations.length; i++) {
+				const op = inverseEditOperations[i];
+				if (!op.identifier) {
+					// perhaps auto whitespace trim edits
+					continue;
+				}
+				groupedInverseEditOperations[op.identifier.major].push(op);
+			}
+			const minorBasedSorter = (a: editorCommon.IIdentifiedSingleEditOperation, b: editorCommon.IIdentifiedSingleEditOperation) => {
+				return a.identifier.minor - b.identifier.minor;
+			};
+			let cursorSelections: Selection[] = [];
+			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
+				if (groupedInverseEditOperations[i].length > 0) {
+					groupedInverseEditOperations[i].sort(minorBasedSorter);
+					cursorSelections[i] = commands[i].computeCursorState(ctx.model, {
+						getInverseEditOperations: () => {
+							return groupedInverseEditOperations[i];
+						},
+
+						getTrackedSelection: (id: string) => {
+							const idx = parseInt(id, 10);
+							const selectionStartMarker = ctx.model._getMarker(ctx.selectionStartMarkers[idx]);
+							const positionMarker = ctx.model._getMarker(ctx.positionMarkers[idx]);
+							return new Selection(selectionStartMarker.lineNumber, selectionStartMarker.column, positionMarker.lineNumber, positionMarker.column);
+						}
+					});
+				} else {
+					cursorSelections[i] = ctx.selectionsBefore[i];
+				}
+			}
+			return cursorSelections;
+		});
+
+		// Extract losing cursors
+		let losingCursors: number[] = [];
+		for (let losingCursorIndex in loserCursorsMap) {
+			if (loserCursorsMap.hasOwnProperty(losingCursorIndex)) {
+				losingCursors.push(parseInt(losingCursorIndex, 10));
+			}
+		}
+
+		// Sort losing cursors descending
+		losingCursors.sort((a: number, b: number): number => {
+			return b - a;
+		});
+
+		// Remove losing cursors
+		for (let i = 0; i < losingCursors.length; i++) {
+			selectionsAfter.splice(losingCursors[i], 1);
+		}
+
+		return selectionsAfter;
+	}
+
+	private static _arrayIsEmpty(commands: editorCommon.ICommand[]): boolean {
+		for (let i = 0, len = commands.length; i < len; i++) {
+			if (commands[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static _getEditOperations(ctx: IExecContext, commands: editorCommon.ICommand[]): ICommandsData {
+		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let hadTrackedEditOperation: boolean = false;
+
+		for (let i = 0, len = commands.length; i < len; i++) {
+			if (commands[i]) {
+				const r = this._getEditOperationsFromCommand(ctx, i, commands[i]);
+				operations = operations.concat(r.operations);
+				hadTrackedEditOperation = hadTrackedEditOperation || r.hadTrackedEditOperation;
+			}
+		}
+		return {
+			operations: operations,
+			hadTrackedEditOperation: hadTrackedEditOperation
+		};
+	}
+
+	private static _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand): ICommandData {
+		// This method acts as a transaction, if the command fails
+		// everything it has done is ignored
+		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let operationMinor = 0;
+
+		const addEditOperation = (selection: Range, text: string) => {
+			if (selection.isEmpty() && text === '') {
+				// This command wants to add a no-op => no thank you
+				return;
+			}
+			operations.push({
+				identifier: {
+					major: majorIdentifier,
+					minor: operationMinor++
+				},
+				range: selection,
+				text: text,
+				forceMoveMarkers: false,
+				isAutoWhitespaceEdit: command.insertsAutoWhitespace
+			});
+		};
+
+		let hadTrackedEditOperation = false;
+		const addTrackedEditOperation = (selection: Range, text: string) => {
+			hadTrackedEditOperation = true;
+			addEditOperation(selection, text);
+		};
+
+		const trackSelection = (selection: Selection, trackPreviousOnEmpty?: boolean) => {
+			let selectionMarkerStickToPreviousCharacter: boolean;
+			let positionMarkerStickToPreviousCharacter: boolean;
+
+			if (selection.isEmpty()) {
+				// Try to lock it with surrounding text
+				if (typeof trackPreviousOnEmpty === 'boolean') {
+					selectionMarkerStickToPreviousCharacter = trackPreviousOnEmpty;
+					positionMarkerStickToPreviousCharacter = trackPreviousOnEmpty;
+				} else {
+					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
+					if (selection.startColumn === maxLineColumn) {
+						selectionMarkerStickToPreviousCharacter = true;
+						positionMarkerStickToPreviousCharacter = true;
+					} else {
+						selectionMarkerStickToPreviousCharacter = false;
+						positionMarkerStickToPreviousCharacter = false;
+					}
+				}
+			} else {
+				if (selection.getDirection() === SelectionDirection.LTR) {
+					selectionMarkerStickToPreviousCharacter = false;
+					positionMarkerStickToPreviousCharacter = true;
+				} else {
+					selectionMarkerStickToPreviousCharacter = true;
+					positionMarkerStickToPreviousCharacter = false;
+				}
+			}
+
+			const l = ctx.selectionStartMarkers.length;
+			ctx.selectionStartMarkers[l] = ctx.model._addMarker(0, selection.selectionStartLineNumber, selection.selectionStartColumn, selectionMarkerStickToPreviousCharacter);
+			ctx.positionMarkers[l] = ctx.model._addMarker(0, selection.positionLineNumber, selection.positionColumn, positionMarkerStickToPreviousCharacter);
+			return l.toString();
+		};
+
+		const editOperationBuilder: editorCommon.IEditOperationBuilder = {
+			addEditOperation: addEditOperation,
+			addTrackedEditOperation: addTrackedEditOperation,
+			trackSelection: trackSelection
+		};
+
+		try {
+			command.getEditOperations(ctx.model, editOperationBuilder);
+		} catch (e) {
+			e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
+			onUnexpectedError(e);
+			return {
+				operations: [],
+				hadTrackedEditOperation: false
+			};
+		}
+
+		return {
+			operations: operations,
+			hadTrackedEditOperation: hadTrackedEditOperation
+		};
+	}
+
+	private static _getLoserCursorMap(operations: editorCommon.IIdentifiedSingleEditOperation[]): { [index: string]: boolean; } {
+		// This is destructive on the array
+		operations = operations.slice(0);
+
+		// Sort operations with last one first
+		operations.sort((a: editorCommon.IIdentifiedSingleEditOperation, b: editorCommon.IIdentifiedSingleEditOperation): number => {
+			// Note the minus!
+			return -(Range.compareRangesUsingEnds(a.range, b.range));
+		});
+
+		// Operations can not overlap!
+		let loserCursorsMap: { [index: string]: boolean; } = {};
+
+		for (let i = 1; i < operations.length; i++) {
+			const previousOp = operations[i - 1];
+			const currentOp = operations[i];
+
+			if (previousOp.range.getStartPosition().isBefore(currentOp.range.getEndPosition())) {
+
+				let loserMajor: number;
+
+				if (previousOp.identifier.major > currentOp.identifier.major) {
+					// previousOp loses the battle
+					loserMajor = previousOp.identifier.major;
+				} else {
+					loserMajor = currentOp.identifier.major;
+				}
+
+				loserCursorsMap[loserMajor.toString()] = true;
+
+				for (let j = 0; j < operations.length; j++) {
+					if (operations[j].identifier.major === loserMajor) {
+						operations.splice(j, 1);
+						if (j < i) {
+							i--;
+						}
+						j--;
+					}
+				}
+
+				if (i > 0) {
+					i--;
+				}
+			}
+		}
+
+		return loserCursorsMap;
 	}
 }
