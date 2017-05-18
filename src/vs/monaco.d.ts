@@ -2294,6 +2294,7 @@ declare module monaco.editor {
 		getAction(id: string): IEditorAction;
 		/**
 		 * Execute a command on the editor.
+		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 		 * @param source The source of the call.
 		 * @param command The command to execute
 		 */
@@ -2304,6 +2305,7 @@ declare module monaco.editor {
 		pushUndoStop(): boolean;
 		/**
 		 * Execute edits on the editor.
+		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 		 * @param source The source of the call.
 		 * @param edits The edits to execute.
 		 * @param endCursoState Cursor state after the edits were applied.

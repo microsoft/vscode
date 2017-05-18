@@ -39,7 +39,9 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 			commands.push(new CopyLinesCommand(selections[i], this.down));
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }
 
@@ -97,7 +99,9 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 			commands.push(new MoveLinesCommand(selections[i], this.down));
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }
 
@@ -151,7 +155,9 @@ abstract class AbstractSortLinesAction extends EditorAction {
 
 		var command = new SortLinesCommand(editor.getSelection(), this.descending);
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
+		editor.pushUndoStop();
 	}
 }
 
@@ -201,7 +207,9 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 
 		var command = new TrimTrailingWhitespaceCommand(editor.getSelection());
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
+		editor.pushUndoStop();
 	}
 }
 
@@ -280,7 +288,9 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
 		});
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }
 
@@ -694,7 +704,9 @@ export class TransposeAction extends EditorAction {
 			}
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 }
 
@@ -725,7 +737,9 @@ export abstract class AbstractCaseAction extends EditorAction {
 			}
 		}
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 
 	protected abstract _modifyText(text: string): string;

@@ -698,16 +698,8 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		return this.cursor;
 	}
 
-	public executeCommand(source: string, command: editorCommon.ICommand): void {
-		if (!this.cursor) {
-			return;
-		}
-		this.cursor.trigger(source, editorCommon.Handler.ExecuteCommand, command);
-	}
-
 	public pushUndoStop(): boolean {
-		if (!this.cursor) {
-			// no view, no cursor
+		if (!this.model) {
 			return false;
 		}
 		if (this._configuration.editor.readOnly) {
@@ -737,6 +729,13 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 
 		return true;
+	}
+
+	public executeCommand(source: string, command: editorCommon.ICommand): void {
+		if (!this.cursor) {
+			return;
+		}
+		this.cursor.trigger(source, editorCommon.Handler.ExecuteCommand, command);
 	}
 
 	public executeCommands(source: string, commands: editorCommon.ICommand[]): void {

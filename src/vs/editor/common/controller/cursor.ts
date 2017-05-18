@@ -59,10 +59,9 @@ export class Cursor extends Disposable implements ICursors {
 	private readonly _configuration: editorCommon.IConfiguration;
 	private readonly _model: editorCommon.IModel;
 	private readonly _viewModelHelper: IViewModelHelper;
-
 	public context: CursorContext;
-
 	private _cursors: CursorCollection;
+
 	private _isHandling: boolean;
 	private _isDoingComposition: boolean;
 	private _columnSelectData: IColumnSelectData;
@@ -77,30 +76,15 @@ export class Cursor extends Disposable implements ICursors {
 		this._configuration = configuration;
 		this._model = model;
 		this._viewModelHelper = viewModelHelper;
-
-		const createCursorContext = () => {
-			const config = new CursorConfiguration(
-				this._model.getLanguageIdentifier(),
-				this._model.getOneIndent(),
-				this._model.getOptions(),
-				this._configuration
-			);
-			this.context = new CursorContext(
-				this._model,
-				this._viewModelHelper,
-				config
-			);
-			if (this._cursors) {
-				this._cursors.updateContext(this.context);
-			}
-		};
-		createCursorContext();
-
+		this.context = new CursorContext(this._configuration, this._model, this._viewModelHelper);
 		this._cursors = new CursorCollection(this.context);
 
 		this._isHandling = false;
 		this._isDoingComposition = false;
 		this._columnSelectData = null;
+
+		this._handlers = {};
+		this._registerHandlers();
 
 		this._register(this._model.addBulkListener((events) => {
 			if (this._isHandling) {
@@ -115,14 +99,8 @@ export class Cursor extends Disposable implements ICursors {
 
 				if (eventType === TextModelEventType.ModelRawContentChanged2) {
 					hadContentChange = true;
-					const changeEvent = <ModelRawContentChangedEvent>event.data;
-
-					for (let j = 0, lenJ = changeEvent.changes.length; j < lenJ; j++) {
-						const change = changeEvent.changes[j];
-						if (change.changeType === RawContentChangedType.Flush) {
-							hadFlushEvent = true;
-						}
-					}
+					const rawChangeEvent = <ModelRawContentChangedEvent>event.data;
+					hadFlushEvent = hadFlushEvent || rawChangeEvent.containsEvent(RawContentChangedType.Flush);
 				}
 			}
 
@@ -133,29 +111,29 @@ export class Cursor extends Disposable implements ICursors {
 			this._onModelContentChanged(hadFlushEvent);
 		}));
 
+		const updateCursorContext = () => {
+			this.context = new CursorContext(this._configuration, this._model, this._viewModelHelper);
+			this._cursors.updateContext(this.context);
+		};
 		this._register(this._model.onDidChangeLanguage((e) => {
-			createCursorContext();
+			updateCursorContext();
 		}));
 		this._register(LanguageConfigurationRegistry.onDidChange(() => {
 			// TODO@Alex: react only if certain supports changed? (and if my model's mode changed)
-			createCursorContext();
+			updateCursorContext();
 		}));
 		this._register(model.onDidChangeOptions(() => {
-			createCursorContext();
+			updateCursorContext();
 		}));
 		this._register(this._configuration.onDidChange((e) => {
 			if (CursorConfiguration.shouldRecreate(e)) {
-				createCursorContext();
+				updateCursorContext();
 			}
 		}));
-
-		this._handlers = {};
-		this._registerHandlers();
 	}
 
 	public dispose(): void {
 		this._cursors.dispose();
-		this._cursors = null;
 		super.dispose();
 	}
 
@@ -203,8 +181,8 @@ export class Cursor extends Disposable implements ICursors {
 		}
 
 		if (somethingChanged) {
-			this.emitCursorPositionChanged(source, reason);
-			this.emitCursorSelectionChanged(source, reason);
+			this._emitCursorPositionChanged(source, reason);
+			this._emitCursorSelectionChanged(source, reason);
 		}
 	}
 
@@ -295,16 +273,13 @@ export class Cursor extends Disposable implements ICursors {
 		if (hadFlushEvent) {
 			// a model.setValue() was called
 			this._cursors.dispose();
-
 			this._cursors = new CursorCollection(this.context);
 
-			this.emitCursorPositionChanged('model', CursorChangeReason.ContentFlush);
-			this.emitCursorSelectionChanged('model', CursorChangeReason.ContentFlush);
+			this._emitCursorPositionChanged('model', CursorChangeReason.ContentFlush);
+			this._emitCursorSelectionChanged('model', CursorChangeReason.ContentFlush);
 		} else {
-			if (!this._isHandling) {
-				const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
-				this.setStates('modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
-			}
+			const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
+			this.setStates('modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
 		}
 	}
 
@@ -392,9 +367,9 @@ export class Cursor extends Disposable implements ICursors {
 			}
 
 			if (somethingChanged) {
-				this.emitCursorPositionChanged(args.eventSource, cursorPositionChangeReason);
+				this._emitCursorPositionChanged(args.eventSource, cursorPositionChangeReason);
 				this._revealRange(RevealTarget.Primary, VerticalRevealType.Simple, true);
-				this.emitCursorSelectionChanged(args.eventSource, cursorPositionChangeReason);
+				this._emitCursorSelectionChanged(args.eventSource, cursorPositionChangeReason);
 			}
 
 		} catch (err) {
@@ -415,7 +390,7 @@ export class Cursor extends Disposable implements ICursors {
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- emitting events
 
-	private emitCursorPositionChanged(source: string, reason: CursorChangeReason): void {
+	private _emitCursorPositionChanged(source: string, reason: CursorChangeReason): void {
 		const positions = this._cursors.getPositions();
 		const primaryPosition = positions[0];
 		const secondaryPositions = positions.slice(1);
@@ -443,7 +418,7 @@ export class Cursor extends Disposable implements ICursors {
 		this._eventEmitter.emit(CursorEventType.CursorPositionChanged, e);
 	}
 
-	private emitCursorSelectionChanged(source: string, reason: CursorChangeReason): void {
+	private _emitCursorSelectionChanged(source: string, reason: CursorChangeReason): void {
 		const selections = this._cursors.getSelections();
 		const primarySelection = selections[0];
 		const secondarySelections = selections.slice(1);
@@ -729,8 +704,8 @@ export class Cursor extends Disposable implements ICursors {
 		this._cursors.killSecondaryCursors();
 
 		return new EditOperationResult([command], {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
+			shouldPushStackElementBefore: false,
+			shouldPushStackElementAfter: false
 		});
 	}
 
@@ -738,8 +713,8 @@ export class Cursor extends Disposable implements ICursors {
 		const commands = args.eventData;
 
 		return new EditOperationResult(commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
+			shouldPushStackElementBefore: false,
+			shouldPushStackElementAfter: false
 		});
 	}
 }

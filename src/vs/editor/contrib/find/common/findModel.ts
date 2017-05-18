@@ -468,7 +468,9 @@ export class FindModelBoundToEditorModel {
 	private _executeEditorCommand(source: string, command: editorCommon.ICommand): void {
 		try {
 			this._ignoreModelContentChanged = true;
+			this._editor.pushUndoStop();
 			this._editor.executeCommand(source, command);
+			this._editor.pushUndoStop();
 		} finally {
 			this._ignoreModelContentChanged = false;
 		}

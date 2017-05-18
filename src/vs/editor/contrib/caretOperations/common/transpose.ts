@@ -63,7 +63,9 @@ class TransposeLettersAction extends EditorAction {
 		}
 
 		if (commands.length > 0) {
+			editor.pushUndoStop();
 			editor.executeCommands(this.id, commands);
+			editor.pushUndoStop();
 		}
 	}
 }

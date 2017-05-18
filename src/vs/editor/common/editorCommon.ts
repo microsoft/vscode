@@ -1886,6 +1886,7 @@ export interface ICommonCodeEditor extends IEditor {
 
 	/**
 	 * Execute a command on the editor.
+	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 	 * @param source The source of the call.
 	 * @param command The command to execute
 	 */
@@ -1898,6 +1899,7 @@ export interface ICommonCodeEditor extends IEditor {
 
 	/**
 	 * Execute edits on the editor.
+	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 	 * @param source The source of the call.
 	 * @param edits The edits to execute.
 	 * @param endCursoState Cursor state after the edits were applied.

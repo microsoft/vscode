@@ -164,7 +164,11 @@ export class IndentationToSpacesAction extends EditorAction {
 		}
 		let modelOpts = model.getOptions();
 		const command = new IndentationToSpacesCommand(editor.getSelection(), modelOpts.tabSize);
+
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
+		editor.pushUndoStop();
+
 		model.updateOptions({
 			insertSpaces: true
 		});
@@ -191,7 +195,11 @@ export class IndentationToTabsAction extends EditorAction {
 		}
 		let modelOpts = model.getOptions();
 		const command = new IndentationToTabsCommand(editor.getSelection(), modelOpts.tabSize);
+
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
+		editor.pushUndoStop();
+
 		model.updateOptions({
 			insertSpaces: false
 		});

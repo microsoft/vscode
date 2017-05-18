@@ -243,4 +243,14 @@ export class ModelRawContentChangedEvent {
 		this.isUndoing = isUndoing;
 		this.isRedoing = isRedoing;
 	}
+
+	public containsEvent(type: RawContentChangedType): boolean {
+		for (let i = 0, len = this.changes.length; i < len; i++) {
+			const change = this.changes[i];
+			if (change.changeType === type) {
+				return true;
+			}
+		}
+		return false;
+	}
 }

@@ -284,10 +284,15 @@ export class CursorContext {
 	private readonly _viewModelHelper: IViewModelHelper;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
 
-	constructor(model: IModel, viewModelHelper: IViewModelHelper, config: CursorConfiguration) {
+	constructor(configuration: IConfiguration, model: IModel, viewModelHelper: IViewModelHelper) {
 		this.model = model;
 		this.viewModel = viewModelHelper.viewModel;
-		this.config = config;
+		this.config = new CursorConfiguration(
+			this.model.getLanguageIdentifier(),
+			this.model.getOneIndent(),
+			this.model.getOptions(),
+			configuration
+		);;
 		this._viewModelHelper = viewModelHelper;
 		this._coordinatesConverter = viewModelHelper.coordinatesConverter;
 	}
