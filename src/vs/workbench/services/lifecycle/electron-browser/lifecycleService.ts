@@ -7,26 +7,46 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { ILifecycleService, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import { ipcRenderer as ipc } from 'electron';
 import Event, { Emitter } from 'vs/base/common/event';
 
 export class LifecycleService implements ILifecycleService {
 
+	private static readonly _lastShutdownReasonKey = 'lifecyle.lastShutdownReason';
+
 	public _serviceBrand: any;
 
-	private _onWillShutdown = new Emitter<ShutdownEvent>();
-	private _onShutdown = new Emitter<ShutdownReason>();
+	private readonly _onWillShutdown = new Emitter<ShutdownEvent>();
+	private readonly _onShutdown = new Emitter<ShutdownReason>();
+	private readonly _startupKind: StartupKind;
 
 	private _willShutdown: boolean;
 
 	constructor(
-		@IMessageService private messageService: IMessageService,
-		@IWindowIPCService private windowService: IWindowIPCService
+		@IMessageService private _messageService: IMessageService,
+		@IWindowIPCService private _windowService: IWindowIPCService,
+		@IStorageService private _storageService: IStorageService
 	) {
-		this.registerListeners();
+		this._registerListeners();
+
+		const lastShutdownReason = this._storageService.getInteger(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
+		this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
+		if (lastShutdownReason === ShutdownReason.RELOAD) {
+			this._startupKind = StartupKind.ReloadedWindow;
+		} else if (lastShutdownReason === ShutdownReason.LOAD) {
+			this._startupKind = StartupKind.ReopenedWindow;
+		} else {
+			this._startupKind = StartupKind.NewWindow;
+		}
+		console.log(this.startupKind);
+	}
+
+	public get startupKind(): StartupKind {
+		return this._startupKind;
 	}
 
 	public get willShutdown(): boolean {
@@ -41,16 +61,18 @@ export class LifecycleService implements ILifecycleService {
 		return this._onShutdown.event;
 	}
 
-	private registerListeners(): void {
-		const windowId = this.windowService.getWindowId();
+	private _registerListeners(): void {
+		const windowId = this._windowService.getWindowId();
 
 		// Main side indicates that window is about to unload, check for vetos
 		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
 			this._willShutdown = true;
+			this._storageService.store(LifecycleService._lastShutdownReasonKey, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
 
 			// trigger onWillShutdown events and veto collecting
 			this.onBeforeUnload(reply.reason).done(veto => {
 				if (veto) {
+					this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
 					this._willShutdown = false; // reset this flag since the shutdown has been vetoed!
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
@@ -92,7 +114,7 @@ export class LifecycleService implements ILifecycleService {
 					}
 				}, err => {
 					// error, treated like a veto, done
-					this.messageService.show(Severity.Error, toErrorMessage(err));
+					this._messageService.show(Severity.Error, toErrorMessage(err));
 					lazyValue = true;
 				}));
 			}

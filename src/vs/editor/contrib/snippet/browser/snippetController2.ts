@@ -57,21 +57,24 @@ export class SnippetController2 {
 		overwriteBefore: number = 0, overwriteAfter: number = 0,
 		undoStopBefore: boolean = true, undoStopAfter: boolean = true
 	): void {
-		if (this._snippet) {
-			this.cancel();
-		}
-		this._snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
 		if (undoStopBefore) {
 			this._editor.getModel().pushStackElement();
 		}
-		this._snippet.insert();
+		if (!this._snippet) {
+			// insert with new session
+			this._snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
+			this._snippet.insert();
+			this._snippetListener = [
+				this._editor.onDidChangeModel(() => this.cancel()),
+				this._editor.onDidChangeCursorSelection(() => this._updateState())
+			];
+		} else {
+			// insert nested
+			this._snippet.insertNested(template, overwriteBefore, overwriteAfter);
+		}
 		if (undoStopAfter) {
 			this._editor.getModel().pushStackElement();
 		}
-		this._snippetListener = [
-			this._editor.onDidChangeModel(() => this.cancel()),
-			this._editor.onDidChangeCursorSelection(() => this._updateState())
-		];
 		this._updateState();
 	}
 

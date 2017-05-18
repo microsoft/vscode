@@ -420,10 +420,10 @@ export interface IEditorOptions {
 	 */
 	folding?: boolean;
 	/**
-	 * Enable automatic hiding of non-collapsed fold icons in the gutter.
-	 * Defaults to true.
+	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
+	 * Defaults to 'mouseover'.
 	 */
-	hideFoldIcons?: boolean;
+	showFoldingControls?: 'always' | 'mouseover';
 	/**
 	 * Enable highlighting of matching brackets.
 	 * Defaults to true.
@@ -736,7 +736,7 @@ export interface EditorContribOptions {
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
-	readonly hideFoldIcons: boolean;
+	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
 }
 
@@ -1045,7 +1045,7 @@ export class InternalEditorOptions {
 			&& a.occurrencesHighlight === b.occurrencesHighlight
 			&& a.codeLens === b.codeLens
 			&& a.folding === b.folding
-			&& a.hideFoldIcons === b.hideFoldIcons
+			&& a.showFoldingControls === b.showFoldingControls
 			&& a.matchBrackets === b.matchBrackets
 		);
 	}
@@ -1542,7 +1542,7 @@ export class EditorOptionsValidator {
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens) && _boolean(opts.referenceInfos, true),
 			folding: _boolean(opts.folding, defaults.folding),
-			hideFoldIcons: _boolean(opts.hideFoldIcons, defaults.hideFoldIcons),
+			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 		};
 	}
@@ -1949,7 +1949,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		occurrencesHighlight: true,
 		codeLens: true,
 		folding: true,
-		hideFoldIcons: true,
+		showFoldingControls: 'mouseover',
 		matchBrackets: true,
 	},
 };
