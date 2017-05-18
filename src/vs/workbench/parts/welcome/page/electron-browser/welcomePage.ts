@@ -27,8 +27,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
-import { getInstalledKeymaps, IKeymapExtension, onKeymapExtensionChanged } from 'vs/workbench/parts/extensions/electron-browser/keymapExtensions';
-import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
+import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -101,6 +101,57 @@ const reorderedQuickLinks = [
 	'showInteractivePlayground',
 ];
 
+interface ExtensionSuggestion {
+	name: string;
+	id: string;
+	isKeymap?: boolean;
+}
+
+const extensionPacks: ExtensionSuggestion[] = [
+	{ name: localize('welcomePage.javaScript', "JavaScript"), id: 'dbaeumer.vscode-eslint' },
+	{ name: localize('welcomePage.typeScript', "TypeScript"), id: 'eg2.tslint' },
+	{ name: localize('welcomePage.python', "Python"), id: 'donjayamanne.python' },
+	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
+	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
+	{ name: localize('welcomePage.docker', "Docker"), id: 'PeterJausovec.vscode-docker' },
+];
+
+const keymapExtensions: ExtensionSuggestion[] = [
+	{ name: localize('welcomePage.vim', "Vim"), id: 'vscodevim.vim', isKeymap: true },
+	{ name: localize('welcomePage.sublime', "Sublime"), id: 'ms-vscode.sublime-keybindings', isKeymap: true },
+	{ name: localize('welcomePage.atom', "Atom"), id: 'ms-vscode.atom-keybindings', isKeymap: true },
+];
+
+interface Strings {
+	installEvent: string;
+	installedEvent: string;
+
+	alreadyInstalled: string;
+	reloadAfterInstall: string;
+	installing: string;
+	extensionNotFound: string;
+}
+
+const extensionPackStrings: Strings = {
+	installEvent: 'installExtension',
+	installedEvent: 'installedExtension',
+
+	alreadyInstalled: localize('welcomePage.extensionPackAlreadyInstalled', "Support for {0} is already installed."),
+	reloadAfterInstall: localize('welcomePage.willReloadAfterInstallingExtensionPack', "The window will reload after installing support for {0}."),
+	installing: localize('welcomePage.installingExtensionPack', "Installing support for {0}..."),
+	extensionNotFound: localize('welcomePage.extensionPackNotFound', "Support for {0} with id {1} could not be found."),
+};
+
+const keymapStrings: Strings = {
+	installEvent: 'installKeymap',
+	installedEvent: 'installedKeymap',
+
+	alreadyInstalled: localize('welcomePage.keymapAlreadyInstalled', "The {0} keyboard shortcuts are already installed."),
+	reloadAfterInstall: localize('welcomePage.willReloadAfterInstallingKeymap', "The window will reload after installing the {0} keyboard shortcuts."),
+	installing: localize('welcomePage.installingKeymap', "Installing the {0} keyboard shortcuts..."),
+	extensionNotFound: localize('welcomePage.keymapNotFound', "The {0} keyboard shortcuts with id {1} could not be found."),
+};
+
 class WelcomePage {
 
 	private disposables: IDisposable[] = [];
@@ -118,6 +169,7 @@ class WelcomePage {
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IThemeService private themeService: IThemeService,
 		@ITelemetryService private telemetryService: ITelemetryService
@@ -128,18 +180,18 @@ class WelcomePage {
 
 	private create() {
 		const recentlyOpened = this.windowService.getRecentlyOpen();
-		const installedKeymaps = this.instantiationService.invokeFunction(getInstalledKeymaps);
+		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
 		const uri = URI.parse(require.toUrl('./vs_code_welcome_page'))
 			.with({
 				scheme: Schemas.walkThrough,
 				query: JSON.stringify({ moduleId: 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page' })
 			});
-		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, telemetryFrom, container => this.onReady(container, recentlyOpened, installedKeymaps));
+		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, telemetryFrom, container => this.onReady(container, recentlyOpened, installedExtensions));
 		this.editorService.openEditor(input, { pinned: true }, Position.ONE)
 			.then(null, onUnexpectedError);
 	}
 
-	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; folders: string[]; }>, installedKeymaps: TPromise<IKeymapExtension[]>): void {
+	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; folders: string[]; }>, installedExtensions: TPromise<IExtensionStatus[]>): void {
 		const enabled = this.configurationService.lookup<boolean>(enabledKey).value;
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
@@ -214,30 +266,48 @@ class WelcomePage {
 			quickLinks.remove();
 		}
 
-		container.addEventListener('click', event => {
-			for (let node = event.target as HTMLElement; node; node = node.parentNode as HTMLElement) {
-				if (node instanceof HTMLAnchorElement && node.classList.contains('installKeymap')) {
-					const keymapName = node.getAttribute('data-keymap-name');
-					const keymapIdentifier = node.getAttribute('data-keymap');
-					if (keymapName && keymapIdentifier) {
-						this.installKeymap(keymapName, keymapIdentifier);
-						event.preventDefault();
-						event.stopPropagation();
-					}
-				}
-			}
-		});
+		this.addExtensionList(container, '.extensionPackList', extensionPacks, extensionPackStrings);
+		this.addExtensionList(container, '.keymapList', keymapExtensions, keymapStrings);
 
-		this.updateInstalledKeymaps(container, installedKeymaps);
-		this.disposables.push(this.instantiationService.invokeFunction(onKeymapExtensionChanged)(ids => {
+		this.updateInstalledExtensions(container, installedExtensions);
+		this.disposables.push(this.instantiationService.invokeFunction(onExtensionChanged)(ids => {
 			for (const id of ids) {
-				if (container.querySelector(`.installKeymap[data-keymap="${id}"], .currentKeymap[data-keymap="${id}"]`)) {
-					const installedKeymaps = this.instantiationService.invokeFunction(getInstalledKeymaps);
-					this.updateInstalledKeymaps(container, installedKeymaps);
+				if (container.querySelector(`.installExtension[data-extension="${id}"], .enabledExtension[data-extension="${id}"]`)) {
+					const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
+					this.updateInstalledExtensions(container, installedExtensions);
 					break;
 				}
 			};
 		}));
+	}
+
+	private addExtensionList(container: HTMLElement, listSelector: string, suggestions: ExtensionSuggestion[], strings: Strings) {
+		const list = container.querySelector(listSelector);
+		if (list) {
+			suggestions.forEach((extension, i) => {
+				if (i) {
+					list.appendChild(document.createTextNode(localize('welcomePage.extensionListSeparator', ", ")));
+				}
+
+				const a = document.createElement('a');
+				a.innerText = extension.name;
+				a.classList.add('installExtension');
+				a.setAttribute('data-extension', extension.id);
+				a.href = 'javascript:void(0)';
+				a.addEventListener('click', e => {
+					this.installExtension(extension, strings);
+					e.preventDefault();
+					e.stopPropagation();
+				});
+				list.appendChild(a);
+
+				const span = document.createElement('span');
+				span.innerText = localize('welcomePage.installedExtension', "{0} (installed)", extension.name);
+				span.classList.add('enabledExtension');
+				span.setAttribute('data-extension', extension.id);
+				list.appendChild(span);
+			});
+		}
 	}
 
 	private pathEquals(path1: string, path2: string): boolean {
@@ -249,23 +319,23 @@ class WelcomePage {
 		return path1 === path2;
 	}
 
-	private installKeymap(keymapName: string, keymapIdentifier: string): void {
-		this.telemetryService.publicLog('installKeymap', {
+	private installExtension(extensionSuggestion: ExtensionSuggestion, strings: Strings): void {
+		this.telemetryService.publicLog(strings.installEvent, {
 			from: telemetryFrom,
-			extensionId: keymapIdentifier,
+			extensionId: extensionSuggestion.id,
 		});
-		this.instantiationService.invokeFunction(getInstalledKeymaps).then(extensions => {
-			const keymap = arrays.first(extensions, extension => extension.identifier === keymapIdentifier);
-			if (keymap && keymap.globallyEnabled) {
-				this.telemetryService.publicLog('installedKeymap', {
+		this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
+			const installedExtension = arrays.first(extensions, extension => extension.identifier === extensionSuggestion.id);
+			if (installedExtension && installedExtension.globallyEnabled) {
+				this.telemetryService.publicLog(strings.installedEvent, {
 					from: telemetryFrom,
-					extensionId: keymapIdentifier,
+					extensionId: extensionSuggestion.id,
 					outcome: 'already_enabled',
 				});
-				this.messageService.show(Severity.Info, localize('welcomePage.keymapAlreadyInstalled', "The {0} keyboard shortcuts are already installed.", keymapName));
+				this.messageService.show(Severity.Info, strings.alreadyInstalled.replace('{0}', extensionSuggestion.name));
 				return;
 			}
-			const foundAndInstalled = keymap ? TPromise.as(true) : this.extensionGalleryService.query({ names: [keymapIdentifier] })
+			const foundAndInstalled = installedExtension ? TPromise.as(true) : this.extensionGalleryService.query({ names: [extensionSuggestion.id] })
 				.then(result => {
 					const [extension] = result.firstPage;
 					if (!extension) {
@@ -274,52 +344,52 @@ class WelcomePage {
 					return this.extensionManagementService.installFromGallery(extension)
 						.then(() => {
 							// TODO: Do this as part of the install to avoid multiple events.
-							return this.extensionEnablementService.setEnablement(keymapIdentifier, false);
+							return this.extensionEnablementService.setEnablement(extensionSuggestion.id, false);
 						}).then(() => {
 							return true;
 						});
 				});
 			this.messageService.show(Severity.Info, {
-				message: localize('welcomePage.willReloadAfterInstallingKeymap', "The window will reload after installing the {0} keyboard shortcuts.", keymapName),
+				message: strings.reloadAfterInstall.replace('{0}', extensionSuggestion.name),
 				actions: [
 					new Action('ok', localize('ok', "OK"), null, true, () => {
 						const messageDelay = TPromise.timeout(300);
 						messageDelay.then(() => {
 							this.messageService.show(Severity.Info, {
-								message: localize('welcomePage.installingKeymap', "Installing the {0} keyboard shortcuts...", keymapName),
+								message: strings.installing.replace('{0}', extensionSuggestion.name),
 								actions: [CloseAction]
 							});
 						});
-						TPromise.join(extensions.filter(extension => extension.globallyEnabled)
+						TPromise.join(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
 							.map(extension => {
 								return this.extensionEnablementService.setEnablement(extension.identifier, false);
-							})).then(() => {
+							}) : []).then(() => {
 								return foundAndInstalled.then(found => {
 									messageDelay.cancel();
 									if (found) {
-										return this.extensionEnablementService.setEnablement(keymapIdentifier, true)
+										return this.extensionEnablementService.setEnablement(extensionSuggestion.id, true)
 											.then(() => {
-												this.telemetryService.publicLog('installedKeymap', {
+												this.telemetryService.publicLog(strings.installedEvent, {
 													from: telemetryFrom,
-													extensionId: keymapIdentifier,
-													outcome: keymap ? 'enabled' : 'installed',
+													extensionId: extensionSuggestion.id,
+													outcome: installedExtension ? 'enabled' : 'installed',
 												});
 												return this.windowService.reloadWindow();
 											});
 									} else {
-										this.telemetryService.publicLog('installedKeymap', {
+										this.telemetryService.publicLog(strings.installedEvent, {
 											from: telemetryFrom,
-											extensionId: keymapIdentifier,
+											extensionId: extensionSuggestion.id,
 											outcome: 'not_found',
 										});
-										this.messageService.show(Severity.Error, localize('welcomePage.keymapNotFound', "The {0} keyboard shortcuts with id {1} could not be found.", keymapName, keymapIdentifier));
+										this.messageService.show(Severity.Error, strings.extensionNotFound.replace('{0}', extensionSuggestion.name).replace('{1}', extensionSuggestion.id));
 										return undefined;
 									}
 								});
 							}).then(null, err => {
-								this.telemetryService.publicLog('installedKeymap', {
+								this.telemetryService.publicLog(strings.installedEvent, {
 									from: telemetryFrom,
-									extensionId: keymapIdentifier,
+									extensionId: extensionSuggestion.id,
 									outcome: isPromiseCanceledError(err) ? 'canceled' : 'error',
 									error: String(err),
 								});
@@ -328,9 +398,9 @@ class WelcomePage {
 						return TPromise.as(true);
 					}),
 					new Action('cancel', localize('cancel', "Cancel"), null, true, () => {
-						this.telemetryService.publicLog('installedKeymap', {
+						this.telemetryService.publicLog(strings.installedEvent, {
 							from: telemetryFrom,
-							extensionId: keymapIdentifier,
+							extensionId: extensionSuggestion.id,
 							outcome: 'user_canceled',
 						});
 						return TPromise.as(true);
@@ -338,9 +408,9 @@ class WelcomePage {
 				]
 			});
 		}).then<void>(null, err => {
-			this.telemetryService.publicLog('installedKeymap', {
+			this.telemetryService.publicLog(strings.installedEvent, {
 				from: telemetryFrom,
-				extensionId: keymapIdentifier,
+				extensionId: extensionSuggestion.id,
 				outcome: isPromiseCanceledError(err) ? 'canceled' : 'error',
 				error: String(err),
 			});
@@ -348,22 +418,22 @@ class WelcomePage {
 		});
 	}
 
-	private updateInstalledKeymaps(container: HTMLElement, installedKeymaps: TPromise<IKeymapExtension[]>) {
-		installedKeymaps.then(extensions => {
-			const elements = container.querySelectorAll('.installKeymap, .currentKeymap');
+	private updateInstalledExtensions(container: HTMLElement, installedExtensions: TPromise<IExtensionStatus[]>) {
+		installedExtensions.then(extensions => {
+			const elements = container.querySelectorAll('.installExtension, .enabledExtension');
 			for (let i = 0; i < elements.length; i++) {
 				elements[i].classList.remove('installed');
 			}
 			extensions.filter(ext => ext.globallyEnabled)
 				.map(ext => ext.identifier)
 				.forEach(id => {
-					const install = container.querySelector(`.installKeymap[data-keymap="${id}"]`);
-					if (install) {
-						install.classList.add('installed');
+					const install = container.querySelectorAll(`.installExtension[data-extension="${id}"]`);
+					for (let i = 0; i < install.length; i++) {
+						install[i].classList.add('installed');
 					}
-					const current = container.querySelector(`.currentKeymap[data-keymap="${id}"]`);
-					if (current) {
-						current.classList.add('installed');
+					const enabled = container.querySelectorAll(`.enabledExtension[data-extension="${id}"]`);
+					for (let i = 0; i < enabled.length; i++) {
+						enabled[i].classList.add('installed');
 					}
 				});
 		}).then(null, onUnexpectedError);

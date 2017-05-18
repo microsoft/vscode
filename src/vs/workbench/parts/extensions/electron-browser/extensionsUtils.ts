@@ -19,7 +19,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export interface IKeymapExtension {
+export interface IExtensionStatus {
 	identifier: string;
 	local: ILocalExtension;
 	globallyEnabled: boolean;
@@ -32,13 +32,14 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
+		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IChoiceService private choiceService: IChoiceService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
 		this.disposables.push(
 			lifecycleService.onShutdown(() => this.dispose()),
-			instantiationService.invokeFunction(onKeymapExtensionChanged)((ids => {
+			instantiationService.invokeFunction(onExtensionChanged)((ids => {
 				TPromise.join(ids.map(id => this.checkForOtherKeymaps(id)))
 					.then(null, onUnexpectedError);
 			}))
@@ -50,10 +51,11 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	}
 
 	private checkForOtherKeymaps(extensionId: string): TPromise<void> {
-		return this.instantiationService.invokeFunction(getInstalledKeymaps).then(extensions => {
-			const extension = arrays.first(extensions, extension => extension.identifier === extensionId);
+		return this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
+			const keymaps = extensions.filter(extension => isKeymapExtension(this.tipsService, extension));
+			const extension = arrays.first(keymaps, extension => extension.identifier === extensionId);
 			if (extension && extension.globallyEnabled) {
-				const otherKeymaps = extensions.filter(extension => extension.identifier !== extensionId && extension.globallyEnabled);
+				const otherKeymaps = keymaps.filter(extension => extension.identifier !== extensionId && extension.globallyEnabled);
 				if (otherKeymaps.length) {
 					return this.promptForDisablingOtherKeymaps(extension, otherKeymaps);
 				}
@@ -62,7 +64,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 		});
 	}
 
-	private promptForDisablingOtherKeymaps(newKeymap: IKeymapExtension, oldKeymaps: IKeymapExtension[]): TPromise<void> {
+	private promptForDisablingOtherKeymaps(newKeymap: IExtensionStatus, oldKeymaps: IExtensionStatus[]): TPromise<void> {
 		const telemetryData: { [key: string]: any; } = {
 			newKeymap: newKeymap.identifier,
 			oldKeymaps: oldKeymaps.map(k => k.identifier)
@@ -92,7 +94,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	}
 }
 
-export function onKeymapExtensionChanged(accessor: ServicesAccessor): Event<string[]> {
+export function onExtensionChanged(accessor: ServicesAccessor): Event<string[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IExtensionEnablementService);
 	return debounceEvent<string, string[]>(any(
@@ -110,13 +112,12 @@ export function onKeymapExtensionChanged(accessor: ServicesAccessor): Event<stri
 	});
 }
 
-export function getInstalledKeymaps(accessor: ServicesAccessor): TPromise<IKeymapExtension[]> {
+export function getInstalledExtensions(accessor: ServicesAccessor): TPromise<IExtensionStatus[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IExtensionEnablementService);
-	const tipsService = accessor.get(IExtensionTipsService);
 	return extensionService.getInstalled().then(extensions => {
 		const globallyDisabled = extensionEnablementService.getGloballyDisabledExtensions();
-		const installedExtensions = extensions.map(extension => {
+		return extensions.map(extension => {
 			const identifier = stripVersion(extension.id);
 			return {
 				identifier,
@@ -124,11 +125,10 @@ export function getInstalledKeymaps(accessor: ServicesAccessor): TPromise<IKeyma
 				globallyEnabled: globallyDisabled.indexOf(identifier) === -1
 			};
 		});
-		return installedExtensions.filter(extension => isKeymapExtension(tipsService, extension));
 	});
 }
 
-function isKeymapExtension(tipsService: IExtensionTipsService, extension: IKeymapExtension): boolean {
+export function isKeymapExtension(tipsService: IExtensionTipsService, extension: IExtensionStatus): boolean {
 	const cats = extension.local.manifest.categories;
 	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().indexOf(extension.identifier) !== -1;
 }

@@ -245,13 +245,13 @@
 	outline-offset: -5px;
 }
 
-.monaco-workbench > .part.editor > .content .welcomePage .commands li button .currentKeymap {
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button .enabledExtension {
 	display: none;
 }
-.monaco-workbench > .part.editor > .content .welcomePage .commands li button .installKeymap.installed {
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button .installExtension.installed {
 	display: none;
 }
-.monaco-workbench > .part.editor > .content .welcomePage .commands li button .currentKeymap.installed {
+.monaco-workbench > .part.editor > .content .welcomePage .commands li button .enabledExtension.installed {
 	display: inline;
 }
 
