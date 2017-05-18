@@ -95,6 +95,48 @@
 			},
 			"patterns": [
 				{
+					"include": "#hlsl-embedded"
+				}
+			]
+		},
+		{
+			"name": "meta.hlslblock",
+			"begin": "\\b(HLSLPROGRAM|HLSLINCLUDE)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other"
+				}
+			},
+			"end": "\\b(ENDHLSL)\\b",
+			"endCaptures": {
+				"1": {
+					"name": "keyword.other"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#hlsl-embedded"
+				}
+			]
+		},
+		{
+			"name": "string.quoted.double.shaderlab",
+			"begin": "\"",
+			"end": "\""
+		}
+	],
+	"repository": {
+		"numbers": {
+			"patterns": [
+				{
+					"name": "constant.numeric.shaderlab",
+					"match": "\\b([0-9]+\\.?[0-9]*)\\b"
+				}
+			]
+		},
+		"hlsl-embedded": {
+			"patterns": [
+				{
 					"include": "source.hlsl"
 				},
 				{
@@ -154,22 +196,7 @@
 					"match": "\\b(SurfaceOutputStandardSpecular|SurfaceOutputStandard|SurfaceOutput|Input)\\b"
 				}
 			]
-		},
-		{
-			"name": "string.quoted.double.shaderlab",
-			"begin": "\"",
-			"end": "\""
-		}
-	],
-	"repository": {
-		"numbers": {
-			"patterns": [
-				{
-					"name": "constant.numeric.shaderlab",
-					"match": "\\b([0-9]+\\.?[0-9]*)\\b"
-				}
-			]
 		}
 	},
-	"version": "https://github.com/tgjones/shaders-tmLanguage/commit/cd1ef40f549f9ce2b9e6b73498688de114a85382"
+	"version": "https://github.com/tgjones/shaders-tmLanguage/commit/a6ee9f41e4b99812c6698462cae4868c80f82a3b"
 }

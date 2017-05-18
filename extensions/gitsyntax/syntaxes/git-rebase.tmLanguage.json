@@ -1,0 +1,35 @@
+{
+	"fileTypes": [
+		"git-rebase-todo"
+	],
+	"name": "Git Rebase Message",
+	"patterns": [
+		{
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.comment.git-rebase"
+				}
+			},
+			"match": "^\\s*(#).*$\\n?",
+			"name": "comment.line.number-sign.git-rebase"
+		},
+		{
+			"captures": {
+				"1": {
+					"name": "support.function.git-rebase"
+				},
+				"2": {
+					"name": "constant.sha.git-rebase"
+				},
+				"3": {
+					"name": "meta.commit-message.git-rebase"
+				}
+			},
+			"match": "^\\s*(pick|p|reword|r|edit|e|squash|s|fixup|f|exec|x|drop|d)\\s+([0-9a-f]+)\\s+(.*)$",
+			"name": "meta.commit-command.git-rebase"
+		}
+	],
+	"scopeName": "text.git-rebase",
+	"uuid": "7F1CC209-5F6D-486A-8180-09FA282381A1",
+	"version": "https://github.com/textmate/git.tmbundle/commit/d1db42c2d71948662098183a6df519fb53a7a15b"
+}

@@ -12,6 +12,8 @@ import { readdir, rimraf, stat } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
+declare type OnNodeCachedDataArgs = [{ errorCode: string, path: string, detail?: string }, { path: string, length: number }];
+declare const MonacoEnvironment: { onNodeCachedData: OnNodeCachedDataArgs[] };
 
 export class NodeCachedDataManager {
 
@@ -35,25 +37,32 @@ export class NodeCachedDataManager {
 	}
 
 	private _handleCachedDataInfo(): void {
-		const onNodeCachedData = (err, data) => {
+
+		let didRejectCachedData = false;
+		let didProduceCachedData = false;
+		for (const [err, data] of MonacoEnvironment.onNodeCachedData) {
+			// build summary
+			didRejectCachedData = didRejectCachedData || Boolean(err);
+			didProduceCachedData = didProduceCachedData || Boolean(data);
+
+			// log each failure separately
 			if (err) {
-				this._telemetryService.publicLog('nodeCachedData', { errorCode: err.errorCode, path: basename(err.path) });
-			} else if (data) {
-				this._telemetryService.publicLog('nodeCachedDataProduced', { path: basename(data.path) });
+				this._telemetryService.publicLog('cachedDataError', {
+					errorCode: err.errorCode,
+					path: basename(err.path)
+				});
 			}
-		};
+		}
 
-		// handle future and past errors
-		(<any>self).require.config({ onNodeCachedData });
-		(<any[]>(<any>window).MonacoEnvironment.onNodeCachedData).forEach(args => onNodeCachedData.apply(undefined, args));
-		delete (<any>window).MonacoEnvironment.onNodeCachedData;
-
-		// stop when being disposed
-		this._disposables.push({
-			dispose() {
-				(<any>self).require.config({ onNodeCachedData: undefined }, true);
-			}
+		// log summary
+		this._telemetryService.publicLog('cachedDataInfo', {
+			didRequestCachedData: Boolean(global.require.getConfig().nodeCachedDataDir),
+			didRejectCachedData,
+			didProduceCachedData
 		});
+
+		global.require.config({ onNodeCachedData: undefined });
+		delete MonacoEnvironment.onNodeCachedData;
 	}
 
 	private _manageCachedDataSoon(): void {

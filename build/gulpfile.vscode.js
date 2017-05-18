@@ -136,7 +136,7 @@ const config = {
 	repo: product.electronRepository || void 0
 };
 
-function getElectron(arch = process.arch) {
+function getElectron(arch) {
 	return () => {
 		const electronOpts = _.extend({}, config, {
 			platform: process.platform,
@@ -154,7 +154,7 @@ function getElectron(arch = process.arch) {
 }
 
 gulp.task('clean-electron', util.rimraf('.build/electron'));
-gulp.task('electron', ['clean-electron'], getElectron());
+gulp.task('electron', ['clean-electron'], getElectron(process.arch));
 gulp.task('electron-ia32', ['clean-electron'], getElectron('ia32'));
 gulp.task('electron-x64', ['clean-electron'], getElectron('x64'));
 
@@ -194,7 +194,9 @@ function computeChecksum(filename) {
 	return hash;
 }
 
-function packageTask(platform, arch, opts = {}) {
+function packageTask(platform, arch, opts) {
+	opts = opts || {};
+
 	const destination = path.join(path.dirname(root), 'VSCode') + (platform ? '-' + platform : '') + (arch ? '-' + arch : '');
 	platform = platform || process.platform;
 	arch = platform === 'win32' ? 'ia32' : arch;

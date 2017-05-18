@@ -17,11 +17,12 @@
 		"grammars": [{
 			"language": "ruby",
 			"scopeName": "source.ruby",
-			"path": "./syntaxes/Ruby.plist"
+			"path": "./syntaxes/ruby.tmLanguage.json"
 		}]
 	},
 	"scripts": {
 		"compile": "gulp compile-extension:ruby",
-		"watch": "gulp watch-extension:ruby"
+		"watch": "gulp watch-extension:ruby",
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/ruby.tmbundle Syntaxes/Ruby.plist ./syntaxes/ruby.tmLanguage.json"
 	}
 }

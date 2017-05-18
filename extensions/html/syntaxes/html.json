@@ -339,7 +339,7 @@
 								},
 								{
 									"begin": "\\G",
-									"end": "(?i:(?=/?>|type\\s*=\\s*('|\"|)(?!text/(javascript|ecmascript)|application/((x-)?javascript|ecmascript)|module)\\b))",
+									"end": "(?i:(?=/?>|type(?=[\\s=])(?!\\s*=\\s*('|\"|)(text/(javascript|ecmascript|babel)|application/((x-)?javascript|ecmascript|babel)|module)[\\s\"'>])))",
 									"name": "meta.tag.metadata.script.html",
 									"patterns": [
 										{
@@ -348,14 +348,17 @@
 									]
 								},
 								{
-									"begin": "(?=(?i:type\\s*=\\s*('|\"|)(?=text/(x-handlebars|(x-(handlebars-)?|ng-)?template|html))\\b))",
-									"end": "(<)(?=/(?i:script))",
+									"begin": "(?=(?i:type\\s*=\\s*('|\"|)(text/(x-handlebars|(x-(handlebars-)?|ng-)?template|html)[\\s\"'>])))",
+									"end": "((<))(?=/(?i:script))",
 									"endCaptures": {
 										"0": {
 											"name": "meta.tag.metadata.script.html"
 										},
 										"1": {
 											"name": "punctuation.definition.tag.begin.html"
+										},
+										"2": {
+											"name": "text.html.basic"
 										}
 									},
 									"patterns": [
@@ -377,6 +380,7 @@
 										{
 											"begin": "(?!\\G)",
 											"end": "(?=</(?i:script))",
+											"name": "text.html.basic",
 											"patterns": [
 												{
 													"include": "text.html.basic"
@@ -739,5 +743,5 @@
 	},
 	"scopeName": "text.html.basic",
 	"uuid": "17994EC8-6B1D-11D9-AC3A-000D93589AF6",
-	"version": "https://github.com/textmate/html.tmbundle/commit/d66526c5f6b6080358d7bf648654165a4fabf713"
+	"version": "https://github.com/textmate/html.tmbundle/commit/a723f08ebd49c67c22aca08dd8f17d0bf836ec93"
 }
