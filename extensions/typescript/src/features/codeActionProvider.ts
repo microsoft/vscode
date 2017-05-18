@@ -58,7 +58,7 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		};
 		return this.getSupportedActionsForContext(context)
 			.then(supportedActions => {
-				if (!supportedActions.length) {
+				if (!supportedActions.size) {
 					return [];
 				}
 				return this.client.execute('getCodeFixes', {
@@ -67,8 +67,8 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 					endLine: range.end.line + 1,
 					startOffset: range.start.character + 1,
 					endOffset: range.end.character + 1,
-					errorCodes: supportedActions
-				}, token).then(response => response.body || []);
+					errorCodes: Array.from(supportedActions)
+				} as Proto.CodeFixRequestArgs, token).then(response => response.body || []);
 			})
 			.then(codeActions => codeActions.map(action => this.actionToEdit(source, action)));
 	}
@@ -87,11 +87,11 @@ export default class TypeScriptCodeActionProvider implements CodeActionProvider 
 		return this._supportedCodeActions;
 	}
 
-	private getSupportedActionsForContext(context: CodeActionContext) {
+	private getSupportedActionsForContext(context: CodeActionContext): Thenable<Set<number>> {
 		return this.supportedCodeActions.then(supportedActions =>
-			context.diagnostics
+			new Set(context.diagnostics
 				.map(diagnostic => +diagnostic.code)
-				.filter(code => supportedActions[code]));
+				.filter(code => supportedActions[code])));
 	}
 
 	private actionToEdit(source: Source, action: Proto.CodeAction): Command {
