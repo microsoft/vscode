@@ -947,7 +947,7 @@
 	},
 	{
 		"c": "rgba",
-		"t": "source.css.less meta.property-list.css support.function.any-method.builtin.css",
+		"t": "source.css.less meta.property-list.css meta.function.color.css support.function.misc.css",
 		"r": {
 			"dark_plus": "support.function: #DCDCAA",
 			"light_plus": "support.function: #795E26",
@@ -958,7 +958,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.css.less meta.property-list.css meta.brace.round.css",
+		"t": "source.css.less meta.property-list.css meta.function.color.css punctuation.section.function.begin.bracket.round.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -969,7 +969,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.less meta.property-list.css constant.numeric.css",
+		"t": "source.css.less meta.property-list.css meta.function.color.css constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -980,7 +980,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.css.less meta.property-list.css punctuation.separator.list.comma.css",
+		"t": "source.css.less meta.property-list.css meta.function.color.css punctuation.separator.list.comma.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -991,7 +991,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.less meta.property-list.css",
+		"t": "source.css.less meta.property-list.css meta.function.color.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1002,7 +1002,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.less meta.property-list.css constant.numeric.css",
+		"t": "source.css.less meta.property-list.css meta.function.color.css constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1013,7 +1013,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.css.less meta.property-list.css punctuation.separator.list.comma.css",
+		"t": "source.css.less meta.property-list.css meta.function.color.css punctuation.separator.list.comma.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1024,7 +1024,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.css.less meta.property-list.css",
+		"t": "source.css.less meta.property-list.css meta.function.color.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1035,7 +1035,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.css.less meta.property-list.css constant.numeric.css",
+		"t": "source.css.less meta.property-list.css meta.function.color.css constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1046,7 +1046,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.css.less meta.property-list.css punctuation.separator.list.comma.css",
+		"t": "source.css.less meta.property-list.css meta.function.color.css punctuation.separator.list.comma.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1056,8 +1056,8 @@
 		}
 	},
 	{
-		"c": " ",
-		"t": "source.css.less meta.property-list.css",
+		"c": " @",
+		"t": "source.css.less meta.property-list.css meta.function.color.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1067,18 +1067,29 @@
 		}
 	},
 	{
-		"c": "@alpha",
-		"t": "source.css.less meta.property-list.css variable.other.less",
+		"c": "alpha",
+		"t": "source.css.less meta.property-list.css meta.function.color.css support.constant.property-value.css",
 		"r": {
-			"dark_plus": "variable.other.less: #9CDCFE",
-			"light_plus": "variable.other.less: #FF0000",
-			"dark_vs": "variable.other.less: #9CDCFE",
-			"light_vs": "variable.other.less: #FF0000",
-			"hc_black": "variable.other.less: #D4D4D4"
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.property-value: #0451A5",
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
-		"c": "))",
+		"c": ")",
+		"t": "source.css.less meta.property-list.css meta.function.color.css punctuation.section.function.end.bracket.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
 		"t": "source.css.less meta.property-list.css meta.brace.round.css",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
