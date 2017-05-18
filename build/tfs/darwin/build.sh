@@ -19,7 +19,7 @@ step "Mix in repository from vscode-distro" \
 	npm run gulp -- mixin
 
 step "Install distro dependencies" \
-	npm run install-distro
+	node build/tfs/common/installDistro.js
 
 step "Build minified & upload source maps" \
 	npm run gulp -- --max_old_space_size=4096 vscode-darwin-min upload-vscode-sourcemaps

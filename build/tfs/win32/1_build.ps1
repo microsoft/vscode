@@ -21,7 +21,7 @@ step "Mix in repository from vscode-distro" {
 }
 
 step "Install distro dependencies" {
-  exec { & npm run install-distro }
+  exec { & node build\tfs\common\installDistro.js }
 }
 
 step "Build minified" {
