@@ -375,7 +375,7 @@
 	},
 	{
 		"c": "::",
-		"t": "source.ruby punctuation.separator.other.ruby",
+		"t": "source.ruby punctuation.separator.namespace.ruby",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -397,7 +397,7 @@
 	},
 	{
 		"c": "::",
-		"t": "source.ruby punctuation.separator.other.ruby",
+		"t": "source.ruby punctuation.separator.namespace.ruby",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -419,7 +419,7 @@
 	},
 	{
 		"c": "::",
-		"t": "source.ruby punctuation.separator.other.ruby",
+		"t": "source.ruby punctuation.separator.namespace.ruby",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1486,7 +1486,7 @@
 	},
 	{
 		"c": "::",
-		"t": "source.ruby punctuation.separator.other.ruby",
+		"t": "source.ruby punctuation.separator.namespace.ruby",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1695,7 +1695,7 @@
 	},
 	{
 		"c": "self",
-		"t": "source.ruby variable.language.ruby",
+		"t": "source.ruby variable.language.self.ruby",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
@@ -1827,7 +1827,7 @@
 	},
 	{
 		"c": "self",
-		"t": "source.ruby variable.language.ruby",
+		"t": "source.ruby variable.language.self.ruby",
 		"r": {
 			"dark_plus": "variable.language: #569CD6",
 			"light_plus": "variable.language: #0000FF",
