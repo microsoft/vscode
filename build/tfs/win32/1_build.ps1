@@ -3,23 +3,16 @@ Param(
    [string]$vsoPAT
 )
 
+. .\scripts\env.ps1
 . .\build\tfs\win32\lib.ps1
 
+# Create a _netrc file to download distro dependencies
 # In order to get _netrc to work, we need a HOME variable setup
 $env:HOME=$env:USERPROFILE
-
-$env:npm_config_disturl="https://atom.io/download/electron"
-$env:npm_config_target="1.6.6"
-$env:npm_config_runtime="electron"
-$env:npm_config_cache="$HOME/.npm-electron"
-$env:npm_config_arch="ia32"
-# mkdir -p "$env:npm_config_cache"
-
-# Create a _netrc file to download distro dependencies
 "machine monacotools.visualstudio.com password ${vsoPAT}" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
 
 step "Install dependencies" {
-  exec { & npm install }
+  exec { & npm install --arch ia32 }
 }
 
 $env:VSCODE_MIXIN_PASSWORD = $mixinPassword
