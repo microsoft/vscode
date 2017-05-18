@@ -90,7 +90,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
-	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || path.join(this.userHome, product.dataFolderName, 'extensions'); }
+	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || process.env['vscode_config_ext'] || path.join(this.userHome, product.dataFolderName, 'extensions'); }
 
 	@memoize
 	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }
