@@ -486,10 +486,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
 		},
-		'editor.hideFoldIcons': {
-			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.hideFoldIcons,
-			'description': nls.localize('hideFoldIcons', "Controls whether the fold icons on the gutter are automatically hidden.")
+		'editor.showFoldingControls': {
+			'type': 'string',
+			'enum': ['always', 'mouseover'],
+			'default': EDITOR_DEFAULTS.contribInfo.showFoldingControls,
+			'description': nls.localize('showFoldingControls', "Controls whether the fold controls on the gutter are automatically hidden.")
 		},
 		'editor.matchBrackets': {
 			'type': 'boolean',

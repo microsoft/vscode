@@ -2978,10 +2978,10 @@ declare module monaco.editor {
 		 */
 		folding?: boolean;
 		/**
-		 * Enable automatic hiding of non-collapsed fold icons in the gutter.
-		 * Defaults to true.
+		 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
+		 * Defaults to 'mouseover'.
 		 */
-		hideFoldIcons?: boolean;
+		showFoldingControls?: 'always' | 'mouseover';
 		/**
 		 * Enable highlighting of matching brackets.
 		 * Defaults to true.
@@ -3239,7 +3239,7 @@ declare module monaco.editor {
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
 		readonly folding: boolean;
-		readonly hideFoldIcons: boolean;
+		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
 	}
 

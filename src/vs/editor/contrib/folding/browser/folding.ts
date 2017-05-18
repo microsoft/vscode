@@ -36,7 +36,7 @@ export class FoldingController implements IFoldingController {
 
 	private editor: ICodeEditor;
 	private _isEnabled: boolean;
-	private _hideFoldIcons: boolean;
+	private _showFoldingControls: 'always' | 'mouseover';
 	private globalToDispose: IDisposable[];
 
 	private computeToken: number;
@@ -49,7 +49,7 @@ export class FoldingController implements IFoldingController {
 	constructor(editor: ICodeEditor) {
 		this.editor = editor;
 		this._isEnabled = this.editor.getConfiguration().contribInfo.folding;
-		this._hideFoldIcons = this.editor.getConfiguration().contribInfo.hideFoldIcons;
+		this._showFoldingControls = this.editor.getConfiguration().contribInfo.showFoldingControls;
 
 		this.globalToDispose = [];
 		this.localToDispose = [];
@@ -63,9 +63,9 @@ export class FoldingController implements IFoldingController {
 			if (oldIsEnabled !== this._isEnabled) {
 				this.onModelChanged();
 			}
-			let oldHideFoldIcons = this._hideFoldIcons;
-			this._hideFoldIcons = this.editor.getConfiguration().contribInfo.hideFoldIcons;
-			if (oldHideFoldIcons !== this._hideFoldIcons) {
+			let oldShowFoldingControls = this._showFoldingControls;
+			this._showFoldingControls = this.editor.getConfiguration().contribInfo.showFoldingControls;
+			if (oldShowFoldingControls !== this._showFoldingControls) {
 				this.updateHideFoldIconClass();
 			}
 		}));
@@ -85,7 +85,7 @@ export class FoldingController implements IFoldingController {
 	private updateHideFoldIconClass(): void {
 		let domNode = this.editor.getDomNode();
 		if (domNode) {
-			dom.toggleClass(domNode, 'alwaysShowFoldIcons', this._hideFoldIcons === false);
+			dom.toggleClass(domNode, 'alwaysShowFoldIcons', this._showFoldingControls === 'always');
 		}
 	}
 
