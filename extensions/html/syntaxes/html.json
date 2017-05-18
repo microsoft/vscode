@@ -339,7 +339,7 @@
 								},
 								{
 									"begin": "\\G",
-									"end": "(?i:(?=/?>|type\\s*=\\s*('|\"|)(?!text/(javascript|ecmascript)|application/((x-)?javascript|ecmascript)|module)\\b))",
+									"end": "(?i:(?=/?>|type\\s*=\\s*('|\"|)(?!text/(javascript|ecmascript|babel)|application/((x-)?javascript|ecmascript|babel)|module)\\b))",
 									"name": "meta.tag.metadata.script.html",
 									"patterns": [
 										{
