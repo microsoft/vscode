@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { EditorInput, hasResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult } from 'vs/workbench/common/editor';
+import { EditorInput, hasResource, TextEditorOptions, EditorOptions, IEditorIdentifier, IEditorContext, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, ConfirmResult, toResource } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -474,6 +474,35 @@ export class FocusNextGroup extends Action {
 		}
 
 		return TPromise.as(true);
+	}
+}
+
+// Open to the side
+export class OpenToSideContextAction extends Action {
+
+	public static ID = 'explorer.openToSide';
+	public static LABEL = nls.localize('openToSide', "Open to the Side");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService
+	) {
+		super(id, label, 'split-editor-action');
+
+	}
+
+	public run(context: any): TPromise<any> {
+		const sideBySide = true;
+		const editor = getTarget(this.editorService, this.editorGroupService, context);
+
+		if (editor) {
+			const fileResource = toResource(editor.input, { filter: 'file' });
+			return this.editorService.openEditor({ resource: fileResource }, sideBySide);
+		}
+
+		return TPromise.as(false);
 	}
 }
 
