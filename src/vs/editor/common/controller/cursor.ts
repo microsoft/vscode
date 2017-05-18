@@ -46,7 +46,7 @@ interface ICommandData {
 
 interface ICommandsData {
 	operations: editorCommon.IIdentifiedSingleEditOperation[];
-	anyoneHadTrackedEditOperation: boolean;
+	hadTrackedEditOperation: boolean;
 }
 
 export class Cursor extends Disposable implements ICursors {
@@ -293,10 +293,8 @@ export class Cursor extends Disposable implements ICursors {
 			});
 		}
 
-		this._onHandler('restoreState', (ctx: IMultipleCursorOperationContext) => {
-			this._cursors.setSelections(desiredSelections);
-			return false;
-		}, 'restoreState', null);
+		this.setStates('restoreState', CursorChangeReason.NotSet, CursorState.fromModelSelections(desiredSelections));
+		this.reveal(true, RevealTarget.Primary);
 	}
 
 	private _onModelContentChanged(hadFlushEvent: boolean): void {
@@ -313,13 +311,7 @@ export class Cursor extends Disposable implements ICursors {
 				// Read the markers before entering `_onHandler`, since that would validate
 				// the position and ruin the markers
 				const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
-				this._onHandler('recoverSelectionFromMarkers', (ctx: IMultipleCursorOperationContext) => {
-					ctx.cursorPositionChangeReason = CursorChangeReason.RecoverFromMarkers;
-					ctx.shouldReveal = false;
-					ctx.shouldPushStackElementBefore = false;
-					ctx.shouldPushStackElementAfter = false;
-					this._cursors.setSelections(selectionsFromMarkers);
-				}, 'modelChange', null);
+				this.setStates('modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
 			}
 		}
 	}
@@ -339,11 +331,7 @@ export class Cursor extends Disposable implements ICursors {
 	}
 
 	public setSelections(source: string, selections: ISelection[]): void {
-		this._onHandler('setSelections', (ctx: IMultipleCursorOperationContext) => {
-			ctx.shouldReveal = false;
-			this._cursors.setSelections(selections);
-			return false;
-		}, source, null);
+		this.setStates(source, CursorChangeReason.NotSet, CursorState.fromModelSelections(selections));
 	}
 
 	// ------ auxiliary handling logic
@@ -363,7 +351,32 @@ export class Cursor extends Disposable implements ICursors {
 
 		callback(ctx);
 
-		this._interpretHandlerContext(ctx);
+		if (ctx.shouldPushStackElementBefore) {
+			this._model.pushStackElement();
+			ctx.shouldPushStackElementBefore = false;
+		}
+
+		this._columnSelectData = null;
+
+		const execCtx: IExecContext = {
+			selectionStartMarkers: [],
+			positionMarkers: []
+		};
+
+		this._innerExecuteCommands(execCtx, ctx.executeCommands, ctx.isAutoWhitespaceCommand);
+
+		for (let i = 0; i < execCtx.selectionStartMarkers.length; i++) {
+			this._model._removeMarker(execCtx.selectionStartMarkers[i]);
+			this._model._removeMarker(execCtx.positionMarkers[i]);
+		}
+
+		ctx.executeCommands = [];
+
+		if (ctx.shouldPushStackElementAfter) {
+			this._model.pushStackElement();
+			ctx.shouldPushStackElementAfter = false;
+		}
+
 		this._cursors.normalize();
 	}
 
@@ -421,23 +434,6 @@ export class Cursor extends Disposable implements ICursors {
 		}
 
 		this._isHandling = false;
-	}
-
-	private _interpretHandlerContext(ctx: IMultipleCursorOperationContext): void {
-		if (ctx.shouldPushStackElementBefore) {
-			this._model.pushStackElement();
-			ctx.shouldPushStackElementBefore = false;
-		}
-
-		this._columnSelectData = null;
-
-		this._internalExecuteCommands(ctx.executeCommands, ctx.isAutoWhitespaceCommand);
-		ctx.executeCommands = [];
-
-		if (ctx.shouldPushStackElementAfter) {
-			this._model.pushStackElement();
-			ctx.shouldPushStackElementAfter = false;
-		}
 	}
 
 	private _interpretCommandResult(cursorState: Selection[]): void {
@@ -537,18 +533,18 @@ export class Cursor extends Disposable implements ICursors {
 
 	private _getEditOperations(ctx: IExecContext, commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): ICommandsData {
 		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
-		let anyoneHadTrackedEditOperation: boolean = false;
+		let hadTrackedEditOperation: boolean = false;
 
 		for (let i = 0, len = commands.length; i < len; i++) {
 			if (commands[i]) {
-				const oneResult = this._getEditOperationsFromCommand(ctx, i, commands[i], isAutoWhitespaceCommand[i]);
-				operations = operations.concat(oneResult.operations);
-				anyoneHadTrackedEditOperation = anyoneHadTrackedEditOperation || oneResult.hadTrackedEditOperation;
+				const r = this._getEditOperationsFromCommand(ctx, i, commands[i], isAutoWhitespaceCommand[i]);
+				operations = operations.concat(r.operations);
+				hadTrackedEditOperation = hadTrackedEditOperation || r.hadTrackedEditOperation;
 			}
 		}
 		return {
 			operations: operations,
-			anyoneHadTrackedEditOperation: anyoneHadTrackedEditOperation
+			hadTrackedEditOperation: hadTrackedEditOperation
 		};
 	}
 
@@ -599,19 +595,6 @@ export class Cursor extends Disposable implements ICursors {
 		}
 
 		return loserCursorsMap;
-	}
-
-	private _internalExecuteCommands(commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): void {
-		const ctx: IExecContext = {
-			selectionStartMarkers: [],
-			positionMarkers: []
-		};
-
-		this._innerExecuteCommands(ctx, commands, isAutoWhitespaceCommand);
-		for (let i = 0; i < ctx.selectionStartMarkers.length; i++) {
-			this._model._removeMarker(ctx.selectionStartMarkers[i]);
-			this._model._removeMarker(ctx.positionMarkers[i]);
-		}
 	}
 
 	private _arrayIsEmpty(commands: editorCommon.ICommand[]): boolean {
@@ -670,7 +653,7 @@ export class Cursor extends Disposable implements ICursors {
 
 		// TODO@Alex: find a better way to do this.
 		// give the hint that edit operations are tracked to the model
-		if (commandsData.anyoneHadTrackedEditOperation && filteredOperations.length > 0) {
+		if (commandsData.hadTrackedEditOperation && filteredOperations.length > 0) {
 			filteredOperations[0]._isTracked = true;
 		}
 		const selectionsAfter = this._model.pushEditOperations(selectionsBefore, filteredOperations, (inverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[]): Selection[] => {

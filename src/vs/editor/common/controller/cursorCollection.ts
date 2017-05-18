@@ -104,8 +104,7 @@ export class CursorCollection {
 	}
 
 	public setSelections(selections: ISelection[]): void {
-		this.primaryCursor.setSelection(this.context, selections[0]);
-		this._setSecondarySelections(selections.slice(1));
+		this.setStates(CursorState.fromModelSelections(selections));
 	}
 
 	public getPrimaryCursor(): CursorState {
@@ -130,7 +129,7 @@ export class CursorCollection {
 		if (secondaryCursorsLength < secondaryStatesLength) {
 			let createCnt = secondaryStatesLength - secondaryCursorsLength;
 			for (let i = 0; i < createCnt; i++) {
-				this._addSecondaryCursor(null);
+				this._addSecondaryCursor();
 			}
 		} else if (secondaryCursorsLength > secondaryStatesLength) {
 			let removeCnt = secondaryCursorsLength - secondaryStatesLength;
@@ -144,19 +143,16 @@ export class CursorCollection {
 		}
 	}
 
-	public killSecondaryCursors(): boolean {
-		return (this._setSecondarySelections([]) > 0);
+	public killSecondaryCursors(): void {
+		this._setSecondaryStates([]);
 	}
 
 	public normalize(): void {
 		this._mergeCursorsIfNecessary();
 	}
 
-	private _addSecondaryCursor(selection: ISelection): void {
+	private _addSecondaryCursor(): void {
 		var newCursor = new OneCursor(this.context);
-		if (selection) {
-			newCursor.setSelection(this.context, selection);
-		}
 		this.secondaryCursors.push(newCursor);
 		this.lastAddedCursorIndex = this.secondaryCursors.length;
 	}
@@ -166,39 +162,6 @@ export class CursorCollection {
 			return 0;
 		}
 		return this.lastAddedCursorIndex;
-	}
-
-	/**
-	 * Creates or disposes secondary cursors as necessary to match the number of `secondarySelections`.
-	 * Return value:
-	 * 		- a positive number indicates the number of secondary cursors added
-	 * 		- a negative number indicates the number of secondary cursors removed
-	 * 		- 0 indicates that no changes have been done to the secondary cursors list
-	 */
-	private _setSecondarySelections(secondarySelections: ISelection[]): number {
-		var secondaryCursorsLength = this.secondaryCursors.length;
-		var secondarySelectionsLength = secondarySelections.length;
-		var returnValue = secondarySelectionsLength - secondaryCursorsLength;
-
-		if (secondaryCursorsLength < secondarySelectionsLength) {
-			var createCnt = secondarySelectionsLength - secondaryCursorsLength;
-			for (var i = 0; i < createCnt; i++) {
-				this._addSecondaryCursor(null);
-			}
-		} else if (secondaryCursorsLength > secondarySelectionsLength) {
-			var removeCnt = secondaryCursorsLength - secondarySelectionsLength;
-			for (var i = 0; i < removeCnt; i++) {
-				this._removeSecondaryCursor(this.secondaryCursors.length - 1);
-			}
-		}
-
-		for (var i = 0; i < secondarySelectionsLength; i++) {
-			if (secondarySelections[i]) {
-				this.secondaryCursors[i].setSelection(this.context, secondarySelections[i]);
-			}
-		}
-
-		return returnValue;
 	}
 
 	private _removeSecondaryCursor(removeIndex: number): void {
@@ -274,7 +237,8 @@ export class CursorCollection {
 					}
 
 					sortedCursors[winnerSortedCursorIndex].selection = resultingSelection;
-					cursors[winnerIndex].setSelection(this.context, resultingSelection);
+					const resultingState = CursorState.fromModelSelection(resultingSelection);
+					cursors[winnerIndex].setState(this.context, resultingState.modelState, resultingState.viewState);
 				}
 
 				for (var j = 0; j < sortedCursors.length; j++) {

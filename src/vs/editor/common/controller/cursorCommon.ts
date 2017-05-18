@@ -9,7 +9,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { ICommand, TextModelResolvedOptions, IConfiguration, IModel } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { Selection } from 'vs/editor/common/core/selection';
+import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -352,6 +352,26 @@ export class CursorState {
 
 	public static fromViewState(viewState: SingleCursorState): CursorState {
 		return new CursorState(null, viewState);
+	}
+
+	public static fromModelSelection(modelSelection: ISelection): CursorState {
+		const selectionStartLineNumber = modelSelection.selectionStartLineNumber;
+		const selectionStartColumn = modelSelection.selectionStartColumn;
+		const positionLineNumber = modelSelection.positionLineNumber;
+		const positionColumn = modelSelection.positionColumn;
+		const modelState = new SingleCursorState(
+			new Range(selectionStartLineNumber, selectionStartColumn, selectionStartLineNumber, selectionStartColumn), 0,
+			new Position(positionLineNumber, positionColumn), 0
+		);
+		return CursorState.fromModelState(modelState);
+	}
+
+	public static fromModelSelections(modelSelections: ISelection[]): CursorState[] {
+		let states: CursorState[] = [];
+		for (let i = 0, len = modelSelections.length; i < len; i++) {
+			states[i] = this.fromModelSelection(modelSelections[i]);
+		}
+		return states;
 	}
 
 	public static ensureInEditableRange(context: CursorContext, states: CursorState[]): CursorState[] {
