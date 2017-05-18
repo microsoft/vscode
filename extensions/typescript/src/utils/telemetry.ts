@@ -34,8 +34,8 @@ export default class TelemetryReporter extends Disposable {
 	}
 
 	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
-		if (this._reporter) {
-			this._reporter.sendTelemetryEvent(eventName, properties);
+		if (this.reporter) {
+			this.reporter.sendTelemetryEvent(eventName, properties);
 		}
 	}
 
