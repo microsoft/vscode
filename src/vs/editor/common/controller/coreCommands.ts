@@ -234,7 +234,7 @@ export namespace RevealLine_ {
 	};
 }
 
-export namespace CoreCommands {
+export namespace CoreNavigationCommands {
 
 	class BaseMoveToCommand extends CoreEditorCommand {
 
@@ -1538,7 +1538,7 @@ namespace Config {
 	}
 
 	registerCommand(new BaseTextInputAwareCommand({
-		editorHandler: CoreCommands.SelectAll,
+		editorHandler: CoreNavigationCommands.SelectAll,
 		inputHandler: 'selectAll',
 		id: 'editor.action.selectAll',
 		precondition: null,

@@ -24,7 +24,7 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { CoreCommands } from 'vs/editor/common/controller/coreCommands';
+import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands';
 
 let H = Handler;
 
@@ -36,11 +36,11 @@ function cursorCommand(cursor: Cursor, command: string, extraData?: any, overwri
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.MoveToSelect.runCoreEditorCommand(cursor, {
+		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(cursor, {
 			position: new Position(lineNumber, column)
 		});
 	} else {
-		CoreCommands.MoveTo.runCoreEditorCommand(cursor, {
+		CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, {
 			position: new Position(lineNumber, column)
 		});
 	}
@@ -48,65 +48,65 @@ function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionM
 
 function moveLeft(cursor: Cursor, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.CursorLeftSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorLeftSelect.runCoreEditorCommand(cursor, {});
 	} else {
-		CoreCommands.CursorLeft.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorLeft.runCoreEditorCommand(cursor, {});
 	}
 }
 
 function moveRight(cursor: Cursor, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.CursorRightSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorRightSelect.runCoreEditorCommand(cursor, {});
 	} else {
-		CoreCommands.CursorRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorRight.runCoreEditorCommand(cursor, {});
 	}
 }
 
 function moveDown(cursor: Cursor, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.CursorDownSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorDownSelect.runCoreEditorCommand(cursor, {});
 	} else {
-		CoreCommands.CursorDown.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorDown.runCoreEditorCommand(cursor, {});
 	}
 }
 
 function moveUp(cursor: Cursor, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.CursorUpSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorUpSelect.runCoreEditorCommand(cursor, {});
 	} else {
-		CoreCommands.CursorUp.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorUp.runCoreEditorCommand(cursor, {});
 	}
 }
 
 function moveToBeginningOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.CursorHomeSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorHomeSelect.runCoreEditorCommand(cursor, {});
 	} else {
-		CoreCommands.CursorHome.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorHome.runCoreEditorCommand(cursor, {});
 	}
 }
 
 function moveToEndOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.CursorEndSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorEndSelect.runCoreEditorCommand(cursor, {});
 	} else {
-		CoreCommands.CursorEnd.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorEnd.runCoreEditorCommand(cursor, {});
 	}
 }
 
 function moveToBeginningOfBuffer(cursor: Cursor, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.CursorTopSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorTopSelect.runCoreEditorCommand(cursor, {});
 	} else {
-		CoreCommands.CursorTop.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorTop.runCoreEditorCommand(cursor, {});
 	}
 }
 
 function moveToEndOfBuffer(cursor: Cursor, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.CursorBottomSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorBottomSelect.runCoreEditorCommand(cursor, {});
 	} else {
-		CoreCommands.CursorBottom.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorBottom.runCoreEditorCommand(cursor, {});
 	}
 }
 
@@ -590,7 +590,7 @@ suite('Editor Controller - Cursor', () => {
 	// --------- misc
 
 	test('select all', () => {
-		CoreCommands.SelectAll.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.SelectAll.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
 	});
 
@@ -599,37 +599,37 @@ suite('Editor Controller - Cursor', () => {
 		//              01234 56789012345678 0
 		// let LINE1 = '    \tMy First Line\t ';
 		moveTo(thisCursor, 1, 1);
-		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 2);
-		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 5);
-		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 19);
-		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 20);
-		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
 
 		moveTo(thisCursor, 1, 21);
-		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
-		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 3, 1));
-		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 4, 1));
-		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 5, 1));
-		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
-		CoreCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
+		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
 		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
 	});
 
@@ -710,7 +710,7 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(cursor, 1, 7, false);
 		assertCursor(cursor, new Position(1, 7));
 
-		CoreCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(4, 4),
 			viewPosition: new Position(4, 4),
 			mouseColumn: 15
@@ -744,7 +744,7 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
 
-		CoreCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(4, 1),
 			viewPosition: new Position(4, 1),
 			mouseColumn: 1
@@ -779,7 +779,7 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
 
-		CoreCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
 			mouseColumn: 1
@@ -797,7 +797,7 @@ suite('Editor Controller - Cursor', () => {
 			new Selection(1, 10, 1, 1),
 		]);
 
-		CoreCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
 			position: new Position(1, 1),
 			viewPosition: new Position(1, 1),
 			mouseColumn: 1
@@ -837,28 +837,28 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
 
-		CoreCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 9)
 		]);
 
-		CoreCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 8)
 		]);
 
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 9)
 		]);
 
-		CoreCommands.CursorColumnSelectUp.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectUp.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 9),
 			new Selection(9, 10, 9, 9),
 		]);
 
-		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(10, 10, 10, 9)
 		]);
@@ -882,28 +882,28 @@ suite('Editor Controller - Cursor', () => {
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
 
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 5)
 		]);
 
-		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 5),
 			new Selection(2, 4, 2, 5)
 		]);
 
-		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 5),
 			new Selection(2, 4, 2, 5),
 			new Selection(3, 4, 3, 5),
 		]);
 
-		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 5),
 			new Selection(2, 4, 2, 5),
@@ -914,7 +914,7 @@ suite('Editor Controller - Cursor', () => {
 			new Selection(7, 4, 7, 5),
 		]);
 
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 6),
 			new Selection(2, 4, 2, 6),
@@ -926,16 +926,16 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 10 times
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 16),
 			new Selection(2, 4, 2, 16),
@@ -947,16 +947,16 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 10 times
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 26),
 			new Selection(2, 4, 2, 26),
@@ -968,8 +968,8 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 2 times => reaching the ending of lines 1 and 2
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -981,10 +981,10 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 4 times => reaching the ending of line 3
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -996,8 +996,8 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 2 times => reaching the ending of line 4
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -1009,7 +1009,7 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 1 time => reaching the ending of line 7
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -1021,9 +1021,9 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// 3 times => reaching the ending of lines 5 & 6
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -1035,7 +1035,7 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// cannot go anywhere anymore
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -1047,10 +1047,10 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// cannot go anywhere anymore even if we insist
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -1062,7 +1062,7 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		// can easily go back
-		CoreCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
 		assertCursor(cursor, [
 			new Selection(1, 4, 1, 28),
 			new Selection(2, 4, 2, 28),
@@ -1143,7 +1143,7 @@ suite('Editor Controller - Regression tests', () => {
 			cursorCommand(cursor, H.Type, { text: 'x' });
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert4');
 
-			CoreCommands.CursorLeft.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorLeft.runCoreEditorCommand(cursor, {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert5');
 
 			cursorCommand(cursor, H.DeleteLeft, {});
@@ -1632,9 +1632,9 @@ suite('Editor Controller - Regression tests', () => {
 					}
 				};
 				if (col === 1) {
-					CoreCommands.WordSelect.runCoreEditorCommand(cursor, args);
+					CoreNavigationCommands.WordSelect.runCoreEditorCommand(cursor, args);
 				} else {
-					CoreCommands.WordSelectDrag.runCoreEditorCommand(cursor, args);
+					CoreNavigationCommands.WordSelectDrag.runCoreEditorCommand(cursor, args);
 				}
 
 				assert.equal(cursor.getSelection().startColumn, 1, 'TEST FOR ' + col);
@@ -1802,7 +1802,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			],
 			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
-			cursorCommand(cursor, CoreCommands.MoveTo.id, { position: new Position(1, 21) }, 'keyboard');
+			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(1, 21) }, 'keyboard');
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assert.equal(model.getLineContent(1), '    \tMy First Line\t ');
 			assert.equal(model.getLineContent(2), '        ');
@@ -1821,56 +1821,56 @@ suite('Editor Controller - Cursor Configuration', () => {
 			modelOpts: { insertSpaces: true, tabSize: 13, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
 			// Tab on column 1
-			cursorCommand(cursor, CoreCommands.MoveTo.id, { position: new Position(2, 1) }, 'keyboard');
+			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 1) }, 'keyboard');
 			cursorCommand(cursor, H.Tab, null, 'keyboard');
 			assert.equal(model.getLineContent(2), '             My Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 2
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreCommands.MoveTo.id, { position: new Position(2, 2) }, 'keyboard');
+			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 2) }, 'keyboard');
 			cursorCommand(cursor, H.Tab, null, 'keyboard');
 			assert.equal(model.getLineContent(2), 'M            y Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 3
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreCommands.MoveTo.id, { position: new Position(2, 3) }, 'keyboard');
+			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 3) }, 'keyboard');
 			cursorCommand(cursor, H.Tab, null, 'keyboard');
 			assert.equal(model.getLineContent(2), 'My            Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 4
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreCommands.MoveTo.id, { position: new Position(2, 4) }, 'keyboard');
+			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 4) }, 'keyboard');
 			cursorCommand(cursor, H.Tab, null, 'keyboard');
 			assert.equal(model.getLineContent(2), 'My           Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreCommands.MoveTo.id, { position: new Position(2, 5) }, 'keyboard');
+			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 5) }, 'keyboard');
 			cursorCommand(cursor, H.Tab, null, 'keyboard');
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreCommands.MoveTo.id, { position: new Position(2, 5) }, 'keyboard');
+			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 5) }, 'keyboard');
 			cursorCommand(cursor, H.Tab, null, 'keyboard');
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 13
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreCommands.MoveTo.id, { position: new Position(2, 13) }, 'keyboard');
+			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 13) }, 'keyboard');
 			cursorCommand(cursor, H.Tab, null, 'keyboard');
 			assert.equal(model.getLineContent(2), 'My Second Li ne123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 14
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreCommands.MoveTo.id, { position: new Position(2, 14) }, 'keyboard');
+			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 14) }, 'keyboard');
 			cursorCommand(cursor, H.Tab, null, 'keyboard');
 			assert.equal(model.getLineContent(2), 'My Second Lin             e123');
 		});
@@ -2341,7 +2341,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			cursorCommand(cursor, H.Type, { text: 'x' });
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert4');
 
-			CoreCommands.CursorLeft.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorLeft.runCoreEditorCommand(cursor, {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert5');
 
 			cursorCommand(cursor, H.DeleteLeft, {});

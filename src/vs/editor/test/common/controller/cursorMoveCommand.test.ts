@@ -17,7 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IViewModelHelper } from 'vs/editor/common/controller/cursorCommon';
-import { CoreCommands } from 'vs/editor/common/controller/coreCommands';
+import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands';
 
 suite('Cursor move command test', () => {
 
@@ -469,7 +469,7 @@ interface ICursorOpts {
 // Move command
 
 function move(cursor: Cursor, args: any) {
-	CoreCommands.CursorMove.runCoreEditorCommand(cursor, args);
+	CoreNavigationCommands.CursorMove.runCoreEditorCommand(cursor, args);
 }
 
 function moveToLineStart(cursor: Cursor) {
@@ -553,11 +553,11 @@ function selectionEqual(selection: Selection, posLineNumber: number, posColumn: 
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.MoveToSelect.runCoreEditorCommand(cursor, {
+		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(cursor, {
 			position: new Position(lineNumber, column)
 		});
 	} else {
-		CoreCommands.MoveTo.runCoreEditorCommand(cursor, {
+		CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, {
 			position: new Position(lineNumber, column)
 		});
 	}
@@ -565,8 +565,8 @@ function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionM
 
 function moveToEndOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreCommands.CursorEndSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorEndSelect.runCoreEditorCommand(cursor, {});
 	} else {
-		CoreCommands.CursorEnd.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorEnd.runCoreEditorCommand(cursor, {});
 	}
 }
