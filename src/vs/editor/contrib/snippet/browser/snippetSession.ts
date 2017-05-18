@@ -291,6 +291,18 @@ export class SnippetSession {
 		this._editor.setSelections(newSelections);
 	}
 
+	insertNested(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
+		const { edits } = SnippetSession.makeInsertEditsAndSnippets(
+			this._editor, template, overwriteBefore, overwriteAfter
+		);
+		const model = this._editor.getModel();
+		const selections = this._editor.getSelections();
+		const newSelections = model.pushEditOperations(selections, edits, () => {
+			return this._move(true);
+		});
+		this._editor.setSelections(newSelections);
+	}
+
 	next(): void {
 		const newSelections = this._move(true);
 		this._editor.setSelections(newSelections);
