@@ -1348,6 +1348,13 @@ export class SearchViewlet extends Viewlet {
 		];
 	}
 
+	public shutdown(): void {
+		this.viewletSettings['query.contentPattern'] = this.searchWidget.searchInput.getValue();
+		this.saveMemento();
+
+		super.shutdown();
+	}
+
 	public dispose(): void {
 		this.isDisposed = true;
 
