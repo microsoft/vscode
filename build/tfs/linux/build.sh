@@ -30,7 +30,7 @@ step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
 # step "Run unit tests" \
-# 	[[ "$ARCH" == "x64" ]] && ./scripts/test.sh --xvfb --build --reporter dot
+	./scripts/test.sh --xvfb --build --reporter dot
 
 step "Build Debian package" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-build-deb"
