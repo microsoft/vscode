@@ -20,12 +20,16 @@ step "Mix in repository from vscode-distro" {
   exec { & npm run gulp -- mixin }
 }
 
+step "Get Electron" {
+  exec { & npm run gulp -- electron-ia32 }
+}
+
 step "Install distro dependencies" {
   exec { & node build\tfs\common\installDistro.js }
 }
 
 step "Build minified" {
-  exec { & npm run gulp -- --max_old_space_size=4096 vscode-win32-min }
+  exec { & npm run gulp -- --max_old_space_size=4096 vscode-win32-ia32-min }
 }
 
 step "Run unit tests" {

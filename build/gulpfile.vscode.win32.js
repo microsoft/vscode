@@ -15,8 +15,8 @@ const pkg = require('../package.json');
 const product = require('../product.json');
 
 const repoPath = path.dirname(__dirname);
-const buildPath = path.join(path.dirname(repoPath), 'VSCode-win32');
-const zipPath = path.join(repoPath, '.build', 'win32', 'archive', 'VSCode-win32.zip');
+const buildPath = path.join(path.dirname(repoPath), 'VSCode-win32-ia32');
+const zipPath = path.join(repoPath, '.build', 'win32-ia32', 'archive', 'VSCode-win32-ia32.zip');
 const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup-compiler'))), 'bin', 'ISCC.exe');
 
@@ -57,8 +57,8 @@ function buildWin32Setup(cb) {
 	packageInnoSetup(issPath, { definitions }, cb);
 }
 
-gulp.task('clean-vscode-win32-setup', util.rimraf('.build/win32/setup'));
-gulp.task('vscode-win32-setup', ['clean-vscode-win32-setup'], buildWin32Setup);
+gulp.task('clean-vscode-win32-ia32-setup', util.rimraf('.build/win32-ia32/setup'));
+gulp.task('vscode-win32-ia32-setup', ['clean-vscode-win32-ia32-setup'], buildWin32Setup);
 
 function archiveWin32Setup(cb) {
 	const args = ['a', '-tzip', zipPath, buildPath, '-r'];
@@ -68,5 +68,5 @@ function archiveWin32Setup(cb) {
 		.on('exit', () => cb(null));
 }
 
-gulp.task('clean-vscode-win32-archive', util.rimraf('.build/win32/archive'));
-gulp.task('vscode-win32-archive', ['clean-vscode-win32-archive'], archiveWin32Setup);
+gulp.task('clean-vscode-win32-ia32-archive', util.rimraf('.build/win32-ia32/archive'));
+gulp.task('vscode-win32-ia32-archive', ['clean-vscode-win32-ia32-archive'], archiveWin32Setup);

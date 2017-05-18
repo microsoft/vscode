@@ -20,6 +20,9 @@ step "Install dependencies" \
 step "Mix in repository from vscode-distro" \
 	npm run gulp -- mixin
 
+step "Get Electron" \
+	npm run gulp -- "electron-$ARCH"
+
 step "Install distro dependencies" \
 	node build/tfs/common/installDistro.js --arch=$ARCH
 
