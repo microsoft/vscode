@@ -22,9 +22,8 @@ import Logger from './utils/logger';
 import * as VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
 
-import TelemetryReporter from 'vscode-extension-telemetry';
-
 import * as nls from 'vscode-nls';
+import TelemetryReporter from "./utils/telemetry";
 const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
@@ -41,12 +40,6 @@ interface RequestItem {
 	request: Proto.Request;
 	promise: Promise<any> | null;
 	callbacks: CallbackItem | null;
-}
-
-interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
 }
 
 enum Trace {
@@ -162,7 +155,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
 	private _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
 
-	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 	private checkJs: boolean;
@@ -230,10 +222,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.restartTsServer();
 			}
 		}));
-		if (this.packageInfo && this.packageInfo.aiKey) {
-			this.telemetryReporter = new TelemetryReporter(this.packageInfo.name, this.packageInfo.version, this.packageInfo.aiKey);
-			disposables.push(this.telemetryReporter);
-		}
+		this.telemetryReporter = new TelemetryReporter();
+		disposables.push(this.telemetryReporter);
 		this.startService();
 	}
 
@@ -341,30 +331,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.logger.logLevel('Trace', message, data);
 	}
 
-	private get packageInfo(): IPackageInfo | null {
-
-		if (this._packageInfo !== undefined) {
-			return this._packageInfo;
-		}
-		let packagePath = path.join(__dirname, './../package.json');
-		let extensionPackage = require(packagePath);
-		if (extensionPackage) {
-			this._packageInfo = {
-				name: extensionPackage.name,
-				version: extensionPackage.version,
-				aiKey: extensionPackage.aiKey
-			};
-		} else {
-			this._packageInfo = null;
-		}
-
-		return this._packageInfo;
-	}
-
 	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
-		if (this.telemetryReporter) {
-			this.telemetryReporter.sendTelemetryEvent(eventName, properties);
-		}
+		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
 	private service(): Thenable<cp.ChildProcess> {
