@@ -199,7 +199,6 @@ function packageTask(platform, arch, opts) {
 
 	const destination = path.join(path.dirname(root), 'VSCode') + (platform ? '-' + platform : '') + (arch ? '-' + arch : '');
 	platform = platform || process.platform;
-	arch = platform === 'win32' ? 'ia32' : arch;
 
 	return () => {
 		const out = opts.minified ? 'out-vscode-min' : 'out-vscode';
