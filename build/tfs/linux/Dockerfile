@@ -24,5 +24,6 @@ RUN apt-get install -y libx11-dev libx11-dev:i386
 RUN apt-get install -y libxkbfile-dev:i386
 RUN apt-get install -y libxss1 libxss1:i386
 RUN apt-get install -y libx11-xcb-dev libx11-xcb-dev:i386
+RUN apt-get install -y libgl1-mesa-glx:i386 libgl1-mesa-dri:i386
 RUN apt-get install -y libxkbfile-dev
 RUN apt-get install -y bc bsdmainutils
