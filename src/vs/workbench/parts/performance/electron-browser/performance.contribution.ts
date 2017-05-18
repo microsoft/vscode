@@ -13,6 +13,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/platform';
 import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
@@ -68,11 +69,12 @@ class ProfilingHint implements IWorkbenchContribution {
 	private static readonly _myPercentiles = ProfilingHint._percentiles[`${Platform[platform]}_${release()}`];
 
 	constructor(
-		@IWindowsService private _windowsService: IWindowsService,
-		@ITimerService private _timerService: ITimerService,
-		@IMessageService private _messageService: IMessageService,
-		@IEnvironmentService private _envService: IEnvironmentService,
-		@IStorageService private _storageService: IStorageService
+		@IWindowsService private readonly _windowsService: IWindowsService,
+		@ITimerService private readonly _timerService: ITimerService,
+		@IMessageService private readonly _messageService: IMessageService,
+		@IEnvironmentService private readonly _envService: IEnvironmentService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 
 		setTimeout(() => this._checkTimersAndSuggestToProfile(), 5000);
@@ -126,6 +128,10 @@ class ProfilingHint implements IWorkbenchContribution {
 			message: localize('slow', "Slow startup detected"),
 			detail: localize('slow.detail', "Sorry that you just had a slow startup. Please restart '{0}' with profiling enabled, share the profiles with us, and we will work hard to make startup great again.", this._envService.appNameLong),
 			primaryButton: 'Restart and profile'
+		});
+
+		this._telemetryService.publicLog('profileStartupInvite', {
+			acceptedInvite: profile
 		});
 
 		if (profile) {
