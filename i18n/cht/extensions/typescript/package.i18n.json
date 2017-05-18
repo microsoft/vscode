@@ -33,7 +33,6 @@
 	"javascript.validate.enable": "啟用/停用 JavaScript 驗證。",
 	"typescript.goToProjectConfig.title": "移至專案組態",
 	"javascript.goToProjectConfig.title": "移至專案組態",
-	"typescript.referencesCodeLens.enabled": "啟用/停用參考 CodeLens。需要 TypeScript >= 2.0.6。",
 	"typescript.implementationsCodeLens.enabled": "啟用/停用實作 CodeLens。需要 TypeScript >= 2.2.0。",
 	"typescript.selectTypeScriptVersion.title": "選取 TypeScript 版本",
 	"jsDocCompletion.enabled": "啟用/停用自動 JSDoc 註解",

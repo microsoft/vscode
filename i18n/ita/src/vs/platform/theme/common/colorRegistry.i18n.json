@@ -26,8 +26,8 @@
 	"dropdownBorder": "Bordo dell'elenco a discesa.",
 	"listFocusBackground": "Colore sfondo Elenco/Struttura ad albero per l'elemento evidenziato quando l'Elenco/Struttura ad albero è attivo. Un Elenco/Struttura ad albero attivo\nha il focus della tastiera, uno inattivo no.",
 	"listActiveSelectionBackground": "Colore sfondo Elenco/Struttura ad albero per l'elemento selezionato quando l'Elenco/Struttura ad albero è attivo. Un Elenco/Struttura ad albero attivo\nha il focus della tastiera, uno inattivo no.",
-	"listInactiveSelectionBackground": "Colore sfondo Elenco/Struttura ad albero per l'elemento selezionato quando l'Elenco/Struttura ad albero è inattivo. Un Elenco/Struttura ad albero attivo\nha il focus della tastiera, uno inattivo no.",
 	"listActiveSelectionForeground": "Colore primo piano Elenco/Struttura ad albero per l'elemento selezionato quando l'Elenco/Struttura ad albero è attivo. Un Elenco/Struttura ad albero attivo\nha il focus della tastiera, uno inattivo no.",
+	"listInactiveSelectionBackground": "Colore sfondo Elenco/Struttura ad albero per l'elemento selezionato quando l'Elenco/Struttura ad albero è inattivo. Un Elenco/Struttura ad albero attivo\nha il focus della tastiera, uno inattivo no.",
 	"listHoverBackground": "Sfondo Elenco/Struttura ad albero al passaggio del mouse sugli elementi.",
 	"listDropBackground": "Sfondo Elenco/Struttura ad albero durante il trascinamento degli elementi selezionati.",
 	"highlight": "Colore primo piano Elenco/Struttura ad albero delle occorrenze trovate durante la ricerca nell'Elenco/Struttura ad albero.",
@@ -42,6 +42,7 @@
 	"scrollbarSliderActiveBackground": "Colore di sfondo dello Slider quando attivo.",
 	"editorBackground": "Colore di sfondo dell'editor.",
 	"editorForeground": "Colore primo piano predefinito dell'editor.",
+	"editorWidgetBackground": "Colore di sfondo dei widget dell'editor, ad esempio Trova/Sostituisci.",
 	"editorSelection": "Colore della selezione dell'editor.",
 	"editorInactiveSelection": "Colore della selezione in un editor inattivo.",
 	"editorSelectionHighlight": "Colore delle aree con lo stesso contenuto della selezione.",
@@ -51,6 +52,5 @@
 	"hoverHighlight": "Evidenziazione sotto la parola per cui è visualizzata un'area sensibile al passaggio del mouse.",
 	"hoverBackground": "Colore di sfondo dell'area sensibile al passaggio del mouse dell'editor.",
 	"hoverBorder": "Colore del bordo dell'area sensibile al passaggio del mouse dell'editor.",
-	"activeLinkForeground": "Colore dei collegamenti attivi.",
-	"editorWidgetBackground": "Colore di sfondo dei widget dell'editor, ad esempio Trova/Sostituisci."
+	"activeLinkForeground": "Colore dei collegamenti attivi."
 }

@@ -6,7 +6,7 @@
 {
 	"mFile": "&&Datei",
 	"mEdit": "&&Bearbeiten",
-	"mSelection": "&&Aktion auswählen",
+	"mSelection": "&&Auswahl",
 	"mView": "&&Anzeigen",
 	"mGoto": "Los",
 	"mDebug": "&&Debuggen",
@@ -115,7 +115,7 @@
 	"miGotoDefinition": "Gehe &&zu Definition",
 	"miGotoLine": "Gehe zu &&Zeile...",
 	"miStartDebugging": "&&Debugging starten",
-	"miStartWithoutDebugging": "&&Ohne Debuggen starten",
+	"miStartWithoutDebugging": "&&Ohne Debugging starten",
 	"miStopDebugging": "&&Debugging beenden",
 	"miRestart Debugging": "&&Debugging erneut starten",
 	"miOpenConfigurations": "&&Konfigurationen öffnen",

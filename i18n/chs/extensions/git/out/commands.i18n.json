@@ -18,6 +18,7 @@
 	"discard": "放弃更改",
 	"confirm discard all": "确定要放弃所有更改吗？此操作不可撤销！",
 	"discardAll": "放弃所有更改",
+	"no staged changes": "现在没有暂存的更改以供提交\n\n是否要直接自动暂存所有更改并提交？",
 	"yes": "是",
 	"always": "始终",
 	"no changes": "没有要提交的更改。",

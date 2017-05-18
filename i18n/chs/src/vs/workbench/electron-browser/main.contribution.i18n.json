@@ -41,6 +41,7 @@
 	"window.newWindowDimensions.inherit": "以与上一个活动窗口相同的尺寸打开新窗口。",
 	"window.newWindowDimensions.maximized": "打开最大化的新窗口。",
 	"window.newWindowDimensions.fullscreen": "在全屏模式下打开新窗口。",
+	"newWindowDimensions": "控制在已有窗口时新打开窗口的尺寸。默认情况下，新窗口将以小尺寸在屏幕的中央打开。当设置为“inherit”时，新窗口将继承上一活动窗口的尺寸，设置为“maximized”时窗口将被最大化，设置为“fullscreen”时则变为全屏。请注意，此设置对第一个打开的窗口无效。第一个窗口总是会恢复关闭前的大小和位置。",
 	"window.menuBarVisibility.default": "菜单仅在全屏模式下隐藏。",
 	"window.menuBarVisibility.visible": "菜单始终可见，即使处于全屏模式下。",
 	"window.menuBarVisibility.toggle": "菜单隐藏，但可以通过 Alt 键显示。",

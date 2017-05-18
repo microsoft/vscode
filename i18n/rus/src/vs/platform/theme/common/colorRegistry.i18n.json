@@ -28,8 +28,8 @@
 	"dropdownBorder": "Граница раскрывающегося списка.",
 	"listFocusBackground": "Фоновый цвет находящегося в фокусе элемента List/Tree, когда элемент List/Tree активен. На активном элементе List/Tree есть фокус клавиатуры, на неактивном — нет.",
 	"listActiveSelectionBackground": "Фоновый цвет выбранного элемента List/Tree, когда элемент List/Tree активен. На активном элементе List/Tree есть фокус клавиатуры, на неактивном — нет.",
-	"listInactiveSelectionBackground": "Фоновый цвет выбранного элемента List/Tree, когда элемент List/Tree неактивен. На активном элементе List/Tree есть фокус клавиатуры, на неактивном — нет.",
 	"listActiveSelectionForeground": "Цвет переднего плана выбранного элемента List/Tree, когда элемент List/Tree активен. На активном элементе List/Tree есть фокус клавиатуры, на неактивном — нет.",
+	"listInactiveSelectionBackground": "Фоновый цвет выбранного элемента List/Tree, когда элемент List/Tree неактивен. На активном элементе List/Tree есть фокус клавиатуры, на неактивном — нет.",
 	"listHoverBackground": "Фоновый цвет элементов List/Tree при наведении курсора мыши.",
 	"listDropBackground": "Фоновый цвет элементов List/Tree при перемещении с помощью мыши.",
 	"highlight": "Цвет переднего плана для выделения соответствия при поиске по элементу List/Tree.",
@@ -44,6 +44,7 @@
 	"scrollbarSliderActiveBackground": "Цвет фона активного ползунка.",
 	"editorBackground": "Цвет фона редактора.",
 	"editorForeground": "Цвет переднего плана редактора по умолчанию.",
+	"editorWidgetBackground": "Цвет фона виджетов редактора, таких как найти/заменить.",
 	"editorSelection": "Цвет выделения редактора.",
 	"editorInactiveSelection": "Цвет выделения в неактивном редакторе.",
 	"editorSelectionHighlight": "Цвет регионов с тем же содержимым, что и в выделении.",
@@ -53,6 +54,5 @@
 	"hoverHighlight": "Выделение под словом, для которого показано наведение.",
 	"hoverBackground": "Цвет фона при наведении указателя на редактор.",
 	"hoverBorder": "Цвет границ при наведении указателя на редактор.",
-	"activeLinkForeground": "Цвет активных ссылок.",
-	"editorWidgetBackground": "Цвет фона виджетов редактора, таких как найти/заменить."
+	"activeLinkForeground": "Цвет активных ссылок."
 }
