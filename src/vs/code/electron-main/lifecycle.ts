@@ -17,10 +17,10 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleService');
 
 export enum UnloadReason {
-	CLOSE,
-	QUIT,
-	RELOAD,
-	LOAD
+	CLOSE = 1,
+	QUIT = 2,
+	RELOAD = 3,
+	LOAD = 4
 }
 
 export interface ILifecycleService {

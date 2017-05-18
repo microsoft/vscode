@@ -132,6 +132,7 @@ export class WorkbenchShell {
 	private windowIPCService: IWindowIPCService;
 	private timerService: ITimerService;
 	private themeService: WorkbenchThemeService;
+	private lifecycleService: ILifecycleService;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -237,7 +238,8 @@ export class WorkbenchShell {
 			experiments: this.telemetryService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
-			restoredEditors: info.restoredEditors.length
+			restoredEditors: info.restoredEditors.length,
+			startupKind: this.lifecycleService.startupKind
 		});
 
 		// Telemetry: startup metrics
@@ -357,6 +359,7 @@ export class WorkbenchShell {
 		this.toUnbind.push(lifecycleService.onShutdown(reason => saveFontInfo(this.storageService)));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		disposables.add(lifecycleTelemetry(this.telemetryService, lifecycleService));
+		this.lifecycleService = lifecycleService;
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
 		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementChannelClient, extensionManagementChannel));
