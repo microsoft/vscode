@@ -16,7 +16,6 @@ import aria = require('vs/base/browser/ui/aria/aria');
 import { dispose, IDisposable, Disposables } from 'vs/base/common/lifecycle';
 import errors = require('vs/base/common/errors');
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { stopProfiling } from 'vs/base/node/profiler';
 import product from 'vs/platform/node/product';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import pkg from 'vs/platform/node/package';
@@ -97,8 +96,6 @@ import { MainProcessTextMateSyntax } from 'vs/editor/electron-browser/textMate/T
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
-import { readdir } from 'vs/base/node/pfs';
-import { join } from 'path';
 import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
@@ -262,37 +259,6 @@ export class WorkbenchShell {
 
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
-		}
-
-		// Profiler: startup cpu profile
-		const { profileStartup } = this.environmentService;
-		if (profileStartup) {
-			this.extensionService.onReady().then(() => stopProfiling(profileStartup.dir, profileStartup.prefix)).then(() => {
-				readdir(profileStartup.dir).then(files => {
-					return files.filter(value => value.indexOf(profileStartup.prefix) === 0);
-				}).then(files => {
-					const profileFiles = files.reduce((prev, cur) => `${prev}${join(profileStartup.dir, cur)}\n`, '\n');
-
-					const primaryButton = this.messageService.confirm({
-						type: 'info',
-						message: nls.localize('prof.message', "Successfully created profiles."),
-						detail: nls.localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
-						primaryButton: nls.localize('prof.restartAndFileIssue', "Create Issue and Restart"),
-						secondaryButton: nls.localize('prof.restart', "Restart")
-					});
-
-					let createIssue = TPromise.as<void>(void 0);
-					if (primaryButton) {
-						const action = this.workbench.getInstantiationService().createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
-
-						createIssue = action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`).then(() => {
-							return this.windowsService.showItemInFolder(join(profileStartup.dir, files[0]));
-						});
-					}
-					createIssue.then(() => this.windowsService.relaunch({ removeArgs: ['--prof-startup'] }));
-				});
-
-			}, err => console.error(err));
 		}
 	}
 
