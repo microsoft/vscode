@@ -76,7 +76,7 @@ export enum Platform {
 	Windows
 }
 
-export let _platform: Platform = Platform.Web;
+let _platform: Platform = Platform.Web;
 if (_isNative) {
 	if (_isMacintosh) {
 		_platform = Platform.Mac;
