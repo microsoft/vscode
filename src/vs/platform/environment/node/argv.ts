@@ -22,7 +22,6 @@ const options: minimist.Opts = {
 		'debugBrkPluginHost',
 		'debugPluginHost',
 		'open-url',
-		'prof-startup-timers',
 		'enable-proposed-api'
 	],
 	boolean: [

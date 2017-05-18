@@ -6,13 +6,8 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { assign } from 'vs/base/common/objects';
-import { join } from 'path';
-import { generateUuid } from 'vs/base/common/uuid';
 import { virtualMachineHint } from 'vs/base/node/id';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/platform';
-import { writeFile } from 'vs/base/node/pfs';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -74,15 +69,8 @@ class PerformanceContribution implements IWorkbenchContribution {
 		@IStorageService private _storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
-		const dumpFile = _envService.args['prof-startup-timers'];
-		if (dumpFile) {
-			// wait for extensions being loaded
-			extensionService.onReady()
-				.then(() => TPromise.timeout(15000)) // time service isn't ready yet because it listens on the same event...
-				.then(() => this._dumpTimersAndQuit(dumpFile))
-				.done(undefined, err => console.error(err));
 
-		} else if (!_envService.args['prof-startup']) {
+		if (!_envService.args['prof-startup']) {
 			// notify user of slow start
 			setTimeout(() => {
 				this._checkTimersAndSuggestToProfile();
@@ -92,14 +80,6 @@ class PerformanceContribution implements IWorkbenchContribution {
 
 	getId(): string {
 		return 'performance';
-	}
-
-	private _dumpTimersAndQuit(folder: string) {
-		const metrics = this._timerService.startupMetrics;
-		const id = generateUuid();
-		const all = assign({ id, commit: product.commit }, metrics);
-		const raw = JSON.stringify(all);
-		return writeFile(join(folder, `timers-${id}.json`), raw).then(() => this._windowsService.quit());
 	}
 
 	private _checkTimersAndSuggestToProfile() {
@@ -142,7 +122,6 @@ class PerformanceContribution implements IWorkbenchContribution {
 			// only ask once per version
 			return;
 		}
-
 
 		const profile = this._messageService.confirm({
 			type: 'info',

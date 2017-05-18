@@ -37,7 +37,6 @@ export interface ParsedArgs {
 	'uninstall-extension'?: string | string[];
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: string | string[];
-	'prof-startup-timers': string;
 	'skip-getting-started'?: boolean;
 }
 
