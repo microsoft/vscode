@@ -17,7 +17,7 @@
     "monaco-editor-setup": "node scripts/monaco-editor-setup.js",
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
-    "gulp": "gulp",
+    "gulp": "gulp --max_old_space_size=4096",
     "7z": "7z"
   },
   "dependencies": {
