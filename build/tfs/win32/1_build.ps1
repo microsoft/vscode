@@ -1,6 +1,7 @@
 Param(
-   [string]$mixinPassword,
-   [string]$vsoPAT
+  [string]$arch,
+  [string]$mixinPassword,
+  [string]$vsoPAT
 )
 
 . .\scripts\env.ps1
@@ -12,7 +13,7 @@ $env:HOME=$env:USERPROFILE
 "machine monacotools.visualstudio.com password ${vsoPAT}" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
 
 step "Install dependencies" {
-  exec { & npm install --arch=ia32 }
+  exec { & npm install --arch=$arch }
 }
 
 $env:VSCODE_MIXIN_PASSWORD = $mixinPassword
@@ -21,15 +22,15 @@ step "Mix in repository from vscode-distro" {
 }
 
 step "Get Electron" {
-  exec { & npm run gulp -- electron-ia32 }
+  exec { & npm run gulp -- "electron-$arch" }
 }
 
 step "Install distro dependencies" {
-  exec { & node build\tfs\common\installDistro.js --arch=ia32 }
+  exec { & node build\tfs\common\installDistro.js --arch=$arch }
 }
 
 step "Build minified" {
-  exec { & npm run gulp -- --max_old_space_size=4096 vscode-win32-ia32-min }
+  exec { & npm run gulp -- --max_old_space_size=4096 "vscode-win32-$arch-min" }
 }
 
 step "Run unit tests" {
