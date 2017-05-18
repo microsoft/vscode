@@ -51,14 +51,6 @@
 	-moz-animation-timing-function: linear;
 }
 
-.progress-container.infinite.done .progress-bit {
-	transition: opacity 200ms linear;
-	-webkit-transition: opacity 200ms linear;
-	-o-transition: opacity 200ms linear;
-	-moz-transition: opacity 200ms linear;
-	-ms-transition: opacity 200ms linear;
-}
-
 @keyframes progress { from { left: 0; width: 2%; }	50% { left: 50%; width: 5%; } to { left: 98%; width: 2%; } }
 @-ms-keyframes progress { from { left: 0; width: 2%; }	50% { left: 50%; width: 5%; } to { left: 98%; width: 2%; } }
 @-webkit-keyframes progress { from { left: 0; width: 2%; }	50% { left: 50%; width: 5%; } to { left: 98%; width: 2%; } }

@@ -27,7 +27,7 @@ import { LeftRightWidget } from 'vs/base/browser/ui/leftRightWidget/leftRightWid
 import * as tree from 'vs/base/parts/tree/browser/tree';
 import { DefaultController, LegacyRenderer } from 'vs/base/parts/tree/browser/treeDefaults';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -43,6 +43,7 @@ import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/t
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEnvironmentService } from "vs/platform/environment/common/environment";
 
 class DecorationsManager implements IDisposable {
 
@@ -345,15 +346,18 @@ class Controller extends DefaultController {
 class Renderer extends LegacyRenderer {
 	private _contextService: IWorkspaceContextService;
 	private _themeService: IThemeService;
+	private _environmentService: IEnvironmentService;
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@optional(IEnvironmentService) environmentService: IEnvironmentService
 	) {
 		super();
 
 		this._contextService = contextService;
 		this._themeService = themeService;
+		this._environmentService = environmentService;
 	}
 
 	public getHeight(tree: tree.ITree, element: any): number {
@@ -371,7 +375,7 @@ class Renderer extends LegacyRenderer {
 			/* tslint:disable:no-unused-expression */
 			new LeftRightWidget(fileReferencesContainer, (left: HTMLElement) => {
 
-				const label = new FileLabel(left, element.uri, this._contextService);
+				const label = new FileLabel(left, element.uri, this._contextService, this._environmentService);
 				toDispose.push(label);
 				return <IDisposable>null;
 
