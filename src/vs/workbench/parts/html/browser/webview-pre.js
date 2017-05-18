@@ -154,7 +154,7 @@
 			const frame = getActiveFrame();
 
 			// keep current scrollTop around and use later
-			let setInitialScrollPosition;
+			var setInitialScrollPosition;
 			if (frame) {
 				const scrollY = frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
 				setInitialScrollPosition = function (body) {
