@@ -28,6 +28,7 @@ import {
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ViewModelCursors } from "vs/editor/common/viewModel/viewModelCursors";
 
 let EDITOR_ID = 0;
 
@@ -99,6 +100,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 	protected viewModel: ViewModel;
 	protected cursor: Cursor;
+	protected viewCursor: ViewModelCursors;
 
 	protected readonly _instantiationService: IInstantiationService;
 	protected readonly _contextKeyService: IContextKeyService;
@@ -932,7 +934,11 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 				this._enableEmptySelectionClipboard()
 			);
 
-			this.viewModel.addEventSource(this.cursor);
+			this.viewCursor = new ViewModelCursors(
+				this._configuration,
+				this.viewModel,
+				this.cursor
+			);
 
 			this._createView();
 
@@ -992,6 +998,11 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (this.cursor) {
 			this.cursor.dispose();
 			this.cursor = null;
+		}
+
+		if (this.viewCursor) {
+			this.viewCursor.dispose();
+			this.viewCursor = null;
 		}
 
 		if (this.viewModel) {

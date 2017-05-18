@@ -13,7 +13,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { ViewModelCursors } from 'vs/editor/common/viewModel/viewModelCursors';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModelListener, IViewModel, ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
@@ -22,8 +21,7 @@ import * as errors from 'vs/base/common/errors';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from 'vs/editor/common/controller/cursorEvents';
-import { Cursor } from 'vs/editor/common/controller/cursor';
+import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 import { CharacterHardWrappingLineMapperFactory } from "vs/editor/common/viewModel/characterHardWrappingLineMapper";
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 
@@ -87,7 +85,43 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 
 }
 
-export class ViewModel extends Disposable implements IViewModel {
+export class ViewEventEmitter extends Disposable {
+	private _listeners: IViewModelListener[];
+
+	constructor() {
+		super();
+		this._listeners = [];
+	}
+
+	public dispose(): void {
+		this._listeners = [];
+		super.dispose();
+	}
+
+	protected _emit(events: viewEvents.ViewEvent[]): void {
+		const listeners = this._listeners.slice(0);
+		for (let i = 0, len = listeners.length; i < len; i++) {
+			safeInvokeListener(listeners[i], events);
+		}
+	}
+
+	public addEventListener(listener: (events: viewEvents.ViewEvent[]) => void): IDisposable {
+		this._listeners.push(listener);
+		return {
+			dispose: () => {
+				let listeners = this._listeners;
+				for (let i = 0, len = listeners.length; i < len; i++) {
+					if (listeners[i] === listener) {
+						listeners.splice(i, 1);
+						break;
+					}
+				}
+			}
+		};
+	}
+}
+
+export class ViewModel extends ViewEventEmitter implements IViewModel {
 
 	private readonly editorId: number;
 	private readonly configuration: editorCommon.IConfiguration;
@@ -97,11 +131,9 @@ export class ViewModel extends Disposable implements IViewModel {
 	public readonly viewLayout: ViewLayout;
 
 	private readonly decorations: ViewModelDecorations;
-	private readonly cursors: ViewModelCursors;
 
 	private _isDisposing: boolean;
 	private _centeredViewLine: number;
-	private _listeners: IViewModelListener[];
 
 	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel) {
 		super();
@@ -139,11 +171,8 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._isDisposing = false;
 		this._centeredViewLine = -1;
-		this._listeners = [];
 
 		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.coordinatesConverter);
-
-		this.cursors = new ViewModelCursors(this.configuration, this.coordinatesConverter);
 
 		this._register(this.model.addBulkListener((events: EmitterEvent[]) => {
 			if (this._isDisposing) {
@@ -171,59 +200,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._isDisposing = true;
 		this.decorations.dispose();
 		this.lines.dispose();
-		this._listeners = [];
 		super.dispose();
-	}
-
-	private _emit(events: viewEvents.ViewEvent[]): void {
-		const listeners = this._listeners.slice(0);
-		for (let i = 0, len = listeners.length; i < len; i++) {
-			safeInvokeListener(listeners[i], events);
-		}
-	}
-
-	public addEventSource(cursor: Cursor): void {
-		this._register(cursor.addBulkListener((events: EmitterEvent[]) => {
-			const eventsCollector = new ViewEventsCollector();
-			this._onCursorEvents(eventsCollector, events);
-			this._emit(eventsCollector.finalize());
-		}));
-	}
-
-	private _onCursorEvents(eventsCollector: ViewEventsCollector, events: EmitterEvent[]): void {
-		for (let i = 0, len = events.length; i < len; i++) {
-			const _e = events[i];
-			const type = _e.type;
-			const data = _e.data;
-
-			switch (type) {
-				case CursorEventType.CursorPositionChanged: {
-					const e = <ICursorPositionChangedEvent>data;
-					this.cursors.onCursorPositionChanged(eventsCollector, e);
-					break;
-				}
-				case CursorEventType.CursorSelectionChanged: {
-					const e = <ICursorSelectionChangedEvent>data;
-					this.cursors.onCursorSelectionChanged(eventsCollector, e);
-					break;
-				}
-				case CursorEventType.CursorRevealRange: {
-					const e = <ICursorRevealRangeEvent>data;
-					this.cursors.onCursorRevealRange(eventsCollector, e);
-					break;
-				}
-				case CursorEventType.CursorScrollRequest: {
-					const e = <CursorScrollRequest>data;
-					this.viewLayout.setScrollPosition({
-						scrollTop: e.desiredScrollTop
-					});
-					break;
-				}
-				default:
-					console.info('View received unknown event: ');
-					console.info(type, data);
-			}
-		}
 	}
 
 	private _onConfigurationChanged(eventsCollector: ViewEventsCollector, e: IConfigurationChangedEvent): void {
@@ -238,7 +215,6 @@ export class ViewModel extends Disposable implements IViewModel {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			this.decorations.onLineMappingChanged(eventsCollector);
-			this.cursors.onLineMappingChanged(eventsCollector);
 			this.viewLayout.onFlushed(this.getLineCount());
 			revealPreviousCenteredModelRange = true;
 		}
@@ -377,7 +353,6 @@ export class ViewModel extends Disposable implements IViewModel {
 						eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 						eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 						this.decorations.onLineMappingChanged(eventsCollector);
-						this.cursors.onLineMappingChanged(eventsCollector);
 						this.viewLayout.onFlushed(this.getLineCount());
 					}
 
@@ -401,7 +376,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			this.decorations.onLineMappingChanged(eventsCollector);
-			this.cursors.onLineMappingChanged(eventsCollector);
 		}
 	}
 
@@ -412,25 +386,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			this.decorations.onLineMappingChanged(eventsCollector);
-			this.cursors.onLineMappingChanged(eventsCollector);
 			this.viewLayout.onFlushed(this.getLineCount());
 		}
 		this._emit(eventsCollector.finalize());
-	}
-
-	public addEventListener(listener: (events: viewEvents.ViewEvent[]) => void): IDisposable {
-		this._listeners.push(listener);
-		return {
-			dispose: () => {
-				let listeners = this._listeners;
-				for (let i = 0, len = listeners.length; i < len; i++) {
-					if (listeners[i] === listener) {
-						listeners.splice(i, 1);
-						break;
-					}
-				}
-			}
-		};
 	}
 
 	public getCenteredRangeInViewport(): Range {

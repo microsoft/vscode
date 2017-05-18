@@ -67,8 +67,6 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		return hasChanged;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this._primaryCursorIsInEditableRange = true;
-		this._primaryCursorLineNumber = 1;
 		return true;
 	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {

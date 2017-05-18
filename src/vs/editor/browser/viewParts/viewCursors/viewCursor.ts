@@ -130,12 +130,6 @@ export class ViewCursor {
 		return true;
 	}
 
-	public onFlushed(): boolean {
-		this.updatePosition(new Position(1, 1));
-		this._isInEditableRange = true;
-		return true;
-	}
-
 	private _prepareRender(ctx: RenderingContext): ViewCursorRenderData {
 		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
 			const visibleRange = ctx.visibleRangeForPosition(this._position);
