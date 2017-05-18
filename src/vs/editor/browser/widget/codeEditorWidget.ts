@@ -182,7 +182,10 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	public getCompletelyVisibleLinesRangeInViewport(): Range {
-		const viewRange = this._getCompletelyVisibleViewRange();
+		if (!this.hasView) {
+			return null;
+		}
+		const viewRange = this.viewModel.getCompletelyVisibleViewRange();
 		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 

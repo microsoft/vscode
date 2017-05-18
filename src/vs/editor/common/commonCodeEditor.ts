@@ -243,34 +243,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		return this.viewModel.getCenteredRangeInViewport();
 	}
 
-	protected _getCompletelyVisibleViewRange(): Range {
-		if (!this.hasView) {
-			return null;
-		}
-		const partialData = this.viewModel.viewLayout.getLinesViewportData();
-		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
-		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
-
-		return new Range(
-			startViewLineNumber, this.viewModel.getLineMinColumn(startViewLineNumber),
-			endViewLineNumber, this.viewModel.getLineMaxColumn(endViewLineNumber)
-		);
-	}
-
-	protected _getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
-		if (!this.hasView) {
-			return null;
-		}
-		const partialData = this.viewModel.viewLayout.getLinesViewportDataAtScrollTop(scrollTop);
-		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
-		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
-
-		return new Range(
-			startViewLineNumber, this.viewModel.getLineMinColumn(startViewLineNumber),
-			endViewLineNumber, this.viewModel.getLineMaxColumn(endViewLineNumber)
-		);
-	}
-
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {
 		if (!this.model) {
 			return rawPosition.column;
@@ -880,13 +852,13 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 				viewModel: this.viewModel,
 				coordinatesConverter: this.viewModel.coordinatesConverter,
 				getScrollTop: (): number => {
-					return this.getScrollTop();
+					return this.viewModel.viewLayout.getScrollTop();
 				},
 				getCompletelyVisibleViewRange: (): Range => {
-					return this._getCompletelyVisibleViewRange();
+					return this.viewModel.getCompletelyVisibleViewRange();
 				},
 				getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number): Range => {
-					return this._getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+					return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
 				},
 				getVerticalOffsetForViewLineNumber: (viewLineNumber: number): number => {
 					return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);

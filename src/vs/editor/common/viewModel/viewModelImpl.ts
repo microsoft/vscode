@@ -401,6 +401,28 @@ export class ViewModel extends ViewEventEmitter implements IViewModel {
 		return this.coordinatesConverter.convertViewRangeToModelRange(currentCenteredViewRange);
 	}
 
+	public getCompletelyVisibleViewRange(): Range {
+		const partialData = this.viewLayout.getLinesViewportData();
+		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
+		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
+
+		return new Range(
+			startViewLineNumber, this.getLineMinColumn(startViewLineNumber),
+			endViewLineNumber, this.getLineMaxColumn(endViewLineNumber)
+		);
+	}
+
+	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
+		const partialData = this.viewLayout.getLinesViewportDataAtScrollTop(scrollTop);
+		const startViewLineNumber = partialData.completelyVisibleStartLineNumber;
+		const endViewLineNumber = partialData.completelyVisibleEndLineNumber;
+
+		return new Range(
+			startViewLineNumber, this.getLineMinColumn(startViewLineNumber),
+			endViewLineNumber, this.getLineMaxColumn(endViewLineNumber)
+		);
+	}
+
 	public getTabSize(): number {
 		return this.model.getOptions().tabSize;
 	}
