@@ -846,6 +846,7 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 	hoverMessage: MarkedString | MarkedString[];
 	glyphMarginHoverMessage: MarkedString | MarkedString[];
 	isWholeLine: boolean;
+	showIfCollapsed: boolean;
 	showInOverviewRuler: string;
 	overviewRuler: editorCommon.IModelDecorationOverviewRulerOptions;
 	glyphMarginClassName: string;
@@ -861,6 +862,7 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 		this.hoverMessage = options.hoverMessage || [];
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || strings.empty;
 		this.isWholeLine = options.isWholeLine || false;
+		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.overviewRuler = _normalizeOverviewRulerOptions(options.overviewRuler, options.showInOverviewRuler);
 		this.glyphMarginClassName = options.glyphMarginClassName ? cleanClassName(options.glyphMarginClassName) : strings.empty;
 		this.linesDecorationsClassName = options.linesDecorationsClassName ? cleanClassName(options.linesDecorationsClassName) : strings.empty;
@@ -883,6 +885,7 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 			this.stickiness === other.stickiness
 			&& this.className === other.className
 			&& this.isWholeLine === other.isWholeLine
+			&& this.showIfCollapsed === other.showIfCollapsed
 			&& this.showInOverviewRuler === other.showInOverviewRuler
 			&& this.glyphMarginClassName === other.glyphMarginClassName
 			&& this.linesDecorationsClassName === other.linesDecorationsClassName

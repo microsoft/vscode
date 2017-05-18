@@ -86,6 +86,11 @@ export interface IModelDecorationOptions {
 	 */
 	isWholeLine?: boolean;
 	/**
+	 * Always render the decoration (even when the range it encompasses is collapsed).
+	 * @internal
+	 */
+	showIfCollapsed?: boolean;
+	/**
 	 * @deprecated : Use `overviewRuler` instead
 	 */
 	showInOverviewRuler?: string;
