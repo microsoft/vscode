@@ -9,7 +9,6 @@ import 'vs/editor/common/view/editorColorRegistry'; // initialze editor theming 
 import 'vs/css!./media/tokens';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -413,10 +412,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			this._view.render(false, true);
 			this.hasView = true;
 		}
-	}
-
-	protected _enableEmptySelectionClipboard(): boolean {
-		return browser.enableEmptySelectionClipboard;
 	}
 
 	protected _createView(): void {

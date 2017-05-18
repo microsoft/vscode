@@ -77,19 +77,16 @@ export class Cursor extends Disposable implements ICursors {
 	private _isDoingComposition: boolean;
 	private _columnSelectData: IColumnSelectData;
 
-	private enableEmptySelectionClipboard: boolean;
-
 	private _handlers: {
 		[key: string]: (ctx: IMultipleCursorOperationContext) => void;
 	};
 
-	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModelHelper: IViewModelHelper, enableEmptySelectionClipboard: boolean) {
+	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModelHelper: IViewModelHelper) {
 		super();
 		this._eventEmitter = this._register(new EventEmitter());
 		this.configuration = configuration;
 		this.model = model;
 		this.viewModelHelper = viewModelHelper;
-		this.enableEmptySelectionClipboard = enableEmptySelectionClipboard;
 
 		const createCursorContext = () => {
 			const config = new CursorConfiguration(
@@ -1062,7 +1059,7 @@ export class Cursor extends Disposable implements ICursors {
 	}
 
 	private _cut(ctx: IMultipleCursorOperationContext): void {
-		this._applyEdits(ctx, DeleteOperations.cut(this.context.config, this.context.model, this._getAllCursorsModelState(), this.enableEmptySelectionClipboard));
+		this._applyEdits(ctx, DeleteOperations.cut(this.context.config, this.context.model, this._getAllCursorsModelState()));
 	}
 
 	// -------------------- END editing operations

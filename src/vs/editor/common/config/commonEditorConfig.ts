@@ -56,6 +56,7 @@ export interface IEnvConfiguration {
 	outerWidth: number;
 	outerHeight: number;
 	canUseTranslate3d: boolean;
+	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	zoomLevel: number;
 }
@@ -119,6 +120,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			isDominatedByLongLines: this._isDominatedByLongLines,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			canUseTranslate3d: partialEnv.canUseTranslate3d,
+			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode()
 		};

@@ -137,8 +137,8 @@ export interface IViewModel {
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
 
-	getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
-	getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
+	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
+	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 }
 
 export class MinimapLinesRenderingData {

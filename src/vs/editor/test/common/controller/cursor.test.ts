@@ -146,7 +146,7 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel = Model.createFromString(text);
 		thisConfiguration = new TestConfiguration(null);
-		thisCursor = new Cursor(thisConfiguration, thisModel, viewModelHelper(thisModel), false);
+		thisCursor = new Cursor(thisConfiguration, thisModel, viewModelHelper(thisModel));
 	});
 
 	teardown(() => {
@@ -705,7 +705,7 @@ suite('Editor Controller - Cursor', () => {
 			'\t\t}',
 			'\t}'
 		].join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
 
 		moveTo(cursor, 1, 7, false);
 		assertCursor(cursor, new Position(1, 7));
@@ -739,7 +739,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
 
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
@@ -774,7 +774,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
 
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
@@ -832,7 +832,7 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
 
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
@@ -877,7 +877,7 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
 
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
@@ -1421,7 +1421,7 @@ suite('Editor Controller - Regression tests', () => {
 			'qwerty'
 		];
 		let model = Model.createFromString(text.join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
+		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
 
 		moveTo(cursor, 2, 1, false);
 		assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -1439,7 +1439,7 @@ suite('Editor Controller - Regression tests', () => {
 			''
 		];
 		model = Model.createFromString(text.join('\n'));
-		cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model), true);
+		cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
 
 		moveTo(cursor, 2, 1, false);
 		assertCursor(cursor, new Selection(2, 1, 2, 1));
@@ -2719,7 +2719,7 @@ interface ICursorOpts {
 function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor) => void): void {
 	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	let config = new TestConfiguration(opts.editorOpts);
-	let cursor = new Cursor(config, model, viewModelHelper(model), false);
+	let cursor = new Cursor(config, model, viewModelHelper(model));
 
 	callback(model, cursor);
 

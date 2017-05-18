@@ -153,8 +153,6 @@ export function canUseTranslate3d(): boolean {
 	return true;
 }
 
-export const enableEmptySelectionClipboard = isWebKit;
-
 export function supportsExecCommand(command: string): boolean {
 	return (
 		(isIE || Platform.isNative)

@@ -163,14 +163,14 @@ export class DeleteOperations {
 		});
 	}
 
-	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[], enableEmptySelectionClipboard: boolean): EditOperationResult {
+	public static cut(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[]): EditOperationResult {
 		let commands: CommandResult[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
 			let selection = cursor.selection;
 
 			if (selection.isEmpty()) {
-				if (enableEmptySelectionClipboard) {
+				if (config.emptySelectionClipboard) {
 					// This is a full line cut
 
 					let position = cursor.position;

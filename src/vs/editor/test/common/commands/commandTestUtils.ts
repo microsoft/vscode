@@ -25,7 +25,7 @@ export function testCommand(
 
 	let model = Model.createFromString(lines.join('\n'), undefined, languageIdentifier);
 	let config = new TestConfiguration(null);
-	let cursor = new Cursor(config, model, viewModelHelper(model), false);
+	let cursor = new Cursor(config, model, viewModelHelper(model));
 
 	cursor.setSelections('tests', [selection]);
 

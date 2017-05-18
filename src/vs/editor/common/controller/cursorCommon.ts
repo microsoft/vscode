@@ -61,6 +61,7 @@ export class CursorConfiguration {
 	public readonly lineHeight: number;
 	public readonly useTabStops: boolean;
 	public readonly wordSeparators: string;
+	public readonly emptySelectionClipboard: boolean;
 	public readonly autoClosingBrackets: boolean;
 	public readonly autoClosingPairsOpen: CharacterMap;
 	public readonly autoClosingPairsClose: CharacterMap;
@@ -71,6 +72,7 @@ export class CursorConfiguration {
 		return (
 			e.layoutInfo
 			|| e.wordSeparators
+			|| e.emptySelectionClipboard
 			|| e.autoClosingBrackets
 			|| e.useTabStops
 			|| e.lineHeight
@@ -94,6 +96,7 @@ export class CursorConfiguration {
 		this.lineHeight = c.lineHeight;
 		this.useTabStops = c.useTabStops;
 		this.wordSeparators = c.wordSeparators;
+		this.emptySelectionClipboard = c.emptySelectionClipboard;
 		this.autoClosingBrackets = c.autoClosingBrackets;
 
 		this.autoClosingPairsOpen = {};

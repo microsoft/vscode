@@ -902,8 +902,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			this.cursor = new Cursor(
 				this._configuration,
 				this.model,
-				viewModelHelper,
-				this._enableEmptySelectionClipboard()
+				viewModelHelper
 			);
 
 			this.viewCursor = new ViewModelCursors(
@@ -937,8 +936,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			this.hasView = false;
 		}
 	}
-
-	protected abstract _enableEmptySelectionClipboard(): boolean;
 
 	protected abstract _createView(): void;
 

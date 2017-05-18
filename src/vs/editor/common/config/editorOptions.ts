@@ -1219,6 +1219,7 @@ export interface IEnvironmentalOptions {
 	readonly isDominatedByLongLines: boolean;
 	readonly lineNumbersDigitCount: number;
 	readonly canUseTranslate3d: boolean;
+	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
 }
@@ -1665,7 +1666,7 @@ export class InternalEditorOptionsFactory {
 			useTabStops: opts.useTabStops,
 			tabFocusMode: opts.readOnly ? true : env.tabFocusMode,
 			dragAndDrop: opts.dragAndDrop,
-			emptySelectionClipboard: opts.emptySelectionClipboard,
+			emptySelectionClipboard: opts.emptySelectionClipboard && env.emptySelectionClipboard,
 			layoutInfo: layoutInfo,
 			fontInfo: env.fontInfo,
 			viewInfo: opts.viewInfo,
