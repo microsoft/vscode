@@ -15,7 +15,7 @@ RUN apt-get install -y fakeroot
 RUN apt-get install -y libgtk2.0-0 libgtk2.0-0:i386
 RUN apt-get install -y libgconf-2-4 libgconf-2-4:i386
 RUN apt-get install -y libnss3 libnss3:i386
-RUN apt-get install -y libasound2
+RUN apt-get install -y libasound2 libasound2:i386
 RUN apt-get install -y libxtst6 libxtst6:i386
 RUN apt-get install -y libfuse2
 RUN apt-get install -y libnotify-bin
