@@ -5,6 +5,8 @@
 
 'use strict';
 
+/*global define*/
+
 var requireProfiler;
 
 if (typeof define !== "function" && typeof module === "object" && typeof module.exports === "object") {
@@ -12,23 +14,23 @@ if (typeof define !== "function" && typeof module === "object" && typeof module.
 	global.define = function (dep, callback) {
 		module.exports = callback();
 		global.define = undefined;
-	}
+	};
 	requireProfiler = function () {
 		return require('v8-profiler');
-	}
+	};
 } else {
 	// this is amd
 	requireProfiler = function () {
 		return require.__$__nodeRequire('v8-profiler');
-	}
+	};
 }
 
 define([], function () {
 
 	function Tick(name, started, stopped, profile) {
-		this.name = name
-		this.started = started
-		this.stopped = stopped
+		this.name = name;
+		this.started = started;
+		this.stopped = stopped;
 		this.duration = stopped - started;
 		this.profile = profile;
 	}
@@ -49,9 +51,9 @@ define([], function () {
 	global._perfTicks = global._perfTicks || [];
 	global._perfToBeProfiled = global._perfToBeProfiled || new Set();
 
-	const _starts = global._perfStarts;
-	const _ticks = global._perfTicks;
-	const _toBeProfiled = global._perfToBeProfiled
+	var _starts = global._perfStarts;
+	var _ticks = global._perfTicks;
+	var _toBeProfiled = global._perfToBeProfiled;
 
 	function startTimer(name, started) {
 		if (typeof started !== 'number') {
@@ -64,7 +66,7 @@ define([], function () {
 			requireProfiler().startProfiling(name, true);
 		}
 		_starts.set(name, { name: name, started: started });
-		const stop = stopTimer.bind(undefined, name);
+		var stop = stopTimer.bind(undefined, name);
 		return {
 			stop: stop,
 			while: function (thenable) {
@@ -78,9 +80,9 @@ define([], function () {
 		if (typeof stopped !== 'number') {
 			stopped = Date.now();
 		}
-		const profile = _toBeProfiled.has(name) ? requireProfiler().stopProfiling(name) : undefined;
-		const start = _starts.get(name);
-		const tick = new Tick(start.name, start.started, stopped, profile);
+		var profile = _toBeProfiled.has(name) ? requireProfiler().stopProfiling(name) : undefined;
+		var start = _starts.get(name);
+		var tick = new Tick(start.name, start.started, stopped, profile);
 		_ticks.push(tick);
 		_starts.delete(name);
 	}
@@ -91,10 +93,10 @@ define([], function () {
 
 	function setProfileList(names) {
 		_toBeProfiled.clear();
-		names.forEach(function (name) { _toBeProfiled.add(name) });
+		names.forEach(function (name) { _toBeProfiled.add(name); });
 	}
 
-	const exports = {
+	var exports = {
 		Tick: Tick,
 		startTimer: startTimer,
 		stopTimer: stopTimer,
@@ -104,8 +106,8 @@ define([], function () {
 	};
 
 	function disable() {
-		const emptyController = Object.freeze({ while: function (t) { return t; }, stop: function () { } });
-		const emptyTicks = Object.create([]);
+		var emptyController = Object.freeze({ while: function (t) { return t; }, stop: function () { } });
+		var emptyTicks = Object.create([]);
 		exports.startTimer = function () { return emptyController; };
 		exports.stopTimer = function () { };
 		exports.ticks = function () { return emptyTicks; };
