@@ -354,7 +354,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private readonly listWidth = 330;
 	private readonly minWidgetWidth = 430;
 	private storageService: IStorageService;
-	private expandDocs: boolean;
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
@@ -367,7 +366,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		@IStorageService storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		this.expandDocs = storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
 		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
 		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
 
@@ -562,10 +560,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.list.setFocus([index]);
 				this.list.reveal(index);
 
-				if (this.expandDocs) {
+				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
 					this.showDetails();
 					this.adjustDocsPosition();
 					this._ariaAlert(this.details.getAriaLabel());
+				} else {
+					removeClass(this.element, 'docs-expanded');
 				}
 			})
 			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
@@ -609,7 +609,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Open:
 				hide(this.messageElement);
 				show(this.listElement);
-				if (this.expandDocs) {
+				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
 					show(this.details.element);
 				} else {
 					hide(this.details.element);
@@ -804,14 +804,14 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	toggleDetails(): void {
-		this.expandDocs = !this.expandDocs;
-		this.storageService.store('expandSuggestionDocs', this.expandDocs, StorageScope.GLOBAL);
 
-		if (!this.expandDocs) {
+		if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
+			this.storageService.store('expandSuggestionDocs', false, StorageScope.GLOBAL);
 			hide(this.details.element);
 			removeClass(this.element, 'docs-expanded');
 			this.editor.layoutContentWidget(this);
 		} else {
+			this.storageService.store('expandSuggestionDocs', true, StorageScope.GLOBAL);
 			this.showDetails();
 		}
 	}
@@ -820,10 +820,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (this.state !== State.Open && this.state !== State.Details) {
 			return;
 		}
-		if (this.expandDocs) {
-			show(this.details.element);
-			addClass(this.element, 'docs-expanded');
-		}
+
+		show(this.details.element);
+		addClass(this.element, 'docs-expanded');
 
 		this.show();
 		this.editor.focus();
