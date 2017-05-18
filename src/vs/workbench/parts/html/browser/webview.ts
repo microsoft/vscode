@@ -266,7 +266,7 @@ export default class Webview {
 			return;
 		}
 		const window = contents.getOwnerBrowserWindow();
-		if (!window || !window.webContents) {
+		if (!window || !window.webContents || window.webContents.isDestroyed()) {
 			return;
 		}
 		window.webContents.getZoomFactor(factor => {

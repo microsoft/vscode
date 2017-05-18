@@ -206,7 +206,7 @@
 				}
 
 				const newFrame = getPendingFrame();
-				if (newFrame.contentDocument === contentDocument) {
+				if (newFrame && newFrame.contentDocument === contentDocument) {
 					const oldActiveFrame = getActiveFrame();
 					if (oldActiveFrame) {
 						document.body.removeChild(oldActiveFrame);
