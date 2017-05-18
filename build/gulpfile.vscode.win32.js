@@ -15,8 +15,10 @@ const pkg = require('../package.json');
 const product = require('../product.json');
 
 const repoPath = path.dirname(__dirname);
-const buildPath = path.join(path.dirname(repoPath), 'VSCode-win32-ia32');
-const zipPath = path.join(repoPath, '.build', 'win32-ia32', 'archive', 'VSCode-win32-ia32.zip');
+const buildPath = arch => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
+const zipDir = arch => path.join(repoPath, '.build', `win32-${arch}`, 'archive');
+const zipPath = arch => path.join(zipDir(arch), `VSCode-win32-${arch}.zip`);
+const setupDir = arch => path.join(repoPath, '.build', `win32-${arch}`, 'setup');
 const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup-compiler'))), 'bin', 'ISCC.exe');
 
@@ -36,37 +38,48 @@ function packageInnoSetup(iss, options, cb) {
 		.on('exit', () => cb(null));
 }
 
-function buildWin32Setup(cb) {
-	const definitions = {
-		NameLong: product.nameLong,
-		NameShort: product.nameShort,
-		DirName: product.win32DirName,
-		Version: pkg.version,
-		RawVersion: pkg.version.replace(/-\w+$/, ''),
-		NameVersion: product.win32NameVersion,
-		ExeBasename: product.nameShort,
-		RegValueName: product.win32RegValueName,
-		ShellNameShort: product.win32ShellNameShort,
-		AppMutex: product.win32MutexName,
-		AppId: product.win32AppId,
-		AppUserId: product.win32AppUserModelId,
-		SourceDir: buildPath,
-		RepoDir: repoPath
+function buildWin32Setup(arch) {
+	return cb => {
+		const definitions = {
+			NameLong: product.nameLong,
+			NameShort: product.nameShort,
+			DirName: product.win32DirName,
+			Version: pkg.version,
+			RawVersion: pkg.version.replace(/-\w+$/, ''),
+			NameVersion: product.win32NameVersion,
+			ExeBasename: product.nameShort,
+			RegValueName: product.win32RegValueName,
+			ShellNameShort: product.win32ShellNameShort,
+			AppMutex: product.win32MutexName,
+			AppId: product.win32AppId,
+			AppUserId: product.win32AppUserModelId,
+			SourceDir: buildPath(arch),
+			RepoDir: repoPath,
+			OutputDir: setupDir(arch)
+		};
+
+		packageInnoSetup(issPath, { definitions }, cb);
 	};
-
-	packageInnoSetup(issPath, { definitions }, cb);
 }
 
-gulp.task('clean-vscode-win32-ia32-setup', util.rimraf('.build/win32-ia32/setup'));
-gulp.task('vscode-win32-ia32-setup', ['clean-vscode-win32-ia32-setup'], buildWin32Setup);
+gulp.task('clean-vscode-win32-ia32-setup', util.rimraf(setupDir('ia32')));
+gulp.task('vscode-win32-ia32-setup', ['clean-vscode-win32-ia32-setup'], buildWin32Setup('ia32'));
 
-function archiveWin32Setup(cb) {
-	const args = ['a', '-tzip', zipPath, buildPath, '-r'];
+gulp.task('clean-vscode-win32-x64-setup', util.rimraf(setupDir('x64')));
+gulp.task('vscode-win32-x64-setup', ['clean-vscode-win32-x64-setup'], buildWin32Setup('x64'));
 
-	cp.spawn(_7z, args, { stdio: 'inherit' })
-		.on('error', cb)
-		.on('exit', () => cb(null));
+function archiveWin32Setup(arch) {
+	return cb => {
+		const args = ['a', '-tzip', zipPath(arch), buildPath(arch), '-r'];
+
+		cp.spawn(_7z, args, { stdio: 'inherit' })
+			.on('error', cb)
+			.on('exit', () => cb(null));
+	};
 }
 
-gulp.task('clean-vscode-win32-ia32-archive', util.rimraf('.build/win32-ia32/archive'));
-gulp.task('vscode-win32-ia32-archive', ['clean-vscode-win32-ia32-archive'], archiveWin32Setup);
+gulp.task('clean-vscode-win32-ia32-archive', util.rimraf(zipDir('ia32')));
+gulp.task('vscode-win32-ia32-archive', ['clean-vscode-win32-ia32-archive'], archiveWin32Setup('ia32'));
+
+gulp.task('clean-vscode-win32-x64-archive', util.rimraf(zipDir('x64')));
+gulp.task('vscode-win32-x64-archive', ['clean-vscode-win32-x64-archive'], archiveWin32Setup('x64'));
