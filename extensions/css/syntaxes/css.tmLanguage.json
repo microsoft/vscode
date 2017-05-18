@@ -182,7 +182,7 @@
 				},
 				{
 					"begin": "(?i)(?=@media(\\s|\\(|/\\*|$))",
-					"end": "(?<=})",
+					"end": "(?<=})(?!\\G)",
 					"patterns": [
 						{
 							"begin": "(?i)\\G(@)media",
@@ -226,7 +226,7 @@
 				},
 				{
 					"begin": "(?i)(?=@counter-style([\\s'\"{;]|/\\*|$))",
-					"end": "(?<=})",
+					"end": "(?<=})(?!\\G)",
 					"patterns": [
 						{
 							"begin": "(?i)\\G(@)counter-style",
@@ -292,7 +292,7 @@
 				},
 				{
 					"begin": "(?i)(?=@document([\\s'\"{;]|/\\*|$))",
-					"end": "(?<=})",
+					"end": "(?<=})(?!\\G)",
 					"patterns": [
 						{
 							"begin": "(?i)\\G(@)document",
@@ -377,11 +377,11 @@
 					]
 				},
 				{
-					"begin": "(?i)(?=@keyframes([\\s'\"{;]|/\\*|$))",
-					"end": "(?<=})",
+					"begin": "(?i)(?=@(?:-(?:webkit|moz|o|ms)-)?keyframes([\\s'\"{;]|/\\*|$))",
+					"end": "(?<=})(?!\\G)",
 					"patterns": [
 						{
-							"begin": "(?i)\\G(@)keyframes",
+							"begin": "(?i)\\G(@)(?:-(?:webkit|moz|o|ms)-)?keyframes",
 							"beginCaptures": {
 								"0": {
 									"name": "keyword.control.at-rule.keyframes.css"
@@ -455,7 +455,7 @@
 				},
 				{
 					"begin": "(?i)(?=@supports(\\s|\\(|/\\*|$))",
-					"end": "(?<=})|(?=;)",
+					"end": "(?<=})(?!\\G)|(?=;)",
 					"patterns": [
 						{
 							"begin": "(?i)\\G(@)supports",
@@ -1409,7 +1409,7 @@
 					"name": "invalid.illegal.colon.css"
 				}
 			},
-			"match": "(?xi)\n(:)(:*)\n(?: active|any-link|checked|default|disabled|empty|enabled|first\n  | (?:first|last|only)-(?:child|of-type)|focus|fullscreen|host|hover\n  | in-range|indeterminate|invalid|left|link|optional|out-of-range\n  | read-only|read-write|required|right|root|scope|target|unresolved\n  | valid|visited\n)(?![\\w-])",
+			"match": "(?xi)\n(:)(:*)\n(?: active|any-link|checked|default|disabled|empty|enabled|first\n  | (?:first|last|only)-(?:child|of-type)|focus|fullscreen|host|hover\n  | in-range|indeterminate|invalid|left|link|optional|out-of-range\n  | read-only|read-write|required|right|root|scope|target|unresolved\n  | valid|visited\n)(?![\\w-]|\\s*[;}])",
 			"name": "entity.other.attribute-name.pseudo-class.css"
 		},
 		"pseudo-elements": {
@@ -1421,7 +1421,7 @@
 					"name": "punctuation.definition.entity.css"
 				}
 			},
-			"match": "(?xi)\n(?:\n  (::?)                       # Elements using both : and :: notation\n  (?: after\n    | before\n    | first-letter\n    | first-line\n    | (?:-(?:ah|apple|atsc|epub|hp|khtml|moz\n            |ms|o|rim|ro|tc|wap|webkit|xv)\n        | (?:mso|prince))\n      -[a-z-]+\n  )\n  |\n  (::)                        # Double-colon only\n  (?: backdrop\n    | content\n    | grammar-error\n    | marker\n    | placeholder\n    | selection\n    | shadow\n    | spelling-error\n  )\n)\n(?![\\w-])",
+			"match": "(?xi)\n(?:\n  (::?)                       # Elements using both : and :: notation\n  (?: after\n    | before\n    | first-letter\n    | first-line\n    | (?:-(?:ah|apple|atsc|epub|hp|khtml|moz\n            |ms|o|rim|ro|tc|wap|webkit|xv)\n        | (?:mso|prince))\n      -[a-z-]+\n  )\n  |\n  (::)                        # Double-colon only\n  (?: backdrop\n    | content\n    | grammar-error\n    | marker\n    | placeholder\n    | selection\n    | shadow\n    | spelling-error\n  )\n)\n(?![\\w-]|\\s*[;}])",
 			"name": "entity.other.attribute-name.pseudo-element.css"
 		},
 		"rule-list": {
@@ -1797,5 +1797,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-css/commit/a2c17d3526e6381992b173d6cead428419751e34"
+	"version": "https://github.com/atom/language-css/commit/df34a7a41fa6acd6d867c6c2214dba12dc0a4c31"
 }
