@@ -12,8 +12,11 @@ Param(
 $env:HOME=$env:USERPROFILE
 "machine monacotools.visualstudio.com password ${vsoPAT}" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
 
+# Set the right architecture
+$env:npm_config_arch="$arch"
+
 step "Install dependencies" {
-  exec { & npm install "--arch=$global:arch" }
+  exec { & npm install }
 }
 
 $env:VSCODE_MIXIN_PASSWORD = $mixinPassword
@@ -26,7 +29,7 @@ step "Get Electron" {
 }
 
 step "Install distro dependencies" {
-  exec { & node build\tfs\common\installDistro.js "--arch=$global:arch" }
+  exec { & node build\tfs\common\installDistro.js }
 }
 
 step "Build minified" {
