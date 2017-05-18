@@ -25,7 +25,7 @@ step "Get Electron" {
 }
 
 step "Install distro dependencies" {
-  exec { & node build\tfs\common\installDistro.js }
+  exec { & node build\tfs\common\installDistro.js --arch=ia32 }
 }
 
 step "Build minified" {
