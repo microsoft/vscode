@@ -1930,48 +1930,6 @@ suite('Editor Controller - Cursor Configuration', () => {
 		mode.dispose();
 	});
 
-	test('Insert line before', () => {
-		let testInsertLineBefore = (lineNumber: number, column: number, callback: (model: Model, cursor: Cursor) => void) => {
-			usingCursor({
-				text: [
-					'First line',
-					'Second line',
-					'Third line'
-				],
-			}, (model, cursor) => {
-				moveTo(cursor, lineNumber, column, false);
-				assertCursor(cursor, new Position(lineNumber, column));
-
-				cursorCommand(cursor, H.LineInsertBefore, null, 'keyboard');
-				callback(model, cursor);
-			});
-		};
-
-		testInsertLineBefore(1, 3, (model, cursor) => {
-			assertCursor(cursor, new Selection(1, 1, 1, 1));
-			assert.equal(model.getLineContent(1), '');
-			assert.equal(model.getLineContent(2), 'First line');
-			assert.equal(model.getLineContent(3), 'Second line');
-			assert.equal(model.getLineContent(4), 'Third line');
-		});
-
-		testInsertLineBefore(2, 3, (model, cursor) => {
-			assertCursor(cursor, new Selection(2, 1, 2, 1));
-			assert.equal(model.getLineContent(1), 'First line');
-			assert.equal(model.getLineContent(2), '');
-			assert.equal(model.getLineContent(3), 'Second line');
-			assert.equal(model.getLineContent(4), 'Third line');
-		});
-
-		testInsertLineBefore(3, 3, (model, cursor) => {
-			assertCursor(cursor, new Selection(3, 1, 3, 1));
-			assert.equal(model.getLineContent(1), 'First line');
-			assert.equal(model.getLineContent(2), 'Second line');
-			assert.equal(model.getLineContent(3), '');
-			assert.equal(model.getLineContent(4), 'Third line');
-		});
-	});
-
 	test('Insert line after', () => {
 		let testInsertLineAfter = (lineNumber: number, column: number, callback: (model: Model, cursor: Cursor) => void) => {
 			usingCursor({

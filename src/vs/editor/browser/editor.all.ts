@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'vs/editor/common/controller/coreCommands';
 import 'vs/editor/browser/widget/codeEditorWidget';
 import 'vs/editor/browser/widget/diffEditorWidget';
 

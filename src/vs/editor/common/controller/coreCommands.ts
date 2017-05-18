@@ -1395,7 +1395,10 @@ export namespace CoreNavigationCommands {
 			);
 		}
 	});
-};
+}
+
+export namespace CoreEditingCommands {
+}
 
 namespace Config {
 

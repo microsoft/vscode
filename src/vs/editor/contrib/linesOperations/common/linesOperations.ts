@@ -18,6 +18,7 @@ import { editorAction, ServicesAccessor, IActionOptions, EditorAction, HandlerEd
 import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
 import { MoveLinesCommand } from './moveLinesCommand';
+import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 
 // copy lines
 
@@ -329,19 +330,23 @@ class OutdentLinesAction extends HandlerEditorAction {
 }
 
 @editorAction
-class InsertLineBeforeAction extends HandlerEditorAction {
+export class InsertLineBeforeAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertLineBefore',
 			label: nls.localize('lines.insertBefore', "Insert Line Above"),
 			alias: 'Insert Line Above',
 			precondition: EditorContextKeys.writable,
-			handlerId: Handler.LineInsertBefore,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
 			}
 		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 	}
 }
 

@@ -504,7 +504,6 @@ export class Cursor extends Disposable implements ICursors {
 	private _registerHandlers(): void {
 		let H = editorCommon.Handler;
 
-		this._handlers[H.LineInsertBefore] = (args) => this._lineInsertBefore(args);
 		this._handlers[H.LineInsertAfter] = (args) => this._lineInsertAfter(args);
 		this._handlers[H.LineBreakInsert] = (args) => this._lineBreakInsert(args);
 
@@ -557,10 +556,6 @@ export class Cursor extends Disposable implements ICursors {
 			r[i] = cursors[i].modelState;
 		}
 		return r;
-	}
-
-	private _lineInsertBefore(args: CursorOperationArgs<void>): EditOperationResult {
-		return TypeOperations.lineInsertBefore(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
 	private _lineInsertAfter(args: CursorOperationArgs<void>): EditOperationResult {

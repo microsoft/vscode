@@ -582,11 +582,11 @@ export class TypeOperations {
 		});
 	}
 
-	public static lineInsertBefore(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[]): EditOperationResult {
+	public static lineInsertBefore(config: CursorConfiguration, model: ITokenizedModel, cursors: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			let lineNumber = cursor.position.lineNumber;
+			let lineNumber = cursor.positionLineNumber;
 
 			if (lineNumber === 1) {
 				commands[i] = new ReplaceCommandWithoutChangingPosition(new Range(1, 1, 1, 1), '\n');
@@ -597,10 +597,7 @@ export class TypeOperations {
 				commands[i] = this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
 			}
 		}
-		return new EditOperationResult(commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: false,
-		});
+		return commands;
 	}
 
 	public static lineInsertAfter(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[]): EditOperationResult {

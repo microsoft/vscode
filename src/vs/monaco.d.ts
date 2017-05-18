@@ -725,6 +725,10 @@ declare module monaco {
 		 */
 		setEndPosition(endLineNumber: number, endColumn: number): Selection;
 		/**
+		 * Get the position at `positionLineNumber` and `positionColumn`.
+		 */
+		getPosition(): Position;
+		/**
 		 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 		 */
 		setStartPosition(startLineNumber: number, startColumn: number): Selection;

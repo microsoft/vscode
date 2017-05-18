@@ -5,7 +5,7 @@
 'use strict';
 
 import { Range } from 'vs/editor/common/core/range';
-import { IPosition } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 
 /**
  * A selection in the editor.
@@ -127,6 +127,13 @@ export class Selection extends Range {
 			return new Selection(this.startLineNumber, this.startColumn, endLineNumber, endColumn);
 		}
 		return new Selection(endLineNumber, endColumn, this.startLineNumber, this.startColumn);
+	}
+
+	/**
+	 * Get the position at `positionLineNumber` and `positionColumn`.
+	 */
+	public getPosition(): Position {
+		return new Position(this.positionLineNumber, this.positionColumn);
 	}
 
 	/**

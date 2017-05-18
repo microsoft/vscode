@@ -23,7 +23,7 @@ import {
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ICursors } from 'vs/editor/common/controller/cursorCommon';
+import { ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -1919,6 +1919,11 @@ export interface ICommonCodeEditor extends IEditor {
 	_getCursors(): ICursors;
 
 	/**
+	 * @internal
+	 */
+	_getCursorConfiguration(): CursorConfiguration;
+
+	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
 	 */
 	getLineDecorations(lineNumber: number): IModelDecoration[];
@@ -2078,7 +2083,6 @@ export var Handler = {
 	Undo: 'undo',
 	Redo: 'redo',
 
-	LineInsertBefore: 'lineInsertBefore',
 	LineInsertAfter: 'lineInsertAfter',
 	LineBreakInsert: 'lineBreakInsert',
 };
