@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorColumns, CursorConfiguration, EditOperationResult, SingleCursorState, IViewModelHelper, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, EditOperationResult, SingleCursorState, IViewModelHelper, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors, CommandResult } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
@@ -22,14 +22,6 @@ import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType 
 import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from 'vs/editor/common/controller/cursorEvents';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
-
-interface IMultipleCursorOperationContext {
-	cursorPositionChangeReason: CursorChangeReason;
-	shouldPushStackElementBefore: boolean;
-	shouldPushStackElementAfter: boolean;
-	executeCommands: editorCommon.ICommand[];
-	isAutoWhitespaceCommand: boolean[];
-}
 
 class CursorOperationArgs<T> {
 	public readonly eventSource: string;
@@ -81,7 +73,7 @@ export class Cursor extends Disposable implements ICursors {
 	private _columnSelectData: IColumnSelectData;
 
 	private _handlers: {
-		[key: string]: (args: CursorOperationArgs<any>, ctx: IMultipleCursorOperationContext) => void;
+		[key: string]: (args: CursorOperationArgs<any>) => EditOperationResult;
 	};
 
 	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModelHelper: IViewModelHelper) {
@@ -341,48 +333,38 @@ export class Cursor extends Disposable implements ICursors {
 
 	// ------ auxiliary handling logic
 
-	private _createAndInterpretHandlerCtx(callback: (currentHandlerCtx: IMultipleCursorOperationContext) => void): void {
+	private _createAndInterpretHandlerCtx(callback: () => EditOperationResult): void {
 
-		const ctx: IMultipleCursorOperationContext = {
-			cursorPositionChangeReason: CursorChangeReason.NotSet,
-			executeCommands: [],
-			isAutoWhitespaceCommand: [],
-			shouldPushStackElementBefore: false,
-			shouldPushStackElementAfter: false
-		};
+		const opResult = callback();
 
-		callback(ctx);
-
-		if (ctx.shouldPushStackElementBefore) {
+		if (opResult && opResult.shouldPushStackElementBefore) {
 			this._model.pushStackElement();
-			ctx.shouldPushStackElementBefore = false;
 		}
 
 		this._columnSelectData = null;
 
-		const execCtx: IExecContext = {
-			selectionStartMarkers: [],
-			positionMarkers: []
-		};
+		if (opResult) {
+			const execCtx: IExecContext = {
+				selectionStartMarkers: [],
+				positionMarkers: []
+			};
 
-		this._innerExecuteCommands(execCtx, ctx.executeCommands, ctx.isAutoWhitespaceCommand);
+			this._innerExecuteCommands(execCtx, opResult.commands);
 
-		for (let i = 0; i < execCtx.selectionStartMarkers.length; i++) {
-			this._model._removeMarker(execCtx.selectionStartMarkers[i]);
-			this._model._removeMarker(execCtx.positionMarkers[i]);
+			for (let i = 0; i < execCtx.selectionStartMarkers.length; i++) {
+				this._model._removeMarker(execCtx.selectionStartMarkers[i]);
+				this._model._removeMarker(execCtx.positionMarkers[i]);
+			}
 		}
 
-		ctx.executeCommands = [];
-
-		if (ctx.shouldPushStackElementAfter) {
+		if (opResult && opResult.shouldPushStackElementAfter) {
 			this._model.pushStackElement();
-			ctx.shouldPushStackElementAfter = false;
 		}
 
 		this._cursors.normalize();
 	}
 
-	private _onHandler(command: string, handler: (args: CursorOperationArgs<any>, ctx: IMultipleCursorOperationContext) => void, args: CursorOperationArgs<any>): void {
+	private _onHandler(command: string, handler: (args: CursorOperationArgs<any>) => EditOperationResult, args: CursorOperationArgs<any>): void {
 
 		this._isHandling = true;
 
@@ -395,10 +377,10 @@ export class Cursor extends Disposable implements ICursors {
 
 			let cursorPositionChangeReason: CursorChangeReason;
 
-			this._createAndInterpretHandlerCtx((currentHandlerCtx: IMultipleCursorOperationContext) => {
-				handler(args, currentHandlerCtx);
-
-				cursorPositionChangeReason = currentHandlerCtx.cursorPositionChangeReason;
+			this._createAndInterpretHandlerCtx(() => {
+				let r = handler(args);
+				cursorPositionChangeReason = r ? r.reason : CursorChangeReason.NotSet;
+				return r;
 			});
 
 			const newSelections = this._cursors.getSelections();
@@ -441,7 +423,7 @@ export class Cursor extends Disposable implements ICursors {
 		this._cursors.setSelections(cursorState);
 	}
 
-	private _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand, isAutoWhitespaceCommand: boolean): ICommandData {
+	private _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: CommandResult): ICommandData {
 		// This method acts as a transaction, if the command fails
 		// everything it has done is ignored
 		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
@@ -460,7 +442,7 @@ export class Cursor extends Disposable implements ICursors {
 				range: selection,
 				text: text,
 				forceMoveMarkers: false,
-				isAutoWhitespaceEdit: isAutoWhitespaceCommand
+				isAutoWhitespaceEdit: command.isAutoWhitespaceCommand
 			});
 		};
 
@@ -512,7 +494,7 @@ export class Cursor extends Disposable implements ICursors {
 		};
 
 		try {
-			command.getEditOperations(this._model, editOperationBuilder);
+			command.command.getEditOperations(this._model, editOperationBuilder);
 		} catch (e) {
 			e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
 			onUnexpectedError(e);
@@ -528,13 +510,13 @@ export class Cursor extends Disposable implements ICursors {
 		};
 	}
 
-	private _getEditOperations(ctx: IExecContext, commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): ICommandsData {
+	private _getEditOperations(ctx: IExecContext, commands: CommandResult[]): ICommandsData {
 		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		let hadTrackedEditOperation: boolean = false;
 
 		for (let i = 0, len = commands.length; i < len; i++) {
 			if (commands[i]) {
-				const r = this._getEditOperationsFromCommand(ctx, i, commands[i], isAutoWhitespaceCommand[i]);
+				const r = this._getEditOperationsFromCommand(ctx, i, commands[i]);
 				operations = operations.concat(r.operations);
 				hadTrackedEditOperation = hadTrackedEditOperation || r.hadTrackedEditOperation;
 			}
@@ -594,7 +576,7 @@ export class Cursor extends Disposable implements ICursors {
 		return loserCursorsMap;
 	}
 
-	private _arrayIsEmpty(commands: editorCommon.ICommand[]): boolean {
+	private _arrayIsEmpty(commands: CommandResult[]): boolean {
 		for (let i = 0, len = commands.length; i < len; i++) {
 			if (commands[i]) {
 				return false;
@@ -603,7 +585,7 @@ export class Cursor extends Disposable implements ICursors {
 		return true;
 	}
 
-	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[], isAutoWhitespaceCommand: boolean[]): void {
+	private _innerExecuteCommands(ctx: IExecContext, commands: CommandResult[]): void {
 
 		if (this._configuration.editor.readOnly) {
 			return;
@@ -615,7 +597,7 @@ export class Cursor extends Disposable implements ICursors {
 
 		const selectionsBefore = this._cursors.getSelections();
 
-		const commandsData = this._getEditOperations(ctx, commands, isAutoWhitespaceCommand);
+		const commandsData = this._getEditOperations(ctx, commands);
 		if (commandsData.operations.length === 0) {
 			return;
 		}
@@ -673,7 +655,7 @@ export class Cursor extends Disposable implements ICursors {
 			for (let i = 0; i < selectionsBefore.length; i++) {
 				if (groupedInverseEditOperations[i].length > 0) {
 					groupedInverseEditOperations[i].sort(minorBasedSorter);
-					cursorSelections[i] = commands[i].computeCursorState(this._model, {
+					cursorSelections[i] = commands[i].command.computeCursorState(this._model, {
 						getInverseEditOperations: () => {
 							return groupedInverseEditOperations[i];
 						},
@@ -831,29 +813,29 @@ export class Cursor extends Disposable implements ICursors {
 	private _registerHandlers(): void {
 		let H = editorCommon.Handler;
 
-		this._handlers[H.LineInsertBefore] = (args, ctx) => this._lineInsertBefore(args, ctx);
-		this._handlers[H.LineInsertAfter] = (args, ctx) => this._lineInsertAfter(args, ctx);
-		this._handlers[H.LineBreakInsert] = (args, ctx) => this._lineBreakInsert(args, ctx);
+		this._handlers[H.LineInsertBefore] = (args) => this._lineInsertBefore(args);
+		this._handlers[H.LineInsertAfter] = (args) => this._lineInsertAfter(args);
+		this._handlers[H.LineBreakInsert] = (args) => this._lineBreakInsert(args);
 
-		this._handlers[H.Type] = (args, ctx) => this._type(args, ctx);
-		this._handlers[H.ReplacePreviousChar] = (args, ctx) => this._replacePreviousChar(args, ctx);
-		this._handlers[H.CompositionStart] = (args, ctx) => this._compositionStart(args, ctx);
-		this._handlers[H.CompositionEnd] = (args, ctx) => this._compositionEnd(args, ctx);
-		this._handlers[H.Tab] = (args, ctx) => this._tab(args, ctx);
-		this._handlers[H.Indent] = (args, ctx) => this._indent(args, ctx);
-		this._handlers[H.Outdent] = (args, ctx) => this._outdent(args, ctx);
-		this._handlers[H.Paste] = (args, ctx) => this._paste(args, ctx);
+		this._handlers[H.Type] = (args) => this._type(args);
+		this._handlers[H.ReplacePreviousChar] = (args) => this._replacePreviousChar(args);
+		this._handlers[H.CompositionStart] = (args) => this._compositionStart(args);
+		this._handlers[H.CompositionEnd] = (args) => this._compositionEnd(args);
+		this._handlers[H.Tab] = (args) => this._tab(args);
+		this._handlers[H.Indent] = (args) => this._indent(args);
+		this._handlers[H.Outdent] = (args) => this._outdent(args);
+		this._handlers[H.Paste] = (args) => this._paste(args);
 
-		this._handlers[H.DeleteLeft] = (args, ctx) => this._deleteLeft(args, ctx);
-		this._handlers[H.DeleteRight] = (args, ctx) => this._deleteRight(args, ctx);
+		this._handlers[H.DeleteLeft] = (args) => this._deleteLeft(args);
+		this._handlers[H.DeleteRight] = (args) => this._deleteRight(args);
 
-		this._handlers[H.Cut] = (args, ctx) => this._cut(args, ctx);
+		this._handlers[H.Cut] = (args) => this._cut(args);
 
-		this._handlers[H.Undo] = (args, ctx) => this._undo(args, ctx);
-		this._handlers[H.Redo] = (args, ctx) => this._redo(args, ctx);
+		this._handlers[H.Undo] = (args) => this._undo(args);
+		this._handlers[H.Redo] = (args) => this._redo(args);
 
-		this._handlers[H.ExecuteCommand] = (args, ctx) => this._externalExecuteCommand(args, ctx);
-		this._handlers[H.ExecuteCommands] = (args, ctx) => this._externalExecuteCommands(args, ctx);
+		this._handlers[H.ExecuteCommand] = (args) => this._externalExecuteCommand(args);
+		this._handlers[H.ExecuteCommands] = (args) => this._externalExecuteCommands(args);
 	}
 
 	public getColumnSelectData(): IColumnSelectData {
@@ -869,18 +851,6 @@ export class Cursor extends Disposable implements ICursors {
 	}
 
 	// -------------------- START editing operations
-
-	private _applyEdits(ctx: IMultipleCursorOperationContext, edits: EditOperationResult): void {
-		ctx.shouldPushStackElementBefore = edits.shouldPushStackElementBefore;
-		ctx.shouldPushStackElementAfter = edits.shouldPushStackElementAfter;
-
-		const commands = edits.commands;
-		for (let i = 0, len = commands.length; i < len; i++) {
-			const command = commands[i];
-			ctx.executeCommands[i] = command ? command.command : null;
-			ctx.isAutoWhitespaceCommand[i] = command ? command.isAutoWhitespaceCommand : false;
-		}
-	}
 
 	private _getAllCursorsModelState(sorted: boolean = false): SingleCursorState[] {
 		let cursors = this._cursors.getAll();
@@ -898,19 +868,19 @@ export class Cursor extends Disposable implements ICursors {
 		return r;
 	}
 
-	private _lineInsertBefore(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
-		this._applyEdits(ctx, TypeOperations.lineInsertBefore(this.context.config, this.context.model, this._getAllCursorsModelState()));
+	private _lineInsertBefore(args: CursorOperationArgs<void>): EditOperationResult {
+		return TypeOperations.lineInsertBefore(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
-	private _lineInsertAfter(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
-		this._applyEdits(ctx, TypeOperations.lineInsertAfter(this.context.config, this.context.model, this._getAllCursorsModelState()));
+	private _lineInsertAfter(args: CursorOperationArgs<void>): EditOperationResult {
+		return TypeOperations.lineInsertAfter(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
-	private _lineBreakInsert(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
-		this._applyEdits(ctx, TypeOperations.lineBreakInsert(this.context.config, this.context.model, this._getAllCursorsModelState()));
+	private _lineBreakInsert(args: CursorOperationArgs<void>): EditOperationResult {
+		return TypeOperations.lineBreakInsert(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
-	private _type(args: CursorOperationArgs<{ text: string; }>, ctx: IMultipleCursorOperationContext): void {
+	private _type(args: CursorOperationArgs<{ text: string; }>): EditOperationResult {
 		const text = args.eventData.text;
 
 		if (!this._isDoingComposition && args.eventSource === 'keyboard') {
@@ -927,48 +897,49 @@ export class Cursor extends Disposable implements ICursors {
 				}
 
 				// Here we must interpret each typed character individually, that's why we create a new context
-				this._createAndInterpretHandlerCtx((charHandlerCtx: IMultipleCursorOperationContext) => {
+				this._createAndInterpretHandlerCtx(() => {
 
 					// Decide what all cursors will do up-front
-					this._applyEdits(charHandlerCtx, TypeOperations.typeWithInterceptors(this.context.config, this.context.model, this._getAllCursorsModelState(), chr));
-
-					// The last typed character gets to win
-					ctx.cursorPositionChangeReason = charHandlerCtx.cursorPositionChangeReason;
+					return TypeOperations.typeWithInterceptors(this.context.config, this.context.model, this._getAllCursorsModelState(), chr);
 				});
 
 			}
+
+			return null;
 		} else {
-			this._applyEdits(ctx, TypeOperations.typeWithoutInterceptors(this.context.config, this.context.model, this._getAllCursorsModelState(), text));
+			return TypeOperations.typeWithoutInterceptors(this.context.config, this.context.model, this._getAllCursorsModelState(), text);
 		}
 	}
 
-	private _replacePreviousChar(args: CursorOperationArgs<{ text: string; replaceCharCnt: number; }>, ctx: IMultipleCursorOperationContext): void {
+	private _replacePreviousChar(args: CursorOperationArgs<{ text: string; replaceCharCnt: number; }>): EditOperationResult {
 		let text = args.eventData.text;
 		let replaceCharCnt = args.eventData.replaceCharCnt;
-		this._applyEdits(ctx, TypeOperations.replacePreviousChar(this.context.config, this.context.model, this._getAllCursorsModelState(), text, replaceCharCnt));
+		return TypeOperations.replacePreviousChar(this.context.config, this.context.model, this._getAllCursorsModelState(), text, replaceCharCnt);
 	}
 
-	private _compositionStart(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
+	private _compositionStart(args: CursorOperationArgs<void>): EditOperationResult {
 		this._isDoingComposition = true;
+		return null;
 	}
 
-	private _compositionEnd(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
+	private _compositionEnd(args: CursorOperationArgs<void>): EditOperationResult {
 		this._isDoingComposition = false;
+		return null;
 	}
 
-	private _tab(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
-		this._applyEdits(ctx, TypeOperations.tab(this.context.config, this.context.model, this._getAllCursorsModelState()));
+	private _tab(args: CursorOperationArgs<void>): EditOperationResult {
+		return TypeOperations.tab(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
-	private _indent(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
-		this._applyEdits(ctx, TypeOperations.indent(this.context.config, this.context.model, this._getAllCursorsModelState()));
+	private _indent(args: CursorOperationArgs<void>): EditOperationResult {
+		return TypeOperations.indent(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
-	private _outdent(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
-		this._applyEdits(ctx, TypeOperations.outdent(this.context.config, this.context.model, this._getAllCursorsModelState()));
+	private _outdent(args: CursorOperationArgs<void>): EditOperationResult {
+		return TypeOperations.outdent(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
-	private _distributePasteToCursors(args: CursorOperationArgs<{ pasteOnNewLine: boolean; text: string; }>, ctx: IMultipleCursorOperationContext): string[] {
+	private _distributePasteToCursors(args: CursorOperationArgs<{ pasteOnNewLine: boolean; text: string; }>): string[] {
 		if (args.eventData.pasteOnNewLine) {
 			return null;
 		}
@@ -992,62 +963,77 @@ export class Cursor extends Disposable implements ICursors {
 		return pastePieces;
 	}
 
-	private _paste(args: CursorOperationArgs<{ pasteOnNewLine: boolean; text: string; }>, ctx: IMultipleCursorOperationContext): void {
-		const distributedPaste = this._distributePasteToCursors(args, ctx);
+	private _paste(args: CursorOperationArgs<{ pasteOnNewLine: boolean; text: string; }>): EditOperationResult {
+		const distributedPaste = this._distributePasteToCursors(args);
 
-		ctx.cursorPositionChangeReason = CursorChangeReason.Paste;
 		if (distributedPaste) {
-			this._applyEdits(ctx, TypeOperations.distributedPaste(this.context.config, this.context.model, this._getAllCursorsModelState(true), distributedPaste));
+			return TypeOperations.distributedPaste(this.context.config, this.context.model, this._getAllCursorsModelState(true), distributedPaste);
 		} else {
-			this._applyEdits(ctx, TypeOperations.paste(this.context.config, this.context.model, this._getAllCursorsModelState(), args.eventData.text, args.eventData.pasteOnNewLine));
+			return TypeOperations.paste(this.context.config, this.context.model, this._getAllCursorsModelState(), args.eventData.text, args.eventData.pasteOnNewLine);
 		}
 	}
 
-	private _deleteLeft(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
-		this._applyEdits(ctx, DeleteOperations.deleteLeft(this.context.config, this.context.model, this._getAllCursorsModelState()));
+	private _deleteLeft(args: CursorOperationArgs<void>): EditOperationResult {
+		return DeleteOperations.deleteLeft(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
-	private _deleteRight(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
-		this._applyEdits(ctx, DeleteOperations.deleteRight(this.context.config, this.context.model, this._getAllCursorsModelState()));
+	private _deleteRight(args: CursorOperationArgs<void>): EditOperationResult {
+		return DeleteOperations.deleteRight(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
-	private _cut(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
-		this._applyEdits(ctx, DeleteOperations.cut(this.context.config, this.context.model, this._getAllCursorsModelState()));
+	private _cut(args: CursorOperationArgs<void>): EditOperationResult {
+		return DeleteOperations.cut(this.context.config, this.context.model, this._getAllCursorsModelState());
 	}
 
 	// -------------------- END editing operations
 
-	private _undo(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
-		ctx.cursorPositionChangeReason = CursorChangeReason.Undo;
+	private _undo(args: CursorOperationArgs<void>): EditOperationResult {
 		this._interpretCommandResult(this._model.undo());
+
+		return new EditOperationResult([], {
+			shouldPushStackElementBefore: false,
+			shouldPushStackElementAfter: false,
+			reason: CursorChangeReason.Undo
+		});
 	}
 
-	private _redo(args: CursorOperationArgs<void>, ctx: IMultipleCursorOperationContext): void {
-		ctx.cursorPositionChangeReason = CursorChangeReason.Redo;
+	private _redo(args: CursorOperationArgs<void>): EditOperationResult {
 		this._interpretCommandResult(this._model.redo());
+
+		return new EditOperationResult([], {
+			shouldPushStackElementBefore: false,
+			shouldPushStackElementAfter: false,
+			reason: CursorChangeReason.Redo
+		});
 	}
 
-	private _externalExecuteCommand(args: CursorOperationArgs<editorCommon.ICommand>, ctx: IMultipleCursorOperationContext): void {
+	private _externalExecuteCommand(args: CursorOperationArgs<editorCommon.ICommand>): EditOperationResult {
 		const command = args.eventData;
 
 		this._cursors.killSecondaryCursors();
 
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-
-		ctx.executeCommands[0] = command;
-		ctx.isAutoWhitespaceCommand[0] = false;
+		return new EditOperationResult(
+			[
+				new CommandResult(command, false)
+			],
+			{
+				shouldPushStackElementBefore: true,
+				shouldPushStackElementAfter: true
+			}
+		);
 	}
 
-	private _externalExecuteCommands(args: CursorOperationArgs<editorCommon.ICommand[]>, ctx: IMultipleCursorOperationContext): void {
+	private _externalExecuteCommands(args: CursorOperationArgs<editorCommon.ICommand[]>): EditOperationResult {
 		const commands = args.eventData;
 
-		ctx.shouldPushStackElementBefore = true;
-		ctx.shouldPushStackElementAfter = true;
-
-		for (let i = 0; i < commands.length; i++) {
-			ctx.executeCommands[i] = commands[i];
-			ctx.isAutoWhitespaceCommand[i] = false;
+		let _commands: CommandResult[] = [];
+		for (let i = 0, len = commands.length; i < len; i++) {
+			_commands[i] = new CommandResult(commands[i], false);
 		}
+
+		return new EditOperationResult(_commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: true
+		});
 	}
 }

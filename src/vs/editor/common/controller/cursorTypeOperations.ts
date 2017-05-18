@@ -17,6 +17,7 @@ import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { getMapForWordSeparators, WordCharacterClass } from "vs/editor/common/controller/cursorWordOperations";
+import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
 
 export class TypeOperations {
 
@@ -91,7 +92,8 @@ export class TypeOperations {
 		}
 		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
+			shouldPushStackElementAfter: true,
+			reason: CursorChangeReason.Paste
 		});
 	}
 
@@ -122,7 +124,8 @@ export class TypeOperations {
 		}
 		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true
+			shouldPushStackElementAfter: true,
+			reason: CursorChangeReason.Paste
 		});
 	}
 
