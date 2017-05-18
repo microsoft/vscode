@@ -29,7 +29,7 @@ step "Install distro dependencies" \
 step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
 
-# step "Run unit tests" \
+step "Run unit tests" \
 	./scripts/test.sh --xvfb --build --reporter dot
 
 step "Build Debian package" \
