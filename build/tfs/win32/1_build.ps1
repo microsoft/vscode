@@ -13,7 +13,7 @@ $env:HOME=$env:USERPROFILE
 "machine monacotools.visualstudio.com password ${vsoPAT}" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
 
 step "Install dependencies" {
-  exec { & npm install "--arch=$arch" }
+  exec { & npm install "--arch=$global:arch" }
 }
 
 $env:VSCODE_MIXIN_PASSWORD = $mixinPassword
@@ -22,15 +22,15 @@ step "Mix in repository from vscode-distro" {
 }
 
 step "Get Electron" {
-  exec { & npm run gulp -- "electron-$arch" }
+  exec { & npm run gulp -- "electron-$global:arch" }
 }
 
 step "Install distro dependencies" {
-  exec { & node build\tfs\common\installDistro.js "--arch=$arch" }
+  exec { & node build\tfs\common\installDistro.js "--arch=$global:arch" }
 }
 
 step "Build minified" {
-  exec { & npm run gulp -- --max_old_space_size=4096 "vscode-win32-$arch-min" }
+  exec { & npm run gulp -- --max_old_space_size=4096 "vscode-win32-$global:arch-min" }
 }
 
 step "Run unit tests" {

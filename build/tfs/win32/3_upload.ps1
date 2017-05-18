@@ -22,11 +22,11 @@ $env:MOONCAKE_STORAGE_ACCESS_KEY = $mooncakeStorageKey
 $env:AZURE_DOCUMENTDB_MASTERKEY = $documentDbKey
 
 step "Publish archive" {
-  exec { & node build/tfs/common/publish.js $Quality win32-archive archive "VSCode-win32-$arch-$Version.zip" $Version true $Zip }
+  exec { & node build/tfs/common/publish.js $Quality win32-archive archive "VSCode-win32-$global:arch-$Version.zip" $Version true $Zip }
 }
 
 step "Publish setup package" {
-  exec { & node build/tfs/common/publish.js $Quality win32 setup "VSCodeSetup-$arch-$Version.exe" $Version true $Exe }
+  exec { & node build/tfs/common/publish.js $Quality win32 setup "VSCodeSetup-$global:arch-$Version.exe" $Version true $Exe }
 }
 
 done
