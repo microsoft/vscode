@@ -159,13 +159,13 @@ namespace WathingMatcher {
 }
 
 namespace ProblemMatcher {
-	export function from(values: vscode.ProblemMatcher[]): Problems.ProblemMatcher[] {
+	export function from(values: (string | vscode.ProblemMatcher)[]): (string | Problems.ProblemMatcher)[] {
 		if (values === void 0 || values === null) {
 			return undefined;
 		}
-		let result: Problems.ProblemMatcher[];
+		let result: (string | Problems.ProblemMatcher)[];
 		for (let value of values) {
-			let converted = fromSingle(value);
+			let converted = typeof value === 'string' ? value : fromSingle(value);
 			if (converted) {
 				result.push(converted);
 			}
@@ -186,7 +186,6 @@ namespace ProblemMatcher {
 			filePrefix: location.prefix,
 			pattern: ProblemPattern.from(problemMatcher.pattern),
 			severity: fromDiagnosticSeverity(problemMatcher.severity),
-
 		};
 		return result;
 	}

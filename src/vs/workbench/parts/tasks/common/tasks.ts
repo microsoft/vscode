@@ -175,7 +175,7 @@ export interface Task {
 	/**
 	 * The problem watchers to use for this task
 	 */
-	problemMatchers?: ProblemMatcher[];
+	problemMatchers?: (string | ProblemMatcher)[];
 }
 
 export enum ExecutionEngine {

@@ -791,17 +791,19 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private executeTask(task: Task, resolver: ITaskResolver): TPromise<ITaskSummary> {
-		return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
-			let executeResult = this.getTaskSystem().run(task, resolver);
-			if (executeResult.kind === TaskExecuteKind.Active) {
-				let active = executeResult.active;
-				if (active.same && active.background) {
-					this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
-				} else {
-					throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+		return ProblemMatcherRegistry.onReady().then(() => {
+			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
+				let executeResult = this.getTaskSystem().run(task, resolver);
+				if (executeResult.kind === TaskExecuteKind.Active) {
+					let active = executeResult.active;
+					if (active.same && active.background) {
+						this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
+					} else {
+						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+					}
 				}
-			}
-			return executeResult.promise;
+				return executeResult.promise;
+			});
 		});
 	}
 
