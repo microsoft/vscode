@@ -28,7 +28,10 @@ export interface IProductConfiguration {
 	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
 	extensionKeywords: { [extension: string]: string[]; };
 	keymapExtensionTips: string[];
-	crashReporter: Electron.CrashReporterStartOptions;
+	crashReporter: {
+		companyName: string;
+		productName: string;
+	};
 	welcomePage: string;
 	enableTelemetry: boolean;
 	aiConfig: {
@@ -52,6 +55,12 @@ export interface IProductConfiguration {
 	npsSurveyUrl: string;
 	checksums: { [path: string]: string; };
 	checksumFailMoreInfoUrl: string;
+	hockeyApp: {
+		'win32': string;
+		'linux-ia32': string;
+		'linux-x64': string;
+		'darwin': string;
+	};
 }
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);

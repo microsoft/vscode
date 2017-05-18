@@ -49,46 +49,12 @@ gulp.task('mixin', function () {
 
 	if (quality) {
 		const productJsonFilter = filter('product.json', { restore: true });
-		const arch = process.env.VSCODE_ELECTRON_PLATFORM || process.arch;
-
-		const vsdaFilter = (function () {
-			const filter = [];
-			if (process.platform !== 'win32') { filter.push('!**/vsda_win32.node'); }
-			if (process.platform !== 'darwin') { filter.push('!**/vsda_darwin.node'); }
-			if (process.platform !== 'linux' || arch !== 'x64') { filter.push('!**/vsda_linux64.node'); }
-			if (process.platform !== 'linux' || arch === 'x64') { filter.push('!**/vsda_linux32.node'); }
-
-			return filter;
-		})();
-
 		const mixin = all
-			.pipe(filter(['quality/' + quality + '/**'].concat(vsdaFilter)))
+			.pipe(filter(['quality/' + quality + '/**']))
 			.pipe(util.rebase(2))
 			.pipe(productJsonFilter)
 			.pipe(buffer())
-			.pipe(json(function (patch) {
-				const original = require('../product.json');
-				const result = assign(original, patch);
-
-				// HockeyApp Support
-				if (patch.crashReporterHockeyAppSubmitURL && result.crashReporter) {
-
-					// Receive submitURL for the platform we are building for
-					result.crashReporter.submitURL = (function () {
-						if (process.platform === 'win32') { return patch.crashReporterHockeyAppSubmitURL.win32; }
-						if (process.platform === 'darwin') { return patch.crashReporterHockeyAppSubmitURL.darwin; }
-						if (process.platform === 'linux' && arch === 'x64') { return patch.crashReporterHockeyAppSubmitURL.linux64; }
-						if (process.platform === 'linux' && arch !== 'x64') { return patch.crashReporterHockeyAppSubmitURL.linux32; }
-
-						return void 0;
-					})();
-
-					// No longer need crashReporterHockeyAppSubmitURL after this
-					result.crashReporterHockeyAppSubmitURL = void 0;
-				}
-
-				return result;
-			}))
+			.pipe(json(o => assign({}, require('../product.json'), o)))
 			.pipe(productJsonFilter.restore);
 
 		all = es.merge(mixin);

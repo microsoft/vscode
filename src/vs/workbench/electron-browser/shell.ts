@@ -172,8 +172,26 @@ export class WorkbenchShell {
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
 
 		//crash reporting
-		if (!!product.crashReporter) {
-			instantiationService.createInstance(CrashReporter, product.crashReporter);
+		if (product.crashReporter && product.hockeyApp) {
+			let submitURL: string;
+
+			if (platform.isWindows) {
+				submitURL = product.hockeyApp.win32;
+			} else if (platform.isMacintosh) {
+				submitURL = product.hockeyApp.darwin;
+			} else if (platform.isLinux) {
+				submitURL = product.hockeyApp[`linux-${process.arch}`];
+			}
+
+			if (submitURL) {
+				const opts: Electron.CrashReporterStartOptions = {
+					companyName: product.crashReporter.companyName,
+					productName: product.crashReporter.productName,
+					submitURL
+				};
+
+				instantiationService.createInstance(CrashReporter, opts);
+			}
 		}
 
 		// Workbench
