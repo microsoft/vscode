@@ -85,12 +85,17 @@ import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
-import { IMenuService } from 'vs/platform/actions/common/actions';
+import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowConfiguration } from 'vs/workbench/electron-browser/common';
+import { localize } from "vs/nls";
+import { IWorkbenchActionRegistry, Extensions } from "vs/workbench/common/actionRegistry";
+import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction } from "vs/workbench/electron-browser/actions";
+import { KeyMod } from "vs/base/common/keyCodes";
+import { KeyCode } from "vs/editor/common/standalone/standaloneBase";
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -258,6 +263,9 @@ export class Workbench implements IPartService {
 			// Create Workbench
 			this.createWorkbench();
 
+			// Install some global actions
+			this.createGlobalActions();
+
 			// Services
 			this.initServices();
 			if (this.callbacks && this.callbacks.onServicesCreated) {
@@ -360,6 +368,20 @@ export class Workbench implements IPartService {
 			// Rethrow
 			throw error;
 		}
+	}
+
+	private createGlobalActions(): void {
+
+		// Developer related actions
+		const developerCategory = localize('developer', "Developer");
+		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+		const isDeveloping = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyCode.KEY_R } : void 0), 'Reload Window');
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ToggleDevToolsAction, ToggleDevToolsAction.ID, ToggleDevToolsAction.LABEL, isDeveloping ? { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_I } } : void 0), 'Developer: Toggle Developer Tools', developerCategory);
+
+		// Action registered here to prevent a keybinding conflict with reload window
+		const fileCategory = localize('file', "File");
+		workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenRecentAction, OpenRecentAction.ID, OpenRecentAction.LABEL, { primary: isDeveloping ? null : KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent', fileCategory);
 	}
 
 	private resolveEditorsToOpen(): TPromise<IResourceInputType[]> {
