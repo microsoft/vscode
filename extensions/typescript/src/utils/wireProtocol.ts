@@ -96,7 +96,11 @@ export class Reader<T> {
 	private readonly buffer: ProtocolBuffer;
 	private nextMessageLength: number;
 
-	public constructor(readable: stream.Readable, callback: ICallback<T>) {
+	public constructor(
+		readable: stream.Readable,
+		callback: ICallback<T>,
+		private readonly onError: (error: any) => void = () => ({})
+	) {
 		this.readable = readable;
 		this.buffer = new ProtocolBuffer();
 		this.callback = callback;
@@ -107,21 +111,25 @@ export class Reader<T> {
 	}
 
 	private onLengthData(data: Buffer): void {
-		this.buffer.append(data);
-		while (true) {
-			if (this.nextMessageLength === -1) {
-				this.nextMessageLength = this.buffer.tryReadContentLength();
+		try {
+			this.buffer.append(data);
+			while (true) {
 				if (this.nextMessageLength === -1) {
+					this.nextMessageLength = this.buffer.tryReadContentLength();
+					if (this.nextMessageLength === -1) {
+						return;
+					}
+				}
+				const msg = this.buffer.tryReadContent(this.nextMessageLength);
+				if (msg === null) {
 					return;
 				}
+				this.nextMessageLength = -1;
+				const json = JSON.parse(msg);
+				this.callback(json);
 			}
-			const msg = this.buffer.tryReadContent(this.nextMessageLength);
-			if (msg === null) {
-				return;
-			}
-			this.nextMessageLength = -1;
-			let json = JSON.parse(msg);
-			this.callback(json);
+		} catch (e) {
+			this.onError(e);
 		}
 	}
 }

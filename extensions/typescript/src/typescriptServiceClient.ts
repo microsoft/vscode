@@ -328,7 +328,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private logTrace(message: string, data?: any): void {
-		this.logger.logLevel('Trace', message, data);
+		if (this.trace !== Trace.Off) {
+			this.logger.logLevel('Trace', message, data);
+		}
 	}
 
 	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
@@ -464,13 +466,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 					let value = process.env.TSS_DEBUG;
 					if (value) {
-						let port = parseInt(value);
+						const port = parseInt(value);
 						if (!isNaN(port)) {
 							this.info(`TSServer started in debug mode using port ${port}`);
 							options.execArgv = [`--debug=${port}`];
 						}
 					}
-					let args: string[] = [];
+
+					const args: string[] = [];
 					if (this.apiVersion.has206Features()) {
 						args.push('--useSingleInferredProject');
 						if (workspace.getConfiguration().get<boolean>('typescript.disableAutomaticTypeAcquisition', false)) {
@@ -540,9 +543,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							}
 							this.serviceExited(true);
 						});
-						this.reader = new Reader<Proto.Response>(childProcess.stdout, (msg) => {
-							this.dispatchMessage(msg);
-						});
+
+						this.reader = new Reader<Proto.Response>(
+							childProcess.stdout,
+							(msg) => { this.dispatchMessage(msg); },
+							error => { this.error('ReaderError', error); });
+
 						this._onReady.resolve();
 						resolve(childProcess);
 						this.serviceStarted(resendModels);
@@ -759,7 +765,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		});
 		this.callbacks = Object.create(null);
 		if (restart) {
-			let diff = Date.now() - this.lastStart;
+			const diff = Date.now() - this.lastStart;
 			this.numberRestarts++;
 			let startService = true;
 			if (this.numberRestarts > 5) {
@@ -902,17 +908,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		for (let i = 0; i < this.requestQueue.length; i++) {
 			if (this.requestQueue[i].request.seq === seq) {
 				this.requestQueue.splice(i, 1);
-				if (this.trace !== Trace.Off) {
-					this.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
-				}
+				this.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
 				return true;
 			}
 		}
 
 		if (this.apiVersion.has222Features() && this.cancellationPipeName) {
-			if (this.trace !== Trace.Off) {
-				this.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
-			}
+			this.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
 			try {
 				fs.writeFileSync(this.cancellationPipeName + seq, '');
 				return true;
@@ -921,17 +923,15 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 		}
 
-		if (this.trace !== Trace.Off) {
-			this.logTrace(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
-		}
+		this.logTrace(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
 		return false;
 	}
 
 	private dispatchMessage(message: Proto.Message): void {
 		try {
 			if (message.type === 'response') {
-				let response: Proto.Response = <Proto.Response>message;
-				let p = this.callbacks[response.request_seq];
+				const response: Proto.Response = message as Proto.Response;
+				const p = this.callbacks[response.request_seq];
 				if (p) {
 					this.traceResponse(response, p.start);
 					delete this.callbacks[response.request_seq];
@@ -943,7 +943,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 				}
 			} else if (message.type === 'event') {
-				let event: Proto.Event = <Proto.Event>message;
+				const event: Proto.Event = <Proto.Event>message;
 				this.traceEvent(event);
 				if (event.event === 'syntaxDiag') {
 					this.host.syntaxDiagnosticsReceived(event as Proto.DiagnosticEvent);
