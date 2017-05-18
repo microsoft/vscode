@@ -120,6 +120,8 @@ export interface IWorkbenchStartedInfo {
 	restoreViewletDuration: number;
 	restoreEditorsDuration: number;
 	pinnedViewlets: string[];
+	restoredViewlet: string;
+	restoredEditors: string[];
 }
 
 export interface IWorkbenchCallbacks {
@@ -294,8 +296,8 @@ export class Workbench implements IPartService {
 
 			// Restore last opened viewlet
 			let viewletRestoreStopWatch: StopWatch;
+			let viewletIdToRestore: string;
 			if (!this.sideBarHidden) {
-				let viewletIdToRestore: string;
 
 				if (this.shouldRestoreLastOpenedViewlet()) {
 					viewletIdToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE);
@@ -321,6 +323,7 @@ export class Workbench implements IPartService {
 
 			// Load Editors
 			const editorRestoreStopWatch = StopWatch.create();
+			const restoredEditors: string[] = [];
 			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputs => {
 				let editorOpenPromise: TPromise<IEditor[]>;
 				if (inputs.length) {
@@ -329,9 +332,16 @@ export class Workbench implements IPartService {
 					editorOpenPromise = this.editorPart.restoreEditors();
 				}
 
-				return editorOpenPromise.then(() => {
+				return editorOpenPromise.then(editors => {
 					this.onEditorsChanged(); // make sure we show the proper background in the editor area
 					editorRestoreStopWatch.stop();
+					for (const editor of editors) {
+						if (editor.input) {
+							restoredEditors.push(editor.input.getName());
+						} else {
+							restoredEditors.push(`other:${editor.getId()}`);
+						}
+					}
 				});
 			}));
 
@@ -350,6 +360,8 @@ export class Workbench implements IPartService {
 						restoreViewletDuration: viewletRestoreStopWatch ? Math.round(viewletRestoreStopWatch.elapsed()) : 0,
 						restoreEditorsDuration: Math.round(editorRestoreStopWatch.elapsed()),
 						pinnedViewlets: this.activitybarPart.getPinned(),
+						restoredViewlet: viewletIdToRestore,
+						restoredEditors
 					});
 				}
 

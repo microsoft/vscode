@@ -235,7 +235,9 @@ export class WorkbenchShell {
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
 			experiments: this.telemetryService.getExperiments(),
-			pinnedViewlets: info.pinnedViewlets
+			pinnedViewlets: info.pinnedViewlets,
+			restoredViewlet: info.restoredViewlet,
+			restoredEditors: info.restoredEditors.length
 		});
 
 		// Telemetry: startup metrics
