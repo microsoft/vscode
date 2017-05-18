@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorColumns, CursorConfiguration, EditOperationResult, SingleCursorState, IViewModelHelper, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, EditOperationResult, IViewModelHelper, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
@@ -533,23 +533,6 @@ export class Cursor extends Disposable implements ICursors {
 
 	// -------------------- START editing operations
 
-	// TODO@Alex: remove
-	private _getAllCursorsModelState(sorted: boolean = false): SingleCursorState[] {
-		let cursors = this._cursors.getAll();
-
-		if (sorted) {
-			cursors = cursors.sort((a, b) => {
-				return Range.compareRangesUsingStarts(a.modelState.selection, b.modelState.selection);
-			});
-		}
-
-		let r: SingleCursorState[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			r[i] = cursors[i].modelState;
-		}
-		return r;
-	}
-
 	private _type(args: CursorOperationArgs<{ text: string; }>): EditOperationResult {
 		const text = args.eventData.text;
 
@@ -570,21 +553,21 @@ export class Cursor extends Disposable implements ICursors {
 				this._createAndInterpretHandlerCtx(() => {
 
 					// Decide what all cursors will do up-front
-					return TypeOperations.typeWithInterceptors(this.context.config, this.context.model, this._getAllCursorsModelState(), chr);
+					return TypeOperations.typeWithInterceptors(this.context.config, this.context.model, this.getSelections(), chr);
 				});
 
 			}
 
 			return null;
 		} else {
-			return TypeOperations.typeWithoutInterceptors(this.context.config, this.context.model, this._getAllCursorsModelState(), text);
+			return TypeOperations.typeWithoutInterceptors(this.context.config, this.context.model, this.getSelections(), text);
 		}
 	}
 
 	private _replacePreviousChar(args: CursorOperationArgs<{ text: string; replaceCharCnt: number; }>): EditOperationResult {
 		let text = args.eventData.text;
 		let replaceCharCnt = args.eventData.replaceCharCnt;
-		return TypeOperations.replacePreviousChar(this.context.config, this.context.model, this._getAllCursorsModelState(), text, replaceCharCnt);
+		return TypeOperations.replacePreviousChar(this.context.config, this.context.model, this.getSelections(), text, replaceCharCnt);
 	}
 
 	private _compositionStart(args: CursorOperationArgs<void>): EditOperationResult {
@@ -625,14 +608,16 @@ export class Cursor extends Disposable implements ICursors {
 		const distributedPaste = this._distributePasteToCursors(args);
 
 		if (distributedPaste) {
-			return TypeOperations.distributedPaste(this.context.config, this.context.model, this._getAllCursorsModelState(true), distributedPaste);
+			let selections = this.getSelections();
+			selections = selections.sort(Range.compareRangesUsingStarts);
+			return TypeOperations.distributedPaste(this.context.config, this.context.model, selections, distributedPaste);
 		} else {
-			return TypeOperations.paste(this.context.config, this.context.model, this._getAllCursorsModelState(), args.eventData.text, args.eventData.pasteOnNewLine);
+			return TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), args.eventData.text, args.eventData.pasteOnNewLine);
 		}
 	}
 
 	private _cut(args: CursorOperationArgs<void>): EditOperationResult {
-		return DeleteOperations.cut(this.context.config, this.context.model, this._getAllCursorsModelState());
+		return DeleteOperations.cut(this.context.config, this.context.model, this.getSelections());
 	}
 
 	// -------------------- END editing operations

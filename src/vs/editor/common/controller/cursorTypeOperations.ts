@@ -6,7 +6,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ReplaceCommand, ReplaceCommandWithoutChangingPosition, ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
-import { SingleCursorState, CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, ICursorSimpleModel, EditOperationResult } from 'vs/editor/common/controller/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommand, ITokenizedModel } from 'vs/editor/common/editorCommon';
 import * as strings from 'vs/base/common/strings';
@@ -21,11 +21,10 @@ import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
 
 export class TypeOperations {
 
-	public static indent(config: CursorConfiguration, model: ICursorSimpleModel, cursors: Selection[]): ICommand[] {
+	public static indent(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			commands[i] = new ShiftCommand(cursor, {
+		for (let i = 0, len = selections.length; i < len; i++) {
+			commands[i] = new ShiftCommand(selections[i], {
 				isUnshift: false,
 				tabSize: config.tabSize,
 				oneIndent: config.oneIndent,
@@ -35,11 +34,10 @@ export class TypeOperations {
 		return commands;
 	}
 
-	public static outdent(config: CursorConfiguration, model: ICursorSimpleModel, cursors: Selection[]): ICommand[] {
+	public static outdent(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			commands[i] = new ShiftCommand(cursor, {
+		for (let i = 0, len = selections.length; i < len; i++) {
+			commands[i] = new ShiftCommand(selections[i], {
 				isUnshift: true,
 				tabSize: config.tabSize,
 				oneIndent: config.oneIndent,
@@ -71,12 +69,10 @@ export class TypeOperations {
 		return newIndentation;
 	}
 
-	public static distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[], text: string[]): EditOperationResult {
+	public static distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			let selection = cursor.selection;
-			commands[i] = new ReplaceCommand(selection, text[i]);
+		for (let i = 0, len = selections.length; i < len; i++) {
+			commands[i] = new ReplaceCommand(selections[i], text[i]);
 		}
 		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: true,
@@ -85,12 +81,11 @@ export class TypeOperations {
 		});
 	}
 
-	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, cursors: SingleCursorState[], text: string, pasteOnNewLine: boolean): EditOperationResult {
+	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean): EditOperationResult {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			let position = cursor.position;
-			let selection = cursor.selection;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
+			let position = selection.getPosition();
 
 			if (pasteOnNewLine && text.indexOf('\n') !== text.length - 1) {
 				pasteOnNewLine = false;
@@ -166,10 +161,10 @@ export class TypeOperations {
 		return new ReplaceCommand(selection, typeText, insertsAutoWhitespace);
 	}
 
-	public static tab(config: CursorConfiguration, model: ITokenizedModel, cursors: Selection[]): ICommand[] {
+	public static tab(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const selection = cursors[i];
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
 
 			if (selection.isEmpty()) {
 
@@ -207,18 +202,18 @@ export class TypeOperations {
 		return commands;
 	}
 
-	public static replacePreviousChar(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], txt: string, replaceCharCnt: number): EditOperationResult {
+	public static replacePreviousChar(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], txt: string, replaceCharCnt: number): EditOperationResult {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			if (!cursor.selection.isEmpty()) {
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
+			if (!selection.isEmpty()) {
 				// looks like https://github.com/Microsoft/vscode/issues/2773
 				// where a cursor operation occured before a canceled composition
 				// => ignore composition
 				commands[i] = null;
 				continue;
 			}
-			let pos = cursor.position;
+			let pos = selection.getPosition();
 			let startColumn = Math.max(1, pos.column - replaceCharCnt);
 			let range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
 			commands[i] = new ReplaceCommand(range, txt);
@@ -294,20 +289,19 @@ export class TypeOperations {
 		return null;
 	}
 
-	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): boolean {
+	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], ch: string): boolean {
 		if (!config.autoClosingBrackets || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
 			return false;
 		}
 
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const selection = cursor.selection;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
 
 			if (!selection.isEmpty()) {
 				return false;
 			}
 
-			const position = cursor.position;
+			const position = selection.getPosition();
 			const lineText = model.getLineContent(position.lineNumber);
 			const afterCharacter = lineText.charAt(position.column - 1);
 
@@ -319,11 +313,11 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): EditOperationResult {
+	private static _runAutoClosingCloseCharType(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], ch: string): EditOperationResult {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const position = cursor.position;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
+			const position = selection.getPosition();
 			const typeSelection = new Range(position.lineNumber, position.column, position.lineNumber, position.column + 1);
 			commands[i] = new ReplaceCommand(typeSelection, ch);
 		}
@@ -333,19 +327,18 @@ export class TypeOperations {
 		});
 	}
 
-	private static _isAutoClosingOpenCharType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): boolean {
+	private static _isAutoClosingOpenCharType(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], ch: string): boolean {
 		if (!config.autoClosingBrackets || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
 			return false;
 		}
 
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const selection = cursor.selection;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
 			if (!selection.isEmpty()) {
 				return false;
 			}
 
-			const position = cursor.position;
+			const position = selection.getPosition();
 			const lineText = model.getLineContent(position.lineNumber);
 
 			// Do not auto-close ' or " after a word character
@@ -397,11 +390,10 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runAutoClosingOpenCharType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): EditOperationResult {
+	private static _runAutoClosingOpenCharType(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], ch: string): EditOperationResult {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const selection = cursor.selection;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
 			const closeCharacter = config.autoClosingPairsOpen[ch];
 			commands[i] = new ReplaceCommandWithOffsetCursorState(selection, ch + closeCharacter, 0, -closeCharacter.length);
 		}
@@ -411,14 +403,13 @@ export class TypeOperations {
 		});
 	}
 
-	private static _isSurroundSelectionType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): boolean {
+	private static _isSurroundSelectionType(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], ch: string): boolean {
 		if (!config.autoClosingBrackets || !config.surroundingPairs.hasOwnProperty(ch)) {
 			return false;
 		}
 
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const selection = cursor.selection;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
 
 			if (selection.isEmpty()) {
 				return false;
@@ -446,11 +437,10 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runSurroundSelectionType(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): EditOperationResult {
+	private static _runSurroundSelectionType(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], ch: string): EditOperationResult {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			const selection = cursor.selection;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
 			const closeCharacter = config.surroundingPairs[ch];
 			commands[i] = new SurroundSelectionCommand(selection, ch, closeCharacter);
 		}
@@ -460,12 +450,12 @@ export class TypeOperations {
 		});
 	}
 
-	private static _typeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, cursor: SingleCursorState, ch: string): EditOperationResult {
-		if (!config.electricChars.hasOwnProperty(ch) || !cursor.selection.isEmpty()) {
+	private static _typeInterceptorElectricChar(config: CursorConfiguration, model: ITokenizedModel, selections: Selection, ch: string): EditOperationResult {
+		if (!config.electricChars.hasOwnProperty(ch) || !selections.isEmpty()) {
 			return null;
 		}
 
-		let position = cursor.position;
+		let position = selections.getPosition();
 		model.forceTokenization(position.lineNumber);
 		let lineTokens = model.getLineTokens(position.lineNumber);
 
@@ -481,7 +471,7 @@ export class TypeOperations {
 		}
 
 		if (electricAction.appendText) {
-			const command = new ReplaceCommandWithOffsetCursorState(cursor.selection, ch + electricAction.appendText, 0, -electricAction.appendText.length);
+			const command = new ReplaceCommandWithOffsetCursorState(selections, ch + electricAction.appendText, 0, -electricAction.appendText.length);
 			return new EditOperationResult([command], {
 				shouldPushStackElementBefore: false,
 				shouldPushStackElementAfter: true
@@ -523,12 +513,12 @@ export class TypeOperations {
 		return null;
 	}
 
-	public static typeWithInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], ch: string): EditOperationResult {
+	public static typeWithInterceptors(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], ch: string): EditOperationResult {
 
 		if (ch === '\n') {
 			let commands: ICommand[] = [];
-			for (let i = 0, len = cursors.length; i < len; i++) {
-				commands[i] = TypeOperations._enter(config, model, false, cursors[i].selection);
+			for (let i = 0, len = selections.length; i < len; i++) {
+				commands[i] = TypeOperations._enter(config, model, false, selections[i]);
 			}
 			return new EditOperationResult(commands, {
 				shouldPushStackElementBefore: true,
@@ -536,35 +526,34 @@ export class TypeOperations {
 			});
 		}
 
-		if (this._isAutoClosingCloseCharType(config, model, cursors, ch)) {
-			return this._runAutoClosingCloseCharType(config, model, cursors, ch);
+		if (this._isAutoClosingCloseCharType(config, model, selections, ch)) {
+			return this._runAutoClosingCloseCharType(config, model, selections, ch);
 		}
 
-		if (this._isAutoClosingOpenCharType(config, model, cursors, ch)) {
-			return this._runAutoClosingOpenCharType(config, model, cursors, ch);
+		if (this._isAutoClosingOpenCharType(config, model, selections, ch)) {
+			return this._runAutoClosingOpenCharType(config, model, selections, ch);
 		}
 
-		if (this._isSurroundSelectionType(config, model, cursors, ch)) {
-			return this._runSurroundSelectionType(config, model, cursors, ch);
+		if (this._isSurroundSelectionType(config, model, selections, ch)) {
+			return this._runSurroundSelectionType(config, model, selections, ch);
 		}
 
 		// Electric characters make sense only when dealing with a single cursor,
 		// as multiple cursors typing brackets for example would interfer with bracket matching
-		if (cursors.length === 1) {
-			const r = this._typeInterceptorElectricChar(config, model, cursors[0], ch);
+		if (selections.length === 1) {
+			const r = this._typeInterceptorElectricChar(config, model, selections[0], ch);
 			if (r) {
 				return r;
 			}
 		}
 
-		return this.typeWithoutInterceptors(config, model, cursors, ch);
+		return this.typeWithoutInterceptors(config, model, selections, ch);
 	}
 
-	public static typeWithoutInterceptors(config: CursorConfiguration, model: ITokenizedModel, cursors: SingleCursorState[], str: string): EditOperationResult {
+	public static typeWithoutInterceptors(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[], str: string): EditOperationResult {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			commands[i] = new ReplaceCommand(cursor.selection, str);
+		for (let i = 0, len = selections.length; i < len; i++) {
+			commands[i] = new ReplaceCommand(selections[i], str);
 		}
 		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: false,
@@ -572,11 +561,10 @@ export class TypeOperations {
 		});
 	}
 
-	public static lineInsertBefore(config: CursorConfiguration, model: ITokenizedModel, cursors: Selection[]): ICommand[] {
+	public static lineInsertBefore(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			let lineNumber = cursor.positionLineNumber;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			let lineNumber = selections[i].positionLineNumber;
 
 			if (lineNumber === 1) {
 				commands[i] = new ReplaceCommandWithoutChangingPosition(new Range(1, 1, 1, 1), '\n');
@@ -590,22 +578,20 @@ export class TypeOperations {
 		return commands;
 	}
 
-	public static lineInsertAfter(config: CursorConfiguration, model: ITokenizedModel, cursors: Selection[]): ICommand[] {
+	public static lineInsertAfter(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			let lineNumber = cursor.positionLineNumber;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const lineNumber = selections[i].positionLineNumber;
 			let column = model.getLineMaxColumn(lineNumber);
 			commands[i] = this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
 		}
 		return commands;
 	}
 
-	public static lineBreakInsert(config: CursorConfiguration, model: ITokenizedModel, cursors: Selection[]): ICommand[] {
+	public static lineBreakInsert(config: CursorConfiguration, model: ITokenizedModel, selections: Selection[]): ICommand[] {
 		let commands: ICommand[] = [];
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			commands[i] = this._enter(config, model, true, cursor);
+		for (let i = 0, len = selections.length; i < len; i++) {
+			commands[i] = this._enter(config, model, true, selections[i]);
 		}
 		return commands;
 	}
