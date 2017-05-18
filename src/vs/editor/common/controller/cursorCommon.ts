@@ -427,28 +427,16 @@ export class CursorState {
 	}
 }
 
-export class CommandResult {
-	_commandResultBrand: void;
-
-	readonly command: ICommand;
-	readonly isAutoWhitespaceCommand: boolean;
-
-	constructor(command: ICommand, isAutoWhitespaceCommand: boolean) {
-		this.command = command;
-		this.isAutoWhitespaceCommand = isAutoWhitespaceCommand;
-	}
-}
-
 export class EditOperationResult {
 	_editOperationResultBrand: void;
 
-	readonly commands: CommandResult[];
+	readonly commands: ICommand[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 	readonly reason: CursorChangeReason;
 
 	constructor(
-		commands: CommandResult[],
+		commands: ICommand[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;

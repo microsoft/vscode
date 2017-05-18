@@ -14,7 +14,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorColumns, CursorConfiguration, EditOperationResult, SingleCursorState, IViewModelHelper, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors, CommandResult } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, EditOperationResult, SingleCursorState, IViewModelHelper, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
@@ -423,7 +423,7 @@ export class Cursor extends Disposable implements ICursors {
 		this._cursors.setSelections(cursorState);
 	}
 
-	private _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: CommandResult): ICommandData {
+	private _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand): ICommandData {
 		// This method acts as a transaction, if the command fails
 		// everything it has done is ignored
 		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
@@ -442,7 +442,7 @@ export class Cursor extends Disposable implements ICursors {
 				range: selection,
 				text: text,
 				forceMoveMarkers: false,
-				isAutoWhitespaceEdit: command.isAutoWhitespaceCommand
+				isAutoWhitespaceEdit: command.insertsAutoWhitespace
 			});
 		};
 
@@ -494,7 +494,7 @@ export class Cursor extends Disposable implements ICursors {
 		};
 
 		try {
-			command.command.getEditOperations(this._model, editOperationBuilder);
+			command.getEditOperations(this._model, editOperationBuilder);
 		} catch (e) {
 			e.friendlyMessage = nls.localize('corrupt.commands', "Unexpected exception while executing command.");
 			onUnexpectedError(e);
@@ -510,7 +510,7 @@ export class Cursor extends Disposable implements ICursors {
 		};
 	}
 
-	private _getEditOperations(ctx: IExecContext, commands: CommandResult[]): ICommandsData {
+	private _getEditOperations(ctx: IExecContext, commands: editorCommon.ICommand[]): ICommandsData {
 		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
 		let hadTrackedEditOperation: boolean = false;
 
@@ -576,7 +576,7 @@ export class Cursor extends Disposable implements ICursors {
 		return loserCursorsMap;
 	}
 
-	private _arrayIsEmpty(commands: CommandResult[]): boolean {
+	private _arrayIsEmpty(commands: editorCommon.ICommand[]): boolean {
 		for (let i = 0, len = commands.length; i < len; i++) {
 			if (commands[i]) {
 				return false;
@@ -585,7 +585,7 @@ export class Cursor extends Disposable implements ICursors {
 		return true;
 	}
 
-	private _innerExecuteCommands(ctx: IExecContext, commands: CommandResult[]): void {
+	private _innerExecuteCommands(ctx: IExecContext, commands: editorCommon.ICommand[]): void {
 
 		if (this._configuration.editor.readOnly) {
 			return;
@@ -655,7 +655,7 @@ export class Cursor extends Disposable implements ICursors {
 			for (let i = 0; i < selectionsBefore.length; i++) {
 				if (groupedInverseEditOperations[i].length > 0) {
 					groupedInverseEditOperations[i].sort(minorBasedSorter);
-					cursorSelections[i] = commands[i].command.computeCursorState(this._model, {
+					cursorSelections[i] = commands[i].computeCursorState(this._model, {
 						getInverseEditOperations: () => {
 							return groupedInverseEditOperations[i];
 						},
@@ -1012,26 +1012,16 @@ export class Cursor extends Disposable implements ICursors {
 
 		this._cursors.killSecondaryCursors();
 
-		return new EditOperationResult(
-			[
-				new CommandResult(command, false)
-			],
-			{
-				shouldPushStackElementBefore: true,
-				shouldPushStackElementAfter: true
-			}
-		);
+		return new EditOperationResult([command], {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: true
+		});
 	}
 
 	private _externalExecuteCommands(args: CursorOperationArgs<editorCommon.ICommand[]>): EditOperationResult {
 		const commands = args.eventData;
 
-		let _commands: CommandResult[] = [];
-		for (let i = 0, len = commands.length; i < len; i++) {
-			_commands[i] = new CommandResult(commands[i], false);
-		}
-
-		return new EditOperationResult(_commands, {
+		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: true
 		});
