@@ -611,6 +611,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				show(this.listElement);
 				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
 					show(this.details.element);
+					this.expandSideOrBelow();
 				} else {
 					hide(this.details.element);
 				}
@@ -809,9 +810,13 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.storageService.store('expandSuggestionDocs', false, StorageScope.GLOBAL);
 			hide(this.details.element);
 			removeClass(this.element, 'docs-side');
+			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
 		} else {
 			this.storageService.store('expandSuggestionDocs', true, StorageScope.GLOBAL);
+
+			this.expandSideOrBelow();
+
 			this.showDetails();
 		}
 	}
@@ -822,7 +827,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		show(this.details.element);
-		addClass(this.element, 'docs-side');
 
 		this.show();
 		this.editor.focus();
@@ -891,30 +895,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.listElement.style.height = `${height}px`;
 		this.list.layout(height);
 
-		this.adjustWidgetWidth();
+		this.listElement.style.marginTop = '0px';
 		this.editor.layoutContentWidget(this);
 
 		return height;
-	}
-
-	private adjustWidgetWidth() {
-
-		// Message element is shown, list and docs are not
-		if (this.messageElement.style.display !== 'none'
-			&& this.details.element.style.display === 'none'
-			&& this.listElement.style.display === 'none') {
-
-			return;
-		}
-
-		let matches = this.element.style.maxWidth.match(/(\d+)px/);
-		if (!matches || Number(matches[1]) >= this.maxWidgetWidth) {
-			// Reset width
-			removeClass(this.element, 'small');
-		}
-
-		// Reset list margin
-		this.listElement.style.marginTop = '0px';
 	}
 
 	private adjustDocsPosition() {
@@ -942,6 +926,17 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (cursorY > widgetY && this.details.element.clientHeight > this.listElement.clientHeight) {
 			// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
 			this.listElement.style.marginTop = `${this.details.element.clientHeight - this.listElement.clientHeight}px`;
+		}
+	}
+
+	private expandSideOrBelow() {
+		let matches = this.element.style.maxWidth.match(/(\d+)px/);
+		if (!matches || Number(matches[1]) < this.maxWidgetWidth) {
+			addClass(this.element, 'docs-below');
+			removeClass(this.element, 'docs-side');
+		} else {
+			addClass(this.element, 'docs-side');
+			removeClass(this.element, 'docs-below');
 		}
 	}
 
