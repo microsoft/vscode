@@ -21,7 +21,7 @@ step "Mix in repository from vscode-distro" \
 	npm run gulp -- mixin
 
 step "Install distro dependencies" \
-	npm run install-distro
+	node build/tfs/common/installDistro.js --arch=$ARCH
 
 step "Build minified" \
 	npm run gulp -- --max_old_space_size=4096 "vscode-linux-$ARCH-min"
