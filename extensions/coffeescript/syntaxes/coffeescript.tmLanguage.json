@@ -109,11 +109,10 @@
 					"name": "punctuation.definition.string.end.coffee"
 				}
 			},
-			"name": "string.quoted.script.coffee",
+			"name": "quoted.script.coffee",
 			"patterns": [
 				{
-					"match": "(xh{2}|[0-2][0-7]{0,2}|3[0-6][0-7]|37[0-7]?|[4-7][0-7]?|.)",
-					"name": "constant.character.escape.coffee"
+					"include": "source.js"
 				}
 			]
 		},
