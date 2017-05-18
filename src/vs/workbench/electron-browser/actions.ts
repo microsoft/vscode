@@ -24,7 +24,7 @@ import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
-import { IQuickOpenService, IFilePickOpenEntry, ISeparator } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
@@ -34,6 +34,8 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { generateExtensionNewIssueUrl } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+
 
 import * as os from 'os';
 import { webFrame } from 'electron';
@@ -673,7 +675,8 @@ export class ReportIssueAction extends Action {
 		id: string,
 		label: string,
 		@IIntegrityService private integrityService: IIntegrityService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(id, label);
 	}
@@ -692,13 +695,46 @@ export class ReportIssueAction extends Action {
 	public run(): TPromise<boolean> {
 		return this._optimisticIsPure().then(isPure => {
 			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions);
+				const extensionsWithBugsUrl = extensions.filter(extension => extension.manifest.bugs && extension.manifest.bugs.url);
 
-				window.open(issueUrl);
-
+				if (extensionsWithBugsUrl.length === 0) {
+					return this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions);
+				}
+				return this.pickExtensionToReport(extensions, isPure);
+			}).then(issueUrl => {
+				if (issueUrl) {
+					window.open(issueUrl);
+				}
 				return TPromise.as(true);
 			});
 		});
+	}
+
+	private pickExtensionToReport(extensions: ILocalExtension[], isPure: boolean): TPromise<string> {
+		const picks = ReportExtensionIssueAction.getExtensionPicks(extensions);
+
+		// adds a default pick at the top, to submit issues to the VS Code project
+		picks.unshift({
+			id: 'default',
+			label: product.nameLong
+		});
+
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickExtension', "Select Extension") })
+			.then(pick => {
+				if (!pick) {
+					return null;
+				}
+				if (pick.id === 'default') {
+					return this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions);
+				}
+
+				const extension = extensions.filter(ext => ext.id === pick.id)[0];
+				const url = extension.manifest.bugs.url;
+				const extensionVersion = extension.manifest.version;
+				const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
+
+				return generateExtensionNewIssueUrl(url, pkg.name, pkg.version, product.commit, product.date, extensionVersion, osVersion);
+			});
 	}
 
 	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions: ILocalExtension[]): string {
@@ -745,6 +781,55 @@ ${tableHeader}\n${table};
 		return extensionTable;
 	}
 }
+
+export class ReportExtensionIssueAction extends Action {
+
+	public static ID = 'workbench.action.reportExtensionIssues';
+	public static LABEL = nls.localize('reportExtensionIssues', "Report Extension Issues");
+
+	constructor(
+		id: string,
+		label: string,
+		@IIntegrityService private integrityService: IIntegrityService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+			const picks = ReportExtensionIssueAction.getExtensionPicks(extensions);
+			return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickExtension', "Select Extension") })
+				.then(pick => {
+					if (!pick) {
+						return null;
+					}
+					const extension = extensions.filter(ext => ext.id === pick.id)[0];
+					const url = extension.manifest.bugs.url;
+					const extensionVersion = extension.manifest.version;
+					const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
+					return generateExtensionNewIssueUrl(url, pkg.name, pkg.version, product.commit, product.date, extensionVersion, osVersion);
+				});
+		}).then(issueUrl => {
+			if (issueUrl) {
+				window.open(issueUrl);
+			}
+			return TPromise.as(true);
+		});
+	}
+
+	public static getExtensionPicks(extensions: ILocalExtension[]): IPickOpenEntry[] {
+		return extensions
+			.filter(extension => extension.manifest.bugs && extension.manifest.bugs.url)
+			.map(extension => ({
+				id: extension.id,
+				label: extension.manifest.name
+			}))
+			.sort((t1, t2) => t1.label.localeCompare(t2.label));
+	}
+}
+
 
 export class ReportPerformanceIssueAction extends Action {
 

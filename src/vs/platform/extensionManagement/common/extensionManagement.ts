@@ -107,6 +107,7 @@ export interface IExtensionManifest {
 	activationEvents?: string[];
 	extensionDependencies?: string[];
 	contributes?: IExtensionContributions;
+	bugs?: { url: string };
 }
 
 export interface IGalleryExtensionProperties {

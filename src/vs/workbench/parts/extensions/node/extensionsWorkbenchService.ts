@@ -23,7 +23,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
 	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionTipsService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, generateExtensionNewIssueUrl } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
@@ -35,6 +35,9 @@ import { IURLService } from 'vs/platform/url/common/url';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
+
+import * as os from 'os';
 
 interface IExtensionStateProvider {
 	(extension: Extension): ExtensionState;
@@ -220,6 +223,17 @@ class Extension implements IExtension {
 			return gallery.properties.dependencies;
 		}
 		return [];
+	}
+
+	get issueUrl(): string {
+		const bugsUrl = this.local.manifest.bugs && this.local.manifest.bugs.url;
+		if (!bugsUrl) {
+			return null;
+		}
+
+		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
+
+		return generateExtensionNewIssueUrl(bugsUrl, pkg.name, pkg.version, product.commit, product.date, this.version, osVersion);
 	}
 }
 

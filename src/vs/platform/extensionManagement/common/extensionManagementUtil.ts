@@ -72,3 +72,30 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 		dependencies: extension.properties.dependencies.length > 0
 	};
 }
+
+/**
+ * Generates the New Issue Url for extensions
+ */
+export function generateExtensionNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, extensionVersion: string, osVersion: string): string {
+	if (!baseUrl.match(/^https?\:\/\/(www.)?github.com\/.*\/issues\/?$/)) {
+		return baseUrl;
+	}
+	let separator = baseUrl.charAt(baseUrl.length - 1) === '/' ? '' : '/';
+	const newUrl = `${baseUrl}${separator}new`;
+
+	// Avoid backticks, these can trigger XSS detectors. (https://github.com/Microsoft/vscode/issues/13098)
+	const queryStringPrefix = newUrl.indexOf('?') === -1 ? '?' : '&';
+	const body = encodeURIComponent(
+		`- VSCode Version: ${name} ${version} (${commit || 'Commit unknown'}, ${date || 'Date unknown'})
+- OS Version: ${osVersion}
+- Extension Version: ${extensionVersion}
+---
+
+Steps to Reproduce:
+
+1.
+2.`
+	);
+
+	return `${newUrl}${queryStringPrefix}body=${body}`;
+}

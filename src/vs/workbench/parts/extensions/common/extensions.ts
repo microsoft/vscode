@@ -46,6 +46,7 @@ export interface IExtension {
 	disabledForWorkspace: boolean;
 	dependencies: string[];
 	telemetryData: any;
+	issueUrl: string;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
 	getChangelog(): TPromise<string>;

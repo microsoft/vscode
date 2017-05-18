@@ -1303,3 +1303,48 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showLanguageExtens
 			viewlet.focus();
 		});
 });
+
+export class ReportIssueAction extends Action {
+
+	static ID = 'workbench.extensions.action.reportIssue';
+	static LABEL = localize('reportIssue', "Report Issue");
+	private static EnabledClass = 'extension-action report';
+	private static DisabledClass = `${ReportIssueAction.EnabledClass} disabled`;
+
+	private _issueUrl: string;
+	private disposables: IDisposable[] = [];
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	constructor(
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(ReportIssueAction.ID, ReportIssueAction.LABEL);
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		this.class = ReportIssueAction.DisabledClass;
+		this.enabled = false;
+		this._issueUrl = null;
+
+		if (this.extension && this.extension.issueUrl) {
+			this.enabled = true;
+			this.class = ReportIssueAction.EnabledClass;
+		}
+	}
+
+	run(): TPromise<any> {
+		if (this.extension.issueUrl) {
+			window.open(this.extension.issueUrl);
+		}
+		return TPromise.as(null);
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
