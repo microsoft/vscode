@@ -91,9 +91,9 @@ export interface ICallback<T> {
 
 export class Reader<T> {
 
-	private readable: stream.Readable;
-	private callback: ICallback<T>;
-	private buffer: ProtocolBuffer;
+	private readonly readable: stream.Readable;
+	private readonly callback: ICallback<T>;
+	private readonly buffer: ProtocolBuffer;
 	private nextMessageLength: number;
 
 	public constructor(readable: stream.Readable, callback: ICallback<T>) {
@@ -115,7 +115,7 @@ export class Reader<T> {
 					return;
 				}
 			}
-			let msg = this.buffer.tryReadContent(this.nextMessageLength);
+			const msg = this.buffer.tryReadContent(this.nextMessageLength);
 			if (msg === null) {
 				return;
 			}
