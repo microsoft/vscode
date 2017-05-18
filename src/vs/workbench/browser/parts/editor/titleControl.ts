@@ -39,6 +39,8 @@ import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/a
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
+import { Position } from 'vs/platform/editor/common/editor';
+
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -425,13 +427,13 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 	protected getContextMenuActions(identifier: IEditorIdentifier): IAction[] {
 		const { editor, group } = identifier;
-		const splitGroups = this.editorGroupService['stacks'].groups;
+		const activeEditor = this.editorService.getActiveEditor();
 
 		// Enablement
 		this.closeOtherEditorsAction.enabled = group.count > 1;
 		this.pinEditorAction.enabled = !group.isPinned(editor);
 		this.closeRightEditorsAction.enabled = group.indexOf(editor) !== group.count - 1;
-		this.openToSideContextAction.enabled = (splitGroups.length < 3);
+		this.openToSideContextAction.enabled = (!activeEditor || activeEditor.position !== Position.THREE);
 
 		// Actions: For all editors
 		const actions: IAction[] = [
