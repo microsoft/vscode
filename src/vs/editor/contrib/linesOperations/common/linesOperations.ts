@@ -762,3 +762,63 @@ export class LowerCaseAction extends AbstractCaseAction {
 		return text.toLocaleLowerCase();
 	}
 }
+
+export abstract class AbstractSortSelectionsAction extends EditorAction {
+	private descending: boolean;
+
+	constructor(descending: boolean, opts: IActionOptions) {
+		super(opts);
+		this.descending = descending;
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+		let model = editor.getModel();
+		let selections: Range[] = editor.getSelections();
+		selections.sort(Range.compareRangesUsingStarts);
+		let unsorted: string[] = [];
+
+		for (let i = 0; i < selections.length; i++) {
+			unsorted.push(model.getValueInRange(selections[i]));
+		}
+
+		let sorted = unsorted.slice(0);
+		sorted.sort((a, b) => {
+			return a.toLowerCase().localeCompare(b.toLowerCase());
+		});
+
+		if (this.descending === true) {
+			sorted = sorted.reverse();
+		}
+
+		let commands: ICommand[] = [];
+		for (let i = 0; i < sorted.length; i++) {
+			commands.push(new ReplaceCommand(selections[i], sorted[i]));
+		}
+
+		editor.executeCommands(this.id, commands);
+	}
+}
+
+@editorAction
+export class SortSelectionsAscendingAction extends AbstractSortSelectionsAction {
+	constructor() {
+		super(false, {
+			id: 'editor.action.sort_selections_ascending',
+			label: nls.localize('editor.sort_selections_ascending', "Sort Selections Ascending"),
+			alias: 'Sort Selections Ascending',
+			precondition: EditorContextKeys.HasMultipleSelections
+		});
+	}
+}
+
+@editorAction
+export class SortSelectionsDescendingAction extends AbstractSortSelectionsAction {
+	constructor() {
+		super(true, {
+			id: 'editor.action.sort_selections_descending',
+			label: nls.localize('editor.sort_selections_descending', "Sort Selections Descending"),
+			alias: 'Sort Selections Descending',
+			precondition: EditorContextKeys.HasMultipleSelections
+		});
+	}
+}

@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
+import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, SortSelectionsAscendingAction, SortSelectionsDescendingAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
 
 suite('Editor Contrib - Line Operations', () => {
 	suite('DeleteAllLeftAction', () => {
@@ -487,5 +487,185 @@ suite('Editor Contrib - Line Operations', () => {
 				]);
 			});
 		});
+	});
+
+	test('sorting two selections ascending', function () {
+		withMockCodeEditor(
+			[
+				'aaa',
+				'bbb',
+				'ddd',
+				'ccc',
+				'eee'
+			], {}, (editor, cursor) => {
+				let model = editor.getModel();
+				let sortSelectionsAction = new SortSelectionsAscendingAction();
+
+				editor.setSelections([
+					new Selection(3, 1, 3, 4),
+					new Selection(4, 1, 4, 4)
+				]);
+
+				sortSelectionsAction.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), [
+					'aaa',
+					'bbb',
+					'ccc',
+					'ddd',
+					'eee'
+				], '001');
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(3, 4, 3, 4),
+					new Selection(4, 4, 4, 4)
+				], '002');
+
+				assert.deepEqual(editor.getSelection(), new Selection(3, 4, 3, 4), '003');
+			});
+	});
+
+	test('sorting three selections descending', function () {
+		withMockCodeEditor(
+			[
+				'aaa',
+				'bbb',
+				'ddd',
+				'ccc',
+				'eee'
+			], {}, (editor, cursor) => {
+				let model = editor.getModel();
+				let sortSelectionsAction = new SortSelectionsDescendingAction();
+
+				editor.setSelections([
+					new Selection(1, 1, 1, 4),
+					new Selection(3, 1, 3, 4),
+					new Selection(4, 1, 4, 4)
+				]);
+
+				sortSelectionsAction.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), [
+					'ddd',
+					'bbb',
+					'ccc',
+					'aaa',
+					'eee'
+				], '001');
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 4, 1, 4),
+					new Selection(3, 4, 3, 4),
+					new Selection(4, 4, 4, 4)
+				], '002');
+
+				assert.deepEqual(editor.getSelection(), new Selection(1, 4, 1, 4), '003');
+			});
+	});
+
+	test('sorting three selections descending out of order', function () {
+		withMockCodeEditor(
+			[
+				'aaa',
+				'bbb',
+				'ddd',
+				'ccc',
+				'eee'
+			], {}, (editor, cursor) => {
+				let model = editor.getModel();
+				let sortSelectionsAction = new SortSelectionsDescendingAction();
+
+				editor.setSelections([
+					new Selection(3, 1, 3, 4),
+					new Selection(4, 1, 4, 4),
+					new Selection(1, 1, 1, 4)
+				]);
+
+				sortSelectionsAction.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), [
+					'ddd',
+					'bbb',
+					'ccc',
+					'aaa',
+					'eee'
+				], '001');
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 4, 1, 4),
+					new Selection(3, 4, 3, 4),
+					new Selection(4, 4, 4, 4)
+				], '002');
+
+				assert.deepEqual(editor.getSelection(), new Selection(1, 4, 1, 4), '003');
+			});
+	});
+
+	test('sorting ascending selections on the same row', function () {
+		withMockCodeEditor(
+			[
+				'4, 6, 2, 1, 5, and 3'
+			], {}, (editor, cursor) => {
+				let model = editor.getModel();
+				let sortSelectionsAction = new SortSelectionsAscendingAction();
+
+				editor.setSelections([
+					new Selection(1, 1, 1, 2),
+					new Selection(1, 4, 1, 5),
+					new Selection(1, 7, 1, 8),
+					new Selection(1, 10, 1, 11),
+					new Selection(1, 13, 1, 14),
+					new Selection(1, 20, 1, 21),
+				]);
+
+				sortSelectionsAction.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), [
+					'1, 2, 3, 4, 5, and 6'
+				], '001');
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(1, 2, 1, 2),
+					new Selection(1, 5, 1, 5),
+					new Selection(1, 8, 1, 8),
+					new Selection(1, 11, 1, 11),
+					new Selection(1, 14, 1, 14),
+					new Selection(1, 21, 1, 21),
+				], '002');
+
+				assert.deepEqual(editor.getSelection(), new Selection(1, 2, 1, 2), '003');
+			});
+	});
+
+	test('sorting selections spanning multiple rows', function () {
+		withMockCodeEditor(
+			[
+				'c: 3,',
+				'a: [',
+				'    2,',
+				'    3,',
+				'    1',
+				'],',
+				'b: [6, 4, 3, 3, 1]'
+			], {}, (editor, cursor) => {
+				let model = editor.getModel();
+				let sortSelectionsAction = new SortSelectionsAscendingAction();
+
+				editor.setSelections([
+					new Selection(1, 1, 1, 5),
+					new Selection(2, 1, 6, 2),
+					new Selection(7, 1, 7, 19)
+				]);
+
+				sortSelectionsAction.run(null, editor);
+				assert.deepEqual(model.getLinesContent(), [
+					'a: [',
+					'    2,',
+					'    3,',
+					'    1',
+					'],',
+					'b: [6, 4, 3, 3, 1],',
+					'c: 3'
+				], '001');
+				assert.deepEqual(editor.getSelections(), [
+					new Selection(5, 2, 5, 2),
+					new Selection(6, 19, 6, 19),
+					new Selection(7, 5, 7, 5)
+				], '002');
+
+				assert.deepEqual(editor.getSelection(), new Selection(5, 2, 5, 2), '003');
+			});
 	});
 });
