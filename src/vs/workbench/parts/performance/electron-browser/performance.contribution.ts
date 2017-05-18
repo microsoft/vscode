@@ -181,15 +181,28 @@ class StartupProfiler implements IWorkbenchContribution {
 					secondaryButton: localize('prof.restart', "Restart")
 				});
 
-				let createIssue = TPromise.as<void>(void 0);
 				if (primaryButton) {
 					const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
-
-					createIssue = action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`).then(() => {
-						return this._windowsService.showItemInFolder(join(profileStartup.dir, files[0]));
+					TPromise.join<any>([
+						this._windowsService.showItemInFolder(join(profileStartup.dir, files[0])),
+						action.run(`:warning: Make sure to **attach** these files: :warning:\n${files.map(file => `-\`${join(profileStartup.dir, file)}\``).join('\n')}`)
+					]).then(() => {
+						// keep window stable until restart is selected
+						this._messageService.confirm({
+							type: 'info',
+							message: localize('prof.thanks', "Thanks for helping us."),
+							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
+							primaryButton: localize('prof.restart', "Restart"),
+							secondaryButton: null
+						});
+						// now we are ready to restart
+						this._windowsService.relaunch({ removeArgs: ['--prof-startup'] });
 					});
+
+				} else {
+					// simply restart
+					this._windowsService.relaunch({ removeArgs: ['--prof-startup'] });
 				}
-				createIssue.then(() => this._windowsService.relaunch({ removeArgs: ['--prof-startup'] }));
 			});
 		});
 	}
