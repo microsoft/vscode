@@ -712,14 +712,45 @@ export namespace CoreNavigationCommands {
 				newState = CursorMoveCommands.moveTo(context, cursors.getPrimaryCursor(), false, args.position, args.viewPosition);
 			}
 
-			let newStates = cursors.getAll().slice(0);
-			newStates.push(newState);
+			const states = cursors.getAll();
+
+			// Check if we should remove a cursor (sort of like a toggle)
+			if (states.length > 1) {
+				const newModelPosition = (newState.modelState ? newState.modelState.position : null);
+				const newViewPosition = (newState.viewState ? newState.viewState.position : null);
+
+				for (let i = 0, len = states.length; i < len; i++) {
+					const state = states[i];
+
+					if (newModelPosition && !state.modelState.selection.containsPosition(newModelPosition)) {
+						continue;
+					}
+
+					if (newViewPosition && !state.viewState.selection.containsPosition(newViewPosition)) {
+						continue;
+					}
+
+					// => Remove the cursor
+					states.splice(i, 1);
+
+					cursors.context.model.pushStackElement();
+					cursors.setStates(
+						args.source,
+						CursorChangeReason.Explicit,
+						states
+					);
+					return;
+				}
+			}
+
+			// => Add the new cursor
+			states.push(newState);
 
 			cursors.context.model.pushStackElement();
 			cursors.setStates(
 				args.source,
 				CursorChangeReason.Explicit,
-				newStates
+				states
 			);
 		}
 	});
