@@ -42,7 +42,6 @@ export class LifecycleService implements ILifecycleService {
 		} else {
 			this._startupKind = StartupKind.NewWindow;
 		}
-		console.log(this.startupKind);
 	}
 
 	public get startupKind(): StartupKind {
