@@ -67,5 +67,9 @@
 	"hoverHighlight": "Resaltado debajo de la palabra para la que se muestra un recuadro al mantener el puntero.",
 	"hoverBackground": "Color de fondo al mantener el puntero en el editor.",
 	"hoverBorder": "Color del borde al mantener el puntero en el editor.",
-	"activeLinkForeground": "Color de los vínculos activos."
+	"activeLinkForeground": "Color de los vínculos activos.",
+	"diffEditorInserted": "Color de fondo para el texto insertado.",
+	"diffEditorRemoved": "Color de fondo para el texto quitado.",
+	"diffEditorInsertedOutline": "Color de contorno para el texto insertado.",
+	"diffEditorRemovedOutline": "Color de contorno para el texto quitado."
 }

@@ -16,6 +16,8 @@
 	"textSeparatorForeground": "文字分隔符號的顏色。",
 	"textLinkForeground": "內文連結的前景色彩",
 	"textLinkActiveForeground": "內文使用連結的前景色彩",
+	"textPreformatForeground": "提示及建議文字的前景色彩。",
+	"textBlockQuoteBorder": "引用文字的框線顏色。",
 	"textCodeBlockBackground": "文字區塊的背景顏色。",
 	"widgetShadow": "小工具的陰影色彩，例如編輯器中的尋找/取代。",
 	"inputBoxBackground": "輸入方塊的背景。",
@@ -51,6 +53,7 @@
 	"scrollbarSliderBackground": "滑桿背景色彩。",
 	"scrollbarSliderHoverBackground": "暫留時的滑桿背景色彩。",
 	"scrollbarSliderActiveBackground": "使用中狀態時的滑桿背景色彩。",
+	"progressBarBackground": "長時間運行進度條的背景色彩.",
 	"editorBackground": "編輯器的背景色彩。",
 	"editorForeground": "編輯器的預設前景色彩。",
 	"editorWidgetBackground": "編輯器小工具的背景色彩，例如尋找/取代。",
@@ -63,5 +66,9 @@
 	"hoverHighlight": "在顯示了動態顯示的單字下方醒目提示。",
 	"hoverBackground": "編輯器動態顯示的背景色彩。",
 	"hoverBorder": "編輯器動態顯示的框線色彩。",
-	"activeLinkForeground": "使用中之連結的色彩。"
+	"activeLinkForeground": "使用中之連結的色彩。",
+	"diffEditorInserted": "插入文字的背景色彩。",
+	"diffEditorRemoved": "移除文字的背景色彩。",
+	"diffEditorInsertedOutline": "插入的文字外框色彩。",
+	"diffEditorRemovedOutline": "移除的文字外框色彩。"
 }

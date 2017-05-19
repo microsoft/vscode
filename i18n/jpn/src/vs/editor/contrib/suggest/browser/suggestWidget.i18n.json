@@ -9,6 +9,7 @@
 	"editorSuggestWidgetForeground": "候補ウィジェットの前景色。",
 	"editorSuggestWidgetSelectedBackground": "候補ウィジェット内で選択済みエントリの背景色。",
 	"editorSuggestWidgetHighlightForeground": "候補のウィジェット内で一致したハイライトの色。",
+	"readMore": "詳細を表示...{0}",
 	"suggestionWithDetailsAriaLabel": "{0}、候補、詳細あり",
 	"suggestionAriaLabel": "{0}、候補",
 	"suggestWidget.loading": "読み込んでいます...",

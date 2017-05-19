@@ -62,7 +62,6 @@
 	"renderLineHighlight": "Controla cómo el editor debe presentar el resaltado de línea. Las posibilidades son \"ninguno\", \"margen\", \"línea\" y \"todo\".",
 	"codeLens": "Controla si el editor muestra lentes de código",
 	"folding": "Controla si el editor tiene habilitado el plegado de código.",
-	"hideFoldIcons": "Controla cuándo los iconos de plegado del margen son ocultados automáticamente.",
 	"matchBrackets": "Resaltar corchetes coincidentes cuando se seleccione uno de ellos.",
 	"glyphMargin": "Controla si el editor debe representar el margen de glifo vertical. El margen de glifo se usa, principalmente, para depuración.",
 	"useTabStops": "La inserción y eliminación del espacio en blanco sigue a las tabulaciones.",

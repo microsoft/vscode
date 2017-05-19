@@ -143,6 +143,7 @@
 	"miAccessibilityOptions": "ユーザー補助オプション(&&O)",
 	"miReportIssues": "問題の報告(&&I)",
 	"miWelcome": "ようこそ(&&W)",
+	"miInteractivePlayground": "対話型プレイグラウンド(&&I)",
 	"miDocumentation": "参照資料(&&D)",
 	"miReleaseNotes": "リリース ノート(&&R)",
 	"miKeyboardShortcuts": "キーボード ショートカットの参照(&&K)",

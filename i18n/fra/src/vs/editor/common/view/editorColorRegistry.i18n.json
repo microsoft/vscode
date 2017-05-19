@@ -10,5 +10,11 @@
 	"caret": "Couleur du curseur de l'éditeur.",
 	"editorWhitespaces": "Couleur des espaces blancs dans l'éditeur.",
 	"editorIndentGuides": "Couleur des repères de retrait de l'éditeur.",
-	"editorLineNumbers": "Couleur des numéros de ligne de l'éditeur."
+	"editorLineNumbers": "Couleur des numéros de ligne de l'éditeur.",
+	"editorRuler": "Couleur des règles de l'éditeur",
+	"editorCodeLensForeground": "Couleur pour les indicateurs CodeLens",
+	"editorBracketMatchBackground": "Couleur d'arrière-plan pour les accolades associées",
+	"editorBracketMatchBorder": "Couleur pour le contour des accolades associées",
+	"editorOverviewRulerBorder": "Couleur de la bordure de la règle d'apperçu.",
+	"editorGutter": "Couleur de fond pour la bordure de l'éditeur. La bordure contient les marges pour les symboles et les numéros de ligne."
 }

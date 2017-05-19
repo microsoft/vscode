@@ -18,6 +18,7 @@
 	"discard": "捨棄變更",
 	"confirm discard all": "確定要捨棄所有變更嗎? 此動作無法復原!",
 	"discardAll": "捨棄所有變更",
+	"no staged changes": "沒有暫存變更進行提交\n\n您希望自動暫存您所有變更並直接提交?",
 	"yes": "是",
 	"always": "永遠",
 	"no changes": "沒有任何變更要認可。",

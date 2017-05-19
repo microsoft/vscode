@@ -15,5 +15,9 @@
 	"schema.brackets": "定义增加和减少缩进的括号。",
 	"schema.autoClosingPairs": "定义括号对。当输入左方括号时，将自动插入右方括号。",
 	"schema.autoClosingPairs.notIn": "定义禁用了自动配对的作用域列表。",
-	"schema.surroundingPairs": "定义可用于包围所选字符串的括号对。"
+	"schema.surroundingPairs": "定义可用于包围所选字符串的括号对。",
+	"schema.wordPattern": "此语言的文本定义。",
+	"schema.wordPattern.pattern": "用于匹配文本的正则表达式模式。",
+	"schema.wordPattern.flags": "用于匹配文本的正则表达式标志。",
+	"schema.wordPattern.flags.errorMessage": "必须匹配模式“/^([gimuy]+)$/”。"
 }

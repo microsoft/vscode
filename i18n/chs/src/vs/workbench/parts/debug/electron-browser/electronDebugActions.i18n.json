@@ -6,5 +6,6 @@
 {
 	"copyValue": "复制值",
 	"copy": "复制",
+	"copyAll": "全部复制",
 	"copyStackTrace": "复制调用堆栈"
 }
