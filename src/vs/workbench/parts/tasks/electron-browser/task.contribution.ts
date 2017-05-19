@@ -894,11 +894,13 @@ class TaskService extends EventEmitter implements ITaskService {
 					resolve(result);
 				}
 			};
-			if (this.getExecutionEngine() === ExecutionEngine.Terminal) {
+			if (this.getExecutionEngine() === ExecutionEngine.Terminal && this._providers.size > 0) {
 				this._providers.forEach((provider) => {
 					counter++;
 					provider.provideTasks().done(done, error);
 				});
+			} else {
+				resolve(result);
 			}
 		}).then((result) => {
 			return this.getWorkspaceTasks().then((workspaceTaskResult) => {
