@@ -64,10 +64,6 @@ export class Cursor extends Disposable implements ICursors {
 	private _isDoingComposition: boolean;
 	private _columnSelectData: IColumnSelectData;
 
-	private _handlers: {
-		[key: string]: (args: CursorOperationArgs<any>) => EditOperationResult;
-	};
-
 	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModelHelper: IViewModelHelper) {
 		super();
 		this._eventEmitter = this._register(new EventEmitter());
@@ -80,9 +76,6 @@ export class Cursor extends Disposable implements ICursors {
 		this._isHandling = false;
 		this._isDoingComposition = false;
 		this._columnSelectData = null;
-
-		this._handlers = {};
-		this._registerHandlers();
 
 		this._register(this._model.addBulkListener((events) => {
 			if (this._isHandling) {
@@ -135,6 +128,8 @@ export class Cursor extends Disposable implements ICursors {
 		super.dispose();
 	}
 
+	// ------ some getters/setters
+
 	public getPrimaryCursor(): CursorState {
 		return this._cursors.getPrimaryCursor();
 	}
@@ -145,6 +140,26 @@ export class Cursor extends Disposable implements ICursors {
 
 	public getAll(): CursorState[] {
 		return this._cursors.getAll();
+	}
+
+	private static _somethingChanged(oldSelections: Selection[], oldViewSelections: Selection[], newSelections: Selection[], newViewSelections: Selection[]): boolean {
+		if (oldSelections.length !== newSelections.length) {
+			return true;
+		}
+
+		for (let i = 0, len = oldSelections.length; i < len; i++) {
+			if (!oldSelections[i].equalsSelection(newSelections[i])) {
+				return true;
+			}
+		}
+
+		for (let i = 0, len = oldViewSelections.length; i < len; i++) {
+			if (!oldViewSelections[i].equalsSelection(newViewSelections[i])) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void {
@@ -162,23 +177,7 @@ export class Cursor extends Disposable implements ICursors {
 		const newSelections = this._cursors.getSelections();
 		const newViewSelections = this._cursors.getViewSelections();
 
-		let somethingChanged = false;
-		if (oldSelections.length !== newSelections.length) {
-			somethingChanged = true;
-		} else {
-			for (let i = 0, len = oldSelections.length; !somethingChanged && i < len; i++) {
-				if (!oldSelections[i].equalsSelection(newSelections[i])) {
-					somethingChanged = true;
-				}
-			}
-			for (let i = 0, len = oldViewSelections.length; !somethingChanged && i < len; i++) {
-				if (!oldViewSelections[i].equalsSelection(newViewSelections[i])) {
-					somethingChanged = true;
-				}
-			}
-		}
-
-		if (somethingChanged) {
+		if (Cursor._somethingChanged(oldSelections, oldViewSelections, newSelections, newViewSelections)) {
 			this._emitCursorPositionChanged(source, reason);
 			this._emitCursorSelectionChanged(source, reason);
 		}
@@ -281,10 +280,20 @@ export class Cursor extends Disposable implements ICursors {
 		}
 	}
 
-	// ------ some getters/setters
-
 	public getSelection(): Selection {
 		return this._cursors.getPrimaryCursor().modelState.selection;
+	}
+
+	public getColumnSelectData(): IColumnSelectData {
+		if (this._columnSelectData) {
+			return this._columnSelectData;
+		}
+		const primaryCursor = this._cursors.getPrimaryCursor();
+		const primaryPos = primaryCursor.viewState.position;
+		return {
+			toViewLineNumber: primaryPos.lineNumber,
+			toViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos)
+		};
 	}
 
 	public getSelections(): Selection[] {
@@ -301,80 +310,31 @@ export class Cursor extends Disposable implements ICursors {
 
 	// ------ auxiliary handling logic
 
-	private _createAndInterpretHandlerCtx(callback: () => EditOperationResult): void {
+	private _executeEditOperation(opResult: EditOperationResult): void {
 
-		const opResult = callback();
+		if (!opResult) {
+			// Nothing to execute
+			return;
+		}
 
-		if (opResult && opResult.shouldPushStackElementBefore) {
+		if (this._configuration.editor.readOnly) {
+			// Cannot execute when read only
+			return;
+		}
+
+		if (opResult.shouldPushStackElementBefore) {
 			this._model.pushStackElement();
 		}
 
-		this._columnSelectData = null;
-
-		if (opResult && !this._configuration.editor.readOnly) {
-			const result = CommandExecutor.executeCommands(this._model, this._cursors.getSelections(), opResult.commands);
-			if (result) {
-				// The commands were applied correctly
-				this._interpretCommandResult(result);
-			}
+		const result = CommandExecutor.executeCommands(this._model, this._cursors.getSelections(), opResult.commands);
+		if (result) {
+			// The commands were applied correctly
+			this._interpretCommandResult(result);
 		}
 
-		if (opResult && opResult.shouldPushStackElementAfter) {
+		if (opResult.shouldPushStackElementAfter) {
 			this._model.pushStackElement();
 		}
-
-		this._cursors.normalize();
-	}
-
-	private _onHandler(command: string, handler: (args: CursorOperationArgs<any>) => EditOperationResult, args: CursorOperationArgs<any>): void {
-
-		this._isHandling = true;
-
-		try {
-			const oldSelections = this._cursors.getSelections();
-			const oldViewSelections = this._cursors.getViewSelections();
-
-			// ensure valid state on all cursors
-			this._cursors.ensureValidState();
-
-			let cursorPositionChangeReason: CursorChangeReason;
-
-			this._createAndInterpretHandlerCtx(() => {
-				let r = handler(args);
-				cursorPositionChangeReason = r ? r.reason : CursorChangeReason.NotSet;
-				return r;
-			});
-
-			const newSelections = this._cursors.getSelections();
-			const newViewSelections = this._cursors.getViewSelections();
-
-			let somethingChanged = false;
-			if (oldSelections.length !== newSelections.length) {
-				somethingChanged = true;
-			} else {
-				for (let i = 0, len = oldSelections.length; !somethingChanged && i < len; i++) {
-					if (!oldSelections[i].equalsSelection(newSelections[i])) {
-						somethingChanged = true;
-					}
-				}
-				for (let i = 0, len = oldViewSelections.length; !somethingChanged && i < len; i++) {
-					if (!oldViewSelections[i].equalsSelection(newViewSelections[i])) {
-						somethingChanged = true;
-					}
-				}
-			}
-
-			if (somethingChanged) {
-				this._emitCursorPositionChanged(args.eventSource, cursorPositionChangeReason);
-				this._revealRange(RevealTarget.Primary, VerticalRevealType.Simple, true);
-				this._emitCursorSelectionChanged(args.eventSource, cursorPositionChangeReason);
-			}
-
-		} catch (err) {
-			onUnexpectedError(err);
-		}
-
-		this._isHandling = false;
 	}
 
 	private _interpretCommandResult(cursorState: Selection[]): void {
@@ -382,7 +342,9 @@ export class Cursor extends Disposable implements ICursors {
 			return;
 		}
 
+		this._columnSelectData = null;
 		this._cursors.setSelections(cursorState);
+		this._cursors.normalize();
 	}
 
 	// -----------------------------------------------------------------------------------------------------------
@@ -483,41 +445,79 @@ export class Cursor extends Disposable implements ICursors {
 	// ----- handlers beyond this point
 
 	public trigger(source: string, handlerId: string, payload: any): void {
-		if (!this._handlers.hasOwnProperty(handlerId)) {
+		const H = editorCommon.Handler;
+
+		if (handlerId === H.CompositionStart) {
+			this._isDoingComposition = true;
 			return;
 		}
-		const handler = this._handlers[handlerId];
-		const args = new CursorOperationArgs(source, payload);
-		this._onHandler(handlerId, handler, args);
-	}
 
-	private _registerHandlers(): void {
-		let H = editorCommon.Handler;
-
-		this._handlers[H.Type] = (args) => this._type(args);
-		this._handlers[H.ReplacePreviousChar] = (args) => this._replacePreviousChar(args);
-		this._handlers[H.CompositionStart] = (args) => this._compositionStart(args);
-		this._handlers[H.CompositionEnd] = (args) => this._compositionEnd(args);
-		this._handlers[H.Paste] = (args) => this._paste(args);
-		this._handlers[H.Cut] = (args) => this._cut(args);
-
-		this._handlers[H.Undo] = (args) => this._undo(args);
-		this._handlers[H.Redo] = (args) => this._redo(args);
-
-		this._handlers[H.ExecuteCommand] = (args) => this._externalExecuteCommand(args);
-		this._handlers[H.ExecuteCommands] = (args) => this._externalExecuteCommands(args);
-	}
-
-	public getColumnSelectData(): IColumnSelectData {
-		if (this._columnSelectData) {
-			return this._columnSelectData;
+		if (handlerId === H.CompositionEnd) {
+			this._isDoingComposition = false;
+			return;
 		}
-		const primaryCursor = this._cursors.getPrimaryCursor();
-		const primaryPos = primaryCursor.viewState.position;
-		return {
-			toViewLineNumber: primaryPos.lineNumber,
-			toViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, primaryPos)
-		};
+
+		const args = new CursorOperationArgs(source, payload);
+
+		const oldSelections = this._cursors.getSelections();
+		const oldViewSelections = this._cursors.getViewSelections();
+		let cursorChangeReason = CursorChangeReason.NotSet;
+
+		// ensure valid state on all cursors
+		this._cursors.ensureValidState();
+
+		this._isHandling = true;
+
+		try {
+			switch (handlerId) {
+				case H.Type:
+					this._executeEditOperation(this._type(args));
+					break;
+
+				case H.ReplacePreviousChar:
+					this._executeEditOperation(this._replacePreviousChar(args));
+					break;
+
+				case H.Paste:
+					cursorChangeReason = CursorChangeReason.Paste;
+					this._executeEditOperation(this._paste(args));
+					break;
+
+				case H.Cut:
+					this._executeEditOperation(this._cut(args));
+					break;
+
+				case H.Undo:
+					cursorChangeReason = CursorChangeReason.Undo;
+					this._interpretCommandResult(this._model.undo());
+					break;
+
+				case H.Redo:
+					cursorChangeReason = CursorChangeReason.Redo;
+					this._interpretCommandResult(this._model.redo());
+					break;
+
+				case H.ExecuteCommand:
+					this._executeEditOperation(this._externalExecuteCommand(args));
+					break;
+
+				case H.ExecuteCommands:
+					this._executeEditOperation(this._externalExecuteCommands(args));
+					break;
+			}
+		} catch (err) {
+			onUnexpectedError(err);
+		}
+
+		this._isHandling = false;
+
+		const newSelections = this._cursors.getSelections();
+		const newViewSelections = this._cursors.getViewSelections();
+		if (Cursor._somethingChanged(oldSelections, oldViewSelections, newSelections, newViewSelections)) {
+			this._emitCursorPositionChanged(args.eventSource, cursorChangeReason);
+			this._revealRange(RevealTarget.Primary, VerticalRevealType.Simple, true);
+			this._emitCursorSelectionChanged(args.eventSource, cursorChangeReason);
+		}
 	}
 
 	// -------------------- START editing operations
@@ -539,12 +539,7 @@ export class Cursor extends Disposable implements ICursors {
 				}
 
 				// Here we must interpret each typed character individually, that's why we create a new context
-				this._createAndInterpretHandlerCtx(() => {
-
-					// Decide what all cursors will do up-front
-					return TypeOperations.typeWithInterceptors(this.context.config, this.context.model, this.getSelections(), chr);
-				});
-
+				this._executeEditOperation(TypeOperations.typeWithInterceptors(this.context.config, this.context.model, this.getSelections(), chr));
 			}
 
 			return null;
@@ -554,55 +549,15 @@ export class Cursor extends Disposable implements ICursors {
 	}
 
 	private _replacePreviousChar(args: CursorOperationArgs<{ text: string; replaceCharCnt: number; }>): EditOperationResult {
-		let text = args.eventData.text;
-		let replaceCharCnt = args.eventData.replaceCharCnt;
+		const text = args.eventData.text;
+		const replaceCharCnt = args.eventData.replaceCharCnt;
 		return TypeOperations.replacePreviousChar(this.context.config, this.context.model, this.getSelections(), text, replaceCharCnt);
 	}
 
-	private _compositionStart(args: CursorOperationArgs<void>): EditOperationResult {
-		this._isDoingComposition = true;
-		return null;
-	}
-
-	private _compositionEnd(args: CursorOperationArgs<void>): EditOperationResult {
-		this._isDoingComposition = false;
-		return null;
-	}
-
-	private _distributePasteToCursors(args: CursorOperationArgs<{ pasteOnNewLine: boolean; text: string; }>): string[] {
-		if (args.eventData.pasteOnNewLine) {
-			return null;
-		}
-
-		const selections = this._cursors.getSelections();
-		if (selections.length === 1) {
-			return null;
-		}
-
-		for (let i = 0; i < selections.length; i++) {
-			if (selections[i].startLineNumber !== selections[i].endLineNumber) {
-				return null;
-			}
-		}
-
-		let pastePieces = args.eventData.text.split(/\r\n|\r|\n/);
-		if (pastePieces.length !== selections.length) {
-			return null;
-		}
-
-		return pastePieces;
-	}
-
 	private _paste(args: CursorOperationArgs<{ pasteOnNewLine: boolean; text: string; }>): EditOperationResult {
-		const distributedPaste = this._distributePasteToCursors(args);
-
-		if (distributedPaste) {
-			let selections = this.getSelections();
-			selections = selections.sort(Range.compareRangesUsingStarts);
-			return TypeOperations.distributedPaste(this.context.config, this.context.model, selections, distributedPaste);
-		} else {
-			return TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), args.eventData.text, args.eventData.pasteOnNewLine);
-		}
+		const pasteOnNewLine = args.eventData.pasteOnNewLine;
+		const text = args.eventData.text;
+		return TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), pasteOnNewLine, text);
 	}
 
 	private _cut(args: CursorOperationArgs<void>): EditOperationResult {
@@ -610,26 +565,6 @@ export class Cursor extends Disposable implements ICursors {
 	}
 
 	// -------------------- END editing operations
-
-	private _undo(args: CursorOperationArgs<void>): EditOperationResult {
-		this._interpretCommandResult(this._model.undo());
-
-		return new EditOperationResult([], {
-			shouldPushStackElementBefore: false,
-			shouldPushStackElementAfter: false,
-			reason: CursorChangeReason.Undo
-		});
-	}
-
-	private _redo(args: CursorOperationArgs<void>): EditOperationResult {
-		this._interpretCommandResult(this._model.redo());
-
-		return new EditOperationResult([], {
-			shouldPushStackElementBefore: false,
-			shouldPushStackElementAfter: false,
-			reason: CursorChangeReason.Redo
-		});
-	}
 
 	private _externalExecuteCommand(args: CursorOperationArgs<editorCommon.ICommand>): EditOperationResult {
 		const command = args.eventData;

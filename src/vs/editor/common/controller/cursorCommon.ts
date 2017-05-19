@@ -438,24 +438,17 @@ export class EditOperationResult {
 	readonly commands: ICommand[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
-	readonly reason: CursorChangeReason;
 
 	constructor(
 		commands: ICommand[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
-			reason?: CursorChangeReason;
 		}
 	) {
 		this.commands = commands;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
-		if (typeof opts.reason === 'undefined') {
-			this.reason = CursorChangeReason.NotSet;
-		} else {
-			this.reason = opts.reason;
-		}
 	}
 }
 
