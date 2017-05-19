@@ -9,6 +9,7 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as net from 'net';
 
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
@@ -415,6 +416,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 			return modulePath;
 		}).then(modulePath => {
+			return this.getDebugPort().then(debugPort => ({ modulePath, debugPort }));
+		}).then(({ modulePath, debugPort }) => {
 			return this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 				const tsConfig = workspace.getConfiguration('typescript');
 
@@ -458,19 +461,16 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.lastError = null;
 
 				try {
-					let options: electron.IForkOptions = {
+					const options: electron.IForkOptions = {
 						execArgv: [] // [`--debug-brk=5859`]
 					};
 					if (workspace.rootPath) {
 						options.cwd = workspace.rootPath;
 					}
-					let value = process.env.TSS_DEBUG;
-					if (value) {
-						const port = parseInt(value);
-						if (!isNaN(port)) {
-							this.info(`TSServer started in debug mode using port ${port}`);
-							options.execArgv = [`--debug=${port}`];
-						}
+
+					if (debugPort && !isNaN(debugPort)) {
+						this.info(`TSServer started in debug mode using port ${debugPort}`);
+						options.execArgv = [`--debug=${debugPort}`];
 					}
 
 					const args: string[] = [];
@@ -558,6 +558,30 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 			});
 		});
+	}
+
+	private getDebugPort(): Promise<number | undefined> {
+		const value = process.env.TSS_DEBUG;
+		if (value) {
+			const port = parseInt(value);
+			if (!isNaN(port)) {
+				return Promise.resolve(port);
+			}
+		}
+
+		if (workspace.getConfiguration('typescript').get<boolean>('tsserver.debug', false)) {
+			return Promise.race([
+				new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 1000)),
+				new Promise<number | undefined>((resolve) => {
+					const server = net.createServer(sock => sock.end());
+					server.listen(0, function () {
+						resolve(server.address().port);
+					});
+				})
+			]);
+		}
+
+		return Promise.resolve(undefined);
 	}
 
 	public onVersionStatusClicked(): Thenable<string> {
