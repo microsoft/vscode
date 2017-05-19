@@ -1,8 +1,8 @@
 {
-  "name": "grunt",
+  "name": "jake",
   "publisher": "vscode",
-  "description": "Extension to add Grunt capabilities to VSCode.",
-  "displayName": "Grunt support for VSCode",
+  "description": "Extension to add Jake capabilities to VSCode.",
+  "displayName": "Jake support for VSCode",
   "version": "0.0.1",
   "engines": {
     "vscode": "*"
@@ -12,14 +12,14 @@
     "Other"
   ],
   "scripts": {
-    "compile": "gulp compile-extension:grunt",
-    "watch": "gulp watch-extension:grunt"
+    "compile": "gulp compile-extension:jake",
+    "watch": "gulp watch-extension:jake"
   },
   "dependencies": {
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {
-    "@types/node": "^7.0.12"
+    "@types/node": "^7.0.18"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -29,18 +29,18 @@
   ],
   "contributes": {
     "configuration": {
-      "id": "grunt",
+      "id": "jake",
       "type": "object",
-      "title": "Grunt",
+      "title": "Jake",
       "properties": {
-        "grunt.autoDetect": {
+        "jake.autoDetect": {
           "type": "string",
           "enum": [
             "off",
             "on"
           ],
           "default": "on",
-          "description": "%config.grunt.autoDetect%"
+          "description": "%config.jake.autoDetect%"
         }
       }
     }

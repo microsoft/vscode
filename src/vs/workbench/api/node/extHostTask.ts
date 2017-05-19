@@ -268,7 +268,7 @@ namespace ShellConfiguration {
 
 namespace Tasks {
 
-	export function from(tasks: vscode.Task[], uuidMap: UUIDMap): TaskSystem.Task[] {
+	export function from(tasks: vscode.Task[], extension: IExtensionDescription, uuidMap: UUIDMap): TaskSystem.Task[] {
 		if (tasks === void 0 || tasks === null) {
 			return [];
 		}
@@ -276,7 +276,7 @@ namespace Tasks {
 		try {
 			uuidMap.start();
 			for (let task of tasks) {
-				let converted = fromSingle(task, uuidMap);
+				let converted = fromSingle(task, extension, uuidMap);
 				if (converted) {
 					result.push(converted);
 				}
@@ -287,7 +287,7 @@ namespace Tasks {
 		return result;
 	}
 
-	function fromSingle(task: vscode.Task, uuidMap: UUIDMap): TaskSystem.Task {
+	function fromSingle(task: vscode.Task, extension: IExtensionDescription, uuidMap: UUIDMap): TaskSystem.Task {
 		if (typeof task.name !== 'string' || typeof task.identifier !== 'string') {
 			return undefined;
 		}
@@ -306,6 +306,7 @@ namespace Tasks {
 		command.echo = behaviour.echo;
 		let result: TaskSystem.Task = {
 			_id: uuidMap.getUUID(task.identifier),
+			_source: { kind: TaskSystem.TaskSourceKind.Extension, detail: extension.id },
 			name: task.name,
 			identifier: task.identifier,
 			group: types.TaskGroup.is(task.group) ? task.group : undefined,
@@ -421,7 +422,7 @@ export class ExtHostTask extends ExtHostTaskShape {
 		}
 		return asWinJsPromise(token => handler.provider.provideTasks(token)).then(value => {
 			return {
-				tasks: Tasks.from(value, this.getUUIDMap(handler.extension.id)),
+				tasks: Tasks.from(value, handler.extension, this.getUUIDMap(handler.extension.id)),
 				extension: handler.extension
 			};
 		});

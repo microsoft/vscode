@@ -20,26 +20,26 @@ export function activate(_context: vscode.ExtensionContext): void {
 	if (!workspaceRoot) {
 		return;
 	}
-	let pattern = path.join(workspaceRoot, 'gulpfile{.babel.js,.js}');
-	let gulpPromise: Thenable<vscode.Task[]> | undefined = undefined;
+	let pattern = path.join(workspaceRoot, '{Jakefile,Jakefile.js}');
+	let jakePromise: Thenable<vscode.Task[]> | undefined = undefined;
 	let fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
-	fileWatcher.onDidChange(() => gulpPromise = undefined);
-	fileWatcher.onDidCreate(() => gulpPromise = undefined);
-	fileWatcher.onDidDelete(() => gulpPromise = undefined);
+	fileWatcher.onDidChange(() => jakePromise = undefined);
+	fileWatcher.onDidCreate(() => jakePromise = undefined);
+	fileWatcher.onDidDelete(() => jakePromise = undefined);
 
 	function onConfigurationChanged() {
-		let autoDetect = vscode.workspace.getConfiguration('gulp').get<AutoDetect>('autoDetect');
+		let autoDetect = vscode.workspace.getConfiguration('jake').get<AutoDetect>('autoDetect');
 		if (taskProvider && autoDetect === 'off') {
-			gulpPromise = undefined;
+			jakePromise = undefined;
 			taskProvider.dispose();
 			taskProvider = undefined;
 		} else if (!taskProvider && autoDetect === 'on') {
 			taskProvider = vscode.workspace.registerTaskProvider({
 				provideTasks: () => {
-					if (!gulpPromise) {
-						gulpPromise = getGulpTasks();
+					if (!jakePromise) {
+						jakePromise = getJakeTasks();
 					}
-					return gulpPromise;
+					return jakePromise;
 				}
 			});
 		}
@@ -73,31 +73,31 @@ function exec(command: string, options: cp.ExecOptions): Promise<{ stdout: strin
 	});
 }
 
-async function getGulpTasks(): Promise<vscode.Task[]> {
+async function getJakeTasks(): Promise<vscode.Task[]> {
 	let workspaceRoot = vscode.workspace.rootPath;
 	let emptyTasks: vscode.Task[] = [];
 	if (!workspaceRoot) {
 		return emptyTasks;
 	}
-	let gulpfile = path.join(workspaceRoot, 'gulpfile.js');
-	if (!await exists(gulpfile)) {
-		gulpfile = path.join(workspaceRoot, 'gulpfile.babel.js');
-		if (! await exists(gulpfile)) {
+	let jakefile = path.join(workspaceRoot, 'Jakefile');
+	if (!await exists(jakefile)) {
+		jakefile = path.join(workspaceRoot, 'Jakefile.js');
+		if (! await exists(jakefile)) {
 			return emptyTasks;
 		}
 	}
 
-	let gulpCommand: string;
+	let jakeCommand: string;
 	let platform = process.platform;
-	if (platform === 'win32' && await exists(path.join(workspaceRoot!, 'node_modules', '.bin', 'gulp.cmd'))) {
-		gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp.cmd');
-	} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(workspaceRoot!, 'node_modules', '.bin', 'gulp'))) {
-		gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp');
+	if (platform === 'win32' && await exists(path.join(workspaceRoot!, 'node_modules', '.bin', 'jake.cmd'))) {
+		jakeCommand = path.join('.', 'node_modules', '.bin', 'jake.cmd');
+	} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(workspaceRoot!, 'node_modules', '.bin', 'jake'))) {
+		jakeCommand = path.join('.', 'node_modules', '.bin', 'jake');
 	} else {
-		gulpCommand = 'gulp';
+		jakeCommand = 'jake';
 	}
 
-	let commandLine = `${gulpCommand} --tasks-simple --no-color`;
+	let commandLine = `${jakeCommand} --tasks`;
 	let channel = vscode.window.createOutputChannel('tasks');
 	try {
 		let { stdout, stderr } = await exec(commandLine, { cwd: workspaceRoot });
@@ -114,18 +114,23 @@ async function getGulpTasks(): Promise<vscode.Task[]> {
 				if (line.length === 0) {
 					continue;
 				}
-				let task = new vscode.ShellTask(`gulp: ${line}`, `${gulpCommand} ${line}`);
-				task.identifier = `gulp.${line}`;
-				result.push(task);
-				let lowerCaseLine = line.toLowerCase();
-				if (lowerCaseLine === 'build') {
-					buildTask = { task, rank: 2 };
-				} else if (lowerCaseLine.indexOf('build') !== -1 && buildTask.rank < 1) {
-					buildTask = { task, rank: 1 };
-				} else if (lowerCaseLine === 'test') {
-					testTask = { task, rank: 2 };
-				} else if (lowerCaseLine.indexOf('test') !== -1 && testTask.rank < 1) {
-					testTask = { task, rank: 1 };
+				let regExp = /^jake\s+([^\s]+)\s/g;
+				let matches = regExp.exec(line);
+				if (matches && matches.length === 2) {
+					let taskName = matches[1];
+					let task = new vscode.ShellTask(`jake: ${taskName}`, `${jakeCommand} ${taskName}`);
+					task.identifier = `jake.${taskName}`;
+					result.push(task);
+					let lowerCaseLine = line.toLowerCase();
+					if (lowerCaseLine === 'build') {
+						buildTask = { task, rank: 2 };
+					} else if (lowerCaseLine.indexOf('build') !== -1 && buildTask.rank < 1) {
+						buildTask = { task, rank: 1 };
+					} else if (lowerCaseLine === 'test') {
+						testTask = { task, rank: 2 };
+					} else if (lowerCaseLine.indexOf('test') !== -1 && testTask.rank < 1) {
+						testTask = { task, rank: 1 };
+					}
 				}
 			}
 			if (buildTask.task) {
@@ -140,7 +145,7 @@ async function getGulpTasks(): Promise<vscode.Task[]> {
 		if (err.stderr) {
 			channel.appendLine(err.stderr);
 		}
-		channel.appendLine(localize('execFailed', 'Auto detecting gulp failed with error: {0}', err.error ? err.error.toString() : 'unknown'));
+		channel.appendLine(localize('execFailed', 'Auto detecting Jake failed with error: {0}', err.error ? err.error.toString() : 'unknown'));
 		return emptyTasks;
 	}
 }
