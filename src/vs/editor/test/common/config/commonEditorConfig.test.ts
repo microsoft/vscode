@@ -59,6 +59,7 @@ suite('Common Editor Config', () => {
 				outerWidth: 1000,
 				outerHeight: 100,
 				canUseTranslate3d: true,
+				emptySelectionClipboard: true,
 				pixelRatio: 1,
 				zoomLevel: 0
 			};

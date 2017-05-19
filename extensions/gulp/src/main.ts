@@ -103,6 +103,7 @@ async function getGulpTasks(): Promise<vscode.Task[]> {
 		let { stdout, stderr } = await exec(commandLine, { cwd: workspaceRoot });
 		if (stderr) {
 			channel.appendLine(stderr);
+			channel.show(true);
 		}
 		let result: vscode.Task[] = [];
 		if (stdout) {

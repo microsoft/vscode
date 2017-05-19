@@ -725,6 +725,10 @@ declare module monaco {
 		 */
 		setEndPosition(endLineNumber: number, endColumn: number): Selection;
 		/**
+		 * Get the position at `positionLineNumber` and `positionColumn`.
+		 */
+		getPosition(): Position;
+		/**
 		 * Create a new selection with a different `selectionStartLineNumber` and `selectionStartColumn`.
 		 */
 		setStartPosition(startLineNumber: number, startColumn: number): Selection;
@@ -2294,6 +2298,7 @@ declare module monaco.editor {
 		getAction(id: string): IEditorAction;
 		/**
 		 * Execute a command on the editor.
+		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 		 * @param source The source of the call.
 		 * @param command The command to execute
 		 */
@@ -2304,6 +2309,7 @@ declare module monaco.editor {
 		pushUndoStop(): boolean;
 		/**
 		 * Execute edits on the editor.
+		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 		 * @param source The source of the call.
 		 * @param edits The edits to execute.
 		 * @param endCursoState Cursor state after the edits were applied.
@@ -2978,10 +2984,10 @@ declare module monaco.editor {
 		 */
 		folding?: boolean;
 		/**
-		 * Enable automatic hiding of non-collapsed fold icons in the gutter.
-		 * Defaults to true.
+		 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
+		 * Defaults to 'mouseover'.
 		 */
-		hideFoldIcons?: boolean;
+		showFoldingControls?: 'always' | 'mouseover';
 		/**
 		 * Enable highlighting of matching brackets.
 		 * Defaults to true.
@@ -3232,7 +3238,6 @@ declare module monaco.editor {
 		readonly acceptSuggestionOnEnter: boolean;
 		readonly acceptSuggestionOnCommitCharacter: boolean;
 		readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
-		readonly emptySelectionClipboard: boolean;
 		readonly wordBasedSuggestions: boolean;
 		readonly suggestFontSize: number;
 		readonly suggestLineHeight: number;
@@ -3240,7 +3245,7 @@ declare module monaco.editor {
 		readonly occurrencesHighlight: boolean;
 		readonly codeLens: boolean;
 		readonly folding: boolean;
-		readonly hideFoldIcons: boolean;
+		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
 	}
 
@@ -3259,6 +3264,7 @@ declare module monaco.editor {
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
+		readonly emptySelectionClipboard: boolean;
 		readonly layoutInfo: EditorLayoutInfo;
 		readonly fontInfo: FontInfo;
 		readonly viewInfo: InternalEditorViewOptions;
@@ -3388,6 +3394,7 @@ declare module monaco.editor {
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
 		readonly dragAndDrop: boolean;
+		readonly emptySelectionClipboard: boolean;
 		readonly layoutInfo: boolean;
 		readonly fontInfo: boolean;
 		readonly viewInfo: boolean;

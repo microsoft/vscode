@@ -16,7 +16,6 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EndOfLinePreference } from "vs/editor/common/editorCommon";
 import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
@@ -63,6 +62,7 @@ export class TextAreaHandler extends ViewPart {
 	private _experimentalScreenReader: boolean;
 	private _fontInfo: BareFontInfo;
 	private _lineHeight: number;
+	private _emptySelectionClipboard: boolean;
 
 	/**
 	 * Defined only when the text area is visible (composition case).
@@ -93,6 +93,7 @@ export class TextAreaHandler extends ViewPart {
 		this._experimentalScreenReader = conf.viewInfo.experimentalScreenReader;
 		this._fontInfo = conf.fontInfo;
 		this._lineHeight = conf.lineHeight;
+		this._emptySelectionClipboard = conf.emptySelectionClipboard;
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
@@ -130,9 +131,9 @@ export class TextAreaHandler extends ViewPart {
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getPlainTextToCopy: (): string => {
-				const whatToCopy = this._context.model.getPlainTextToCopy(this._selections, browser.enableEmptySelectionClipboard);
+				const whatToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard);
 
-				if (browser.enableEmptySelectionClipboard) {
+				if (this._emptySelectionClipboard) {
 					if (browser.isFirefox) {
 						// When writing "LINE\r\n" to the clipboard and then pasting,
 						// Firefox pastes "LINE\n", so let's work around this quirk
@@ -149,7 +150,7 @@ export class TextAreaHandler extends ViewPart {
 			},
 
 			getHTMLToCopy: (): string => {
-				return this._context.model.getHTMLToCopy(this._selections, browser.enableEmptySelectionClipboard);
+				return this._context.model.getHTMLToCopy(this._selections, this._emptySelectionClipboard);
 			},
 
 			getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
@@ -181,7 +182,7 @@ export class TextAreaHandler extends ViewPart {
 
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
 			let pasteOnNewLine = false;
-			if (browser.enableEmptySelectionClipboard) {
+			if (this._emptySelectionClipboard) {
 				pasteOnNewLine = (e.text === this._lastCopiedValue && this._lastCopiedValueIsFromEmptySelection);
 			}
 			this._viewController.paste('keyboard', e.text, pasteOnNewLine);
@@ -205,7 +206,7 @@ export class TextAreaHandler extends ViewPart {
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, column, lineNumber, column),
-				VerticalRevealType.Simple,
+				viewEvents.VerticalRevealType.Simple,
 				true
 			));
 
@@ -284,6 +285,9 @@ export class TextAreaHandler extends ViewPart {
 		}
 		if (e.pixelRatio) {
 			this._pixelRatio = conf.pixelRatio;
+		}
+		if (e.emptySelectionClipboard) {
+			this._emptySelectionClipboard = conf.emptySelectionClipboard;
 		}
 
 		return true;
@@ -411,7 +415,7 @@ export class TextAreaHandler extends ViewPart {
 			ta.setFontSize(1);
 			// Chrome does not generate input events in empty textareas that end
 			// up having a line height smaller than 1 screen pixel.
-			ta.setLineHeight(Math.ceil(1 / this._pixelRatio));
+			ta.setLineHeight(Math.ceil(Math.max(this._pixelRatio, 1 / this._pixelRatio)));
 		}
 
 		ta.setTop(top);

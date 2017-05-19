@@ -22,7 +22,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
+import { ProblemMatcher, ProblemMatcherRegistry } from 'vs/platform/markers/common/problemMatcher';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
@@ -335,12 +335,22 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		return value.map(s => this.resolveVariable(s));
 	}
 
-	private resolveMatchers<T extends ProblemMatcher>(values: T[]): T[] {
-		if (values.length === 0) {
-			return values;
+	private resolveMatchers(values: (string | ProblemMatcher)[]): ProblemMatcher[] {
+		if (values === void 0 || values === null || values.length === 0) {
+			return [];
 		}
-		let result: T[] = [];
-		values.forEach((matcher) => {
+		let result: ProblemMatcher[] = [];
+		values.forEach((value) => {
+			let matcher: ProblemMatcher;
+			if (Types.isString(value)) {
+				matcher = ProblemMatcherRegistry.get(value);
+			} else {
+				matcher = value;
+			}
+			if (!matcher) {
+				this.outputChannel.append(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
+				return;
+			}
 			if (!matcher.filePrefix) {
 				result.push(matcher);
 			} else {

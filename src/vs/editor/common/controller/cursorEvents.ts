@@ -6,7 +6,6 @@
 'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 
 /**
@@ -15,8 +14,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 export const CursorEventType = {
 	CursorPositionChanged: 'positionChanged',
 	CursorSelectionChanged: 'selectionChanged',
-	CursorRevealRange: 'revealRange',
-	CursorScrollRequest: 'scrollRequest',
 };
 
 /**
@@ -113,47 +110,4 @@ export interface ICursorSelectionChangedEvent {
 	 * Reason.
 	 */
 	readonly reason: CursorChangeReason;
-}
-/**
- * @internal
- */
-export const enum VerticalRevealType {
-	Simple = 0,
-	Center = 1,
-	CenterIfOutsideViewport = 2,
-	Top = 3,
-	Bottom = 4
-}
-/**
- * An event describing a request to reveal a specific range in the view of the editor.
- * @internal
- */
-export interface ICursorRevealRangeEvent {
-	/**
-	 * Range to be reavealed.
-	 */
-	readonly range: Range;
-	/**
-	 * View range to be reavealed.
-	 */
-	readonly viewRange: Range;
-
-	readonly verticalType: VerticalRevealType;
-	/**
-	 * If true: there should be a horizontal & vertical revealing
-	 * If false: there should be just a vertical revealing
-	 */
-	readonly revealHorizontal: boolean;
-}
-
-/**
- * @internal
- */
-export class CursorScrollRequest {
-
-	public readonly desiredScrollTop: number;
-
-	constructor(desiredScrollTop: number) {
-		this.desiredScrollTop = desiredScrollTop;
-	}
 }

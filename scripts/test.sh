@@ -29,7 +29,7 @@ test -d node_modules || ./scripts/npm.sh install
 # Unit Tests
 if [[ "$1" == "--xvfb" ]]; then
 	cd $ROOT ; \
-		xvfb-run "$CODE" test/electron/index.js "$@"
+		xvfb-run -a "$CODE" test/electron/index.js "$@"
 elif [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; \
 		"$CODE" \

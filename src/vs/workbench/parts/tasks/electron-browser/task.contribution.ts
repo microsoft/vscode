@@ -69,7 +69,7 @@ import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutpu
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, TaskSet, TaskGroup, ExecutionEngine, ShowOutput } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSet, TaskGroup, ExecutionEngine, ShowOutput, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -489,6 +489,10 @@ class ProblemReporter implements TaskConfig.IProblemReporter {
 
 interface WorkspaceTaskResult {
 	set: TaskSet;
+	annotatingTasks: {
+		byIdentifier: IStringDictionary<Task>;
+		byName: IStringDictionary<Task>;
+	};
 	hasErrors: boolean;
 }
 
@@ -522,7 +526,8 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private _configHasErrors: boolean;
 	private _providers: Map<number, ITaskProvider>;
-	private _workspaceTasksPromise: TPromise<TaskSet>;
+
+	private _workspaceTasksPromise: TPromise<WorkspaceTaskResult>;
 
 	private _taskSystem: ITaskSystem;
 	private _taskSystemListeners: IDisposable[];
@@ -759,6 +764,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			let id: string = UUID.generateUuid();
 			let task: Task = {
 				_id: id,
+				_source: { kind: TaskSourceKind.Generic },
 				name: id,
 				identifier: id,
 				dependsOn: primaryTasks.map(task => task._id),
@@ -791,17 +797,19 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private executeTask(task: Task, resolver: ITaskResolver): TPromise<ITaskSummary> {
-		return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
-			let executeResult = this.getTaskSystem().run(task, resolver);
-			if (executeResult.kind === TaskExecuteKind.Active) {
-				let active = executeResult.active;
-				if (active.same && active.background) {
-					this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
-				} else {
-					throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+		return ProblemMatcherRegistry.onReady().then(() => {
+			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
+				let executeResult = this.getTaskSystem().run(task, resolver);
+				if (executeResult.kind === TaskExecuteKind.Active) {
+					let active = executeResult.active;
+					if (active.same && active.background) {
+						this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
+					} else {
+						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+					}
 				}
-			}
-			return executeResult.promise;
+				return executeResult.promise;
+			});
 		});
 	}
 
@@ -886,36 +894,102 @@ class TaskService extends EventEmitter implements ITaskService {
 					resolve(result);
 				}
 			};
-			if (this.getExecutionEngine() === ExecutionEngine.Terminal) {
+			if (this.getExecutionEngine() === ExecutionEngine.Terminal && this._providers.size > 0) {
 				this._providers.forEach((provider) => {
 					counter++;
 					provider.provideTasks().done(done, error);
 				});
+			} else {
+				resolve(result);
 			}
-			// Do this last since the then of a resolved promise returns immediatelly.
-			counter++;
-			this.getWorkspaceTasks().done(done, error);
+		}).then((result) => {
+			return this.getWorkspaceTasks().then((workspaceTaskResult) => {
+				let workspaceTasksToDelete: Task[] = [];
+				let annotatingTasks = workspaceTaskResult.annotatingTasks;
+				let legacyAnnotatingTasks = workspaceTaskResult.set ? this.getLegacyAnnotatingTasks(workspaceTaskResult.set) : undefined;
+				if (annotatingTasks || legacyAnnotatingTasks) {
+					for (let set of result) {
+						for (let task of set.tasks) {
+							if (annotatingTasks) {
+								let annotatingTask = annotatingTasks.byIdentifier[task.identifier] || annotatingTasks.byName[task.name];
+								if (annotatingTask) {
+									TaskConfig.mergeTasks(task, annotatingTask);
+									task._source.kind = TaskSourceKind.Workspace;
+									continue;
+								}
+							}
+							if (legacyAnnotatingTasks) {
+								let legacyAnnotatingTask = legacyAnnotatingTasks[task.identifier];
+								if (legacyAnnotatingTask) {
+									TaskConfig.mergeTasks(task, legacyAnnotatingTask);
+									task._source.kind = TaskSourceKind.Workspace;
+									workspaceTasksToDelete.push(legacyAnnotatingTask);
+									continue;
+								}
+							}
+						}
+					}
+				}
+				if (workspaceTaskResult.set) {
+					if (workspaceTasksToDelete.length > 0) {
+						let tasks = workspaceTaskResult.set.tasks;
+						let newSet: TaskSet = {
+							extension: workspaceTaskResult.set.extension,
+							tasks: []
+						};
+						let toDelete = workspaceTasksToDelete.reduce<IStringDictionary<boolean>>((map, task) => {
+							map[task._id] = true;
+							return map;
+						}, Object.create(null));
+						newSet.tasks = tasks.filter(task => !toDelete[task._id]);
+						result.push(newSet);
+					} else {
+						result.push(workspaceTaskResult.set);
+					}
+				}
+				return result;
+			}, () => {
+				// If we can't read the tasks.json file provide at least the contributed tasks
+				return result;
+			});
 		});
 	}
 
-	private getWorkspaceTasks(): TPromise<TaskSet> {
+	private getLegacyAnnotatingTasks(workspaceTasks: TaskSet): IStringDictionary<Task> {
+		let result: IStringDictionary<Task>;
+		function getResult() {
+			if (result) {
+				return result;
+			}
+			result = Object.create(null);
+			return result;
+		}
+		for (let task of workspaceTasks.tasks) {
+			let commandName = task.command && task.command.name;
+			// This is for backwards compatibility with the 0.1.0 task annotation code
+			// if we had a gulp, jake or grunt command a task specification was a annotation
+			if (commandName === 'gulp' || commandName === 'grunt' || commandName === 'jake') {
+				getResult()[`${commandName}.${task.name}`] = task;
+			}
+		}
+		return result;
+	}
+
+	private getWorkspaceTasks(): TPromise<WorkspaceTaskResult> {
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
-		this._workspaceTasksPromise = this.computeWorkspaceTasks().then(value => {
-			this._configHasErrors = value.hasErrors;
-			if (this._taskSystem instanceof ProcessTaskSystem) {
-				this._taskSystem.hasErrors(this._configHasErrors);
-			}
-			return value.set;
-		});
+		this.updateWorkspaceTasks();
 		return this._workspaceTasksPromise;
 	}
 
 	private updateWorkspaceTasks(): void {
 		this._workspaceTasksPromise = this.computeWorkspaceTasks().then(value => {
 			this._configHasErrors = value.hasErrors;
-			return value.set;
+			if (this._taskSystem instanceof ProcessTaskSystem) {
+				this._taskSystem.hasErrors(this._configHasErrors);
+			}
+			return value;
 		});
 	}
 
@@ -964,7 +1038,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		return configPromise.then((resolved) => {
 			return ProblemMatcherRegistry.onReady().then((): WorkspaceTaskResult => {
 				if (!resolved || !resolved.config) {
-					return { set: undefined, hasErrors: resolved !== void 0 ? resolved.hasErrors : false };
+					return { set: undefined, annotatingTasks: undefined, hasErrors: resolved !== void 0 ? resolved.hasErrors : false };
 				}
 				let problemReporter = new ProblemReporter(this._outputChannel);
 				let parseResult = TaskConfig.parse(resolved.config, problemReporter);
@@ -975,9 +1049,22 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 				if (problemReporter.status.isFatal()) {
 					problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
-					return { set: undefined, hasErrors };
+					return { set: undefined, annotatingTasks: undefined, hasErrors };
 				}
-				return { set: { tasks: parseResult.tasks }, hasErrors };
+				let annotatingTasks: { byIdentifier: IStringDictionary<Task>; byName: IStringDictionary<Task>; };
+				if (parseResult.annotatingTasks && parseResult.annotatingTasks.length > 0) {
+					annotatingTasks = {
+						byIdentifier: Object.create(null),
+						byName: Object.create(null)
+					};
+					for (let task of parseResult.annotatingTasks) {
+						annotatingTasks.byIdentifier[task.identifier] = task;
+						if (task.name) {
+							annotatingTasks.byName[task.name] = task;
+						}
+					}
+				}
+				return { set: { tasks: parseResult.tasks }, annotatingTasks: annotatingTasks, hasErrors };
 			});
 		});
 	}

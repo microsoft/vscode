@@ -40,7 +40,7 @@ interface ISuggestionTemplateData {
 	colorspan: HTMLElement;
 	highlightedLabel: HighlightedLabel;
 	typeLabel: HTMLElement;
-	documentationDetails: HTMLElement;
+	readMore: HTMLElement;
 	disposables: IDisposable[];
 }
 
@@ -95,8 +95,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		data.disposables.push(data.highlightedLabel);
 		data.typeLabel = append(main, $('span.type-label'));
 
-		data.documentationDetails = append(main, $('span.docs-details'));
-		data.documentationDetails.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
+		data.readMore = append(main, $('span.readMore'));
+		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
 
 		const configureFont = () => {
 			const configuration = this.editor.getConfiguration();
@@ -111,8 +111,8 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			main.style.lineHeight = lineHeightPx;
 			data.icon.style.height = lineHeightPx;
 			data.icon.style.width = lineHeightPx;
-			data.documentationDetails.style.height = lineHeightPx;
-			data.documentationDetails.style.width = lineHeightPx;
+			data.readMore.style.height = lineHeightPx;
+			data.readMore.style.width = lineHeightPx;
 		};
 
 		configureFont();
@@ -149,20 +149,20 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		if (canExpandCompletionItem(element)) {
-			show(data.documentationDetails);
-			data.documentationDetails.onmousedown = e => {
+			show(data.readMore);
+			data.readMore.onmousedown = e => {
 				e.stopPropagation();
 				e.preventDefault();
 			};
-			data.documentationDetails.onclick = e => {
+			data.readMore.onclick = e => {
 				e.stopPropagation();
 				e.preventDefault();
 				this.widget.toggleDetails();
 			};
 		} else {
-			hide(data.documentationDetails);
-			data.documentationDetails.onmousedown = null;
-			data.documentationDetails.onclick = null;
+			hide(data.readMore);
+			data.readMore.onmousedown = null;
+			data.readMore.onclick = null;
 		}
 
 	}
@@ -352,9 +352,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
-	private readonly minWidgetWidth = 430;
 	private storageService: IStorageService;
-	private expandDocs: boolean;
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
 
@@ -367,7 +365,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		@IStorageService storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		this.expandDocs = storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
 		const kb = keybindingService.lookupKeybinding('editor.action.triggerSuggest');
 		const triggerKeybindingLabel = !kb ? '' : ` (${kb.getLabel()})`;
 
@@ -550,7 +547,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.ignoreFocusEvents = false;
 		}
 
-		this.updateWidgetHeight();
+		this.updateListHeight();
 		this.list.reveal(index);
 
 		this.currentSuggestionDetails = item.resolve()
@@ -562,10 +559,12 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.list.setFocus([index]);
 				this.list.reveal(index);
 
-				if (this.expandDocs) {
+				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
 					this.showDetails();
-					this.adjustDocsPosition();
+
 					this._ariaAlert(this.details.getAriaLabel());
+				} else {
+					removeClass(this.element, 'docs-side');
 				}
 			})
 			.then(null, err => !isPromiseCanceledError(err) && onUnexpectedError(err))
@@ -609,8 +608,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Open:
 				hide(this.messageElement);
 				show(this.listElement);
-				if (this.expandDocs) {
+				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
 					show(this.details.element);
+					this.expandSideOrBelow();
 				} else {
 					hide(this.details.element);
 				}
@@ -804,14 +804,18 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	toggleDetails(): void {
-		this.expandDocs = !this.expandDocs;
-		this.storageService.store('expandSuggestionDocs', this.expandDocs, StorageScope.GLOBAL);
 
-		if (!this.expandDocs) {
+		if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
+			this.storageService.store('expandSuggestionDocs', false, StorageScope.GLOBAL);
 			hide(this.details.element);
-			removeClass(this.element, 'docs-expanded');
+			removeClass(this.element, 'docs-side');
+			removeClass(this.element, 'docs-below');
 			this.editor.layoutContentWidget(this);
 		} else {
+			this.storageService.store('expandSuggestionDocs', true, StorageScope.GLOBAL);
+
+			this.expandSideOrBelow();
+
 			this.showDetails();
 		}
 	}
@@ -820,19 +824,25 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		if (this.state !== State.Open && this.state !== State.Details) {
 			return;
 		}
-		if (this.expandDocs) {
-			show(this.details.element);
-			addClass(this.element, 'docs-expanded');
-		}
 
-		this.show();
+		show(this.details.element);
+		this.renderDetails();
+
+		// With docs showing up, list might need adjustments to keep it close to the cursor
+		this.adjustListPosition();
+
+		// with docs showing up widget width/height may change, so reposition the widget
+		this.editor.layoutContentWidget(this);
+
+		this.adjustDocsPosition();
+
 		this.editor.focus();
 	}
 
 	private show(): void {
-		this.updateWidgetHeight();
+		this.updateListHeight();
 		this.suggestWidgetVisible.set(true);
-		this.renderDetails();
+
 		this.showTimeout = TPromise.timeout(100).then(() => {
 			addClass(this.element, 'visible');
 			this.onDidShowEmitter.fire(this);
@@ -870,12 +880,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		return SuggestWidget.ID;
 	}
 
-	private updateWidgetHeight(): number {
+	private updateListHeight(): number {
 		let height = 0;
 		let maxSuggestionsToShow = 11;
-		if (hasClass(this.element, 'small')) {
-			maxSuggestionsToShow = 5;
-		}
 
 		if (this.state === State.Empty || this.state === State.Loading) {
 			height = this.unfocusedHeight;
@@ -892,30 +899,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.listElement.style.height = `${height}px`;
 		this.list.layout(height);
 
-		this.adjustWidgetWidth();
 		this.editor.layoutContentWidget(this);
 
 		return height;
-	}
-
-	private adjustWidgetWidth() {
-
-		// Message element is shown, list and docs are not
-		if (this.messageElement.style.display !== 'none'
-			&& this.details.element.style.display === 'none'
-			&& this.listElement.style.display === 'none') {
-			addClass(this.element, 'small');
-			return;
-		}
-
-		let matches = this.element.style.maxWidth.match(/(\d+)px/);
-		if (!matches || Number(matches[1]) >= this.maxWidgetWidth) {
-			// Reset width
-			removeClass(this.element, 'small');
-		}
-
-		// Reset list margin
-		this.listElement.style.marginTop = '0px';
 	}
 
 	private adjustDocsPosition() {
@@ -926,22 +912,44 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		const widgetX = this.element.offsetLeft;
 		const widgetY = this.element.offsetTop;
 
-		removeClass(this.element, 'list-right');
-
-		if (this.element.clientWidth < this.maxWidgetWidth && this.listElement.clientWidth !== this.minWidgetWidth) {
-			// Not enough space to show side by side, so show docs below the list
-			addClass(this.element, 'small');
-			return;
-		}
-
 		if (widgetX < cursorX - this.listWidth) {
 			// Widget is too far to the left of cursor, swap list and docs
 			addClass(this.element, 'list-right');
+		} else {
+			removeClass(this.element, 'list-right');
 		}
 
-		if (cursorY > widgetY && this.details.element.clientHeight > this.listElement.clientHeight) {
+		if (cursorY > widgetY) {
+			if (!hasClass(this.element, 'widget-above')) {
+				addClass(this.element, 'widget-above');
+				// Since the widget was previously not above the cursor,
+				// the list needs to be adjusted to keep it close to the cursor
+				this.adjustListPosition();
+			}
+		} else {
+			removeClass(this.element, 'widget-above');
+		}
+	}
+
+	private expandSideOrBelow() {
+		let matches = this.element.style.maxWidth.match(/(\d+)px/);
+		if (!matches || Number(matches[1]) < this.maxWidgetWidth) {
+			addClass(this.element, 'docs-below');
+			removeClass(this.element, 'docs-side');
+		} else {
+			addClass(this.element, 'docs-side');
+			removeClass(this.element, 'docs-below');
+		}
+	}
+
+	private adjustListPosition(): void {
+		if (hasClass(this.element, 'widget-above')
+			&& hasClass(this.element, 'docs-side')
+			&& this.details.element.offsetHeight > this.listElement.offsetHeight) {
 			// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
-			this.listElement.style.marginTop = `${this.details.element.clientHeight - this.listElement.clientHeight}px`;
+			this.listElement.style.marginTop = `${this.details.element.offsetHeight - this.listElement.offsetHeight}px`;
+		} else {
+			this.listElement.style.marginTop = '0px';
 		}
 	}
 

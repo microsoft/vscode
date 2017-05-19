@@ -11,7 +11,7 @@ import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
-import { CoreCommands, CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
+import { CoreNavigationCommands, CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 
 export interface ExecCoreEditorCommandFunc {
 	(editorCommand: CoreEditorCommand, args: any): void;
@@ -165,7 +165,7 @@ export class ViewController {
 
 	public moveTo(viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.MoveTo, {
+		this._execMouseCommand(CoreNavigationCommands.MoveTo, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -173,7 +173,7 @@ export class ViewController {
 
 	private moveToSelect(viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.MoveToSelect, {
+		this._execMouseCommand(CoreNavigationCommands.MoveToSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -181,7 +181,7 @@ export class ViewController {
 
 	private columnSelect(viewPosition: Position, mouseColumn: number): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.ColumnSelect, {
+		this._execMouseCommand(CoreNavigationCommands.ColumnSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition,
 			mouseColumn: mouseColumn
@@ -190,7 +190,7 @@ export class ViewController {
 
 	private createCursor(viewPosition: Position, wholeLine: boolean): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.CreateCursor, {
+		this._execMouseCommand(CoreNavigationCommands.CreateCursor, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition,
 			wholeLine: wholeLine
@@ -199,7 +199,7 @@ export class ViewController {
 
 	private lastCursorMoveToSelect(viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.LastCursorMoveToSelect, {
+		this._execMouseCommand(CoreNavigationCommands.LastCursorMoveToSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -207,28 +207,28 @@ export class ViewController {
 
 	private wordSelect(viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.WordSelect, {
+		this._execMouseCommand(CoreNavigationCommands.WordSelect, {
 			position: this.convertViewToModelPosition(viewPosition)
 		});
 	}
 
 	private wordSelectDrag(viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.WordSelectDrag, {
+		this._execMouseCommand(CoreNavigationCommands.WordSelectDrag, {
 			position: this.convertViewToModelPosition(viewPosition)
 		});
 	}
 
 	private lastCursorWordSelect(viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.LastCursorWordSelect, {
+		this._execMouseCommand(CoreNavigationCommands.LastCursorWordSelect, {
 			position: this.convertViewToModelPosition(viewPosition)
 		});
 	}
 
 	private lineSelect(viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.LineSelect, {
+		this._execMouseCommand(CoreNavigationCommands.LineSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -236,7 +236,7 @@ export class ViewController {
 
 	private lineSelectDrag(viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.LineSelectDrag, {
+		this._execMouseCommand(CoreNavigationCommands.LineSelectDrag, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -244,7 +244,7 @@ export class ViewController {
 
 	private lastCursorLineSelect(viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.LastCursorLineSelect, {
+		this._execMouseCommand(CoreNavigationCommands.LastCursorLineSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
@@ -252,14 +252,14 @@ export class ViewController {
 
 	private lastCursorLineSelectDrag(viewPosition: Position): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this._execMouseCommand(CoreCommands.LastCursorLineSelectDrag, {
+		this._execMouseCommand(CoreNavigationCommands.LastCursorLineSelectDrag, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
 		});
 	}
 
 	private selectAll(): void {
-		this._execMouseCommand(CoreCommands.SelectAll, {});
+		this._execMouseCommand(CoreNavigationCommands.SelectAll, {});
 	}
 
 	// ----------------------

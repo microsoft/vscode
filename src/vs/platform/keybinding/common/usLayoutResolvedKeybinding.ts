@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ResolvedKeybinding, ResolvedKeybindingPart, KeyCode, KeyCodeUtils, USER_SETTINGS, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, ResolvedKeybindingPart, KeyCode, KeyCodeUtils, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 
@@ -127,7 +127,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		if (keybinding.isDuplicateModifierCase()) {
 			return '';
 		}
-		return USER_SETTINGS.fromKeyCode(keybinding.keyCode);
+		return KeyCodeUtils.toUserSettingsUS(keybinding.keyCode);
 	}
 
 	public getUserSettingsLabel(): string {

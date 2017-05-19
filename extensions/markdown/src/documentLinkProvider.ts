@@ -10,7 +10,7 @@ import * as path from 'path';
 
 export default class MarkdownDocumentLinkProvider implements vscode.DocumentLinkProvider {
 
-	private _linkPattern = /(\[[^\]]*\]\(\s*?)([^\s\)]+?)(\s+[^\)]+)?\)/g;
+	private _linkPattern = /(\[[^\]]*\]\(\s*?)(((((?=.*\)\)+)|(?=.*\)\]+))[^\s\)]+?)|([^\s]+)))\)/g;
 
 	constructor() { }
 

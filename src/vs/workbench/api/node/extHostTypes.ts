@@ -1018,12 +1018,12 @@ export enum RevealKind {
 export class BaseTask {
 
 	private _name: string;
-	private _problemMatchers: vscode.ProblemMatcher[];
+	private _problemMatchers: (string | vscode.ProblemMatcher)[];
 	private _identifier: string;
 	private _isBackground: boolean;
 	private _terminal: vscode.TerminalBehaviour;
 
-	constructor(name: string, problemMatchers: vscode.ProblemMatcher[]) {
+	constructor(name: string, problemMatchers: (string | vscode.ProblemMatcher)[]) {
 		if (typeof name !== 'string') {
 			throw illegalArgument('name');
 		}
@@ -1074,11 +1074,11 @@ export class BaseTask {
 		this._terminal = value;
 	}
 
-	get problemMatchers(): vscode.ProblemMatcher[] {
+	get problemMatchers(): (string | vscode.ProblemMatcher)[] {
 		return this._problemMatchers;
 	}
 
-	set problemMatchers(value: vscode.ProblemMatcher[]) {
+	set problemMatchers(value: (string | vscode.ProblemMatcher)[]) {
 		if (!Array.isArray(value)) {
 			value = [];
 		}
@@ -1090,6 +1090,12 @@ namespace ProblemMatcher {
 	export function is(value: any): value is vscode.ProblemMatcher {
 		let candidate: vscode.ProblemMatcher = value;
 		return candidate && !!candidate.pattern;
+	}
+}
+
+namespace ShellOptions {
+	export function is(value: any): value is vscode.ShellOptions {
+		return value && ((typeof value.executable === 'string') || (typeof value.cwd === 'string') || !!value.env);
 	}
 }
 
@@ -1126,40 +1132,35 @@ export class ProcessTask extends BaseTask {
 	private _group: vscode.TaskGroup;
 	private _options: vscode.ProcessOptions;
 
-	private static parseArguments(restArgs: any[]): { args: string[]; options: vscode.ProcessOptions; problemMatchers: vscode.ProblemMatcher[] } {
-		let args: string[] = [];
-		let options: vscode.ProcessOptions = undefined;
-		let problemMatchers: vscode.ProblemMatcher[] = [];
-		if (!restArgs || restArgs.length === 0) {
-			return { args, options, problemMatchers };
-		}
-		let current: any = restArgs[0];
-		if (Array.isArray(current)) {
-			args = current;
-			restArgs.shift();
-			current = restArgs[0];
-		}
-		if (ProblemMatcher.is(current)) {
-			problemMatchers = restArgs;
-		} else if (current) {
-			options = current;
-			restArgs.shift();
-			if (restArgs.length > 0) {
-				problemMatchers = restArgs;
-			}
-		}
-		return { args, options, problemMatchers };
-	}
-
-	constructor(name: string, process: string, ...problemMatchers: vscode.ProblemMatcher[]);
-	constructor(name: string, process: string, args: string[], ...problemMatchers: vscode.ProblemMatcher[]);
-	constructor(name: string, process: string, args: string[], options: vscode.ProcessOptions, ...problemMatchers: vscode.ProblemMatcher[]);
-	constructor(name: string, process: string, ...rest: any[]) {
+	constructor(name: string, process: string, args?: string[], problemMatchers?: vscode.ProblemMatchers);
+	constructor(name: string, process: string, args: string[] | undefined, options: vscode.ProcessOptions, problemMatchers?: vscode.ProblemMatchers);
+	constructor(name: string, process: string, arg3?: string[], arg4?: vscode.ProcessOptions | vscode.ProblemMatchers, arg5?: vscode.ProblemMatchers) {
 		if (typeof process !== 'string') {
 			throw illegalArgument('process');
 		}
-		let { args, options, problemMatchers } = ProcessTask.parseArguments(rest);
-		super(name, problemMatchers);
+		let args: string[];
+		let options: vscode.ProcessOptions;
+		let problemMatchers: vscode.ProblemMatchers;
+
+		args = arg3 || [];
+		if (arg4) {
+			if (Array.isArray(arg4) || typeof arg4 === 'string' || ProblemMatcher.is(arg4)) {
+				problemMatchers = arg4;
+			} else {
+				options = arg4;
+			}
+		}
+		if (arg5 && !problemMatchers) {
+			problemMatchers = arg5;
+		}
+		let pm: (string | vscode.ProblemMatcher)[];
+		if (problemMatchers && (typeof problemMatchers === 'string' || ProblemMatcher.is(problemMatchers))) {
+			pm = [problemMatchers];
+		} else if (Array.isArray(problemMatchers)) {
+			pm = problemMatchers;
+		}
+		pm = pm || [];
+		super(name, pm);
 		this._process = process;
 		this._args = args;
 		this._options = options || Object.create(null);
@@ -1203,39 +1204,32 @@ export class ProcessTask extends BaseTask {
 	}
 }
 
-export class ShellTask extends BaseTask {
+export class ShellTask extends BaseTask implements vscode.ShellTask {
 
 	private _commandLine: string;
 	private _group: vscode.TaskGroup;
 	private _options: vscode.ShellOptions;
 
-	private static parseArguments(restArgs: any[]): { options: vscode.ShellOptions; problemMatchers: vscode.ProblemMatcher[] } {
-		let options: vscode.ShellOptions = undefined;
-		let problemMatchers: vscode.ProblemMatcher[] = [];
-		if (!restArgs || restArgs.length === 0) {
-			return { options, problemMatchers };
-		}
-		let current: any = restArgs[0];
-		if (current && !ProblemMatcher.is(current)) {
-			options = current;
-			restArgs.shift();
-			current = restArgs[0];
-		}
-		if (ProblemMatcher.is(current)) {
-			problemMatchers = restArgs;
-		}
-		return { options, problemMatchers };
-	}
-
-	constructor(name: string, commandLine: string, ...problemMatchers: vscode.ProblemMatcher[]);
-	constructor(name: string, commandLine: string, options: vscode.ShellOptions, ...problemMatchers: vscode.ProblemMatcher[]);
-	constructor(name: string, commandLine: string, ...rest: any[]) {
+	constructor(name: string, commandLine: string, problemMatchers?: vscode.ProblemMatchers);
+	constructor(name: string, commandLine: string, options: vscode.ShellOptions, problemMatchers?: vscode.ProblemMatchers);
+	constructor(name: string, commandLine: string, optionsOrProblemMatchers?: vscode.ShellOptions | vscode.ProblemMatchers, problemMatchers?: vscode.ProblemMatchers) {
 		if (typeof commandLine !== 'string') {
 			throw illegalArgument('commandLine');
 		}
-		let { options, problemMatchers } = ShellTask.parseArguments(rest);
-
-		super(name, problemMatchers);
+		let options: vscode.ShellOptions = undefined;
+		let pm: (string | vscode.ProblemMatcher)[];
+		if (ShellOptions.is(optionsOrProblemMatchers)) {
+			options = optionsOrProblemMatchers;
+		} else {
+			problemMatchers = optionsOrProblemMatchers;
+		}
+		if (problemMatchers && (typeof problemMatchers === 'string' || ProblemMatcher.is(problemMatchers))) {
+			pm = [problemMatchers];
+		} else if (Array.isArray(problemMatchers)) {
+			pm = problemMatchers;
+		}
+		pm = pm || [];
+		super(name, pm);
 		this._commandLine = commandLine;
 		this._options = options || Object.create(null);
 	}
@@ -1270,4 +1264,9 @@ export class ShellTask extends BaseTask {
 export enum ProgressLocation {
 	SourceControl = 1,
 	Window = 10,
+}
+
+export enum TreeItemCollapsibleState {
+	Collapsed = 1,
+	Expanded = 2
 }

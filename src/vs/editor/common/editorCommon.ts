@@ -23,7 +23,7 @@ import {
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ICursors } from 'vs/editor/common/controller/cursorCommon';
+import { ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -85,6 +85,11 @@ export interface IModelDecorationOptions {
 	 * Should the decoration expand to encompass a whole line.
 	 */
 	isWholeLine?: boolean;
+	/**
+	 * Always render the decoration (even when the range it encompasses is collapsed).
+	 * @internal
+	 */
+	showIfCollapsed?: boolean;
 	/**
 	 * @deprecated : Use `overviewRuler` instead
 	 */
@@ -331,12 +336,20 @@ export interface ICursorStateComputerData {
  * A command that modifies text / cursor state on a model.
  */
 export interface ICommand {
+
+	/**
+	 * Signal that this command is inserting automatic whitespace that should be trimmed if possible.
+	 * @internal
+	 */
+	readonly insertsAutoWhitespace?: boolean;
+
 	/**
 	 * Get the edit operations needed to execute this command.
 	 * @param model The model the command will execute on.
 	 * @param builder A helper to collect the needed edit operations and to track selections.
 	 */
 	getEditOperations(model: ITokenizedModel, builder: IEditOperationBuilder): void;
+
 	/**
 	 * Compute the cursor state after the edit operations were applied.
 	 * @param model The model the commad has executed on.
@@ -1873,6 +1886,7 @@ export interface ICommonCodeEditor extends IEditor {
 
 	/**
 	 * Execute a command on the editor.
+	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 	 * @param source The source of the call.
 	 * @param command The command to execute
 	 */
@@ -1885,6 +1899,7 @@ export interface ICommonCodeEditor extends IEditor {
 
 	/**
 	 * Execute edits on the editor.
+	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 	 * @param source The source of the call.
 	 * @param edits The edits to execute.
 	 * @param endCursoState Cursor state after the edits were applied.
@@ -1902,6 +1917,11 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @internal
 	 */
 	_getCursors(): ICursors;
+
+	/**
+	 * @internal
+	 */
+	_getCursorConfiguration(): CursorConfiguration;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
@@ -2051,19 +2071,8 @@ export var Handler = {
 	CompositionEnd: 'compositionEnd',
 	Paste: 'paste',
 
-	Tab: 'tab',
-	Indent: 'indent',
-	Outdent: 'outdent',
-
-	DeleteLeft: 'deleteLeft',
-	DeleteRight: 'deleteRight',
-
 	Cut: 'cut',
 
 	Undo: 'undo',
 	Redo: 'redo',
-
-	LineInsertBefore: 'lineInsertBefore',
-	LineInsertAfter: 'lineInsertAfter',
-	LineBreakInsert: 'lineBreakInsert',
 };

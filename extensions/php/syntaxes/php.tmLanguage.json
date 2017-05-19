@@ -1651,7 +1651,7 @@
 					]
 				},
 				{
-					"begin": "(?x)\\s*\n\t\t\t\t\t    ((?:(?:final|abstract|public|private|protected|static)\\s+)*)\n\t\t\t\t        (function)\n\t\t\t\t        (?:\\s+|(\\s*&\\s*))\n\t\t\t\t        (?:\n\t\t\t\t            (__(?:call|construct|debugInfo|destruct|get|set|isset|unset|tostring|clone|set_state|sleep|wakeup|autoload|invoke|callStatic))\n\t\t\t\t            |([a-zA-Z0-9_]+)\n\t\t\t\t        )\n\t\t\t\t        \\s*\n\t\t\t\t        (\\()",
+					"begin": "(?x)\\s*\n\t\t\t\t\t    ((?:(?:final|abstract|public|private|protected|static)\\s+)*)\n\t\t\t\t        (function)\n\t\t\t\t        (?:\\s+|(\\s*&\\s*))\n\t\t\t\t        (?:\n\t\t\t\t            (__(?:call|construct|debugInfo|destruct|get|set|isset|unset|tostring|clone|set_state|sleep|wakeup|autoload|invoke|callStatic))\n\t\t\t\t            |([a-zA-Z_\\x{7f}-\\x{ff}][a-zA-Z0-9_\\x{7f}-\\x{ff}]*)\n\t\t\t\t        )\n\t\t\t\t        \\s*\n\t\t\t\t        (\\()",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -2100,7 +2100,7 @@
 					"match": "(@xlink)\\s+(.+)\\s*$"
 				},
 				{
-					"match": "\\@(a(pi|bstract|uthor)|c(ategory|opyright)|example|global|internal|li(cense|nk)|method|p(roperty(\\-read|\\-write|)|ackage|aram)|return|s(ee|ince|ource|tatic|ubpackage)|t(hrows|odo)|v(ar|ersion)|uses|deprecated|final|ignore)\\b",
+					"match": "\\@(a(pi|bstract|uthor)|c(ategory|opyright)|example|global|in(herit[Dd]oc|ternal)|li(cense|nk)|method|p(roperty(\\-read|\\-write|)|ackage|aram)|return|s(ee|ince|ource|tatic|ubpackage)|t(hrows|odo)|v(ar|ersion)|uses|deprecated|final|ignore)\\b",
 					"name": "keyword.other.phpdoc.php"
 				},
 				{
@@ -2109,7 +2109,7 @@
 							"name": "keyword.other.phpdoc.php"
 						}
 					},
-					"match": "\\{(@(link)).+?\\}",
+					"match": "\\{(@(link|inherit[Dd]oc)).+?\\}",
 					"name": "meta.tag.inline.phpdoc.php"
 				}
 			]
@@ -2975,5 +2975,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-php/commit/fca6a6763bd5e07b2cc0a82fda502dbf3bce5dea"
+	"version": "https://github.com/atom/language-php/commit/22047c19f52f686de471d0deccae0cb1332997b6"
 }

@@ -7,10 +7,9 @@
 
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { commonEditorContribution, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { commonEditorContribution, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { SnippetSession } from './snippetSession';
-import { EditorCommand } from 'vs/editor/common/config/config';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
@@ -57,21 +56,21 @@ export class SnippetController2 {
 		overwriteBefore: number = 0, overwriteAfter: number = 0,
 		undoStopBefore: boolean = true, undoStopAfter: boolean = true
 	): void {
-		if (this._snippet) {
-			this.cancel();
-		}
-		this._snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
 		if (undoStopBefore) {
 			this._editor.getModel().pushStackElement();
 		}
-		this._snippet.insert();
-		if (undoStopAfter) {
-			this._editor.getModel().pushStackElement();
+		if (!this._snippet) {
+			// create a new session
+			this._snippet = new SnippetSession(this._editor);
 		}
+		this._snippet.insert(template, overwriteBefore, overwriteAfter);
 		this._snippetListener = [
 			this._editor.onDidChangeModel(() => this.cancel()),
 			this._editor.onDidChangeCursorSelection(() => this._updateState())
 		];
+		if (undoStopAfter) {
+			this._editor.getModel().pushStackElement();
+		}
 		this._updateState();
 	}
 
@@ -84,7 +83,7 @@ export class SnippetController2 {
 		if (!this._snippet.hasPlaceholder) {
 			// don't listen for selection changes and don't
 			// update context keys when the snippet is plain text
-			return;
+			return this.cancel();
 		}
 
 		if (this._snippet.isAtFinalPlaceholder || !this._snippet.isSelectionWithPlaceholders()) {

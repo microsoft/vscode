@@ -242,7 +242,7 @@ export function registerHoverProvider(languageId: string, provider: modes.HoverP
 					return undefined;
 				}
 				if (!value.range && word) {
-					value.range = new Range(position.lineNumber, word.startColumn, position.column, word.endColumn);
+					value.range = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 				}
 				if (!value.range) {
 					value.range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);

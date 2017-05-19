@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { KeyCode, KeyCodeUtils, ResolvedKeybinding, Keybinding, SimpleKeybinding, KeybindingType, USER_SETTINGS, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, ResolvedKeybinding, Keybinding, SimpleKeybinding, KeybindingType, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
@@ -171,7 +171,10 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		if (keybinding.isDuplicateModifierCase()) {
 			return '';
 		}
-		return USER_SETTINGS.fromKeyCode(keybinding.keyCode);
+		if (this._mapper.isUSStandard) {
+			return KeyCodeUtils.toUserSettingsUS(keybinding.keyCode);
+		}
+		return KeyCodeUtils.toUserSettingsGeneral(keybinding.keyCode);
 	}
 
 	public getUserSettingsLabel(): string {
@@ -273,12 +276,14 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 
 export class WindowsKeyboardMapper implements IKeyboardMapper {
 
+	public readonly isUSStandard: boolean;
 	private readonly _codeInfo: IScanCodeMapping[];
 	private readonly _scanCodeToKeyCode: KeyCode[];
 	private readonly _keyCodeToLabel: string[] = [];
 	private readonly _keyCodeExists: boolean[];
 
-	constructor(rawMappings: IWindowsKeyboardMapping) {
+	constructor(isUSStandard: boolean, rawMappings: IWindowsKeyboardMapping) {
+		this.isUSStandard = isUSStandard;
 		this._scanCodeToKeyCode = [];
 		this._keyCodeToLabel = [];
 		this._keyCodeExists = [];

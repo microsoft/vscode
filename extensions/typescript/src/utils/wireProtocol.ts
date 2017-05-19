@@ -7,12 +7,12 @@
 
 import stream = require('stream');
 
-let DefaultSize: number = 8192;
-let ContentLength: string = 'Content-Length: ';
-let ContentLengthSize: number = Buffer.byteLength(ContentLength, 'utf8');
-let Blank: number = new Buffer(' ', 'utf8')[0];
-let BackslashR: number = new Buffer('\r', 'utf8')[0];
-let BackslashN: number = new Buffer('\n', 'utf8')[0];
+const DefaultSize: number = 8192;
+const ContentLength: string = 'Content-Length: ';
+const ContentLengthSize: number = Buffer.byteLength(ContentLength, 'utf8');
+const Blank: number = new Buffer(' ', 'utf8')[0];
+const BackslashR: number = new Buffer('\r', 'utf8')[0];
+const BackslashN: number = new Buffer('\n', 'utf8')[0];
 
 class ProtocolBuffer {
 
@@ -83,36 +83,6 @@ class ProtocolBuffer {
 		this.index = this.index - sourceStart;
 		return result;
 	}
-
-	public tryReadLine(): string | null {
-		let end: number = 0;
-		while (end < this.index && this.buffer[end] !== BackslashR && this.buffer[end] !== BackslashN) {
-			end++;
-		}
-		if (end >= this.index) {
-			return null;
-		}
-		let result = this.buffer.toString('utf8', 0, end);
-		while (end < this.index && (this.buffer[end] === BackslashR || this.buffer[end] === BackslashN)) {
-			end++;
-		}
-		if (this.index === end) {
-			this.index = 0;
-		} else {
-			this.buffer.copy(this.buffer, 0, end);
-			this.index = this.index - end;
-		}
-		return result;
-	}
-
-	public get numberOfBytes(): number {
-		return this.index;
-	}
-}
-
-export enum ReaderType {
-	Length = 0,
-	Line = 1
 }
 
 export interface ICallback<T> {
@@ -121,54 +91,45 @@ export interface ICallback<T> {
 
 export class Reader<T> {
 
-	private readable: stream.Readable;
-	private callback: ICallback<T>;
-	private buffer: ProtocolBuffer;
+	private readonly readable: stream.Readable;
+	private readonly callback: ICallback<T>;
+	private readonly buffer: ProtocolBuffer;
 	private nextMessageLength: number;
 
-	public constructor(readable: stream.Readable, callback: ICallback<T>, type: ReaderType = ReaderType.Length) {
+	public constructor(
+		readable: stream.Readable,
+		callback: ICallback<T>,
+		private readonly onError: (error: any) => void = () => ({})
+	) {
 		this.readable = readable;
 		this.buffer = new ProtocolBuffer();
 		this.callback = callback;
 		this.nextMessageLength = -1;
-		if (type === ReaderType.Length) {
-			this.readable.on('data', (data: Buffer) => {
-				this.onLengthData(data);
-			});
-		} else if (type === ReaderType.Line) {
-			this.readable.on('data', (data: Buffer) => {
-				this.onLineData(data);
-			});
-		}
+		this.readable.on('data', (data: Buffer) => {
+			this.onLengthData(data);
+		});
 	}
 
 	private onLengthData(data: Buffer): void {
-		this.buffer.append(data);
-		while (true) {
-			if (this.nextMessageLength === -1) {
-				this.nextMessageLength = this.buffer.tryReadContentLength();
+		try {
+			this.buffer.append(data);
+			while (true) {
 				if (this.nextMessageLength === -1) {
+					this.nextMessageLength = this.buffer.tryReadContentLength();
+					if (this.nextMessageLength === -1) {
+						return;
+					}
+				}
+				const msg = this.buffer.tryReadContent(this.nextMessageLength);
+				if (msg === null) {
 					return;
 				}
+				this.nextMessageLength = -1;
+				const json = JSON.parse(msg);
+				this.callback(json);
 			}
-			let msg = this.buffer.tryReadContent(this.nextMessageLength);
-			if (msg === null) {
-				return;
-			}
-			this.nextMessageLength = -1;
-			let json = JSON.parse(msg);
-			this.callback(json);
-		}
-	}
-
-	private onLineData(data: Buffer): void {
-		this.buffer.append(data);
-		while (true) {
-			let msg = this.buffer.tryReadLine();
-			if (msg === null) {
-				return;
-			}
-			this.callback(JSON.parse(msg));
+		} catch (e) {
+			this.onError(e);
 		}
 	}
 }

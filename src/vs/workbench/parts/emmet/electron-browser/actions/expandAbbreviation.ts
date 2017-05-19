@@ -9,8 +9,9 @@ import nls = require('vs/nls');
 import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browser/emmetActions';
 
 import { editorAction } from 'vs/editor/common/editorCommonExtensions';
-import { Handler, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CoreEditingCommands } from "vs/editor/common/controller/coreCommands";
 
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -40,6 +41,6 @@ class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 
 	protected noExpansionOccurred(editor: ICommonCodeEditor): void {
 		// forward the tab key back to the editor
-		editor.trigger('emmet', Handler.Tab, {});
+		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 	}
 }

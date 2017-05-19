@@ -9,7 +9,6 @@ import 'vs/editor/common/view/editorColorRegistry'; // initialze editor theming 
 import 'vs/css!./media/tokens';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -182,7 +181,10 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	public getCompletelyVisibleLinesRangeInViewport(): Range {
-		const viewRange = this._getCompletelyVisibleViewRange();
+		if (!this.hasView) {
+			return null;
+		}
+		const viewRange = this.viewModel.getCompletelyVisibleViewRange();
 		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
@@ -412,16 +414,13 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 	}
 
-	protected _enableEmptySelectionClipboard(): boolean {
-		return browser.enableEmptySelectionClipboard;
-	}
-
 	protected _createView(): void {
 		this._view = new View(
 			this._commandService,
 			this._configuration,
 			this._themeService,
 			this.viewModel,
+			this.cursor,
 			(editorCommand: CoreEditorCommand, args: any) => {
 				if (!this.cursor) {
 					return;

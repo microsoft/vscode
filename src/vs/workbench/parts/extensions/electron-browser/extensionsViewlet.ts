@@ -50,7 +50,7 @@ import { IActivityBarService, ProgressBadge, NumberBadge } from 'vs/workbench/se
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputForeground, inputBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 
 interface SearchInputEvent extends Event {
@@ -146,14 +146,13 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	public updateStyles(): void {
 		super.updateStyles();
 
-		const contrastBorderColor = this.getColor(contrastBorder);
-
 		this.searchBox.style.backgroundColor = this.getColor(inputBackground);
 		this.searchBox.style.color = this.getColor(inputForeground);
 
-		this.searchBox.style.borderWidth = contrastBorderColor ? '1px' : null;
-		this.searchBox.style.borderStyle = contrastBorderColor ? 'solid' : null;
-		this.searchBox.style.borderColor = contrastBorderColor;
+		const inputBorderColor = this.getColor(inputBorder);
+		this.searchBox.style.borderWidth = inputBorderColor ? '1px' : null;
+		this.searchBox.style.borderStyle = inputBorderColor ? 'solid' : null;
+		this.searchBox.style.borderColor = inputBorderColor;
 	}
 
 	setVisible(visible: boolean): TPromise<void> {

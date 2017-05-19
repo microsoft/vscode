@@ -803,16 +803,31 @@ export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMa
 
 export abstract class AbstractSelectHighlightsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		let r = multiCursorFind(editor, {
-			changeFindSearchString: true,
-			allowMultiline: true,
-			highlightFindOptions: true
-		});
-		if (!r) {
-			return;
+		let controller = CommonFindController.get(editor);
+		if (!controller) {
+			return null;
 		}
 
-		let matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord, false).map(m => m.range);
+		let matches: Range[] = null;
+
+		const findState = controller.getState();
+		if (findState.isRevealed && findState.isRegex && findState.searchString.length > 0) {
+
+			matches = editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord, false).map(m => m.range);
+
+		} else {
+
+			let r = multiCursorFind(editor, {
+				changeFindSearchString: true,
+				allowMultiline: true,
+				highlightFindOptions: true
+			});
+			if (!r) {
+				return;
+			}
+
+			matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord, false).map(m => m.range);
+		}
 
 		if (matches.length > 0) {
 			let editorSelection = editor.getSelection();

@@ -6,7 +6,9 @@
 		".git": true,
 		".build": true,
 		"**/.DS_Store": true,
-		"build/**/*.js": { "when": "$(basename).ts" }
+		"build/**/*.js": {
+			"when": "$(basename).ts"
+		}
 	},
 	"search.exclude": {
 		"**/node_modules": true,
@@ -16,6 +18,7 @@
 		"i18n/**": true,
 		"extensions/**/out/**": true
 	},
+	"tslint.enable": true,
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
 		"./.build/coverage-single/lcov.info"

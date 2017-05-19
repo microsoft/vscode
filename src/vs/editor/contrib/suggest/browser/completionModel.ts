@@ -124,20 +124,32 @@ export class CompletionModel {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 			}
 
-			let match = fuzzyScore(word, suggestion.label);
-			if (match) {
-				item.score = match[0];
-				item.matches = match[1];
-			} else {
-				if (typeof suggestion.filterText === 'string') {
-					match = fuzzyScore(word, suggestion.filterText);
-				}
+			if (typeof suggestion.filterText === 'string') {
+				// when there is a `filterText` it must match the `word`.
+				// if it matches we check with the label to compute highlights
+				// and if that doesn't yield a result we have no highlights,
+				// despite having the match
+				let match = fuzzyScore(word, suggestion.filterText);
 				if (!match) {
 					continue;
 				}
 				item.score = match[0];
-				item.matches = []; // don't use the filterText-matches
+				item.matches = [];
+				match = fuzzyScore(word, suggestion.label);
+				if (match) {
+					item.matches = match[1];
+				}
+			} else {
+				// by default match `word` against the `label`
+				let match = fuzzyScore(word, suggestion.label);
+				if (match) {
+					item.score = match[0];
+					item.matches = match[1];
+				} else {
+					continue;
+				}
 			}
+
 			item.idx = i;
 
 			this._filteredItems.push(item);

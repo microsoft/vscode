@@ -420,10 +420,10 @@ export interface IEditorOptions {
 	 */
 	folding?: boolean;
 	/**
-	 * Enable automatic hiding of non-collapsed fold icons in the gutter.
-	 * Defaults to true.
+	 * Controls whether the fold actions in the gutter stay always visible or hide unless the mouse is over the gutter.
+	 * Defaults to 'mouseover'.
 	 */
-	hideFoldIcons?: boolean;
+	showFoldingControls?: 'always' | 'mouseover';
 	/**
 	 * Enable highlighting of matching brackets.
 	 * Defaults to true.
@@ -729,7 +729,6 @@ export interface EditorContribOptions {
 	readonly acceptSuggestionOnEnter: boolean;
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
-	readonly emptySelectionClipboard: boolean;
 	readonly wordBasedSuggestions: boolean;
 	readonly suggestFontSize: number;
 	readonly suggestLineHeight: number;
@@ -737,8 +736,38 @@ export interface EditorContribOptions {
 	readonly occurrencesHighlight: boolean;
 	readonly codeLens: boolean;
 	readonly folding: boolean;
-	readonly hideFoldIcons: boolean;
+	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
+}
+
+/**
+ * Validated configuration options for the editor.
+ * This is a 1 to 1 validated/parsed version of IEditorOptions merged on top of the defaults.
+ * @internal
+ */
+export interface IValidatedEditorOptions {
+	readonly inDiffEditor: boolean;
+	readonly wordSeparators: string;
+	readonly lineNumbersMinChars: number;
+	readonly lineDecorationsWidth: number | string;
+	readonly readOnly: boolean;
+	readonly mouseStyle: 'text' | 'default' | 'copy';
+	readonly disableTranslate3d: boolean;
+	readonly automaticLayout: boolean;
+	readonly wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
+	readonly wordWrapColumn: number;
+	readonly wordWrapMinified: boolean;
+	readonly wrappingIndent: WrappingIndent;
+	readonly wordWrapBreakBeforeCharacters: string;
+	readonly wordWrapBreakAfterCharacters: string;
+	readonly wordWrapBreakObtrusiveCharacters: string;
+	readonly autoClosingBrackets: boolean;
+	readonly dragAndDrop: boolean;
+	readonly emptySelectionClipboard: boolean;
+	readonly useTabStops: boolean;
+
+	readonly viewInfo: InternalEditorViewOptions;
+	readonly contribInfo: EditorContribOptions;
 }
 
 /**
@@ -759,6 +788,7 @@ export class InternalEditorOptions {
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
 	readonly dragAndDrop: boolean;
+	readonly emptySelectionClipboard: boolean;
 
 	// ---- grouped options
 	readonly layoutInfo: EditorLayoutInfo;
@@ -781,6 +811,7 @@ export class InternalEditorOptions {
 		useTabStops: boolean;
 		tabFocusMode: boolean;
 		dragAndDrop: boolean;
+		emptySelectionClipboard: boolean;
 		layoutInfo: EditorLayoutInfo;
 		fontInfo: FontInfo;
 		viewInfo: InternalEditorViewOptions;
@@ -797,6 +828,7 @@ export class InternalEditorOptions {
 		this.useTabStops = source.useTabStops;
 		this.tabFocusMode = source.tabFocusMode;
 		this.dragAndDrop = source.dragAndDrop;
+		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.layoutInfo = source.layoutInfo;
 		this.fontInfo = source.fontInfo;
 		this.viewInfo = source.viewInfo;
@@ -819,6 +851,7 @@ export class InternalEditorOptions {
 			&& this.useTabStops === other.useTabStops
 			&& this.tabFocusMode === other.tabFocusMode
 			&& this.dragAndDrop === other.dragAndDrop
+			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
 			&& InternalEditorOptions._equalsViewOptions(this.viewInfo, other.viewInfo)
@@ -842,6 +875,7 @@ export class InternalEditorOptions {
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
 			tabFocusMode: (this.tabFocusMode !== newOpts.tabFocusMode),
 			dragAndDrop: (this.dragAndDrop !== newOpts.dragAndDrop),
+			emptySelectionClipboard: (this.emptySelectionClipboard !== newOpts.emptySelectionClipboard),
 			layoutInfo: (!InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, newOpts.layoutInfo)),
 			fontInfo: (!this.fontInfo.equals(newOpts.fontInfo)),
 			viewInfo: (!InternalEditorOptions._equalsViewOptions(this.viewInfo, newOpts.viewInfo)),
@@ -1004,7 +1038,6 @@ export class InternalEditorOptions {
 			&& a.acceptSuggestionOnEnter === b.acceptSuggestionOnEnter
 			&& a.acceptSuggestionOnCommitCharacter === b.acceptSuggestionOnCommitCharacter
 			&& a.snippetSuggestions === b.snippetSuggestions
-			&& a.emptySelectionClipboard === b.emptySelectionClipboard
 			&& a.wordBasedSuggestions === b.wordBasedSuggestions
 			&& a.suggestFontSize === b.suggestFontSize
 			&& a.suggestLineHeight === b.suggestLineHeight
@@ -1012,7 +1045,7 @@ export class InternalEditorOptions {
 			&& a.occurrencesHighlight === b.occurrencesHighlight
 			&& a.codeLens === b.codeLens
 			&& a.folding === b.folding
-			&& a.hideFoldIcons === b.hideFoldIcons
+			&& a.showFoldingControls === b.showFoldingControls
 			&& a.matchBrackets === b.matchBrackets
 		);
 	}
@@ -1167,6 +1200,7 @@ export interface IConfigurationChangedEvent {
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
 	readonly dragAndDrop: boolean;
+	readonly emptySelectionClipboard: boolean;
 	readonly layoutInfo: boolean;
 	readonly fontInfo: boolean;
 	readonly viewInfo: boolean;
@@ -1185,36 +1219,9 @@ export interface IEnvironmentalOptions {
 	readonly isDominatedByLongLines: boolean;
 	readonly lineNumbersDigitCount: number;
 	readonly canUseTranslate3d: boolean;
+	readonly emptySelectionClipboard: boolean;
 	readonly pixelRatio: number;
 	readonly tabFocusMode: boolean;
-}
-
-/**
- * Validated configuration options for the editor.
- * @internal
- */
-export interface IValidatedEditorOptions {
-	inDiffEditor: boolean;
-	wordSeparators: string;
-	lineNumbersMinChars: number;
-	lineDecorationsWidth: number | string;
-	readOnly: boolean;
-	mouseStyle: 'text' | 'default' | 'copy';
-	disableTranslate3d: boolean;
-	automaticLayout: boolean;
-	wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
-	wordWrapColumn: number;
-	wordWrapMinified: boolean;
-	wrappingIndent: WrappingIndent;
-	wordWrapBreakBeforeCharacters: string;
-	wordWrapBreakAfterCharacters: string;
-	wordWrapBreakObtrusiveCharacters: string;
-	autoClosingBrackets: boolean;
-	dragAndDrop: boolean;
-	useTabStops: boolean;
-
-	viewInfo: InternalEditorViewOptions;
-	contribInfo: EditorContribOptions;
 }
 
 function _boolean<T>(value: any, defaultValue: T): boolean | T {
@@ -1358,6 +1365,7 @@ export class EditorOptionsValidator {
 			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
 			autoClosingBrackets: _boolean(opts.autoClosingBrackets, defaults.autoClosingBrackets),
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
+			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
@@ -1527,7 +1535,6 @@ export class EditorOptionsValidator {
 			acceptSuggestionOnEnter: _boolean(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter),
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
-			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
@@ -1535,7 +1542,7 @@ export class EditorOptionsValidator {
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
 			codeLens: _boolean(opts.codeLens, defaults.codeLens) && _boolean(opts.referenceInfos, true),
 			folding: _boolean(opts.folding, defaults.folding),
-			hideFoldIcons: _boolean(opts.hideFoldIcons, defaults.hideFoldIcons),
+			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 		};
 	}
@@ -1659,6 +1666,7 @@ export class InternalEditorOptionsFactory {
 			useTabStops: opts.useTabStops,
 			tabFocusMode: opts.readOnly ? true : env.tabFocusMode,
 			dragAndDrop: opts.dragAndDrop,
+			emptySelectionClipboard: opts.emptySelectionClipboard && env.emptySelectionClipboard,
 			layoutInfo: layoutInfo,
 			fontInfo: env.fontInfo,
 			viewInfo: opts.viewInfo,
@@ -1869,6 +1877,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordWrapBreakObtrusiveCharacters: '.',
 	autoClosingBrackets: true,
 	dragAndDrop: false,
+	emptySelectionClipboard: true,
 	useTabStops: true,
 
 	viewInfo: {
@@ -1933,7 +1942,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		acceptSuggestionOnEnter: true,
 		acceptSuggestionOnCommitCharacter: true,
 		snippetSuggestions: 'inline',
-		emptySelectionClipboard: true,
 		wordBasedSuggestions: true,
 		suggestFontSize: 0,
 		suggestLineHeight: 0,
@@ -1941,7 +1949,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		occurrencesHighlight: true,
 		codeLens: true,
 		folding: true,
-		hideFoldIcons: true,
+		showFoldingControls: 'mouseover',
 		matchBrackets: true,
 	},
 };

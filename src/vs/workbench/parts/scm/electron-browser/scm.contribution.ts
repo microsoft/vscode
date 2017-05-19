@@ -11,12 +11,13 @@ import { Action } from 'vs/base/common/actions';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffDecorator } from './dirtydiffDecorator';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -41,16 +42,29 @@ export class SwitchProvider extends Action {
 		id = SwitchProvider.ID,
 		label = SwitchProvider.LABEL,
 		@ISCMService private scmService: ISCMService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@IViewletService private viewletService: IViewletService
 	) {
 		super('scm.switchprovider', 'Switch SCM Provider', '', true);
 	}
 
 	run(): TPromise<any> {
-		const picks = this.scmService.providers.map(provider => ({
+		const picks: IPickOpenEntry[] = this.scmService.providers.map(provider => ({
 			label: provider.label,
 			run: () => this.scmService.activeProvider = provider
 		}));
+		picks.push({
+			label: localize('installAdditionalSCMProviders', "Install Additional SCM Providers..."),
+			run: () => {
+				this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true).then(viewlet => viewlet as IExtensionsViewlet)
+					.then(viewlet => {
+						viewlet.search('category:"SCM Providers" @sort:installs');
+						viewlet.focus();
+					});
+				return this.scmService.activeProvider;
+			},
+			separator: { border: true }
+		});
 
 		return this.quickOpenService.pick(picks);
 	}

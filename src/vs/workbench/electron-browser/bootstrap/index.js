@@ -192,6 +192,8 @@ function main() {
 			beforeLoadWorkbenchMain: Date.now()
 		};
 
+		startTimer('elapsed:overall', configuration.perfStartTime);
+
 		const workbenchMainTimer = startTimer('load:workbench.main')
 		require([
 			'vs/workbench/electron-browser/workbench.main',

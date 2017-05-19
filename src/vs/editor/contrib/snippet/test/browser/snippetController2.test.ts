@@ -124,7 +124,6 @@ suite('SnippetController2', function () {
 		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
 	});
 
-
 	test('insert, delete snippet text', function () {
 		const ctrl = new SnippetController2(editor, contextKeys);
 
@@ -147,5 +146,19 @@ suite('SnippetController2', function () {
 
 		// editor.trigger('test', 'type', { text: 'abc' });
 		// assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('insert, insert nested', function () {
+		const ctrl = new SnippetController2(editor, contextKeys);
+		ctrl.insert('${1:foobar}$0');
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
+
+		ctrl.insert('farboo');
+		assertContextKeys(contextKeys, true, false, true);
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+
+		ctrl.next();
+		assertContextKeys(contextKeys, false, false, false);
 	});
 });

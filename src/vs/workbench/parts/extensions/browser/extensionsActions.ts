@@ -1048,6 +1048,34 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 	}
 }
 
+export class ShowExtensionPacksAction extends Action {
+
+	static ID = 'workbench.extensions.action.showExtensionPacks';
+	static LABEL = localize('showExtensionPacks', "Show Extension Packs");
+	static SHORT_LABEL = localize('showExtensionPacksShort', "Extension Packs");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@sort:installs @category:"extension packs" ');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
 export class ChangeSortAction extends Action {
 
 	private query: Query;

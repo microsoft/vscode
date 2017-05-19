@@ -351,6 +351,7 @@ export class Configuration extends CommonEditorConfiguration {
 			outerWidth: this._elementSizeObserver.getWidth(),
 			outerHeight: this._elementSizeObserver.getHeight(),
 			canUseTranslate3d: browser.canUseTranslate3d(),
+			emptySelectionClipboard: browser.isWebKit,
 			pixelRatio: browser.getPixelRatio(),
 			zoomLevel: browser.getZoomLevel()
 		};

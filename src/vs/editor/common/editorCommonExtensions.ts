@@ -8,21 +8,147 @@ import { illegalArgument } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ServicesAccessor, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { KeybindingsRegistry, ICommandAndKeybindingRule, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ICommandOptions, Command as ConfigBasicCommand, EditorCommand as ConfigEditorCommand } from 'vs/editor/common/config/config';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
+import { IEditorService } from 'vs/platform/editor/common/editor';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 
 export type ServicesAccessor = ServicesAccessor;
-export const Command = ConfigBasicCommand;
-export const EditorCommand = ConfigEditorCommand;
-export type ICommandOptions = ICommandOptions;
 export type ICommonEditorContributionCtor = IConstructorSignature1<editorCommon.ICommonCodeEditor, editorCommon.IEditorContribution>;
+
+// ----- Generic Command
+
+export interface ICommandKeybindingsOptions extends IKeybindings {
+	kbExpr?: ContextKeyExpr;
+	weight?: number;
+}
+export interface ICommandOptions {
+	id: string;
+	precondition: ContextKeyExpr;
+	kbOpts?: ICommandKeybindingsOptions;
+	description?: ICommandHandlerDescription;
+}
+export abstract class Command {
+	public readonly id: string;
+	public readonly precondition: ContextKeyExpr;
+	private readonly _kbOpts: ICommandKeybindingsOptions;
+	private readonly _description: ICommandHandlerDescription;
+
+	constructor(opts: ICommandOptions) {
+		this.id = opts.id;
+		this.precondition = opts.precondition;
+		this._kbOpts = opts.kbOpts;
+		this._description = opts.description;
+	}
+
+	public toCommandAndKeybindingRule(defaultWeight: number): ICommandAndKeybindingRule {
+		const kbOpts = this._kbOpts || { primary: 0 };
+
+		let kbWhen = kbOpts.kbExpr;
+		if (this.precondition) {
+			if (kbWhen) {
+				kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
+			} else {
+				kbWhen = this.precondition;
+			}
+		}
+
+		const weight = (typeof kbOpts.weight === 'number' ? kbOpts.weight : defaultWeight);
+
+		return {
+			id: this.id,
+			handler: (accessor, args) => this.runCommand(accessor, args),
+			weight: weight,
+			when: kbWhen,
+			primary: kbOpts.primary,
+			secondary: kbOpts.secondary,
+			win: kbOpts.win,
+			linux: kbOpts.linux,
+			mac: kbOpts.mac,
+			description: this._description
+		};
+	}
+
+	public abstract runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void>;
+}
+
+// ----- Editor Command & Editor Contribution Command
+
+function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
+}
+function getWorkbenchActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+	const editorService = accessor.get(IEditorService);
+	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
+	return getCodeEditor(activeEditor);
+}
+
+export interface IContributionCommandOptions<T> extends ICommandOptions {
+	handler: (controller: T) => void;
+}
+export interface EditorControllerCommand<T extends editorCommon.IEditorContribution> {
+	new (opts: IContributionCommandOptions<T>): EditorCommand;
+}
+export abstract class EditorCommand extends Command {
+
+	/**
+	 * Create a command class that is bound to a certain editor contribution.
+	 */
+	public static bindToContribution<T extends editorCommon.IEditorContribution>(controllerGetter: (editor: editorCommon.ICommonCodeEditor) => T): EditorControllerCommand<T> {
+		return class EditorControllerCommandImpl extends EditorCommand {
+			private _callback: (controller: T) => void;
+
+			constructor(opts: IContributionCommandOptions<T>) {
+				super(opts);
+
+				this._callback = opts.handler;
+			}
+
+			public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+				let controller = controllerGetter(editor);
+				if (controller) {
+					this._callback(controllerGetter(editor));
+				}
+			}
+		};
+	}
+
+	public runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void> {
+		// Find the editor with text focus
+		let editor = findFocusedEditor(accessor);
+
+		if (!editor) {
+			// Fallback to use what the workbench considers the active editor
+			editor = getWorkbenchActiveEditor(accessor);
+		}
+
+		if (!editor) {
+			// well, at least we tried...
+			return;
+		}
+
+		return editor.invokeWithinContext((editorAccessor) => {
+			const kbService = editorAccessor.get(IContextKeyService);
+			if (!kbService.contextMatchesRules(this.precondition)) {
+				// precondition does not hold
+				return;
+			}
+
+			return this.runEditorCommand(editorAccessor, editor, args);
+		});
+	}
+
+	public abstract runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
+}
+
+// ----- Editor Action
 
 export interface IEditorCommandMenuOptions {
 	group?: string;
@@ -33,7 +159,7 @@ export interface IActionOptions extends ICommandOptions {
 	alias: string;
 	menuOpts?: IEditorCommandMenuOptions;
 }
-export abstract class EditorAction extends ConfigEditorCommand {
+export abstract class EditorAction extends EditorCommand {
 
 	public label: string;
 	public alias: string;
@@ -74,33 +200,17 @@ export abstract class EditorAction extends ConfigEditorCommand {
 	public abstract run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
 }
 
-export interface IHandlerActionOptions extends IActionOptions {
-	handlerId: string;
-}
-export abstract class HandlerEditorAction extends EditorAction {
-	private _handlerId: string;
-
-	constructor(opts: IHandlerActionOptions) {
-		super(opts);
-		this._handlerId = opts.handlerId;
-	}
-
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		editor.trigger(this.id, this._handlerId, null);
-	}
-}
-
-// --- Editor Actions
+// --- Registration of commands and actions
 
 export function editorAction(ctor: { new (): EditorAction; }): void {
 	CommonEditorRegistry.registerEditorAction(new ctor());
 }
 
-export function editorCommand(ctor: { new (): ConfigEditorCommand }): void {
+export function editorCommand(ctor: { new (): EditorCommand }): void {
 	registerEditorCommand(new ctor());
 }
 
-export function registerEditorCommand<T extends ConfigEditorCommand>(editorCommand: T): T {
+export function registerEditorCommand<T extends EditorCommand>(editorCommand: T): T {
 	CommonEditorRegistry.registerEditorCommand(editorCommand);
 	return editorCommand;
 }
@@ -119,7 +229,7 @@ export module CommonEditorRegistry {
 	export function getEditorActions(): EditorAction[] {
 		return EditorContributionRegistry.INSTANCE.getEditorActions();
 	}
-	export function getEditorCommand(commandId: string): ConfigEditorCommand {
+	export function getEditorCommand(commandId: string): EditorCommand {
 		return EditorContributionRegistry.INSTANCE.getEditorCommand(commandId);
 	}
 
@@ -135,7 +245,7 @@ export module CommonEditorRegistry {
 		return KeybindingsRegistry.WEIGHT.editorContrib(importance);
 	}
 
-	export function registerEditorCommand(editorCommand: ConfigEditorCommand): void {
+	export function registerEditorCommand(editorCommand: EditorCommand): void {
 		EditorContributionRegistry.INSTANCE.registerEditorCommand(editorCommand);
 	}
 
@@ -177,7 +287,7 @@ class EditorContributionRegistry {
 
 	private editorContributions: ICommonEditorContributionCtor[];
 	private editorActions: EditorAction[];
-	private editorCommands: { [commandId: string]: ConfigEditorCommand; };
+	private editorCommands: { [commandId: string]: EditorCommand; };
 
 	constructor() {
 		this.editorContributions = [];
@@ -209,12 +319,12 @@ class EditorContributionRegistry {
 		return this.editorActions.slice(0);
 	}
 
-	public registerEditorCommand(editorCommand: ConfigEditorCommand) {
+	public registerEditorCommand(editorCommand: EditorCommand) {
 		KeybindingsRegistry.registerCommandAndKeybindingRule(editorCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 		this.editorCommands[editorCommand.id] = editorCommand;
 	}
 
-	public getEditorCommand(commandId: string): ConfigEditorCommand {
+	public getEditorCommand(commandId: string): EditorCommand {
 		return (this.editorCommands[commandId] || null);
 	}
 

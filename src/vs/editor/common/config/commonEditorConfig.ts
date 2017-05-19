@@ -56,6 +56,7 @@ export interface IEnvConfiguration {
 	outerWidth: number;
 	outerHeight: number;
 	canUseTranslate3d: boolean;
+	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	zoomLevel: number;
 }
@@ -119,6 +120,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			isDominatedByLongLines: this._isDominatedByLongLines,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			canUseTranslate3d: partialEnv.canUseTranslate3d,
+			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode()
 		};
@@ -385,7 +387,7 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.emptySelectionClipboard': {
 			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.emptySelectionClipboard,
+			'default': EDITOR_DEFAULTS.emptySelectionClipboard,
 			'description': nls.localize('emptySelectionClipboard', "Controls whether copying without a selection copies the current line.")
 		},
 		'editor.wordBasedSuggestions': {
@@ -484,10 +486,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
 		},
-		'editor.hideFoldIcons': {
-			'type': 'boolean',
-			'default': EDITOR_DEFAULTS.contribInfo.hideFoldIcons,
-			'description': nls.localize('hideFoldIcons', "Controls whether the fold icons on the gutter are automatically hidden.")
+		'editor.showFoldingControls': {
+			'type': 'string',
+			'enum': ['always', 'mouseover'],
+			'default': EDITOR_DEFAULTS.contribInfo.showFoldingControls,
+			'description': nls.localize('showFoldingControls', "Controls whether the fold controls on the gutter are automatically hidden.")
 		},
 		'editor.matchBrackets': {
 			'type': 'boolean',

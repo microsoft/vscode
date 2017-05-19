@@ -372,7 +372,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			if (this._isHandlingScrollEvent) {
 				return;
 			}
-			if (!e.scrollTopChanged && !e.scrollLeftChanged) {
+			if (!e.scrollTopChanged && !e.scrollLeftChanged && !e.scrollHeightChanged) {
 				return;
 			}
 			this._isHandlingScrollEvent = true;
@@ -403,7 +403,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			if (this._isHandlingScrollEvent) {
 				return;
 			}
-			if (!e.scrollTopChanged && !e.scrollLeftChanged) {
+			if (!e.scrollTopChanged && !e.scrollLeftChanged && !e.scrollHeightChanged) {
 				return;
 			}
 			this._isHandlingScrollEvent = true;

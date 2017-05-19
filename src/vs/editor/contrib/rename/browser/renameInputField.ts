@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputBorder, inputForeground, widgetShadow, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputBackground, inputBorder, inputForeground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
 
 export default class RenameInputField implements IContentWidget, IDisposable {
@@ -79,7 +79,7 @@ export default class RenameInputField implements IContentWidget, IDisposable {
 		const background = theme.getColor(inputBackground);
 		const foreground = theme.getColor(inputForeground);
 		const widgetShadowColor = theme.getColor(widgetShadow);
-		const border = theme.getColor(inputBorder) || theme.getColor(focusBorder);
+		const border = theme.getColor(inputBorder);
 
 		this._inputField.style.backgroundColor = background ? background.toString() : null;
 		this._inputField.style.color = foreground ? foreground.toString() : null;

@@ -139,11 +139,6 @@ export class ViewCursors extends ViewPart {
 		return true;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this._primaryCursor.onFlushed();
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._domNode.removeChild(this._secondaryCursors[i].getDomNode());
-		}
-		this._secondaryCursors = [];
 		return true;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {

@@ -154,6 +154,7 @@ export class FindDecorations implements IDisposable {
 		return {
 			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className: isCurrent ? 'currentFindMatch' : 'findMatch',
+			showIfCollapsed: true,
 			overviewRuler: {
 				color: 'rgba(246, 185, 77, 0.7)',
 				darkColor: 'rgba(246, 185, 77, 0.7)',

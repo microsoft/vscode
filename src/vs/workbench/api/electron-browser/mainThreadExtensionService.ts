@@ -19,6 +19,7 @@ import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extension
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostContext, ExtHostExtensionServiceShape } from '../node/extHost.protocol';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
@@ -62,8 +63,9 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	constructor(
 		@IThreadService threadService: IThreadService,
 		@IMessageService messageService: IMessageService,
+		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService
 	) {
 		super(false);
 		this._isDev = !environmentService.isBuilt || environmentService.isExtensionDevelopment;
@@ -79,6 +81,12 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		];
 
 		this.scanExtensions().done(extensionDescriptions => {
+
+			telemetryService.publicLog('extensionsScanned', {
+				totalCount: extensionDescriptions.length,
+				disabledCount: disabledExtensions.length
+			});
+
 			this._onExtensionDescriptions(disabledExtensions.length ? extensionDescriptions.filter(e => disabledExtensions.every(id => !areSameExtensions({ id }, e))) : extensionDescriptions);
 		});
 	}

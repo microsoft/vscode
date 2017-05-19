@@ -588,7 +588,7 @@ export class TextModel implements editorCommon.ITextModel {
 		this._emitModelRawContentChangedEvent(
 			new textModelEvents.ModelRawContentChangedEvent(
 				[
-					new textModelEvents.ModelRawFlush()
+					new textModelEvents.ModelRawEOLChanged()
 				],
 				this._versionId,
 				false,

@@ -6,7 +6,6 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -49,6 +48,7 @@ import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/edi
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { Cursor } from "vs/editor/common/controller/cursor";
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -97,6 +97,7 @@ export class View extends ViewEventHandler {
 		configuration: Configuration,
 		themeService: IThemeService,
 		model: IViewModel,
+		cursor: Cursor,
 		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
 	) {
 		super();
@@ -134,6 +135,10 @@ export class View extends ViewEventHandler {
 		this.pointerHandler = new PointerHandler(this._context, viewController, this.createPointerHandlerHelper());
 
 		this._register(model.addEventListener((events: viewEvents.ViewEvent[]) => {
+			this.eventDispatcher.emitMany(events);
+		}));
+
+		this._register(cursor.addEventListener((events: viewEvents.ViewEvent[]) => {
 			this.eventDispatcher.emitMany(events);
 		}));
 	}
@@ -222,9 +227,9 @@ export class View extends ViewEventHandler {
 		this.overflowGuardContainer.appendChild(margin.getDomNode());
 		this.overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		this.overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-		this.overflowGuardContainer.appendChild(this.overlayWidgets.getDomNode());
 		this.overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
 		this.overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
+		this.overflowGuardContainer.appendChild(this.overlayWidgets.getDomNode());
 		this.overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this.overflowGuardContainer);
 		this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
@@ -288,13 +293,6 @@ export class View extends ViewEventHandler {
 
 	private _setLayout(): void {
 		const layoutInfo = this._context.configuration.editor.layoutInfo;
-		if (browser.isChrome) {
-			/* tslint:disable:no-unused-variable */
-			// Access overflowGuardContainer.clientWidth to prevent relayouting bug in Chrome
-			// See Bug 19676: Editor misses a layout event
-			let clientWidth = this.overflowGuardContainer.domNode.clientWidth + 'px';
-			/* tslint:enable:no-unused-variable */
-		}
 		this.domNode.setWidth(layoutInfo.width);
 		this.domNode.setHeight(layoutInfo.height);
 

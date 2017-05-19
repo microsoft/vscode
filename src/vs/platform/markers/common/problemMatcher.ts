@@ -552,7 +552,7 @@ export namespace Config {
 	/**
 	* A description to track the start and end of a watching task.
 	*/
-	export interface WatchingMatcher {
+	export interface BackgroundMonitor {
 
 		/**
 		* If set to true the watcher is in active mode when the task
@@ -648,7 +648,11 @@ export namespace Config {
 		*/
 		watchedTaskEndsRegExp?: string;
 
-		watching?: WatchingMatcher;
+		/**
+		 * @deprecated Use background instead.
+		 */
+		watching?: BackgroundMonitor;
+		background?: BackgroundMonitor;
 	}
 
 	export type ProblemMatcherType = string | ProblemMatcher | (string | ProblemMatcher)[];
@@ -1264,15 +1268,15 @@ export class ProblemMatcherParser extends Parser {
 			};
 			return;
 		}
-		if (Types.isUndefinedOrNull(external.watching)) {
+		let backgroundMonitor = external.background || external.watching;
+		if (Types.isUndefinedOrNull(backgroundMonitor)) {
 			return;
 		}
-		let watching = external.watching;
-		let begins: WatchingPattern = this.createWatchingPattern(watching.beginsPattern);
-		let ends: WatchingPattern = this.createWatchingPattern(watching.endsPattern);
+		let begins: WatchingPattern = this.createWatchingPattern(backgroundMonitor.beginsPattern);
+		let ends: WatchingPattern = this.createWatchingPattern(backgroundMonitor.endsPattern);
 		if (begins && ends) {
 			internal.watching = {
-				activeOnStart: Types.isBoolean(watching.activeOnStart) ? watching.activeOnStart : false,
+				activeOnStart: Types.isBoolean(backgroundMonitor.activeOnStart) ? backgroundMonitor.activeOnStart : false,
 				beginsPattern: begins,
 				endsPattern: ends
 			};
@@ -1325,7 +1329,7 @@ export namespace Schemas {
 		properties: {
 			regexp: {
 				type: 'string',
-				description: localize('WatchingPatternSchema.regexp', 'The regular expression to detect the begin or end of a watching task.')
+				description: localize('WatchingPatternSchema.regexp', 'The regular expression to detect the begin or end of a background task.')
 			},
 			file: {
 				type: 'integer',
@@ -1385,9 +1389,40 @@ export namespace Schemas {
 				],
 				description: localize('ProblemMatcherSchema.fileLocation', 'Defines how file names reported in a problem pattern should be interpreted.')
 			},
+			background: {
+				type: 'object',
+				additionalProperties: false,
+				description: localize('ProblemMatcherSchema.background', 'Patterns to track the begin and end of a matcher active on a background task.'),
+				properties: {
+					activeOnStart: {
+						type: 'boolean',
+						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor is in active mode when the task starts. This is equals of issuing a line that matches the beginPattern')
+					},
+					beginsPattern: {
+						oneOf: [
+							{
+								type: 'string'
+							},
+							Schemas.WatchingPattern
+						],
+						description: localize('ProblemMatcherSchema.background.beginsPattern', 'If matched in the output the start of a background task is signaled.')
+					},
+					endsPattern: {
+						oneOf: [
+							{
+								type: 'string'
+							},
+							Schemas.WatchingPattern
+						],
+						description: localize('ProblemMatcherSchema.background.endsPattern', 'If matched in the output the end of a background task is signaled.')
+					}
+				}
+			},
 			watching: {
 				type: 'object',
 				additionalProperties: false,
+				deprecationMessage: localize('ProblemMatcherSchema.watching.deprecated', 'The watching property is deprecated. Use background instead.'),
+				description: localize('ProblemMatcherSchema.watching', 'Patterns to track the begin and end of a watching matcher.'),
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
@@ -1411,8 +1446,7 @@ export namespace Schemas {
 						],
 						description: localize('ProblemMatcherSchema.watching.endsPattern', 'If matched in the output the end of a watching task is signaled.')
 					}
-				},
-				description: localize('ProblemMatcherSchema.watching', 'Patterns to track the begin and end of a watching pattern.')
+				}
 			}
 		}
 	};

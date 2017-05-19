@@ -157,6 +157,7 @@ class ModelMarkerHandler {
 			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className,
 			hoverMessage,
+			showIfCollapsed: true,
 			overviewRuler: {
 				color,
 				darkColor,

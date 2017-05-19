@@ -110,6 +110,17 @@ export namespace TaskGroup {
 
 export type TaskGroup = 'clean' | 'build' | 'rebuildAll' | 'test';
 
+export enum TaskSourceKind {
+	Workspace = 1,
+	Extension = 2,
+	Generic = 3
+}
+
+export interface TaskSource {
+	kind: TaskSourceKind;
+	detail?: string;
+}
+
 /**
  * A task description
  */
@@ -119,6 +130,11 @@ export interface Task {
 	 * The task's internal id
 	 */
 	_id: string;
+
+	/**
+	 * Indicated the source of the task (e.g tasks.json or extension)
+	 */
+	_source: TaskSource;
 
 	/**
 	 * The task's name
@@ -175,7 +191,7 @@ export interface Task {
 	/**
 	 * The problem watchers to use for this task
 	 */
-	problemMatchers?: ProblemMatcher[];
+	problemMatchers?: (string | ProblemMatcher)[];
 }
 
 export enum ExecutionEngine {

@@ -123,6 +123,7 @@ class TaskBuilder {
 		this.commandBuilder = new CommandConfigurationBuilder(this, command);
 		this.result = {
 			_id: name,
+			_source: { kind: Tasks.TaskSourceKind.Workspace },
 			identifier: name,
 			name: name,
 			command: this.commandBuilder.result,
@@ -432,22 +433,29 @@ function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected
 	}
 }
 
-function assertProblemMatcher(actual: ProblemMatcher, expected: ProblemMatcher) {
-	if (expected.owner === ProblemMatcherBuilder.DEFAULT_UUID) {
-		try {
-			UUID.parse(actual.owner);
-		} catch (err) {
-			assert.fail(actual.owner, 'Owner must be a UUID');
-		}
-	} else {
-		assert.strictEqual(actual.owner, expected.owner);
+function assertProblemMatcher(actual: string | ProblemMatcher, expected: string | ProblemMatcher) {
+	assert.strictEqual(typeof actual, typeof expected);
+	if (typeof actual === 'string' && typeof expected === 'string') {
+		assert.strictEqual(actual, expected, 'Problem matcher references are different');
+		return;
 	}
-	assert.strictEqual(actual.applyTo, expected.applyTo);
-	assert.strictEqual(actual.severity, expected.severity);
-	assert.strictEqual(actual.fileLocation, expected.fileLocation);
-	assert.strictEqual(actual.filePrefix, expected.filePrefix);
-	if (actual.pattern && expected.pattern) {
-		assertProblemPatterns(actual.pattern, expected.pattern);
+	if (typeof actual !== 'string' && typeof expected !== 'string') {
+		if (expected.owner === ProblemMatcherBuilder.DEFAULT_UUID) {
+			try {
+				UUID.parse(actual.owner);
+			} catch (err) {
+				assert.fail(actual.owner, 'Owner must be a UUID');
+			}
+		} else {
+			assert.strictEqual(actual.owner, expected.owner);
+		}
+		assert.strictEqual(actual.applyTo, expected.applyTo);
+		assert.strictEqual(actual.severity, expected.severity);
+		assert.strictEqual(actual.fileLocation, expected.fileLocation);
+		assert.strictEqual(actual.filePrefix, expected.filePrefix);
+		if (actual.pattern && expected.pattern) {
+			assertProblemPatterns(actual.pattern, expected.pattern);
+		}
 	}
 }
 

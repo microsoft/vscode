@@ -275,7 +275,9 @@ export abstract class DeleteWordCommand extends EditorCommand {
 			return new ReplaceCommand(deleteRange, '');
 		});
 
+		editor.pushUndoStop();
 		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
 	}
 
 	protected abstract _delete(wordSeparators: WordCharacterClassifier, model: IModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range;

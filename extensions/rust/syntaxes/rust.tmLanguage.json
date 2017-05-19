@@ -158,6 +158,11 @@
 			"name": "support.type.std.rust",
 			"match": "\\b(ToOwned|ToString)\\b"
 		},
+		"type": {
+			"comment": "A type",
+			"name": "entity.name.type.rust",
+			"match": "\\b([A-Za-z][_A-Za-z0-9]*|_[_A-Za-z0-9]+)\\b"
+		},
 		"type_params": {
 			"comment": "Type parameters",
 			"name": "meta.type_params.rust",
@@ -201,6 +206,61 @@
 		}
 	},
 	"patterns": [
+		{
+			"comment": "Implementation",
+			"begin": "\\b(impl)\\b",
+			"end": "\\{",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.type.rust"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#block_comment"
+				},
+				{
+					"include": "#line_comment"
+				},
+				{
+					"include": "#sigils"
+				},
+				{
+					"include": "#mut"
+				},
+				{
+					"include": "#ref_lifetime"
+				},
+				{
+					"include": "#core_types"
+				},
+				{
+					"include": "#core_marker"
+				},
+				{
+					"include": "#core_traits"
+				},
+				{
+					"include": "#std_types"
+				},
+				{
+					"include": "#std_traits"
+				},
+				{
+					"include": "#type_params"
+				},
+				{
+					"include": "#where"
+				},
+				{
+					"name": "storage.type.rust",
+					"match": "\\bfor\\b"
+				},
+				{
+					"include": "#type"
+				}
+			]
+		},
 		{
 			"include": "#block_doc_comment"
 		},
@@ -403,7 +463,7 @@
 		},
 		{
 			"comment": "Function call",
-			"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
+			"match": "\\b([A-Za-z][A-Za-z0-9_]*|_[A-Za-z0-9_]+)\\s*\\(",
 			"captures": {
 				"1": {
 					"name": "entity.name.function.rust"
@@ -411,8 +471,26 @@
 			}
 		},
 		{
+			"comment": "Function call with type parameters",
+			"begin": "\\b([A-Za-z][A-Za-z0-9_]*|_[A-Za-z0-9_]+)\\s*(::)(?=\\s*<.*>\\s*\\()",
+			"end": "\\(",
+			"captures": {
+				"1": {
+					"name": "entity.name.function.rust"
+				},
+				"2": {
+					"name": "keyword.operator.misc.rust"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#type_params"
+				}
+			]
+		},
+		{
 			"comment": "Function definition",
-			"begin": "\\b(fn)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+			"begin": "\\b(fn)\\s+([A-Za-z][A-Za-z0-9_]*|_[A-Za-z0-9_]+)",
 			"end": "[\\{;]",
 			"beginCaptures": {
 				"1": {
@@ -470,7 +548,7 @@
 				},
 				{
 					"comment": "Function arguments",
-					"match": "fn",
+					"match": "\bfn\b",
 					"name": "keyword.other.fn.rust"
 				}
 			]
@@ -564,59 +642,7 @@
 					"include": "#type_params"
 				}
 			]
-		},
-		{
-			"comment": "Implementation",
-			"begin": "\\b(impl)\\b",
-			"end": "\\{",
-			"beginCaptures": {
-				"1": {
-					"name": "storage.type.rust"
-				}
-			},
-			"patterns": [
-				{
-					"include": "#block_comment"
-				},
-				{
-					"include": "#line_comment"
-				},
-				{
-					"include": "#sigils"
-				},
-				{
-					"include": "#mut"
-				},
-				{
-					"include": "#ref_lifetime"
-				},
-				{
-					"include": "#core_types"
-				},
-				{
-					"include": "#core_marker"
-				},
-				{
-					"include": "#core_traits"
-				},
-				{
-					"include": "#std_types"
-				},
-				{
-					"include": "#std_traits"
-				},
-				{
-					"include": "#type_params"
-				},
-				{
-					"include": "#where"
-				},
-				{
-					"name": "storage.type.rust",
-					"match": "\\bfor\\b"
-				}
-			]
 		}
 	],
-	"version": "https://github.com/zargony/atom-language-rust/commit/5e32388ed873683f3ccdea618c25d1ace8759608"
+	"version": "https://github.com/zargony/atom-language-rust/commit/c24ef01b9f989f1262c9e70fe13b314b8e646ed0"
 }

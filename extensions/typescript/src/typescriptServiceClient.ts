@@ -9,6 +9,7 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as net from 'net';
 
 import * as electron from './utils/electron';
 import { Reader } from './utils/wireProtocol';
@@ -22,9 +23,9 @@ import Logger from './utils/logger';
 import * as VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
 
-import TelemetryReporter from 'vscode-extension-telemetry';
-
 import * as nls from 'vscode-nls';
+import TelemetryReporter from "./utils/telemetry";
+import Tracer from "./utils/tracer";
 const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
@@ -41,34 +42,6 @@ interface RequestItem {
 	request: Proto.Request;
 	promise: Promise<any> | null;
 	callbacks: CallbackItem | null;
-}
-
-interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
-}
-
-enum Trace {
-	Off,
-	Messages,
-	Verbose
-}
-
-namespace Trace {
-	export function fromString(value: string): Trace {
-		value = value.toLowerCase();
-		switch (value) {
-			case 'off':
-				return Trace.Off;
-			case 'messages':
-				return Trace.Messages;
-			case 'verbose':
-				return Trace.Verbose;
-			default:
-				return Trace.Off;
-		}
-	}
 }
 
 enum TsServerLogLevel {
@@ -141,7 +114,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private localTsdk: string | null;
 	private _checkGlobalTSCVersion: boolean;
 	private _experimentalAutoBuild: boolean;
-	private trace: Trace;
+	private tracer: Tracer;
 	private readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
 	private tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
@@ -162,7 +135,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
 	private _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
 
-	private _packageInfo: IPackageInfo | null;
 	private _apiVersion: API;
 	private telemetryReporter: TelemetryReporter;
 	private checkJs: boolean;
@@ -202,7 +174,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
 		this._apiVersion = new API('1.0.0');
 		this._checkGlobalTSCVersion = true;
-		this.trace = this.readTrace();
+		this.tracer = new Tracer(this.logger);
 		this.tsServerLogLevel = this.readTsServerLogLevel();
 		this.checkJs = this.readCheckJs();
 
@@ -212,7 +184,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			let oldLocalTsdk = this.localTsdk;
 			let oldCheckJs = this.checkJs;
 
-			this.trace = this.readTrace();
+			this.tracer.updateConfiguration();
 			this.tsServerLogLevel = this.readTsServerLogLevel();
 
 			const configuration = workspace.getConfiguration();
@@ -230,16 +202,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.restartTsServer();
 			}
 		}));
-		if (this.packageInfo && this.packageInfo.aiKey) {
-			this.telemetryReporter = new TelemetryReporter(this.packageInfo.name, this.packageInfo.version, this.packageInfo.aiKey);
-			disposables.push(this.telemetryReporter);
-		}
+		this.telemetryReporter = new TelemetryReporter();
+		disposables.push(this.telemetryReporter);
 		this.startService();
 	}
 
 	public restartTsServer(): void {
 		const start = () => {
-			this.trace = this.readTrace();
 			this.tsServerLogLevel = this.readTsServerLogLevel();
 			this.servicePromise = this.startService();
 			return this.servicePromise;
@@ -292,14 +261,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._onTypesInstallerInitializationFailed.event;
 	}
 
-	private readTrace(): Trace {
-		let result: Trace = Trace.fromString(workspace.getConfiguration().get<string>('typescript.tsserver.trace', 'off'));
-		if (result === Trace.Off && !!process.env.TSS_TRACE) {
-			result = Trace.Messages;
-		}
-		return result;
-	}
-
 	private readTsServerLogLevel(): TsServerLogLevel {
 		const setting = workspace.getConfiguration().get<string>('typescript.tsserver.log', 'off');
 		return TsServerLogLevel.fromString(setting);
@@ -337,34 +298,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.logger.error(message, data);
 	}
 
-	private logTrace(message: string, data?: any): void {
-		this.logger.logLevel('Trace', message, data);
-	}
-
-	private get packageInfo(): IPackageInfo | null {
-
-		if (this._packageInfo !== undefined) {
-			return this._packageInfo;
-		}
-		let packagePath = path.join(__dirname, './../package.json');
-		let extensionPackage = require(packagePath);
-		if (extensionPackage) {
-			this._packageInfo = {
-				name: extensionPackage.name,
-				version: extensionPackage.version,
-				aiKey: extensionPackage.aiKey
-			};
-		} else {
-			this._packageInfo = null;
-		}
-
-		return this._packageInfo;
-	}
-
 	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
-		if (this.telemetryReporter) {
-			this.telemetryReporter.sendTelemetryEvent(eventName, properties);
-		}
+		this.telemetryReporter.logTelemetry(eventName, properties);
 	}
 
 	private service(): Thenable<cp.ChildProcess> {
@@ -445,6 +380,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 			return modulePath;
 		}).then(modulePath => {
+			return this.getDebugPort().then(debugPort => ({ modulePath, debugPort }));
+		}).then(({ modulePath, debugPort }) => {
 			return this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
 				const tsConfig = workspace.getConfiguration('typescript');
 
@@ -488,21 +425,19 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				this.lastError = null;
 
 				try {
-					let options: electron.IForkOptions = {
+					const options: electron.IForkOptions = {
 						execArgv: [] // [`--debug-brk=5859`]
 					};
 					if (workspace.rootPath) {
 						options.cwd = workspace.rootPath;
 					}
-					let value = process.env.TSS_DEBUG;
-					if (value) {
-						let port = parseInt(value);
-						if (!isNaN(port)) {
-							this.info(`TSServer started in debug mode using port ${port}`);
-							options.execArgv = [`--debug=${port}`];
-						}
+
+					if (debugPort && !isNaN(debugPort)) {
+						this.info(`TSServer started in debug mode using port ${debugPort}`);
+						options.execArgv = [`--debug=${debugPort}`];
 					}
-					let args: string[] = [];
+
+					const args: string[] = [];
 					if (this.apiVersion.has206Features()) {
 						args.push('--useSingleInferredProject');
 						if (workspace.getConfiguration().get<boolean>('typescript.disableAutomaticTypeAcquisition', false)) {
@@ -558,6 +493,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							if (this.tsServerLogFile) {
 								this.error(`TSServer log file: ${this.tsServerLogFile}`);
 							}
+							this.logTelemetry('tsserver.error');
 							this.serviceExited(false);
 						});
 						childProcess.on('exit', (code: any) => {
@@ -565,6 +501,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 								this.info(`TSServer exited`);
 							} else {
 								this.error(`TSServer exited with code: ${code}`);
+								this.logTelemetry('tsserver.exitWithCode', { code: code });
 							}
 
 							if (this.tsServerLogFile) {
@@ -572,9 +509,12 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							}
 							this.serviceExited(true);
 						});
-						this.reader = new Reader<Proto.Response>(childProcess.stdout, (msg) => {
-							this.dispatchMessage(msg);
-						});
+
+						this.reader = new Reader<Proto.Response>(
+							childProcess.stdout,
+							(msg) => { this.dispatchMessage(msg); },
+							error => { this.error('ReaderError', error); });
+
 						this._onReady.resolve();
 						resolve(childProcess);
 						this.serviceStarted(resendModels);
@@ -584,6 +524,30 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 			});
 		});
+	}
+
+	private getDebugPort(): Promise<number | undefined> {
+		const value = process.env.TSS_DEBUG;
+		if (value) {
+			const port = parseInt(value);
+			if (!isNaN(port)) {
+				return Promise.resolve(port);
+			}
+		}
+
+		if (workspace.getConfiguration('typescript').get<boolean>('tsserver.debug', false)) {
+			return Promise.race([
+				new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 1000)),
+				new Promise<number | undefined>((resolve) => {
+					const server = net.createServer(sock => sock.end());
+					server.listen(0, function () {
+						resolve(server.address().port);
+					});
+				})
+			]);
+		}
+
+		return Promise.resolve(undefined);
 	}
 
 	public onVersionStatusClicked(): Thenable<string> {
@@ -791,7 +755,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		});
 		this.callbacks = Object.create(null);
 		if (restart) {
-			let diff = Date.now() - this.lastStart;
+			const diff = Date.now() - this.lastStart;
 			this.numberRestarts++;
 			let startService = true;
 			if (this.numberRestarts > 5) {
@@ -912,7 +876,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private sendRequest(requestItem: RequestItem): void {
 		let serverRequest = requestItem.request;
-		this.traceRequest(serverRequest, !!requestItem.callbacks);
+		this.tracer.traceRequest(serverRequest, !!requestItem.callbacks, this.requestQueue.length);
 		if (requestItem.callbacks) {
 			this.callbacks[serverRequest.seq] = requestItem.callbacks;
 			this.pendingResponses++;
@@ -934,17 +898,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		for (let i = 0; i < this.requestQueue.length; i++) {
 			if (this.requestQueue[i].request.seq === seq) {
 				this.requestQueue.splice(i, 1);
-				if (this.trace !== Trace.Off) {
-					this.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
-				}
+				this.tracer.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
 				return true;
 			}
 		}
 
 		if (this.apiVersion.has222Features() && this.cancellationPipeName) {
-			if (this.trace !== Trace.Off) {
-				this.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
-			}
+			this.tracer.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
 			try {
 				fs.writeFileSync(this.cancellationPipeName + seq, '');
 				return true;
@@ -953,19 +913,17 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 		}
 
-		if (this.trace !== Trace.Off) {
-			this.logTrace(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
-		}
+		this.tracer.logTrace(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
 		return false;
 	}
 
 	private dispatchMessage(message: Proto.Message): void {
 		try {
 			if (message.type === 'response') {
-				let response: Proto.Response = <Proto.Response>message;
-				let p = this.callbacks[response.request_seq];
+				const response: Proto.Response = message as Proto.Response;
+				const p = this.callbacks[response.request_seq];
 				if (p) {
-					this.traceResponse(response, p.start);
+					this.tracer.traceResponse(response, p.start);
 					delete this.callbacks[response.request_seq];
 					this.pendingResponses--;
 					if (response.success) {
@@ -975,8 +933,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					}
 				}
 			} else if (message.type === 'event') {
-				let event: Proto.Event = <Proto.Event>message;
-				this.traceEvent(event);
+				const event: Proto.Event = <Proto.Event>message;
+				this.tracer.traceEvent(event);
 				if (event.event === 'syntaxDiag') {
 					this.host.syntaxDiagnosticsReceived(event as Proto.DiagnosticEvent);
 				} else if (event.event === 'semanticDiag') {
@@ -1037,38 +995,5 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		} finally {
 			this.sendNextRequests();
 		}
-	}
-
-	private traceRequest(request: Proto.Request, responseExpected: boolean): void {
-		if (this.trace === Trace.Off) {
-			return;
-		}
-		let data: string | undefined = undefined;
-		if (this.trace === Trace.Verbose && request.arguments) {
-			data = `Arguments: ${JSON.stringify(request.arguments, null, 4)}`;
-		}
-		this.logTrace(`Sending request: ${request.command} (${request.seq}). Response expected: ${responseExpected ? 'yes' : 'no'}. Current queue length: ${this.requestQueue.length}`, data);
-	}
-
-	private traceResponse(response: Proto.Response, startTime: number): void {
-		if (this.trace === Trace.Off) {
-			return;
-		}
-		let data: string | undefined = undefined;
-		if (this.trace === Trace.Verbose && response.body) {
-			data = `Result: ${JSON.stringify(response.body, null, 4)}`;
-		}
-		this.logTrace(`Response received: ${response.command} (${response.request_seq}). Request took ${Date.now() - startTime} ms. Success: ${response.success} ${!response.success ? '. Message: ' + response.message : ''}`, data);
-	}
-
-	private traceEvent(event: Proto.Event): void {
-		if (this.trace === Trace.Off) {
-			return;
-		}
-		let data: string | undefined = undefined;
-		if (this.trace === Trace.Verbose && event.body) {
-			data = `Data: ${JSON.stringify(event.body, null, 4)}`;
-		}
-		this.logTrace(`Event received: ${event.event} (${event.seq}).`, data);
 	}
 }

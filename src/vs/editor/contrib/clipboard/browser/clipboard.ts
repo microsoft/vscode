@@ -81,9 +81,9 @@ class ExecCommandCutAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
-		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
 
@@ -113,9 +113,9 @@ class ExecCommandCopyAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
-		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
 
@@ -162,9 +162,9 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
-		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
 
