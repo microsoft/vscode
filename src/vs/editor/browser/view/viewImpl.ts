@@ -227,9 +227,9 @@ export class View extends ViewEventHandler {
 		this.overflowGuardContainer.appendChild(margin.getDomNode());
 		this.overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		this.overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-		this.overflowGuardContainer.appendChild(this.overlayWidgets.getDomNode());
 		this.overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
 		this.overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
+		this.overflowGuardContainer.appendChild(this.overlayWidgets.getDomNode());
 		this.overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this.overflowGuardContainer);
 		this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
