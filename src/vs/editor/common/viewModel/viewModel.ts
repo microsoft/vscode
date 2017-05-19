@@ -120,6 +120,8 @@ export interface IViewModel {
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
+	getCompletelyVisibleViewRange(): Range;
+	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
 	getTabSize(): number;
 	getLineCount(): number;
@@ -127,6 +129,8 @@ export interface IViewModel {
 	getLineIndentGuide(lineNumber: number): number;
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
+	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
+	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	getAllOverviewRulerDecorations(): ViewModelDecoration[];
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 

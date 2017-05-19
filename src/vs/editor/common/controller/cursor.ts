@@ -20,6 +20,7 @@ import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperat
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from 'vs/editor/common/controller/cursorEvents';
+import { IViewModel } from "vs/editor/common/viewModel/viewModel";
 
 export class Cursor extends Disposable implements ICursors {
 
@@ -44,11 +45,29 @@ export class Cursor extends Disposable implements ICursors {
 	private _isDoingComposition: boolean;
 	private _columnSelectData: IColumnSelectData;
 
-	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModelHelper: IViewModelHelper) {
+	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModel: IViewModel) {
 		super();
 		this._eventEmitter = this._register(new EventEmitter());
 		this._configuration = configuration;
 		this._model = model;
+
+		let viewModelHelper: IViewModelHelper = {
+			viewModel: viewModel,
+			coordinatesConverter: viewModel.coordinatesConverter,
+			getScrollTop: (): number => {
+				return viewModel.viewLayout.getScrollTop();
+			},
+			getCompletelyVisibleViewRange: (): Range => {
+				return viewModel.getCompletelyVisibleViewRange();
+			},
+			getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number): Range => {
+				return viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+			},
+			getVerticalOffsetForViewLineNumber: (viewLineNumber: number): number => {
+				return viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
+			}
+		};
+
 		this._viewModelHelper = viewModelHelper;
 		this.context = new CursorContext(this._configuration, this._model, this._viewModelHelper);
 		this._cursors = new CursorCollection(this.context);

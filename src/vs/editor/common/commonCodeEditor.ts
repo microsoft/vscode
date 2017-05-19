@@ -13,7 +13,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKey, IContextKeyServiceTarget, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { CursorColumns, IViewModelHelper, ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
@@ -863,23 +863,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 			this.viewModel = new ViewModel(this.id, this._configuration, this.model);
 
-			let viewModelHelper: IViewModelHelper = {
-				viewModel: this.viewModel,
-				coordinatesConverter: this.viewModel.coordinatesConverter,
-				getScrollTop: (): number => {
-					return this.viewModel.viewLayout.getScrollTop();
-				},
-				getCompletelyVisibleViewRange: (): Range => {
-					return this.viewModel.getCompletelyVisibleViewRange();
-				},
-				getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number): Range => {
-					return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-				},
-				getVerticalOffsetForViewLineNumber: (viewLineNumber: number): number => {
-					return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
-				}
-			};
-
 			this.listenersToRemove.push(this.model.addBulkListener((events) => {
 				for (let i = 0, len = events.length; i < len; i++) {
 					let eventType = events[i].type;
@@ -917,7 +900,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			this.cursor = new Cursor(
 				this._configuration,
 				this.model,
-				viewModelHelper
+				this.viewModel
 			);
 
 			this.viewCursor = new ViewModelCursors(
