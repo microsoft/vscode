@@ -41,11 +41,4 @@ suite('EnvironmentService', () => {
 		assert.equal(parse(['--user-data-dir', './dir'], { cwd: () => '/foo', env: { 'VSCODE_CWD': '/bar' } }), path.resolve('/bar/dir'),
 			'should use VSCODE_CWD as the cwd when --user-data-dir is specified');
 	});
-
-	test('userDataPath should always take the first one', () => {
-		const parse = (a, b: { cwd: () => string, env: { [key: string]: string } }) => parseUserDataDir(parseArgs(a), <any>b);
-
-		assert.equal(parse(['--user-data-dir', './dir1', '--user-data-dir', './dir2'], { cwd: () => '/foo', env: {} }), path.resolve('/foo/dir1'),
-			'should pick first --user-data-dir (dir1)');
-	});
 });
