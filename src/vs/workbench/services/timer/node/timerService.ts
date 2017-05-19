@@ -6,6 +6,7 @@
 
 import { ITimerService, IStartupMetrics, IInitData, IMemoryInfo } from 'vs/workbench/services/timer/common/timerService';
 import { virtualMachineHint } from 'vs/base/node/id';
+import { ticks } from 'vs/base/node/startupTimers';
 
 import * as os from 'os';
 
@@ -35,13 +36,7 @@ export class TimerService implements ITimerService {
 	public restoreViewletDuration: number;
 	public restoreEditorsDuration: number;
 
-	public get startupMetrics(): IStartupMetrics {
-		if (!this._startupMetrics) {
-			this.computeStartupMetrics();
-		}
 
-		return this._startupMetrics;
-	};
 	private _startupMetrics: IStartupMetrics;
 
 	constructor(initData: IInitData, private isEmptyWorkbench: boolean) {
@@ -56,7 +51,14 @@ export class TimerService implements ITimerService {
 		this.hasAccessibilitySupport = initData.hasAccessibilitySupport;
 	}
 
-	public computeStartupMetrics(): void {
+	get startupMetrics(): IStartupMetrics {
+		if (!this._startupMetrics) {
+			this._computeStartupMetrics();
+		}
+		return this._startupMetrics;
+	}
+
+	public _computeStartupMetrics(): void {
 		const now = Date.now();
 		const initialStartup = !!this.isInitialStartup;
 		const start = initialStartup ? this.start : this.windowLoad;
@@ -88,6 +90,12 @@ export class TimerService implements ITimerService {
 			console.error(error); // be on the safe side with these hardware method calls
 		}
 
+		// fill in startup timers we have until now
+		const timers2: { [name: string]: number } = Object.create(null);
+		for (const tick of ticks()) {
+			timers2[tick.name] = tick.duration;
+		}
+
 		this._startupMetrics = {
 			version: 1,
 			ellapsed: this.workbenchStarted - start,
@@ -101,6 +109,7 @@ export class TimerService implements ITimerService {
 				ellapsedWindowLoadToRequire: this.beforeLoadWorkbenchMain - this.windowLoad,
 				ellapsedTimersToTimersComputed: Date.now() - now
 			},
+			timers2,
 			platform,
 			release,
 			totalmem,

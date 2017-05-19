@@ -82,9 +82,11 @@ define([], function () {
 		}
 		var profile = _toBeProfiled.has(name) ? requireProfiler().stopProfiling(name) : undefined;
 		var start = _starts.get(name);
-		var tick = new Tick(start.name, start.started, stopped, profile);
-		_ticks.set(name, tick);
-		_starts.delete(name);
+		if (start !== undefined) {
+			var tick = new Tick(start.name, start.started, stopped, profile);
+			_ticks.set(name, tick);
+			_starts.delete(name);
+		}
 	}
 
 	function ticks() {
@@ -94,7 +96,12 @@ define([], function () {
 	}
 
 	function tick(name) {
-		return _ticks.get(name);
+		var ret = _ticks.get(name);
+		if (!ret) {
+			var now = Date.now();
+			ret = new Tick(name, now, now);
+		}
+		return ret;
 	}
 
 	function setProfileList(names) {
