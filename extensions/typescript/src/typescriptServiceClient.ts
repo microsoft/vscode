@@ -25,6 +25,7 @@ import * as is from './utils/is';
 
 import * as nls from 'vscode-nls';
 import TelemetryReporter from "./utils/telemetry";
+import Tracer from "./utils/tracer";
 const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
@@ -41,28 +42,6 @@ interface RequestItem {
 	request: Proto.Request;
 	promise: Promise<any> | null;
 	callbacks: CallbackItem | null;
-}
-
-enum Trace {
-	Off,
-	Messages,
-	Verbose
-}
-
-namespace Trace {
-	export function fromString(value: string): Trace {
-		value = value.toLowerCase();
-		switch (value) {
-			case 'off':
-				return Trace.Off;
-			case 'messages':
-				return Trace.Messages;
-			case 'verbose':
-				return Trace.Verbose;
-			default:
-				return Trace.Off;
-		}
-	}
 }
 
 enum TsServerLogLevel {
@@ -135,7 +114,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private localTsdk: string | null;
 	private _checkGlobalTSCVersion: boolean;
 	private _experimentalAutoBuild: boolean;
-	private trace: Trace;
+	private tracer: Tracer;
 	private readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
 	private tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
@@ -195,7 +174,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this._experimentalAutoBuild = false; // configuration.get<boolean>('typescript.tsserver.experimentalAutoBuild', false);
 		this._apiVersion = new API('1.0.0');
 		this._checkGlobalTSCVersion = true;
-		this.trace = this.readTrace();
+		this.tracer = new Tracer(this.logger);
 		this.tsServerLogLevel = this.readTsServerLogLevel();
 		this.checkJs = this.readCheckJs();
 
@@ -205,7 +184,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			let oldLocalTsdk = this.localTsdk;
 			let oldCheckJs = this.checkJs;
 
-			this.trace = this.readTrace();
+			this.tracer.updateConfiguration();
 			this.tsServerLogLevel = this.readTsServerLogLevel();
 
 			const configuration = workspace.getConfiguration();
@@ -230,7 +209,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public restartTsServer(): void {
 		const start = () => {
-			this.trace = this.readTrace();
 			this.tsServerLogLevel = this.readTsServerLogLevel();
 			this.servicePromise = this.startService();
 			return this.servicePromise;
@@ -283,14 +261,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		return this._onTypesInstallerInitializationFailed.event;
 	}
 
-	private readTrace(): Trace {
-		let result: Trace = Trace.fromString(workspace.getConfiguration().get<string>('typescript.tsserver.trace', 'off'));
-		if (result === Trace.Off && !!process.env.TSS_TRACE) {
-			result = Trace.Messages;
-		}
-		return result;
-	}
-
 	private readTsServerLogLevel(): TsServerLogLevel {
 		const setting = workspace.getConfiguration().get<string>('typescript.tsserver.log', 'off');
 		return TsServerLogLevel.fromString(setting);
@@ -326,12 +296,6 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	public error(message: string, data?: any): void {
 		this.logger.error(message, data);
-	}
-
-	private logTrace(message: string, data?: any): void {
-		if (this.trace !== Trace.Off) {
-			this.logger.logLevel('Trace', message, data);
-		}
 	}
 
 	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
@@ -912,7 +876,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 
 	private sendRequest(requestItem: RequestItem): void {
 		let serverRequest = requestItem.request;
-		this.traceRequest(serverRequest, !!requestItem.callbacks);
+		this.tracer.traceRequest(serverRequest, !!requestItem.callbacks, this.requestQueue.length);
 		if (requestItem.callbacks) {
 			this.callbacks[serverRequest.seq] = requestItem.callbacks;
 			this.pendingResponses++;
@@ -934,13 +898,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		for (let i = 0; i < this.requestQueue.length; i++) {
 			if (this.requestQueue[i].request.seq === seq) {
 				this.requestQueue.splice(i, 1);
-				this.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
+				this.tracer.logTrace(`TypeScript Service: canceled request with sequence number ${seq}`);
 				return true;
 			}
 		}
 
 		if (this.apiVersion.has222Features() && this.cancellationPipeName) {
-			this.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
+			this.tracer.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
 			try {
 				fs.writeFileSync(this.cancellationPipeName + seq, '');
 				return true;
@@ -949,7 +913,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 		}
 
-		this.logTrace(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
+		this.tracer.logTrace(`TypeScript Service: tried to cancel request with sequence number ${seq}. But request got already delivered.`);
 		return false;
 	}
 
@@ -959,7 +923,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				const response: Proto.Response = message as Proto.Response;
 				const p = this.callbacks[response.request_seq];
 				if (p) {
-					this.traceResponse(response, p.start);
+					this.tracer.traceResponse(response, p.start);
 					delete this.callbacks[response.request_seq];
 					this.pendingResponses--;
 					if (response.success) {
@@ -970,7 +934,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 			} else if (message.type === 'event') {
 				const event: Proto.Event = <Proto.Event>message;
-				this.traceEvent(event);
+				this.tracer.traceEvent(event);
 				if (event.event === 'syntaxDiag') {
 					this.host.syntaxDiagnosticsReceived(event as Proto.DiagnosticEvent);
 				} else if (event.event === 'semanticDiag') {
@@ -1031,38 +995,5 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		} finally {
 			this.sendNextRequests();
 		}
-	}
-
-	private traceRequest(request: Proto.Request, responseExpected: boolean): void {
-		if (this.trace === Trace.Off) {
-			return;
-		}
-		let data: string | undefined = undefined;
-		if (this.trace === Trace.Verbose && request.arguments) {
-			data = `Arguments: ${JSON.stringify(request.arguments, null, 4)}`;
-		}
-		this.logTrace(`Sending request: ${request.command} (${request.seq}). Response expected: ${responseExpected ? 'yes' : 'no'}. Current queue length: ${this.requestQueue.length}`, data);
-	}
-
-	private traceResponse(response: Proto.Response, startTime: number): void {
-		if (this.trace === Trace.Off) {
-			return;
-		}
-		let data: string | undefined = undefined;
-		if (this.trace === Trace.Verbose && response.body) {
-			data = `Result: ${JSON.stringify(response.body, null, 4)}`;
-		}
-		this.logTrace(`Response received: ${response.command} (${response.request_seq}). Request took ${Date.now() - startTime} ms. Success: ${response.success} ${!response.success ? '. Message: ' + response.message : ''}`, data);
-	}
-
-	private traceEvent(event: Proto.Event): void {
-		if (this.trace === Trace.Off) {
-			return;
-		}
-		let data: string | undefined = undefined;
-		if (this.trace === Trace.Verbose && event.body) {
-			data = `Data: ${JSON.stringify(event.body, null, 4)}`;
-		}
-		this.logTrace(`Event received: ${event.event} (${event.seq}).`, data);
 	}
 }
