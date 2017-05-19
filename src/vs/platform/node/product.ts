@@ -56,7 +56,8 @@ export interface IProductConfiguration {
 	checksums: { [path: string]: string; };
 	checksumFailMoreInfoUrl: string;
 	hockeyApp: {
-		'win32': string;
+		'win32-ia32': string;
+		'win32-x64': string;
 		'linux-ia32': string;
 		'linux-x64': string;
 		'darwin': string;

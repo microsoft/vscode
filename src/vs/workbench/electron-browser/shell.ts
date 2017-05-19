@@ -174,7 +174,7 @@ export class WorkbenchShell {
 			let submitURL: string;
 
 			if (platform.isWindows) {
-				submitURL = product.hockeyApp.win32;
+				submitURL = product.hockeyApp[`win32-${process.arch}`];
 			} else if (platform.isMacintosh) {
 				submitURL = product.hockeyApp.darwin;
 			} else if (platform.isLinux) {
