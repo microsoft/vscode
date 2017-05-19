@@ -161,6 +161,7 @@ function main() {
 
 	global.define = loader;
 	global.document = jsdom.jsdom('<!doctype html><html><body></body></html>');
+	fix26699();
 	global.self = global.window = global.document.parentWindow;
 
 	global.Element = global.window.Element;
@@ -283,4 +284,62 @@ if (process.argv.some(function (a) { return /^--browser/.test(a); })) {
 	require('./browser');
 } else {
 	main();
+}
+
+function fix26699() {
+	var createElement = document.createElement;
+	document.createElement = function () {
+		var element = createElement.apply(document, arguments);
+		if (typeof element.classList === 'undefined') {
+			var classList = {
+				add: function() {
+					var className = element.className;
+					var classes = className ? className.split(' ') : [];
+					for (var i = 0; i < arguments.length; i++) {
+						var j = classes.indexOf(arguments[i]);
+						if (j === -1) {
+							classes.push(arguments[i]);
+						}
+					}
+					element.className = classes.join(' ');
+				},
+				remove: function() {
+					var className = element.className;
+					var classes = className ? className.split(' ') : [];
+					for (var i = 0; i < arguments.length; i++) {
+						var j = classes.indexOf(arguments[i]);
+						if (j !== -1) {
+							classes.splice(j, 1);
+						}
+					}
+					element.className = classes.join(' ');
+				},
+				item: function(idx) {
+					var classes = element.className.split(' ');
+					return classes[idx];
+				},
+				toggle: function(className, force) {
+					if (arguments.length === 1 ) {
+						force = !classList.contains(className);
+					}
+					if (force) {
+						classList.add(className);
+					}
+					else {
+						classList.remove(className);
+					}
+				},
+				contains: function(className) {
+					var classes = element.className.split(' ');
+					return className && classes.indexOf(className) >= 0;
+				}
+			}
+			Object.defineProperty(element, 'classList', {
+				get: function () { 
+					return classList;
+				}
+			});
+		}
+		return element;
+	};
 }

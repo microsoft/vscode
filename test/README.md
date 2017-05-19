@@ -18,6 +18,8 @@ If you wish to run the tests from a terminal, from the `vscode` folder run:
 
 You can use VS Code to debug your tests. Switch to the Debug viewlet, pick the `Unit Tests` debug target and press `Play`.
 
+> To filter tests change `launch.json` `configurations.args` `-g argument`.
+
 ## Coverage
 
 The following command will create a `coverage` folder at the root of the workspace:

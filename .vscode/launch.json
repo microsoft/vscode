@@ -1,6 +1,28 @@
 {
 	"version": "0.1.0",
-	"configurations": [
+	"configurations": [{
+			"name": "Unit Tests",
+			"type": "node",
+			"request": "launch",
+			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"runtimeExecutable": "${execPath}",
+			"stopOnEntry": false,
+			"args": [
+				"--timeout",
+				"999999",
+				"-g",
+				".*" // regexp to filter test to run
+			],
+			"cwd": "${workspaceRoot}",
+			"runtimeArgs": [],
+			"env": {
+				"ELECTRON_RUN_AS_NODE": "true"
+			},
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
+		},
 		{
 			"type": "node",
 			"request": "launch",
@@ -91,7 +113,9 @@
 			"args": [
 				"${workspaceRoot}/extensions/vscode-colorize-tests/test",
 				"--extensionDevelopmentPath=${workspaceRoot}/extensions/vscode-colorize-tests",
-				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-colorize-tests/out"
+				"--extensionTestsPath=${workspaceRoot}/extensions/vscode-colorize-tests/out",
+				"-g",
+				"Stack - Multiple Editors - pin and unpin"
 			],
 			"sourceMaps": true,
 			"outFiles": [
@@ -148,13 +172,11 @@
 			]
 		}
 	],
-	"compounds": [
-		{
-			"name": "Debug VS Code Main and Renderer",
-			"configurations": [
-				"Launch VS Code",
-				"Attach to Main Process"
-			]
-		}
-	]
+	"compounds": [{
+		"name": "Debug VS Code Main and Renderer",
+		"configurations": [
+			"Launch VS Code",
+			"Attach to Main Process"
+		]
+	}]
 }
