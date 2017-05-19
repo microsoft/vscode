@@ -253,16 +253,10 @@ export class SnippetSession {
 	}
 
 	private readonly _editor: ICommonCodeEditor;
-	private readonly _template: string;
-	private readonly _overwriteBefore: number;
-	private readonly _overwriteAfter: number;
 	private _snippets: OneSnippet[];
 
-	constructor(editor: ICommonCodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0) {
+	constructor(editor: ICommonCodeEditor) {
 		this._editor = editor;
-		this._template = template;
-		this._overwriteBefore = overwriteBefore;
-		this._overwriteAfter = overwriteAfter;
 		this._snippets = [];
 	}
 
@@ -270,11 +264,11 @@ export class SnippetSession {
 		dispose(this._snippets);
 	}
 
-	insert(): void {
+	insert(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
 
 		const model = this._editor.getModel();
 		const { edits, snippets } = SnippetSession.makeInsertEditsAndSnippets(
-			this._editor, this._template, this._overwriteBefore, this._overwriteAfter
+			this._editor, template, overwriteBefore, overwriteAfter
 		);
 
 		// keep snippets around

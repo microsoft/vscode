@@ -62,8 +62,8 @@ export class SnippetController2 {
 		}
 		if (!this._snippet) {
 			// insert with new session
-			this._snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
-			this._snippet.insert();
+			this._snippet = new SnippetSession(this._editor);
+			this._snippet.insert(template, overwriteBefore, overwriteAfter);
 			this._snippetListener = [
 				this._editor.onDidChangeModel(() => this.cancel()),
 				this._editor.onDidChangeCursorSelection(() => this._updateState())
