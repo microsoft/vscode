@@ -1265,3 +1265,8 @@ export enum ProgressLocation {
 	SourceControl = 1,
 	Window = 10,
 }
+
+export enum TreeItemCollapsibleState {
+	Collapsed = 1,
+	Expanded = 2
+}

@@ -32,7 +32,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachHeaderViewStyler } from 'vs/platform/theme/common/styler';
-import { IExplorerViewsService } from 'vs/workbench/parts/explorers/common/explorer';
+import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/parts/views/browser/views';
 
 export class ExplorerViewlet extends Viewlet {
 	private viewletContainer: Builder;
@@ -57,14 +57,13 @@ export class ExplorerViewlet extends Viewlet {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private storageService: IStorageService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IExplorerViewsService private explorerViewsService: IExplorerViewsService
 	) {
 		super(VIEWLET_ID, telemetryService, themeService);
 
@@ -75,7 +74,7 @@ export class ExplorerViewlet extends Viewlet {
 
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 		this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config));
-		this.explorerViewsService.onViewCreated(view => this.render());
+		ViewsRegistry.onViewsRegistered(viewDescriptors => this.addViews(viewDescriptors.filter(viewDescriptor => ViewLocation.Explorer === viewDescriptor.location)));
 	}
 
 	public create(parent: Builder): TPromise<void> {
@@ -102,7 +101,6 @@ export class ExplorerViewlet extends Viewlet {
 		// Open editors view should always be visible in no folder workspace.
 		this.openEditorsVisible = !this.contextService.hasWorkspace() || config.explorer.openEditors.visible !== 0;
 
-		this.dispose();
 		this.views = [];
 		this.viewletContainer.clearChildren();
 
@@ -113,7 +111,7 @@ export class ExplorerViewlet extends Viewlet {
 			this.lastFocusedView = view;
 		});
 
-		const customViews = this.explorerViewsService.getViews();
+		const customViews = ViewsRegistry.getViews(ViewLocation.Explorer);
 
 		if (this.openEditorsVisible) {
 			// Open editors view
@@ -122,12 +120,14 @@ export class ExplorerViewlet extends Viewlet {
 		}
 
 		// Explorer view
-		const view = this.createExplorerOrEmptyView(this.views.length || customViews.length ? undefined : 0);
-		this.views.push(view);
+		this.views.push(this.createExplorerOrEmptyView());
 
 		// custom views
 		for (const view of customViews) {
-			this.views.push(view.instantiate(this.getActionRunner(), this.viewletSettings, this.instantiationService));
+			this.views.push(this.instantiationService.createInstance(view.ctor, view.id, {
+				name: view.name,
+				actionRunner: this.getActionRunner(),
+			}));
 		}
 
 		for (let i = 0; i < this.views.length; i++) {
@@ -139,6 +139,10 @@ export class ExplorerViewlet extends Viewlet {
 		this.lastFocusedView = this.explorerView;
 
 		return TPromise.join(this.views.map(view => view.create())).then(() => void 0).then(() => {
+			if (this.views.length === 1) {
+				this.views[0].hideHeader();
+
+			}
 			if (this.dimension) {
 				this.layout(this.dimension);
 			}
@@ -149,15 +153,81 @@ export class ExplorerViewlet extends Viewlet {
 		});
 	}
 
+	private updateOpenEditorsView(): void {
+		if (!this.splitView) {
+			return;
+		}
+
+		if (this.openEditorsVisible) {
+			this.openEditorsView = this.instantiationService.createInstance(OpenEditorsView, this.getActionRunner(), this.viewletSettings);
+			this.views.unshift(this.openEditorsView);
+			this.splitView.addView(this.openEditorsView, undefined, 0);
+			this.openEditorsView.create().then(() => {
+				if (this.views.length === 2) {
+					this.views[1].showHeader();
+				}
+				if (this.dimension) {
+					this.layout(this.dimension);
+				}
+				// Update title area since the title actions have changed.
+				this.updateTitleArea();
+			});
+		} else {
+			this.views.shift();
+			this.splitView.removeView(this.openEditorsView);
+			this.openEditorsView.dispose();
+			this.openEditorsView = null;
+
+			if (this.views.length === 1) {
+				this.views[0].hideHeader();
+			}
+			if (this.dimension) {
+				this.layout(this.dimension);
+			}
+			// Update title area since the title actions have changed.
+			this.updateTitleArea();
+		}
+	}
+
+	private addViews(viewDescriptors: IViewDescriptor[]): void {
+		if (!this.splitView || !viewDescriptors.length) {
+			return;
+		}
+		const views = [];
+
+		for (const viewDescrirptor of viewDescriptors) {
+			const view = this.instantiationService.createInstance(viewDescrirptor.ctor, viewDescrirptor.id, {
+				name: viewDescrirptor.name,
+				actionRunner: this.getActionRunner(),
+			});
+			views.push(view);
+			this.views.push(view);
+			attachHeaderViewStyler(view, this.themeService);
+			this.splitView.addView(view);
+		}
+
+		TPromise.join(views.map(view => view.create())).then(() => void 0).then(() => {
+			this.views[0].showHeader();
+
+			if (this.dimension) {
+				this.layout(this.dimension);
+			}
+
+			// Update title area since the title actions have changed.
+			this.updateTitleArea();
+		});
+	}
+
 	private onConfigurationUpdated(config: IFilesConfiguration): void {
 		// Open editors view should always be visible in no folder workspace.
 		const openEditorsVisible = !this.contextService.hasWorkspace() || config.explorer.openEditors.visible !== 0;
 		if (this.openEditorsVisible !== openEditorsVisible) {
-			this.render();
+			this.openEditorsVisible = openEditorsVisible;
+			this.updateOpenEditorsView();
 		}
 	}
 
-	private createExplorerOrEmptyView(headerSize: number): IViewletView {
+	private createExplorerOrEmptyView(): IViewletView {
 		let explorerOrEmptyView: ExplorerView | EmptyView;
 
 		// With a Workspace
@@ -194,7 +264,7 @@ export class ExplorerViewlet extends Viewlet {
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
-			this.explorerView = explorerOrEmptyView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, headerSize);
+			this.explorerView = explorerOrEmptyView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, void 0);
 		}
 
 		// No workspace
@@ -312,23 +382,24 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	public dispose(): void {
+
+		for (const view of this.views) {
+			view.dispose();
+		}
+
 		if (this.splitView) {
-			this.splitView.dispose();
 			this.splitView = null;
 		}
 
 		if (this.explorerView) {
-			this.explorerView.dispose();
 			this.explorerView = null;
 		}
 
 		if (this.openEditorsView) {
-			this.openEditorsView.dispose();
 			this.openEditorsView = null;
 		}
 
 		if (this.emptyView) {
-			this.emptyView.dispose();
 			this.emptyView = null;
 		}
 

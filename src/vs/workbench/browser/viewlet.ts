@@ -295,6 +295,8 @@ export interface IViewletView extends IView, IThemable {
 	getActions(): IAction[];
 	getSecondaryActions(): IAction[];
 	getActionItem(action: IAction): IActionItem;
+	showHeader(): boolean;
+	hideHeader(): boolean;
 	shutdown(): void;
 	focusBody(): void;
 	isExpanded(): boolean;
@@ -319,18 +321,24 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 		initialBodySize: number,
 		collapsed: boolean,
 		private viewName: string,
-		private keybindingService: IKeybindingService,
+		protected keybindingService: IKeybindingService,
 		protected contextMenuService: IContextMenuService
 	) {
 		super({
 			expandedBodySize: initialBodySize,
-			headerSize: 22,
 			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED,
-			ariaHeaderLabel: viewName
+			ariaHeaderLabel: viewName,
+			headerSize: 22,
 		});
 
 		this.actionRunner = actionRunner;
 		this.toDispose = [];
+	}
+
+	protected changeState(state: CollapsibleState): void {
+		updateTreeVisibility(this.tree, state === CollapsibleState.EXPANDED);
+
+		super.changeState(state);
 	}
 
 	public create(): TPromise<void> {
@@ -347,7 +355,7 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
-		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
+		this.updateActions();
 
 		// Expand on drag over
 		this.dragHandler = new DelayedDragHandler(container, () => {
@@ -357,10 +365,8 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 		});
 	}
 
-	protected changeState(state: CollapsibleState): void {
-		updateTreeVisibility(this.tree, state === CollapsibleState.EXPANDED);
-
-		super.changeState(state);
+	protected updateActions(): void {
+		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
 	}
 
 	protected renderViewTree(container: HTMLElement): HTMLElement {
@@ -446,7 +452,7 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		headerSize?: number
 	) {
 		super({
-			minimumSize: 2 * 22,
+			minimumSize: 5 * 22,
 			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED,
 			ariaHeaderLabel: viewName,
 			headerSize
@@ -476,7 +482,7 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
-		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
+		this.updateActions();
 
 		// Expand on drag over
 		this.dragHandler = new DelayedDragHandler(container, () => {
@@ -484,6 +490,10 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 				this.expand();
 			}
 		});
+	}
+
+	protected updateActions(): void {
+		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
 	}
 
 	protected renderViewTree(container: HTMLElement): HTMLElement {
