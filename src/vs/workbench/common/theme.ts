@@ -205,9 +205,9 @@ export const SIDE_BAR_FOREGROUND = registerColor('sideBar.foreground', {
 }, nls.localize('sideBarForeground', "Side bar foreground color. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground', {
-	dark: '#BBBBBB',
-	light: '#6f6f6f',
-	hc: '#FFFFFF'
+	dark: SIDE_BAR_FOREGROUND,
+	light: SIDE_BAR_FOREGROUND,
+	hc: SIDE_BAR_FOREGROUND
 }, nls.localize('sideBarTitleForeground', "Side bar title foreground color. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionHeader.background', {

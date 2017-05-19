@@ -2,12 +2,13 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Dark Default Colors",
 	"colors": {
-		"editor.background": "#1e1e1e",
+		"editor.background": "#1E1E1E",
 		"editor.foreground": "#D4D4D4",
 		"editor.inactiveSelectionBackground": "#3A3D41",
 		"editorIndentGuide.background": "#404040",
-		"editor.selectionHighlightBackground": "#add6ff26",
+		"editor.selectionHighlightBackground": "#ADD6FF26",
 		"list.dropBackground": "#383B3D",
-		"activityBarBadge.background": "#007ACC"
+		"activityBarBadge.background": "#007ACC",
+		"sideBarTitle.foreground": "#BBBBBB"
 	}
 }
