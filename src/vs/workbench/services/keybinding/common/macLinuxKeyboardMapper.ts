@@ -6,7 +6,7 @@
 'use strict';
 
 import { OperatingSystem } from 'vs/base/common/platform';
-import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType, USER_SETTINGS, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
+import { KeyCode, ResolvedKeybinding, KeyCodeUtils, SimpleKeybinding, Keybinding, KeybindingType, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE, IMMUTABLE_KEY_CODE_TO_CODE, ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { CharCode } from 'vs/base/common/charCode';
 import { UILabelProvider, AriaLabelProvider, UserSettingsLabelProvider, ElectronAcceleratorLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
@@ -926,7 +926,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 
 		const immutableKeyCode = IMMUTABLE_CODE_TO_KEY_CODE[binding.scanCode];
 		if (immutableKeyCode !== -1) {
-			return USER_SETTINGS.fromKeyCode(immutableKeyCode).toLowerCase();
+			return KeyCodeUtils.toUserSettingsUS(immutableKeyCode).toLowerCase();
 		}
 
 		// Check if this scanCode always maps to the same keyCode and back
@@ -937,7 +937,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			for (let i = 0, len = reverseBindings.length; i < len; i++) {
 				const reverseBinding = reverseBindings[i];
 				if (reverseBinding.scanCode === binding.scanCode) {
-					return USER_SETTINGS.fromKeyCode(constantKeyCode).toLowerCase();
+					return KeyCodeUtils.toUserSettingsUS(constantKeyCode).toLowerCase();
 				}
 			}
 		}

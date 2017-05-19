@@ -215,25 +215,25 @@ class KeyCodeStrMap {
 		this._strToKeyCode[str.toLowerCase()] = keyCode;
 	}
 
-	fromKeyCode(keyCode: KeyCode): string {
+	keyCodeToStr(keyCode: KeyCode): string {
 		return this._keyCodeToStr[keyCode];
 	}
 
-	toKeyCode(str: string): KeyCode {
+	strToKeyCode(str: string): KeyCode {
 		return this._strToKeyCode[str.toLowerCase()] || KeyCode.Unknown;
 	}
 }
 
-const ui = new KeyCodeStrMap();
-const usUserSettings = new KeyCodeStrMap();
-const generalUserSettings = new KeyCodeStrMap();
+const uiMap = new KeyCodeStrMap();
+const userSettingsUSMap = new KeyCodeStrMap();
+const userSettingsGeneralMap = new KeyCodeStrMap();
 
 (function () {
 
 	function define(keyCode: KeyCode, uiLabel: string, usUserSettingsLabel: string = uiLabel, generalUserSettingsLabel: string = usUserSettingsLabel): void {
-		ui.define(keyCode, uiLabel);
-		usUserSettings.define(keyCode, usUserSettingsLabel);
-		generalUserSettings.define(keyCode, generalUserSettingsLabel);
+		uiMap.define(keyCode, uiLabel);
+		userSettingsUSMap.define(keyCode, usUserSettingsLabel);
+		userSettingsGeneralMap.define(keyCode, generalUserSettingsLabel);
 	}
 
 	define(KeyCode.Unknown, 'unknown');
@@ -360,24 +360,22 @@ const generalUserSettings = new KeyCodeStrMap();
 
 })();
 
-
-export const USER_SETTINGS = {
-	fromKeyCode: (keyCode: KeyCode) => {
-		return usUserSettings.fromKeyCode(keyCode);
-	},
-	toKeyCode: (str: string) => {
-		return usUserSettings.toKeyCode(str) || generalUserSettings.toKeyCode(str);
-	}
-};
-
 export namespace KeyCodeUtils {
 	export function toString(keyCode: KeyCode): string {
-		return ui.fromKeyCode(keyCode);
-		// return STRING.fromKeyCode(keyCode);
+		return uiMap.keyCodeToStr(keyCode);
 	}
 	export function fromString(key: string): KeyCode {
-		return ui.toKeyCode(key);
-		// return STRING.toKeyCode(key);
+		return uiMap.strToKeyCode(key);
+	}
+
+	export function toUserSettingsUS(keyCode: KeyCode): string {
+		return userSettingsUSMap.keyCodeToStr(keyCode);
+	}
+	export function toUserSettingsGeneral(keyCode: KeyCode): string {
+		return userSettingsGeneralMap.keyCodeToStr(keyCode);
+	}
+	export function fromUserSettings(key: string): KeyCode {
+		return userSettingsUSMap.strToKeyCode(key) || userSettingsGeneralMap.strToKeyCode(key);
 	}
 }
 
