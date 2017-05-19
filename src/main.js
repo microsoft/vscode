@@ -175,15 +175,8 @@ function mkdir(dir) {
 	});
 }
 
-// Because Spectron doesn't allow us to pass a custom user-data-dir,
-// Code receives two of them. Let's just take the first one.
-var userDataDir = args['user-data-dir'];
-if (userDataDir) {
-	userDataDir = typeof userDataDir === 'string' ? userDataDir : userDataDir[0];
-}
-
 // Set userData path before app 'ready' event and call to process.chdir
-var userData = path.resolve(userDataDir || paths.getDefaultUserDataPath(process.platform));
+var userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
 app.setPath('userData', userData);
 
 // Update cwd based on environment and platform

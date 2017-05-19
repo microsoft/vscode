@@ -303,7 +303,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 
@@ -663,7 +663,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1150,7 +1150,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1311,7 +1311,7 @@ suite('FindModel', () => {
 			]
 		);
 
-		cursor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(6, 20)
 		});
 		assertFindState(
@@ -1741,7 +1741,7 @@ suite('FindModel', () => {
 		findState.change({ searchString: 'hello(?=\\sworld)', replaceString: 'hi', isRegex: true }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
-		cursor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
+		editor.trigger('mouse', CoreNavigationCommands.MoveTo.id, {
 			position: new Position(8, 14)
 		});
 

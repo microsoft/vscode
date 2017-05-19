@@ -12,7 +12,7 @@ import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
-import { Task } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
 
 export class TaskEntry extends Model.QuickOpenEntry {
@@ -31,11 +31,20 @@ export class TaskEntry extends Model.QuickOpenEntry {
 	}
 }
 
+export class TaskGroupEntry extends Model.QuickOpenEntryGroup {
+	constructor(entry: TaskEntry, groupLabel: string, withBorder: boolean) {
+		super(entry, groupLabel, withBorder);
+	}
+}
+
 export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 
+	private tasks: TPromise<Task[]>;
+
+
 	constructor(
-		@IQuickOpenService protected quickOpenService: IQuickOpenService,
-		@ITaskService protected taskService: ITaskService
+		protected quickOpenService: IQuickOpenService,
+		protected taskService: ITaskService,
 	) {
 		super();
 
@@ -43,38 +52,64 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		this.taskService = taskService;
 	}
 
+	public onOpen(): void {
+		this.tasks = this.getTasks();
+	}
+
+	public onClose(canceled: boolean): void {
+		this.tasks = undefined;
+	}
+
 	public getResults(input: string): TPromise<Model.QuickOpenModel> {
-		return this.getTasks().then(tasks => tasks
-			.sort((a, b) => a.name.localeCompare(b.name))
-			.map(task => ({ task: task, highlights: Filters.matchesContiguousSubString(input, task.name) }))
-			.filter(({ highlights }) => !!highlights)
-			.map(({ task, highlights }) => this.createEntry(this.taskService, task, highlights))
-			, _ => []).then(e => new Model.QuickOpenModel(e));
+		return this.tasks.then((tasks) => {
+			let entries: Model.QuickOpenEntry[] = [];
+			if (tasks.length === 0) {
+				return new Model.QuickOpenModel(entries);
+			}
+			tasks = tasks.sort((a, b) => {
+				let aKind = a._source.kind;
+				let bKind = b._source.kind;
+				if (aKind === bKind) {
+					return a.name.localeCompare(b.name);
+				}
+				if (aKind === TaskSourceKind.Workspace) {
+					return -1;
+				} else {
+					return +1;
+				}
+			});
+			let hasWorkspace: boolean = tasks[0]._source.kind === TaskSourceKind.Workspace;
+			let hasExtension: boolean = tasks[tasks.length - 1]._source.kind === TaskSourceKind.Extension;
+			let groupWorkspace = hasWorkspace && hasExtension;
+			let groupExtension = groupWorkspace;
+			let hadWorkspace = false;
+			for (let task of tasks) {
+				let highlights = Filters.matchesContiguousSubString(input, task.name);
+				if (!highlights) {
+					continue;
+				}
+				if (task._source.kind === TaskSourceKind.Workspace && groupWorkspace) {
+					groupWorkspace = false;
+					hadWorkspace = true;
+					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('workspace', 'From Workspace'), false));
+				} else if (task._source.kind === TaskSourceKind.Extension && groupExtension) {
+					groupExtension = false;
+					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('extension', 'From Extensions'), hadWorkspace));
+				} else {
+					entries.push(this.createEntry(this.taskService, task, highlights));
+				}
+			}
+			return new Model.QuickOpenModel(entries);
+		});
 	}
 
 	protected abstract getTasks(): TPromise<Task[]>;
 
 	protected abstract createEntry(taskService: ITaskService, task: Task, highlights: Model.IHighlight[]): TaskEntry;
 
-	public getClass(): string {
-		return null;
-	}
-
-	public canRun(): boolean {
-		return true;
-	}
-
 	public getAutoFocus(input: string): QuickOpen.IAutoFocus {
 		return {
 			autoFocusFirstEntry: !!input
 		};
-	}
-
-	public onClose(canceled: boolean): void {
-		return;
-	}
-
-	public getGroupLabel(): string {
-		return null;
 	}
 }

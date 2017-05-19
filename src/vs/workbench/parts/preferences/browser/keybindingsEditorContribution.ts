@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ServicesAccessor, registerEditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { ServicesAccessor, registerEditorCommand, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
@@ -26,7 +26,6 @@ import { parseTree, Node } from 'vs/base/common/json';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCode';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EditorCommand } from 'vs/editor/common/config/config';
 
 const NLS_LAUNCH_MESSAGE = nls.localize('defineKeybinding.start', "Define Keybinding");
 const NLS_KB_LAYOUT_INFO_MESSAGE = nls.localize('defineKeybinding.kbLayoutInfoMessage', "For your current keyboard layout press ");

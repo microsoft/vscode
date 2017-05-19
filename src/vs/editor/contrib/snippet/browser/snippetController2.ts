@@ -7,10 +7,9 @@
 
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { commonEditorContribution, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { commonEditorContribution, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { SnippetSession } from './snippetSession';
-import { EditorCommand } from 'vs/editor/common/config/config';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 

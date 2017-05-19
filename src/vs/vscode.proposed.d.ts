@@ -13,98 +13,81 @@ declare module 'vscode' {
 	}
 
 	export namespace window {
-
 		/**
-		 * Create a new explorer view.
-		 *
+		 * Register a [TreeDataProvider](#TreeDataProvider) for the registered view `id`.
 		 * @param id View id.
-		 * @param name View name.
-		 * @param dataProvider A [TreeDataProvider](#TreeDataProvider).
-		 * @return An instance of [View](#View).
+		 * @param treeDataProvider A [TreeDataProvider](#TreeDataProvider) that provides tree data for the view
 		 */
-		export function createExplorerView<T>(id: string, name: string, dataProvider: TreeDataProvider<T>): View<T>;
+		export function registerTreeDataProvider<T>(id: string, treeDataProvider: TreeDataProvider<T>): Disposable;
 	}
 
 	/**
-	 * A view to interact with nodes
-	 */
-	export interface View<T> {
-
-		/**
-		 * Refresh the given nodes
-		 */
-		refresh(...nodes: T[]): void;
-
-		/**
-		 * Dispose this view
-		 */
-		dispose(): void;
-	}
-
-	/**
-	 * A data provider for a tree view contribution.
-	 *
-	 * The contributed tree view will ask the corresponding provider to provide the root
-	 * node and resolve children for each node. In addition, the provider could **optionally**
-	 * provide the following information for each node:
-	 * - label: A human-readable label used for rendering the node.
-	 * - hasChildren: Whether the node has children and is expandable.
-	 * - clickCommand: A command to execute when the node is clicked.
+	 * A data provider that provides tree data for a view
 	 */
 	export interface TreeDataProvider<T> {
+		/**
+		 * An optional event to signal that an element or root has changed.
+		 */
+		onDidChange?: Event<T | undefined | null>;
 
 		/**
-		 * Provide the root node. This function will be called when the tree explorer is activated
-		 * for the first time. The root node is hidden and its direct children will be displayed on the first level of
-		 * the tree explorer.
+		 * get [TreeItem](#TreeItem) representation of the `element`
 		 *
-		 * @return The root node.
+		 * @param element The element for which [TreeItem](#TreeItem) representation is asked for.
+		 * @return [TreeItem](#TreeItem) representation of the element
 		 */
-		provideRootNode(): T | Thenable<T>;
+		getTreeItem(element: T): TreeItem;
 
 		/**
-		 * Resolve the children of `node`.
+		 * get the children of `element` or root.
 		 *
-		 * @param node The node from which the provider resolves children.
-		 * @return Children of `node`.
+		 * @param element The element from which the provider gets children for.
+		 * @return Children of `element` or root.
 		 */
-		resolveChildren?(node: T): T[] | Thenable<T[]>;
+		getChildren(element?: T): T[] | Thenable<T[]>;
+	}
+
+	export interface TreeItem {
+		/**
+		 * Label of the tree item
+		 */
+		label: string;
 
 		/**
-		 * Provide a human-readable string that will be used for rendering the node. Default to use
-		 * `node.toString()` if not provided.
-		 *
-		 * @param node The node from which the provider computes label.
-		 * @return A human-readable label.
+		 * The icon path for the tree item
 		 */
-		getLabel?(node: T): string;
+		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
 
 		/**
-		 * Determine if `node` has children and is expandable. Default to `true` if not provided.
-		 *
-		 * @param node The node to determine if it has children and is expandable.
-		 * @return A boolean that determines if `node` has children and is expandable.
+		 * The [command](#Command) which should be run when the tree item
+		 * is open in the Source Control viewlet.
 		 */
-		getHasChildren?(node: T): boolean;
+		command?: Command;
 
 		/**
-		 * Provider a context key to be set for the node. This can be used to describe actions for each node.
-		 *
-		 * @param node The node from which the provider computes context key.
-		 * @return A context key.
+		 * Context value of the tree node
 		 */
-		getContextKey?(node: T): string;
+		contextValue?: string;
 
 		/**
-		 * Get the command to execute when `node` is clicked.
-		 *
-		 * Commands can be registered through [registerCommand](#commands.registerCommand). `node` will be provided
-		 * as the first argument to the command's callback function.
-		 *
-		 * @param node The node that the command is associated with.
-		 * @return The command to execute when `node` is clicked.
+		 * Collapsible state of the tree item.
+		 * Required only when item has children.
 		 */
-		getClickCommand?(node: T): Command;
+		collapsibleState?: TreeItemCollapsibleState;
+	}
+
+	/**
+	 * Collapsible state of the tree item
+	 */
+	export enum TreeItemCollapsibleState {
+		/**
+		 * Determines an item is collapsed
+		 */
+		Collapsed = 1,
+		/**
+		 * Determines an item is expanded
+		 */
+		Expanded = 2
 	}
 
 	/**

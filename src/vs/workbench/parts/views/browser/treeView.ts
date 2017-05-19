@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/views';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IViewletView, CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
-import { IExplorerViewsService, IExplorerViewDataProvider, IExplorerView } from 'vs/workbench/parts/explorers/common/explorer';
+import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { CollapsibleViewletView } from 'vs/workbench/browser/viewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Builder, $ } from 'vs/base/browser/builder';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IAction, IActionRunner, IActionItem, ActionRunner } from 'vs/base/common/actions';
+import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -21,96 +20,51 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ViewsRegistry, ITreeViewDataProvider, IViewOptions, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/parts/views/browser/views';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { CollapsibleState } from 'vs/base/browser/ui/splitview/splitview';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
-export interface IViewInstantiator {
-	instantiate(actionRunner: IActionRunner, viewletSetings: any, instantiationService: IInstantiationService): IViewletView;
-}
-
-export class ExplorerViewsService implements IExplorerViewsService {
-
-	public _serviceBrand: any;
-
-	private explorerViews: Map<string, IExplorerView<any>> = new Map<string, IExplorerView<any>>();
-
-	private _onViewCreated: Emitter<IExplorerView<any>> = new Emitter<IExplorerView<any>>();
-	public readonly onViewCreated: Event<IExplorerView<any>> = this._onViewCreated.event;
-
-	private _onDataProviderRegistered: Emitter<IExplorerView<any>> = new Emitter<IExplorerView<any>>();
-	public readonly onDataProviderRegistered: Event<IExplorerView<any>> = this._onDataProviderRegistered.event;
-
-	createView(id: string, name: string, dataProvider: IExplorerViewDataProvider<any>): IExplorerView<any> {
-		const view = new ExplorerView(id, name, dataProvider);
-		this.explorerViews.set(id, view);
-		this._onViewCreated.fire(view);
-		return view;
-	}
-
-	public getViews(): IExplorerView<any>[] {
-		const views = [];
-		this.explorerViews.forEach(view => {
-			views.push(view);
-		});
-		return views;
-	}
-}
-
-class ExplorerView<T> extends Disposable implements IExplorerView<T>, IViewInstantiator {
-
-	private view: TreeExplorerView;
-
-	constructor(private id: string, private name: string, private dataProvider: IExplorerViewDataProvider<T>) {
-		super();
-	}
-
-	refresh(element: T): void {
-		if (this.view) {
-			this.view.refresh(element);
-		}
-	}
-
-	instantiate(actionRunner: IActionRunner, viewletSettings: any, instantiationService: IInstantiationService): IViewletView {
-		if (!this.view) {
-			this.view = instantiationService.createInstance(TreeExplorerView, this.id, this.name, this.dataProvider, actionRunner);
-		}
-		return this.view;
-	}
-}
-
-class TreeExplorerView extends CollapsibleViewletView {
+export class TreeView extends CollapsibleViewletView {
 
 	private menus: Menus;
 	private viewFocusContext: IContextKey<boolean>;
+	private activated: boolean = false;
+	private treeInputPromise: TPromise<void>;
+
+	private dataProviderElementChangeListener: IDisposable;
+	private disposables: IDisposable[] = [];
 
 	constructor(
-		private id: string,
-		private name: string,
-		private dataProvider: IExplorerViewDataProvider<any>,
-		actionRunner: IActionRunner,
+		readonly id: string,
+		private options: IViewOptions,
 		@IMessageService messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IExplorerViewsService private explorerViewsService: IExplorerViewsService
+		@IExtensionService private extensionService: IExtensionService,
+		@ICommandService private commandService: ICommandService
 	) {
-		super(actionRunner, false, name, messageService, keybindingService, contextMenuService);
-		this.menus = this.instantiationService.createInstance(Menus, this.id, this.dataProvider);
+		super(options.actionRunner, true, options.name, messageService, keybindingService, contextMenuService);
+		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.viewFocusContext = this.contextKeyService.createKey<boolean>(this.id, void 0);
+		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
+		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
 	}
 
 	public renderHeader(container: HTMLElement): void {
 		const titleDiv = $('div.title').appendTo(container);
-		$('span').text(this.name).appendTo(titleDiv);
+		$('span').text(this.options.name).appendTo(titleDiv);
 		super.renderHeader(container);
 	}
 
@@ -121,10 +75,24 @@ class TreeExplorerView extends CollapsibleViewletView {
 		this.tree = this.createViewer($(this.treeContainer));
 	}
 
+	protected changeState(state: CollapsibleState): void {
+		super.changeState(state);
+		if (state === CollapsibleState.EXPANDED) {
+			this.triggerActivation();
+		}
+	}
+
+	private triggerActivation() {
+		if (!this.activated && this.extensionService) {
+			this.extensionService.activateByEvent(`onView:${this.id}`);
+			this.activated = true;
+		}
+	}
+
 	public createViewer(container: Builder): ITree {
-		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.dataProvider);
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.dataProvider);
-		const controller = this.instantiationService.createInstance(TreeController, this.menus);
+		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.id);
+		const renderer = this.instantiationService.createInstance(TreeRenderer);
+		const controller = this.instantiationService.createInstance(TreeController, this.id, this.menus);
 		const tree = new Tree(container.getHTMLElement(), {
 			dataSource,
 			renderer,
@@ -135,12 +103,7 @@ class TreeExplorerView extends CollapsibleViewletView {
 
 		this.toDispose.push(attachListStyler(tree, this.themeService));
 		this.toDispose.push(this.listService.register(tree, [this.viewFocusContext]));
-		tree.addListener('selection', (event: any) => {
-			const selection = tree.getSelection()[0];
-			if (selection) {
-				this.dataProvider.select(selection);
-			}
-		});
+		tree.addListener('selection', (event: any) => this.onSelection());
 		return tree;
 	}
 
@@ -157,16 +120,41 @@ class TreeExplorerView extends CollapsibleViewletView {
 	}
 
 	public create(): TPromise<void> {
-		return this.updateInput();
+		return this.setInput();
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
 		return super.setVisible(visible);
 	}
 
-	public updateInput(): TPromise<void> {
-		return this.dataProvider.provideRoot()
-			.then(root => this.tree.setInput(root));
+	public setInput(): TPromise<void> {
+		if (this.listenToDataProvider()) {
+			this.treeInputPromise = this.tree.setInput(new Root());
+			return this.treeInputPromise;
+		}
+		this.treeInputPromise = new TPromise<void>((c, e) => {
+			const disposable = ViewsRegistry.onTreeViewDataProviderRegistered(id => {
+				if (this.id === id) {
+					if (this.listenToDataProvider()) {
+						this.tree.setInput(new Root()).then(() => c(null));
+						disposable.dispose();
+					}
+				}
+			});
+		});
+		return TPromise.as(null);
+	}
+
+	private listenToDataProvider(): boolean {
+		let dataProvider = ViewsRegistry.getTreeViewDataProvider(this.id);
+		if (dataProvider) {
+			if (this.dataProviderElementChangeListener) {
+				this.dataProviderElementChangeListener.dispose();
+			}
+			this.dataProviderElementChangeListener = dataProvider.onDidChange(element => this.refresh(element));
+			return true;
+		}
+		return false;
 	}
 
 	public getOptimalWidth(): number {
@@ -176,42 +164,81 @@ class TreeExplorerView extends CollapsibleViewletView {
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
-	refresh(element: any) {
+	private onSelection(): void {
+		const selection: ITreeItem = this.tree.getSelection()[0];
+		if (selection) {
+			if (selection.commandId) {
+				this.commandService.executeCommand(selection.commandId, { treeViewId: this.id, treeItemHandle: selection.handle });
+			}
+		}
+	}
+
+	private refresh(element?: ITreeItem): void {
+		element = element ? element : this.tree.getInput();
+		element.children = null;
 		this.tree.refresh(element);
 	}
+
+	dispose(): void {
+		dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+class Root implements ITreeItem {
+	label = 'root';
+	handle = -1;
+	collapsibleState = TreeItemCollapsibleState.Expanded;
 }
 
 class TreeDataSource implements IDataSource {
 
 	constructor(
-		private dataProvider: IExplorerViewDataProvider<any>,
-		@IProgressService private progressService: IProgressService,
-		@IExplorerViewsService private explorerViewsService: IExplorerViewsService
+		private id: string,
+		@IProgressService private progressService: IProgressService
 	) {
 	}
 
-	public getId(tree: ITree, node: any): string {
-		return this.dataProvider.getId(node);
+	public getId(tree: ITree, node: ITreeItem): string {
+		return '' + node.handle;
 	}
 
-	public hasChildren(tree: ITree, node: any): boolean {
-		return this.dataProvider.hasChildren(node);
+	public hasChildren(tree: ITree, node: ITreeItem): boolean {
+		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded;
 	}
 
-	public getChildren(tree: ITree, node: any): TPromise<any[]> {
-		const promise = this.dataProvider.resolveChildren(node);
+	public getChildren(tree: ITree, node: ITreeItem): TPromise<any[]> {
+		if (node.children) {
+			return TPromise.as(node.children);
+		}
 
-		this.progressService.showWhile(promise, 800);
+		const dataProvider = this.getDataProvider();
+		if (dataProvider) {
+			const promise = node instanceof Root ? dataProvider.getElements() : dataProvider.getChildren(node);
+			this.progressService.showWhile(promise, 100);
+			return promise.then(children => {
+				node.children = children;
+				return children;
+			});
+		}
+		return TPromise.as(null);
+	}
 
-		return promise;
+	public shouldAutoexpand(tree: ITree, node: ITreeItem): boolean {
+		return node.collapsibleState === TreeItemCollapsibleState.Expanded;
 	}
 
 	public getParent(tree: ITree, node: any): TPromise<any> {
 		return TPromise.as(null);
 	}
+
+	private getDataProvider(): ITreeViewDataProvider {
+		return ViewsRegistry.getTreeViewDataProvider(this.id);
+	}
 }
 
 interface ITreeExplorerTemplateData {
+	icon: Builder;
 	label: Builder;
 }
 
@@ -220,10 +247,7 @@ class TreeRenderer implements IRenderer {
 	private static ITEM_HEIGHT = 22;
 	private static TREE_TEMPLATE_ID = 'treeExplorer';
 
-	constructor(
-		private dataProvider: IExplorerViewDataProvider<any>,
-		@IExplorerViewsService private explorerViewsService: IExplorerViewsService
-	) {
+	constructor( @IThemeService private themeService: IThemeService) {
 	}
 
 	public getHeight(tree: ITree, element: any): number {
@@ -236,18 +260,29 @@ class TreeRenderer implements IRenderer {
 
 	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): ITreeExplorerTemplateData {
 		const el = $(container);
-		const item = $('.custom-viewlet-tree-node-item');
+		const item = $('.custom-view-tree-node-item');
 		item.appendTo(el);
 
-		const label = $('.custom-viewlet-tree-node-item-label').appendTo(item);
-		const link = $('a.plain').appendTo(label);
+		const icon = $('.custom-view-tree-node-item-icon').appendTo(item);
+		const label = $('.custom-view-tree-node-item-label').appendTo(item);
+		const link = $('a.label').appendTo(label);
 
-		return { label: link };
+		return { label: link, icon };
 	}
 
-	public renderElement(tree: ITree, node: any, templateId: string, templateData: ITreeExplorerTemplateData): void {
-		const label = this.dataProvider.getLabel(node);
-		templateData.label.text(label).title(label);
+	public renderElement(tree: ITree, node: ITreeItem, templateId: string, templateData: ITreeExplorerTemplateData): void {
+		templateData.label.text(node.label).title(node.label);
+
+		const theme = this.themeService.getTheme();
+		const icon = theme.type === LIGHT ? node.icon : node.iconDark;
+
+		if (icon) {
+			templateData.icon.getHTMLElement().style.backgroundImage = `url('${icon}')`;
+			DOM.addClass(templateData.icon.getHTMLElement(), 'custom-view-tree-node-item-icon');
+		} else {
+			templateData.icon.getHTMLElement().style.backgroundImage = '';
+			DOM.removeClass(templateData.icon.getHTMLElement(), 'custom-view-tree-node-item-icon');
+		}
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: ITreeExplorerTemplateData): void {
@@ -257,6 +292,7 @@ class TreeRenderer implements IRenderer {
 class TreeController extends DefaultController {
 
 	constructor(
+		private treeViewId: string,
 		private menus: Menus,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private _keybindingService: IKeybindingService
@@ -264,7 +300,7 @@ class TreeController extends DefaultController {
 		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, keyboardSupport: false });
 	}
 
-	public onContextMenu(tree: ITree, node: any, event: ContextMenuEvent): boolean {
+	public onContextMenu(tree: ITree, node: ITreeItem, event: ContextMenuEvent): boolean {
 		tree.setFocus(node);
 		const actions = this.menus.getResourceContextActions(node);
 		if (!actions.length) {
@@ -296,7 +332,7 @@ class TreeController extends DefaultController {
 				}
 			},
 
-			getActionsContext: () => node,
+			getActionsContext: () => ({ treeViewId: this.treeViewId, treeItemHandle: node.handle }),
 
 			actionRunner: new MultipleSelectionActionRunner(() => tree.getSelection())
 		});
@@ -342,11 +378,9 @@ class Menus implements IDisposable {
 	get onDidChangeTitle(): Event<void> { return this._onDidChangeTitle.event; }
 
 	constructor(
-		private viewId: string,
-		private dataProvider: IExplorerViewDataProvider<any>,
+		private id: string,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IMenuService private menuService: IMenuService,
-		@IExplorerViewsService private explorerViewsService: IExplorerViewsService
+		@IMenuService private menuService: IMenuService
 	) {
 		if (this.titleDisposable) {
 			this.titleDisposable.dispose();
@@ -354,7 +388,7 @@ class Menus implements IDisposable {
 		}
 
 		const _contextKeyService = this.contextKeyService.createScoped();
-		contextKeyService.createKey('view', viewId);
+		contextKeyService.createKey('view', id);
 
 		const titleMenu = this.menuService.createMenu(MenuId.ViewTitle, _contextKeyService);
 		const updateActions = () => {
@@ -366,7 +400,6 @@ class Menus implements IDisposable {
 
 		const listener = titleMenu.onDidChange(updateActions);
 		updateActions();
-
 
 		this.titleDisposable = toDisposable(() => {
 			listener.dispose();
@@ -385,13 +418,13 @@ class Menus implements IDisposable {
 		return this.titleSecondaryActions;
 	}
 
-	getResourceContextActions(element: any): IAction[] {
-		return this.getActions(MenuId.ViewResource, { key: 'resource', value: this.dataProvider.getContextKey(element) }).secondary;
+	getResourceContextActions(element: ITreeItem): IAction[] {
+		return this.getActions(MenuId.ViewResource, { key: 'resource', value: element.contextValue }).secondary;
 	}
 
 	private getActions(menuId: MenuId, context: { key: string, value: string }): { primary: IAction[]; secondary: IAction[]; } {
 		const contextKeyService = this.contextKeyService.createScoped();
-		contextKeyService.createKey('view', this.viewId);
+		contextKeyService.createKey('view', this.id);
 		contextKeyService.createKey(context.key, context.value);
 
 		const menu = this.menuService.createMenu(menuId, contextKeyService);

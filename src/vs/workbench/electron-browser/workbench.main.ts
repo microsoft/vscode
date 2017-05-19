@@ -18,6 +18,9 @@ import 'vs/editor/browser/editor.all';
 // Menus/Actions
 import 'vs/platform/actions/electron-browser/menusExtensionPoint';
 
+// Views
+import 'vs/workbench/parts/views/browser/viewsExtensionPoint';
+
 // Workbench
 import 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import 'vs/workbench/browser/actions/toggleStatusbarVisibility';
@@ -64,8 +67,6 @@ import 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet'; // ca
 
 import 'vs/workbench/parts/welcome/page/electron-browser/welcomePage.contribution';
 
-import 'vs/workbench/parts/explorers/browser/explorer.contribution';
-
 import 'vs/workbench/parts/output/browser/output.contribution';
 import 'vs/workbench/parts/output/browser/outputPanel'; // can be packaged separately
 
@@ -99,7 +100,8 @@ import 'vs/workbench/parts/welcome/gettingStarted/electron-browser/gettingStarte
 
 import 'vs/workbench/parts/update/electron-browser/update.contribution';
 
-import 'vs/workbench/parts/nps/electron-browser/nps.contribution';
+import 'vs/workbench/parts/surveys/electron-browser/nps.contribution';
+import 'vs/workbench/parts/surveys/electron-browser/languageSurveys.contribution';
 
 import 'vs/workbench/parts/performance/electron-browser/performance.contribution';
 

@@ -18,7 +18,6 @@ import { IViewLines, HorizontalRange, LineVisibleRanges } from 'vs/editor/common
 import { Viewport } from 'vs/editor/common/viewModel/viewModel';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 
 class LastRenderedData {
 
@@ -468,7 +467,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 	}
 
-	private _computeScrollTopToRevealRange(viewport: Viewport, range: Range, verticalType: VerticalRevealType): number {
+	private _computeScrollTopToRevealRange(viewport: Viewport, range: Range, verticalType: viewEvents.VerticalRevealType): number {
 		let viewportStartY = viewport.top;
 		let viewportHeight = viewport.height;
 		let viewportEndY = viewportStartY + viewportHeight;
@@ -478,15 +477,15 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		// Have a box that includes one extra line height (for the horizontal scrollbar)
 		boxStartY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.startLineNumber);
 		boxEndY = this._context.viewLayout.getVerticalOffsetForLineNumber(range.endLineNumber) + this._lineHeight;
-		if (verticalType === VerticalRevealType.Simple || verticalType === VerticalRevealType.Bottom) {
+		if (verticalType === viewEvents.VerticalRevealType.Simple || verticalType === viewEvents.VerticalRevealType.Bottom) {
 			// Reveal one line more when the last line would be covered by the scrollbar - arrow down case or revealing a line explicitly at bottom
 			boxEndY += this._lineHeight;
 		}
 
 		let newScrollTop: number;
 
-		if (verticalType === VerticalRevealType.Center || verticalType === VerticalRevealType.CenterIfOutsideViewport) {
-			if (verticalType === VerticalRevealType.CenterIfOutsideViewport && viewportStartY <= boxStartY && boxEndY <= viewportEndY) {
+		if (verticalType === viewEvents.VerticalRevealType.Center || verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport) {
+			if (verticalType === viewEvents.VerticalRevealType.CenterIfOutsideViewport && viewportStartY <= boxStartY && boxEndY <= viewportEndY) {
 				// Box is already in the viewport... do nothing
 				newScrollTop = viewportStartY;
 			} else {
@@ -495,7 +494,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 				newScrollTop = Math.max(0, boxMiddleY - viewportHeight / 2);
 			}
 		} else {
-			newScrollTop = this._computeMinimumScrolling(viewportStartY, viewportEndY, boxStartY, boxEndY, verticalType === VerticalRevealType.Top, verticalType === VerticalRevealType.Bottom);
+			newScrollTop = this._computeMinimumScrolling(viewportStartY, viewportEndY, boxStartY, boxEndY, verticalType === viewEvents.VerticalRevealType.Top, verticalType === viewEvents.VerticalRevealType.Bottom);
 		}
 
 		return newScrollTop;

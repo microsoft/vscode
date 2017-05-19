@@ -105,16 +105,7 @@ export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
  * Use this to parse code arguments such as `--verbose --wait`
  */
 export function parseArgs(args: string[]): ParsedArgs {
-	const result = minimist(args, options) as ParsedArgs;
-
-	// Because Spectron doesn't allow us to pass a custom user-data-dir,
-	// Code receives two of them. Let's just take the first one.
-	const userDataDir: string | string[] = result['user-data-dir'];
-	if (userDataDir) {
-		result['user-data-dir'] = typeof userDataDir === 'string' ? userDataDir : userDataDir[0];
-	}
-
-	return result;
+	return minimist(args, options) as ParsedArgs;
 }
 
 export const optionsHelp: { [name: string]: string; } = {

@@ -478,13 +478,13 @@ suite('Editor Contrib - Line Operations', () => {
 					new Selection(2, 4, 2, 4)
 				]);
 
-				cursor.trigger('tests', Handler.Undo, {});
+				editor.trigger('tests', Handler.Undo, {});
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
 					new Selection(1, 6, 1, 6),
 					new Selection(3, 4, 3, 4)
 				]);
-				cursor.trigger('tests', Handler.Redo, {});
+				editor.trigger('tests', Handler.Redo, {});
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
 					new Selection(2, 4, 2, 4)

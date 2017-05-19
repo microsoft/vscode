@@ -117,7 +117,9 @@ const headerDefaultOpts = {
 
 export abstract class HeaderView extends View {
 
-	protected headerSize: number;
+	private _headerSize: number;
+	private _showHeader: boolean;
+
 	protected header: HTMLElement;
 	protected body: HTMLElement;
 
@@ -127,7 +129,8 @@ export abstract class HeaderView extends View {
 	constructor(opts: IHeaderViewOptions) {
 		super(opts);
 
-		this.headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
+		this._headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
+		this._showHeader = this._headerSize > 0;
 
 		this.headerBackground = opts.headerBackground || headerDefaultOpts.headerBackground;
 		this.headerHighContrastBorder = opts.headerHighContrastBorder;
@@ -138,6 +141,10 @@ export abstract class HeaderView extends View {
 		this.headerHighContrastBorder = styles.headerHighContrastBorder;
 
 		this.applyStyles();
+	}
+
+	protected get headerSize(): number {
+		return this._showHeader ? this._headerSize : 0;
 	}
 
 	protected applyStyles(): void {
@@ -162,7 +169,7 @@ export abstract class HeaderView extends View {
 			this.header.style.height = headerSize;
 		}
 
-		if (this.headerSize > 0) {
+		if (this._showHeader) {
 			this.renderHeader(this.header);
 			container.appendChild(this.header);
 		}
@@ -175,6 +182,28 @@ export abstract class HeaderView extends View {
 		container.appendChild(this.body);
 
 		this.applyStyles();
+	}
+
+	showHeader(): boolean {
+		if (!this._showHeader) {
+			if (!this.body.parentElement.contains(this.header)) {
+				this.renderHeader(this.header);
+				this.body.parentElement.insertBefore(this.header, this.body);
+			}
+			dom.removeClass(this.header, 'hide');
+			this._showHeader = true;
+			return true;
+		}
+		return false;
+	}
+
+	hideHeader(): boolean {
+		if (this._showHeader) {
+			dom.addClass(this.header, 'hide');
+			this._showHeader = false;
+			return true;
+		}
+		return false;
 	}
 
 	layout(size: number, orientation: Orientation): void {

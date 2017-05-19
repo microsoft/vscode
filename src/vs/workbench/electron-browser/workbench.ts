@@ -308,8 +308,8 @@ export class Workbench implements IPartService {
 				}
 
 				viewletRestoreStopWatch = StopWatch.create();
-				const tick = startTimer(`restore:${viewletIdToRestore}`);
-				compositeAndEditorPromises.push(tick.while(this.viewletService.openViewlet(viewletIdToRestore)).then(() => {
+				const viewletTimer = startTimer('restore:viewlet');
+				compositeAndEditorPromises.push(viewletTimer.while(this.viewletService.openViewlet(viewletIdToRestore)).then(() => {
 					viewletRestoreStopWatch.stop();
 				}));
 			}
@@ -324,7 +324,8 @@ export class Workbench implements IPartService {
 			// Load Editors
 			const editorRestoreStopWatch = StopWatch.create();
 			const restoredEditors: string[] = [];
-			compositeAndEditorPromises.push(this.resolveEditorsToOpen().then(inputs => {
+			const editorsTimer = startTimer('restore:editors');
+			compositeAndEditorPromises.push(editorsTimer.while(this.resolveEditorsToOpen().then(inputs => {
 				let editorOpenPromise: TPromise<IEditor[]>;
 				if (inputs.length) {
 					editorOpenPromise = this.editorService.openEditors(inputs.map(input => { return { input, position: EditorPosition.ONE }; }));
@@ -343,7 +344,7 @@ export class Workbench implements IPartService {
 						}
 					}
 				});
-			}));
+			})));
 
 			if (this.storageService.getBoolean(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE, false)) {
 				this.toggleZenMode(true);
