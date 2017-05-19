@@ -48,7 +48,7 @@ define([], function () {
 	// Because we want both instances to use the same tick-data
 	// we store them globally
 	global._perfStarts = global._perfStarts || new Map();
-	global._perfTicks = global._perfTicks || [];
+	global._perfTicks = global._perfTicks || new Map();
 	global._perfToBeProfiled = global._perfToBeProfiled || new Set();
 
 	var _starts = global._perfStarts;
@@ -83,12 +83,18 @@ define([], function () {
 		var profile = _toBeProfiled.has(name) ? requireProfiler().stopProfiling(name) : undefined;
 		var start = _starts.get(name);
 		var tick = new Tick(start.name, start.started, stopped, profile);
-		_ticks.push(tick);
+		_ticks.set(name, tick);
 		_starts.delete(name);
 	}
 
 	function ticks() {
-		return _ticks;
+		var ret = [];
+		_ticks.forEach(function (value) { ret.push(value); });
+		return ret;
+	}
+
+	function tick(name) {
+		return _ticks.get(name);
 	}
 
 	function setProfileList(names) {
@@ -101,6 +107,7 @@ define([], function () {
 		startTimer: startTimer,
 		stopTimer: stopTimer,
 		ticks: ticks,
+		tick: tick,
 		setProfileList: setProfileList,
 		disable: disable,
 	};
