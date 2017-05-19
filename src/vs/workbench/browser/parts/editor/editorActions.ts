@@ -480,7 +480,7 @@ export class FocusNextGroup extends Action {
 // Open to the side
 export class OpenToSideContextAction extends Action {
 
-	public static ID = 'explorer.openToSide';
+	public static ID = 'workbench.action.openToSideContext';
 	public static LABEL = nls.localize('openToSide', "Open to the Side");
 
 	constructor(

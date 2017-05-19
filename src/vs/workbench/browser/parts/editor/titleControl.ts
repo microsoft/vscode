@@ -438,7 +438,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		// Actions: For all editors
 		const actions: IAction[] = [
 			this.closeEditorAction,
-			this.closeOtherEditorsAction,
+			this.closeOtherEditorsAction
 		];
 		const tabOptions = this.editorGroupService.getTabOptions();
 
