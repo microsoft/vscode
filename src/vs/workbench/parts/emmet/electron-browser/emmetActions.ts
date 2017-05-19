@@ -7,8 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/common/editorCommonExtensions';
-import { ICommandKeybindingsOptions } from 'vs/editor/common/config/config';
+import { EditorAction, ServicesAccessor, IActionOptions, ICommandKeybindingsOptions } from 'vs/editor/common/editorCommonExtensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
 import { IModeService } from 'vs/editor/common/services/modeService';
