@@ -49,7 +49,7 @@ import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/cont
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
@@ -291,7 +291,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				},
 				this.telemetryService
 			);
-			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND }));
+			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
 			const pickOpenContainer = this.pickOpenWidget.create();
 			this.toUnbind.push(this.listService.register(this.pickOpenWidget.getTree()));
@@ -553,7 +553,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				},
 				this.telemetryService
 			);
-			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND }));
+			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
 			const quickOpenContainer = this.quickOpenWidget.create();
 			this.toUnbind.push(this.listService.register(this.quickOpenWidget.getTree()));
