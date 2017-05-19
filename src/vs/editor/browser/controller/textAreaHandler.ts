@@ -16,7 +16,6 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EndOfLinePreference } from "vs/editor/common/editorCommon";
 import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
@@ -207,7 +206,7 @@ export class TextAreaHandler extends ViewPart {
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, column, lineNumber, column),
-				VerticalRevealType.Simple,
+				viewEvents.VerticalRevealType.Simple,
 				true
 			));
 

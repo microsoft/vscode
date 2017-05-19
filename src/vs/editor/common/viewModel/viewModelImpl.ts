@@ -19,7 +19,6 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 import { CharacterHardWrappingLineMapperFactory } from "vs/editor/common/viewModel/characterHardWrappingLineMapper";
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 
@@ -198,7 +197,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			// Send a reveal event to restore the centered content
 			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				newCenteredViewRange,
-				VerticalRevealType.Center,
+				viewEvents.VerticalRevealType.Center,
 				false
 			));
 		}

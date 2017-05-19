@@ -9,7 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CursorState, ICursors, RevealTarget, IColumnSelectData, CursorContext } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason, VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands, CursorMove as CursorMove_ } from 'vs/editor/common/controller/cursorMoveCommands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { registerEditorCommand, ICommandOptions, EditorCommand, Command } from 'vs/editor/common/editorCommonExtensions';
@@ -25,6 +25,7 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { TypeOperations } from "vs/editor/common/controller/cursorTypeOperations";
 import { DeleteOperations } from "vs/editor/common/controller/cursorDeleteOperations";
+import { VerticalRevealType } from "vs/editor/common/view/viewEvents";
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 

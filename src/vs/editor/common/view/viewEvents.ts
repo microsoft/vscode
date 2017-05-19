@@ -9,7 +9,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 import * as errors from 'vs/base/common/errors';
 import { IDisposable, Disposable } from "vs/base/common/lifecycle";
 
@@ -197,6 +196,14 @@ export class ViewLinesInsertedEvent {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
 	}
+}
+
+export const enum VerticalRevealType {
+	Simple = 0,
+	Center = 1,
+	CenterIfOutsideViewport = 2,
+	Top = 3,
+	Bottom = 4
 }
 
 export class ViewRevealRangeRequestEvent {

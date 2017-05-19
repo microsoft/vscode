@@ -49,7 +49,7 @@ import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/edi
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { ViewModelCursors } from "vs/editor/common/viewModel/viewModelCursors";
+import { Cursor } from "vs/editor/common/controller/cursor";
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -98,7 +98,7 @@ export class View extends ViewEventHandler {
 		configuration: Configuration,
 		themeService: IThemeService,
 		model: IViewModel,
-		cursor: ViewModelCursors,
+		cursor: Cursor,
 		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
 	) {
 		super();

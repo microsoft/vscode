@@ -8,21 +8,31 @@ import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorColumns, CursorConfiguration, EditOperationResult, IViewModelHelper, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, EditOperationResult, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
-import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from 'vs/editor/common/controller/cursorEvents';
+import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from "vs/editor/common/viewModel/viewModel";
+import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
-export class Cursor extends Disposable implements ICursors {
+function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
+	for (let i = 0, len = events.length; i < len; i++) {
+		if (events[i].type === viewEvents.ViewEventType.ViewLineMappingChanged) {
+			return true;
+		}
+	}
+	return false;
+}
+
+export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	public onDidChangePosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable {
 		return this._eventEmitter.addListener(CursorEventType.CursorPositionChanged, listener);
@@ -37,7 +47,7 @@ export class Cursor extends Disposable implements ICursors {
 	private readonly _eventEmitter: EventEmitter;
 	private readonly _configuration: editorCommon.IConfiguration;
 	private readonly _model: editorCommon.IModel;
-	private readonly _viewModelHelper: IViewModelHelper;
+	private readonly _viewModel: IViewModel;
 	public context: CursorContext;
 	private _cursors: CursorCollection;
 
@@ -50,26 +60,8 @@ export class Cursor extends Disposable implements ICursors {
 		this._eventEmitter = this._register(new EventEmitter());
 		this._configuration = configuration;
 		this._model = model;
-
-		let viewModelHelper: IViewModelHelper = {
-			viewModel: viewModel,
-			coordinatesConverter: viewModel.coordinatesConverter,
-			getScrollTop: (): number => {
-				return viewModel.viewLayout.getScrollTop();
-			},
-			getCompletelyVisibleViewRange: (): Range => {
-				return viewModel.getCompletelyVisibleViewRange();
-			},
-			getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number): Range => {
-				return viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-			},
-			getVerticalOffsetForViewLineNumber: (viewLineNumber: number): number => {
-				return viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
-			}
-		};
-
-		this._viewModelHelper = viewModelHelper;
-		this.context = new CursorContext(this._configuration, this._model, this._viewModelHelper);
+		this._viewModel = viewModel;
+		this.context = new CursorContext(this._configuration, this._model, this._viewModel);
 		this._cursors = new CursorCollection(this.context);
 
 		this._isHandling = false;
@@ -101,8 +93,17 @@ export class Cursor extends Disposable implements ICursors {
 			this._onModelContentChanged(hadFlushEvent);
 		}));
 
+		this._register(viewModel.addEventListener((events: viewEvents.ViewEvent[]) => {
+			if (!containsLineMappingChanged(events)) {
+				return;
+			}
+
+			// Ensure valid state
+			this.setStates('viewModel', CursorChangeReason.NotSet, this.getAll());
+		}));
+
 		const updateCursorContext = () => {
-			this.context = new CursorContext(this._configuration, this._model, this._viewModelHelper);
+			this.context = new CursorContext(this._configuration, this._model, this._viewModel);
 			this._cursors.updateContext(this.context);
 		};
 		this._register(this._model.onDidChangeLanguage((e) => {
@@ -165,10 +166,6 @@ export class Cursor extends Disposable implements ICursors {
 		const oldSelections = this._cursors.getSelections();
 		const oldViewSelections = this._cursors.getViewSelections();
 
-		// TODO@Alex
-		// ensure valid state on all cursors
-		// this.cursors.ensureValidState();
-
 		this._cursors.setStates(states);
 		this._cursors.normalize();
 		this._columnSelectData = null;
@@ -187,17 +184,17 @@ export class Cursor extends Disposable implements ICursors {
 	}
 
 	public reveal(horizontal: boolean, target: RevealTarget): void {
-		this._revealRange(target, VerticalRevealType.Simple, horizontal);
+		this._revealRange(target, viewEvents.VerticalRevealType.Simple, horizontal);
 	}
 
-	public revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: VerticalRevealType) {
+	public revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: viewEvents.VerticalRevealType) {
 		this.emitCursorRevealRange(modelRange, viewRange, verticalType, revealHorizontal);
 	}
 
 	public scrollTo(desiredScrollTop: number): void {
-		this._eventEmitter.emit(CursorEventType.CursorScrollRequest, new CursorScrollRequest(
-			desiredScrollTop
-		));
+		this._viewModel.viewLayout.setScrollPosition({
+			scrollTop: desiredScrollTop
+		});
 	}
 
 	public saveState(): editorCommon.ICursorState[] {
@@ -375,6 +372,7 @@ export class Cursor extends Disposable implements ICursors {
 			isInEditableRange: isInEditableRange
 		};
 		this._eventEmitter.emit(CursorEventType.CursorPositionChanged, e);
+		this._emit([new viewEvents.ViewCursorPositionChangedEvent(primaryViewPosition, secondaryViewPositions, isInEditableRange)]);
 	}
 
 	private _emitCursorSelectionChanged(source: string, reason: CursorChangeReason): void {
@@ -395,9 +393,10 @@ export class Cursor extends Disposable implements ICursors {
 			reason: reason
 		};
 		this._eventEmitter.emit(CursorEventType.CursorSelectionChanged, e);
+		this._emit([new viewEvents.ViewCursorSelectionChangedEvent(primaryViewSelection, secondaryViewSelections)]);
 	}
 
-	private _revealRange(revealTarget: RevealTarget, verticalType: VerticalRevealType, revealHorizontal: boolean): void {
+	private _revealRange(revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean): void {
 		const positions = this._cursors.getPositions();
 		const viewPositions = this._cursors.getViewPositions();
 
@@ -430,14 +429,12 @@ export class Cursor extends Disposable implements ICursors {
 		this.emitCursorRevealRange(range, viewRange, verticalType, revealHorizontal);
 	}
 
-	public emitCursorRevealRange(range: Range, viewRange: Range, verticalType: VerticalRevealType, revealHorizontal: boolean) {
-		const e: ICursorRevealRangeEvent = {
-			range: range,
-			viewRange: viewRange,
-			verticalType: verticalType,
-			revealHorizontal: revealHorizontal
-		};
-		this._eventEmitter.emit(CursorEventType.CursorRevealRange, e);
+	public emitCursorRevealRange(range: Range, viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean) {
+		// Ensure event has viewRange
+		if (!viewRange) {
+			viewRange = this.context.convertModelRangeToViewRange(range);
+		}
+		this._emit([new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal)]);
 	}
 
 	// -----------------------------------------------------------------------------------------------------------
@@ -512,7 +509,7 @@ export class Cursor extends Disposable implements ICursors {
 		const newViewSelections = this._cursors.getViewSelections();
 		if (Cursor._somethingChanged(oldSelections, oldViewSelections, newSelections, newViewSelections)) {
 			this._emitCursorPositionChanged(source, cursorChangeReason);
-			this._revealRange(RevealTarget.Primary, VerticalRevealType.Simple, true);
+			this._revealRange(RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true);
 			this._emitCursorSelectionChanged(source, cursorChangeReason);
 		}
 	}
