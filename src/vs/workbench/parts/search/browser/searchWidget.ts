@@ -21,7 +21,6 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Builder } from 'vs/base/browser/builder';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isSearchViewletFocussed, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/common/findController';
@@ -111,8 +110,14 @@ export class SearchWidget extends Widget {
 	private _onReplaceAll = this._register(new Emitter<void>());
 	public onReplaceAll: Event<void> = this._onReplaceAll.event;
 
-	constructor(container: Builder, private contextViewService: IContextViewService, private themeService: IThemeService, options: ISearchWidgetOptions = Object.create(null),
-		private keyBindingService: IContextKeyService, private keyBindingService2: IKeybindingService, private instantiationService: IInstantiationService) {
+	constructor(
+		container: Builder,
+		options: ISearchWidgetOptions,
+		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService,
+		@IContextKeyService private keyBindingService: IContextKeyService,
+		@IKeybindingService private keyBindingService2: IKeybindingService,
+	) {
 		super();
 		this.searchHistory = new HistoryNavigator<string>();
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
