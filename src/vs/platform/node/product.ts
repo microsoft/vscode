@@ -53,6 +53,7 @@ export interface IProductConfiguration {
 	licenseUrl: string;
 	privacyStatementUrl: string;
 	npsSurveyUrl: string;
+	surveys: ISurveyData[];
 	checksums: { [path: string]: string; };
 	checksumFailMoreInfoUrl: string;
 	hockeyApp: {
@@ -62,6 +63,13 @@ export interface IProductConfiguration {
 		'linux-x64': string;
 		'darwin': string;
 	};
+}
+
+export interface ISurveyData {
+	surveyUrl: string;
+	languageId: string;
+	editCount: number;
+	userProbability: number;
 }
 
 const rootPath = path.dirname(uri.parse(require.toUrl('')).fsPath);
