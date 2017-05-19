@@ -529,6 +529,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							if (this.tsServerLogFile) {
 								this.error(`TSServer log file: ${this.tsServerLogFile}`);
 							}
+							this.logTelemetry('tsserver.error');
 							this.serviceExited(false);
 						});
 						childProcess.on('exit', (code: any) => {
@@ -536,6 +537,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 								this.info(`TSServer exited`);
 							} else {
 								this.error(`TSServer exited with code: ${code}`);
+								this.logTelemetry('tsserver.exitWithCode', { code: code });
 							}
 
 							if (this.tsServerLogFile) {
