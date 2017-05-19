@@ -20,8 +20,6 @@ import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperat
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from 'vs/editor/common/controller/cursorEvents';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 
 class CursorOperationArgs<T> {
 	public readonly eventSource: string;
@@ -486,14 +484,6 @@ export class Cursor extends Disposable implements ICursors {
 
 	public trigger(source: string, handlerId: string, payload: any): void {
 		if (!this._handlers.hasOwnProperty(handlerId)) {
-			const command = CommonEditorRegistry.getEditorCommand(handlerId);
-			if (!command || !(command instanceof CoreEditorCommand)) {
-				return;
-			}
-
-			payload = payload || {};
-			payload.source = source;
-			command.runCoreEditorCommand(this, payload);
 			return;
 		}
 		const handler = this._handlers[handlerId];
@@ -509,7 +499,6 @@ export class Cursor extends Disposable implements ICursors {
 		this._handlers[H.CompositionStart] = (args) => this._compositionStart(args);
 		this._handlers[H.CompositionEnd] = (args) => this._compositionEnd(args);
 		this._handlers[H.Paste] = (args) => this._paste(args);
-
 		this._handlers[H.Cut] = (args) => this._cut(args);
 
 		this._handlers[H.Undo] = (args) => this._undo(args);

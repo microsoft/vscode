@@ -1863,7 +1863,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			],
 			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(1, 21) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(1, 21), source: 'keyboard' });
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assert.equal(model.getLineContent(1), '    \tMy First Line\t ');
 			assert.equal(model.getLineContent(2), '        ');
@@ -1890,56 +1890,56 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			// Tab on column 1
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 1) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 1) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '             My Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 2
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 2) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 2) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'M            y Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 3
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 3) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 3) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My            Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 4
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 4) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 4) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My           Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 5) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 5) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 5) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 5) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 13
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 13) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 13) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My Second Li ne123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 14
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 14) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 14) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My Second Lin             e123');
 		});
