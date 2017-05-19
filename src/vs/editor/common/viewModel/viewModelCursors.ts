@@ -11,7 +11,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ICursorRevealRangeEvent, CursorEventType, CursorScrollRequest } from 'vs/editor/common/controller/cursorEvents';
 import { Cursor } from "vs/editor/common/controller/cursor";
-import { ViewEventEmitter } from "vs/editor/common/viewModel/viewModelImpl";
 import { EmitterEvent } from "vs/base/common/eventEmitter";
 
 export interface ICursorPositionChangedEvent {
@@ -38,7 +37,7 @@ function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	return false;
 }
 
-export class ViewModelCursors extends ViewEventEmitter {
+export class ViewModelCursors extends viewEvents.ViewEventEmitter {
 
 	private readonly configuration: editorCommon.IConfiguration;
 	private readonly viewModel: IViewModel;

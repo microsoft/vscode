@@ -9,7 +9,7 @@ import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ViewEvent } from 'vs/editor/common/view/viewEvents';
+import { ViewEvent, IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Scrollable } from "vs/base/common/scrollable";
 import { IPartialViewLinesViewportData } from "vs/editor/common/viewLayout/viewLinesViewportData";
@@ -104,13 +104,9 @@ export interface ICoordinatesConverter {
 	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 
-export interface IViewModelListener {
-	(events: ViewEvent[]): void;
-}
-
 export interface IViewModel {
 
-	addEventListener(listener: IViewModelListener): IDisposable;
+	addEventListener(listener: IViewEventListener): IDisposable;
 
 	readonly coordinatesConverter: ICoordinatesConverter;
 
