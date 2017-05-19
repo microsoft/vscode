@@ -1522,7 +1522,7 @@ namespace Config {
 		return accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	}
 
-	function getActiveEditorWidget(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+	function getWorkbenchActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
 		const editorService = accessor.get(IEditorService);
 		let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
 		return getCodeEditor(activeEditor);
@@ -1532,7 +1532,13 @@ namespace Config {
 		KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
 	}
 
-	class BaseTextInputAwareCommand extends Command {
+	/**
+	 * A command that will:
+	 *  1. invoke a command on the focused editor.
+	 *  2. otherwise, invoke a browser built-in command on the `activeElement`.
+	 *  3. otherwise, invoke a command on the workbench active editor.
+	 */
+	class EditorOrNativeTextInputCommand extends Command {
 
 		private readonly _editorHandler: string | EditorCommand;
 		private readonly _inputHandler: string;
@@ -1559,7 +1565,7 @@ namespace Config {
 			}
 
 			// Redirecting to last active editor
-			let activeEditor = getActiveEditorWidget(accessor);
+			let activeEditor = getWorkbenchActiveEditor(accessor);
 			if (activeEditor) {
 				activeEditor.focus();
 				return this._runEditorHandler(activeEditor, args);
@@ -1578,7 +1584,7 @@ namespace Config {
 		}
 	}
 
-	registerCommand(new BaseTextInputAwareCommand({
+	registerCommand(new EditorOrNativeTextInputCommand({
 		editorHandler: CoreNavigationCommands.SelectAll,
 		inputHandler: 'selectAll',
 		id: 'editor.action.selectAll',
@@ -1590,7 +1596,7 @@ namespace Config {
 		}
 	}));
 
-	registerCommand(new BaseTextInputAwareCommand({
+	registerCommand(new EditorOrNativeTextInputCommand({
 		editorHandler: H.Undo,
 		inputHandler: 'undo',
 		id: H.Undo,
@@ -1602,7 +1608,7 @@ namespace Config {
 		}
 	}));
 
-	registerCommand(new BaseTextInputAwareCommand({
+	registerCommand(new EditorOrNativeTextInputCommand({
 		editorHandler: H.Redo,
 		inputHandler: 'redo',
 		id: H.Redo,
@@ -1615,5 +1621,42 @@ namespace Config {
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
 		}
 	}));
+
+	/**
+	 * A command that will invoke a command on the focused editor.
+	 */
+	class EditorHandlerCommand extends Command {
+
+		private readonly _handlerId: string;
+
+		constructor(id: string, handlerId: string) {
+			super({
+				id: id,
+				precondition: null
+			});
+			this._handlerId = handlerId;
+		}
+
+		public runCommand(accessor: ServicesAccessor, args: any): void {
+			const editor = findFocusedEditor(accessor);
+			if (!editor) {
+				return;
+			}
+
+			editor.trigger('keyboard', this._handlerId, args);
+		}
+	}
+
+	function registerOverwritableCommand(handlerId: string): void {
+		registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
+		registerCommand(new EditorHandlerCommand(handlerId, handlerId));
+	}
+
+	registerOverwritableCommand(H.Type);
+	registerOverwritableCommand(H.ReplacePreviousChar);
+	registerOverwritableCommand(H.CompositionStart);
+	registerOverwritableCommand(H.CompositionEnd);
+	registerOverwritableCommand(H.Paste);
+	registerOverwritableCommand(H.Cut);
 
 }

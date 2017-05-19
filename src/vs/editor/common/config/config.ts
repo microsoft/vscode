@@ -11,8 +11,7 @@ import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/commo
 import { ICommandAndKeybindingRule, IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import H = editorCommon.Handler;
+import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 
 export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpr;
@@ -27,22 +26,20 @@ export interface ICommandOptions {
 }
 
 export abstract class Command {
-	public id: string;
-	public precondition: ContextKeyExpr;
-	private kbOpts: ICommandKeybindingsOptions;
-	private description: ICommandHandlerDescription;
+	public readonly id: string;
+	public readonly precondition: ContextKeyExpr;
+	private readonly _kbOpts: ICommandKeybindingsOptions;
+	private readonly _description: ICommandHandlerDescription;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
 		this.precondition = opts.precondition;
-		this.kbOpts = opts.kbOpts;
-		this.description = opts.description;
+		this._kbOpts = opts.kbOpts;
+		this._description = opts.description;
 	}
 
-	public abstract runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void>;
-
 	public toCommandAndKeybindingRule(defaultWeight: number): ICommandAndKeybindingRule {
-		const kbOpts = this.kbOpts || { primary: 0 };
+		const kbOpts = this._kbOpts || { primary: 0 };
 
 		let kbWhen = kbOpts.kbExpr;
 		if (this.precondition) {
@@ -65,23 +62,37 @@ export abstract class Command {
 			win: kbOpts.win,
 			linux: kbOpts.linux,
 			mac: kbOpts.mac,
-			description: this.description
+			description: this._description
 		};
 	}
-}
 
-export interface EditorControllerCommand<T extends editorCommon.IEditorContribution> {
-	new (opts: IContributionCommandOptions<T>): EditorCommand;
+	public abstract runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void>;
 }
 
 export interface IContributionCommandOptions<T> extends ICommandOptions {
 	handler: (controller: T) => void;
 }
 
+export interface EditorControllerCommand<T extends editorCommon.IEditorContribution> {
+	new (opts: IContributionCommandOptions<T>): EditorCommand;
+}
+
+function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
+}
+
+function getWorkbenchActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+	const editorService = accessor.get(IEditorService);
+	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
+	return getCodeEditor(activeEditor);
+}
+
 export abstract class EditorCommand extends Command {
 
+	/**
+	 * Create a command class that is bound to a certain editor contribution.
+	 */
 	public static bindToContribution<T extends editorCommon.IEditorContribution>(controllerGetter: (editor: editorCommon.ICommonCodeEditor) => T): EditorControllerCommand<T> {
-
 		return class EditorControllerCommandImpl extends EditorCommand {
 			private _callback: (controller: T) => void;
 
@@ -100,19 +111,20 @@ export abstract class EditorCommand extends Command {
 		};
 	}
 
-	constructor(opts: ICommandOptions) {
-		super(opts);
-	}
-
 	public runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void> {
+		// Find the editor with text focus
 		let editor = findFocusedEditor(accessor);
+
 		if (!editor) {
-			editor = getActiveEditorWidget(accessor);
+			// Fallback to use what the workbench considers the active editor
+			editor = getWorkbenchActiveEditor(accessor);
 		}
+
 		if (!editor) {
 			// well, at least we tried...
 			return;
 		}
+
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
 			if (!kbService.contextMatchesRules(this.precondition)) {
@@ -126,47 +138,3 @@ export abstract class EditorCommand extends Command {
 
 	public abstract runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
 }
-
-function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
-	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
-}
-
-function withCodeEditorFromCommandHandler(accessor: ServicesAccessor, callback: (editor: editorCommon.ICommonCodeEditor) => void): void {
-	let editor = findFocusedEditor(accessor);
-	if (editor) {
-		callback(editor);
-	}
-}
-
-function getActiveEditorWidget(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
-	const editorService = accessor.get(IEditorService);
-	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
-	return getCodeEditor(activeEditor);
-}
-
-function triggerEditorHandler(handlerId: string, accessor: ServicesAccessor, args: any): void {
-	withCodeEditorFromCommandHandler(accessor, (editor) => {
-		editor.trigger('keyboard', handlerId, args);
-	});
-}
-
-class CoreCommand extends Command {
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		triggerEditorHandler(this.id, accessor, args);
-	}
-}
-
-function registerOverwritableCommand(handlerId: string, handler: ICommandHandler): void {
-	CommandsRegistry.registerCommand(handlerId, handler);
-	CommandsRegistry.registerCommand('default:' + handlerId, handler);
-}
-
-function registerCoreDispatchCommand(handlerId: string): void {
-	registerOverwritableCommand(handlerId, triggerEditorHandler.bind(null, handlerId));
-}
-registerCoreDispatchCommand(H.Type);
-registerCoreDispatchCommand(H.ReplacePreviousChar);
-registerCoreDispatchCommand(H.CompositionStart);
-registerCoreDispatchCommand(H.CompositionEnd);
-registerCoreDispatchCommand(H.Paste);
-registerCoreDispatchCommand(H.Cut);
