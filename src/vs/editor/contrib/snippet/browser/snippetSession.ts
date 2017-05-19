@@ -297,8 +297,8 @@ export class SnippetSession {
 		);
 		const model = this._editor.getModel();
 		const selections = this._editor.getSelections();
-		const newSelections = model.pushEditOperations(selections, edits, () => {
-			return this._move(true);
+		const newSelections = model.pushEditOperations(selections, edits, undoEdits => {
+			return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 		});
 		this._editor.setSelections(newSelections);
 	}

@@ -87,7 +87,7 @@ export class SnippetController2 {
 		if (!this._snippet.hasPlaceholder) {
 			// don't listen for selection changes and don't
 			// update context keys when the snippet is plain text
-			return;
+			return this.cancel();
 		}
 
 		if (this._snippet.isAtFinalPlaceholder || !this._snippet.isSelectionWithPlaceholders()) {
