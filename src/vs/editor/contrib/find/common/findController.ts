@@ -811,7 +811,7 @@ export abstract class AbstractSelectHighlightsAction extends EditorAction {
 		let matches: Range[] = null;
 
 		const findState = controller.getState();
-		if (findState.isRegex && findState.searchString.length > 0) {
+		if (findState.isRevealed && findState.isRegex && findState.searchString.length > 0) {
 
 			matches = editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord, false).map(m => m.range);
 
