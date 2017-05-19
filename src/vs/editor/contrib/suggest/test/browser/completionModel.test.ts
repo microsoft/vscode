@@ -181,4 +181,24 @@ suite('CompletionModel', function () {
 		assert.equal(b.suggestion.label, 'Semver');
 		assert.ok(a.score > b.score); // snippet really demoted
 	});
+
+	test('filterText seems ignored in autocompletion, #26874', function () {
+
+		const item1 = createSuggestItem('Map - java.util', 1, 'property');
+		item1.suggestion.filterText = 'Map';
+		const item2 = createSuggestItem('Map - java.util', 1, 'property');
+
+		model = new CompletionModel([item1, item2], 1, {
+			leadingLineContent: 'M',
+			characterCountDelta: 0
+		});
+
+		assert.equal(model.items.length, 2);
+
+		model.lineContext = {
+			leadingLineContent: 'Map ',
+			characterCountDelta: 3
+		};
+		assert.equal(model.items.length, 1);
+	});
 });
