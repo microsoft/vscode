@@ -6,7 +6,6 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -294,13 +293,6 @@ export class View extends ViewEventHandler {
 
 	private _setLayout(): void {
 		const layoutInfo = this._context.configuration.editor.layoutInfo;
-		if (browser.isChrome) {
-			/* tslint:disable:no-unused-variable */
-			// Access overflowGuardContainer.clientWidth to prevent relayouting bug in Chrome
-			// See Bug 19676: Editor misses a layout event
-			let clientWidth = this.overflowGuardContainer.domNode.clientWidth + 'px';
-			/* tslint:enable:no-unused-variable */
-		}
 		this.domNode.setWidth(layoutInfo.width);
 		this.domNode.setHeight(layoutInfo.height);
 
