@@ -10,7 +10,7 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox, ISelectBoxStyles } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -37,7 +37,7 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		private context: any,
 		private action: IAction,
 		@IDebugService private debugService: IDebugService,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -115,6 +115,14 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 				event.stopPropagation();
 			}
 		}));
+		this.toDispose.push(attachSelectBoxStyler({
+			style: (colors: ISelectBoxStyles) => {
+				if (colors.selectBorder) {
+					this.container.style.borderColor = colors.selectBorder.toString();
+					selectBoxContainer.style.borderLeftColor = colors.selectBorder.toString();
+				}
+			}
+		}, this.themeService));
 
 		this.updateOptions();
 	}
