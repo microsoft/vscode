@@ -21,26 +21,6 @@ import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent, ICursorRevealRangeEvent, CursorScrollRequest } from 'vs/editor/common/controller/cursorEvents';
 
-class CursorOperationArgs<T> {
-	public readonly eventSource: string;
-	public readonly eventData: T;
-
-	constructor(eventSource: string, eventData: T) {
-		this.eventSource = eventSource;
-		this.eventData = eventData;
-	}
-}
-
-interface ICommandData {
-	operations: editorCommon.IIdentifiedSingleEditOperation[];
-	hadTrackedEditOperation: boolean;
-}
-
-interface ICommandsData {
-	operations: editorCommon.IIdentifiedSingleEditOperation[];
-	hadTrackedEditOperation: boolean;
-}
-
 export class Cursor extends Disposable implements ICursors {
 
 	public onDidChangePosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable {
@@ -457,8 +437,6 @@ export class Cursor extends Disposable implements ICursors {
 			return;
 		}
 
-		const args = new CursorOperationArgs(source, payload);
-
 		const oldSelections = this._cursors.getSelections();
 		const oldViewSelections = this._cursors.getViewSelections();
 		let cursorChangeReason = CursorChangeReason.NotSet;
@@ -471,20 +449,20 @@ export class Cursor extends Disposable implements ICursors {
 		try {
 			switch (handlerId) {
 				case H.Type:
-					this._executeEditOperation(this._type(args));
+					this._type(source, <string>payload.text);
 					break;
 
 				case H.ReplacePreviousChar:
-					this._executeEditOperation(this._replacePreviousChar(args));
+					this._replacePreviousChar(<string>payload.text, <number>payload.replaceCharCnt);
 					break;
 
 				case H.Paste:
 					cursorChangeReason = CursorChangeReason.Paste;
-					this._executeEditOperation(this._paste(args));
+					this._paste(<string>payload.text, <boolean>payload.pasteOnNewLine);
 					break;
 
 				case H.Cut:
-					this._executeEditOperation(this._cut(args));
+					this._cut();
 					break;
 
 				case H.Undo:
@@ -498,11 +476,11 @@ export class Cursor extends Disposable implements ICursors {
 					break;
 
 				case H.ExecuteCommand:
-					this._executeEditOperation(this._externalExecuteCommand(args));
+					this._externalExecuteCommand(<editorCommon.ICommand>payload);
 					break;
 
 				case H.ExecuteCommands:
-					this._executeEditOperation(this._externalExecuteCommands(args));
+					this._externalExecuteCommands(<editorCommon.ICommand[]>payload);
 					break;
 			}
 		} catch (err) {
@@ -514,18 +492,14 @@ export class Cursor extends Disposable implements ICursors {
 		const newSelections = this._cursors.getSelections();
 		const newViewSelections = this._cursors.getViewSelections();
 		if (Cursor._somethingChanged(oldSelections, oldViewSelections, newSelections, newViewSelections)) {
-			this._emitCursorPositionChanged(args.eventSource, cursorChangeReason);
+			this._emitCursorPositionChanged(source, cursorChangeReason);
 			this._revealRange(RevealTarget.Primary, VerticalRevealType.Simple, true);
-			this._emitCursorSelectionChanged(args.eventSource, cursorChangeReason);
+			this._emitCursorSelectionChanged(source, cursorChangeReason);
 		}
 	}
 
-	// -------------------- START editing operations
-
-	private _type(args: CursorOperationArgs<{ text: string; }>): EditOperationResult {
-		const text = args.eventData.text;
-
-		if (!this._isDoingComposition && args.eventSource === 'keyboard') {
+	private _type(source: string, text: string): void {
+		if (!this._isDoingComposition && source === 'keyboard') {
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
 			for (let i = 0, len = text.length; i < len; i++) {
@@ -542,48 +516,37 @@ export class Cursor extends Disposable implements ICursors {
 				this._executeEditOperation(TypeOperations.typeWithInterceptors(this.context.config, this.context.model, this.getSelections(), chr));
 			}
 
-			return null;
 		} else {
-			return TypeOperations.typeWithoutInterceptors(this.context.config, this.context.model, this.getSelections(), text);
+			this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this.context.config, this.context.model, this.getSelections(), text));
 		}
 	}
 
-	private _replacePreviousChar(args: CursorOperationArgs<{ text: string; replaceCharCnt: number; }>): EditOperationResult {
-		const text = args.eventData.text;
-		const replaceCharCnt = args.eventData.replaceCharCnt;
-		return TypeOperations.replacePreviousChar(this.context.config, this.context.model, this.getSelections(), text, replaceCharCnt);
+	private _replacePreviousChar(text: string, replaceCharCnt: number): void {
+		this._executeEditOperation(TypeOperations.replacePreviousChar(this.context.config, this.context.model, this.getSelections(), text, replaceCharCnt));
 	}
 
-	private _paste(args: CursorOperationArgs<{ pasteOnNewLine: boolean; text: string; }>): EditOperationResult {
-		const pasteOnNewLine = args.eventData.pasteOnNewLine;
-		const text = args.eventData.text;
-		return TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), pasteOnNewLine, text);
+	private _paste(text: string, pasteOnNewLine: boolean): void {
+		this._executeEditOperation(TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), pasteOnNewLine, text));
 	}
 
-	private _cut(args: CursorOperationArgs<void>): EditOperationResult {
-		return DeleteOperations.cut(this.context.config, this.context.model, this.getSelections());
+	private _cut(): void {
+		this._executeEditOperation(DeleteOperations.cut(this.context.config, this.context.model, this.getSelections()));
 	}
 
-	// -------------------- END editing operations
-
-	private _externalExecuteCommand(args: CursorOperationArgs<editorCommon.ICommand>): EditOperationResult {
-		const command = args.eventData;
-
+	private _externalExecuteCommand(command: editorCommon.ICommand): void {
 		this._cursors.killSecondaryCursors();
 
-		return new EditOperationResult([command], {
+		this._executeEditOperation(new EditOperationResult([command], {
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false
-		});
+		}));
 	}
 
-	private _externalExecuteCommands(args: CursorOperationArgs<editorCommon.ICommand[]>): EditOperationResult {
-		const commands = args.eventData;
-
-		return new EditOperationResult(commands, {
+	private _externalExecuteCommands(commands: editorCommon.ICommand[]): void {
+		this._executeEditOperation(new EditOperationResult(commands, {
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false
-		});
+		}));
 	}
 }
 
@@ -592,6 +555,16 @@ interface IExecContext {
 	readonly selectionsBefore: Selection[];
 	readonly selectionStartMarkers: string[];
 	readonly positionMarkers: string[];
+}
+
+interface ICommandData {
+	operations: editorCommon.IIdentifiedSingleEditOperation[];
+	hadTrackedEditOperation: boolean;
+}
+
+interface ICommandsData {
+	operations: editorCommon.IIdentifiedSingleEditOperation[];
+	hadTrackedEditOperation: boolean;
 }
 
 class CommandExecutor {
