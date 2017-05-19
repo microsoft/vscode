@@ -257,7 +257,6 @@ export class SnippetSession {
 
 	constructor(editor: ICommonCodeEditor) {
 		this._editor = editor;
-		this._snippets = [];
 	}
 
 	dispose(): void {
@@ -271,28 +270,20 @@ export class SnippetSession {
 			this._editor, template, overwriteBefore, overwriteAfter
 		);
 
-		// keep snippets around
-		this._snippets = snippets;
+		let isNestedInsert = true;
+		if (!this._snippets) {
+			// keep snippets around
+			this._snippets = snippets;
+			isNestedInsert = false;
+		}
 
 		// make insert edit and start with first selections
 		const newSelections = model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
-			if (this._snippets[0].hasPlaceholder) {
+			if (!isNestedInsert && this._snippets[0].hasPlaceholder) {
 				return this._move(true);
 			} else {
 				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 			}
-		});
-		this._editor.setSelections(newSelections);
-	}
-
-	insertNested(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
-		const { edits } = SnippetSession.makeInsertEditsAndSnippets(
-			this._editor, template, overwriteBefore, overwriteAfter
-		);
-		const model = this._editor.getModel();
-		const selections = this._editor.getSelections();
-		const newSelections = model.pushEditOperations(selections, edits, undoEdits => {
-			return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 		});
 		this._editor.setSelections(newSelections);
 	}

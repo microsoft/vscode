@@ -404,5 +404,19 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 8, 1, 8), new Selection(2, 12, 2, 12));
 	});
 
+	test('snippet, insert-nested', function () {
+		const session = new SnippetSession(editor);
+		session.insert('foo$1foo$0');
+
+		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
+		session.insert('bar');
+		assert.ok(session.isSelectionWithPlaceholders());
+		assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
+
+		session.next();
+		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
+		assert.ok(session.isAtFinalPlaceholder);
+	});
+
 });
 

@@ -61,17 +61,14 @@ export class SnippetController2 {
 			this._editor.getModel().pushStackElement();
 		}
 		if (!this._snippet) {
-			// insert with new session
+			// create a new session
 			this._snippet = new SnippetSession(this._editor);
-			this._snippet.insert(template, overwriteBefore, overwriteAfter);
-			this._snippetListener = [
-				this._editor.onDidChangeModel(() => this.cancel()),
-				this._editor.onDidChangeCursorSelection(() => this._updateState())
-			];
-		} else {
-			// insert nested
-			this._snippet.insertNested(template, overwriteBefore, overwriteAfter);
 		}
+		this._snippet.insert(template, overwriteBefore, overwriteAfter);
+		this._snippetListener = [
+			this._editor.onDidChangeModel(() => this.cancel()),
+			this._editor.onDidChangeCursorSelection(() => this._updateState())
+		];
 		if (undoStopAfter) {
 			this._editor.getModel().pushStackElement();
 		}
