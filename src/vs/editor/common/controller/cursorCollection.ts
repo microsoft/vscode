@@ -202,7 +202,16 @@ export class CursorCollection {
 			const currentViewSelection = current.viewSelection;
 			const nextViewSelection = next.viewSelection;
 
-			if (nextViewSelection.getStartPosition().isBeforeOrEqual(currentViewSelection.getEndPosition())) {
+			let shouldMergeCursors: boolean;
+			if (nextViewSelection.isEmpty() || currentViewSelection.isEmpty()) {
+				// Merge touching cursors if one of them is collapsed
+				shouldMergeCursors = nextViewSelection.getStartPosition().isBeforeOrEqual(currentViewSelection.getEndPosition());
+			} else {
+				// Merge only overlapping cursors (i.e. allow touching ranges)
+				shouldMergeCursors = nextViewSelection.getStartPosition().isBefore(currentViewSelection.getEndPosition());
+			}
+
+			if (shouldMergeCursors) {
 				const winnerSortedCursorIndex = current.index < next.index ? sortedCursorIndex : sortedCursorIndex + 1;
 				const looserSortedCursorIndex = current.index < next.index ? sortedCursorIndex + 1 : sortedCursorIndex;
 
