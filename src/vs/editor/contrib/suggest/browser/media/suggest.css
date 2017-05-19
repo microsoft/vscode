@@ -8,13 +8,6 @@
 	z-index: 40;
 }
 
-.monaco-editor .suggest-widget.visible {
-	-webkit-transition: left .05s ease-in-out;
-	-moz-transition: left .05s ease-in-out;
-	-o-transition: left .05s ease-in-out;
-	transition: left .05s ease-in-out;
-}
-
 /** Initial widths **/
 
 .monaco-editor .suggest-widget {
