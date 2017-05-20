@@ -192,11 +192,7 @@ export class TextModelSearch {
 		let m: RegExpExecArray;
 		searcher.reset(0);
 		while ((m = searcher.next(text))) {
-			result[counter++] = createFindMatch(
-				this._getMultilineMatchRange(model, deltaOffset, text, m.index, m[0]),
-				m,
-				captureMatches
-			);
+			result[counter++] = createFindMatch(this._getMultilineMatchRange(model, deltaOffset, text, m.index, m[0]), m, captureMatches);
 			if (counter >= limitResultCount) {
 				return result;
 			}
@@ -244,8 +240,7 @@ export class TextModelSearch {
 			let lastMatchIndex = -searchStringLen;
 			while ((lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen)) !== -1) {
 				if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
-					const range = new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset);
-					result[resultLen++] = new FindMatch(range, null);
+					result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
 					if (resultLen >= limitResultCount) {
 						return resultLen;
 					}
@@ -261,18 +256,8 @@ export class TextModelSearch {
 		do {
 			m = searcher.next(text);
 			if (m) {
-				const matchStartIndex = m.index;
-				const matchLength = m[0].length;
-
-				const range = new Range(lineNumber, matchStartIndex + 1 + deltaOffset, lineNumber, matchStartIndex + 1 + matchLength + deltaOffset);
-
-				result[resultLen++] = createFindMatch(range, m, captureMatches);
+				result[resultLen++] = createFindMatch(new Range(lineNumber, m.index + 1 + deltaOffset, lineNumber, m.index + 1 + m[0].length + deltaOffset), m, captureMatches);
 				if (resultLen >= limitResultCount) {
-					return resultLen;
-				}
-
-				if (matchStartIndex + matchLength === text.length) {
-					// Reached the end of the line
 					return resultLen;
 				}
 			}
@@ -414,15 +399,7 @@ export class TextModelSearch {
 		let m: RegExpExecArray;
 		searcher.reset(0);
 		while ((m = searcher.next(text))) {
-			const result = new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length);
-			if (bestResult && result.equalsRange(bestResult.range)) {
-				break;
-			}
-			bestResult = createFindMatch(result, m, captureMatches);
-			if (m.index + m[0].length === text.length) {
-				// Reached the end of the line
-				break;
-			}
+			bestResult = createFindMatch(new Range(lineNumber, m.index + 1, lineNumber, m.index + 1 + m[0].length), m, captureMatches);
 		}
 		return bestResult;
 	}
@@ -467,48 +444,35 @@ class Searcher {
 	}
 
 	public next(text: string): RegExpExecArray {
-		if (!this._wordSeparators) {
-			return this._next(text);
-		}
-
 		const textLength = text.length;
 
 		let m: RegExpExecArray;
 		do {
-			m = this._next(text);
+			if (this._prevMatchStartIndex + this._prevMatchLength === textLength) {
+				// Reached the end of the line
+				return null;
+			}
+
+			m = this._searchRegex.exec(text);
 			if (!m) {
 				return null;
 			}
 
 			const matchStartIndex = m.index;
 			const matchLength = m[0].length;
+			if (matchStartIndex === this._prevMatchStartIndex && matchLength === this._prevMatchLength) {
+				// Exit early if the regex matches the same range twice
+				return null;
+			}
+			this._prevMatchStartIndex = matchStartIndex;
+			this._prevMatchLength = matchLength;
 
-			if (isValidMatch(this._wordSeparators, text, textLength, matchStartIndex, matchLength)) {
+			if (!this._wordSeparators || isValidMatch(this._wordSeparators, text, textLength, matchStartIndex, matchLength)) {
 				return m;
 			}
 
 		} while (m);
 
 		return null;
-	}
-
-	private _next(text: string): RegExpExecArray {
-		const m = this._searchRegex.exec(text);
-		if (!m) {
-			return null;
-		}
-
-		const matchStartIndex = m.index;
-		const matchLength = m[0].length;
-
-		if (matchStartIndex === this._prevMatchStartIndex && matchLength === this._prevMatchLength) {
-			// Exit early if the regex matches the same range
-			return null;
-		}
-
-		this._prevMatchStartIndex = matchStartIndex;
-		this._prevMatchLength = matchLength;
-
-		return m;
 	}
 }
