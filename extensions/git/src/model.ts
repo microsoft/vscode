@@ -480,13 +480,13 @@ export class Model implements Disposable {
 	}
 
 	@throttle
-	async pull(): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull());
+	async pullWithRebase(): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(true));
 	}
 
 	@throttle
-	async pullWithRebase(): Promise<void> {
-		await this.run(Operation.Pull, () => this.repository.pull(true));
+	async pull(rebase?: boolean, remote?: string, name?: string): Promise<void> {
+		await this.run(Operation.Pull, () => this.repository.pull(rebase, remote, name));
 	}
 
 	@throttle

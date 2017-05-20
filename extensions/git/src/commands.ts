@@ -764,6 +764,37 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.pullFromRemoteBranch')
+	async pullFrom(): Promise<void> {
+		const remotes = this.model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to pull', "Your repository has no remotes configured to pull from."));
+			return;
+		}
+
+		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const placeHolder = localize('pick remote pull repo', "Pick a remote to pull the branch from");
+		const pick = await window.showQuickPick(picks, { placeHolder });
+
+		if (!pick) {
+			return;
+		}
+
+
+		const branchName = await window.showInputBox({
+			placeHolder: localize('branch name', "Branch name"),
+			prompt: localize('provide branch name', "Please provide a branch name"),
+			ignoreFocusOut: true
+		});
+
+		if (!branchName) {
+			return;
+		}
+
+		this.model.pull(false, pick.label, branchName);
+	}
+
 	@command('git.pull')
 	async pull(): Promise<void> {
 		const remotes = this.model.remotes;
