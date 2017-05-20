@@ -89,6 +89,14 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 			this._widget = null;
 		}
 	}
+
+	public toggle(): void {
+		if (!this._widget) {
+			this.launch();
+		} else {
+			this.dispose();
+		}
+	}
 }
 
 @editorAction
@@ -106,7 +114,7 @@ class InspectTMScopes extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
 		let controller = InspectTMScopesController.get(editor);
 		if (controller) {
-			controller.launch();
+			controller.toggle();
 		}
 	}
 }
