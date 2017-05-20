@@ -488,6 +488,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.listElement.style.borderColor = borderColor.toString();
 			this.details.element.style.borderColor = borderColor.toString();
 			this.messageElement.style.borderColor = borderColor.toString();
+			this.detailsBorderColor = borderColor.toString();
 		}
 		let focusBorderColor = theme.getColor(focusBorder);
 		if (focusBorderColor) {
@@ -795,7 +796,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			if (this.detailsBorderColor) {
 				this.details.element.style.borderColor = this.detailsBorderColor;
 			}
-		} else if (this.state === State.Open) {
+		} else if (this.state === State.Open
+			&& this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
 			this.setState(State.Details);
 			if (this.detailsFocusBorderColor) {
 				this.details.element.style.borderColor = this.detailsFocusBorderColor;
