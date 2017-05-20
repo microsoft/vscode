@@ -15,7 +15,7 @@
 	"command.revertSelectedRanges": "Ausgewählte Bereiche zurücksetzen",
 	"command.unstage": "Bereitstellung der Änderungen aufheben",
 	"command.unstageAll": "Bereitstellung aller Änderungen aufheben",
-	"command.unstageSelectedRanges": "Staffelung gewählter Bereiche aufheben",
+	"command.unstageSelectedRanges": "Bereitstellung gewählter Bereiche aufheben",
 	"command.clean": "Änderungen verwerfen",
 	"command.cleanAll": "Alle Änderungen verwerfen",
 	"command.commit": "Commit",
@@ -25,7 +25,7 @@
 	"command.commitAllSigned": "Alle committen (abgemeldet)",
 	"command.undoCommit": "Letzten Commit rückgängig machen",
 	"command.checkout": "Auschecken an...",
-	"command.branch": "Branch wird erstellt...",
+	"command.branch": "Branch erstellen...",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (Rebase)",
 	"command.push": "Push",
@@ -42,5 +42,6 @@
 	"config.countBadge": "Steuert die Git-Badgeanzahl. \"Alle\" zählt alle Änderungen. \"tracked\" (Nachverfolgt) zählt nur die nachverfolgten Änderungen. \"off\" (Aus) deaktiviert dies.",
 	"config.checkoutType": "Steuert, welcher Branchtyp beim Ausführen von \"Auschecken an...\" aufgelistet wird. \"Alle\" zeigt alle Verweise an, \"Lokal\" nur die lokalen Branches, \"Tags\" zeigt nur Tags an, und \"Remote\" zeigt nur Remotebranches an.",
 	"config.ignoreLegacyWarning": "Ignoriert die Legacy-Git-Warnung.",
-	"config.ignoreLimitWarning": "Ignoriert Warnung bei zu hoher Anzahl von Änderungen in einem Repository"
+	"config.ignoreLimitWarning": "Ignoriert Warnung bei zu hoher Anzahl von Änderungen in einem Repository",
+	"config.enableSmartCommit": "Alle Änderungen committen, wenn keine Änderungen bereitgestellt sind."
 }

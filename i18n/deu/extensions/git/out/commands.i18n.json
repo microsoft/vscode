@@ -18,6 +18,7 @@
 	"discard": "Änderungen verwerfen",
 	"confirm discard all": "Möchten Sie wirklich ALLE Änderungen verwerfen? Dieser Vorgang kann nicht rückgängig gemacht werden!",
 	"discardAll": "ALLE Änderungen verwerfen",
+	"no staged changes": "Es sind keine Änderungen bereitgestellt.\n\nMöchten Sie alle Ihre Änderungen automatisch bereitstellen und direkt committen?",
 	"yes": "Ja",
 	"always": "Immer",
 	"no changes": "Keine Änderungen zum Speichern vorhanden.",

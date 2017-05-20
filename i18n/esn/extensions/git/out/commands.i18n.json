@@ -18,6 +18,7 @@
 	"discard": "Descartar cambios",
 	"confirm discard all": "¿Está seguro de que quiere descartar TODOS los cambios? Esta acción es irreversible.",
 	"discardAll": "Descartar cambios",
+	"no staged changes": "No hay elementos almacenados provisionalmente.\n\n¿Desea almacenar de forma provisional todos sus cambios y confirmarlos directamente?",
 	"yes": "Sí",
 	"always": "Siempre",
 	"no changes": "No hay cambios para confirmar.",

@@ -227,7 +227,7 @@ suite('FindController', () => {
 			let selectHighlightsAction = new SelectHighlightsAction();
 
 			editor.setSelection(new Selection(1, 1, 1, 1));
-			findController.getState().change({ searchString: 'some+thing', isRegex: true }, false);
+			findController.getState().change({ searchString: 'some+thing', isRegex: true, isRevealed: true }, false);
 
 			selectHighlightsAction.run(null, editor);
 			assert.deepEqual(editor.getSelections().map(fromRange), [

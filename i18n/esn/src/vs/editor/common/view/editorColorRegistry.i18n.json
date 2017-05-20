@@ -11,6 +11,10 @@
 	"editorWhitespaces": "Color de los caracteres de espacio en blanco del editor.",
 	"editorIndentGuides": "Color de las guías de sangría del editor.",
 	"editorLineNumbers": "Color de números de línea del editor.",
+	"editorRuler": "Color de las reglas del editor",
 	"editorCodeLensForeground": "Color principal de lentes de código en el editor",
-	"editorBracketMatchBackground": "Color de fondo tras corchetes coincidentes"
+	"editorBracketMatchBackground": "Color de fondo tras corchetes coincidentes",
+	"editorBracketMatchBorder": "Color de bloques con corchetes coincidentes",
+	"editorOverviewRulerBorder": "Color del borde de la regla de visión general.",
+	"editorGutter": "Color de fondo del margen del editor. Este espacio contiene los márgenes de glifos y los números de línea."
 }

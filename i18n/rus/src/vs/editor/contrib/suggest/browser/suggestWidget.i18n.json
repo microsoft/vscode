@@ -9,6 +9,7 @@
 	"editorSuggestWidgetForeground": "Цвет переднего плана мини-приложения предложений.",
 	"editorSuggestWidgetSelectedBackground": "Фоновый цвет выбранной записи в мини-приложении предложений.",
 	"editorSuggestWidgetHighlightForeground": "Цвет выделения соответствия в мини-приложении предложений.",
+	"readMore": "Подробнее...{0}",
 	"suggestionWithDetailsAriaLabel": "{0}, предложение, содержит данные",
 	"suggestionAriaLabel": "{0}, предложение",
 	"suggestWidget.loading": "Идет загрузка...",

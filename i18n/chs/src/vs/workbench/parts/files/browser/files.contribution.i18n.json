@@ -24,7 +24,7 @@
 	"files.autoSave.onFocusChange": "编辑器失去焦点时自动保存更新后的文件。",
 	"files.autoSave.onWindowChange": "窗口失去焦点时自动保存更新后的文件。",
 	"autoSave": "控制已更新文件的自动保存。接受的值:“{0}”、\"{1}”、“{2}”(编辑器失去焦点)、“{3}”(窗口失去焦点)。如果设置为“{4}”，则可在 \"files.autoSaveDelay\" 中配置延迟。",
-	"autoSaveDelay": "控制延迟(以秒为单位)，在该延迟后将自动保存更新后的文件。仅在 \"files.autoSave'\" 设置为“{0}”时适用。",
+	"autoSaveDelay": "控制在多少毫秒后自动保存更改过的文件。仅在“files.autoSave”设置为“{0}”时适用。",
 	"watcherExclude": "配置文件路径的 glob 模式以从文件监视排除。更改此设置要求重启。如果在启动时遇到 Code 消耗大量 CPU 时间，则可以排除大型文件夹以减少初始加载。",
 	"hotExit.off": "禁用热退出。",
 	"hotExit.onExit": "应用程序关闭时将触发热退出。在 Windows/Linux 上关闭最后一个窗口或触发 workbench.action.quit 命令（命令托盘、键绑定、菜单）会引起应用程序关闭。下次启动时将还原所有已备份的窗口。",

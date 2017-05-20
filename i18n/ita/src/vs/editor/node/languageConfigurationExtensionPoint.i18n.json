@@ -15,5 +15,9 @@
 	"schema.brackets": "Definisce i simboli di parentesi quadra che aumentano o riducono il rientro.",
 	"schema.autoClosingPairs": "Definisce le coppie di parentesi quadre. Quando viene immessa una parentesi quadra di apertura, quella di chiusura viene inserita automaticamente.",
 	"schema.autoClosingPairs.notIn": "Definisce un elenco di ambiti in cui la corrispondenza automatica delle coppie è disabilitata.",
-	"schema.surroundingPairs": "Definisce le coppie di parentesi quadre che possono essere usate per racchiudere una stringa selezionata."
+	"schema.surroundingPairs": "Definisce le coppie di parentesi quadre che possono essere usate per racchiudere una stringa selezionata.",
+	"schema.wordPattern": "La definizione di parola per il linguaggio.",
+	"schema.wordPattern.pattern": "Il modello di RegExp utilizzato per trovare parole.",
+	"schema.wordPattern.flags": "I flag di RegExp utilizzati per trovare parole.",
+	"schema.wordPattern.flags.errorMessage": "Deve corrispondere al modello `/^([gimuy]+)$/`."
 }
