@@ -73,11 +73,11 @@ function fromRange(rng: Range): number[] {
 }
 
 suite('FindController', () => {
-	let queryState = {};
+	let queryState: { [key: string]: any; } = {};
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, <any>{
-		get: (key) => queryState[key],
-		getBoolean: (key) => !!queryState[key],
+		get: (key: string) => queryState[key],
+		getBoolean: (key: string) => !!queryState[key],
 		store: (key: string, value: any) => { queryState[key] = value; }
 	});
 
@@ -789,11 +789,14 @@ suite('FindController', () => {
 });
 
 suite('FindController query options persistence', () => {
-	let queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': false };
+	let queryState: { [key: string]: any; } = {};
+	queryState['editor.isRegex'] = false;
+	queryState['editor.matchCase'] = false;
+	queryState['editor.wholeWord'] = false;
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, <any>{
-		get: (key) => queryState[key],
-		getBoolean: (key) => !!queryState[key],
+		get: (key: string) => queryState[key],
+		getBoolean: (key: string) => !!queryState[key],
 		store: (key: string, value: any) => { queryState[key] = value; }
 	});
 

@@ -7,7 +7,13 @@
 import * as assert from 'assert';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
-const createContext = ctx => ({ getValue: key => ctx[key] });
+function createContext(ctx: any) {
+	return {
+		getValue: (key: string) => {
+			return ctx[key];
+		}
+	};
+}
 
 suite('ContextKeyExpr', () => {
 	test('ContextKeyExpr.equals', function () {

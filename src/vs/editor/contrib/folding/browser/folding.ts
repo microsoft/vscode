@@ -531,7 +531,7 @@ interface FoldingArguments {
 	direction?: 'up' | 'down';
 }
 
-function foldingArgumentsConstraint(args) {
+function foldingArgumentsConstraint(args: any) {
 	if (!types.isUndefined(args)) {
 		if (!types.isObject(args)) {
 			return false;

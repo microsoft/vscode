@@ -93,7 +93,6 @@ export class KeybindingEditorRenderer extends Disposable {
 
 	constructor(
 		private _editor: ICodeEditor,
-		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instantiationService: IInstantiationService
 	) {
 		super();

@@ -39,7 +39,7 @@ export abstract class CoreEditorCommand extends EditorCommand {
 
 export namespace EditorScroll_ {
 
-	const isEditorScrollArgs = function (arg): boolean {
+	const isEditorScrollArgs = function (arg: any): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
@@ -183,7 +183,7 @@ export namespace EditorScroll_ {
 
 export namespace RevealLine_ {
 
-	const isRevealLineArgs = function (arg): boolean {
+	const isRevealLineArgs = function (arg: any): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}

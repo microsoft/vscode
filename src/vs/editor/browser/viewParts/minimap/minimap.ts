@@ -797,7 +797,7 @@ export class Minimap extends ViewPart {
 	private static _renderLine(
 		target: ImageData,
 		backgroundColor: RGBA,
-		useLighterFont,
+		useLighterFont: boolean,
 		renderMinimap: RenderMinimap,
 		colorTracker: MinimapTokensColorTracker,
 		minimapCharRenderer: MinimapCharRenderer,

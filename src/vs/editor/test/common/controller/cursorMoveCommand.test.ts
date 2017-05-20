@@ -7,14 +7,11 @@
 import * as assert from 'assert';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
-import { ITextModelCreationOptions } from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
-import { IMode } from 'vs/editor/common/modes';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { CursorMove } from 'vs/editor/common/controller/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands';
 import { ViewModel } from "vs/editor/common/viewModel/viewModelImpl";
 
@@ -408,13 +405,6 @@ suite('Cursor move command test', () => {
 		cursorEqual(thisCursor, 2, 2);
 	});
 });
-
-interface ICursorOpts {
-	text: string[];
-	mode?: IMode;
-	modelOpts?: ITextModelCreationOptions;
-	editorOpts?: IEditorOptions;
-}
 
 // Move command
 

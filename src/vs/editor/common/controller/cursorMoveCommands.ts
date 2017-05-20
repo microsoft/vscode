@@ -498,7 +498,7 @@ export class CursorMoveCommands {
 
 export namespace CursorMove {
 
-	const isCursorMoveArgs = function (arg): boolean {
+	const isCursorMoveArgs = function (arg: any): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}

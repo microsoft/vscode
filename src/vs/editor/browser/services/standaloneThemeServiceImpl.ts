@@ -172,8 +172,8 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 		}
 		this._theme = theme;
 
-		let cssRules = [];
-		let hasRule = {};
+		let cssRules: string[] = [];
+		let hasRule: { [rule: string]: boolean; } = {};
 		let ruleCollector: ICssStyleCollector = {
 			addRule: (rule: string) => {
 				if (!hasRule[rule]) {

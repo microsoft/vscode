@@ -126,7 +126,7 @@ export class OverviewZoneManager {
 	private _themeType: ThemeType;
 	private _pixelRatio: number;
 
-	private _lastAssignedId;
+	private _lastAssignedId: number;
 	private _color2Id: { [color: string]: number; };
 	private _id2Color: string[];
 

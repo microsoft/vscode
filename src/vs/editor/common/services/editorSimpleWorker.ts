@@ -474,7 +474,7 @@ export abstract class BaseEditorSimpleWorker {
 	public loadForeignModule(moduleId: string, createData: any): TPromise<string[]> {
 		return new TPromise<any>((c, e) => {
 			// Use the global require to be sure to get the global config
-			(<any>self).require([moduleId], (foreignModule) => {
+			(<any>self).require([moduleId], (foreignModule: { create: (ctx: IWorkerContext, createData: any) => any; }) => {
 				let ctx: IWorkerContext = {
 					getMirrorModels: (): IMirrorModel[] => {
 						return this._getModels();

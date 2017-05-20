@@ -84,7 +84,7 @@ export interface IViewLayout {
 	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
 
 	// TODO@Alex whitespace management should work via a change accessor sort of thing
-	onHeightMaybeChanged();
+	onHeightMaybeChanged(): void;
 
 	// --------------- End vertical whitespace management
 }

@@ -338,14 +338,14 @@ class Widget {
 		let position = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(validModelPosition);
 
 		let placement: IBoxLayoutResult = null;
-		let fetchPlacement = () => {
+		let fetchPlacement = (): void => {
 			if (placement) {
 				return;
 			}
 
 			const topLeft = this._getTopLeft(ctx, position);
 			if (!topLeft) {
-				return null;
+				return;
 			}
 
 			const domNode = this.domNode.domNode;

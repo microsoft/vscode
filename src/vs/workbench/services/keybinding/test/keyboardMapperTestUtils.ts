@@ -88,7 +88,7 @@ export function readRawMapping<T>(file: string): TPromise<T> {
 		let contents = buff.toString();
 		let func = new Function('define', contents);
 		let rawMappings: T = null;
-		func(function (value) {
+		func(function (value: T) {
 			rawMappings = value;
 		});
 		return rawMappings;

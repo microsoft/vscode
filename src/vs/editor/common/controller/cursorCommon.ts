@@ -42,7 +42,7 @@ export interface ICursors {
 
 	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
 	reveal(horizontal: boolean, target: RevealTarget): void;
-	revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: VerticalRevealType);
+	revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: VerticalRevealType): void;
 
 	scrollTo(desiredScrollTop: number): void;
 }

@@ -13,7 +13,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { editorBracketMatchBackground, editorBracketMatchBorder } from "vs/editor/common/view/editorColorRegistry";
@@ -71,8 +70,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	private _matchBrackets: boolean;
 
 	constructor(
-		editor: editorCommon.ICommonCodeEditor,
-		@IConfigurationService private configurationService: IConfigurationService
+		editor: editorCommon.ICommonCodeEditor
 	) {
 		super();
 		this._editor = editor;

@@ -1699,7 +1699,7 @@ suite('Editor Controller - Regression tests', () => {
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 1, false);
 
-			function assertWordRight(col, expectedCol) {
+			function assertWordRight(col: number, expectedCol: number) {
 				let args = {
 					position: {
 						lineNumber: 1,

@@ -68,7 +68,7 @@ export class LineContext {
 	readonly column: number;
 	readonly leadingLineContent: string;
 	readonly leadingWord: IWordAtPosition;
-	readonly auto;
+	readonly auto: boolean;
 
 	constructor(model: IModel, position: Position, auto: boolean) {
 		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
