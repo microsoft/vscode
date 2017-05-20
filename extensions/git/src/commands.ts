@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, scm, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState } from 'vscode';
-import { Ref, RefType, Git, GitErrorCodes } from './git';
+import { Ref, RefType, Git, GitErrorCodes, PushOptions } from './git';
 import { Model, Resource, Status, CommitOptions, WorkingTreeGroup, IndexGroup, MergeGroup } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
@@ -16,6 +16,10 @@ import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
+
+class PushOptionsImpl implements PushOptions {
+	withTags: boolean;
+}
 
 class CheckoutItem implements QuickPickItem {
 
@@ -34,6 +38,26 @@ class CheckoutItem implements QuickPickItem {
 		}
 
 		await model.checkout(ref);
+	}
+}
+
+class ShowTag implements QuickPickItem {
+
+	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
+	get label(): string { return this.ref.name || this.shortCommit; }
+	get description(): string { return this.shortCommit; }
+
+	constructor(protected ref: Ref) { }
+
+	async run(model: Model): Promise<void> {
+		const result = await model.showObject(this.ref.name || '');
+
+		if (!result) {
+			return;
+		}
+
+		workspace.openTextDocument({ language: 'en', content: result.trim() })
+			.then(window.showTextDocument);
 	}
 }
 
@@ -699,6 +723,48 @@ export class CommandCenter {
 		await this.model.branch(name);
 	}
 
+	@command('git.showTags')
+	async showTags(): Promise<void> {
+		const tags = this.model.refs
+			.filter(x => x.type === RefType.Tag)
+			.map(tag => new ShowTag(tag));
+
+		const placeHolder = 'Select a tag';
+
+		var choice = await window.showQuickPick<ShowTag>(tags, { placeHolder });
+
+		if (!choice) {
+			return;
+		}
+
+		await choice.run(this.model);
+	}
+
+	@command('git.createTag')
+	async createTag(): Promise<void> {
+		const inputTagName = await window.showInputBox({
+			placeHolder: localize('tag name', "Tag name"),
+			prompt: localize('provide tag name', "Please provide a tag name"),
+			ignoreFocusOut: true
+		});
+
+		if (!inputTagName) {
+			return;
+		}
+
+		const inputMessage = await window.showInputBox({
+			placeHolder: localize('tag message', "Message"),
+			prompt: localize('provide tag message', "Please provide a message"),
+			ignoreFocusOut: true
+		});
+
+		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
+		const message = inputMessage || name;
+		await this.model.tag(name, message);
+
+		window.showInformationMessage(localize('tag creation success', "Successfully created tag."));
+	}
+
 	@command('git.pull')
 	async pull(): Promise<void> {
 		const remotes = this.model.remotes;
@@ -733,6 +799,23 @@ export class CommandCenter {
 		}
 
 		await this.model.push();
+	}
+
+	@command('git.pushWithTags')
+	async pushWithTags(): Promise<void> {
+		const remotes = this.model.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			return;
+		}
+
+		let pushOptions = new PushOptionsImpl();
+		pushOptions.withTags = true;
+
+		await this.model.push(undefined, undefined, pushOptions);
+
+		window.showInformationMessage(localize('push with tags success', "Successfully pushed with tags."));
 	}
 
 	@command('git.pushTo')

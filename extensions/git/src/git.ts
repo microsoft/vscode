@@ -23,6 +23,7 @@ export interface IGit {
 
 export interface PushOptions {
 	setUpstream?: boolean;
+	withTags?: boolean;
 }
 
 export interface IFileStatus {
@@ -650,6 +651,29 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async show(ref: string): Promise<string> {
+		let args = ['show', '-s', '--format=%H\n%B', ref];
+		const result = await this.run(args);
+
+		if (!result) {
+			return Promise.reject<string>('Invalid reference provided.');
+		}
+
+		return result.stdout;
+	}
+
+	async tag(name: string, message: string, lightweight: boolean): Promise<void> {
+		let args = ['tag'];
+
+		if (lightweight) {
+			args.push(name);
+		} else {
+			args = args.concat(['-a', name, '-m', message]);
+		}
+
+		await this.run(args);
+	}
+
 	async clean(paths: string[]): Promise<void> {
 		const pathsByGroup = groupBy(paths, p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
@@ -757,8 +781,14 @@ export class Repository {
 	async push(remote?: string, name?: string, options?: PushOptions): Promise<void> {
 		const args = ['push'];
 
-		if (options && options.setUpstream) {
-			args.push('-u');
+		if (options) {
+			if (options.setUpstream) {
+				args.push('-u');
+			}
+
+			if (options.withTags) {
+				args.push('--tags');
+			}
 		}
 
 		if (remote) {
@@ -945,8 +975,8 @@ export class Repository {
 	}
 
 	async getCommit(ref: string): Promise<Commit> {
-		const result = await this.run(['show', '-s', '--format=%H\n%B', ref]);
-		const match = /^([0-9a-f]{40})\n([^]*)$/m.exec(result.stdout.trim());
+		const result = await this.show(ref);
+		const match = /^([0-9a-f]{40})\n([^]*)$/m.exec(result.trim());
 
 		if (!match) {
 			return Promise.reject<Commit>('bad commit format');

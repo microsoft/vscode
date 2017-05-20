@@ -173,6 +173,21 @@
         "category": "Git"
       },
       {
+        "command": "git.createTag",
+        "title": "%command.createTag%",
+        "category": "Git"
+      },
+      {
+        "command": "git.showTags",
+        "title": "%command.showTags%",
+        "category": "Git"
+      },
+      {
+        "command": "git.pushWithTags",
+        "title": "%command.pushWithTags%",
+        "category": "Git"
+      },
+      {
         "command": "git.pull",
         "title": "%command.pull%",
         "category": "Git"
@@ -307,7 +322,19 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
+          "command": "git.showTags",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.createTag",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
           "command": "git.push",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.pushWithTags",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
