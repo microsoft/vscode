@@ -9,6 +9,7 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
 import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
@@ -62,6 +63,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 
 		this._register(this._editor.onDidChangeModel((e) => this.stop()));
 		this._register(this._editor.onDidChangeModelLanguage((e) => this.stop()));
+		this._register(this._editor.onKeyUp((e) => e.keyCode === KeyCode.Escape && this.stop()));
 	}
 
 	public getId(): string {
@@ -94,7 +96,7 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 		if (!this._widget) {
 			this.launch();
 		} else {
-			this.dispose();
+			this.stop();
 		}
 	}
 }
