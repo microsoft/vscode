@@ -604,7 +604,7 @@ export abstract class SelectNextFindMatchAction extends EditorAction {
 		let allSelections = editor.getSelections();
 		let lastAddedSelection = allSelections[allSelections.length - 1];
 
-		let nextMatch = editor.getModel().findNextMatch(r.searchText, lastAddedSelection.getEndPosition(), false, r.matchCase, r.wholeWord, false);
+		let nextMatch = editor.getModel().findNextMatch(r.searchText, lastAddedSelection.getEndPosition(), false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false);
 
 		if (!nextMatch) {
 			return null;
@@ -631,7 +631,7 @@ export abstract class SelectPreviousFindMatchAction extends EditorAction {
 		let allSelections = editor.getSelections();
 		let lastAddedSelection = allSelections[allSelections.length - 1];
 
-		let previousMatch = editor.getModel().findPreviousMatch(r.searchText, lastAddedSelection.getStartPosition(), false, r.matchCase, r.wholeWord, false);
+		let previousMatch = editor.getModel().findPreviousMatch(r.searchText, lastAddedSelection.getStartPosition(), false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false);
 
 		if (!previousMatch) {
 			return null;
@@ -813,7 +813,7 @@ export abstract class AbstractSelectHighlightsAction extends EditorAction {
 		const findState = controller.getState();
 		if (findState.isRevealed && findState.isRegex && findState.searchString.length > 0) {
 
-			matches = editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord, false).map(m => m.range);
+			matches = editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? editor.getConfiguration().wordSeparators : null, false).map(m => m.range);
 
 		} else {
 
@@ -826,7 +826,7 @@ export abstract class AbstractSelectHighlightsAction extends EditorAction {
 				return;
 			}
 
-			matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord, false).map(m => m.range);
+			matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false).map(m => m.range);
 		}
 
 		if (matches.length > 0) {
@@ -1010,7 +1010,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		}
 
 
-		let allMatches = model.findMatches(r.searchText, true, false, r.matchCase, r.wholeWord, false).map(m => m.range);
+		let allMatches = model.findMatches(r.searchText, true, false, r.matchCase, r.wholeWord ? this.editor.getConfiguration().wordSeparators : null, false).map(m => m.range);
 		allMatches.sort(Range.compareRangesUsingStarts);
 
 		selections.sort(Range.compareRangesUsingStarts);
