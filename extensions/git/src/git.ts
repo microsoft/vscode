@@ -291,6 +291,8 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.RepositoryNotFound;
 	} else if (/unable to access/.test(stderr)) {
 		return GitErrorCodes.CantAccessRemote;
+	} else if (/Couldn\'t find remote ref/.test(stderr)) {
+		return GitErrorCodes.CantAccessRemote;
 	}
 
 	return void 0;
@@ -730,11 +732,16 @@ export class Repository {
 		}
 	}
 
-	async pull(rebase?: boolean): Promise<void> {
+	async pull(rebase?: boolean, remote?: string, branch?: string): Promise<void> {
 		const args = ['pull'];
 
 		if (rebase) {
 			args.push('-r');
+		}
+
+		if (remote && branch) {
+			args.push(remote);
+			args.push(branch);
 		}
 
 		try {

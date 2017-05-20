@@ -183,6 +183,11 @@
         "category": "Git"
       },
       {
+        "command": "git.pullFrom",
+        "title": "%command.pullFrom%",
+        "category": "Git"
+      },
+      {
         "command": "git.push",
         "title": "%command.push%",
         "category": "Git"
@@ -307,6 +312,10 @@
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
+          "command": "git.pullFrom",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+       },
+        {
           "command": "git.push",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
@@ -355,6 +364,11 @@
         },
         {
           "command": "git.pullRebase",
+          "group": "1_sync",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.pullFrom",
           "group": "1_sync",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
