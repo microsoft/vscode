@@ -16,6 +16,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZo
 import { Color, RGBA } from 'vs/base/common/color';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
 import { Position, IPosition } from 'vs/editor/common/core/position';
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
 
 export interface IOptions {
 	showFrame?: boolean;
@@ -228,7 +229,7 @@ export abstract class ZoneWidget extends Widget implements IHorizontalSashLayout
 		this._isShowing = true;
 		this._showImpl(range, heightInLines);
 		this._isShowing = false;
-		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: {} }]);
+		this._positionMarkerId = this.editor.deltaDecorations(this._positionMarkerId, [{ range, options: ModelDecorationOptions.EMPTY }]);
 	}
 
 	public hide(): void {

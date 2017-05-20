@@ -16,6 +16,7 @@ import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction 
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { editorBracketMatchBackground, editorBracketMatchBorder } from "vs/editor/common/view/editorColorRegistry";
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
 
 @editorAction
 class SelectBracketAction extends EditorAction {
@@ -127,10 +128,10 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		}
 	}
 
-	private static _DECORATION_OPTIONS: editorCommon.IModelDecorationOptions = {
+	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match'
-	};
+	});
 
 	private _updateBrackets(): void {
 		if (!this._matchBrackets) {

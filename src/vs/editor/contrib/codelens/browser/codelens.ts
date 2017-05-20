@@ -25,6 +25,7 @@ import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOption
 import { editorCodeLensForeground } from "vs/editor/common/view/editorColorRegistry";
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { editorActiveLinkForeground } from "vs/platform/theme/common/colorRegistry";
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
 
 
 class CodeLensViewZone implements editorBrowser.IViewZone {
@@ -250,7 +251,7 @@ class CodeLens {
 
 			helper.addDecoration({
 				range: codeLensData.symbol.range,
-				options: {}
+				options: ModelDecorationOptions.EMPTY
 			}, id => this._decorationIds[i] = id);
 
 			// the range contains all lenses on this line
@@ -297,7 +298,7 @@ class CodeLens {
 		this._data.forEach((codeLensData, i) => {
 			helper.addDecoration({
 				range: codeLensData.symbol.range,
-				options: {}
+				options: ModelDecorationOptions.EMPTY
 			}, id => this._decorationIds[i] = id);
 		});
 	}

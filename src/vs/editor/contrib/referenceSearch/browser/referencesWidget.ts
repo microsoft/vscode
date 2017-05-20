@@ -44,13 +44,14 @@ import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/st
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from "vs/platform/environment/common/environment";
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
 
 class DecorationsManager implements IDisposable {
 
-	private static DecorationOptions: editorCommon.IModelDecorationOptions = {
+	private static DecorationOptions = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'reference-decoration'
-	};
+	});
 
 	private _decorations = new Map<string, OneReference>();
 	private _decorationIgnoreSet = new Set<string>();

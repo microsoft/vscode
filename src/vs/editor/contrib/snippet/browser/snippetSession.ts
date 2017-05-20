@@ -6,7 +6,7 @@
 'use strict';
 
 import { getLeadingWhitespace } from 'vs/base/common/strings';
-import { ICommonCodeEditor, IModel, IModelDecorationOptions, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TextmateSnippet, Placeholder, SnippetParser } from '../common/snippetParser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -15,6 +15,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
 import { EditorSnippetVariableResolver } from "vs/editor/contrib/snippet/common/snippetVariables";
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
 
 export class OneSnippet {
 
@@ -27,10 +28,10 @@ export class OneSnippet {
 	private _placeholderGroupsIdx: number;
 
 	private static readonly _decor = {
-		active: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges, className: 'snippet-placeholder' },
-		inactive: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'snippet-placeholder' },
-		activeFinal: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' },
-		inactiveFinal: <IModelDecorationOptions>{ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' },
+		active: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges, className: 'snippet-placeholder' }),
+		inactive: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'snippet-placeholder' }),
+		activeFinal: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' }),
+		inactiveFinal: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' }),
 	};
 
 	constructor(editor: ICommonCodeEditor, snippet: TextmateSnippet, offset: number) {

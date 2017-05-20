@@ -26,6 +26,13 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+
+const HOVER_MESSAGE_GENERAL = (
+	platform.isMacintosh
+		? nls.localize('links.navigate.mac', "Cmd + click to follow link")
+		: nls.localize('links.navigate', "Ctrl + click to follow link")
+);
 
 class LinkOccurence {
 
@@ -37,24 +44,24 @@ class LinkOccurence {
 				endLineNumber: link.range.endLineNumber,
 				endColumn: link.range.endColumn
 			},
-			options: LinkOccurence._getOptions(link, false)
+			options: LinkOccurence._getOptions(false)
 		};
 	}
 
-	private static _getOptions(link: Link, isActive: boolean): editorCommon.IModelDecorationOptions {
-		var result = '';
+	private static _LINK_DECORATION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'detected-link',
+		hoverMessage: HOVER_MESSAGE_GENERAL
+	});
 
-		if (isActive) {
-			result += LinkDetector.CLASS_NAME_ACTIVE;
-		} else {
-			result += LinkDetector.CLASS_NAME;
-		}
+	private static _ACTIVE_LINK_DECORATION = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		inlineClassName: 'detected-link-active',
+		hoverMessage: HOVER_MESSAGE_GENERAL
+	});
 
-		return {
-			stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-			inlineClassName: result,
-			hoverMessage: LinkDetector.HOVER_MESSAGE_GENERAL
-		};
+	private static _getOptions(isActive: boolean): ModelDecorationOptions {
+		return (isActive ? this._ACTIVE_LINK_DECORATION : this._LINK_DECORATION);
 	}
 
 	public decorationId: string;
@@ -66,11 +73,11 @@ class LinkOccurence {
 	}
 
 	public activate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(this.link, true));
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(true));
 	}
 
 	public deactivate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(this.link, false));
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurence._getOptions(false));
 	}
 }
 
@@ -86,9 +93,6 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	static RECOMPUTE_TIME = 1000; // ms
 	static TRIGGER_KEY_VALUE = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
 	static TRIGGER_MODIFIER = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
-	static HOVER_MESSAGE_GENERAL = platform.isMacintosh ? nls.localize('links.navigate.mac', "Cmd + click to follow link") : nls.localize('links.navigate', "Ctrl + click to follow link");
-	static CLASS_NAME = 'detected-link';
-	static CLASS_NAME_ACTIVE = 'detected-link-active';
 
 	private editor: ICodeEditor;
 	private listenersToRemove: IDisposable[];

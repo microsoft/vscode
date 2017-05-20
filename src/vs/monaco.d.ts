@@ -1113,10 +1113,6 @@ declare module monaco.editor {
 		 */
 		isWholeLine?: boolean;
 		/**
-		 * @deprecated : Use `overviewRuler` instead
-		 */
-		showInOverviewRuler?: string;
-		/**
 		 * If set, render this decoration in the overview ruler.
 		 */
 		overviewRuler?: IModelDecorationOverviewRulerOptions;

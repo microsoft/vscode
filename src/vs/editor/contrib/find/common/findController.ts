@@ -21,6 +21,7 @@ import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
 
 export const enum FindStartFocusAction {
 	NoFocusChange,
@@ -1044,21 +1045,28 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		let decorations = matches.map(r => {
 			return {
 				range: r,
-				options: {
-					stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					className: 'selectionHighlight',
-					// Show in overviewRuler only if model has no semantic highlighting
-					overviewRuler: (hasFindOccurences ? undefined : {
-						color: '#A0A0A0',
-						darkColor: '#A0A0A0',
-						position: editorCommon.OverviewRulerLane.Center
-					})
-				}
+				// Show in overviewRuler only if model has no semantic highlighting
+				options: (hasFindOccurences ? SelectionHighlighter._SELECTION_HIGHLIGHT : SelectionHighlighter._SELECTION_HIGHLIGHT_OVERVIEW)
 			};
 		});
 
 		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
 	}
+
+	private static _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'selectionHighlight',
+		overviewRuler: {
+			color: '#A0A0A0',
+			darkColor: '#A0A0A0',
+			position: editorCommon.OverviewRulerLane.Center
+		}
+	});
+
+	private static _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'selectionHighlight',
+	});
 
 	public dispose(): void {
 		this.removeDecorations();
