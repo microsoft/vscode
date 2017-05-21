@@ -200,7 +200,11 @@ class DomListener implements IDisposable {
 	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture: boolean) {
 		this._node = node;
 		this._type = type;
-		this._handler = handler;
+		this._handler = (e) => {
+			console.log(`/ --- entering listener for ${type}`);
+			handler(e);
+			console.log(`\\ --- leaving listener for ${type}`);
+		};
 		this._useCapture = (useCapture || false);
 		this._node.addEventListener(this._type, this._handler, this._useCapture);
 	}

@@ -139,6 +139,7 @@ export class View extends ViewEventHandler {
 		}));
 
 		this._register(cursor.addEventListener((events: viewEvents.ViewEvent[]) => {
+			console.log(`view received cursor view event`);
 			this.eventDispatcher.emitMany(events);
 		}));
 	}

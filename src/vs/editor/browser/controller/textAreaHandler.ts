@@ -293,7 +293,9 @@ export class TextAreaHandler extends ViewPart {
 		return true;
 	}
 	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
+		console.log(`tahandler received cursor selection changed`);
 		this._selections = [e.selection].concat(e.secondarySelections);
+		this.writeToTextArea();
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
