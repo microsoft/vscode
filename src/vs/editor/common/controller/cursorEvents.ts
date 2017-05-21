@@ -9,14 +9,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 
 /**
- * @internal
- */
-export const CursorEventType = {
-	CursorPositionChanged: 'positionChanged',
-	CursorSelectionChanged: 'selectionChanged',
-};
-
-/**
  * Describes the reason the cursor has changed its position.
  */
 export enum CursorChangeReason {

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Cursor } from 'vs/editor/common/controller/cursor';
+import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -22,7 +22,6 @@ import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 import { withMockCodeEditor } from "vs/editor/test/common/mocks/mockCodeEditor";
 import { TextModel } from "vs/editor/common/model/textModel";
@@ -642,10 +641,7 @@ suite('Editor Controller - Cursor', () => {
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {
-		thisCursor.onDidChangePosition((e) => {
-			assert.ok(false, 'was not expecting event');
-		});
-		thisCursor.onDidChangeSelection((e) => {
+		thisCursor.onDidChange((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		moveTo(thisCursor, 1, 1);
@@ -653,30 +649,22 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move eventing', () => {
 		let events = 0;
-		thisCursor.onDidChangePosition((e: ICursorPositionChangedEvent) => {
+		thisCursor.onDidChange((e: CursorStateChangedEvent) => {
 			events++;
-			assert.deepEqual(e.position, new Position(1, 2));
-		});
-		thisCursor.onDidChangeSelection((e: ICursorSelectionChangedEvent) => {
-			events++;
-			assert.deepEqual(e.selection, new Selection(1, 2, 1, 2));
+			assert.deepEqual(e.selections, [new Selection(1, 2, 1, 2)]);
 		});
 		moveTo(thisCursor, 1, 2);
-		assert.equal(events, 2, 'receives 2 events');
+		assert.equal(events, 1, 'receives 1 event');
 	});
 
 	test('move in selection mode eventing', () => {
 		let events = 0;
-		thisCursor.onDidChangePosition((e: ICursorPositionChangedEvent) => {
+		thisCursor.onDidChange((e: CursorStateChangedEvent) => {
 			events++;
-			assert.deepEqual(e.position, new Position(1, 2));
-		});
-		thisCursor.onDidChangeSelection((e: ICursorSelectionChangedEvent) => {
-			events++;
-			assert.deepEqual(e.selection, new Selection(1, 1, 1, 2));
+			assert.deepEqual(e.selections, [new Selection(1, 1, 1, 2)]);
 		});
 		moveTo(thisCursor, 1, 2, true);
-		assert.equal(events, 2, 'receives 2 events');
+		assert.equal(events, 1, 'receives 1 event');
 	});
 
 	// --------- state save & restore

@@ -12,7 +12,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKey, IContextKeyServiceTarget, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { Cursor } from 'vs/editor/common/controller/cursor';
+import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { CursorColumns, ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -26,7 +26,7 @@ import {
 	IModelLanguageChangedEvent, IModelOptionsChangedEvent, TextModelEventType
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { CursorEventType, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CommonEditorRegistry } from "vs/editor/common/editorCommonExtensions";
 import { VerticalRevealType } from "vs/editor/common/view/viewEvents";
@@ -904,25 +904,30 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 			this._createView();
 
-			this.listenersToRemove.push(this.cursor.addBulkListener((events) => {
-				for (let i = 0, len = events.length; i < len; i++) {
-					let eventType = events[i].type;
-					let e = events[i].data;
+			this.listenersToRemove.push(this.cursor.onDidChange((e: CursorStateChangedEvent) => {
 
-					switch (eventType) {
-						case CursorEventType.CursorPositionChanged:
-							this._onDidChangeCursorPosition.fire(e);
-							break;
-
-						case CursorEventType.CursorSelectionChanged:
-							this._onDidChangeCursorSelection.fire(e);
-							break;
-
-						default:
-						// console.warn("Unhandled cursor event: ", e);
-					}
+				let positions: Position[] = [];
+				for (let i = 0, len = e.selections.length; i < len; i++) {
+					positions[i] = e.selections[i].getPosition();
 				}
+
+				const e1: ICursorPositionChangedEvent = {
+					position: positions[0],
+					secondaryPositions: positions.slice(1),
+					reason: e.reason,
+					source: e.source
+				};
+				this._onDidChangeCursorPosition.fire(e1);
+
+				const e2: ICursorSelectionChangedEvent = {
+					selection: e.selections[0],
+					secondarySelections: e.selections.slice(1),
+					source: e.source,
+					reason: e.reason
+				};
+				this._onDidChangeCursorSelection.fire(e2);
 			}));
+
 		} else {
 			this.hasView = false;
 		}

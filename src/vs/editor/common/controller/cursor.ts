@@ -7,8 +7,6 @@
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { EventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,9 +17,10 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
-import { CursorEventType, CursorChangeReason, ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from "vs/editor/common/viewModel/viewModel";
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import Event, { Emitter } from 'vs/base/common/event';
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -32,19 +31,33 @@ function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	return false;
 }
 
+export class CursorStateChangedEvent {
+	/**
+	 * The new selections.
+	 * The primary selection is always at index 0.
+	 */
+	readonly selections: Selection[];
+	/**
+	 * Source of the call that caused the event.
+	 */
+	readonly source: string;
+	/**
+	 * Reason.
+	 */
+	readonly reason: CursorChangeReason;
+
+	constructor(selections: Selection[], source: string, reason: CursorChangeReason) {
+		this.selections = selections;
+		this.source = source;
+		this.reason = reason;
+	}
+}
+
 export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
-	public onDidChangePosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(CursorEventType.CursorPositionChanged, listener);
-	}
-	public onDidChangeSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(CursorEventType.CursorSelectionChanged, listener);
-	}
-	public addBulkListener(listener: BulkListenerCallback): IDisposable {
-		return this._eventEmitter.addBulkListener(listener);
-	}
+	private readonly _onDidChange: Emitter<CursorStateChangedEvent> = this._register(new Emitter<CursorStateChangedEvent>());
+	public readonly onDidChange: Event<CursorStateChangedEvent> = this._onDidChange.event;
 
-	private readonly _eventEmitter: EventEmitter;
 	private readonly _configuration: editorCommon.IConfiguration;
 	private readonly _model: editorCommon.IModel;
 	private readonly _viewModel: IViewModel;
@@ -57,7 +70,6 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModel: IViewModel) {
 		super();
-		this._eventEmitter = this._register(new EventEmitter());
 		this._configuration = configuration;
 		this._model = model;
 		this._viewModel = viewModel;
@@ -345,14 +357,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	// ----- emitting events
 
 	private _emitStateChanged(source: string, reason: CursorChangeReason): void {
-		this._emitCursorPositionChanged(source, reason);
-		this._emitCursorSelectionChanged(source, reason);
-	}
+		source = source || 'keyboard';
 
-	private _emitCursorPositionChanged(source: string, reason: CursorChangeReason): void {
 		const positions = this._cursors.getPositions();
 		const primaryPosition = positions[0];
-		const secondaryPositions = positions.slice(1);
 
 		const viewPositions = this._cursors.getViewPositions();
 		const primaryViewPosition = viewPositions[0];
@@ -365,32 +373,15 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 				isInEditableRange = false;
 			}
 		}
-		const e: ICursorPositionChangedEvent = {
-			position: primaryPosition,
-			secondaryPositions: secondaryPositions,
-			reason: reason,
-			source: source
-		};
-		this._eventEmitter.emit(CursorEventType.CursorPositionChanged, e);
-		this._emit([new viewEvents.ViewCursorPositionChangedEvent(primaryViewPosition, secondaryViewPositions, isInEditableRange)]);
-	}
 
-	private _emitCursorSelectionChanged(source: string, reason: CursorChangeReason): void {
 		const selections = this._cursors.getSelections();
-		const primarySelection = selections[0];
-		const secondarySelections = selections.slice(1);
 
 		const viewSelections = this._cursors.getViewSelections();
 		const primaryViewSelection = viewSelections[0];
 		const secondaryViewSelections = viewSelections.slice(1);
 
-		const e: ICursorSelectionChangedEvent = {
-			selection: primarySelection,
-			secondarySelections: secondarySelections,
-			source: source || 'keyboard',
-			reason: reason
-		};
-		this._eventEmitter.emit(CursorEventType.CursorSelectionChanged, e);
+		this._onDidChange.fire(new CursorStateChangedEvent(selections, source, reason));
+		this._emit([new viewEvents.ViewCursorPositionChangedEvent(primaryViewPosition, secondaryViewPositions, isInEditableRange)]);
 		this._emit([new viewEvents.ViewCursorSelectionChangedEvent(primaryViewSelection, secondaryViewSelections)]);
 	}
 
