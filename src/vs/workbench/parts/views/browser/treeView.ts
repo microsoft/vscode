@@ -388,7 +388,7 @@ class Menus implements IDisposable {
 		}
 
 		const _contextKeyService = this.contextKeyService.createScoped();
-		contextKeyService.createKey('view', id);
+		_contextKeyService.createKey('view', id);
 
 		const titleMenu = this.menuService.createMenu(MenuId.ViewTitle, _contextKeyService);
 		const updateActions = () => {

@@ -86,7 +86,9 @@ class ExtHostTreeView<T> extends Disposable {
 	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape) {
 		super();
 		this.proxy.$registerView(viewId);
-		this._register(dataProvider.onDidChange(element => this._refresh(element)));
+		if (dataProvider.onDidChange) {
+			this._register(dataProvider.onDidChange(element => this._refresh(element)));
+		}
 	}
 
 	getTreeItems(): TPromise<TreeItem[]> {
