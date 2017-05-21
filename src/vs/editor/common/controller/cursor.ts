@@ -174,8 +174,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		const newViewSelections = this._cursors.getViewSelections();
 
 		if (Cursor._somethingChanged(oldSelections, oldViewSelections, newSelections, newViewSelections)) {
-			this._emitCursorPositionChanged(source, reason);
-			this._emitCursorSelectionChanged(source, reason);
+			this._emitStateChanged(source, reason);
 		}
 	}
 
@@ -268,8 +267,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this._cursors.dispose();
 			this._cursors = new CursorCollection(this.context);
 
-			this._emitCursorPositionChanged('model', CursorChangeReason.ContentFlush);
-			this._emitCursorSelectionChanged('model', CursorChangeReason.ContentFlush);
+			this._emitStateChanged('model', CursorChangeReason.ContentFlush);
 		} else {
 			const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
 			this.setStates('modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
@@ -345,6 +343,11 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- emitting events
+
+	private _emitStateChanged(source: string, reason: CursorChangeReason): void {
+		this._emitCursorPositionChanged(source, reason);
+		this._emitCursorSelectionChanged(source, reason);
+	}
 
 	private _emitCursorPositionChanged(source: string, reason: CursorChangeReason): void {
 		const positions = this._cursors.getPositions();
@@ -503,9 +506,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		const newSelections = this._cursors.getSelections();
 		const newViewSelections = this._cursors.getViewSelections();
 		if (Cursor._somethingChanged(oldSelections, oldViewSelections, newSelections, newViewSelections)) {
-			this._emitCursorPositionChanged(source, cursorChangeReason);
+			this._emitStateChanged(source, cursorChangeReason);
 			this._revealRange(RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true);
-			this._emitCursorSelectionChanged(source, cursorChangeReason);
 		}
 	}
 
