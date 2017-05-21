@@ -42,51 +42,82 @@ export class DefineKeybindingController extends Disposable implements editorComm
 		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);
 	}
 
-	private _keybindingEditorRenderer: KeybindingEditorRenderer;
+	private _keybindingWidgetRenderer: KeybindingWidgetRenderer;
+	private _keybindingDecorationRenderer: KeybindingEditorDecorationsRenderer;
 
 	constructor(
 		private _editor: ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private _instantiationService: IInstantiationService
 	) {
 		super();
 
-		this._register(this._editor.onDidChangeModel(e => this._renderKeybindingEditor()));
-		this._renderKeybindingEditor();
+		this._keybindingWidgetRenderer = null;
+		this._keybindingDecorationRenderer = null;
+
+		this._register(this._editor.onDidChangeModel(e => this._update()));
+		this._update();
 	}
 
 	public getId(): string {
 		return DefineKeybindingController.ID;
 	}
 
-	public get keybindingEditorRenderer(): KeybindingEditorRenderer {
-		return this._keybindingEditorRenderer;
+	public get keybindingWidgetRenderer(): KeybindingWidgetRenderer {
+		return this._keybindingWidgetRenderer;
 	}
 
 	public dispose(): void {
-		this._disposeKeybindingEditorRenderer();
+		this._disposeKeybindingWidgetRenderer();
+		this._disposeKeybindingDecorationRenderer();
 		super.dispose();
 	}
 
-	private _renderKeybindingEditor(): void {
-		if (isInterestingEditorModel(this._editor)) {
-			if (!this._keybindingEditorRenderer) {
-				this._keybindingEditorRenderer = this.instantiationService.createInstance(KeybindingEditorRenderer, this._editor);
-			}
+	private _update(): void {
+		if (!isInterestingEditorModel(this._editor)) {
+			this._disposeKeybindingWidgetRenderer();
+			this._disposeKeybindingDecorationRenderer();
+			return;
+		}
+
+		// Decorations are shown for the default keybindings.json **and** for the user keybindings.json
+		this._createKeybindingDecorationRenderer();
+
+		// The button to define keybindings is shown only for the user keybindings.json
+		if (!this._editor.getConfiguration().readOnly) {
+			this._createKeybindingWidgetRenderer();
 		} else {
-			this._disposeKeybindingEditorRenderer();
+			this._disposeKeybindingWidgetRenderer();
 		}
 	}
 
-	private _disposeKeybindingEditorRenderer(): void {
-		if (this._keybindingEditorRenderer) {
-			this._keybindingEditorRenderer.dispose();
-			this._keybindingEditorRenderer = null;
+	private _createKeybindingWidgetRenderer(): void {
+		if (!this._keybindingWidgetRenderer) {
+			this._keybindingWidgetRenderer = this._instantiationService.createInstance(KeybindingWidgetRenderer, this._editor);
+		}
+	}
+
+	private _disposeKeybindingWidgetRenderer(): void {
+		if (this._keybindingWidgetRenderer) {
+			this._keybindingWidgetRenderer.dispose();
+			this._keybindingWidgetRenderer = null;
+		}
+	}
+
+	private _createKeybindingDecorationRenderer(): void {
+		if (!this._keybindingDecorationRenderer) {
+			this._keybindingDecorationRenderer = this._instantiationService.createInstance(KeybindingEditorDecorationsRenderer, this._editor);
+		}
+	}
+
+	private _disposeKeybindingDecorationRenderer(): void {
+		if (this._keybindingDecorationRenderer) {
+			this._keybindingDecorationRenderer.dispose();
+			this._keybindingDecorationRenderer = null;
 		}
 	}
 }
 
-export class KeybindingEditorRenderer extends Disposable {
+export class KeybindingWidgetRenderer extends Disposable {
 
 	private _launchWidget: FloatingClickWidget;
 	private _defineWidget: DefineKeybindingOverlayWidget;
@@ -100,7 +131,6 @@ export class KeybindingEditorRenderer extends Disposable {
 		this._register(this._launchWidget.onClick(() => this.showDefineKeybindingWidget()));
 		this._defineWidget = this._register(this._instantiationService.createInstance(DefineKeybindingOverlayWidget, this._editor));
 
-		this._register(this._instantiationService.createInstance(KeybindingEditorDecorationsRenderer, this._editor));
 		this._launchWidget.render();
 	}
 
@@ -314,20 +344,17 @@ class DefineKeybindingCommand extends EditorCommand {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		if (!isInterestingEditorModel(editor)) {
+		if (!isInterestingEditorModel(editor) || editor.getConfiguration().readOnly) {
 			return;
 		}
 		let controller = DefineKeybindingController.get(editor);
-		if (controller && controller.keybindingEditorRenderer) {
-			controller.keybindingEditorRenderer.showDefineKeybindingWidget();
+		if (controller && controller.keybindingWidgetRenderer) {
+			controller.keybindingWidgetRenderer.showDefineKeybindingWidget();
 		}
 	}
 }
 
 function isInterestingEditorModel(editor: editorCommon.ICommonCodeEditor): boolean {
-	if (editor.getConfiguration().readOnly) {
-		return false;
-	}
 	let model = editor.getModel();
 	if (!model) {
 		return false;
