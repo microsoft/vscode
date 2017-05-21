@@ -1,143 +1,143 @@
 -----------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyA |   ф   |                         A |                         ф |                          a |    NO   |
-|                     Shift+KeyA |   Ф   |                   Shift+A |                   Shift+ф |                    shift+a |    NO   |
-|                  Ctrl+Alt+KeyA |  ---  |                Ctrl+Alt+A |                Ctrl+Alt+ф |                 ctrl+alt+a |    NO   |
-|            Ctrl+Shift+Alt+KeyA |  ---  |          Ctrl+Shift+Alt+A |          Ctrl+Shift+Alt+ф |           ctrl+shift+alt+a |    NO   |
+|                           KeyA |   ф   |                         A |                         A |                          a |         |
+|                     Shift+KeyA |   Ф   |                   Shift+A |                   Shift+A |                    shift+a |         |
+|                  Ctrl+Alt+KeyA |  ---  |                Ctrl+Alt+A |                Ctrl+Alt+A |                 ctrl+alt+a |         |
+|            Ctrl+Shift+Alt+KeyA |  ---  |          Ctrl+Shift+Alt+A |          Ctrl+Shift+Alt+A |           ctrl+shift+alt+a |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyB |   и   |                         B |                         и |                          b |    NO   |
-|                     Shift+KeyB |   И   |                   Shift+B |                   Shift+и |                    shift+b |    NO   |
-|                  Ctrl+Alt+KeyB |  ---  |                Ctrl+Alt+B |                Ctrl+Alt+и |                 ctrl+alt+b |    NO   |
-|            Ctrl+Shift+Alt+KeyB |  ---  |          Ctrl+Shift+Alt+B |          Ctrl+Shift+Alt+и |           ctrl+shift+alt+b |    NO   |
+|                           KeyB |   и   |                         B |                         B |                          b |         |
+|                     Shift+KeyB |   И   |                   Shift+B |                   Shift+B |                    shift+b |         |
+|                  Ctrl+Alt+KeyB |  ---  |                Ctrl+Alt+B |                Ctrl+Alt+B |                 ctrl+alt+b |         |
+|            Ctrl+Shift+Alt+KeyB |  ---  |          Ctrl+Shift+Alt+B |          Ctrl+Shift+Alt+B |           ctrl+shift+alt+b |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyC |   с   |                         C |                         с |                          c |    NO   |
-|                     Shift+KeyC |   С   |                   Shift+C |                   Shift+с |                    shift+c |    NO   |
-|                  Ctrl+Alt+KeyC |  ---  |                Ctrl+Alt+C |                Ctrl+Alt+с |                 ctrl+alt+c |    NO   |
-|            Ctrl+Shift+Alt+KeyC |  ---  |          Ctrl+Shift+Alt+C |          Ctrl+Shift+Alt+с |           ctrl+shift+alt+c |    NO   |
+|                           KeyC |   с   |                         C |                         C |                          c |         |
+|                     Shift+KeyC |   С   |                   Shift+C |                   Shift+C |                    shift+c |         |
+|                  Ctrl+Alt+KeyC |  ---  |                Ctrl+Alt+C |                Ctrl+Alt+C |                 ctrl+alt+c |         |
+|            Ctrl+Shift+Alt+KeyC |  ---  |          Ctrl+Shift+Alt+C |          Ctrl+Shift+Alt+C |           ctrl+shift+alt+c |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyD |   в   |                         D |                         в |                          d |    NO   |
-|                     Shift+KeyD |   В   |                   Shift+D |                   Shift+в |                    shift+d |    NO   |
-|                  Ctrl+Alt+KeyD |  ---  |                Ctrl+Alt+D |                Ctrl+Alt+в |                 ctrl+alt+d |    NO   |
-|            Ctrl+Shift+Alt+KeyD |  ---  |          Ctrl+Shift+Alt+D |          Ctrl+Shift+Alt+в |           ctrl+shift+alt+d |    NO   |
+|                           KeyD |   в   |                         D |                         D |                          d |         |
+|                     Shift+KeyD |   В   |                   Shift+D |                   Shift+D |                    shift+d |         |
+|                  Ctrl+Alt+KeyD |  ---  |                Ctrl+Alt+D |                Ctrl+Alt+D |                 ctrl+alt+d |         |
+|            Ctrl+Shift+Alt+KeyD |  ---  |          Ctrl+Shift+Alt+D |          Ctrl+Shift+Alt+D |           ctrl+shift+alt+d |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyE |   у   |                         E |                         у |                          e |    NO   |
-|                     Shift+KeyE |   У   |                   Shift+E |                   Shift+у |                    shift+e |    NO   |
-|                  Ctrl+Alt+KeyE |  ---  |                Ctrl+Alt+E |                Ctrl+Alt+у |                 ctrl+alt+e |    NO   |
-|            Ctrl+Shift+Alt+KeyE |  ---  |          Ctrl+Shift+Alt+E |          Ctrl+Shift+Alt+у |           ctrl+shift+alt+e |    NO   |
+|                           KeyE |   у   |                         E |                         E |                          e |         |
+|                     Shift+KeyE |   У   |                   Shift+E |                   Shift+E |                    shift+e |         |
+|                  Ctrl+Alt+KeyE |  ---  |                Ctrl+Alt+E |                Ctrl+Alt+E |                 ctrl+alt+e |         |
+|            Ctrl+Shift+Alt+KeyE |  ---  |          Ctrl+Shift+Alt+E |          Ctrl+Shift+Alt+E |           ctrl+shift+alt+e |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyF |   а   |                         F |                         а |                          f |    NO   |
-|                     Shift+KeyF |   А   |                   Shift+F |                   Shift+а |                    shift+f |    NO   |
-|                  Ctrl+Alt+KeyF |  ---  |                Ctrl+Alt+F |                Ctrl+Alt+а |                 ctrl+alt+f |    NO   |
-|            Ctrl+Shift+Alt+KeyF |  ---  |          Ctrl+Shift+Alt+F |          Ctrl+Shift+Alt+а |           ctrl+shift+alt+f |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyG |   п   |                         G |                         п |                          g |    NO   |
-|                     Shift+KeyG |   П   |                   Shift+G |                   Shift+п |                    shift+g |    NO   |
-|                  Ctrl+Alt+KeyG |  ---  |                Ctrl+Alt+G |                Ctrl+Alt+п |                 ctrl+alt+g |    NO   |
-|            Ctrl+Shift+Alt+KeyG |  ---  |          Ctrl+Shift+Alt+G |          Ctrl+Shift+Alt+п |           ctrl+shift+alt+g |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyH |   р   |                         H |                         р |                          h |    NO   |
-|                     Shift+KeyH |   Р   |                   Shift+H |                   Shift+р |                    shift+h |    NO   |
-|                  Ctrl+Alt+KeyH |  ---  |                Ctrl+Alt+H |                Ctrl+Alt+р |                 ctrl+alt+h |    NO   |
-|            Ctrl+Shift+Alt+KeyH |  ---  |          Ctrl+Shift+Alt+H |          Ctrl+Shift+Alt+р |           ctrl+shift+alt+h |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyI |   ш   |                         I |                         ш |                          i |    NO   |
-|                     Shift+KeyI |   Ш   |                   Shift+I |                   Shift+ш |                    shift+i |    NO   |
-|                  Ctrl+Alt+KeyI |  ---  |                Ctrl+Alt+I |                Ctrl+Alt+ш |                 ctrl+alt+i |    NO   |
-|            Ctrl+Shift+Alt+KeyI |  ---  |          Ctrl+Shift+Alt+I |          Ctrl+Shift+Alt+ш |           ctrl+shift+alt+i |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyJ |   о   |                         J |                         о |                          j |    NO   |
-|                     Shift+KeyJ |   О   |                   Shift+J |                   Shift+о |                    shift+j |    NO   |
-|                  Ctrl+Alt+KeyJ |  ---  |                Ctrl+Alt+J |                Ctrl+Alt+о |                 ctrl+alt+j |    NO   |
-|            Ctrl+Shift+Alt+KeyJ |  ---  |          Ctrl+Shift+Alt+J |          Ctrl+Shift+Alt+о |           ctrl+shift+alt+j |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyK |   л   |                         K |                         л |                          k |    NO   |
-|                     Shift+KeyK |   Л   |                   Shift+K |                   Shift+л |                    shift+k |    NO   |
-|                  Ctrl+Alt+KeyK |  ---  |                Ctrl+Alt+K |                Ctrl+Alt+л |                 ctrl+alt+k |    NO   |
-|            Ctrl+Shift+Alt+KeyK |  ---  |          Ctrl+Shift+Alt+K |          Ctrl+Shift+Alt+л |           ctrl+shift+alt+k |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyL |   д   |                         L |                         д |                          l |    NO   |
-|                     Shift+KeyL |   Д   |                   Shift+L |                   Shift+д |                    shift+l |    NO   |
-|                  Ctrl+Alt+KeyL |  ---  |                Ctrl+Alt+L |                Ctrl+Alt+д |                 ctrl+alt+l |    NO   |
-|            Ctrl+Shift+Alt+KeyL |  ---  |          Ctrl+Shift+Alt+L |          Ctrl+Shift+Alt+д |           ctrl+shift+alt+l |    NO   |
+|                           KeyF |   а   |                         F |                         F |                          f |         |
+|                     Shift+KeyF |   А   |                   Shift+F |                   Shift+F |                    shift+f |         |
+|                  Ctrl+Alt+KeyF |  ---  |                Ctrl+Alt+F |                Ctrl+Alt+F |                 ctrl+alt+f |         |
+|            Ctrl+Shift+Alt+KeyF |  ---  |          Ctrl+Shift+Alt+F |          Ctrl+Shift+Alt+F |           ctrl+shift+alt+f |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyM |   ь   |                         M |                         ь |                          m |    NO   |
-|                     Shift+KeyM |   Ь   |                   Shift+M |                   Shift+ь |                    shift+m |    NO   |
-|                  Ctrl+Alt+KeyM |  ---  |                Ctrl+Alt+M |                Ctrl+Alt+ь |                 ctrl+alt+m |    NO   |
-|            Ctrl+Shift+Alt+KeyM |  ---  |          Ctrl+Shift+Alt+M |          Ctrl+Shift+Alt+ь |           ctrl+shift+alt+m |    NO   |
+|                           KeyG |   п   |                         G |                         G |                          g |         |
+|                     Shift+KeyG |   П   |                   Shift+G |                   Shift+G |                    shift+g |         |
+|                  Ctrl+Alt+KeyG |  ---  |                Ctrl+Alt+G |                Ctrl+Alt+G |                 ctrl+alt+g |         |
+|            Ctrl+Shift+Alt+KeyG |  ---  |          Ctrl+Shift+Alt+G |          Ctrl+Shift+Alt+G |           ctrl+shift+alt+g |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyN |   т   |                         N |                         т |                          n |    NO   |
-|                     Shift+KeyN |   Т   |                   Shift+N |                   Shift+т |                    shift+n |    NO   |
-|                  Ctrl+Alt+KeyN |  ---  |                Ctrl+Alt+N |                Ctrl+Alt+т |                 ctrl+alt+n |    NO   |
-|            Ctrl+Shift+Alt+KeyN |  ---  |          Ctrl+Shift+Alt+N |          Ctrl+Shift+Alt+т |           ctrl+shift+alt+n |    NO   |
+|                           KeyH |   р   |                         H |                         H |                          h |         |
+|                     Shift+KeyH |   Р   |                   Shift+H |                   Shift+H |                    shift+h |         |
+|                  Ctrl+Alt+KeyH |  ---  |                Ctrl+Alt+H |                Ctrl+Alt+H |                 ctrl+alt+h |         |
+|            Ctrl+Shift+Alt+KeyH |  ---  |          Ctrl+Shift+Alt+H |          Ctrl+Shift+Alt+H |           ctrl+shift+alt+h |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyO |   щ   |                         O |                         щ |                          o |    NO   |
-|                     Shift+KeyO |   Щ   |                   Shift+O |                   Shift+щ |                    shift+o |    NO   |
-|                  Ctrl+Alt+KeyO |  ---  |                Ctrl+Alt+O |                Ctrl+Alt+щ |                 ctrl+alt+o |    NO   |
-|            Ctrl+Shift+Alt+KeyO |  ---  |          Ctrl+Shift+Alt+O |          Ctrl+Shift+Alt+щ |           ctrl+shift+alt+o |    NO   |
+|                           KeyI |   ш   |                         I |                         I |                          i |         |
+|                     Shift+KeyI |   Ш   |                   Shift+I |                   Shift+I |                    shift+i |         |
+|                  Ctrl+Alt+KeyI |  ---  |                Ctrl+Alt+I |                Ctrl+Alt+I |                 ctrl+alt+i |         |
+|            Ctrl+Shift+Alt+KeyI |  ---  |          Ctrl+Shift+Alt+I |          Ctrl+Shift+Alt+I |           ctrl+shift+alt+i |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyP |   з   |                         P |                         з |                          p |    NO   |
-|                     Shift+KeyP |   З   |                   Shift+P |                   Shift+з |                    shift+p |    NO   |
-|                  Ctrl+Alt+KeyP |  ---  |                Ctrl+Alt+P |                Ctrl+Alt+з |                 ctrl+alt+p |    NO   |
-|            Ctrl+Shift+Alt+KeyP |  ---  |          Ctrl+Shift+Alt+P |          Ctrl+Shift+Alt+з |           ctrl+shift+alt+p |    NO   |
+|                           KeyJ |   о   |                         J |                         J |                          j |         |
+|                     Shift+KeyJ |   О   |                   Shift+J |                   Shift+J |                    shift+j |         |
+|                  Ctrl+Alt+KeyJ |  ---  |                Ctrl+Alt+J |                Ctrl+Alt+J |                 ctrl+alt+j |         |
+|            Ctrl+Shift+Alt+KeyJ |  ---  |          Ctrl+Shift+Alt+J |          Ctrl+Shift+Alt+J |           ctrl+shift+alt+j |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyQ |   й   |                         Q |                         й |                          q |    NO   |
-|                     Shift+KeyQ |   Й   |                   Shift+Q |                   Shift+й |                    shift+q |    NO   |
-|                  Ctrl+Alt+KeyQ |  ---  |                Ctrl+Alt+Q |                Ctrl+Alt+й |                 ctrl+alt+q |    NO   |
-|            Ctrl+Shift+Alt+KeyQ |  ---  |          Ctrl+Shift+Alt+Q |          Ctrl+Shift+Alt+й |           ctrl+shift+alt+q |    NO   |
+|                           KeyK |   л   |                         K |                         K |                          k |         |
+|                     Shift+KeyK |   Л   |                   Shift+K |                   Shift+K |                    shift+k |         |
+|                  Ctrl+Alt+KeyK |  ---  |                Ctrl+Alt+K |                Ctrl+Alt+K |                 ctrl+alt+k |         |
+|            Ctrl+Shift+Alt+KeyK |  ---  |          Ctrl+Shift+Alt+K |          Ctrl+Shift+Alt+K |           ctrl+shift+alt+k |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyR |   к   |                         R |                         к |                          r |    NO   |
-|                     Shift+KeyR |   К   |                   Shift+R |                   Shift+к |                    shift+r |    NO   |
-|                  Ctrl+Alt+KeyR |  ---  |                Ctrl+Alt+R |                Ctrl+Alt+к |                 ctrl+alt+r |    NO   |
-|            Ctrl+Shift+Alt+KeyR |  ---  |          Ctrl+Shift+Alt+R |          Ctrl+Shift+Alt+к |           ctrl+shift+alt+r |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyS |   ы   |                         S |                         ы |                          s |    NO   |
-|                     Shift+KeyS |   Ы   |                   Shift+S |                   Shift+ы |                    shift+s |    NO   |
-|                  Ctrl+Alt+KeyS |  ---  |                Ctrl+Alt+S |                Ctrl+Alt+ы |                 ctrl+alt+s |    NO   |
-|            Ctrl+Shift+Alt+KeyS |  ---  |          Ctrl+Shift+Alt+S |          Ctrl+Shift+Alt+ы |           ctrl+shift+alt+s |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyT |   е   |                         T |                         е |                          t |    NO   |
-|                     Shift+KeyT |   Е   |                   Shift+T |                   Shift+е |                    shift+t |    NO   |
-|                  Ctrl+Alt+KeyT |  ---  |                Ctrl+Alt+T |                Ctrl+Alt+е |                 ctrl+alt+t |    NO   |
-|            Ctrl+Shift+Alt+KeyT |  ---  |          Ctrl+Shift+Alt+T |          Ctrl+Shift+Alt+е |           ctrl+shift+alt+t |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyU |   г   |                         U |                         г |                          u |    NO   |
-|                     Shift+KeyU |   Г   |                   Shift+U |                   Shift+г |                    shift+u |    NO   |
-|                  Ctrl+Alt+KeyU |  ---  |                Ctrl+Alt+U |                Ctrl+Alt+г |                 ctrl+alt+u |    NO   |
-|            Ctrl+Shift+Alt+KeyU |  ---  |          Ctrl+Shift+Alt+U |          Ctrl+Shift+Alt+г |           ctrl+shift+alt+u |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyV |   м   |                         V |                         м |                          v |    NO   |
-|                     Shift+KeyV |   М   |                   Shift+V |                   Shift+м |                    shift+v |    NO   |
-|                  Ctrl+Alt+KeyV |  ---  |                Ctrl+Alt+V |                Ctrl+Alt+м |                 ctrl+alt+v |    NO   |
-|            Ctrl+Shift+Alt+KeyV |  ---  |          Ctrl+Shift+Alt+V |          Ctrl+Shift+Alt+м |           ctrl+shift+alt+v |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyW |   ц   |                         W |                         ц |                          w |    NO   |
-|                     Shift+KeyW |   Ц   |                   Shift+W |                   Shift+ц |                    shift+w |    NO   |
-|                  Ctrl+Alt+KeyW |  ---  |                Ctrl+Alt+W |                Ctrl+Alt+ц |                 ctrl+alt+w |    NO   |
-|            Ctrl+Shift+Alt+KeyW |  ---  |          Ctrl+Shift+Alt+W |          Ctrl+Shift+Alt+ц |           ctrl+shift+alt+w |    NO   |
------------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyX |   ч   |                         X |                         ч |                          x |    NO   |
-|                     Shift+KeyX |   Ч   |                   Shift+X |                   Shift+ч |                    shift+x |    NO   |
-|                  Ctrl+Alt+KeyX |  ---  |                Ctrl+Alt+X |                Ctrl+Alt+ч |                 ctrl+alt+x |    NO   |
-|            Ctrl+Shift+Alt+KeyX |  ---  |          Ctrl+Shift+Alt+X |          Ctrl+Shift+Alt+ч |           ctrl+shift+alt+x |    NO   |
+|                           KeyL |   д   |                         L |                         L |                          l |         |
+|                     Shift+KeyL |   Д   |                   Shift+L |                   Shift+L |                    shift+l |         |
+|                  Ctrl+Alt+KeyL |  ---  |                Ctrl+Alt+L |                Ctrl+Alt+L |                 ctrl+alt+l |         |
+|            Ctrl+Shift+Alt+KeyL |  ---  |          Ctrl+Shift+Alt+L |          Ctrl+Shift+Alt+L |           ctrl+shift+alt+l |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyY |   н   |                         Y |                         н |                          y |    NO   |
-|                     Shift+KeyY |   Н   |                   Shift+Y |                   Shift+н |                    shift+y |    NO   |
-|                  Ctrl+Alt+KeyY |  ---  |                Ctrl+Alt+Y |                Ctrl+Alt+н |                 ctrl+alt+y |    NO   |
-|            Ctrl+Shift+Alt+KeyY |  ---  |          Ctrl+Shift+Alt+Y |          Ctrl+Shift+Alt+н |           ctrl+shift+alt+y |    NO   |
+|                           KeyM |   ь   |                         M |                         M |                          m |         |
+|                     Shift+KeyM |   Ь   |                   Shift+M |                   Shift+M |                    shift+m |         |
+|                  Ctrl+Alt+KeyM |  ---  |                Ctrl+Alt+M |                Ctrl+Alt+M |                 ctrl+alt+m |         |
+|            Ctrl+Shift+Alt+KeyM |  ---  |          Ctrl+Shift+Alt+M |          Ctrl+Shift+Alt+M |           ctrl+shift+alt+m |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
-|                           KeyZ |   я   |                         Z |                         я |                          z |    NO   |
-|                     Shift+KeyZ |   Я   |                   Shift+Z |                   Shift+я |                    shift+z |    NO   |
-|                  Ctrl+Alt+KeyZ |  ---  |                Ctrl+Alt+Z |                Ctrl+Alt+я |                 ctrl+alt+z |    NO   |
-|            Ctrl+Shift+Alt+KeyZ |  ---  |          Ctrl+Shift+Alt+Z |          Ctrl+Shift+Alt+я |           ctrl+shift+alt+z |    NO   |
+|                           KeyN |   т   |                         N |                         N |                          n |         |
+|                     Shift+KeyN |   Т   |                   Shift+N |                   Shift+N |                    shift+n |         |
+|                  Ctrl+Alt+KeyN |  ---  |                Ctrl+Alt+N |                Ctrl+Alt+N |                 ctrl+alt+n |         |
+|            Ctrl+Shift+Alt+KeyN |  ---  |          Ctrl+Shift+Alt+N |          Ctrl+Shift+Alt+N |           ctrl+shift+alt+n |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyO |   щ   |                         O |                         O |                          o |         |
+|                     Shift+KeyO |   Щ   |                   Shift+O |                   Shift+O |                    shift+o |         |
+|                  Ctrl+Alt+KeyO |  ---  |                Ctrl+Alt+O |                Ctrl+Alt+O |                 ctrl+alt+o |         |
+|            Ctrl+Shift+Alt+KeyO |  ---  |          Ctrl+Shift+Alt+O |          Ctrl+Shift+Alt+O |           ctrl+shift+alt+o |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyP |   з   |                         P |                         P |                          p |         |
+|                     Shift+KeyP |   З   |                   Shift+P |                   Shift+P |                    shift+p |         |
+|                  Ctrl+Alt+KeyP |  ---  |                Ctrl+Alt+P |                Ctrl+Alt+P |                 ctrl+alt+p |         |
+|            Ctrl+Shift+Alt+KeyP |  ---  |          Ctrl+Shift+Alt+P |          Ctrl+Shift+Alt+P |           ctrl+shift+alt+p |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyQ |   й   |                         Q |                         Q |                          q |         |
+|                     Shift+KeyQ |   Й   |                   Shift+Q |                   Shift+Q |                    shift+q |         |
+|                  Ctrl+Alt+KeyQ |  ---  |                Ctrl+Alt+Q |                Ctrl+Alt+Q |                 ctrl+alt+q |         |
+|            Ctrl+Shift+Alt+KeyQ |  ---  |          Ctrl+Shift+Alt+Q |          Ctrl+Shift+Alt+Q |           ctrl+shift+alt+q |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyR |   к   |                         R |                         R |                          r |         |
+|                     Shift+KeyR |   К   |                   Shift+R |                   Shift+R |                    shift+r |         |
+|                  Ctrl+Alt+KeyR |  ---  |                Ctrl+Alt+R |                Ctrl+Alt+R |                 ctrl+alt+r |         |
+|            Ctrl+Shift+Alt+KeyR |  ---  |          Ctrl+Shift+Alt+R |          Ctrl+Shift+Alt+R |           ctrl+shift+alt+r |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyS |   ы   |                         S |                         S |                          s |         |
+|                     Shift+KeyS |   Ы   |                   Shift+S |                   Shift+S |                    shift+s |         |
+|                  Ctrl+Alt+KeyS |  ---  |                Ctrl+Alt+S |                Ctrl+Alt+S |                 ctrl+alt+s |         |
+|            Ctrl+Shift+Alt+KeyS |  ---  |          Ctrl+Shift+Alt+S |          Ctrl+Shift+Alt+S |           ctrl+shift+alt+s |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyT |   е   |                         T |                         T |                          t |         |
+|                     Shift+KeyT |   Е   |                   Shift+T |                   Shift+T |                    shift+t |         |
+|                  Ctrl+Alt+KeyT |  ---  |                Ctrl+Alt+T |                Ctrl+Alt+T |                 ctrl+alt+t |         |
+|            Ctrl+Shift+Alt+KeyT |  ---  |          Ctrl+Shift+Alt+T |          Ctrl+Shift+Alt+T |           ctrl+shift+alt+t |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyU |   г   |                         U |                         U |                          u |         |
+|                     Shift+KeyU |   Г   |                   Shift+U |                   Shift+U |                    shift+u |         |
+|                  Ctrl+Alt+KeyU |  ---  |                Ctrl+Alt+U |                Ctrl+Alt+U |                 ctrl+alt+u |         |
+|            Ctrl+Shift+Alt+KeyU |  ---  |          Ctrl+Shift+Alt+U |          Ctrl+Shift+Alt+U |           ctrl+shift+alt+u |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyV |   м   |                         V |                         V |                          v |         |
+|                     Shift+KeyV |   М   |                   Shift+V |                   Shift+V |                    shift+v |         |
+|                  Ctrl+Alt+KeyV |  ---  |                Ctrl+Alt+V |                Ctrl+Alt+V |                 ctrl+alt+v |         |
+|            Ctrl+Shift+Alt+KeyV |  ---  |          Ctrl+Shift+Alt+V |          Ctrl+Shift+Alt+V |           ctrl+shift+alt+v |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyW |   ц   |                         W |                         W |                          w |         |
+|                     Shift+KeyW |   Ц   |                   Shift+W |                   Shift+W |                    shift+w |         |
+|                  Ctrl+Alt+KeyW |  ---  |                Ctrl+Alt+W |                Ctrl+Alt+W |                 ctrl+alt+w |         |
+|            Ctrl+Shift+Alt+KeyW |  ---  |          Ctrl+Shift+Alt+W |          Ctrl+Shift+Alt+W |           ctrl+shift+alt+w |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyX |   ч   |                         X |                         X |                          x |         |
+|                     Shift+KeyX |   Ч   |                   Shift+X |                   Shift+X |                    shift+x |         |
+|                  Ctrl+Alt+KeyX |  ---  |                Ctrl+Alt+X |                Ctrl+Alt+X |                 ctrl+alt+x |         |
+|            Ctrl+Shift+Alt+KeyX |  ---  |          Ctrl+Shift+Alt+X |          Ctrl+Shift+Alt+X |           ctrl+shift+alt+x |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyY |   н   |                         Y |                         Y |                          y |         |
+|                     Shift+KeyY |   Н   |                   Shift+Y |                   Shift+Y |                    shift+y |         |
+|                  Ctrl+Alt+KeyY |  ---  |                Ctrl+Alt+Y |                Ctrl+Alt+Y |                 ctrl+alt+y |         |
+|            Ctrl+Shift+Alt+KeyY |  ---  |          Ctrl+Shift+Alt+Y |          Ctrl+Shift+Alt+Y |           ctrl+shift+alt+y |         |
+-----------------------------------------------------------------------------------------------------------------------------------------
+|                           KeyZ |   я   |                         Z |                         Z |                          z |         |
+|                     Shift+KeyZ |   Я   |                   Shift+Z |                   Shift+Z |                    shift+z |         |
+|                  Ctrl+Alt+KeyZ |  ---  |                Ctrl+Alt+Z |                Ctrl+Alt+Z |                 ctrl+alt+z |         |
+|            Ctrl+Shift+Alt+KeyZ |  ---  |          Ctrl+Shift+Alt+Z |          Ctrl+Shift+Alt+Z |           ctrl+shift+alt+z |         |
 -----------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit1 |   1   |                         1 |                         1 |                          1 |         |
 |                   Shift+Digit1 |   !   |                   Shift+1 |                   Shift+1 |                    shift+1 |         |

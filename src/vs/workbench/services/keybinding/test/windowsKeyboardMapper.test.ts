@@ -482,9 +482,25 @@ suite('keyboardMapper - WINDOWS ru', () => {
 	test('mapping', (done) => {
 		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_ru.txt', done);
 	});
+
+	test('issue ##24361: resolveKeybinding Ctrl+K Ctrl+K', () => {
+		_assertResolveKeybinding(
+			mapper,
+			KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
+			[{
+				label: 'Ctrl+K Ctrl+K',
+				ariaLabel: 'Control+K Control+K',
+				electronAccelerator: null,
+				userSettingsLabel: 'ctrl+k ctrl+k',
+				isWYSIWYG: true,
+				isChord: true,
+				dispatchParts: ['ctrl+K', 'ctrl+K'],
+			}]
+		);
+	});
 });
 
-suite('misc', () => {
+suite('keyboardMapper - misc', () => {
 	test('issue #23513: Toggle Sidebar Visibility and Go to Line display same key mapping in Arabic keyboard', () => {
 		const mapper = new WindowsKeyboardMapper(false, {
 			'KeyB': {
@@ -507,11 +523,11 @@ suite('misc', () => {
 			mapper,
 			KeyMod.CtrlCmd | KeyCode.KEY_B,
 			[{
-				label: 'Ctrl+لا',
-				ariaLabel: 'Control+لا',
+				label: 'Ctrl+B',
+				ariaLabel: 'Control+B',
 				electronAccelerator: 'Ctrl+B',
 				userSettingsLabel: 'ctrl+b',
-				isWYSIWYG: false,
+				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+B', null],
 			}]

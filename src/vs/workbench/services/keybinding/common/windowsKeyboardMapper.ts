@@ -309,6 +309,8 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 			}
 		}
 
+		let producesLetter: boolean[] = [];
+
 		this._codeInfo = [];
 		for (let strCode in rawMappings) {
 			if (rawMappings.hasOwnProperty(strCode)) {
@@ -347,25 +349,76 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 					withShiftAltGr: withShiftAltGr,
 				};
 				this._codeInfo[scanCode] = mapping;
+				this._scanCodeToKeyCode[scanCode] = keyCode;
 
-				if (keyCode !== KeyCode.Unknown) {
-					this._keyCodeExists[keyCode] = true;
-					if (value.length === 0) {
-						this._keyCodeToLabel[keyCode] = null;
-					} else if (value.length === 1) {
-						const charCode = value.charCodeAt(0);
-						if (charCode >= CharCode.a && charCode <= CharCode.z) {
-							this._keyCodeToLabel[keyCode] = String.fromCharCode(CharCode.A + (charCode - CharCode.a));
-						} else {
-							this._keyCodeToLabel[keyCode] = value;
-						}
-					} else {
+				if (keyCode === KeyCode.Unknown) {
+					continue;
+				}
+				this._keyCodeExists[keyCode] = true;
+
+				if (value.length === 0) {
+					// This key does not produce strings
+					this._keyCodeToLabel[keyCode] = null;
+				}
+
+				else if (value.length > 1) {
+					// This key produces a letter representable with multiple UTF-16 code units.
+					this._keyCodeToLabel[keyCode] = value;
+				}
+
+				else {
+					const charCode = value.charCodeAt(0);
+
+					if (charCode >= CharCode.a && charCode <= CharCode.z) {
+						const upperCaseValue = CharCode.A + (charCode - CharCode.a);
+						producesLetter[upperCaseValue] = true;
+						this._keyCodeToLabel[keyCode] = String.fromCharCode(CharCode.A + (charCode - CharCode.a));
+					}
+
+					else if (charCode >= CharCode.A && charCode <= CharCode.Z) {
+						producesLetter[charCode] = true;
+						this._keyCodeToLabel[keyCode] = value;
+					}
+
+					else {
 						this._keyCodeToLabel[keyCode] = value;
 					}
 				}
-				this._scanCodeToKeyCode[scanCode] = keyCode;
 			}
 		}
+
+		// Handle keyboard layouts where latin characters are not produced e.g. Cyrillic
+		const _registerLetterIfMissing = (charCode: CharCode, keyCode: KeyCode): void => {
+			if (!producesLetter[charCode]) {
+				this._keyCodeToLabel[keyCode] = String.fromCharCode(charCode);
+			}
+		};
+		_registerLetterIfMissing(CharCode.A, KeyCode.KEY_A);
+		_registerLetterIfMissing(CharCode.B, KeyCode.KEY_B);
+		_registerLetterIfMissing(CharCode.C, KeyCode.KEY_C);
+		_registerLetterIfMissing(CharCode.D, KeyCode.KEY_D);
+		_registerLetterIfMissing(CharCode.E, KeyCode.KEY_E);
+		_registerLetterIfMissing(CharCode.F, KeyCode.KEY_F);
+		_registerLetterIfMissing(CharCode.G, KeyCode.KEY_G);
+		_registerLetterIfMissing(CharCode.H, KeyCode.KEY_H);
+		_registerLetterIfMissing(CharCode.I, KeyCode.KEY_I);
+		_registerLetterIfMissing(CharCode.J, KeyCode.KEY_J);
+		_registerLetterIfMissing(CharCode.K, KeyCode.KEY_K);
+		_registerLetterIfMissing(CharCode.L, KeyCode.KEY_L);
+		_registerLetterIfMissing(CharCode.M, KeyCode.KEY_M);
+		_registerLetterIfMissing(CharCode.N, KeyCode.KEY_N);
+		_registerLetterIfMissing(CharCode.O, KeyCode.KEY_O);
+		_registerLetterIfMissing(CharCode.P, KeyCode.KEY_P);
+		_registerLetterIfMissing(CharCode.Q, KeyCode.KEY_Q);
+		_registerLetterIfMissing(CharCode.R, KeyCode.KEY_R);
+		_registerLetterIfMissing(CharCode.S, KeyCode.KEY_S);
+		_registerLetterIfMissing(CharCode.T, KeyCode.KEY_T);
+		_registerLetterIfMissing(CharCode.U, KeyCode.KEY_U);
+		_registerLetterIfMissing(CharCode.V, KeyCode.KEY_V);
+		_registerLetterIfMissing(CharCode.W, KeyCode.KEY_W);
+		_registerLetterIfMissing(CharCode.X, KeyCode.KEY_X);
+		_registerLetterIfMissing(CharCode.Y, KeyCode.KEY_Y);
+		_registerLetterIfMissing(CharCode.Z, KeyCode.KEY_Z);
 	}
 
 	public dumpDebugInfo(): string {
