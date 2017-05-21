@@ -406,7 +406,6 @@ suite('keyboardMapper - WINDOWS en_us', () => {
 	});
 });
 
-
 suite('keyboardMapper - WINDOWS por_ptb', () => {
 
 	let mapper: WindowsKeyboardMapper;
@@ -466,6 +465,22 @@ suite('keyboardMapper - WINDOWS por_ptb', () => {
 				dispatchParts: ['ctrl+ABNT_C2', null],
 			}
 		);
+	});
+});
+
+suite('keyboardMapper - WINDOWS ru', () => {
+
+	let mapper: WindowsKeyboardMapper;
+
+	suiteSetup((done) => {
+		createKeyboardMapper(false, 'win_ru').then((_mapper) => {
+			mapper = _mapper;
+			done();
+		}, done);
+	});
+
+	test('mapping', (done) => {
+		assertMapping(WRITE_FILE_IF_DIFFERENT, mapper, 'win_ru.txt', done);
 	});
 });
 
