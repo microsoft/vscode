@@ -442,6 +442,8 @@ export class Minimap extends ViewPart {
 		PartFingerprints.write(this._domNode, PartFingerprint.Minimap);
 		this._domNode.setClassName('minimap');
 		this._domNode.setPosition('absolute');
+		this._domNode.setAttribute('role', 'presentation');
+		this._domNode.setAttribute('aria-hidden', 'true');
 		this._domNode.setRight(this._context.configuration.editor.layoutInfo.verticalScrollbarWidth);
 
 		this._shadow = createFastDomNode(document.createElement('div'));

@@ -31,6 +31,8 @@ export class ScrollDecorationViewPart extends ViewPart {
 		this._shouldShow = false;
 		this._useShadows = this._context.configuration.editor.viewInfo.scrollbar.useShadows;
 		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setAttribute('role', 'presentation');
+		this._domNode.setAttribute('aria-hidden', 'true');
 	}
 
 	public dispose(): void {

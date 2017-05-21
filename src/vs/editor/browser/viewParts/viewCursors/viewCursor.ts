@@ -72,8 +72,6 @@ export class ViewCursor {
 		this._domNode.setHeight(this._lineHeight);
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
-		this._domNode.setAttribute('role', 'presentation');
-		this._domNode.setAttribute('aria-hidden', 'true');
 		Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
 		this._domNode.setDisplay('none');
 

@@ -25,6 +25,8 @@ export class Rulers extends ViewPart {
 	constructor(context: ViewContext) {
 		super(context);
 		this.domNode = createFastDomNode<HTMLElement>(document.createElement('div'));
+		this.domNode.setAttribute('role', 'presentation');
+		this.domNode.setAttribute('aria-hidden', 'true');
 		this.domNode.setClassName('view-rulers');
 		this._renderedRulers = [];
 		this._rulers = this._context.configuration.editor.viewInfo.rulers;
