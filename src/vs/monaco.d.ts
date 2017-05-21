@@ -2529,17 +2529,9 @@ declare module monaco.editor {
 		 */
 		readonly position: Position;
 		/**
-		 * Primary cursor's view position
-		 */
-		readonly viewPosition: Position;
-		/**
 		 * Secondary cursors' position.
 		 */
 		readonly secondaryPositions: Position[];
-		/**
-		 * Secondary cursors' view position.
-		 */
-		readonly secondaryViewPositions: Position[];
 		/**
 		 * Reason.
 		 */
@@ -2548,10 +2540,6 @@ declare module monaco.editor {
 		 * Source of the call that caused the event.
 		 */
 		readonly source: string;
-		/**
-		 * Is the primary cursor in the editable range?
-		 */
-		readonly isInEditableRange: boolean;
 	}
 
 	/**
@@ -2563,17 +2551,9 @@ declare module monaco.editor {
 		 */
 		readonly selection: Selection;
 		/**
-		 * The primary selection in view coordinates.
-		 */
-		readonly viewSelection: Selection;
-		/**
 		 * The secondary selections.
 		 */
 		readonly secondarySelections: Selection[];
-		/**
-		 * The secondary selections in view coordinates.
-		 */
-		readonly secondaryViewSelections: Selection[];
 		/**
 		 * Source of the call that caused the event.
 		 */

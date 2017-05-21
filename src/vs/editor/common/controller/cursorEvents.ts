@@ -58,17 +58,9 @@ export interface ICursorPositionChangedEvent {
 	 */
 	readonly position: Position;
 	/**
-	 * Primary cursor's view position
-	 */
-	readonly viewPosition: Position;
-	/**
 	 * Secondary cursors' position.
 	 */
 	readonly secondaryPositions: Position[];
-	/**
-	 * Secondary cursors' view position.
-	 */
-	readonly secondaryViewPositions: Position[];
 	/**
 	 * Reason.
 	 */
@@ -77,10 +69,6 @@ export interface ICursorPositionChangedEvent {
 	 * Source of the call that caused the event.
 	 */
 	readonly source: string;
-	/**
-	 * Is the primary cursor in the editable range?
-	 */
-	readonly isInEditableRange: boolean;
 }
 /**
  * An event describing that the cursor selection has changed.
@@ -91,17 +79,9 @@ export interface ICursorSelectionChangedEvent {
 	 */
 	readonly selection: Selection;
 	/**
-	 * The primary selection in view coordinates.
-	 */
-	readonly viewSelection: Selection;
-	/**
 	 * The secondary selections.
 	 */
 	readonly secondarySelections: Selection[];
-	/**
-	 * The secondary selections in view coordinates.
-	 */
-	readonly secondaryViewSelections: Selection[];
 	/**
 	 * Source of the call that caused the event.
 	 */
