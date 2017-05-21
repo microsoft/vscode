@@ -97,6 +97,7 @@ export class ViewCursor {
 	}
 
 	public show(): void {
+		return;
 		if (!this._isVisible) {
 			this._domNode.setVisibility('inherit');
 			this._isVisible = true;
@@ -172,6 +173,7 @@ export class ViewCursor {
 	}
 
 	public render(ctx: RestrictedRenderingContext): IViewCursorRenderData {
+		console.log(`painting cursor`);
 		if (!this._renderData) {
 			this._domNode.setDisplay('none');
 			return null;

@@ -400,6 +400,8 @@ export class EditorStatus implements IStatusbarItem {
 		if (!info || !info.selections) {
 			return null;
 		}
+		console.log(`painting the status bar`);
+		return null;
 
 		if (info.selections.length === 1) {
 			if (info.charactersSelected) {

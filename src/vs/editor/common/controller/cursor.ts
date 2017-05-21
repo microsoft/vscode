@@ -371,8 +371,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			source: source,
 			isInEditableRange: isInEditableRange
 		};
-		this._eventEmitter.emit(CursorEventType.CursorPositionChanged, e);
+		console.log(`emiting view event`);
 		this._emit([new viewEvents.ViewCursorPositionChangedEvent(primaryViewPosition, secondaryViewPositions, isInEditableRange)]);
+		console.log(`emiting cursor position changed event`);
+		this._eventEmitter.emit(CursorEventType.CursorPositionChanged, e);
 	}
 
 	private _emitCursorSelectionChanged(source: string, reason: CursorChangeReason): void {
@@ -392,8 +394,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			source: source || 'keyboard',
 			reason: reason
 		};
-		this._eventEmitter.emit(CursorEventType.CursorSelectionChanged, e);
 		this._emit([new viewEvents.ViewCursorSelectionChangedEvent(primaryViewSelection, secondaryViewSelections)]);
+		this._eventEmitter.emit(CursorEventType.CursorSelectionChanged, e);
 	}
 
 	private _revealRange(revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean): void {

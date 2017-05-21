@@ -422,7 +422,7 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 			// No change
 			return;
 		}
-		// console.log('reason: ' + reason + ', current value: ' + textArea.value + ' => new value: ' + value);
+		console.log('reason: ' + reason + ', current value: ' + textArea.value.replace(/\r/g, '\\r').replace(/\n/g, '\\n') + ' => new value: ' + value.replace(/\r/g, '\\r').replace(/\n/g, '\\n'));
 		textArea.value = value;
 	}
 
@@ -446,11 +446,30 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 			return;
 		}
 
-		// console.log('reason: ' + reason + ', setSelectionRange: ' + selectionStart + ' -> ' + selectionEnd);
+		console.log('reason: ' + reason + ', setSelectionRange: ' + selectionStart + ' -> ' + selectionEnd);
 
 		if (currentIsFocused) {
 			// No need to focus, only need to change the selection range
+
+			// var range = document.createRange();
+			// range.setStart(textArea, 0);
+			// range.setStart(textArea, 0);
+
+			// console.log(range);
+
+// setInterval(function() {
+// 	var input = document.activeElement;
+// 	console.log(`${input.selectionStart}, ${input.selectionEnd}`);
+
+// 	console.log(window.getSelection());
+
+// }, 1000);
+
+			// textArea.selectionStart = selectionStart;
+			// textArea.selectionEnd = selectionEnd;
+
 			textArea.setSelectionRange(selectionStart, selectionEnd);
+			// console.log(window.getSelection().getRangeAt(0));
 			return;
 		}
 

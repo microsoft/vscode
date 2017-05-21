@@ -65,6 +65,7 @@ export class ViewEventDispatcher {
 	}
 
 	private consumeQueue(): void {
+		console.log(`view event disptcher begins to consume quee`);
 		this._eventHandlerGateKeeper(() => {
 			try {
 				this._isConsumingQueue = true;
@@ -75,6 +76,7 @@ export class ViewEventDispatcher {
 				this._isConsumingQueue = false;
 			}
 		});
+		console.log(`view event disptcher finishes to consume quee`);
 	}
 
 	private _doConsumeQueue(): void {

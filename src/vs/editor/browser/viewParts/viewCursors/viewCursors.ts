@@ -54,6 +54,7 @@ export class ViewCursors extends ViewPart {
 		this._renderData = [];
 
 		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setAttribute('role', 'presentation');
 		this._updateDomClassName();
 
 		this._domNode.appendChild(this._primaryCursor.getDomNode());
