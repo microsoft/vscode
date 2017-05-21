@@ -377,7 +377,7 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 		];
 
 		let cnt = 0;
-		result.push(`------------------------------------------------------------------------------------------------------------`);
+		result.push(`-----------------------------------------------------------------------------------------------------------------------------------------`);
 		for (let scanCode = ScanCode.None; scanCode < ScanCode.MAX_VALUE; scanCode++) {
 			if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== -1) {
 				if (immutableSamples.indexOf(scanCode) === -1) {
@@ -386,8 +386,8 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 			}
 
 			if (cnt % 6 === 0) {
-				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         | WYSIWYG |`);
-				result.push(`------------------------------------------------------------------------------------------------------------`);
+				result.push(`|       HW Code combination      |  Key  |    KeyCode combination    |          UI label         |        User settings       | WYSIWYG |`);
+				result.push(`-----------------------------------------------------------------------------------------------------------------------------------------`);
 			}
 			cnt++;
 
@@ -408,13 +408,14 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 				const outScanCode = `${ctrlKey ? 'Ctrl+' : ''}${shiftKey ? 'Shift+' : ''}${altKey ? 'Alt+' : ''}${strCode}`;
 				const ariaLabel = (resolvedKb ? resolvedKb.getAriaLabel() : null);
 				const outUILabel = (ariaLabel ? ariaLabel.replace(/Control\+/, 'Ctrl+') : null);
+				const outUserSettings = (resolvedKb ? resolvedKb.getUserSettingsLabel() : null);
 				const outKey = WindowsNativeResolvedKeybinding.getProducedChar(scanCodeBinding, mapping);
 				const outKb = (strKeyCode ? `${ctrlKey ? 'Ctrl+' : ''}${shiftKey ? 'Shift+' : ''}${altKey ? 'Alt+' : ''}${strKeyCode}` : null);
 				const isWYSIWYG = (resolvedKb ? resolvedKb.isWYSIWYG() : false);
 				const outWYSIWYG = (isWYSIWYG ? '       ' : '   NO  ');
-				result.push(`| ${this._leftPad(outScanCode, 30)} | ${outKey} | ${this._leftPad(outKb, 25)} | ${this._leftPad(outUILabel, 25)} | ${outWYSIWYG} |`);
+				result.push(`| ${this._leftPad(outScanCode, 30)} | ${outKey} | ${this._leftPad(outKb, 25)} | ${this._leftPad(outUILabel, 25)} |  ${this._leftPad(outUserSettings, 25)} | ${outWYSIWYG} |`);
 			}
-			result.push(`------------------------------------------------------------------------------------------------------------`);
+			result.push(`-----------------------------------------------------------------------------------------------------------------------------------------`);
 		}
 
 
