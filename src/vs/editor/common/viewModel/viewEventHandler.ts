@@ -37,10 +37,7 @@ export class ViewEventHandler extends Disposable {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		return false;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		return false;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -100,14 +97,8 @@ export class ViewEventHandler extends Disposable {
 					}
 					break;
 
-				case viewEvents.ViewEventType.ViewCursorPositionChanged:
-					if (this.onCursorPositionChanged(e)) {
-						shouldRender = true;
-					}
-					break;
-
-				case viewEvents.ViewEventType.ViewCursorSelectionChanged:
-					if (this.onCursorSelectionChanged(e)) {
+				case viewEvents.ViewEventType.ViewCursorStateChanged:
+					if (this.onCursorStateChanged(e)) {
 						shouldRender = true;
 					}
 					break;

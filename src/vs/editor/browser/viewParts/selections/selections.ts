@@ -110,9 +110,8 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		this._selections = [e.selection];
-		this._selections = this._selections.concat(e.secondarySelections);
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		this._selections = e.selections.slice(0);
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {

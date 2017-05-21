@@ -65,8 +65,9 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._readConfig();
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		this._lastCursorModelPosition = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(e.position);
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		const primaryViewPosition = e.selections[0].getPosition();
+		this._lastCursorModelPosition = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(primaryViewPosition);
 
 		if (this._renderRelativeLineNumbers) {
 			return true;

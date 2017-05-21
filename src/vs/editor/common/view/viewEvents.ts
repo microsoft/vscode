@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollEvent } from 'vs/base/common/scrollable';
@@ -14,21 +13,20 @@ import { IDisposable, Disposable } from "vs/base/common/lifecycle";
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,
-	ViewCursorPositionChanged = 2,
-	ViewCursorSelectionChanged = 3,
-	ViewDecorationsChanged = 4,
-	ViewFlushed = 5,
-	ViewFocusChanged = 6,
-	ViewLineMappingChanged = 7,
-	ViewLinesChanged = 8,
-	ViewLinesDeleted = 9,
-	ViewLinesInserted = 10,
-	ViewRevealRangeRequest = 11,
-	ViewScrollChanged = 12,
-	ViewTokensChanged = 13,
-	ViewTokensColorsChanged = 14,
-	ViewZonesChanged = 15,
-	ViewThemeChanged = 16
+	ViewCursorStateChanged = 2,
+	ViewDecorationsChanged = 3,
+	ViewFlushed = 4,
+	ViewFocusChanged = 5,
+	ViewLineMappingChanged = 6,
+	ViewLinesChanged = 7,
+	ViewLinesDeleted = 8,
+	ViewLinesInserted = 9,
+	ViewRevealRangeRequest = 10,
+	ViewScrollChanged = 11,
+	ViewTokensChanged = 12,
+	ViewTokensColorsChanged = 13,
+	ViewZonesChanged = 14,
+	ViewThemeChanged = 15
 }
 
 export class ViewConfigurationChangedEvent {
@@ -60,46 +58,22 @@ export class ViewConfigurationChangedEvent {
 	}
 }
 
-export class ViewCursorPositionChangedEvent {
+export class ViewCursorStateChangedEvent {
 
-	public readonly type = ViewEventType.ViewCursorPositionChanged;
+	public readonly type = ViewEventType.ViewCursorStateChanged;
 
 	/**
-	 * Primary cursor's position.
+	 * The primary selection is always at index 0.
 	 */
-	public readonly position: Position;
-	/**
-	 * Secondary cursors' position.
-	 */
-	public readonly secondaryPositions: Position[];
+	public readonly selections: Selection[];
 	/**
 	 * Is the primary cursor in the editable range?
 	 */
 	public readonly isInEditableRange: boolean;
 
-	constructor(position: Position, secondaryPositions: Position[], isInEditableRange: boolean) {
-		this.position = position;
-		this.secondaryPositions = secondaryPositions;
+	constructor(selections: Selection[], isInEditableRange: boolean) {
+		this.selections = selections;
 		this.isInEditableRange = isInEditableRange;
-	}
-}
-
-export class ViewCursorSelectionChangedEvent {
-
-	public readonly type = ViewEventType.ViewCursorSelectionChanged;
-
-	/**
-	 * The primary selection.
-	 */
-	public readonly selection: Selection;
-	/**
-	 * The secondary selections.
-	 */
-	public readonly secondarySelections: Selection[];
-
-	constructor(selection: Selection, secondarySelections: Selection[]) {
-		this.selection = selection;
-		this.secondarySelections = secondarySelections;
 	}
 }
 
@@ -304,8 +278,7 @@ export class ViewZonesChangedEvent {
 
 export type ViewEvent = (
 	ViewConfigurationChangedEvent
-	| ViewCursorPositionChangedEvent
-	| ViewCursorSelectionChangedEvent
+	| ViewCursorStateChangedEvent
 	| ViewDecorationsChangedEvent
 	| ViewFlushedEvent
 	| ViewFocusChangedEvent

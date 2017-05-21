@@ -360,29 +360,20 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		source = source || 'keyboard';
 
 		const positions = this._cursors.getPositions();
-		const primaryPosition = positions[0];
-
-		const viewPositions = this._cursors.getViewPositions();
-		const primaryViewPosition = viewPositions[0];
-		const secondaryViewPositions = viewPositions.slice(1);
 
 		let isInEditableRange: boolean = true;
 		if (this._model.hasEditableRange()) {
 			const editableRange = this._model.getEditableRange();
-			if (!editableRange.containsPosition(primaryPosition)) {
+			if (!editableRange.containsPosition(positions[0])) {
 				isInEditableRange = false;
 			}
 		}
 
 		const selections = this._cursors.getSelections();
-
 		const viewSelections = this._cursors.getViewSelections();
-		const primaryViewSelection = viewSelections[0];
-		const secondaryViewSelections = viewSelections.slice(1);
 
 		this._onDidChange.fire(new CursorStateChangedEvent(selections, source, reason));
-		this._emit([new viewEvents.ViewCursorPositionChangedEvent(primaryViewPosition, secondaryViewPositions, isInEditableRange)]);
-		this._emit([new viewEvents.ViewCursorSelectionChangedEvent(primaryViewSelection, secondaryViewSelections)]);
+		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
 	}
 
 	private _revealRange(revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean): void {
