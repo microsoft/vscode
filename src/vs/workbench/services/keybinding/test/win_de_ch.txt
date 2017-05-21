@@ -240,20 +240,20 @@
 |             Ctrl+Alt+Backquote |  ---  |                Ctrl+Alt+/ |                Ctrl+Alt+§ |    NO   |
 |       Ctrl+Shift+Alt+Backquote |  ---  |          Ctrl+Shift+Alt+/ |          Ctrl+Shift+Alt+§ |    NO   |
 ------------------------------------------------------------------------------------------------------------
-|                          Comma |   ,   |                         , |                         , |         |
-|                    Shift+Comma |   ;   |                   Shift+, |                   Shift+, |         |
-|                 Ctrl+Alt+Comma |  ---  |                Ctrl+Alt+, |                Ctrl+Alt+, |         |
-|           Ctrl+Shift+Alt+Comma |  ---  |          Ctrl+Shift+Alt+, |          Ctrl+Shift+Alt+, |         |
+|                          Comma |   ,   |                         , |                         , |    NO   |
+|                    Shift+Comma |   ;   |                   Shift+, |                   Shift+, |    NO   |
+|                 Ctrl+Alt+Comma |  ---  |                Ctrl+Alt+, |                Ctrl+Alt+, |    NO   |
+|           Ctrl+Shift+Alt+Comma |  ---  |          Ctrl+Shift+Alt+, |          Ctrl+Shift+Alt+, |    NO   |
 ------------------------------------------------------------------------------------------------------------
-|                         Period |   .   |                         . |                         . |         |
-|                   Shift+Period |   :   |                   Shift+. |                   Shift+. |         |
-|                Ctrl+Alt+Period |  ---  |                Ctrl+Alt+. |                Ctrl+Alt+. |         |
-|          Ctrl+Shift+Alt+Period |  ---  |          Ctrl+Shift+Alt+. |          Ctrl+Shift+Alt+. |         |
+|                         Period |   .   |                         . |                         . |    NO   |
+|                   Shift+Period |   :   |                   Shift+. |                   Shift+. |    NO   |
+|                Ctrl+Alt+Period |  ---  |                Ctrl+Alt+. |                Ctrl+Alt+. |    NO   |
+|          Ctrl+Shift+Alt+Period |  ---  |          Ctrl+Shift+Alt+. |          Ctrl+Shift+Alt+. |    NO   |
 ------------------------------------------------------------------------------------------------------------
-|                          Slash |   -   |                         - |                         - |         |
-|                    Shift+Slash |   _   |                   Shift+- |                   Shift+- |         |
-|                 Ctrl+Alt+Slash |  ---  |                Ctrl+Alt+- |                Ctrl+Alt+- |         |
-|           Ctrl+Shift+Alt+Slash |  ---  |          Ctrl+Shift+Alt+- |          Ctrl+Shift+Alt+- |         |
+|                          Slash |   -   |                         - |                         - |    NO   |
+|                    Shift+Slash |   _   |                   Shift+- |                   Shift+- |    NO   |
+|                 Ctrl+Alt+Slash |  ---  |                Ctrl+Alt+- |                Ctrl+Alt+- |    NO   |
+|           Ctrl+Shift+Alt+Slash |  ---  |          Ctrl+Shift+Alt+- |          Ctrl+Shift+Alt+- |    NO   |
 ------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    |          UI label         | WYSIWYG |
 ------------------------------------------------------------------------------------------------------------

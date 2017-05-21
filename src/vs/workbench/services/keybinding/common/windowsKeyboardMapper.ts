@@ -171,10 +171,7 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 		if (keybinding.isDuplicateModifierCase()) {
 			return '';
 		}
-		if (this._mapper.isUSStandard) {
-			return KeyCodeUtils.toUserSettingsUS(keybinding.keyCode);
-		}
-		return KeyCodeUtils.toUserSettingsGeneral(keybinding.keyCode);
+		return this._mapper.getUserSettingsLabelForKeyCode(keybinding.keyCode);
 	}
 
 	public getUserSettingsLabel(): string {
@@ -185,13 +182,27 @@ export class WindowsNativeResolvedKeybinding extends ResolvedKeybinding {
 	}
 
 	public isWYSIWYG(): boolean {
-		let firstPart1 = this._firstPart ? this._mapper.getAriaLabelForKeyCode(this._firstPart.keyCode) : null;
-		let chordPart1 = this._chordPart ? this._mapper.getAriaLabelForKeyCode(this._chordPart.keyCode) : null;
+		if (this._firstPart && !this._isWYSIWYG(this._firstPart.keyCode)) {
+			return false;
+		}
+		if (this._chordPart && !this._isWYSIWYG(this._chordPart.keyCode)) {
+			return false;
+		}
+		return true;
+	}
 
-		let firstPart2 = this._firstPart ? KeyCodeUtils.toString(this._firstPart.keyCode) : null;
-		let chordPart2 = this._chordPart ? KeyCodeUtils.toString(this._chordPart.keyCode) : null;
-
-		return (firstPart1 === firstPart2 && chordPart1 === chordPart2);
+	private _isWYSIWYG(keyCode: KeyCode): boolean {
+		if (
+			keyCode === KeyCode.LeftArrow
+			|| keyCode === KeyCode.UpArrow
+			|| keyCode === KeyCode.RightArrow
+			|| keyCode === KeyCode.DownArrow
+		) {
+			return true;
+		}
+		const ariaLabel = this._mapper.getAriaLabelForKeyCode(keyCode);
+		const userSettingsLabel = this._mapper.getUserSettingsLabelForKeyCode(keyCode);
+		return (ariaLabel === userSettingsLabel);
 	}
 
 	public isChord(): boolean {
@@ -426,6 +437,13 @@ export class WindowsKeyboardMapper implements IKeyboardMapper {
 
 	public getAriaLabelForKeyCode(keyCode: KeyCode): string {
 		return this._getLabelForKeyCode(keyCode);
+	}
+
+	public getUserSettingsLabelForKeyCode(keyCode: KeyCode): string {
+		if (this.isUSStandard) {
+			return KeyCodeUtils.toUserSettingsUS(keyCode);
+		}
+		return KeyCodeUtils.toUserSettingsGeneral(keyCode);
 	}
 
 	private _getLabelForKeyCode(keyCode: KeyCode): string {
