@@ -30,42 +30,39 @@ import URI from 'vs/base/common/uri';
 
 class ProfilingHint implements IWorkbenchContribution {
 
-	// p80 to p90 by os&release
+	// p95 to p95 by os&release
 	static readonly _percentiles: { [key: string]: [number, number] } = {
-		['Linux_4.10.0-20-generic']: [3474, 6300],
-		['Linux_4.10.0-21-generic']: [5342, 12022],
-		['Linux_4.10.13-1-ARCH']: [3047, 4248],
-		['Linux_4.10.13-200.fc25.x86_64']: [2380, 2895],
-		['Linux_4.10.14-200.fc25.x86_64']: [5164, 14042],
-		['Linux_4.4.0-21-generic']: [3777, 8160],
-		['Linux_4.4.0-72-generic']: [6173, 10730],
-		['Linux_4.4.0-75-generic']: [4769, 8560],
-		['Linux_4.4.0-77-generic']: [3834, 7343],
-		['Linux_4.4.0-78-generic']: [3115, 7078],
-		['Linux_4.8.0-49-generic']: [7174, 10362],
-		['Linux_4.8.0-51-generic']: [3906, 7385],
-		['Linux_4.8.0-52-generic']: [6757, 13741],
-		['Linux_4.9.0-2-amd64']: [4348, 8754],
-		['Mac_14.5.0']: [4403, 7216],
-		['Mac_15.4.0']: [3831, 4946],
-		['Mac_15.5.0']: [5080, 8296],
-		['Mac_15.6.0']: [4621, 7160],
-		['Mac_16.0.0']: [4748, 11248],
-		['Mac_16.1.0']: [4309, 6106],
-		['Mac_16.3.0']: [2756, 3674],
-		['Mac_16.4.0']: [3625, 5463],
-		['Mac_16.5.0']: [3617, 5288],
-		['Mac_16.6.0']: [3655, 5279],
-		['Mac_16.7.0']: [4415, 6624],
-		['Windows_10.0.10240']: [8284, 14438],
-		['Windows_10.0.10586']: [5903, 9224],
-		['Windows_10.0.14393']: [6065, 10567],
-		['Windows_10.0.15063']: [5521, 8696],
-		['Windows_10.0.16184']: [5604, 10671],
-		['Windows_10.0.16188']: [7028, 12852],
-		['Windows_10.0.16193']: [6431, 9628],
-		['Windows_6.1.7601']: [7794, 15194],
-		['Windows_6.3.9600']: [6129, 10188],
+		['Windows_6.3.9600']: [35782, 35782],
+		['Windows_6.1.7601']: [11160, 18366],
+		['Windows_10.0.16199']: [10423, 17222],
+		['Windows_10.0.16193']: [7503, 11033],
+		['Windows_10.0.16188']: [8544, 8807],
+		['Windows_10.0.15063']: [11085, 16837],
+		['Windows_10.0.14393']: [12585, 32662],
+		['Windows_10.0.10586']: [7047, 10944],
+		['Windows_10.0.10240']: [16176, 16176],
+		['Mac_16.7.0']: [2192, 4050],
+		['Mac_16.6.0']: [8043, 10608],
+		['Mac_16.5.0']: [4912, 11348],
+		['Mac_16.4.0']: [3900, 4200],
+		['Mac_16.3.0']: [7327, 7327],
+		['Mac_16.1.0']: [6090, 6555],
+		['Mac_16.0.0']: [32574, 32574],
+		['Mac_15.6.0']: [16082, 17469],
+		['Linux_4.9.0-3-amd64']: [2092, 2197],
+		['Linux_4.9.0-2-amd64']: [9779, 9779],
+		['Linux_4.8.0-52-generic']: [12803, 13257],
+		['Linux_4.8.0-51-generic']: [2670, 2797],
+		['Linux_4.8.0-040800-generic']: [3954, 3954],
+		['Linux_4.4.0-78-generic']: [4218, 5891],
+		['Linux_4.4.0-77-generic']: [6166, 6166],
+		['Linux_4.11.2']: [1323, 1323],
+		['Linux_4.10.15-200.fc25.x86_64']: [9270, 9480],
+		['Linux_4.10.13-1-ARCH']: [7116, 8511],
+		['Linux_4.10.11-100.fc24.x86_64']: [1845, 1845],
+		['Linux_4.10.0-21-generic']: [14805, 16050],
+		['Linux_3.19.0-84-generic']: [4840, 4840],
+		['Linux_3.11.10-29-desktop']: [1637, 2891],
 	};
 
 	private static readonly _myPercentiles = ProfilingHint._percentiles[`${Platform[platform]}_${release()}`];
@@ -95,8 +92,8 @@ class ProfilingHint implements IWorkbenchContribution {
 
 		// Check that we have some data about this
 		// OS version to which we can compare this startup.
-		// Then only go for startups between the 80th and
-		// 90th percentile.
+		// Then only go for startups between the 90 and
+		// 95th percentile.
 		if (!Array.isArray(ProfilingHint._myPercentiles)) {
 			return;
 		}
