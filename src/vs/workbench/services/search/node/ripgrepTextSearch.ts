@@ -428,6 +428,13 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 		args.push('--encoding', encoding.toCanonicalName(config.fileEncoding));
 	}
 
+	// Ripgrep handles -- as a -- arg separator. Only --.
+	// - is ok, --- is ok, --some-flag is handled as query text. Need to special case.
+	if (config.contentPattern.pattern === '--') {
+		config.contentPattern.isRegExp = true;
+		config.contentPattern.pattern = '\\-\\-';
+	}
+
 	let searchPatternAfterDoubleDashes: string;
 	if (config.contentPattern.isWordMatch) {
 		const regexp = strings.createRegExp(config.contentPattern.pattern, config.contentPattern.isRegExp, { wholeWord: config.contentPattern.isWordMatch });
