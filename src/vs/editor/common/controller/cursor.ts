@@ -53,6 +53,38 @@ export class CursorStateChangedEvent {
 	}
 }
 
+/**
+ * A snapshot of the cursor and the model state
+ */
+class CursorModelState {
+
+	public readonly modelVersionId: number;
+	public readonly cursorState: CursorState[];
+
+	constructor(model: editorCommon.IModel, cursor: Cursor) {
+		this.modelVersionId = model.getVersionId();
+		this.cursorState = cursor.getAll();
+	}
+
+	public equals(other: CursorModelState): boolean {
+		if (!other) {
+			return false;
+		}
+		if (this.modelVersionId !== other.modelVersionId) {
+			return false;
+		}
+		if (this.cursorState.length !== other.cursorState.length) {
+			return false;
+		}
+		for (let i = 0, len = this.cursorState.length; i < len; i++) {
+			if (!this.cursorState[i].equals(other.cursorState[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
 export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	private readonly _onDidChange: Emitter<CursorStateChangedEvent> = this._register(new Emitter<CursorStateChangedEvent>());
@@ -154,40 +186,14 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		return this._cursors.getAll();
 	}
 
-	private static _somethingChanged(oldSelections: Selection[], oldViewSelections: Selection[], newSelections: Selection[], newViewSelections: Selection[]): boolean {
-		if (oldSelections.length !== newSelections.length) {
-			return true;
-		}
-
-		for (let i = 0, len = oldSelections.length; i < len; i++) {
-			if (!oldSelections[i].equalsSelection(newSelections[i])) {
-				return true;
-			}
-		}
-
-		for (let i = 0, len = oldViewSelections.length; i < len; i++) {
-			if (!oldViewSelections[i].equalsSelection(newViewSelections[i])) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
 	public setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void {
-		const oldSelections = this._cursors.getSelections();
-		const oldViewSelections = this._cursors.getViewSelections();
+		const oldState = new CursorModelState(this._model, this);
 
 		this._cursors.setStates(states);
 		this._cursors.normalize();
 		this._columnSelectData = null;
 
-		const newSelections = this._cursors.getSelections();
-		const newViewSelections = this._cursors.getViewSelections();
-
-		if (Cursor._somethingChanged(oldSelections, oldViewSelections, newSelections, newViewSelections)) {
-			this._emitStateChanged(source, reason);
-		}
+		this._emitStateChangedIfNecessary(source, reason, oldState);
 	}
 
 	public setColumnSelectData(columnSelectData: IColumnSelectData): void {
@@ -279,7 +285,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this._cursors.dispose();
 			this._cursors = new CursorCollection(this.context);
 
-			this._emitStateChanged('model', CursorChangeReason.ContentFlush);
+			this._emitStateChangedIfNecessary('model', CursorChangeReason.ContentFlush, null);
 		} else {
 			const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
 			this.setStates('modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
@@ -355,6 +361,16 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- emitting events
+
+	private _emitStateChangedIfNecessary(source: string, reason: CursorChangeReason, oldState: CursorModelState): boolean {
+		const newState = new CursorModelState(this._model, this);
+		if (newState.equals(oldState)) {
+			return false;
+		}
+
+		this._emitStateChanged(source, reason);
+		return true;
+	}
 
 	private _emitStateChanged(source: string, reason: CursorChangeReason): void {
 		source = source || 'keyboard';
@@ -436,8 +452,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return;
 		}
 
-		const oldSelections = this._cursors.getSelections();
-		const oldViewSelections = this._cursors.getViewSelections();
+		const oldState = new CursorModelState(this._model, this);
 		let cursorChangeReason = CursorChangeReason.NotSet;
 
 		// ensure valid state on all cursors
@@ -488,10 +503,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		this._isHandling = false;
 
-		const newSelections = this._cursors.getSelections();
-		const newViewSelections = this._cursors.getViewSelections();
-		if (Cursor._somethingChanged(oldSelections, oldViewSelections, newSelections, newViewSelections)) {
-			this._emitStateChanged(source, cursorChangeReason);
+		if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState)) {
 			this._revealRange(RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true);
 		}
 	}

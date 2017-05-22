@@ -411,6 +411,10 @@ export class CursorState {
 		this.modelState = modelState;
 		this.viewState = viewState;
 	}
+
+	public equals(other: CursorState): boolean {
+		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.viewState));
+	}
 }
 
 export class EditOperationResult {
