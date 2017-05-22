@@ -29,10 +29,14 @@ export const editorOverviewRulerBorder = registerColor('editorOverviewRuler.bord
 
 export const editorGutter = registerColor('editorGutter.background', { dark: editorBackground, light: editorBackground, hc: editorBackground }, nls.localize('editorGutter', 'Background color of the editor gutter. The gutter contains the glyph margins and the line numbers.'));
 
+export const editorErrorForeground = registerColor('editorError.foreground', { dark: '#FF0000', light: '#FF0000', hc: null }, nls.localize('errorForeground', 'Foreground color of error squigglies in the editor.'));
+export const editorErrorBorder = registerColor('editorError.border', { dark: null, light: null, hc: Color.fromHex('#E47777').transparent(0.8) }, nls.localize('errorBorder', 'Border color of error squigglies in the editor.'));
+
+export const editorWarningForeground = registerColor('editorWarning.foreground', { dark: '#008000', light: '#008000', hc: null }, nls.localize('warningForeground', 'Foreground color of warning squigglies in the editor.'));
+export const editorWarningBorder = registerColor('editorWarning.border', { dark: null, light: null, hc: Color.fromHex('#71B771').transparent(0.8) }, nls.localize('warningBorder', 'Border color of warning squigglies in the editor.'));
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css
 registerThemingParticipant((theme, collector) => {
-
 	let background = theme.getColor(editorBackground);
 	if (background) {
 		collector.addRule(`.monaco-editor, .monaco-editor .monaco-editor-background, .monaco-editor .inputarea.ime-input { background-color: ${background}; }`);
@@ -61,5 +65,3 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.vs-whitespace { color: ${invisibles} !important; }`);
 	}
 });
-
-

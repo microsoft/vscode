@@ -41,13 +41,3 @@
 	position: absolute;
 	top: 0;
 }
-
-/* -------------------- Squigglies -------------------- */
-
-.monaco-editor.vs		.redsquiggly,
-.monaco-editor.vs-dark	.redsquiggly { background: url("red-squiggly.svg") repeat-x bottom left; }
-.monaco-editor.hc-black .redsquiggly { border-bottom: 4px double #E47777; opacity: 0.8; }
-
-.monaco-editor.vs		.greensquiggly,
-.monaco-editor.vs-dark	.greensquiggly { background: url("green-squiggly.svg") repeat-x bottom left; }
-.monaco-editor.hc-black .greensquiggly { border-bottom: 4px double #71B771; opacity: 0.8; }
