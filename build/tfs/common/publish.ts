@@ -198,10 +198,6 @@ async function publish(commit: string, quality: string, platform: string, type: 
 
 	console.log('Blobs successfully uploaded.');
 
-	if (opts['upload-only']) {
-		return;
-	}
-
 	const config = await getConfig(quality);
 
 	console.log('Quality config:', config);
@@ -221,12 +217,16 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		isReleased: config.frozen ? false : isReleased,
 		sourceBranch,
 		queuedBy,
-		assets: [asset],
+		assets: [],
 		updates: {} as any
 	};
 
-	if (isUpdate) {
-		release.updates[platform] = type;
+	if (!opts['upload-only']) {
+		release.assets.push(asset);
+
+		if (isUpdate) {
+			release.updates[platform] = type;
+		}
 	}
 
 	await createOrUpdate(commit, quality, platform, type, release, asset, isUpdate);
