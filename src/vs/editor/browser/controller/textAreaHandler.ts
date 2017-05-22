@@ -19,14 +19,11 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EndOfLinePreference } from "vs/editor/common/editorCommon";
 import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
-import { PartFingerprints, PartFingerprint, ViewPart } from "vs/editor/browser/view/viewPart";
+import { PartFingerprints, PartFingerprint } from "vs/editor/browser/view/viewPart";
 import { Margin } from "vs/editor/browser/viewParts/margin/margin";
 import { LineNumbersOverlay } from "vs/editor/browser/viewParts/lineNumbers/lineNumbers";
 import { BareFontInfo } from "vs/editor/common/config/fontInfo";
-
-export interface ITextAreaHandlerHelper {
-	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
-}
+import { IOHandler, IOHandlerHelper } from "vs/editor/browser/controller/ioHandler";
 
 class VisibleTextAreaData {
 	_visibleTextAreaBrand: void;
@@ -48,10 +45,7 @@ class VisibleTextAreaData {
 
 const canUseZeroSizeTextarea = (browser.isEdgeOrIE || browser.isFirefox);
 
-export class TextAreaHandler extends ViewPart {
-
-	private readonly _viewController: ViewController;
-	private readonly _viewHelper: ITextAreaHandlerHelper;
+export class TextAreaHandler extends IOHandler {
 
 	private _pixelRatio: number;
 	private _contentLeft: number;
@@ -76,11 +70,8 @@ export class TextAreaHandler extends ViewPart {
 	public readonly textAreaCover: FastDomNode<HTMLElement>;
 	private readonly _textAreaInput: TextAreaInput;
 
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: ITextAreaHandlerHelper) {
-		super(context);
-
-		this._viewController = viewController;
-		this._viewHelper = viewHelper;
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IOHandlerHelper) {
+		super(context, viewController, viewHelper);
 
 		const conf = this._context.configuration.editor;
 
@@ -324,6 +315,12 @@ export class TextAreaHandler extends ViewPart {
 	// --- end event handlers
 
 	// --- begin view API
+
+	public attachTo(parent: FastDomNode<any>): void {
+		parent.appendChild(this.textArea);
+		parent.appendChild(this.textAreaCover);
+	}
+
 
 	public isFocused(): boolean {
 		return this._textAreaInput.isFocused();

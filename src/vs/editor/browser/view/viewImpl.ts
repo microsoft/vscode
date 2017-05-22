@@ -12,7 +12,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { Configuration } from 'vs/editor/browser/config/configuration';
-import { TextAreaHandler, ITextAreaHandlerHelper } from 'vs/editor/browser/controller/textAreaHandler';
+import { TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { ViewController, ExecCoreEditorCommandFunc } from 'vs/editor/browser/view/viewController';
@@ -49,6 +49,7 @@ import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { Cursor } from "vs/editor/common/controller/cursor";
+import { IOHandler, IOHandlerHelper } from "vs/editor/browser/controller/ioHandler";
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -77,7 +78,7 @@ export class View extends ViewEventHandler {
 	private viewCursors: ViewCursors;
 	private viewParts: ViewPart[];
 
-	private readonly _textAreaHandler: TextAreaHandler;
+	private readonly _ioHandler: IOHandler;
 	private readonly pointerHandler: PointerHandler;
 
 	private readonly outgoingEvents: ViewOutgoingEvents;
@@ -125,8 +126,8 @@ export class View extends ViewEventHandler {
 		this.viewParts = [];
 
 		// Keyboard handler
-		this._textAreaHandler = new TextAreaHandler(this._context, viewController, this.createTextAreaHandlerHelper());
-		this.viewParts.push(this._textAreaHandler);
+		this._ioHandler = new TextAreaHandler(this._context, viewController, this.createTextAreaHandlerHelper());
+		this.viewParts.push(this._ioHandler);
 
 		this.createViewParts();
 		this._setLayout();
@@ -227,8 +228,7 @@ export class View extends ViewEventHandler {
 		this.overflowGuardContainer.appendChild(margin.getDomNode());
 		this.overflowGuardContainer.appendChild(this._scrollbar.getDomNode());
 		this.overflowGuardContainer.appendChild(scrollDecoration.getDomNode());
-		this.overflowGuardContainer.appendChild(this._textAreaHandler.textArea);
-		this.overflowGuardContainer.appendChild(this._textAreaHandler.textAreaCover);
+		this._ioHandler.attachTo(this.overflowGuardContainer);
 		this.overflowGuardContainer.appendChild(this.overlayWidgets.getDomNode());
 		this.overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this.overflowGuardContainer);
@@ -278,7 +278,7 @@ export class View extends ViewEventHandler {
 		};
 	}
 
-	private createTextAreaHandlerHelper(): ITextAreaHandlerHelper {
+	private createTextAreaHandlerHelper(): IOHandlerHelper {
 		return {
 			visibleRangeForPositionRelativeToEditor: (lineNumber: number, column: number) => {
 				this._flushAccumulatedAndRenderNow();
@@ -403,7 +403,7 @@ export class View extends ViewEventHandler {
 
 		if (!this.viewLines.shouldRender() && viewPartsToRender.length === 0) {
 			// Nothing to render
-			this._textAreaHandler.writeToTextArea();
+			this._ioHandler.writeToTextArea();
 			return;
 		}
 
@@ -414,14 +414,14 @@ export class View extends ViewEventHandler {
 
 		if (this.viewLines.shouldRender()) {
 			this.viewLines.renderText(viewportData, () => {
-				this._textAreaHandler.writeToTextArea();
+				this._ioHandler.writeToTextArea();
 			});
 			this.viewLines.onDidRender();
 
 			// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
 			viewPartsToRender = this._getViewPartsToRender();
 		} else {
-			this._textAreaHandler.writeToTextArea();
+			this._ioHandler.writeToTextArea();
 		}
 
 		let renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this.viewLines);
@@ -525,15 +525,15 @@ export class View extends ViewEventHandler {
 	}
 
 	public setAriaActiveDescendant(id: string): void {
-		this._textAreaHandler.setAriaActiveDescendant(id);
+		this._ioHandler.setAriaActiveDescendant(id);
 	}
 
 	public focus(): void {
-		this._textAreaHandler.focusTextArea();
+		this._ioHandler.focusTextArea();
 	}
 
 	public isFocused(): boolean {
-		return this._textAreaHandler.isFocused();
+		return this._ioHandler.isFocused();
 	}
 
 	public addContentWidget(widgetData: IContentWidgetData): void {
