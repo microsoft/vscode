@@ -31,6 +31,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IWorkspaceContextService, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IChoiceService } from 'vs/platform/message/common/message';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -55,6 +56,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 
 		instantiationService.set(IWorkspaceContextService, new WorkspaceContextService(TestWorkspace));
+		instantiationService.stub(IConfigurationService, { onDidUpdateConfiguration: () => { }, getConfiguration: () => ({}) });
 
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
