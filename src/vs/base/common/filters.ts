@@ -446,6 +446,7 @@ _seps['/'] = true;
 _seps['\\'] = true;
 _seps['\''] = true;
 _seps['"'] = true;
+_seps[':'] = true;
 
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
