@@ -9,7 +9,7 @@ import 'vs/css!./media/editorstatus';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { $, append, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import strings = require('vs/base/common/strings');
+// import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
 import types = require('vs/base/common/types');
 import uri from 'vs/base/common/uri';
@@ -203,10 +203,10 @@ class State {
 	}
 }
 
-const nlsSingleSelectionRange = nls.localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
-const nlsSingleSelection = nls.localize('singleSelection', "Ln {0}, Col {1}");
-const nlsMultiSelectionRange = nls.localize('multiSelectionRange', "{0} selections ({1} characters selected)");
-const nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
+// const nlsSingleSelectionRange = nls.localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
+// const nlsSingleSelection = nls.localize('singleSelection', "Ln {0}, Col {1}");
+// const nlsMultiSelectionRange = nls.localize('multiSelectionRange', "{0} selections ({1} characters selected)");
+// const nlsMultiSelection = nls.localize('multiSelection', "{0} selections");
 const nlsEOLLF = nls.localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = nls.localize('endOfLineCarriageReturnLineFeed', "CRLF");
 const nlsTabFocusMode = nls.localize('tabFocusModeEnabled', "Tab moves focus");
@@ -400,24 +400,25 @@ export class EditorStatus implements IStatusbarItem {
 		if (!info || !info.selections) {
 			return null;
 		}
-
-		if (info.selections.length === 1) {
-			if (info.charactersSelected) {
-				return strings.format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
-			}
-
-			return strings.format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
-		}
-
-		if (info.charactersSelected) {
-			return strings.format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
-		}
-
-		if (info.selections.length > 0) {
-			return strings.format(nlsMultiSelection, info.selections.length);
-		}
-
 		return null;
+
+		// if (info.selections.length === 1) {
+		// 	if (info.charactersSelected) {
+		// 		return strings.format(nlsSingleSelectionRange, info.selections[0].positionLineNumber, info.selections[0].positionColumn, info.charactersSelected);
+		// 	}
+
+		// 	return strings.format(nlsSingleSelection, info.selections[0].positionLineNumber, info.selections[0].positionColumn);
+		// }
+
+		// if (info.charactersSelected) {
+		// 	return strings.format(nlsMultiSelectionRange, info.selections.length, info.charactersSelected);
+		// }
+
+		// if (info.selections.length > 0) {
+		// 	return strings.format(nlsMultiSelection, info.selections.length);
+		// }
+
+		// return null;
 	}
 
 	private onModeClick(): void {

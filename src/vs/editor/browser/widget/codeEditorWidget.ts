@@ -32,6 +32,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IKeybindingService } from "vs/platform/keybinding/common/keybinding";
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -89,7 +90,8 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(domElement, options, instantiationService, contextKeyService);
 		this._codeEditorService = codeEditorService;
@@ -419,6 +421,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			this._commandService,
 			this._configuration,
 			this._themeService,
+			this.keybindingService,
 			this.viewModel,
 			this.cursor,
 			(editorCommand: CoreEditorCommand, args: any) => {

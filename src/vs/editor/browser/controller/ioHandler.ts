@@ -10,9 +10,11 @@ import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewPart } from "vs/editor/browser/view/viewPart";
+import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
 
 export interface IOHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
+	dispatchKeyDown(e: IKeyboardEvent): void;
 }
 
 export abstract class IOHandler extends ViewPart {

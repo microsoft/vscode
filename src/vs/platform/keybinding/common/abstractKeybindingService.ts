@@ -111,6 +111,10 @@ export abstract class AbstractKeybindingService implements IKeybindingService {
 		return this._getResolver().resolve(contextValue, currentChord, firstPart);
 	}
 
+	public dispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): void {
+		this._dispatch(keyboardEvent, target);
+	}
+
 	protected _dispatch(e: IKeyboardEvent, target: IContextKeyServiceTarget): boolean {
 		let shouldPreventDefault = false;
 

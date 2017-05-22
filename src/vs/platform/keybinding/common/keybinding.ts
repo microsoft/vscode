@@ -59,6 +59,11 @@ export interface IKeybindingService {
 	softDispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult;
 
 	/**
+	 * Resolve and dispatch `keyboardEvent`.
+	 */
+	dispatch(keyboardEvent: IKeyboardEvent, target: IContextKeyServiceTarget): void;
+
+	/**
 	 * Look up keybindings for a command.
 	 * Use `lookupKeybinding` if you are interested in the preferred keybinding.
 	 */

@@ -71,9 +71,10 @@ class WalkThroughCodeEditor extends CodeEditor {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService, keybindingService);
 	}
 
 	getTelemetryData() {

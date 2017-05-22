@@ -50,6 +50,11 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { Cursor } from "vs/editor/common/controller/cursor";
 import { IOHandler, IOHandlerHelper } from "vs/editor/browser/controller/ioHandler";
+import { IFrameHandler } from "vs/editor/browser/controller/iframeHandler";
+import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
+import { IKeybindingService } from "vs/platform/keybinding/common/keybinding";
+
+const USE_IFRAME_IO = true;
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -97,6 +102,7 @@ export class View extends ViewEventHandler {
 		commandService: ICommandService,
 		configuration: Configuration,
 		themeService: IThemeService,
+		private keybindingService: IKeybindingService,
 		model: IViewModel,
 		cursor: Cursor,
 		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
@@ -126,7 +132,11 @@ export class View extends ViewEventHandler {
 		this.viewParts = [];
 
 		// Keyboard handler
-		this._ioHandler = new TextAreaHandler(this._context, viewController, this.createTextAreaHandlerHelper());
+		if (USE_IFRAME_IO) {
+			this._ioHandler = new IFrameHandler(this._context, viewController, this.createTextAreaHandlerHelper());
+		} else {
+			this._ioHandler = new TextAreaHandler(this._context, viewController, this.createTextAreaHandlerHelper());
+		}
 		this.viewParts.push(this._ioHandler);
 
 		this.createViewParts();
@@ -287,6 +297,9 @@ export class View extends ViewEventHandler {
 					return null;
 				}
 				return visibleRanges[0];
+			},
+			dispatchKeyDown: (e: IKeyboardEvent) => {
+				this.keybindingService.dispatch(e, this.domNode.domNode);
 			}
 		};
 	}

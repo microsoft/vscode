@@ -100,7 +100,7 @@ export class StandaloneCodeEditor extends CodeEditor implements IStandaloneCodeE
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService, keybindingService);
 
 		if (keybindingService instanceof StandaloneKeybindingService) {
 			this._standaloneKeybindingService = keybindingService;

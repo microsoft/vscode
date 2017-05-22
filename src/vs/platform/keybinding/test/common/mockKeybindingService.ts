@@ -122,4 +122,7 @@ export class MockKeybindingService implements IKeybindingService {
 	public softDispatch(keybinding: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult {
 		return null;
 	}
+
+	public dispatch(keybinding: IKeyboardEvent, target: IContextKeyServiceTarget): void {
+	}
 }

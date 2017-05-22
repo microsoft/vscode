@@ -66,8 +66,8 @@ export class TextAreaHandler extends IOHandler {
 	private _lastCopiedValue: string;
 	private _lastCopiedValueIsFromEmptySelection: boolean;
 
-	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
-	public readonly textAreaCover: FastDomNode<HTMLElement>;
+	private readonly textArea: FastDomNode<HTMLTextAreaElement>;
+	private readonly textAreaCover: FastDomNode<HTMLElement>;
 	private readonly _textAreaInput: TextAreaInput;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IOHandlerHelper) {

@@ -20,6 +20,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { TabCompletionController } from 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IKeybindingService } from "vs/platform/keybinding/common/keybinding";
 
 export class ReplInputEditor extends CodeEditorWidget {
 	constructor(
@@ -29,9 +30,10 @@ export class ReplInputEditor extends CodeEditorWidget {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, themeService, keybindingService);
 	}
 
 	protected _getContributions(): IEditorContributionCtor[] {

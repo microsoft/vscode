@@ -1,0 +1,27 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+
+.iframe-input {
+	position: absolute;
+	top: -10000px;
+	width: 625px;
+	height: 1px;
+
+	overflow: hidden;
+
+	border: 0;
+	outline-style: none;
+	z-index: 100;
+	opacity: 0;
+}
+.iframe-input {
+	bottom: 0 !important;
+	width: 500px !important;
+	height: 500px !important;
+	right: 0 !important;
+	top: inherit !important;
+	background: white !important;
+}
