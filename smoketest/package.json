@@ -1,0 +1,19 @@
+{
+  "name": "code-oss-dev-smoke-test",
+  "version": "0.1.0",
+  "main": "./out/main.js",
+  "scripts": {
+    "test": "mocha -u tdd --timeout 360000 --retries 2 --slow 50000 --colors ./out/main.js 2> test_data/errors.log"
+  },
+  "devDependencies": {
+    "@types/mocha": "^2.2.41",
+    "@types/node": "^6.0.70",
+    "@types/webdriverio": "^4.6.1",
+    "@types/electron": "^1.4.37",
+    "@types/rimraf": "^0.0.28",
+    "mocha": "^3.2.0",
+    "spectron": "^3.6.4",
+    "typescript": "^2.2.2",
+    "rimraf": "^2.6.1"
+  }
+}
