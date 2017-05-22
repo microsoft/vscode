@@ -53,37 +53,23 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 
 		if (this.partService.isVisible(Parts.STATUSBAR_PART)) {
 			const container = this.partService.getContainer(Parts.STATUSBAR_PART);
-			container.style.backgroundColor = this.getColor(this.getBackgroundColorKey());
-			container.style.color = this.getColor(this.getForegroundColorKey());
+			container.style.backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
+			container.style.color = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND));
 		}
 	}
 
-	private getBackgroundColorKey(): string {
+	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
 		// Not debugging
 		if (this.debugService.state === State.Inactive || this.isRunningWithoutDebug()) {
 			if (this.contextService.hasWorkspace()) {
-				return STATUS_BAR_BACKGROUND;
+				return normalColor;
 			}
 
-			return STATUS_BAR_NO_FOLDER_BACKGROUND;
+			return noFolderColor;
 		}
 
 		// Debugging
-		return STATUS_BAR_DEBUGGING_BACKGROUND;
-	}
-
-	private getForegroundColorKey(): string {
-		// Not debugging
-		if (this.debugService.state === State.Inactive || this.isRunningWithoutDebug()) {
-			if (this.contextService.hasWorkspace()) {
-				return STATUS_BAR_FOREGROUND;
-			}
-
-			return STATUS_BAR_NO_FOLDER_FOREGROUND;
-		}
-
-		// Debugging
-		return STATUS_BAR_DEBUGGING_FOREGROUND;
+		return debuggingColor;
 	}
 
 	private isRunningWithoutDebug(): boolean {
