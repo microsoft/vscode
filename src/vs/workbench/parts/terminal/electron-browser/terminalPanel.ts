@@ -210,11 +210,12 @@ export class TerminalPanel extends Panel {
 				if (!e.dataTransfer) {
 					return;
 				}
-				// check if the file was dragged from the tree explorer
+
+				// Check if the file was dragged from the tree explorer
 				const url = e.dataTransfer.getData('URL');
 				let filePath = URI.parse(url).path;
 
-				// check if the file was dragged from the filesystem
+				// Check if the file was dragged from the filesystem
 				if (!filePath && e.dataTransfer.files.length > 0) {
 					filePath = e.dataTransfer.files[0].path;
 				}
