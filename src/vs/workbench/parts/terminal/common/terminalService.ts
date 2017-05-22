@@ -16,6 +16,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 export abstract class TerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
+	protected _isShuttingDown: boolean;
 	protected _terminalFocusContextKey: IContextKey<boolean>;
 	protected _terminalContainer: HTMLElement;
 	protected _onInstancesChanged: Emitter<string>;
@@ -48,6 +49,7 @@ export abstract class TerminalService implements ITerminalService {
 	) {
 		this._terminalInstances = [];
 		this._activeTerminalInstanceIndex = 0;
+		this._isShuttingDown = false;
 
 		this._onActiveInstanceChanged = new Emitter<string>();
 		this._onInstanceDisposed = new Emitter<ITerminalInstance>();
@@ -82,6 +84,7 @@ export abstract class TerminalService implements ITerminalService {
 		}
 
 		// Dispose all terminal instances and don't veto
+		this._isShuttingDown = true;
 		this.terminalInstances.forEach(instance => {
 			instance.dispose();
 		});
@@ -105,7 +108,10 @@ export abstract class TerminalService implements ITerminalService {
 				this.getActiveInstance().focus(true);
 			}
 		}
-		if (this.terminalInstances.length === 0) {
+		// Hide the panel if there are no more instances, provided that VS Code is not shutting
+		// down. When shutting down the panel is locked in place so that it is restored upon next
+		// launch.
+		if (this.terminalInstances.length === 0 && !this._isShuttingDown) {
 			this.hidePanel();
 		}
 		this._onInstancesChanged.fire();
