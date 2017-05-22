@@ -783,16 +783,19 @@ class SimpleCheckbox extends Widget {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-checkbox';
 		this._domNode.title = this._opts.title;
+		this._domNode.tabIndex = 0;
 
 		this._checkbox = document.createElement('input');
 		this._checkbox.type = 'checkbox';
 		this._checkbox.className = 'checkbox';
 		this._checkbox.id = 'checkbox-' + SimpleCheckbox._COUNTER++;
+		this._checkbox.tabIndex = -1;
 
 		this._label = document.createElement('label');
 		this._label.className = 'label';
 		// Connect the label and the checkbox. Checkbox will get checked when the label recieves a click.
 		this._label.htmlFor = this._checkbox.id;
+		this._label.tabIndex = -1;
 
 		this._domNode.appendChild(this._checkbox);
 		this._domNode.appendChild(this._label);
@@ -831,8 +834,10 @@ class SimpleCheckbox extends Widget {
 	public setEnabled(enabled: boolean): void {
 		if (enabled) {
 			this.enable();
+			this.domNode.tabIndex = 0;
 		} else {
 			this.disable();
+			this.domNode.tabIndex = -1;
 		}
 	}
 }
