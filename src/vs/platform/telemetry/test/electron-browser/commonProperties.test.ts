@@ -33,6 +33,8 @@ suite('Telemetry - common properties', function () {
 			assert.ok('sessionID' in props);
 			assert.ok('timestamp' in props);
 			assert.ok('common.platform' in props);
+			assert.ok('common.nodePlatform' in props);
+			assert.ok('common.nodeArch' in props);
 			assert.ok('common.timesincesessionstart' in props);
 			assert.ok('common.sequence' in props);
 
