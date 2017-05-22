@@ -31,6 +31,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class InstallAction extends Action {
 
@@ -678,6 +679,59 @@ export class CheckForUpdatesAction extends Action {
 
 	run(): TPromise<any> {
 		return this.extensionsWorkbenchService.checkForUpdates();
+	}
+}
+
+export class ToggleAutoUpdateAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private autoUpdateValue: boolean,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, '', true);
+		this.updateEnablement();
+		configurationService.onDidUpdateConfiguration(() => this.updateEnablement());
+	}
+
+	private updateEnablement(): void {
+		this.enabled = this.extensionsWorkbenchService.isAutoUpdateEnabled !== this.autoUpdateValue;
+	}
+
+	run(): TPromise<any> {
+		return this.extensionsWorkbenchService.setAutoUpdate(this.autoUpdateValue);
+	}
+}
+
+export class EnableAutoUpdateAction extends ToggleAutoUpdateAction {
+
+	static ID = 'workbench.extensions.action.enableAutoUpdate';
+	static LABEL = localize('enableAutoUpdate', "Enable Auto Updating Extensions");
+
+	constructor(
+		id = EnableAutoUpdateAction.ID,
+		label = EnableAutoUpdateAction.LABEL,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, true, configurationService, extensionsWorkbenchService);
+	}
+}
+
+export class DisableAutoUpdateAction extends ToggleAutoUpdateAction {
+
+	static ID = 'workbench.extensions.action.disableAutoUpdate';
+	static LABEL = localize('disableAutoUpdate', "Disable Auto Updating Extensions");
+
+	constructor(
+		id = EnableAutoUpdateAction.ID,
+		label = EnableAutoUpdateAction.LABEL,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, false, configurationService, extensionsWorkbenchService);
 	}
 }
 

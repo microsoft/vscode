@@ -32,7 +32,8 @@ import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extens
 import { IExtensionsWorkbenchService, IExtension, IExtensionsViewlet, VIEWLET_ID, ExtensionState } from '../common/extensions';
 import {
 	ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction,
-	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction
+	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
+	EnableAutoUpdateAction, DisableAutoUpdateAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, SortBy, SortOrder, IQueryOptions, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -52,6 +53,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -71,6 +73,8 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 	private secondaryActions: IAction[];
 	private disposables: IDisposable[] = [];
 
+	private isAutoUpdateEnabled: boolean;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
@@ -86,12 +90,23 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IModeService private modeService: IModeService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super(VIEWLET_ID, telemetryService, themeService);
 		this.searchDelayer = new ThrottledDelayer(500);
 
 		this.disposables.push(viewletService.onDidViewletOpen(this.onViewletOpen, this, this.disposables));
+		this.isAutoUpdateEnabled = this.extensionsWorkbenchService.isAutoUpdateEnabled;
+
+		this.configurationService.onDidUpdateConfiguration(() => {
+			const isAutoUpdateEnabled = this.extensionsWorkbenchService.isAutoUpdateEnabled;
+			if (this.isAutoUpdateEnabled !== isAutoUpdateEnabled) {
+				this.isAutoUpdateEnabled = isAutoUpdateEnabled;
+				this.secondaryActions = null;
+				this.updateTitleArea();
+			}
+		}, this, this.disposables);
 	}
 
 	create(parent: Builder): TPromise<void> {
@@ -206,7 +221,7 @@ export class ExtensionsViewlet extends Viewlet implements IExtensionsViewlet {
 				this.instantiationService.createInstance(ChangeSortAction, 'extensions.sort.name', localize('sort by name', "Sort By: Name"), this.onSearchChange, 'name'),
 				new Separator(),
 				this.instantiationService.createInstance(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL),
-				this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL),
+				...(this.isAutoUpdateEnabled ? [this.instantiationService.createInstance(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL)] : [this.instantiationService.createInstance(UpdateAllAction, UpdateAllAction.ID, UpdateAllAction.LABEL), this.instantiationService.createInstance(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL)]),
 				this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL),
 				new Separator(),
 				this.instantiationService.createInstance(DisableAllAction, DisableAllAction.ID, DisableAllAction.LABEL),

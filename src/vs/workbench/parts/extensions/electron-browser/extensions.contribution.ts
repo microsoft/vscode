@@ -24,7 +24,7 @@ import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/e
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowWorkspaceRecommendedExtensionsAction, ShowPopularExtensionsAction,
 	ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, UpdateAllAction, ConfigureWorkspaceRecommendedExtensionsAction,
-	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction, ShowExtensionPacksAction
+	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction, ShowExtensionPacksAction, EnableAutoUpdateAction, DisableAutoUpdateAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { OpenExtensionsFolderAction, InstallVSIXAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
@@ -156,6 +156,9 @@ actionRegistry.registerWorkbenchAction(enableAllWorkspaceAction, 'Extensions: En
 
 const checkForUpdatesAction = new SyncActionDescriptor(CheckForUpdatesAction, CheckForUpdatesAction.ID, CheckForUpdatesAction.LABEL);
 actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: Check for Updates`, ExtensionsLabel);
+
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(EnableAutoUpdateAction, EnableAutoUpdateAction.ID, EnableAutoUpdateAction.LABEL), `Extensions: Enable Auto Updating Extensions`, ExtensionsLabel);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(DisableAutoUpdateAction, DisableAutoUpdateAction.ID, DisableAutoUpdateAction.LABEL), `Extensions: Disable Auto Updating Extensions`, ExtensionsLabel);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
