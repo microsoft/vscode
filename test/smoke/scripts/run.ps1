@@ -1,9 +1,8 @@
 Param(
   [Parameter(Position=0,mandatory=$true)]
-  [string] $latest,
-  [Parameter(Position=1,mandatory=$false)]
-  [string] $stable
+  [string]$arch
 )
+
 
 # Setup sample repository for the smoke test
 Set-Location ..
@@ -19,14 +18,14 @@ if (-Not (Test-Path vscode-smoketest-express)) {
 npm install
 
 # Setup the test directory for running
-Set-Location ..\smoketest
+Set-Location ..\smoke
 if (-Not (Test-Path node_modules)) {
   npm install
 }
 
 # Configure environment variables
-$env:VSCODE_LATEST_PATH = $latest
-$env:VSCODE_STABLE_PATH = $stable
+$env:VSCODE_LATEST_PATH = "$Root\VSCode-win32-$arch"
+# $env:VSCODE_STABLE_PATH = $stable
 $env:SMOKETEST_REPO = "..\vscode-smoketest-express"
 
 if ($latest.Contains('Insiders')) {
