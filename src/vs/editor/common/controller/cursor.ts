@@ -372,8 +372,11 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		const selections = this._cursors.getSelections();
 		const viewSelections = this._cursors.getViewSelections();
 
-		this._onDidChange.fire(new CursorStateChangedEvent(selections, source, reason));
+		// Let the view get the event first.
 		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
+
+		// Only after the view has been notified, let the rest of the world know...
+		this._onDidChange.fire(new CursorStateChangedEvent(selections, source, reason));
 	}
 
 	private _revealRange(revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean): void {
