@@ -13,7 +13,7 @@ const events = require('events');
 const optimist = require('optimist')
 	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
 	.describe('run', 'only run tests from <file>').string('run')
-	.describe('runGlob', 'only run tests matching <file_pattern>').boolean('runGlob').alias('runGrep')
+	.describe('runGlob', 'only run tests matching <file_pattern>').alias('runGlob', 'runGrep').string('runGlob')
 	.describe('build', 'run with build output (out-build)').boolean('build')
 	.describe('coverage', 'generate coverage report').boolean('coverage')
 	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug')
