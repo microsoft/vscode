@@ -15,10 +15,10 @@ declare module 'vscode' {
 	export namespace window {
 		/**
 		 * Register a [TreeDataProvider](#TreeDataProvider) for the registered view `id`.
-		 * @param id View id.
+		 * @param viewId View id.
 		 * @param treeDataProvider A [TreeDataProvider](#TreeDataProvider) that provides tree data for the view
 		 */
-		export function registerTreeDataProvider<T>(id: string, treeDataProvider: TreeDataProvider<T>): Disposable;
+		export function registerTreeDataProviderForView<T>(viewId: string, treeDataProvider: TreeDataProvider<T>): Disposable;
 	}
 
 	/**
@@ -28,7 +28,7 @@ declare module 'vscode' {
 		/**
 		 * An optional event to signal that an element or root has changed.
 		 */
-		onDidChange?: Event<T | undefined | null>;
+		onDidChangeTreeData?: Event<T | undefined | null>;
 
 		/**
 		 * get [TreeItem](#TreeItem) representation of the `element`
@@ -51,29 +51,29 @@ declare module 'vscode' {
 		/**
 		 * Label of the tree item
 		 */
-		label: string;
+		readonly label: string;
 
 		/**
 		 * The icon path for the tree item
 		 */
-		iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
+		readonly iconPath?: string | Uri | { light: string | Uri; dark: string | Uri };
 
 		/**
 		 * The [command](#Command) which should be run when the tree item
 		 * is open in the Source Control viewlet.
 		 */
-		command?: Command;
+		readonly command?: Command;
 
 		/**
 		 * Context value of the tree node
 		 */
-		contextValue?: string;
+		readonly contextValue?: string;
 
 		/**
 		 * Collapsible state of the tree item.
 		 * Required only when item has children.
 		 */
-		collapsibleState?: TreeItemCollapsibleState;
+		readonly collapsibleState?: TreeItemCollapsibleState;
 	}
 
 	/**

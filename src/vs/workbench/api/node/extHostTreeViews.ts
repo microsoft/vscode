@@ -39,7 +39,7 @@ export class ExtHostTreeViews extends ExtHostTreeViewsShape {
 		});
 	}
 
-	registerTreeDataProvider<T>(id: string, treeDataProvider: vscode.TreeDataProvider<T>): vscode.Disposable {
+	registerTreeDataProviderForView<T>(id: string, treeDataProvider: vscode.TreeDataProvider<T>): vscode.Disposable {
 		const treeView = new ExtHostTreeView<T>(id, treeDataProvider, this._proxy);
 		this.treeViews.set(id, treeView);
 		return {
@@ -86,8 +86,8 @@ class ExtHostTreeView<T> extends Disposable {
 	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape) {
 		super();
 		this.proxy.$registerView(viewId);
-		if (dataProvider.onDidChange) {
-			this._register(dataProvider.onDidChange(element => this._refresh(element)));
+		if (dataProvider.onDidChangeTreeData) {
+			this._register(dataProvider.onDidChangeTreeData(element => this._refresh(element)));
 		}
 	}
 
