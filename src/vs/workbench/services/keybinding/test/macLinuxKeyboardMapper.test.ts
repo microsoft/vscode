@@ -1407,11 +1407,11 @@ suite('keyboardMapper - LINUX ru', () => {
 		_assertResolveKeybinding(
 			KeyMod.CtrlCmd | KeyCode.KEY_S,
 			[{
-				label: 'Ctrl+ы',
-				ariaLabel: 'Control+ы',
+				label: 'Ctrl+S',
+				ariaLabel: 'Control+S',
 				electronAccelerator: 'Ctrl+S',
 				userSettingsLabel: 'ctrl+s',
-				isWYSIWYG: false,
+				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: ['ctrl+[KeyS]', null],
 			}]
