@@ -46,19 +46,19 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 
 		conflicts.forEach(conflict => {
 			let acceptCurrentCommand: vscode.Command = {
-				command: 'git.merge.accept.current',
+				command: 'merge-conflict.accept.current',
 				title: `Accept current change`,
 				arguments: ['known-conflict', conflict]
 			};
 
 			let acceptIncomingCommand: vscode.Command = {
-				command: 'git.merge.accept.incoming',
+				command: 'merge-conflict.accept.incoming',
 				title: `Accept incoming change`,
 				arguments: ['known-conflict', conflict]
 			};
 
 			let acceptBothCommand: vscode.Command = {
-				command: 'git.merge.accept.both',
+				command: 'merge-conflict.accept.both',
 				title: `Accept both changes`,
 				arguments: ['known-conflict', conflict]
 			};
