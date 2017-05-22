@@ -167,7 +167,7 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
 
 	console.log('SHA1:', sha1hash);
-	console.log('SHA256:', sha1hash);
+	console.log('SHA256:', sha256hash);
 
 	const blobName = commit + '/' + name;
 	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2'];
