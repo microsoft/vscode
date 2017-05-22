@@ -41,7 +41,7 @@ function isBuildSigned(quality: string, commit: string): Promise<boolean> {
 	return new Promise<boolean>((c, e) => {
 		client.queryDocuments(collection, updateQuery).toArray((err, results) => {
 			if (err) { return e(err); }
-			if (results.length !== 1) { return e(new Error('No such build')); }
+			if (results.length !== 1) { return c(false); }
 
 			const [release] = results;
 			const assets: Asset[] = release.assets;
