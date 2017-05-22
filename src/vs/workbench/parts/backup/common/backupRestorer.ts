@@ -83,25 +83,24 @@ export class BackupRestorer implements IWorkbenchContribution {
 	private doOpenEditors(resources: URI[]): TPromise<void> {
 		const stacks = this.groupService.getStacksModel();
 		const hasOpenedEditors = stacks.groups.length > 0;
-
-		const inputs = resources.map(resource => this.resolveInput(resource));
-		const openEditorsArgs = inputs.map((input, index) => {
-			return { input, options: { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors }, position: Position.ONE };
-		});
+		const inputs = resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors));
 
 		// Open all remaining backups as editors and resolve them to load their backups
-		return this.editorService.openEditors(openEditorsArgs).then(() => void 0);
+		return this.editorService.openEditors(inputs.map(input => { return { input, position: Position.ONE }; })).then(() => void 0);
 	}
 
-	private resolveInput(resource: URI): IResourceInput | IUntitledResourceInput {
+	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledResourceInput {
+		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
+
 		if (resource.scheme === 'untitled' && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
 			// TODO@Ben debt: instead of guessing if an untitled file has an associated file path or not
 			// this information should be provided by the backup service and stored as meta data within
-			return { filePath: resource.fsPath };
+			return { filePath: resource.fsPath, options };
 		}
 
-		return { resource };
+		return { resource, options };
 	}
+
 
 	public getId(): string {
 		return 'vs.backup.backupRestorer';
