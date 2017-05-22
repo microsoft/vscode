@@ -10,15 +10,16 @@ import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { SelectBox, ISelectBoxStyles } from 'vs/base/browser/ui/selectBox/selectBox';
+import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { selectBorder } from "vs/platform/theme/common/colorRegistry";
 
 const $ = dom.$;
 
@@ -115,14 +116,10 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 				event.stopPropagation();
 			}
 		}));
-		this.toDispose.push(attachSelectBoxStyler({
-			style: (colors: ISelectBoxStyles) => {
-				if (colors.selectBorder) {
-					this.container.style.borderColor = colors.selectBorder.toString();
-					selectBoxContainer.style.borderLeftColor = colors.selectBorder.toString();
-				}
-			}
-		}, this.themeService));
+		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+			this.container.style.borderColor = colors.selectBorder;
+			selectBoxContainer.style.borderLeftColor = colors.selectBorder;
+		}));
 
 		this.updateOptions();
 	}
