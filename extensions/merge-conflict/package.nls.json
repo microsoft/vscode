@@ -1,3 +1,13 @@
 {
+	"command.category": "Merge Conflict",
+	"command.accept.all-incoming": "Accept all incoming",
+	"command.accept.all-both": "Accept all both",
+	"command.accept.current": "Accept current",
+	"command.accept.incoming": "Accept incoming",
+	"command.accept.selection": "Accept selection",
+	"command.accept.both": "Accept Both",
+	"command.next": "Next conflict",
+	"command.previous": "Previous conflict",
+	"command.compare": "Compare current conflict",
 	"config.enabled": "Whether merge conflict editor decorations and code lenses are enabled"
 }

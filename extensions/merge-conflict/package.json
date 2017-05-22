@@ -23,48 +23,48 @@
   "contributes": {
     "commands": [
       {
-        "category": "Merge Conflict",
-        "title": "Accept all incoming",
+        "category": "%command.category%",
+        "title": "%command.accept.all-incoming%",
         "command": "merge-conflict.accept.all-incoming"
       },
       {
-        "category": "Merge Conflict",
-        "title": "Accept all both",
+        "category": "%command.category%",
+        "title": "%command.accept.all-both%",
         "command": "merge-conflict.accept.all-both"
       },
       {
-        "category": "Merge Conflict",
-        "title": "Accept current",
+        "category": "%command.category%",
+        "title": "%command.accept.current%",
         "command": "merge-conflict.accept.current"
       },
       {
-        "category": "Merge Conflict",
-        "title": "Accept incoming",
+        "category": "%command.category%",
+        "title": "%command.accept.incoming%",
         "command": "merge-conflict.accept.incoming"
       },
       {
-        "category": "Merge Conflict",
+        "category": "%command.category%",
         "title": "Accept selection",
         "command": "merge-conflict.accept.selection"
       },
       {
-        "category": "Merge Conflict",
-        "title": "Accept both",
+        "category": "%command.category%",
+        "title": "%command.accept.both%",
         "command": "merge-conflict.accept.both"
       },
       {
-        "category": "Merge Conflict",
-        "title": "Next conflict",
+        "category": "%command.category%",
+        "title": "%command.next%",
         "command": "merge-conflict.next"
       },
       {
-        "category": "Merge Conflict",
-        "title": "Previous conflict",
+        "category": "%command.category%",
+        "title": "%command.previous%",
         "command": "merge-conflict.previous"
       },
       {
-        "category": "Merge Conflict",
-        "title": "Compare current conflict",
+        "category": "%command.category%",
+        "title": "%command.compare%",
         "command": "merge-conflict.compare"
       }
     ],
