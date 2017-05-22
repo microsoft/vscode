@@ -63,7 +63,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			Scope.VIEWLET,
 			SIDE_BAR_TITLE_FOREGROUND,
 			id,
-			{ hasTitle: true }
+			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 }
 		);
 	}
 
