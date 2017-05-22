@@ -5,7 +5,6 @@
 'use strict';
 
 import 'vs/css!./media/editor';
-import 'vs/editor/common/view/editorColorRegistry'; // initialze editor theming partcicpants
 import 'vs/css!./media/tokens';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -31,7 +30,10 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { isChrome } from "vs/base/browser/browser";
+import URI from "vs/base/common/uri";
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from "vs/editor/common/view/editorColorRegistry";
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -545,3 +547,48 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 		return this._hasFocus;
 	}
 }
+
+const errorIconPath = URI.parse(require.toUrl('vs/editor/browser/widget/media/red-squiggly.svg')).fsPath;
+const warningIconPath = URI.parse(require.toUrl('vs/editor/browser/widget/media/green-squiggly.svg')).fsPath;
+registerThemingParticipant((theme, collector) => {
+
+	// webkit-mask only supported in chrome
+	if (isChrome) {
+		let errorForeground = theme.getColor(editorErrorForeground);
+		if (errorForeground) {
+			collector.addRule(`.monaco-editor .redsquiggly { background-color: ${errorForeground}; -webkit-mask: url("${errorIconPath}") repeat-x bottom left; }`);
+		}
+
+		let errorBorderColor = theme.getColor(editorErrorBorder);
+		if (errorBorderColor) {
+			collector.addRule(`.monaco-editor .redsquiggly { border-bottom: 4px double ${errorBorderColor}; -webkit-mask: none; background: none; }`);
+		}
+
+		let warningForeground = theme.getColor(editorWarningForeground);
+		if (warningForeground) {
+			collector.addRule(`.monaco-editor .greensquiggly { background-color: ${warningForeground}; -webkit-mask: url("${warningIconPath}") repeat-x bottom left; }`);
+		}
+
+		let warningBorderColor = theme.getColor(editorWarningBorder);
+		if (warningBorderColor) {
+			collector.addRule(`.monaco-editor .greensquiggly { border-bottom: 4px double ${warningBorderColor}; -webkit-mask: none; background: none; }`);
+		}
+	}
+
+	// Any other browser
+	else {
+		let errorBorderColor = theme.getColor(editorErrorBorder);
+		if (errorBorderColor) {
+			collector.addRule(`.monaco-editor .redsquiggly { border-bottom: 4px double ${errorBorderColor}; }`);
+		} else {
+			collector.addRule(`.monaco-editor .redsquiggly { background: url("${errorIconPath}") repeat-x bottom left; }`);
+		}
+
+		let warningBorderColor = theme.getColor(editorWarningBorder);
+		if (warningBorderColor) {
+			collector.addRule(`.monaco-editor .greensquiggly { border-bottom: 4px double ${warningBorderColor}; }`);
+		} else {
+			collector.addRule(`.monaco-editor .greensquiggly { background: url("${warningIconPath}") repeat-x bottom left; }`);
+		}
+	}
+});
