@@ -6,7 +6,7 @@
 {
 	"selectTheme.label": "颜色主题",
 	"installColorThemes": "安装其他颜色主题...",
-	"themes.selectTheme": "选择颜色主题",
+	"themes.selectTheme": "选择颜色主题（按上下箭头键预览）",
 	"selectIconTheme.label": "文件图标主题",
 	"installIconThemes": "安装其他文件图标主题...",
 	"noIconThemeLabel": "无",

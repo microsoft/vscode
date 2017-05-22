@@ -33,11 +33,13 @@
 	"javascript.validate.enable": "启用/禁用 JavaScript 验证。",
 	"typescript.goToProjectConfig.title": "转到项目配置",
 	"javascript.goToProjectConfig.title": "转到项目配置",
-	"typescript.referencesCodeLens.enabled": "启用/禁用引用 CodeLens。要求 TypeScript >= 2.0.6。",
+	"javascript.referencesCodeLens.enabled": "启用/禁用在 JavaScript 文件中引用 CodeLens。",
+	"typescript.referencesCodeLens.enabled": "启用/禁用在 TypeScript 文件中引用 CodeLens。要求 TypeScript >= 2.0.6。",
 	"typescript.implementationsCodeLens.enabled": "启用/禁用实现 CodeLens。要求 TypeScript >= 2.2.0。",
 	"typescript.openTsServerLog.title": "打开 TS 服务器日志",
 	"typescript.selectTypeScriptVersion.title": "选择 TypeScript 版本",
 	"jsDocCompletion.enabled": "启用/禁用自动 JSDoc 注释",
 	"javascript.implicitProjectConfig.checkJs": "启用/禁用 JavaScript 文件的语义检查。现有的 jsconfig.json 或\n tsconfig.json 文件会覆盖此设置。要求 TypeScript >=2.3.1。",
-	"typescript.check.npmIsInstalled": "检查是否安装了 NPM 以进行自动 typings 获取"
+	"typescript.check.npmIsInstalled": "检查是否安装了 NPM 以进行自动 typings 获取",
+	"javascript.nameSuggestions": "启用/禁用在 JavaScript 建议列表中包含文件中的唯一名称。"
 }

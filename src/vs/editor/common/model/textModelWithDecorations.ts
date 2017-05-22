@@ -839,31 +839,81 @@ function cleanClassName(className: string): string {
 	return className.replace(/[^a-z0-9\-]/gi, ' ');
 }
 
+export class ModelDecorationOverviewRulerOptions implements editorCommon.IModelDecorationOverviewRulerOptions {
+	readonly color: string;
+	readonly darkColor: string;
+	readonly hcColor: string;
+	readonly position: editorCommon.OverviewRulerLane;
+
+	constructor(options: editorCommon.IModelDecorationOverviewRulerOptions) {
+		this.color = strings.empty;
+		this.darkColor = strings.empty;
+		this.hcColor = strings.empty;
+		this.position = editorCommon.OverviewRulerLane.Center;
+
+		if (options && options.color) {
+			this.color = options.color;
+		}
+		if (options && options.darkColor) {
+			this.darkColor = options.darkColor;
+			this.hcColor = options.darkColor;
+		}
+		if (options && options.hcColor) {
+			this.hcColor = options.hcColor;
+		}
+		if (options && options.hasOwnProperty('position')) {
+			this.position = options.position;
+		}
+	}
+
+	public equals(other: ModelDecorationOverviewRulerOptions): boolean {
+		return (
+			this.color === other.color
+			&& this.darkColor === other.darkColor
+			&& this.hcColor === other.hcColor
+			&& this.position === other.position
+		);
+	}
+}
+
+let lastStaticId = 0;
+
 export class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 
-	stickiness: editorCommon.TrackedRangeStickiness;
-	className: string;
-	hoverMessage: MarkedString | MarkedString[];
-	glyphMarginHoverMessage: MarkedString | MarkedString[];
-	isWholeLine: boolean;
-	showIfCollapsed: boolean;
-	showInOverviewRuler: string;
-	overviewRuler: editorCommon.IModelDecorationOverviewRulerOptions;
-	glyphMarginClassName: string;
-	linesDecorationsClassName: string;
-	marginClassName: string;
-	inlineClassName: string;
-	beforeContentClassName: string;
-	afterContentClassName: string;
+	public static EMPTY = ModelDecorationOptions.register({});
 
-	constructor(options: editorCommon.IModelDecorationOptions) {
+	public static register(options: editorCommon.IModelDecorationOptions): ModelDecorationOptions {
+		return new ModelDecorationOptions(++lastStaticId, options);
+	}
+
+	public static createDynamic(options: editorCommon.IModelDecorationOptions): ModelDecorationOptions {
+		return new ModelDecorationOptions(0, options);
+	}
+
+	readonly staticId: number;
+	readonly stickiness: editorCommon.TrackedRangeStickiness;
+	readonly className: string;
+	readonly hoverMessage: MarkedString | MarkedString[];
+	readonly glyphMarginHoverMessage: MarkedString | MarkedString[];
+	readonly isWholeLine: boolean;
+	readonly showIfCollapsed: boolean;
+	readonly overviewRuler: ModelDecorationOverviewRulerOptions;
+	readonly glyphMarginClassName: string;
+	readonly linesDecorationsClassName: string;
+	readonly marginClassName: string;
+	readonly inlineClassName: string;
+	readonly beforeContentClassName: string;
+	readonly afterContentClassName: string;
+
+	private constructor(staticId: number, options: editorCommon.IModelDecorationOptions) {
+		this.staticId = staticId;
 		this.stickiness = options.stickiness || editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.className = options.className ? cleanClassName(options.className) : strings.empty;
 		this.hoverMessage = options.hoverMessage || [];
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || strings.empty;
 		this.isWholeLine = options.isWholeLine || false;
 		this.showIfCollapsed = options.showIfCollapsed || false;
-		this.overviewRuler = _normalizeOverviewRulerOptions(options.overviewRuler, options.showInOverviewRuler);
+		this.overviewRuler = new ModelDecorationOverviewRulerOptions(options.overviewRuler);
 		this.glyphMarginClassName = options.glyphMarginClassName ? cleanClassName(options.glyphMarginClassName) : strings.empty;
 		this.linesDecorationsClassName = options.linesDecorationsClassName ? cleanClassName(options.linesDecorationsClassName) : strings.empty;
 		this.marginClassName = options.marginClassName ? cleanClassName(options.marginClassName) : strings.empty;
@@ -872,21 +922,16 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : strings.empty;
 	}
 
-	private static _overviewRulerEquals(a: editorCommon.IModelDecorationOverviewRulerOptions, b: editorCommon.IModelDecorationOverviewRulerOptions): boolean {
-		return (
-			a.color === b.color
-			&& a.position === b.position
-			&& a.darkColor === b.darkColor
-		);
-	}
-
 	public equals(other: ModelDecorationOptions): boolean {
+		if (this.staticId > 0 || other.staticId > 0) {
+			return this.staticId === other.staticId;
+		}
+
 		return (
 			this.stickiness === other.stickiness
 			&& this.className === other.className
 			&& this.isWholeLine === other.isWholeLine
 			&& this.showIfCollapsed === other.showIfCollapsed
-			&& this.showInOverviewRuler === other.showInOverviewRuler
 			&& this.glyphMarginClassName === other.glyphMarginClassName
 			&& this.linesDecorationsClassName === other.linesDecorationsClassName
 			&& this.marginClassName === other.marginClassName
@@ -895,7 +940,7 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 			&& this.afterContentClassName === other.afterContentClassName
 			&& markedStringsEquals(this.hoverMessage, other.hoverMessage)
 			&& markedStringsEquals(this.glyphMarginHoverMessage, other.glyphMarginHoverMessage)
-			&& ModelDecorationOptions._overviewRulerEquals(this.overviewRuler, other.overviewRuler)
+			&& this.overviewRuler.equals(other.overviewRuler)
 		);
 	}
 }
@@ -914,40 +959,8 @@ class ModelDeltaDecoration implements editorCommon.IModelDeltaDecoration {
 }
 
 function _normalizeOptions(options: editorCommon.IModelDecorationOptions): ModelDecorationOptions {
-	return new ModelDecorationOptions(options);
-}
-
-class ModelDecorationOverviewRulerOptions implements editorCommon.IModelDecorationOverviewRulerOptions {
-	color: string;
-	darkColor: string;
-	hcColor: string;
-	position: editorCommon.OverviewRulerLane;
-
-	constructor(options: editorCommon.IModelDecorationOverviewRulerOptions, legacyShowInOverviewRuler: string) {
-		this.color = strings.empty;
-		this.darkColor = strings.empty;
-		this.hcColor = strings.empty;
-		this.position = editorCommon.OverviewRulerLane.Center;
-
-		if (legacyShowInOverviewRuler) {
-			this.color = legacyShowInOverviewRuler;
-		}
-		if (options && options.color) {
-			this.color = options.color;
-		}
-		if (options && options.darkColor) {
-			this.darkColor = options.darkColor;
-			this.hcColor = options.darkColor;
-		}
-		if (options && options.hcColor) {
-			this.hcColor = options.hcColor;
-		}
-		if (options && options.hasOwnProperty('position')) {
-			this.position = options.position;
-		}
+	if (options instanceof ModelDecorationOptions) {
+		return options;
 	}
-}
-
-function _normalizeOverviewRulerOptions(options: editorCommon.IModelDecorationOverviewRulerOptions, legacyShowInOverviewRuler: string = null): editorCommon.IModelDecorationOverviewRulerOptions {
-	return new ModelDecorationOverviewRulerOptions(options, legacyShowInOverviewRuler);
+	return ModelDecorationOptions.createDynamic(options);
 }

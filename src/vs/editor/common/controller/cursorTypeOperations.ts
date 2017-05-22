@@ -16,8 +16,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
-import { getMapForWordSeparators, WordCharacterClass } from "vs/editor/common/controller/cursorWordOperations";
-import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
+import { getMapForWordSeparators, WordCharacterClass } from "vs/editor/common/controller/wordCharacterClassifier";
 
 export class TypeOperations {
 
@@ -69,19 +68,18 @@ export class TypeOperations {
 		return newIndentation;
 	}
 
-	public static distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
+	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			commands[i] = new ReplaceCommand(selections[i], text[i]);
 		}
 		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true,
-			reason: CursorChangeReason.Paste
+			shouldPushStackElementAfter: true
 		});
 	}
 
-	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean): EditOperationResult {
+	private static _simplePaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean): EditOperationResult {
 		let commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -107,9 +105,42 @@ export class TypeOperations {
 		}
 		return new EditOperationResult(commands, {
 			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: true,
-			reason: CursorChangeReason.Paste
+			shouldPushStackElementAfter: true
 		});
+	}
+
+	private static _distributePasteToCursors(selections: Selection[], pasteOnNewLine: boolean, text: string): string[] {
+		if (pasteOnNewLine) {
+			return null;
+		}
+
+		if (selections.length === 1) {
+			return null;
+		}
+
+		for (let i = 0; i < selections.length; i++) {
+			if (selections[i].startLineNumber !== selections[i].endLineNumber) {
+				return null;
+			}
+		}
+
+		let pastePieces = text.split(/\r\n|\r|\n/);
+		if (pastePieces.length !== selections.length) {
+			return null;
+		}
+
+		return pastePieces;
+	}
+
+	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], pasteOnNewLine: boolean, text: string): EditOperationResult {
+		const distributedPaste = this._distributePasteToCursors(selections, pasteOnNewLine, text);
+
+		if (distributedPaste) {
+			selections = selections.sort(Range.compareRangesUsingStarts);
+			return this._distributedPaste(config, model, selections, distributedPaste);
+		} else {
+			return this._simplePaste(config, model, selections, text, pasteOnNewLine);
+		}
 	}
 
 	private static _goodIndentForLine(config: CursorConfiguration, model: ITokenizedModel, lineNumber: number): string {

@@ -10,6 +10,7 @@ import { execSync } from 'child_process';
 import * as crypto from 'crypto';
 import * as azure from 'azure-storage';
 import * as mime from 'mime';
+import * as minimist from 'minimist';
 import { DocumentClient, NewDocument } from 'documentdb';
 
 if (process.argv.length < 6) {
@@ -137,7 +138,11 @@ async function uploadBlob(blobService: azure.BlobService, quality: string, blobN
 	await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, file, blobOptions, err => err ? e(err) : c()));
 }
 
-async function publish(commit: string, quality: string, platform: string, type: string, name: string, version: string, _isUpdate: string, file: string): Promise<void> {
+interface PublishOptions {
+	'upload-only': boolean;
+}
+
+async function publish(commit: string, quality: string, platform: string, type: string, name: string, version: string, _isUpdate: string, file: string, opts: PublishOptions): Promise<void> {
 	const isUpdate = _isUpdate === 'true';
 
 	const queuedBy = process.env['BUILD_QUEUEDBY'];
@@ -193,6 +198,10 @@ async function publish(commit: string, quality: string, platform: string, type: 
 
 	console.log('Blobs successfully uploaded.');
 
+	if (opts['upload-only']) {
+		return;
+	}
+
 	const config = await getConfig(quality);
 
 	console.log('Quality config:', config);
@@ -224,10 +233,14 @@ async function publish(commit: string, quality: string, platform: string, type: 
 }
 
 function main(): void {
-	const [, , quality, platform, type, name, version, _isUpdate, file] = process.argv;
+	const opts = minimist<PublishOptions>(process.argv.slice(2), {
+		boolean: ['upload-only']
+	});
+
+	const [quality, platform, type, name, version, _isUpdate, file] = opts._;
 	const commit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
 
-	publish(commit, quality, platform, type, name, version, _isUpdate, file).catch(err => {
+	publish(commit, quality, platform, type, name, version, _isUpdate, file, opts).catch(err => {
 		console.error(err);
 		process.exit(1);
 	});

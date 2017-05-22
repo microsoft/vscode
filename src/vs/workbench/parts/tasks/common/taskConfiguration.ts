@@ -631,13 +631,24 @@ namespace ProblemMatcherConverter {
 	}
 }
 
+interface TaskParseResult {
+	tasks: Tasks.Task[] | undefined;
+	annotatingTasks: Tasks.Task[] | undefined;
+}
+
 namespace TaskDescription {
 
-	export function from(this: void, tasks: TaskDescription[], globals: Globals, context: ParseContext): Tasks.Task[] {
+	export let source: Tasks.TaskSource = {
+		kind: Tasks.TaskSourceKind.Workspace,
+		detail: '.settins\tasks.json'
+	};
+
+	export function from(this: void, tasks: TaskDescription[], globals: Globals, context: ParseContext): TaskParseResult {
 		if (!tasks) {
 			return undefined;
 		}
 		let parsedTasks: Tasks.Task[] = [];
+		let annotatingTasks: Tasks.Task[] = [];
 		let defaultBuildTask: { task: Tasks.Task; rank: number; } = { task: null, rank: -1 };
 		let defaultTestTask: { task: Tasks.Task; rank: number; } = { task: null, rank: -1 };
 		tasks.forEach((externalTask) => {
@@ -653,6 +664,7 @@ namespace TaskDescription {
 			let identifer = Types.isString(externalTask.identifier) ? externalTask.identifier : taskName;
 			let task: Tasks.Task = {
 				_id: UUID.generateUuid(),
+				_source: source,
 				name: taskName,
 				identifier: identifer,
 				command,
@@ -691,6 +703,10 @@ namespace TaskDescription {
 				task.problemMatchers = problemMatchers;
 			}
 			mergeGlobals(task, globals);
+			if (context.isTermnial && isAnnotating(task)) {
+				annotatingTasks.push(task);
+				return;
+			}
 			fillDefaults(task);
 			let addTask: boolean = true;
 			if (context.isTermnial && task.command && task.command.name && task.command.isShellCommand && task.command.args && task.command.args.length > 0) {
@@ -739,10 +755,10 @@ namespace TaskDescription {
 		if (defaultTestTask.task) {
 			defaultTestTask.task.group = Tasks.TaskGroup.Test;
 		}
-		return parsedTasks.length === 0 ? undefined : parsedTasks;
+		return parsedTasks.length === 0 && annotatingTasks.length === 0 ? undefined : { tasks: parsedTasks, annotatingTasks: annotatingTasks };
 	}
 
-	export function merge(target: Tasks.Task[], source: Tasks.Task[]): Tasks.Task[] {
+	export function mergeTasks(target: Tasks.Task[], source: Tasks.Task[]): Tasks.Task[] {
 		if (source === void 0 || source.length === 0) {
 			return target;
 		}
@@ -840,6 +856,30 @@ namespace TaskDescription {
 			}
 			return false;
 		}
+	}
+
+	function isAnnotating(task: Tasks.Task): boolean {
+		return (task.command === void 0 || task.command.name === void 0) && (task.dependsOn === void 0 || task.dependsOn.length === 0);
+	}
+
+	export function merge(target: Tasks.Task, source: Tasks.Task): Tasks.Task {
+		if (!target) {
+			return source;
+		}
+		if (!source) {
+			return target;
+		}
+
+		mergeProperty(target, source, 'group');
+		target.command = CommandConfiguration.merge(target.command, source.command);
+		mergeProperty(target, source, 'suppressTaskName');
+		mergeProperty(target, source, 'args');
+		mergeProperty(target, source, 'isBackground');
+		mergeProperty(target, source, 'promptOnClose');
+		mergeProperty(target, source, 'showOutput');
+		mergeProperty(target, source, 'dependsOn');
+		mergeProperty(target, source, 'problemMatchers');
+		return target;
 	}
 }
 
@@ -950,6 +990,7 @@ export namespace ExecutionEngine {
 export interface ParseResult {
 	validationStatus: ValidationStatus;
 	tasks: Tasks.Task[];
+	annotatingTasks: Tasks.Task[];
 	engine: Tasks.ExecutionEngine;
 }
 
@@ -960,7 +1001,6 @@ export interface IProblemReporter extends IProblemReporterBase {
 class ConfigurationParser {
 
 	private problemReporter: IProblemReporter;
-
 	constructor(problemReporter: IProblemReporter) {
 		this.problemReporter = problemReporter;
 	}
@@ -970,21 +1010,27 @@ class ConfigurationParser {
 		if (engine === Tasks.ExecutionEngine.Terminal) {
 			this.problemReporter.clearOutput();
 		}
-		let context: ParseContext = { problemReporter: this.problemReporter, namedProblemMatchers: undefined, isTermnial: engine === Tasks.ExecutionEngine.Terminal };
+		let context: ParseContext = {
+			problemReporter: this.problemReporter,
+			namedProblemMatchers: undefined,
+			isTermnial: engine === Tasks.ExecutionEngine.Terminal
+		};
+		let taskParseResult = this.createTaskRunnerConfiguration(fileConfig, context);
 		return {
 			validationStatus: this.problemReporter.status,
-			tasks: this.createTaskRunnerConfiguration(fileConfig, context),
+			tasks: taskParseResult.tasks,
+			annotatingTasks: taskParseResult.annotatingTasks,
 			engine
 		};
 	}
 
-	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): Tasks.Task[] {
+	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): TaskParseResult {
 		let globals = Globals.from(fileConfig, context);
 		if (this.problemReporter.status.isFatal()) {
 			return undefined;
 		}
 		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
-		let globalTasks: Tasks.Task[];
+		let globalTasks: TaskParseResult;
 		if (fileConfig.windows && Platform.platform === Platform.Platform.Windows) {
 			globalTasks = TaskDescription.from(fileConfig.windows.tasks, globals, context);
 		} else if (fileConfig.osx && Platform.platform === Platform.Platform.Mac) {
@@ -993,36 +1039,44 @@ class ConfigurationParser {
 			globalTasks = TaskDescription.from(fileConfig.linux.tasks, globals, context);
 		}
 
-		let tasks: Tasks.Task[];
+		let result: TaskParseResult = { tasks: undefined, annotatingTasks: undefined };
 		if (fileConfig.tasks) {
-			tasks = TaskDescription.from(fileConfig.tasks, globals, context);
+			result = TaskDescription.from(fileConfig.tasks, globals, context);
 		}
-		tasks = TaskDescription.merge(tasks, globalTasks);
+		if (globalTasks) {
+			result.tasks = TaskDescription.mergeTasks(result.tasks, globalTasks.tasks);
+			result.annotatingTasks = TaskDescription.mergeTasks(result.annotatingTasks, globalTasks.annotatingTasks);
+		}
 
-		if (!tasks || tasks.length === 0) {
-			if (globals.command && globals.command.name) {
-				let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);;
-				let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
-				let task: Tasks.Task = {
-					_id: UUID.generateUuid(),
-					name: globals.command.name,
-					identifier: globals.command.name,
-					group: Tasks.TaskGroup.Build,
-					command: undefined,
-					isBackground: isBackground,
-					showOutput: undefined,
-					suppressTaskName: true, // this must be true since we infer the task from the global data.
-					problemMatchers: matchers
-				};
-				TaskDescription.mergeGlobals(task, globals);
-				TaskDescription.fillDefaults(task);
-				tasks = [task];
-			}
+		if ((!result.tasks || result.tasks.length === 0) && (globals.command && globals.command.name)) {
+			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);;
+			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
+			let task: Tasks.Task = {
+				_id: UUID.generateUuid(),
+				_source: TaskDescription.source,
+				name: globals.command.name,
+				identifier: globals.command.name,
+				group: Tasks.TaskGroup.Build,
+				command: undefined,
+				isBackground: isBackground,
+				showOutput: undefined,
+				suppressTaskName: true, // this must be true since we infer the task from the global data.
+				problemMatchers: matchers
+			};
+			TaskDescription.mergeGlobals(task, globals);
+			TaskDescription.fillDefaults(task);
+			result.tasks = [task];
 		}
-		return tasks || [];
+		result.tasks = result.tasks || [];
+		result.annotatingTasks = result.annotatingTasks || [];
+		return result;
 	}
 }
 
 export function parse(configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
 	return (new ConfigurationParser(logger)).run(configuration);
+}
+
+export function mergeTasks(target: Tasks.Task, source: Tasks.Task): Tasks.Task {
+	return TaskDescription.merge(target, source);
 }

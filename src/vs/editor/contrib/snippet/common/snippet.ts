@@ -214,7 +214,7 @@ export class CodeSnippet implements ICodeSnippet {
 
 		// Compute resultPlaceHolders
 		for (const originalPlaceHolder of this.placeHolders) {
-			let resultOccurences = [];
+			let resultOccurences: Range[] = [];
 
 			for (let { startLineNumber, startColumn, endLineNumber, endColumn } of originalPlaceHolder.occurences) {
 
@@ -232,12 +232,12 @@ export class CodeSnippet implements ICodeSnippet {
 					endColumn += referenceIndentation.length;
 				}
 
-				resultOccurences.push({
-					startLineNumber: startLineNumber + deltaLine,
+				resultOccurences.push(new Range(
+					startLineNumber + deltaLine,
 					startColumn,
-					endLineNumber: endLineNumber + deltaLine,
+					endLineNumber + deltaLine,
 					endColumn,
-				});
+				));
 			}
 
 			resultPlaceHolders.push({

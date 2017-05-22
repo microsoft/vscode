@@ -280,7 +280,7 @@ class DecorationRenderHelper {
 	 * Build the CSS for decorations styled via `className`.
 	 */
 	public static getCSSTextForModelDecorationClassName(opts: IThemeDecorationRenderOptions): string {
-		let cssTextArr = [];
+		let cssTextArr: string[] = [];
 		DecorationRenderHelper.collectCSSText(opts, ['backgroundColor', 'outline', 'outlineColor', 'outlineStyle', 'outlineWidth'], cssTextArr);
 		DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
 
@@ -291,7 +291,7 @@ class DecorationRenderHelper {
 	 * Build the CSS for decorations styled via `inlineClassName`.
 	 */
 	public static getCSSTextForModelDecorationInlineClassName(opts: IThemeDecorationRenderOptions): string {
-		let cssTextArr = [];
+		let cssTextArr: string[] = [];
 		DecorationRenderHelper.collectCSSText(opts, ['textDecoration', 'cursor', 'color', 'letterSpacing'], cssTextArr);
 		return cssTextArr.join('');
 	}
@@ -300,7 +300,7 @@ class DecorationRenderHelper {
 	 * Build the CSS for decorations styled before or after content.
 	 */
 	public static getCSSTextForModelDecorationContentClassName(opts: IContentDecorationRenderOptions): string {
-		let cssTextArr = [];
+		let cssTextArr: string[] = [];
 
 		if (typeof opts !== 'undefined') {
 			DecorationRenderHelper.collectBorderSettingsCSSText(opts, cssTextArr);
@@ -442,10 +442,6 @@ class CSSNameHelper {
 }
 
 // ---- Normalize decoration render options per theme
-interface IResolvedDecorationRenderOptions {
-	light: IThemeDecorationRenderOptions;
-	dark: IThemeDecorationRenderOptions;
-}
 function getThemedRenderOptions<T>(opts: { light?: T, dark?: T }): { light?: T, dark?: T } {
 	// TODO@alex,joh - not really how/what deep clone is being used
 	// for here but it will break the URI TODO@martin

@@ -123,6 +123,7 @@ class TaskBuilder {
 		this.commandBuilder = new CommandConfigurationBuilder(this, command);
 		this.result = {
 			_id: name,
+			_source: { kind: Tasks.TaskSourceKind.Workspace },
 			identifier: name,
 			name: name,
 			command: this.commandBuilder.result,

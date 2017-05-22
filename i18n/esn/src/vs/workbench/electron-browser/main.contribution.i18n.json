@@ -41,6 +41,7 @@
 	"window.newWindowDimensions.inherit": "Abrir las nuevas ventanas con la misma dimensión que la última activa.",
 	"window.newWindowDimensions.maximized": "Abrir las nuevas ventanas maximizadas.",
 	"window.newWindowDimensions.fullscreen": "Abrir las nuevas ventanas en modo de pantalla completa.",
+	"newWindowDimensions": "Controla las dimensiones de la nueva ventana cuando ya existe alguna ventana abierta. Por defecto, una nueva ventana se abrirá en el centro de la pantalla con dimensiones pequeñas. Cuando se establece como 'heredar', la ventana tomará las dimensiones de la última ventana activa. Cuando se establece a 'maximizar', la ventana se abrirá maximizada, y a pantalla completa si fue configurada como 'pantalla completa'. Tenga en cuenta que esta configuración no afecta a la primera ventana abierta. La primera ventana siempre restaurará el tamaño y posición en la que quedó antes de ser cerrada.",
 	"window.menuBarVisibility.default": "El menú solo está oculto en modo de pantalla completa.",
 	"window.menuBarVisibility.visible": "El menú está siempre visible incluso en modo de pantalla completa.",
 	"window.menuBarVisibility.toggle": "El menú está oculto pero se puede mostrar mediante la tecla Alt.",

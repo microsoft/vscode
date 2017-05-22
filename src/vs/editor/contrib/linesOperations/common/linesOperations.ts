@@ -434,8 +434,8 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 	}
 
 	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
-		let endPrimaryCursor: Range;
-		let endCursorState = [];
+		let endPrimaryCursor: Selection;
+		let endCursorState: Selection[] = [];
 
 		for (let i = 0, len = rangesToDelete.length; i < len; i++) {
 			let range = rangesToDelete[i];
@@ -488,8 +488,8 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 	}
 
 	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
-		let endPrimaryCursor: Range;
-		let endCursorState = [];
+		let endPrimaryCursor: Selection;
+		let endCursorState: Selection[] = [];
 		for (let i = 0, len = rangesToDelete.length, offset = 0; i < len; i++) {
 			let range = rangesToDelete[i];
 			let endCursor = new Selection(range.startLineNumber - offset, range.startColumn, range.startLineNumber - offset, range.startColumn);

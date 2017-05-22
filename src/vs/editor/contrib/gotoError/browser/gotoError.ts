@@ -13,7 +13,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -221,7 +220,7 @@ class MarkerNavigationWidget extends ZoneWidget {
 	private _severity: Severity;
 	private _backgroundColor: Color;
 
-	constructor(editor: ICodeEditor, private _model: MarkerModel, private _commandService: ICommandService, private _themeService: IThemeService) {
+	constructor(editor: ICodeEditor, private _model: MarkerModel, private _themeService: IThemeService) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this._severity = Severity.Warning;
 		this._backgroundColor = Color.white;
@@ -377,7 +376,6 @@ class MarkerController implements editorCommon.IEditorContribution {
 		editor: ICodeEditor,
 		@IMarkerService private _markerService: IMarkerService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@ICommandService private _commandService: ICommandService,
 		@IThemeService private _themeService: IThemeService
 	) {
 		this._editor = editor;
@@ -407,7 +405,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 		const markers = this._getMarkers();
 		this._model = new MarkerModel(this._editor, markers);
-		this._zone = new MarkerNavigationWidget(this._editor, this._model, this._commandService, this._themeService);
+		this._zone = new MarkerNavigationWidget(this._editor, this._model, this._themeService);
 		this._markersNavigationVisible.set(true);
 
 		this._callOnClose.push(this._model);

@@ -6,6 +6,7 @@
 {
 	"openLaunchJson": "{0} を開く",
 	"launchJsonNeedsConfigurtion": "'launch.json' を構成または修正してください",
+	"noFolderDebugConfig": "高度なデバッグ構成を行うには、最初にフォルダーを開いてください。",
 	"startDebug": "デバッグの開始",
 	"startWithoutDebugging": "デバッグなしで開始",
 	"selectAndStartDebugging": "選択してデバッグを開始",

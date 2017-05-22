@@ -42,5 +42,7 @@
 	"config.countBadge": "Controlla il contatore delle notifiche git. Con `all` vengono conteggiate tutte le modifiche. Con `tracked` vengono conteggiate solo le revisioni. Con `off` il contatore è disattivato.",
 	"config.checkoutType": "Controlla il tipo di branch mostrati eseguendo il comando `Checkout in...`. `all` mostra tutti i refs, `local` mostra solamente i branch locali, `tags` mostra solamente i tag e `remote` mostra solamente i branch remoti.",
 	"config.ignoreLegacyWarning": "Ignora l'avvertimento legacy di Git",
-	"config.ignoreLimitWarning": "Ignora il messaggio di avviso quando ci sono troppi cambiamenti in un repository"
+	"config.ignoreLimitWarning": "Ignora il messaggio di avviso quando ci sono troppi cambiamenti in un repository",
+	"config.defaultCloneDirectory": "Il percorso predefinito dove clonare un repository GIT",
+	"config.enableSmartCommit": "Eseguire il commit di tutte le modifiche quando non ci sono cambiamenti in stage."
 }

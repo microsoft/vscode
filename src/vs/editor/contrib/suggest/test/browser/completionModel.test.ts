@@ -9,6 +9,7 @@ import { ISuggestion, ISuggestResult, ISuggestSupport, SuggestionType } from 'vs
 import { ISuggestionItem } from 'vs/editor/contrib/suggest/browser/suggest';
 import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
 import { IPosition } from 'vs/editor/common/core/position';
+import { TPromise } from "vs/base/common/winjs.base";
 
 suite('CompletionModel', function () {
 
@@ -36,7 +37,7 @@ suite('CompletionModel', function () {
 				}
 			};
 
-			resolve() {
+			resolve(): TPromise<void> {
 				return null;
 			}
 		};

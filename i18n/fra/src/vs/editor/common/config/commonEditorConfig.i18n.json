@@ -9,6 +9,7 @@
 	"fontWeight": "Contrôle l'épaisseur de police.",
 	"fontSize": "Contrôle la taille de police en pixels.",
 	"lineHeight": "Contrôle la hauteur de ligne. Utilisez 0 pour calculer lineHeight à partir de fontSize.",
+	"letterSpacing": "Définit l'espacement des caractères en pixels.",
 	"lineNumbers": "Contrôle l'affichage des numéros de ligne. Les valeurs possibles sont 'activé', 'désactivé' et 'relatif'. La valeur 'relatif' indique le numéro de ligne à partir de la position actuelle du curseur.",
 	"rulers": "Colonnes où afficher les règles verticales",
 	"wordSeparators": "Caractères utilisés comme séparateurs de mots durant la navigation ou les opérations basées sur les mots",

@@ -6,6 +6,7 @@
 {
 	"openLaunchJson": "Abrir {0}",
 	"launchJsonNeedsConfigurtion": "Configurar o reparar 'launch.json'",
+	"noFolderDebugConfig": "Abra una carpeta para trabajar con la configuración avanzada de depuración.",
 	"startDebug": "Iniciar depuración",
 	"startWithoutDebugging": "Iniciar sin depurar",
 	"selectAndStartDebugging": "Seleccionar e iniciar la depuración",

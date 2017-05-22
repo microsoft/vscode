@@ -948,7 +948,8 @@ export class SearchViewlet extends Viewlet {
 			pattern: contentPattern,
 			isRegExp: isRegex,
 			isCaseSensitive: isCaseSensitive,
-			isWordMatch: isWholeWords
+			isWordMatch: isWholeWords,
+			wordSeparators: this.configurationService.getConfiguration<ISearchConfiguration>().editor.wordSeparators
 		};
 
 		const { expression: excludePattern } = this.inputPatternExclusions.getGlob();

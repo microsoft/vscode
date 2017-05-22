@@ -352,7 +352,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
-	private readonly minWidgetWidth = 430;
 	private storageService: IStorageService;
 	private detailsFocusBorderColor: string;
 	private detailsBorderColor: string;
@@ -489,6 +488,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.listElement.style.borderColor = borderColor.toString();
 			this.details.element.style.borderColor = borderColor.toString();
 			this.messageElement.style.borderColor = borderColor.toString();
+			this.detailsBorderColor = borderColor.toString();
 		}
 		let focusBorderColor = theme.getColor(focusBorder);
 		if (focusBorderColor) {
@@ -548,7 +548,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.ignoreFocusEvents = false;
 		}
 
-		this.updateWidgetHeight();
+		this.updateListHeight();
 		this.list.reveal(index);
 
 		this.currentSuggestionDetails = item.resolve()
@@ -562,7 +562,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
 					this.showDetails();
-					this.adjustDocsPosition();
+
 					this._ariaAlert(this.details.getAriaLabel());
 				} else {
 					removeClass(this.element, 'docs-side');
@@ -796,7 +796,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			if (this.detailsBorderColor) {
 				this.details.element.style.borderColor = this.detailsBorderColor;
 			}
-		} else if (this.state === State.Open) {
+		} else if (this.state === State.Open
+			&& this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
 			this.setState(State.Details);
 			if (this.detailsFocusBorderColor) {
 				this.details.element.style.borderColor = this.detailsFocusBorderColor;
@@ -827,15 +828,23 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		show(this.details.element);
+		this.renderDetails();
 
-		this.show();
+		// With docs showing up, list might need adjustments to keep it close to the cursor
+		this.adjustListPosition();
+
+		// with docs showing up widget width/height may change, so reposition the widget
+		this.editor.layoutContentWidget(this);
+
+		this.adjustDocsPosition();
+
 		this.editor.focus();
 	}
 
 	private show(): void {
-		this.updateWidgetHeight();
+		this.updateListHeight();
 		this.suggestWidgetVisible.set(true);
-		this.renderDetails();
+
 		this.showTimeout = TPromise.timeout(100).then(() => {
 			addClass(this.element, 'visible');
 			this.onDidShowEmitter.fire(this);
@@ -873,12 +882,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		return SuggestWidget.ID;
 	}
 
-	private updateWidgetHeight(): number {
+	private updateListHeight(): number {
 		let height = 0;
 		let maxSuggestionsToShow = 11;
-		if (hasClass(this.element, 'small')) {
-			maxSuggestionsToShow = 5;
-		}
 
 		if (this.state === State.Empty || this.state === State.Loading) {
 			height = this.unfocusedHeight;
@@ -895,7 +901,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.listElement.style.height = `${height}px`;
 		this.list.layout(height);
 
-		this.listElement.style.marginTop = '0px';
 		this.editor.layoutContentWidget(this);
 
 		return height;
@@ -909,23 +914,22 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		const widgetX = this.element.offsetLeft;
 		const widgetY = this.element.offsetTop;
 
-		removeClass(this.element, 'list-right');
-
-		if (this.element.clientWidth < this.maxWidgetWidth && this.listElement.clientWidth !== this.minWidgetWidth) {
-			// Not enough space to show side by side, so show docs below the list
-			addClass(this.element, 'docs-below');
-			removeClass(this.element, 'docs-side');
-			return;
-		}
-
 		if (widgetX < cursorX - this.listWidth) {
 			// Widget is too far to the left of cursor, swap list and docs
 			addClass(this.element, 'list-right');
+		} else {
+			removeClass(this.element, 'list-right');
 		}
 
-		if (cursorY > widgetY && this.details.element.clientHeight > this.listElement.clientHeight) {
-			// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
-			this.listElement.style.marginTop = `${this.details.element.clientHeight - this.listElement.clientHeight}px`;
+		if (cursorY > widgetY) {
+			if (!hasClass(this.element, 'widget-above')) {
+				addClass(this.element, 'widget-above');
+				// Since the widget was previously not above the cursor,
+				// the list needs to be adjusted to keep it close to the cursor
+				this.adjustListPosition();
+			}
+		} else {
+			removeClass(this.element, 'widget-above');
 		}
 	}
 
@@ -937,6 +941,17 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		} else {
 			addClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
+		}
+	}
+
+	private adjustListPosition(): void {
+		if (hasClass(this.element, 'widget-above')
+			&& hasClass(this.element, 'docs-side')
+			&& this.details.element.offsetHeight > this.listElement.offsetHeight) {
+			// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
+			this.listElement.style.marginTop = `${this.details.element.offsetHeight - this.listElement.offsetHeight}px`;
+		} else {
+			this.listElement.style.marginTop = '0px';
 		}
 	}
 

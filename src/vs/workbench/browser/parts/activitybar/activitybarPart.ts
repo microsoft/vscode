@@ -30,7 +30,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 interface IViewletActivity {
@@ -213,15 +213,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
 		container.style('background-color', background);
 
-		const contrastBorderColor = this.getColor(contrastBorder);
+		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style('box-sizing', contrastBorderColor && isPositionLeft ? 'border-box' : null);
-		container.style('border-right-width', contrastBorderColor && isPositionLeft ? '1px' : null);
-		container.style('border-right-style', contrastBorderColor && isPositionLeft ? 'solid' : null);
-		container.style('border-right-color', isPositionLeft ? contrastBorderColor : null);
-		container.style('border-left-width', contrastBorderColor && !isPositionLeft ? '1px' : null);
-		container.style('border-left-style', contrastBorderColor && !isPositionLeft ? 'solid' : null);
-		container.style('border-left-color', !isPositionLeft ? contrastBorderColor : null);
+		container.style('box-sizing', borderColor && isPositionLeft ? 'border-box' : null);
+		container.style('border-right-width', borderColor && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', borderColor && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', isPositionLeft ? borderColor : null);
+		container.style('border-left-width', borderColor && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', borderColor && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', !isPositionLeft ? borderColor : null);
 	}
 
 	private showContextMenu(e: MouseEvent): void {

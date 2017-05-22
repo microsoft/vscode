@@ -18,6 +18,7 @@
 	"discard": "Rimuovi modifiche",
 	"confirm discard all": "Sei sicuro di voler annullare TUTTE le modifiche? Quest'azione è IRREVERSIBILE!",
 	"discardAll": "Rimuovi TUTTE le modifiche",
+	"no staged changes": "Non ci sono modifiche in stage di cui eseguire il commit.\n\nSI desidera mettere in stage automaticamente tutte le modifiche ed eseguirne il commit direttamente?",
 	"yes": "Sì",
 	"always": "Sempre",
 	"no changes": "Non ci sono modifiche di cui eseguire il commit.",

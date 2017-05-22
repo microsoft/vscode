@@ -327,16 +327,16 @@ export class Tree extends Events.EventEmitter implements _.ITree {
 		this.model.focusFirstChild(eventPayload);
 	}
 
-	public focusFirst(eventPayload?: any): void {
-		this.model.focusFirst(eventPayload);
+	public focusFirst(eventPayload?: any, from?: any): void {
+		this.model.focusFirst(eventPayload, from);
 	}
 
 	public focusNth(index: number, eventPayload?: any): void {
 		this.model.focusNth(index, eventPayload);
 	}
 
-	public focusLast(eventPayload?: any): void {
-		this.model.focusLast(eventPayload);
+	public focusLast(eventPayload?: any, from?: any): void {
+		this.model.focusLast(eventPayload, from);
 	}
 
 	public focusNextPage(eventPayload?: any): void {

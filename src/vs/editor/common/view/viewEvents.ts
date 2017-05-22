@@ -4,30 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
+import * as errors from 'vs/base/common/errors';
+import { IDisposable, Disposable } from "vs/base/common/lifecycle";
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,
-	ViewCursorPositionChanged = 2,
-	ViewCursorSelectionChanged = 3,
-	ViewDecorationsChanged = 4,
-	ViewFlushed = 5,
-	ViewFocusChanged = 6,
-	ViewLineMappingChanged = 7,
-	ViewLinesChanged = 8,
-	ViewLinesDeleted = 9,
-	ViewLinesInserted = 10,
-	ViewRevealRangeRequest = 11,
-	ViewScrollChanged = 12,
-	ViewTokensChanged = 13,
-	ViewTokensColorsChanged = 14,
-	ViewZonesChanged = 15,
-	ViewThemeChanged = 16
+	ViewCursorStateChanged = 2,
+	ViewDecorationsChanged = 3,
+	ViewFlushed = 4,
+	ViewFocusChanged = 5,
+	ViewLineMappingChanged = 6,
+	ViewLinesChanged = 7,
+	ViewLinesDeleted = 8,
+	ViewLinesInserted = 9,
+	ViewRevealRangeRequest = 10,
+	ViewScrollChanged = 11,
+	ViewTokensChanged = 12,
+	ViewTokensColorsChanged = 13,
+	ViewZonesChanged = 14,
+	ViewThemeChanged = 15
 }
 
 export class ViewConfigurationChangedEvent {
@@ -59,46 +58,22 @@ export class ViewConfigurationChangedEvent {
 	}
 }
 
-export class ViewCursorPositionChangedEvent {
+export class ViewCursorStateChangedEvent {
 
-	public readonly type = ViewEventType.ViewCursorPositionChanged;
+	public readonly type = ViewEventType.ViewCursorStateChanged;
 
 	/**
-	 * Primary cursor's position.
+	 * The primary selection is always at index 0.
 	 */
-	public readonly position: Position;
-	/**
-	 * Secondary cursors' position.
-	 */
-	public readonly secondaryPositions: Position[];
+	public readonly selections: Selection[];
 	/**
 	 * Is the primary cursor in the editable range?
 	 */
 	public readonly isInEditableRange: boolean;
 
-	constructor(position: Position, secondaryPositions: Position[], isInEditableRange: boolean) {
-		this.position = position;
-		this.secondaryPositions = secondaryPositions;
+	constructor(selections: Selection[], isInEditableRange: boolean) {
+		this.selections = selections;
 		this.isInEditableRange = isInEditableRange;
-	}
-}
-
-export class ViewCursorSelectionChangedEvent {
-
-	public readonly type = ViewEventType.ViewCursorSelectionChanged;
-
-	/**
-	 * The primary selection.
-	 */
-	public readonly selection: Selection;
-	/**
-	 * The secondary selections.
-	 */
-	public readonly secondarySelections: Selection[];
-
-	constructor(selection: Selection, secondarySelections: Selection[]) {
-		this.selection = selection;
-		this.secondarySelections = secondarySelections;
 	}
 }
 
@@ -195,6 +170,14 @@ export class ViewLinesInsertedEvent {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
 	}
+}
+
+export const enum VerticalRevealType {
+	Simple = 0,
+	Center = 1,
+	CenterIfOutsideViewport = 2,
+	Top = 3,
+	Bottom = 4
 }
 
 export class ViewRevealRangeRequestEvent {
@@ -295,8 +278,7 @@ export class ViewZonesChangedEvent {
 
 export type ViewEvent = (
 	ViewConfigurationChangedEvent
-	| ViewCursorPositionChangedEvent
-	| ViewCursorSelectionChangedEvent
+	| ViewCursorStateChangedEvent
 	| ViewDecorationsChangedEvent
 	| ViewFlushedEvent
 	| ViewFocusChangedEvent
@@ -311,3 +293,51 @@ export type ViewEvent = (
 	| ViewZonesChangedEvent
 	| ViewThemeChangedEvent
 );
+
+export interface IViewEventListener {
+	(events: ViewEvent[]): void;
+}
+
+export class ViewEventEmitter extends Disposable {
+	private _listeners: IViewEventListener[];
+
+	constructor() {
+		super();
+		this._listeners = [];
+	}
+
+	public dispose(): void {
+		this._listeners = [];
+		super.dispose();
+	}
+
+	protected _emit(events: ViewEvent[]): void {
+		const listeners = this._listeners.slice(0);
+		for (let i = 0, len = listeners.length; i < len; i++) {
+			safeInvokeListener(listeners[i], events);
+		}
+	}
+
+	public addEventListener(listener: (events: ViewEvent[]) => void): IDisposable {
+		this._listeners.push(listener);
+		return {
+			dispose: () => {
+				let listeners = this._listeners;
+				for (let i = 0, len = listeners.length; i < len; i++) {
+					if (listeners[i] === listener) {
+						listeners.splice(i, 1);
+						break;
+					}
+				}
+			}
+		};
+	}
+}
+
+function safeInvokeListener(listener: IViewEventListener, events: ViewEvent[]): void {
+	try {
+		listener(events);
+	} catch (e) {
+		errors.onUnexpectedError(e);
+	}
+}

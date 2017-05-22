@@ -12,8 +12,8 @@
     "Other"
   ],
   "scripts": {
-    "compile": "gulp compile-extension:gulp",
-    "watch": "gulp watch-extension:gulp"
+    "compile": "gulp compile-extension:grunt",
+    "watch": "gulp watch-extension:grunt"
   },
   "dependencies": {
     "vscode-nls": "^2.0.2"

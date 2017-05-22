@@ -71,12 +71,31 @@ export interface MockCodeEditorCreationOptions extends editorOptions.IEditorOpti
 }
 
 export function withMockCodeEditor(text: string[], options: MockCodeEditorCreationOptions, callback: (editor: MockCodeEditor, cursor: Cursor) => void): void {
-	let editor = <MockCodeEditor>mockCodeEditor(text, options);
+	// create a model if necessary and remember it in order to dispose it.
+	let modelToDispose: Model = null;
+	if (!options.model) {
+		modelToDispose = Model.createFromString(text.join('\n'));
+		options.model = modelToDispose;
+	}
+
+	let editor = <MockCodeEditor>_mockCodeEditor(options);
 	callback(editor, editor.getCursor());
+
+	if (modelToDispose) {
+		modelToDispose.dispose();
+	}
 	editor.dispose();
 }
 
 export function mockCodeEditor(text: string[], options: MockCodeEditorCreationOptions): CommonCodeEditor {
+	// TODO: who owns this model now?
+	if (!options.model) {
+		options.model = Model.createFromString(text.join('\n'));
+	}
+	return _mockCodeEditor(options);
+}
+
+function _mockCodeEditor(options: MockCodeEditorCreationOptions): CommonCodeEditor {
 
 	let contextKeyService = new MockContextKeyService();
 
@@ -85,10 +104,6 @@ export function mockCodeEditor(text: string[], options: MockCodeEditorCreationOp
 	let instantiationService = new InstantiationService(services);
 
 	let editor = new MockCodeEditor(new MockScopeLocation(), options, instantiationService, contextKeyService);
-	let model = options.model || Model.createFromString(text.join('\n'));
-	if (model) {
-		editor.setModel(model);
-	}
-
+	editor.setModel(options.model);
 	return editor;
 }

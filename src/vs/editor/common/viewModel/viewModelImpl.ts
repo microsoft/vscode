@@ -5,7 +5,6 @@
 'use strict';
 
 import { EmitterEvent } from 'vs/base/common/eventEmitter';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -14,14 +13,12 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModelListener, IViewModel, ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
+import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, ViewEventsCollector } from 'vs/editor/common/viewModel/viewModel';
 import { SplitLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import * as errors from 'vs/base/common/errors';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 import { CharacterHardWrappingLineMapperFactory } from "vs/editor/common/viewModel/characterHardWrappingLineMapper";
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 
@@ -85,43 +82,7 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 
 }
 
-export class ViewEventEmitter extends Disposable {
-	private _listeners: IViewModelListener[];
-
-	constructor() {
-		super();
-		this._listeners = [];
-	}
-
-	public dispose(): void {
-		this._listeners = [];
-		super.dispose();
-	}
-
-	protected _emit(events: viewEvents.ViewEvent[]): void {
-		const listeners = this._listeners.slice(0);
-		for (let i = 0, len = listeners.length; i < len; i++) {
-			safeInvokeListener(listeners[i], events);
-		}
-	}
-
-	public addEventListener(listener: (events: viewEvents.ViewEvent[]) => void): IDisposable {
-		this._listeners.push(listener);
-		return {
-			dispose: () => {
-				let listeners = this._listeners;
-				for (let i = 0, len = listeners.length; i < len; i++) {
-					if (listeners[i] === listener) {
-						listeners.splice(i, 1);
-						break;
-					}
-				}
-			}
-		};
-	}
-}
-
-export class ViewModel extends ViewEventEmitter implements IViewModel {
+export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel {
 
 	private readonly editorId: number;
 	private readonly configuration: editorCommon.IConfiguration;
@@ -214,7 +175,8 @@ export class ViewModel extends ViewEventEmitter implements IViewModel {
 		if (this.lines.setWrappingSettings(conf.wrappingInfo.wrappingIndent, conf.wrappingInfo.wrappingColumn, conf.fontInfo.typicalFullwidthCharacterWidth / conf.fontInfo.typicalHalfwidthCharacterWidth)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-			this.decorations.onLineMappingChanged(eventsCollector);
+			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
 			revealPreviousCenteredModelRange = true;
 		}
@@ -235,7 +197,7 @@ export class ViewModel extends ViewEventEmitter implements IViewModel {
 			// Send a reveal event to restore the centered content
 			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				newCenteredViewRange,
-				VerticalRevealType.Center,
+				viewEvents.VerticalRevealType.Center,
 				false
 			));
 		}
@@ -356,7 +318,8 @@ export class ViewModel extends ViewEventEmitter implements IViewModel {
 					if (this.lines.setTabSize(this.model.getOptions().tabSize)) {
 						eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 						eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-						this.decorations.onLineMappingChanged(eventsCollector);
+						eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+						this.decorations.onLineMappingChanged();
 						this.viewLayout.onFlushed(this.getLineCount());
 					}
 
@@ -364,7 +327,8 @@ export class ViewModel extends ViewEventEmitter implements IViewModel {
 				}
 				case textModelEvents.TextModelEventType.ModelDecorationsChanged: {
 					const e = <textModelEvents.IModelDecorationsChangedEvent>data;
-					this.decorations.onModelDecorationsChanged(eventsCollector, e);
+					this.decorations.onModelDecorationsChanged(e);
+					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 					break;
 				}
 				case textModelEvents.TextModelEventType.ModelDispose: {
@@ -379,7 +343,8 @@ export class ViewModel extends ViewEventEmitter implements IViewModel {
 
 		if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-			this.decorations.onLineMappingChanged(eventsCollector);
+			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+			this.decorations.onLineMappingChanged();
 		}
 	}
 
@@ -389,7 +354,8 @@ export class ViewModel extends ViewEventEmitter implements IViewModel {
 		if (lineMappingChanged) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-			this.decorations.onLineMappingChanged(eventsCollector);
+			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
 		}
 		this._emit(eventsCollector.finalize());
@@ -621,13 +587,5 @@ export class ViewModel extends ViewEventEmitter implements IViewModel {
 			result[i] = colorMap[i].toRGBHex();
 		}
 		return result;
-	}
-}
-
-function safeInvokeListener(listener: IViewModelListener, events: viewEvents.ViewEvent[]): void {
-	try {
-		listener(events);
-	} catch (e) {
-		errors.onUnexpectedError(e);
 	}
 }

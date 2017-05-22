@@ -30,7 +30,9 @@ export function startTimer(name: string, started?: number): TickController;
 
 export function stopTimer(name: string, stopped?: number);
 
-export function ticks(): ReadonlyArray<Tick>;
+export function ticks(): Tick[];
+
+export function tick(name:string):Tick;
 
 export function setProfileList(names: string[]): void;
 

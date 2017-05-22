@@ -9,6 +9,7 @@
 	"fontWeight": "Controlla lo spessore del carattere.",
 	"fontSize": "Controlla le dimensioni del carattere in pixel.",
 	"lineHeight": "Controlla l'altezza della riga. Usare 0 per calcolare l'altezza della riga dalle dimensioni del carattere.",
+	"letterSpacing": "Controlla la spaziatura tra le lettere in pixel.",
 	"lineNumbers": "Consente di controllare la visualizzazione dei numeri di riga. I valori possibili sono 'on', 'off' e 'relative'. Con 'relative' viene visualizzato il conteggio delle righe a partire dalla posizione corrente del cursore.",
 	"rulers": "Colonne in corrispondenza delle quali visualizzare i righelli verticali",
 	"wordSeparators": "Caratteri che verranno usati come separatori di parola quando si eseguono operazioni o spostamenti correlati a parole",

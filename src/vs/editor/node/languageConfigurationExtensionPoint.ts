@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { parse } from 'vs/base/common/json';
+import { parse, ParseError } from 'vs/base/common/json';
 import { readFile } from 'vs/base/node/pfs';
 import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, CommentRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -60,7 +60,7 @@ export class LanguageConfigurationFileHandler {
 
 	private _handleConfigFile(languageIdentifier: LanguageIdentifier, configFilePath: string): void {
 		readFile(configFilePath).then((fileContents) => {
-			var errors = [];
+			var errors: ParseError[] = [];
 			var configuration = <ILanguageConfiguration>parse(fileContents.toString(), errors);
 			if (errors.length) {
 				console.error(nls.localize('parseErrors', "Errors parsing {0}: {1}", configFilePath, errors.join('\n')));

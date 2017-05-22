@@ -122,10 +122,12 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._shouldUpdateCursorPosition = true;
-		this._cursorPositions = [e.position];
-		this._cursorPositions = this._cursorPositions.concat(e.secondaryPositions);
+		this._cursorPositions = [];
+		for (let i = 0, len = e.selections.length; i < len; i++) {
+			this._cursorPositions[i] = e.selections[i].getPosition();
+		}
 		return true;
 	}
 

@@ -11,7 +11,5 @@
 	"paste": "Incolla",
 	"selectAll": "Seleziona tutto",
 	"confirmOpen": "Aprire le cartelle di {0}?",
-	"confirmOpenButton": "&&Apri",
-	"developer": "Sviluppatore",
-	"file": "File"
+	"confirmOpenButton": "&&Apri"
 }

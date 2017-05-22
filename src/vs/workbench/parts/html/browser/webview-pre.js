@@ -9,6 +9,8 @@
 	const ipcRenderer = require('electron').ipcRenderer;
 
 
+	var firstLoad = true;
+
 	const initData = {
 		initialScrollProgress: undefined
 	};
@@ -155,19 +157,23 @@
 
 			// keep current scrollTop around and use later
 			var setInitialScrollPosition;
-			if (frame) {
-				const scrollY = frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
-				setInitialScrollPosition = function (body) {
-					body.scrollTop = scrollY;
-				}
-			} else {
-				// First load
+			if (firstLoad)  {
+				firstLoad = false;
 				setInitialScrollPosition = function (body, window) {
 					body.scrollTop = 0;
 					if (!isNaN(initData.initialScrollProgress)) {
 						window.addEventListener('load', function () {
-							body.scrollTop = body.clientHeight * initData.initialScrollProgress
+							if (body.scrollTop === 0) {
+								body.scrollTop = body.clientHeight * initData.initialScrollProgress
+							}
 						});
+					}
+				}
+			} else {
+				const scrollY = frame.contentDocument && frame.contentDocument.body ? frame.contentDocument.body.scrollTop : 0;
+				setInitialScrollPosition = function (body) {
+					if (body.scrollTop === 0) {
+						body.scrollTop = scrollY;
 					}
 				}
 			}

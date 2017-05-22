@@ -6,7 +6,7 @@
 {
 	"activeEditorShort": "例如 myFile.txt",
 	"activeEditorMedium": "e.g. myFolder/myFile.txt",
-	"activeEditorLong": "e.g. /Users/Development/myProject/myFolder/myFile.txt",
+	"activeEditorLong": "例如 /Users/Development/myProject/myFolder/myFile.txt",
 	"rootName": "例如 myProject",
 	"rootPath": "例如 /Users/Development/myProject",
 	"appName": "例如 VS Code",

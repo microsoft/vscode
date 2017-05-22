@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ClosePanelAction, PanelAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER_COLOR, PANEL_ACTIVE_TITLE_COLOR, PANEL_INACTIVE_TITLE_COLOR, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
@@ -104,7 +104,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 
 		const title = this.getTitleArea();
-		title.style('border-top-color', this.getColor(PANEL_BORDER_COLOR) || this.getColor(contrastBorder));
+		title.style('border-top-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 	}
 
 	public openPanel(id: string, focus?: boolean): TPromise<Panel> {
@@ -195,7 +195,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 	// Title Active
-	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_COLOR);
+	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
 	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
 	collector.addRule(`
 		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label,
@@ -206,7 +206,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	`);
 
 	// Title Inactive
-	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_COLOR);
+	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
 	collector.addRule(`
 		.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label {
 			color: ${titleInactive};

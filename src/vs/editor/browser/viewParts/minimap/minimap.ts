@@ -25,7 +25,6 @@ import { RGBA } from 'vs/base/common/color';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
 import * as platform from 'vs/base/common/platform';
-import { VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
 import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
 import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, scrollbarShadow } from "vs/platform/theme/common/colorRegistry";
 
@@ -484,7 +483,7 @@ export class Minimap extends ViewPart {
 
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, 1, lineNumber, 1),
-				VerticalRevealType.Center,
+				viewEvents.VerticalRevealType.Center,
 				false
 			));
 		});
@@ -798,7 +797,7 @@ export class Minimap extends ViewPart {
 	private static _renderLine(
 		target: ImageData,
 		backgroundColor: RGBA,
-		useLighterFont,
+		useLighterFont: boolean,
 		renderMinimap: RenderMinimap,
 		colorTracker: MinimapTokensColorTracker,
 		minimapCharRenderer: MinimapCharRenderer,

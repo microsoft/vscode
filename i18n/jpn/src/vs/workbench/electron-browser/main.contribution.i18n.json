@@ -41,6 +41,7 @@
 	"window.newWindowDimensions.inherit": "新しいウィンドウを、最後にアクティブだったウィンドウと同じサイズで開きます。",
 	"window.newWindowDimensions.maximized": "新しいウィンドウを最大化した状態で開きます。",
 	"window.newWindowDimensions.fullscreen": "新しいウィンドウを全画面表示モードで開きます。",
+	"newWindowDimensions": "既に 1 つ以上のウィンドウを開いているとき、新しく開くウィンドウのサイズを制御します。既定では、新しいウィンドウを画面中央に小さいサイズで開きます。'inherit' に設定すると、最後のアクティブ ウィンドウと同じサイズで開きます。'maximized' に設定するとウィンドウは最大サイズで開き、'fullscreen' に設定すると全画面になります。この設定は、最初に開いたウィンドウに適用されないことに注意してください。最初のウィンドウは常に、前回閉じたサイズと位置で復元します。",
 	"window.menuBarVisibility.default": "メニューは全画面表示モードの場合にのみ非表示です。",
 	"window.menuBarVisibility.visible": "全画面表示モードの場合も含めて、常にメニューが表示されます。",
 	"window.menuBarVisibility.toggle": "メニューは非表示ですが、Alt キーを押すと表示できます。",

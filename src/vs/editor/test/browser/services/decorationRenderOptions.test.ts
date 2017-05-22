@@ -32,7 +32,7 @@ suite('Decoration Render Options', () => {
 
 	function readStyleSheet(styleSheet: HTMLStyleElement): string {
 		if ((<any>styleSheet.sheet).rules) {
-			return Array.prototype.map.call((<any>styleSheet.sheet).rules, r => r.cssText).join('\n');
+			return Array.prototype.map.call((<any>styleSheet.sheet).rules, (r: { cssText: string }) => r.cssText).join('\n');
 		}
 		return styleSheet.sheet.toString();
 	}

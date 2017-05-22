@@ -56,13 +56,19 @@ export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHea
 	hc: null
 }, nls.localize('tabsContainerBackground', "Background color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
+export const EDITOR_GROUP_HEADER_TABS_BORDER = registerColor('editorGroupHeader.tabsBorder', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('tabsContainerBorder', "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
+
 export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroupHeader.noTabsBackground', {
 	dark: editorBackground,
 	light: editorBackground,
 	hc: editorBackground
 }, nls.localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled. Editor groups are the containers of editors."));
 
-export const EDITOR_GROUP_BORDER_COLOR = registerColor('editorGroup.border', {
+export const EDITOR_GROUP_BORDER = registerColor('editorGroup.border', {
 	dark: '#444444',
 	light: '#E7E7E7',
 	hc: contrastBorder
@@ -84,27 +90,27 @@ export const PANEL_BACKGROUND = registerColor('panel.background', {
 	hc: editorBackground
 }, nls.localize('panelBackground', "Panel background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
-export const PANEL_BORDER_COLOR = registerColor('panel.border', {
+export const PANEL_BORDER = registerColor('panel.border', {
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),
 	hc: contrastBorder
 }, nls.localize('panelBorder', "Panel border color on the top separating to the editor. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
-export const PANEL_ACTIVE_TITLE_COLOR = registerColor('panelTitle.activeForeground', {
+export const PANEL_ACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.activeForeground', {
 	dark: '#E7E7E7',
 	light: '#424242',
 	hc: Color.white
 }, nls.localize('panelActiveTitleForeground', "Title color for the active panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
-export const PANEL_INACTIVE_TITLE_COLOR = registerColor('panelTitle.inactiveForeground', {
-	dark: transparent(PANEL_ACTIVE_TITLE_COLOR, 0.5),
-	light: transparent(PANEL_ACTIVE_TITLE_COLOR, 0.75),
+export const PANEL_INACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.inactiveForeground', {
+	dark: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.5),
+	light: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.75),
 	hc: Color.white
 }, nls.localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder', {
-	dark: PANEL_BORDER_COLOR,
-	light: PANEL_BORDER_COLOR,
+	dark: PANEL_BORDER,
+	light: PANEL_BORDER,
 	hc: contrastBorder
 }, nls.localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
@@ -123,6 +129,12 @@ export const STATUS_BAR_BACKGROUND = registerColor('statusBar.background', {
 	light: '#007ACC',
 	hc: null
 }, nls.localize('statusBarBackground', "Standard status bar background color. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_BORDER = registerColor('statusBar.border', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('statusBarBorder', "Status bar border color separating to the sidebar and editor. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolderBackground', {
 	dark: '#68217A',
@@ -170,6 +182,12 @@ export const ACTIVITY_BAR_FOREGROUND = registerColor('activityBar.foreground', {
 	hc: Color.white
 }, nls.localize('activityBarForeground', "Activity bar foreground color (e.g. used for the icons). The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
+export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('activityBarBorder', "Activity bar border color separating to the side bar. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+
 export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', {
 	dark: Color.white.transparent(0.12),
 	light: Color.white.transparent(0.12),
@@ -203,6 +221,12 @@ export const SIDE_BAR_FOREGROUND = registerColor('sideBar.foreground', {
 	light: null,
 	hc: null
 }, nls.localize('sideBarForeground', "Side bar foreground color. The side bar is the container for views like explorer and search."));
+
+export const SIDE_BAR_BORDER = registerColor('sideBar.border', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('sideBarBorder', "Side bar border color on the side separating to the editor. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground', {
 	dark: SIDE_BAR_FOREGROUND,

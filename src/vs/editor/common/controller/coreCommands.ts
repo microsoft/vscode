@@ -9,11 +9,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CursorState, ICursors, RevealTarget, IColumnSelectData, CursorContext } from 'vs/editor/common/controller/cursorCommon';
-import { CursorChangeReason, VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands, CursorMove as CursorMove_ } from 'vs/editor/common/controller/cursorMoveCommands';
-import { EditorCommand, ICommandOptions, Command } from 'vs/editor/common/config/config';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { registerEditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorCommand, ICommandOptions, EditorCommand, Command } from 'vs/editor/common/editorCommonExtensions';
 import { IColumnSelectResult, ColumnSelection } from 'vs/editor/common/controller/cursorColumnSelection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -26,6 +25,7 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { TypeOperations } from "vs/editor/common/controller/cursorTypeOperations";
 import { DeleteOperations } from "vs/editor/common/controller/cursorDeleteOperations";
+import { VerticalRevealType } from "vs/editor/common/view/viewEvents";
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 
@@ -39,7 +39,7 @@ export abstract class CoreEditorCommand extends EditorCommand {
 
 export namespace EditorScroll_ {
 
-	const isEditorScrollArgs = function (arg): boolean {
+	const isEditorScrollArgs = function (arg: any): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
@@ -183,7 +183,7 @@ export namespace EditorScroll_ {
 
 export namespace RevealLine_ {
 
-	const isRevealLineArgs = function (arg): boolean {
+	const isRevealLineArgs = function (arg: any): boolean {
 		if (!types.isObject(arg)) {
 			return false;
 		}
@@ -712,14 +712,45 @@ export namespace CoreNavigationCommands {
 				newState = CursorMoveCommands.moveTo(context, cursors.getPrimaryCursor(), false, args.position, args.viewPosition);
 			}
 
-			let newStates = cursors.getAll().slice(0);
-			newStates.push(newState);
+			const states = cursors.getAll();
+
+			// Check if we should remove a cursor (sort of like a toggle)
+			if (states.length > 1) {
+				const newModelPosition = (newState.modelState ? newState.modelState.position : null);
+				const newViewPosition = (newState.viewState ? newState.viewState.position : null);
+
+				for (let i = 0, len = states.length; i < len; i++) {
+					const state = states[i];
+
+					if (newModelPosition && !state.modelState.selection.containsPosition(newModelPosition)) {
+						continue;
+					}
+
+					if (newViewPosition && !state.viewState.selection.containsPosition(newViewPosition)) {
+						continue;
+					}
+
+					// => Remove the cursor
+					states.splice(i, 1);
+
+					cursors.context.model.pushStackElement();
+					cursors.setStates(
+						args.source,
+						CursorChangeReason.Explicit,
+						states
+					);
+					return;
+				}
+			}
+
+			// => Add the new cursor
+			states.push(newState);
 
 			cursors.context.model.pushStackElement();
 			cursors.setStates(
 				args.source,
 				CursorChangeReason.Explicit,
-				newStates
+				states
 			);
 		}
 	});
@@ -1522,7 +1553,7 @@ namespace Config {
 		return accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	}
 
-	function getActiveEditorWidget(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+	function getWorkbenchActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
 		const editorService = accessor.get(IEditorService);
 		let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
 		return getCodeEditor(activeEditor);
@@ -1532,7 +1563,13 @@ namespace Config {
 		KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
 	}
 
-	class BaseTextInputAwareCommand extends Command {
+	/**
+	 * A command that will:
+	 *  1. invoke a command on the focused editor.
+	 *  2. otherwise, invoke a browser built-in command on the `activeElement`.
+	 *  3. otherwise, invoke a command on the workbench active editor.
+	 */
+	class EditorOrNativeTextInputCommand extends Command {
 
 		private readonly _editorHandler: string | EditorCommand;
 		private readonly _inputHandler: string;
@@ -1559,7 +1596,7 @@ namespace Config {
 			}
 
 			// Redirecting to last active editor
-			let activeEditor = getActiveEditorWidget(accessor);
+			let activeEditor = getWorkbenchActiveEditor(accessor);
 			if (activeEditor) {
 				activeEditor.focus();
 				return this._runEditorHandler(activeEditor, args);
@@ -1578,7 +1615,7 @@ namespace Config {
 		}
 	}
 
-	registerCommand(new BaseTextInputAwareCommand({
+	registerCommand(new EditorOrNativeTextInputCommand({
 		editorHandler: CoreNavigationCommands.SelectAll,
 		inputHandler: 'selectAll',
 		id: 'editor.action.selectAll',
@@ -1590,7 +1627,7 @@ namespace Config {
 		}
 	}));
 
-	registerCommand(new BaseTextInputAwareCommand({
+	registerCommand(new EditorOrNativeTextInputCommand({
 		editorHandler: H.Undo,
 		inputHandler: 'undo',
 		id: H.Undo,
@@ -1602,7 +1639,7 @@ namespace Config {
 		}
 	}));
 
-	registerCommand(new BaseTextInputAwareCommand({
+	registerCommand(new EditorOrNativeTextInputCommand({
 		editorHandler: H.Redo,
 		inputHandler: 'redo',
 		id: H.Redo,
@@ -1615,5 +1652,42 @@ namespace Config {
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
 		}
 	}));
+
+	/**
+	 * A command that will invoke a command on the focused editor.
+	 */
+	class EditorHandlerCommand extends Command {
+
+		private readonly _handlerId: string;
+
+		constructor(id: string, handlerId: string) {
+			super({
+				id: id,
+				precondition: null
+			});
+			this._handlerId = handlerId;
+		}
+
+		public runCommand(accessor: ServicesAccessor, args: any): void {
+			const editor = findFocusedEditor(accessor);
+			if (!editor) {
+				return;
+			}
+
+			editor.trigger('keyboard', this._handlerId, args);
+		}
+	}
+
+	function registerOverwritableCommand(handlerId: string): void {
+		registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
+		registerCommand(new EditorHandlerCommand(handlerId, handlerId));
+	}
+
+	registerOverwritableCommand(H.Type);
+	registerOverwritableCommand(H.ReplacePreviousChar);
+	registerOverwritableCommand(H.CompositionStart);
+	registerOverwritableCommand(H.CompositionEnd);
+	registerOverwritableCommand(H.Paste);
+	registerOverwritableCommand(H.Cut);
 
 }

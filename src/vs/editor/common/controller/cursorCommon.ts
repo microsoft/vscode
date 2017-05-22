@@ -16,8 +16,9 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
-import { CursorChangeReason, VerticalRevealType } from 'vs/editor/common/controller/cursorEvents';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { VerticalRevealType } from "vs/editor/common/view/viewEvents";
 
 export interface IColumnSelectData {
 	toViewLineNumber: number;
@@ -41,7 +42,7 @@ export interface ICursors {
 
 	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
 	reveal(horizontal: boolean, target: RevealTarget): void;
-	revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: VerticalRevealType);
+	revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: VerticalRevealType): void;
 
 	scrollTo(desiredScrollTop: number): void;
 }
@@ -259,92 +260,72 @@ export class SingleCursorState {
 	}
 }
 
-export interface IViewModelHelper {
-
-	coordinatesConverter: ICoordinatesConverter;
-
-	viewModel: ICursorSimpleModel;
-
-	getScrollTop(): number;
-
-	getCompletelyVisibleViewRange(): Range;
-
-	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
-
-	getVerticalOffsetForViewLineNumber(viewLineNumber: number): number;
-}
-
 export class CursorContext {
 	_cursorContextBrand: void;
 
 	public readonly model: IModel;
-	public readonly viewModel: ICursorSimpleModel;
+	public readonly viewModel: IViewModel;
 	public readonly config: CursorConfiguration;
 
-	private readonly _viewModelHelper: IViewModelHelper;
-	private readonly _coordinatesConverter: ICoordinatesConverter;
-
-	constructor(configuration: IConfiguration, model: IModel, viewModelHelper: IViewModelHelper) {
+	constructor(configuration: IConfiguration, model: IModel, viewModel: IViewModel) {
 		this.model = model;
-		this.viewModel = viewModelHelper.viewModel;
+		this.viewModel = viewModel;
 		this.config = new CursorConfiguration(
 			this.model.getLanguageIdentifier(),
 			this.model.getOneIndent(),
 			this.model.getOptions(),
 			configuration
-		);;
-		this._viewModelHelper = viewModelHelper;
-		this._coordinatesConverter = viewModelHelper.coordinatesConverter;
+		);
 	}
 
 	public validateViewPosition(viewPosition: Position, modelPosition: Position): Position {
-		return this._coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
+		return this.viewModel.coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
 	}
 
 	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		return this._coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
+		return this.viewModel.coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
 	}
 
 	public convertViewRangeToModelRange(viewRange: Range): Range {
-		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public convertViewPositionToModelPosition(lineNumber: number, column: number): Position {
-		return this._coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, column));
+		return this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, column));
 	}
 
 	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this._coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		return this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 	}
 
 	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this._coordinatesConverter.convertModelRangeToViewRange(modelRange);
+		return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
 	}
 
 	public getScrollTop(): number {
-		return this._viewModelHelper.getScrollTop();
+		return this.viewModel.viewLayout.getScrollTop();
 	}
 
 	public getCompletelyVisibleViewRange(): Range {
-		return this._viewModelHelper.getCompletelyVisibleViewRange();
+		return this.viewModel.getCompletelyVisibleViewRange();
 	}
 
 	public getCompletelyVisibleModelRange(): Range {
-		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRange();
-		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+		const viewRange = this.viewModel.getCompletelyVisibleViewRange();
+		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
-		return this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+		return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
 	}
 
 	public getCompletelyVisibleModelRangeAtScrollTop(scrollTop: number): Range {
-		const viewRange = this._viewModelHelper.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-		return this._coordinatesConverter.convertViewRangeToModelRange(viewRange);
+		const viewRange = this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
+		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
-		return this._viewModelHelper.getVerticalOffsetForViewLineNumber(viewLineNumber);
+		return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
 	}
 }
 
@@ -438,24 +419,17 @@ export class EditOperationResult {
 	readonly commands: ICommand[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
-	readonly reason: CursorChangeReason;
 
 	constructor(
 		commands: ICommand[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
-			reason?: CursorChangeReason;
 		}
 	) {
 		this.commands = commands;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
-		if (typeof opts.reason === 'undefined') {
-			this.reason = CursorChangeReason.NotSet;
-		} else {
-			this.reason = opts.reason;
-		}
 	}
 }
 

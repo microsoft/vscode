@@ -18,6 +18,7 @@ import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
 
 @commonEditorContribution
 class InPlaceReplaceController implements IEditorContribution {
@@ -28,9 +29,9 @@ class InPlaceReplaceController implements IEditorContribution {
 		return editor.getContribution<InPlaceReplaceController>(InPlaceReplaceController.ID);
 	}
 
-	private static DECORATION = {
+	private static DECORATION = ModelDecorationOptions.register({
 		className: 'valueSetReplacement'
-	};
+	});
 
 	private editor: ICommonCodeEditor;
 	private requestIdPool: number;

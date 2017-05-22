@@ -6,7 +6,6 @@
 {
 	"selectTheme.label": "색 테마",
 	"installColorThemes": "추가 색 테마 설치...",
-	"themes.selectTheme": "색 테마 선택",
 	"selectIconTheme.label": "파일 아이콘 테마",
 	"installIconThemes": "추가 파일 아이콘 테마 설치...",
 	"noIconThemeLabel": "없음",

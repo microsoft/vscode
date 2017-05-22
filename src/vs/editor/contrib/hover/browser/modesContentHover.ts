@@ -22,6 +22,7 @@ import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 
@@ -274,10 +275,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = true;
 		this._highlightDecorations = this._editor.deltaDecorations(this._highlightDecorations, [{
 			range: highlightRange,
-			options: {
-				className: 'hoverHighlight'
-			}
+			options: ModesContentHoverWidget._DECORATION_OPTIONS
 		}]);
 		this._isChangingDecorations = false;
 	}
+
+	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
+		className: 'hoverHighlight'
+	});
 }

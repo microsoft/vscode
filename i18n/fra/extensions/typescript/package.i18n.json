@@ -33,7 +33,6 @@
 	"javascript.validate.enable": "Activez/désactivez la validation JavaScript.",
 	"typescript.goToProjectConfig.title": "Accéder à la configuration du projet",
 	"javascript.goToProjectConfig.title": "Accéder à la configuration du projet",
-	"typescript.referencesCodeLens.enabled": "Activer/désactiver CodeLens dans les références. Nécessite TypeScript >= 2.0.6.",
 	"typescript.implementationsCodeLens.enabled": "Activer/désactiver CodeLens dans les implémentations. Nécessite TypeScript >= 2.2.0.",
 	"typescript.selectTypeScriptVersion.title": "Sélectionner la version de TypeScript",
 	"jsDocCompletion.enabled": "Activer/désactiver les commentaires JSDoc automatiques",

@@ -11,7 +11,5 @@
 	"paste": "粘贴",
 	"selectAll": "全选",
 	"confirmOpen": "是否确定要打开 {0} 个文件夹?",
-	"confirmOpenButton": "打开(&&O)...",
-	"developer": "开发者",
-	"file": "文件"
+	"confirmOpenButton": "打开(&&O)..."
 }

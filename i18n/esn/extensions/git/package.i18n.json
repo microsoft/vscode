@@ -42,5 +42,7 @@
 	"config.countBadge": "Controla el contador de insignia de Git. \"Todo\" cuenta todos los cambios. \"Seguimiento\" solamente cuenta los cambios realizados. \"Desactivado\" lo desconecta.",
 	"config.checkoutType": "Controla el tipo de ramas listadas cuando ejecuta \"Desproteger\". \"Todo\" muetra todas las referencias, \"local\" solamente las ramas locales y \"remoto\" las ramas remotas.",
 	"config.ignoreLegacyWarning": "Ignora las advertencias hereradas de Git",
-	"config.ignoreLimitWarning": "\nIgnora advertencias cuando se encuentran muchos cambios en un repositorio."
+	"config.ignoreLimitWarning": "\nIgnora advertencias cuando se encuentran muchos cambios en un repositorio.",
+	"config.defaultCloneDirectory": "La ubicación predeterminada en la que se clona un repositorio git",
+	"config.enableSmartCommit": "Confirmar todos los cambios cuando no hay elementos almacenados provisionalmente."
 }

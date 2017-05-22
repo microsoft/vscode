@@ -11,7 +11,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import { EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence, ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
 import {
 	CommonFindController, FindStartFocusAction, IFindStartOptions,
 	NextMatchFindAction, StartFindAction, SelectHighlightsAction,
@@ -73,11 +73,11 @@ function fromRange(rng: Range): number[] {
 }
 
 suite('FindController', () => {
-	let queryState = {};
+	let queryState: { [key: string]: any; } = {};
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, <any>{
-		get: (key) => queryState[key],
-		getBoolean: (key) => !!queryState[key],
+		get: (key: string) => queryState[key],
+		getBoolean: (key: string) => !!queryState[key],
 		store: (key: string, value: any) => { queryState[key] = value; }
 	});
 
@@ -210,6 +210,33 @@ suite('FindController', () => {
 			editor.trigger('test', 'removeSecondaryCursors', null);
 
 			assert.deepEqual(fromRange(editor.getSelection()), [2, 9, 2, 16]);
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #5400: "Select All Occurences of Find Match" does not select all if find uses regex', () => {
+		withMockCodeEditor([
+			'something',
+			'someething',
+			'someeething',
+			'nothing'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let selectHighlightsAction = new SelectHighlightsAction();
+
+			editor.setSelection(new Selection(1, 1, 1, 1));
+			findController.getState().change({ searchString: 'some+thing', isRegex: true, isRevealed: true }, false);
+
+			selectHighlightsAction.run(null, editor);
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[1, 1, 1, 10],
+				[2, 1, 2, 11],
+				[3, 1, 3, 12],
+			]);
+
+			assert.equal(findController.getState().searchString, 'some+thing');
 
 			findController.dispose();
 		});
@@ -380,6 +407,53 @@ suite('FindController', () => {
 			editor.trigger('test', 'removeSecondaryCursors', null);
 
 			assert.deepEqual(fromRange(editor.getSelection()), [2, 1, 3, 4]);
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #6661: AddSelectionToNextFindMatchAction can work with touching ranges', () => {
+		withMockCodeEditor([
+			'abcabc',
+			'abc',
+			'abcabc',
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+
+			editor.setSelection(new Selection(1, 1, 1, 4));
+
+			addSelectionToNextFindMatch.run(null, editor);
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[1, 1, 1, 4],
+				[1, 4, 1, 7]
+			]);
+
+			addSelectionToNextFindMatch.run(null, editor);
+			addSelectionToNextFindMatch.run(null, editor);
+			addSelectionToNextFindMatch.run(null, editor);
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[1, 1, 1, 4],
+				[1, 4, 1, 7],
+				[2, 1, 2, 4],
+				[3, 1, 3, 4],
+				[3, 4, 3, 7]
+			]);
+
+			editor.trigger('test', Handler.Type, { text: 'z' });
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[1, 2, 1, 2],
+				[1, 3, 1, 3],
+				[2, 2, 2, 2],
+				[3, 2, 3, 2],
+				[3, 3, 3, 3]
+			]);
+			assert.equal(editor.getValue(), [
+				'zz',
+				'z',
+				'zz',
+			].join('\n'));
 
 			findController.dispose();
 		});
@@ -715,11 +789,14 @@ suite('FindController', () => {
 });
 
 suite('FindController query options persistence', () => {
-	let queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': false };
+	let queryState: { [key: string]: any; } = {};
+	queryState['editor.isRegex'] = false;
+	queryState['editor.matchCase'] = false;
+	queryState['editor.wholeWord'] = false;
 	let serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, <any>{
-		get: (key) => queryState[key],
-		getBoolean: (key) => !!queryState[key],
+		get: (key: string) => queryState[key],
+		getBoolean: (key: string) => !!queryState[key],
 		store: (key: string, value: any) => { queryState[key] = value; }
 	});
 

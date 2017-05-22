@@ -134,8 +134,8 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	// --- begin event handlers
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		this._mouseDownOperation.onCursorSelectionChanged(e);
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		this._mouseDownOperation.onCursorStateChanged(e);
 		return false;
 	}
 	private _isFocused = false;
@@ -411,8 +411,8 @@ class MouseDownOperation extends Disposable {
 		}, 10);
 	}
 
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): void {
-		this._currentSelection = e.selection;
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): void {
+		this._currentSelection = e.selections[0];
 	}
 
 	private _getPositionOutsideEditor(e: EditorMouseEvent): MouseTarget {

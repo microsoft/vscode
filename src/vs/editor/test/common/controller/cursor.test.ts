@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { Cursor } from 'vs/editor/common/controller/cursor';
+import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -21,12 +21,11 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { viewModelHelper } from 'vs/editor/test/common/editorTestUtils';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { CoreNavigationCommands, CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 import { withMockCodeEditor } from "vs/editor/test/common/mocks/mockCodeEditor";
 import { TextModel } from "vs/editor/common/model/textModel";
+import { ViewModel } from "vs/editor/common/viewModel/viewModelImpl";
 
 let H = Handler;
 
@@ -136,6 +135,7 @@ suite('Editor Controller - Cursor', () => {
 
 	let thisModel: Model;
 	let thisConfiguration: TestConfiguration;
+	let thisViewModel: ViewModel;
 	let thisCursor: Cursor;
 
 	setup(() => {
@@ -148,11 +148,14 @@ suite('Editor Controller - Cursor', () => {
 
 		thisModel = Model.createFromString(text);
 		thisConfiguration = new TestConfiguration(null);
-		thisCursor = new Cursor(thisConfiguration, thisModel, viewModelHelper(thisModel));
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel);
+
+		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
 
 	teardown(() => {
 		thisCursor.dispose();
+		thisViewModel.dispose();
 		thisModel.dispose();
 		thisConfiguration.dispose();
 	});
@@ -638,10 +641,7 @@ suite('Editor Controller - Cursor', () => {
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {
-		thisCursor.onDidChangePosition((e) => {
-			assert.ok(false, 'was not expecting event');
-		});
-		thisCursor.onDidChangeSelection((e) => {
+		thisCursor.onDidChange((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		moveTo(thisCursor, 1, 1);
@@ -649,30 +649,22 @@ suite('Editor Controller - Cursor', () => {
 
 	test('move eventing', () => {
 		let events = 0;
-		thisCursor.onDidChangePosition((e: ICursorPositionChangedEvent) => {
+		thisCursor.onDidChange((e: CursorStateChangedEvent) => {
 			events++;
-			assert.deepEqual(e.position, new Position(1, 2));
-		});
-		thisCursor.onDidChangeSelection((e: ICursorSelectionChangedEvent) => {
-			events++;
-			assert.deepEqual(e.selection, new Selection(1, 2, 1, 2));
+			assert.deepEqual(e.selections, [new Selection(1, 2, 1, 2)]);
 		});
 		moveTo(thisCursor, 1, 2);
-		assert.equal(events, 2, 'receives 2 events');
+		assert.equal(events, 1, 'receives 1 event');
 	});
 
 	test('move in selection mode eventing', () => {
 		let events = 0;
-		thisCursor.onDidChangePosition((e: ICursorPositionChangedEvent) => {
+		thisCursor.onDidChange((e: CursorStateChangedEvent) => {
 			events++;
-			assert.deepEqual(e.position, new Position(1, 2));
-		});
-		thisCursor.onDidChangeSelection((e: ICursorSelectionChangedEvent) => {
-			events++;
-			assert.deepEqual(e.selection, new Selection(1, 1, 1, 2));
+			assert.deepEqual(e.selections, [new Selection(1, 1, 1, 2)]);
 		});
 		moveTo(thisCursor, 1, 2, true);
-		assert.equal(events, 2, 'receives 2 events');
+		assert.equal(events, 1, 'receives 1 event');
 	});
 
 	// --------- state save & restore
@@ -700,39 +692,37 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('column select 1', () => {
-		let model = Model.createFromString([
+		withMockCodeEditor([
 			'\tprivate compute(a:number): boolean {',
 			'\t\tif (a + 3 === 0 || a + 5 === 0) {',
 			'\t\t\treturn false;',
 			'\t\t}',
 			'\t}'
-		].join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
+		], {}, (editor, cursor) => {
 
-		moveTo(cursor, 1, 7, false);
-		assertCursor(cursor, new Position(1, 7));
+			moveTo(cursor, 1, 7, false);
+			assertCursor(cursor, new Position(1, 7));
 
-		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
-			position: new Position(4, 4),
-			viewPosition: new Position(4, 4),
-			mouseColumn: 15
+			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+				position: new Position(4, 4),
+				viewPosition: new Position(4, 4),
+				mouseColumn: 15
+			});
+
+			let expectedSelections = [
+				new Selection(1, 7, 1, 12),
+				new Selection(2, 4, 2, 9),
+				new Selection(3, 3, 3, 6),
+				new Selection(4, 4, 4, 4),
+			];
+
+			assertCursor(cursor, expectedSelections);
+
 		});
-
-		let expectedSelections = [
-			new Selection(1, 7, 1, 12),
-			new Selection(2, 4, 2, 9),
-			new Selection(3, 3, 3, 6),
-			new Selection(4, 4, 4, 4),
-		];
-
-		assertCursor(cursor, expectedSelections);
-
-		cursor.dispose();
-		model.dispose();
 	});
 
 	test('issue #4905 - column select is biased to the right', () => {
-		let model = Model.createFromString([
+		const model = Model.createFromString([
 			'var gulp = require("gulp");',
 			'var path = require("path");',
 			'var rimraf = require("rimraf");',
@@ -741,7 +731,9 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
+		const config = new TestConfiguration(null);
+		const viewModel = new ViewModel(0, config, model);
+		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
@@ -760,11 +752,13 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		cursor.dispose();
+		viewModel.dispose();
+		config.dispose();
 		model.dispose();
 	});
 
 	test('issue #20087: column select with mouse', () => {
-		let model = Model.createFromString([
+		const model = Model.createFromString([
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" Key="SomeKey" value="000"/>',
@@ -776,7 +770,9 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
+		const config = new TestConfiguration(null);
+		const viewModel = new ViewModel(0, config, model);
+		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
@@ -818,11 +814,13 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		cursor.dispose();
+		viewModel.dispose();
+		config.dispose();
 		model.dispose();
 	});
 
 	test('issue #20087: column select with keyboard', () => {
-		let model = Model.createFromString([
+		const model = Model.createFromString([
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" Key="SomeKey" value="000"/>',
@@ -834,7 +832,9 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
 		].join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
+		const config = new TestConfiguration(null);
+		const viewModel = new ViewModel(0, config, model);
+		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 10, 10, false);
 		assertCursor(cursor, new Position(10, 10));
@@ -866,11 +866,13 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		cursor.dispose();
+		viewModel.dispose();
+		config.dispose();
 		model.dispose();
 	});
 
 	test('column select with keyboard', () => {
-		let model = Model.createFromString([
+		const model = Model.createFromString([
 			'var gulp = require("gulp");',
 			'var path = require("path");',
 			'var rimraf = require("rimraf");',
@@ -879,7 +881,9 @@ suite('Editor Controller - Cursor', () => {
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
 		].join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
+		const config = new TestConfiguration(null);
+		const viewModel = new ViewModel(0, config, model);
+		const cursor = new Cursor(config, model, viewModel);
 
 		moveTo(cursor, 1, 4, false);
 		assertCursor(cursor, new Position(1, 4));
@@ -1076,6 +1080,8 @@ suite('Editor Controller - Cursor', () => {
 		]);
 
 		cursor.dispose();
+		viewModel.dispose();
+		config.dispose();
 		model.dispose();
 	});
 });
@@ -1438,45 +1444,41 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('bug #16740: [editor] Cut line doesn\'t quite cut the last line', () => {
+
 		// Part 1 => there is text on the last line
-		let text = [
+		withMockCodeEditor([
 			'asdasd',
 			'qwerty'
-		];
-		let model = Model.createFromString(text.join('\n'));
-		let cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
+		], {}, (editor, cursor) => {
+			const model = editor.getModel();
 
-		moveTo(cursor, 2, 1, false);
-		assertCursor(cursor, new Selection(2, 1, 2, 1));
+			moveTo(cursor, 2, 1, false);
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
 
-		cursorCommand(cursor, H.Cut, null, 'keyboard');
-		assert.equal(model.getLineCount(), 1);
-		assert.equal(model.getLineContent(1), 'asdasd');
+			cursorCommand(cursor, H.Cut, null, 'keyboard');
+			assert.equal(model.getLineCount(), 1);
+			assert.equal(model.getLineContent(1), 'asdasd');
 
-		cursor.dispose();
-		model.dispose();
+		});
 
 		// Part 2 => there is no text on the last line
-		text = [
+		withMockCodeEditor([
 			'asdasd',
 			''
-		];
-		model = Model.createFromString(text.join('\n'));
-		cursor = new Cursor(new TestConfiguration(null), model, viewModelHelper(model));
+		], {}, (editor, cursor) => {
+			const model = editor.getModel();
 
-		moveTo(cursor, 2, 1, false);
-		assertCursor(cursor, new Selection(2, 1, 2, 1));
+			moveTo(cursor, 2, 1, false);
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
 
-		cursorCommand(cursor, H.Cut, null, 'keyboard');
-		assert.equal(model.getLineCount(), 1);
-		assert.equal(model.getLineContent(1), 'asdasd');
+			cursorCommand(cursor, H.Cut, null, 'keyboard');
+			assert.equal(model.getLineCount(), 1);
+			assert.equal(model.getLineContent(1), 'asdasd');
 
-		cursorCommand(cursor, H.Cut, null, 'keyboard');
-		assert.equal(model.getLineCount(), 1);
-		assert.equal(model.getLineContent(1), '');
-
-		cursor.dispose();
-		model.dispose();
+			cursorCommand(cursor, H.Cut, null, 'keyboard');
+			assert.equal(model.getLineCount(), 1);
+			assert.equal(model.getLineContent(1), '');
+		});
 	});
 
 	test('Bug #11476: Double bracket surrounding + undo is broken', () => {
@@ -1685,7 +1687,7 @@ suite('Editor Controller - Regression tests', () => {
 		}, (model, cursor) => {
 			moveTo(cursor, 1, 1, false);
 
-			function assertWordRight(col, expectedCol) {
+			function assertWordRight(col: number, expectedCol: number) {
 				let args = {
 					position: {
 						lineNumber: 1,
@@ -1863,7 +1865,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			],
 			modelOpts: { insertSpaces: true, tabSize: 4, detectIndentation: false, defaultEOL: DefaultEndOfLine.LF, trimAutoWhitespace: true }
 		}, (model, cursor) => {
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(1, 21) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(1, 21), source: 'keyboard' });
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assert.equal(model.getLineContent(1), '    \tMy First Line\t ');
 			assert.equal(model.getLineContent(2), '        ');
@@ -1890,56 +1892,56 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
 			// Tab on column 1
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 1) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 1) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '             My Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 2
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 2) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 2) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'M            y Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 3
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 3) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 3) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My            Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 4
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 4) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 4) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My           Second Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 5) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 5) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 5) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 5) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 13
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 13) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 13) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My Second Li ne123');
 			cursorCommand(cursor, H.Undo, null, 'keyboard');
 
 			// Tab on column 14
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			cursorCommand(cursor, CoreNavigationCommands.MoveTo.id, { position: new Position(2, 14) }, 'keyboard');
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 14) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My Second Lin             e123');
 		});
@@ -2756,11 +2758,13 @@ interface ICursorOpts {
 function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor) => void): void {
 	let model = Model.createFromString(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	let config = new TestConfiguration(opts.editorOpts);
-	let cursor = new Cursor(config, model, viewModelHelper(model));
+	let viewModel = new ViewModel(0, config, model);
+	let cursor = new Cursor(config, model, viewModel);
 
 	callback(model, cursor);
 
 	cursor.dispose();
+	viewModel.dispose();
 	config.dispose();
 	model.dispose();
 }

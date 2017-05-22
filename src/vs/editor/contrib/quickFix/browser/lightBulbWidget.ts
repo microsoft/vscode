@@ -18,7 +18,7 @@ export class LightBulbWidget implements IDisposable {
 	private readonly _options = {
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		glyphMarginClassName: 'lightbulb-glyph',
-		glyphMarginHoverMessage: undefined
+		glyphMarginHoverMessage: <string>undefined
 	};
 
 	private readonly _editor: ICodeEditor;

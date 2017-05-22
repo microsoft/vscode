@@ -12,8 +12,8 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKey, IContextKeyServiceTarget, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { Cursor } from 'vs/editor/common/controller/cursor';
-import { CursorColumns, IViewModelHelper, ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
+import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
+import { CursorColumns, ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
@@ -26,10 +26,10 @@ import {
 	IModelLanguageChangedEvent, IModelOptionsChangedEvent, TextModelEventType
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
-import { CursorEventType, ICursorPositionChangedEvent, VerticalRevealType, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ViewModelCursors } from "vs/editor/common/viewModel/viewModelCursors";
 import { CommonEditorRegistry } from "vs/editor/common/editorCommonExtensions";
+import { VerticalRevealType } from "vs/editor/common/view/viewEvents";
 
 let EDITOR_ID = 0;
 
@@ -101,7 +101,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 	protected viewModel: ViewModel;
 	protected cursor: Cursor;
-	protected viewCursor: ViewModelCursors;
 
 	protected readonly _instantiationService: IInstantiationService;
 	protected readonly _contextKeyService: IContextKeyService;
@@ -863,23 +862,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 			this.viewModel = new ViewModel(this.id, this._configuration, this.model);
 
-			let viewModelHelper: IViewModelHelper = {
-				viewModel: this.viewModel,
-				coordinatesConverter: this.viewModel.coordinatesConverter,
-				getScrollTop: (): number => {
-					return this.viewModel.viewLayout.getScrollTop();
-				},
-				getCompletelyVisibleViewRange: (): Range => {
-					return this.viewModel.getCompletelyVisibleViewRange();
-				},
-				getCompletelyVisibleViewRangeAtScrollTop: (scrollTop: number): Range => {
-					return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-				},
-				getVerticalOffsetForViewLineNumber: (viewLineNumber: number): number => {
-					return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
-				}
-			};
-
 			this.listenersToRemove.push(this.model.addBulkListener((events) => {
 				for (let i = 0, len = events.length; i < len; i++) {
 					let eventType = events[i].type;
@@ -917,36 +899,35 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			this.cursor = new Cursor(
 				this._configuration,
 				this.model,
-				viewModelHelper
-			);
-
-			this.viewCursor = new ViewModelCursors(
-				this._configuration,
-				this.viewModel,
-				this.cursor
+				this.viewModel
 			);
 
 			this._createView();
 
-			this.listenersToRemove.push(this.cursor.addBulkListener((events) => {
-				for (let i = 0, len = events.length; i < len; i++) {
-					let eventType = events[i].type;
-					let e = events[i].data;
+			this.listenersToRemove.push(this.cursor.onDidChange((e: CursorStateChangedEvent) => {
 
-					switch (eventType) {
-						case CursorEventType.CursorPositionChanged:
-							this._onDidChangeCursorPosition.fire(e);
-							break;
-
-						case CursorEventType.CursorSelectionChanged:
-							this._onDidChangeCursorSelection.fire(e);
-							break;
-
-						default:
-						// console.warn("Unhandled cursor event: ", e);
-					}
+				let positions: Position[] = [];
+				for (let i = 0, len = e.selections.length; i < len; i++) {
+					positions[i] = e.selections[i].getPosition();
 				}
+
+				const e1: ICursorPositionChangedEvent = {
+					position: positions[0],
+					secondaryPositions: positions.slice(1),
+					reason: e.reason,
+					source: e.source
+				};
+				this._onDidChangeCursorPosition.fire(e1);
+
+				const e2: ICursorSelectionChangedEvent = {
+					selection: e.selections[0],
+					secondarySelections: e.selections.slice(1),
+					source: e.source,
+					reason: e.reason
+				};
+				this._onDidChangeCursorSelection.fire(e2);
 			}));
+
 		} else {
 			this.hasView = false;
 		}
@@ -982,11 +963,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		if (this.cursor) {
 			this.cursor.dispose();
 			this.cursor = null;
-		}
-
-		if (this.viewCursor) {
-			this.viewCursor.dispose();
-			this.viewCursor = null;
 		}
 
 		if (this.viewModel) {

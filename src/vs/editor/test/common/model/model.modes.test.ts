@@ -13,7 +13,7 @@ import { Model } from 'vs/editor/common/model/model';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { TokenIterator } from 'vs/editor/common/model/tokenIterator';
+import { TokenIterator, ITokenInfo } from 'vs/editor/common/model/tokenIterator';
 
 // --------- utils
 
@@ -347,7 +347,7 @@ suite('Editor Model - Token Iterator', () => {
 			[1, 4, 4, 7, 7, 10, 10, 13],
 		];
 		tokenIterator(thisModel, new Position(1, 1), (iter) => {
-			var a = [], line = 0;
+			var a: number[] = [], line = 0;
 			while (iter.hasNext()) {
 				calls++;
 				if (a.length === 0) {
@@ -450,7 +450,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('iterator allows next/prev', () => {
 		var n = 0;
-		var up = [], down = [];
+		var up: ITokenInfo[] = [], down: ITokenInfo[] = [];
 		tokenIterator(thisModel, new Position(1, 1), (iter) => {
 			while (iter.hasNext()) {
 				var next = iter.next();
@@ -473,7 +473,7 @@ suite('Editor Model - Token Iterator', () => {
 
 	test('iterator allows prev/next', () => {
 		var n = 0;
-		var up = [], down = [];
+		var up: ITokenInfo[] = [], down: ITokenInfo[] = [];
 		tokenIterator(thisModel, new Position(3, 12), (iter) => {
 			while (iter.hasPrev()) {
 				var prev = iter.prev();
@@ -496,7 +496,7 @@ suite('Editor Model - Token Iterator', () => {
 
 
 	test('iterator can not be used outside of callback', () => {
-		var illegalIterReference;
+		var illegalIterReference: TokenIterator;
 		tokenIterator(thisModel, new Position(3, 12), (iter) => {
 			illegalIterReference = iter;
 		});

@@ -11,7 +11,5 @@
 	"paste": "貼上",
 	"selectAll": "全選",
 	"confirmOpen": "確定要開啟 {0} 資料夾嗎?",
-	"confirmOpenButton": "開啟(&&O)...",
-	"developer": "開發人員",
-	"file": "檔案"
+	"confirmOpenButton": "開啟(&&O)..."
 }

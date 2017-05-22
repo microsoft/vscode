@@ -33,7 +33,6 @@
 	"javascript.validate.enable": "JavaScript 유효성 검사를 사용하거나 사용하지 않습니다.",
 	"typescript.goToProjectConfig.title": "프로젝트 구성으로 이동",
 	"javascript.goToProjectConfig.title": "프로젝트 구성으로 이동",
-	"typescript.referencesCodeLens.enabled": "참조 CodeLens 사용하거나 사용하지 않도록 설정합니다. TypeScript >= 2.0.6이 필요합니다.",
 	"typescript.implementationsCodeLens.enabled": "구현 CodeLens를 사용하거나 사용하지 않도록 설정합니다. TypeScript >= 2.2.0이 필요합니다.",
 	"typescript.selectTypeScriptVersion.title": "TypeScript 버전 선택",
 	"jsDocCompletion.enabled": "자동 JSDoc 주석 사용/사용 안 함",

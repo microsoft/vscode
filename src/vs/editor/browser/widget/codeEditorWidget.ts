@@ -420,7 +420,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			this._configuration,
 			this._themeService,
 			this.viewModel,
-			this.viewCursor,
+			this.cursor,
 			(editorCommand: CoreEditorCommand, args: any) => {
 				if (!this.cursor) {
 					return;

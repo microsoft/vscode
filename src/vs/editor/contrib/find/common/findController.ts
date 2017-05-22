@@ -21,6 +21,7 @@ import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
 
 export const enum FindStartFocusAction {
 	NoFocusChange,
@@ -604,7 +605,7 @@ export abstract class SelectNextFindMatchAction extends EditorAction {
 		let allSelections = editor.getSelections();
 		let lastAddedSelection = allSelections[allSelections.length - 1];
 
-		let nextMatch = editor.getModel().findNextMatch(r.searchText, lastAddedSelection.getEndPosition(), false, r.matchCase, r.wholeWord, false);
+		let nextMatch = editor.getModel().findNextMatch(r.searchText, lastAddedSelection.getEndPosition(), false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false);
 
 		if (!nextMatch) {
 			return null;
@@ -631,7 +632,7 @@ export abstract class SelectPreviousFindMatchAction extends EditorAction {
 		let allSelections = editor.getSelections();
 		let lastAddedSelection = allSelections[allSelections.length - 1];
 
-		let previousMatch = editor.getModel().findPreviousMatch(r.searchText, lastAddedSelection.getStartPosition(), false, r.matchCase, r.wholeWord, false);
+		let previousMatch = editor.getModel().findPreviousMatch(r.searchText, lastAddedSelection.getStartPosition(), false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false);
 
 		if (!previousMatch) {
 			return null;
@@ -803,16 +804,31 @@ export class MoveSelectionToPreviousFindMatchAction extends SelectPreviousFindMa
 
 export abstract class AbstractSelectHighlightsAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		let r = multiCursorFind(editor, {
-			changeFindSearchString: true,
-			allowMultiline: true,
-			highlightFindOptions: true
-		});
-		if (!r) {
-			return;
+		let controller = CommonFindController.get(editor);
+		if (!controller) {
+			return null;
 		}
 
-		let matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord, false).map(m => m.range);
+		let matches: Range[] = null;
+
+		const findState = controller.getState();
+		if (findState.isRevealed && findState.isRegex && findState.searchString.length > 0) {
+
+			matches = editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? editor.getConfiguration().wordSeparators : null, false).map(m => m.range);
+
+		} else {
+
+			let r = multiCursorFind(editor, {
+				changeFindSearchString: true,
+				allowMultiline: true,
+				highlightFindOptions: true
+			});
+			if (!r) {
+				return;
+			}
+
+			matches = editor.getModel().findMatches(r.searchText, true, false, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null, false).map(m => m.range);
+		}
 
 		if (matches.length > 0) {
 			let editorSelection = editor.getSelection();
@@ -867,6 +883,36 @@ export class CompatChangeAll extends AbstractSelectHighlightsAction {
 	}
 }
 
+class SelectionHighlighterState {
+	public readonly lastWordUnderCursor: Selection;
+	public readonly searchText: string;
+	public readonly matchCase: boolean;
+	public readonly wordSeparators: string;
+
+	constructor(lastWordUnderCursor: Selection, searchText: string, matchCase: boolean, wordSeparators: string) {
+		this.searchText = searchText;
+		this.matchCase = matchCase;
+		this.wordSeparators = wordSeparators;
+	}
+
+	/**
+	 * Everything equals except for `lastWordUnderCursor`
+	 */
+	public static softEquals(a: SelectionHighlighterState, b: SelectionHighlighterState): boolean {
+		if (!a && !b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return (
+			a.searchText === b.searchText
+			&& a.matchCase === b.matchCase
+			&& a.wordSeparators === b.wordSeparators
+		);
+	}
+}
+
 @commonEditorContribution
 export class SelectionHighlighter extends Disposable implements editorCommon.IEditorContribution {
 	private static ID = 'editor.contrib.selectionHighlighter';
@@ -874,25 +920,25 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	private editor: editorCommon.ICommonCodeEditor;
 	private decorations: string[];
 	private updateSoon: RunOnceScheduler;
-	private lastWordUnderCursor: Range;
+	private state: SelectionHighlighterState;
 
 	constructor(editor: editorCommon.ICommonCodeEditor) {
 		super();
 		this.editor = editor;
 		this.decorations = [];
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
-		this.lastWordUnderCursor = null;
+		this.state = null;
 
 		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
 			if (e.selection.isEmpty()) {
 				if (e.reason === CursorChangeReason.Explicit) {
-					if (!this.lastWordUnderCursor || !this.lastWordUnderCursor.containsPosition(e.selection.getStartPosition())) {
+					if (this.state && (!this.state.lastWordUnderCursor || !this.state.lastWordUnderCursor.containsPosition(e.selection.getStartPosition()))) {
 						// no longer valid
-						this.removeDecorations();
+						this._setState(null);
 					}
 					this.updateSoon.schedule();
 				} else {
-					this.removeDecorations();
+					this._setState(null);
 
 				}
 			} else {
@@ -900,7 +946,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			}
 		}));
 		this._register(editor.onDidChangeModel((e) => {
-			this.removeDecorations();
+			this._setState(null);
 		}));
 		this._register(CommonFindController.get(editor).getState().addChangeListener((e) => {
 			this._update();
@@ -911,73 +957,63 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		return SelectionHighlighter.ID;
 	}
 
-	private removeDecorations(): void {
-		this.lastWordUnderCursor = null;
-		if (this.decorations.length > 0) {
-			this.decorations = this.editor.deltaDecorations(this.decorations, []);
-		}
+	private _update(): void {
+		this._setState(SelectionHighlighter._createState(this.editor));
 	}
 
-	private _update(): void {
-		const model = this.editor.getModel();
+	private static _createState(editor: editorCommon.ICommonCodeEditor): SelectionHighlighterState {
+		const model = editor.getModel();
 		if (!model) {
-			return;
+			return null;
 		}
 
-		const config = this.editor.getConfiguration();
+		const config = editor.getConfiguration();
 
-		this.lastWordUnderCursor = null;
+		let lastWordUnderCursor: Selection = null;
 		if (!config.contribInfo.selectionHighlight) {
-			this.removeDecorations();
-			return;
+			return null;
 		}
 
-		let r = multiCursorFind(this.editor, {
+		const r = multiCursorFind(editor, {
 			changeFindSearchString: false,
 			allowMultiline: false,
 			highlightFindOptions: false
 		});
 		if (!r) {
-			this.removeDecorations();
-			return;
+			return null;
 		}
 
-		let hasFindOccurences = DocumentHighlightProviderRegistry.has(model);
+		const hasFindOccurences = DocumentHighlightProviderRegistry.has(model);
 		if (r.currentMatch) {
 			// This is an empty selection
 			if (hasFindOccurences) {
 				// Do not interfere with semantic word highlighting in the no selection case
-				this.removeDecorations();
-				return;
+				return null;
 			}
 
 			if (!config.contribInfo.occurrencesHighlight) {
-				this.removeDecorations();
-				return;
+				return null;
 			}
 
-			this.lastWordUnderCursor = r.currentMatch;
+			lastWordUnderCursor = r.currentMatch;
 		}
 		if (/^[ \t]+$/.test(r.searchText)) {
 			// whitespace only selection
-			this.removeDecorations();
-			return;
+			return null;
 		}
 		if (r.searchText.length > 200) {
 			// very long selection
-			this.removeDecorations();
-			return;
+			return null;
 		}
 
-		const controller = CommonFindController.get(this.editor);
+		const controller = CommonFindController.get(editor);
 		if (!controller) {
-			this.removeDecorations();
-			return;
+			return null;
 		}
 		const findState = controller.getState();
 		const caseSensitive = findState.matchCase;
 
-		let selections = this.editor.getSelections();
+		const selections = editor.getSelections();
 		let firstSelectedText = model.getValueInRange(selections[0]);
 		if (!caseSensitive) {
 			firstSelectedText = firstSelectedText.toLowerCase();
@@ -989,28 +1025,48 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			}
 			if (firstSelectedText !== selectedText) {
 				// not all selections have the same text
-				this.removeDecorations();
-				return;
+				return null;
 			}
 		}
 
+		return new SelectionHighlighterState(lastWordUnderCursor, r.searchText, r.matchCase, r.wholeWord ? editor.getConfiguration().wordSeparators : null);
+	}
 
-		let allMatches = model.findMatches(r.searchText, true, false, r.matchCase, r.wholeWord, false).map(m => m.range);
+
+	private _setState(state: SelectionHighlighterState): void {
+		if (SelectionHighlighterState.softEquals(this.state, state)) {
+			this.state = state;
+			return;
+		}
+		this.state = state;
+
+		if (!this.state) {
+			if (this.decorations.length > 0) {
+				this.decorations = this.editor.deltaDecorations(this.decorations, []);
+			}
+			return;
+		}
+
+		const model = this.editor.getModel();
+		const hasFindOccurences = DocumentHighlightProviderRegistry.has(model);
+
+		let allMatches = model.findMatches(this.state.searchText, true, false, this.state.matchCase, this.state.wordSeparators, false).map(m => m.range);
 		allMatches.sort(Range.compareRangesUsingStarts);
 
+		let selections = this.editor.getSelections();
 		selections.sort(Range.compareRangesUsingStarts);
 
 		// do not overlap with selection (issue #64 and #512)
 		let matches: Range[] = [];
 		for (let i = 0, j = 0, len = allMatches.length, lenJ = selections.length; i < len;) {
-			let match = allMatches[i];
+			const match = allMatches[i];
 
 			if (j >= lenJ) {
 				// finished all editor selections
 				matches.push(match);
 				i++;
 			} else {
-				let cmp = Range.compareRangesUsingStarts(match, selections[j]);
+				const cmp = Range.compareRangesUsingStarts(match, selections[j]);
 				if (cmp < 0) {
 					// match is before sel
 					matches.push(match);
@@ -1026,27 +1082,34 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 			}
 		}
 
-		let decorations = matches.map(r => {
+		const decorations = matches.map(r => {
 			return {
 				range: r,
-				options: {
-					stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-					className: 'selectionHighlight',
-					// Show in overviewRuler only if model has no semantic highlighting
-					overviewRuler: (hasFindOccurences ? undefined : {
-						color: '#A0A0A0',
-						darkColor: '#A0A0A0',
-						position: editorCommon.OverviewRulerLane.Center
-					})
-				}
+				// Show in overviewRuler only if model has no semantic highlighting
+				options: (hasFindOccurences ? SelectionHighlighter._SELECTION_HIGHLIGHT : SelectionHighlighter._SELECTION_HIGHLIGHT_OVERVIEW)
 			};
 		});
 
 		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
 	}
 
+	private static _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'selectionHighlight',
+		overviewRuler: {
+			color: '#A0A0A0',
+			darkColor: '#A0A0A0',
+			position: editorCommon.OverviewRulerLane.Center
+		}
+	});
+
+	private static _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
+		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'selectionHighlight',
+	});
+
 	public dispose(): void {
-		this.removeDecorations();
+		this._setState(null);
 		super.dispose();
 	}
 }

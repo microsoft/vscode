@@ -11,7 +11,5 @@
 	"paste": "Вставить",
 	"selectAll": "Выбрать все",
 	"confirmOpen": "Действительно открыть папки ({0})?",
-	"confirmOpenButton": "&&Открыть...",
-	"developer": "Разработчик",
-	"file": "Файл"
+	"confirmOpenButton": "&&Открыть..."
 }

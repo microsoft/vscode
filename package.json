@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.13.0",
   "electronVersion": "1.6.6",
-  "distro": "a1870d5e65d959a5ee8a4c7fce08b136ca47dd79",
+  "distro": "4de68ec7f643597f97a2bd849d6afeba2ae6a729",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -34,7 +34,7 @@
     "jschardet": "^1.4.2",
     "minimist": "1.2.0",
     "native-keymap": "1.2.4",
-    "node-pty": "0.6.5",
+    "node-pty": "0.6.6",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
     "vscode-debugprotocol": "1.19.0",

@@ -37,7 +37,7 @@ export interface IPeekViewService {
 	isActive: boolean;
 }
 
-export function getOuterEditor(accessor: ServicesAccessor, args: any): ICommonCodeEditor {
+export function getOuterEditor(accessor: ServicesAccessor): ICommonCodeEditor {
 	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor instanceof EmbeddedCodeEditorWidget) {
 		return editor.getParentEditor();
