@@ -6,8 +6,9 @@ import * as vscode from 'vscode';
 import * as interfaces from './interfaces';
 import ContentProvider from './contentProvider';
 import * as path from 'path';
+import { loadMessageBundle } from 'vscode-nls';
+const localize = loadMessageBundle();
 
-// TODO: Localization
 const messages = {
 	cursorNotInConflict: 'Editor cursor is not within a merge conflict',
 	cursorOnSplitterRange: 'Editor cursor is within the merge conflict splitter, please move it to either the "current" or "incoming" block',
@@ -34,16 +35,16 @@ export default class CommandHandler implements vscode.Disposable {
 
 	begin() {
 		this.disposables.push(
-			vscode.commands.registerTextEditorCommand('git.merge.accept.current', this.acceptCurrent, this),
-			vscode.commands.registerTextEditorCommand('git.merge.accept.incoming', this.acceptIncoming, this),
-			vscode.commands.registerTextEditorCommand('git.merge.accept.selection', this.acceptSelection, this),
-			vscode.commands.registerTextEditorCommand('git.merge.accept.both', this.acceptBoth, this),
-			vscode.commands.registerTextEditorCommand('git.merge.accept.all-current', this.acceptAllCurrent, this),
-			vscode.commands.registerTextEditorCommand('git.merge.accept.all-incoming', this.acceptAllIncoming, this),
-			vscode.commands.registerTextEditorCommand('git.merge.accept.all-both', this.acceptAllBoth, this),
-			vscode.commands.registerTextEditorCommand('git.merge.next', this.navigateNext, this),
-			vscode.commands.registerTextEditorCommand('git.merge.previous', this.navigatePrevious, this),
-			vscode.commands.registerTextEditorCommand('git.merge.compare', this.compare, this)
+			vscode.commands.registerTextEditorCommand('merge-conflict.accept.current', this.acceptCurrent, this),
+			vscode.commands.registerTextEditorCommand('merge-conflict.accept.incoming', this.acceptIncoming, this),
+			vscode.commands.registerTextEditorCommand('merge-conflict.accept.selection', this.acceptSelection, this),
+			vscode.commands.registerTextEditorCommand('merge-conflict.accept.both', this.acceptBoth, this),
+			vscode.commands.registerTextEditorCommand('merge-conflict.accept.all-current', this.acceptAllCurrent, this),
+			vscode.commands.registerTextEditorCommand('merge-conflict.accept.all-incoming', this.acceptAllIncoming, this),
+			vscode.commands.registerTextEditorCommand('merge-conflict.accept.all-both', this.acceptAllBoth, this),
+			vscode.commands.registerTextEditorCommand('merge-conflict.next', this.navigateNext, this),
+			vscode.commands.registerTextEditorCommand('merge-conflict.previous', this.navigatePrevious, this),
+			vscode.commands.registerTextEditorCommand('merge-conflict.compare', this.compare, this)
 		);
 	}
 
@@ -80,7 +81,7 @@ export default class CommandHandler implements vscode.Disposable {
 
 			// Still failed to find conflict, warn the user and exit
 			if (!conflict) {
-				vscode.window.showWarningMessage(messages.cursorNotInConflict);
+				vscode.window.showWarningMessage(localize('cursorNotInConflict', messages.cursorNotInConflict));
 				return;
 			}
 		}
@@ -114,7 +115,7 @@ export default class CommandHandler implements vscode.Disposable {
 		let conflict = await this.findConflictContainingSelection(editor);
 
 		if (!conflict) {
-			vscode.window.showWarningMessage(messages.cursorNotInConflict);
+			vscode.window.showWarningMessage(localize('cursorNotInConflict', messages.cursorNotInConflict));
 			return;
 		}
 
@@ -132,7 +133,7 @@ export default class CommandHandler implements vscode.Disposable {
 			typeToAccept = interfaces.CommitType.Incoming;
 		}
 		else {
-			vscode.window.showWarningMessage(messages.cursorOnSplitterRange);
+			vscode.window.showWarningMessage(localize('cursorOnSplitterRange', messages.cursorOnSplitterRange));
 			return;
 		}
 
@@ -149,11 +150,11 @@ export default class CommandHandler implements vscode.Disposable {
 		let navigationResult = await this.findConflictForNavigation(editor, direction);
 
 		if (!navigationResult) {
-			vscode.window.showWarningMessage(messages.noConflicts);
+			vscode.window.showWarningMessage(localize('noConflicts', messages.noConflicts));
 			return;
 		}
 		else if (!navigationResult.canNavigate) {
-			vscode.window.showWarningMessage(messages.noOtherConflictsInThisFile);
+			vscode.window.showWarningMessage(localize('noOtherConflictsInThisFile', messages.noOtherConflictsInThisFile));
 			return;
 		}
 		else if (!navigationResult.conflict) {
@@ -180,7 +181,7 @@ export default class CommandHandler implements vscode.Disposable {
 		}
 
 		if (!conflict) {
-			vscode.window.showWarningMessage(messages.cursorNotInConflict);
+			vscode.window.showWarningMessage(localize('cursorNotInConflict', messages.cursorNotInConflict));
 			return;
 		}
 
@@ -193,7 +194,7 @@ export default class CommandHandler implements vscode.Disposable {
 		let conflicts = await this.tracker.getConflicts(editor.document);
 
 		if (!conflicts || conflicts.length === 0) {
-			vscode.window.showWarningMessage(messages.noConflicts);
+			vscode.window.showWarningMessage(localize('noConflicts', messages.noConflicts));
 			return;
 		}
 

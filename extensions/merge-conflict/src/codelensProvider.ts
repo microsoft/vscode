@@ -5,6 +5,8 @@
 
 import * as vscode from 'vscode';
 import * as interfaces from './interfaces';
+import { loadMessageBundle } from 'vscode-nls';
+const localize = loadMessageBundle();
 
 export default class MergeConflictCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
 
@@ -47,25 +49,25 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 		conflicts.forEach(conflict => {
 			let acceptCurrentCommand: vscode.Command = {
 				command: 'merge-conflict.accept.current',
-				title: `Accept current change`,
+				title: localize('acceptCurrentChange', 'Accept current change'),
 				arguments: ['known-conflict', conflict]
 			};
 
 			let acceptIncomingCommand: vscode.Command = {
 				command: 'merge-conflict.accept.incoming',
-				title: `Accept incoming change`,
+				title: localize('acceptIncomingChange', 'Accept incoming change'),
 				arguments: ['known-conflict', conflict]
 			};
 
 			let acceptBothCommand: vscode.Command = {
 				command: 'merge-conflict.accept.both',
-				title: `Accept both changes`,
+				title: localize('acceptBothChanges', 'Accept both changes'),
 				arguments: ['known-conflict', conflict]
 			};
 
 			let diffCommand: vscode.Command = {
 				command: 'git.merge.compare',
-				title: `Compare changes`,
+				title: localize('compareChanges', 'Compare changes'),
 				arguments: [conflict]
 			};
 

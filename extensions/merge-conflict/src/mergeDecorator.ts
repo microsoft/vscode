@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
 import * as interfaces from './interfaces';
+import { loadMessageBundle } from 'vscode-nls';
+const localize = loadMessageBundle();
 
 
 export default class MergeDectorator implements vscode.Disposable {
@@ -82,7 +84,7 @@ export default class MergeDectorator implements vscode.Disposable {
 				backgroundColor: `rgba(${this.currentColorRgb}, 1.0)`,
 				color: 'white',
 				after: {
-					contentText: ' (Current change)',
+					contentText: ' ' + localize('currentChange', '(Current change)'),
 					color: 'rgba(0, 0, 0, 0.7)'
 				}
 			});
@@ -98,7 +100,7 @@ export default class MergeDectorator implements vscode.Disposable {
 				color: 'white',
 				isWholeLine: this.decorationUsesWholeLine,
 				after: {
-					contentText: ' (Incoming change)',
+					contentText: ' ' + localize('incomingChange', '(Incoming change)'),
 					color: 'rgba(0, 0, 0, 0.7)'
 				}
 			});
