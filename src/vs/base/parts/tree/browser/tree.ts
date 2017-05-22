@@ -283,9 +283,10 @@ export interface ITree extends Events.IEventEmitter {
 	focusFirstChild(eventPayload?: any): void;
 
 	/**
-	 * Focuses the second element, in visible order.
+	 * Focuses the second element, in visible order. Will focus the first
+	 * child from the provided element's parent if any.
 	 */
-	focusFirst(eventPayload?: any): void;
+	focusFirst(eventPayload?: any, from?: any): void;
 
 	/**
 	 * Focuses the nth element, in visible order.
@@ -293,9 +294,10 @@ export interface ITree extends Events.IEventEmitter {
 	focusNth(index: number, eventPayload?: any): void;
 
 	/**
-	 * Focuses the last element, in visible order.
+	 * Focuses the last element, in visible order. Will focus the last
+	 * child from the provided element's parent if any.
 	 */
-	focusLast(eventPayload?: any): void;
+	focusLast(eventPayload?: any, from?: any): void;
 
 	/**
 	 * Focuses the element at the end of the next page, in visible order.
