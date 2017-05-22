@@ -893,7 +893,7 @@ class SimpleButton extends Widget {
 	}
 
 	public setExpanded(expanded: boolean): void {
-		this._domNode.setAttribute('aria-expanded', String(expanded));
+		this._domNode.setAttribute('aria-expanded', String(!!expanded));
 	}
 
 	public toggleClass(className: string, shouldHaveIt: boolean): void {
