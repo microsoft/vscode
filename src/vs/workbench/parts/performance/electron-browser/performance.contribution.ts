@@ -21,11 +21,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
 import { localize } from 'vs/nls';
 import { platform, Platform } from 'vs/base/common/platform';
-import { readdir } from 'vs/base/node/pfs';
+import { readdir, stat } from 'vs/base/node/pfs';
 import { release } from 'os';
 import { stopProfiling } from 'vs/base/node/profiler';
 import { virtualMachineHint } from 'vs/base/node/id';
-import { forEach } from "vs/base/common/collections";
+import { forEach } from 'vs/base/common/collections';
+import URI from 'vs/base/common/uri';
 
 class ProfilingHint implements IWorkbenchContribution {
 
@@ -219,7 +220,10 @@ class PerformanceTelemetry implements IWorkbenchContribution {
 		TPromise.join<any>([
 			TPromise.timeout(7 * 1000),
 			extensionService.onReady()
-		]).then(() => this._validateTimers());
+		]).then(() => {
+			this._sendWorkbenchMainSizeTelemetry();
+			this._validateTimers();
+		});
 	}
 
 	getId(): string {
@@ -234,7 +238,14 @@ class PerformanceTelemetry implements IWorkbenchContribution {
 				invalidTimers.push(entry.key);
 			}
 		});
-		this._telemetryService.publicLog('invalidTimers', { invalidTimers });
+		this._telemetryService.publicLog('perf:invalidTimers', { invalidTimers });
+	}
+
+	private _sendWorkbenchMainSizeTelemetry(): void {
+		const { fsPath } = URI.parse(require.toUrl('vs/workbench/electron-browser/workbench.main.js'));
+		stat(fsPath).then(stats => {
+			this._telemetryService.publicLog('perf:jsFileSize', { workbenchMain: stats.size });
+		});
 	}
 }
 
