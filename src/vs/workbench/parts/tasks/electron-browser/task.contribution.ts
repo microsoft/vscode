@@ -85,30 +85,17 @@ let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
 abstract class OpenTaskConfigurationAction extends Action {
 
-	private configurationService: IConfigurationService;
-	private fileService: IFileService;
-
-	private editorService: IWorkbenchEditorService;
-	private contextService: IWorkspaceContextService;
-	private outputService: IOutputService;
-	private messageService: IMessageService;
-	private quickOpenService: IQuickOpenService;
-
-	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
-		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService) {
+	constructor(id: string, label: string,
+		private taskService: ITaskService,
+		private configurationService: IConfigurationService,
+		private editorService: IWorkbenchEditorService, private fileService: IFileService,
+		private contextService: IWorkspaceContextService, private outputService: IOutputService,
+		private messageService: IMessageService, private quickOpenService: IQuickOpenService,
+		private environmentService: IEnvironmentService,
+		private configurationResolverService: IConfigurationResolverService,
+		private extensionService: IExtensionService) {
 
 		super(id, label);
-		this.configurationService = configurationService;
-		this.editorService = editorService;
-		this.fileService = fileService;
-		this.contextService = contextService;
-		this.outputService = outputService;
-		this.messageService = messageService;
-		this.quickOpenService = quickOpenService;
 	}
 
 	public run(event?: any): TPromise<IEditor> {
@@ -128,27 +115,18 @@ abstract class OpenTaskConfigurationAction extends Action {
 				}
 				let contentPromise: TPromise<string>;
 				if (selection.autoDetect) {
-					const outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
-					outputChannel.show(true);
-					outputChannel.append(nls.localize('ConfigureTaskRunnerAction.autoDetecting', 'Auto detecting tasks for {0}', selection.id) + '\n');
-					let detector = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService);
-					contentPromise = detector.detect(false, selection.id).then((value) => {
-						let config = value.config;
-						if (value.stderr && value.stderr.length > 0) {
-							value.stderr.forEach((line) => {
-								outputChannel.append(line + '\n');
+					contentPromise = this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask').then(() => {
+						return this.taskService.tasks().then((tasks) => {
+							let tasksToInsert: Task[] = tasks.filter((task) => {
+								return task.identifier && task.identifier.indexOf(selection.id) === 0 && task.identifier[selection.id.length] === '.' && task.group !== void 0;
 							});
-							if (config && (!config.tasks || config.tasks.length === 0)) {
-								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
+							if (tasksToInsert.length === 0) {
 								return selection.content;
-							} else {
-								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetectError', 'Auto detecting the task system produced errors. Consult the task output for details.'));
 							}
-						}
-						if (config) {
-							if (value.stdout && value.stdout.length > 0) {
-								value.stdout.forEach(line => outputChannel.append(line + '\n'));
-							}
+							let config: TaskConfig.ExternalTaskRunnerConfiguration = {
+								version: '2.0.0',
+								tasks: tasksToInsert.map<TaskConfig.TaskDescription>((task) => { return { taskName: task.name }; })
+							};
 							let content = JSON.stringify(config, null, '\t');
 							content = [
 								'{',
@@ -156,9 +134,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 								'\t// for the documentation about the tasks.json format',
 							].join('\n') + content.substr(1);
 							return content;
-						} else {
-							return selection.content;
-						}
+						});
 					});
 				} else {
 					contentPromise = TPromise.as(selection.content);
@@ -194,14 +170,17 @@ class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
 	public static ID = 'workbench.action.tasks.configureTaskRunner';
 	public static TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task Runner");
 
-	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
+	constructor(id: string, label: string,
+		@ITaskService taskService, @IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService) {
-		super(id, label, configurationService, editorService, fileService, contextService,
-			outputService, messageService, quickOpenService, environmentService, configurationResolverService);
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IExtensionService extensionService) {
+		super(id, label, taskService, configurationService, editorService, fileService, contextService,
+			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
+			extensionService);
 	}
 
 }
@@ -210,14 +189,17 @@ class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
 	public static ID = 'workbench.action.tasks.configureBuildTask';
 	public static TEXT = nls.localize('ConfigureBuildTaskAction.label', "Configure Build Task");
 
-	constructor(id: string, label: string, @IConfigurationService configurationService: IConfigurationService,
+	constructor(id: string, label: string,
+		@ITaskService taskService, @IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService, @IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IQuickOpenService quickOpenService: IQuickOpenService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService) {
-		super(id, label, configurationService, editorService, fileService, contextService,
-			outputService, messageService, quickOpenService, environmentService, configurationResolverService);
+		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
+		@IExtensionService extensionService) {
+		super(id, label, taskService, configurationService, editorService, fileService, contextService,
+			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
+			extensionService);
 	}
 }
 
@@ -1072,7 +1054,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private getExecutionEngine(): ExecutionEngine {
 		let { config } = this.getConfiguration();
 		if (!config) {
-			return ExecutionEngine.Process;
+			return ExecutionEngine.Terminal;
 		}
 		return TaskConfig.ExecutionEngine.from(config);
 	}
@@ -1124,15 +1106,17 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	public configureAction(): Action {
-		return new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT,
+		return new ConfigureTaskRunnerAction(ConfigureTaskRunnerAction.ID, ConfigureTaskRunnerAction.TEXT, this,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
-			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService);
+			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService,
+			this.extensionService);
 	}
 
 	private configureBuildTask(): Action {
-		return new ConfigureBuildTaskAction(ConfigureBuildTaskAction.ID, ConfigureBuildTaskAction.TEXT,
+		return new ConfigureBuildTaskAction(ConfigureBuildTaskAction.ID, ConfigureBuildTaskAction.TEXT, this,
 			this.configurationService, this.editorService, this.fileService, this.contextService,
-			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService);
+			this.outputService, this.messageService, this.quickOpenService, this.environmentService, this.configurationResolverService,
+			this.extensionService);
 	}
 
 	public beforeShutdown(): boolean | TPromise<boolean> {
