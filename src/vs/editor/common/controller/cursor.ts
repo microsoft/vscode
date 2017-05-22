@@ -204,8 +204,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._revealRange(target, viewEvents.VerticalRevealType.Simple, horizontal);
 	}
 
-	public revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: viewEvents.VerticalRevealType) {
-		this.emitCursorRevealRange(modelRange, viewRange, verticalType, revealHorizontal);
+	public revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType) {
+		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal);
 	}
 
 	public scrollTo(desiredScrollTop: number): void {
@@ -368,19 +368,11 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return false;
 		}
 
-		this._emitStateChanged(source, reason);
-		return true;
-	}
-
-	private _emitStateChanged(source: string, reason: CursorChangeReason): void {
-		source = source || 'keyboard';
-
-		const positions = this._cursors.getPositions();
 
 		let isInEditableRange: boolean = true;
 		if (this._model.hasEditableRange()) {
 			const editableRange = this._model.getEditableRange();
-			if (!editableRange.containsPosition(positions[0])) {
+			if (!editableRange.containsPosition(newState.cursorState[0].modelState.position)) {
 				isInEditableRange = false;
 			}
 		}
@@ -392,47 +384,40 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
 
 		// Only after the view has been notified, let the rest of the world know...
-		this._onDidChange.fire(new CursorStateChangedEvent(selections, source, reason));
+		this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));
+
+		return true;
 	}
 
 	private _revealRange(revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean): void {
-		const positions = this._cursors.getPositions();
 		const viewPositions = this._cursors.getViewPositions();
 
-		let position = positions[0];
 		let viewPosition = viewPositions[0];
 
 		if (revealTarget === RevealTarget.TopMost) {
-			for (let i = 1; i < positions.length; i++) {
-				if (positions[i].isBefore(position)) {
-					position = positions[i];
+			for (let i = 1; i < viewPositions.length; i++) {
+				if (viewPositions[i].isBefore(viewPosition)) {
 					viewPosition = viewPositions[i];
 				}
 			}
 		} else if (revealTarget === RevealTarget.BottomMost) {
-			for (let i = 1; i < positions.length; i++) {
-				if (position.isBeforeOrEqual(positions[i])) {
-					position = positions[i];
+			for (let i = 1; i < viewPositions.length; i++) {
+				if (viewPosition.isBeforeOrEqual(viewPositions[i])) {
 					viewPosition = viewPositions[i];
 				}
 			}
 		} else {
-			if (positions.length > 1) {
+			if (viewPositions.length > 1) {
 				// no revealing!
 				return;
 			}
 		}
 
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this.emitCursorRevealRange(range, viewRange, verticalType, revealHorizontal);
+		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal);
 	}
 
-	public emitCursorRevealRange(range: Range, viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean) {
-		// Ensure event has viewRange
-		if (!viewRange) {
-			viewRange = this.context.convertModelRangeToViewRange(range);
-		}
+	public emitCursorRevealRange(viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean) {
 		this._emit([new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal)]);
 	}
 
