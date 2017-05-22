@@ -8,7 +8,7 @@ import * as interfaces from './interfaces';
 
 export default class MergeConflictContentProvider implements vscode.TextDocumentContentProvider, vscode.Disposable {
 
-	static scheme = 'git.merge.conflict-diff';
+	static scheme = 'merge-conflict.conflict-diff';
 
 	constructor(private context: vscode.ExtensionContext) {
 	}
