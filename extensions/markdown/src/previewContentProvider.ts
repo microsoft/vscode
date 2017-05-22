@@ -39,7 +39,7 @@ export function getMarkdownUri(uri: vscode.Uri) {
 
 	return uri.with({
 		scheme: 'markdown',
-		path: uri.fsPath + '.rendered',
+		path: uri.path + '.rendered',
 		query: uri.toString()
 	});
 }
