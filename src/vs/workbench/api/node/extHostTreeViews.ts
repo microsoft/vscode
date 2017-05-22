@@ -149,13 +149,14 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private massageTreeItem(extensionTreeItem: vscode.TreeItem): TreeItem {
+		const icon = this.getLightIconPath(extensionTreeItem);
 		return {
 			handle: ++this._itemHandlePool,
 			label: extensionTreeItem.label,
 			commandId: extensionTreeItem.command ? extensionTreeItem.command.command : void 0,
 			contextValue: extensionTreeItem.contextValue,
-			icon: this.getLightIconPath(extensionTreeItem),
-			iconDark: this.getDarkIconPath(extensionTreeItem),
+			icon,
+			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
 			collapsibleState: extensionTreeItem.collapsibleState,
 		};
 	}
