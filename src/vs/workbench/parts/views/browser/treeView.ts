@@ -419,7 +419,7 @@ class Menus implements IDisposable {
 	}
 
 	getResourceContextActions(element: ITreeItem): IAction[] {
-		return this.getActions(MenuId.ViewResource, { key: 'resource', value: element.contextValue }).secondary;
+		return this.getActions(MenuId.ViewResource, { key: 'item', value: element.contextValue }).secondary;
 	}
 
 	private getActions(menuId: MenuId, context: { key: string, value: string }): { primary: IAction[]; secondary: IAction[]; } {
@@ -431,7 +431,7 @@ class Menus implements IDisposable {
 		const primary = [];
 		const secondary = [];
 		const result = { primary, secondary };
-		fillInActions(menu, { shouldForwardArgs: true }, result, g => g === 'inline');
+		fillInActions(menu, { shouldForwardArgs: true }, result);
 
 		menu.dispose();
 		contextKeyService.dispose();
