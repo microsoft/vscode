@@ -41,6 +41,7 @@ import CodeActionProvider from './features/codeActionProvider';
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
 import { DirectiveCommentCompletionProvider } from './features/directiveCommentCompletionProvider';
+import TypeScriptTaskProvider from './features/taskProvider';
 
 import ImplementationCodeLensProvider from './features/implementationsCodeLensProvider';
 
@@ -111,6 +112,8 @@ export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(commands.registerCommand('typescript.restartTsServer', () => {
 		clientHost.serviceClient.restartTsServer();
 	}));
+
+	context.subscriptions.push(workspace.registerTaskProvider(new TypeScriptTaskProvider(client)));
 
 	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
