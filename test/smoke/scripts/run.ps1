@@ -17,6 +17,8 @@ if (-Not (Test-Path vscode-smoketest-express)) {
 }
 npm install
 
+Write-Output "My path: " + $(pwd)
+
 # Setup the test directory for running
 Set-Location ..\smoke
 if (-Not (Test-Path node_modules)) {
@@ -24,7 +26,7 @@ if (-Not (Test-Path node_modules)) {
 }
 
 # Configure environment variables
-$env:VSCODE_LATEST_PATH = "$Root\VSCode-win32-$arch\Code - Insiders.exe"
+$env:VSCODE_LATEST_PATH = "$(pwd)\..\VSCode-win32-$arch\Code - Insiders.exe"
 # $env:VSCODE_STABLE_PATH = $stable
 $env:SMOKETEST_REPO = "..\vscode-smoketest-express"
 
