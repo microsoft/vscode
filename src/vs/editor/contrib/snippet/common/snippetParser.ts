@@ -132,8 +132,17 @@ export abstract class Marker {
 		return result;
 	}
 
+	parent: Marker;
+
+	protected _adopt(child: Marker): void {
+		child.parent = this;
+	}
+
 	toString() {
 		return '';
+	}
+	len(): number {
+		return 0;
 	}
 }
 
@@ -144,11 +153,35 @@ export class Text extends Marker {
 	toString() {
 		return this.string;
 	}
+	len(): number {
+		return this.string.length;
+	}
 }
 
 export class Placeholder extends Marker {
-	constructor(public name: string = '', public defaultValue: Marker[]) {
+
+	static compareByIndex(a: Placeholder, b: Placeholder): number {
+		if (a.index === b.index) {
+			return 0;
+		} else if (a.isFinalTabstop) {
+			return 1;
+		} else if (b.isFinalTabstop) {
+			return -1;
+		} else if (a.index < b.index) {
+			return -1;
+		} else if (a.index > b.index) {
+			return 1;
+		} else {
+			return 0;
+		}
+	}
+
+	constructor(public index: string = '', public defaultValue: Marker[]) {
 		super();
+		defaultValue.forEach(this._adopt, this);
+	}
+	get isFinalTabstop() {
+		return this.index === '0';
 	}
 	toString() {
 		return Marker.toString(this.defaultValue);
@@ -161,18 +194,125 @@ export class Variable extends Marker {
 
 	constructor(public name: string = '', public defaultValue: Marker[]) {
 		super();
+		defaultValue.forEach(this._adopt, this);
 	}
-
 	get isDefined(): boolean {
 		return this.resolvedValue !== undefined;
 	}
-
+	len(): number {
+		if (this.isDefined) {
+			return this.resolvedValue.length;
+		} else {
+			return super.len();
+		}
+	}
 	toString() {
 		return this.isDefined ? this.resolvedValue : Marker.toString(this.defaultValue);
 	}
 }
+export function walk(marker: Marker[], visitor: (marker: Marker) => boolean): void {
+	const stack = [...marker];
+	while (stack.length > 0) {
+		const marker = stack.shift();
+		const recurse = visitor(marker);
+		if (!recurse) {
+			break;
+		}
+		if (marker instanceof Placeholder || marker instanceof Variable) {
+			stack.unshift(...marker.defaultValue);
+		}
+	}
+}
+
+export class TextmateSnippet {
+
+	readonly marker: Marker[];
+	readonly placeholders: Placeholder[];
+
+	constructor(marker: Marker[]) {
+		this.marker = marker;
+		this.placeholders = [];
+
+		// fill in placeholders
+		walk(marker, candidate => {
+			if (candidate instanceof Placeholder) {
+				this.placeholders.push(candidate);
+			}
+			return true;
+		});
+
+		Object.freeze(this.marker);
+		Object.freeze(this.placeholders);
+	}
+
+	offset(marker: Marker): number {
+		let pos = 0;
+		let found = false;
+		walk(this.marker, candidate => {
+			if (candidate === marker) {
+				found = true;
+				return false;
+			}
+			pos += candidate.len();
+			return true;
+		});
+
+		if (!found) {
+			return -1;
+		}
+		return pos;
+	}
+
+	len(marker: Marker): number {
+		let ret = 0;
+		walk([marker], marker => {
+			ret += marker.len();
+			return true;
+		});
+		return ret;
+	}
+
+	enclosingPlaceholders(placeholder: Placeholder): Placeholder[] {
+		let ret: Placeholder[] = [];
+		let { parent } = placeholder;
+		while (parent) {
+			if (parent instanceof Placeholder) {
+				ret.push(parent);
+			}
+			parent = parent.parent;
+		}
+		return ret;
+	}
+
+	get text() {
+		return Marker.toString(this.marker);
+	}
+
+	resolveVariables(resolver: { resolve(name: string): string }): this {
+		walk(this.marker, candidate => {
+			if (candidate instanceof Variable) {
+				candidate.resolvedValue = resolver.resolve(candidate.name);
+				if (candidate.isDefined) {
+					// remove default value from resolved variable
+					candidate.defaultValue.length = 0;
+				}
+			}
+			return true;
+		});
+		return this;
+	}
+}
 
 export class SnippetParser {
+
+	static escape(value: string): string {
+		return value.replace(/\$|}|\\/g, '\\$&');
+	}
+
+	static parse(template: string): TextmateSnippet {
+		const marker = new SnippetParser(true, false).parse(template, true);
+		return new TextmateSnippet(marker);
+	}
 
 	private _enableTextMate: boolean;
 	private _enableInternal: boolean;
@@ -185,11 +325,11 @@ export class SnippetParser {
 		this._enableInternal = enableInternal;
 	}
 
-	escape(value: string): string {
+	text(value: string): string {
 		return Marker.toString(this.parse(value));
 	}
 
-	parse(value: string): Marker[] {
+	parse(value: string, insertFinalTabstop?: boolean): Marker[] {
 		const marker: Marker[] = [];
 
 		this._scanner.text(value);
@@ -200,24 +340,26 @@ export class SnippetParser {
 
 		// * fill in default for empty placeHolders
 		// * compact sibling Text markers
-		function compact(marker: Marker[], placeholders: { [name: string]: Marker[] }) {
+		function walk(marker: Marker[], placeholderDefaultValues: Map<string, Marker[]>) {
 
 			for (let i = 0; i < marker.length; i++) {
 				const thisMarker = marker[i];
 
 				if (thisMarker instanceof Placeholder) {
-					if (placeholders[thisMarker.name] === undefined) {
-						placeholders[thisMarker.name] = thisMarker.defaultValue;
+					// fill in default values for repeated placeholders
+					// like `${1:foo}and$1` becomes ${1:foo}and${1:foo}
+					if (!placeholderDefaultValues.has(thisMarker.index)) {
+						placeholderDefaultValues.set(thisMarker.index, thisMarker.defaultValue);
 					} else if (thisMarker.defaultValue.length === 0) {
-						thisMarker.defaultValue = placeholders[thisMarker.name].slice(0);
+						thisMarker.defaultValue = placeholderDefaultValues.get(thisMarker.index).slice(0);
 					}
 
 					if (thisMarker.defaultValue.length > 0) {
-						compact(thisMarker.defaultValue, placeholders);
+						walk(thisMarker.defaultValue, placeholderDefaultValues);
 					}
 
 				} else if (thisMarker instanceof Variable) {
-					compact(thisMarker.defaultValue, placeholders);
+					walk(thisMarker.defaultValue, placeholderDefaultValues);
 
 				} else if (i > 0 && thisMarker instanceof Text && marker[i - 1] instanceof Text) {
 					(<Text>marker[i - 1]).string += (<Text>marker[i]).string;
@@ -227,7 +369,18 @@ export class SnippetParser {
 			}
 		}
 
-		compact(marker, Object.create(null));
+		const placeholderDefaultValues = new Map<string, Marker[]>();
+		walk(marker, placeholderDefaultValues);
+
+		if (
+			insertFinalTabstop
+			&& placeholderDefaultValues.size > 0
+			&& !placeholderDefaultValues.has('0')
+		) {
+			// the snippet uses placeholders but has no
+			// final tabstop defined -> insert at the end
+			marker.push(new Placeholder('0', []));
+		}
 
 		return marker;
 	}

@@ -13,9 +13,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
+import { editorBracketMatchBackground, editorBracketMatchBorder } from "vs/editor/common/view/editorColorRegistry";
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
 
 @editorAction
 class SelectBracketAction extends EditorAction {
@@ -26,7 +27,7 @@ class SelectBracketAction extends EditorAction {
 			alias: 'Go to Bracket',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKSLASH
 			}
 		});
@@ -70,8 +71,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	private _matchBrackets: boolean;
 
 	constructor(
-		editor: editorCommon.ICommonCodeEditor,
-		@IConfigurationService private configurationService: IConfigurationService
+		editor: editorCommon.ICommonCodeEditor
 	) {
 		super();
 		this._editor = editor;
@@ -128,10 +128,10 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		}
 	}
 
-	private static _DECORATION_OPTIONS: editorCommon.IModelDecorationOptions = {
+	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match'
-	};
+	});
 
 	private _updateBrackets(): void {
 		if (!this._matchBrackets) {
@@ -205,3 +205,14 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._lastVersionId = versionId;
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	let bracketMatchBackground = theme.getColor(editorBracketMatchBackground);
+	if (bracketMatchBackground) {
+		collector.addRule(`.monaco-editor .bracket-match { background-color: ${bracketMatchBackground}; }`);
+	}
+	let bracketMatchBorder = theme.getColor(editorBracketMatchBorder);
+	if (bracketMatchBorder) {
+		collector.addRule(`.monaco-editor .bracket-match { border: 1px solid ${bracketMatchBorder}; }`);
+	}
+});

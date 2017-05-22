@@ -6,11 +6,11 @@
 {
 	"invalid": "Elemento \"contributes.{0}\" no válido. Se esperaba una matriz.",
 	"invalid.empty": "Valor vacío para \"contributes.{0}\"",
-	"opt.aliases": "la propiedad `{0}` se puede omitir y debe ser de tipo \"string[]\"",
-	"opt.configuration": "la propiedad `{0}` se puede omitir y debe ser de tipo \"string\"",
+	"require.id": "la propiedad `{0}` es obligatoria y debe ser de tipo \"string\"",
 	"opt.extensions": "la propiedad `{0}` se puede omitir y debe ser de tipo \"string[]\"",
 	"opt.filenames": "la propiedad `{0}` se puede omitir y debe ser de tipo \"string[]\"",
 	"opt.firstLine": "la propiedad `{0}` se puede omitir y debe ser de tipo \"string\"",
-	"opt.mimetypes": "la propiedad `{0}` se puede omitir y debe ser de tipo \"string[]\"",
-	"require.id": "la propiedad `{0}` es obligatoria y debe ser de tipo \"string\""
+	"opt.configuration": "la propiedad `{0}` se puede omitir y debe ser de tipo \"string\"",
+	"opt.aliases": "la propiedad `{0}` se puede omitir y debe ser de tipo \"string[]\"",
+	"opt.mimetypes": "la propiedad `{0}` se puede omitir y debe ser de tipo \"string[]\""
 }

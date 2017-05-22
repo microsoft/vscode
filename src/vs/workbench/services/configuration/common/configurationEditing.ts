@@ -61,6 +61,17 @@ export interface IConfigurationValue {
 	overrideIdentifier?: string;
 }
 
+export interface IConfigurationEditingOptions {
+	/**
+	 * If `true`, do not saves the configuration. Default is `false`.
+	 */
+	donotSave?: boolean;
+	/**
+	 * If `true`, do not notifies the error to user by showing the message box. Default is `false`.
+	 */
+	donotNotifyError?: boolean;
+}
+
 export interface IConfigurationEditingService {
 
 	_serviceBrand: ServiceIdentifier<any>;
@@ -69,5 +80,5 @@ export interface IConfigurationEditingService {
 	 * Allows to write the configuration value to either the user or workspace configuration file and save it if asked to save.
 	 * The returned promise will be in error state in any of the error cases from [ConfigurationEditingErrorCode](#ConfigurationEditingErrorCode)
 	 */
-	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, save?: boolean): TPromise<void>;
+	writeConfiguration(target: ConfigurationTarget, value: IConfigurationValue, options?: IConfigurationEditingOptions): TPromise<void>;
 }

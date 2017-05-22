@@ -101,8 +101,6 @@ export abstract class TextFileService implements ITextFileService {
 
 	abstract confirmSave(resources?: URI[]): ConfirmResult;
 
-	abstract showHotExitMessage(): void;
-
 	public get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> {
 		return this._onAutoSaveConfigurationChange.event;
 	}
@@ -143,8 +141,6 @@ export abstract class TextFileService implements ITextFileService {
 
 					// If hot exit is enabled, backup dirty files and allow to exit without confirmation
 					if (this.isHotExitEnabled) {
-						this.showHotExitMessage();
-
 						return this.backupBeforeShutdown(dirty, this.models, reason).then(result => {
 							if (result.didBackup) {
 								return this.noVeto({ cleanUpBackups: false }); // no veto and no backup cleanup (since backup was successful)

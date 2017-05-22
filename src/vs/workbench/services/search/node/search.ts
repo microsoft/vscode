@@ -23,6 +23,7 @@ export interface IRawSearch {
 	fileEncoding?: string;
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
+	searchPaths?: string[];
 }
 
 export interface IRawSearchService {

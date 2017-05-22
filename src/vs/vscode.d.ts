@@ -29,6 +29,11 @@ declare module 'vscode' {
 		command: string;
 
 		/**
+		 * A tooltip for for command, when represented in the UI.
+		 */
+		tooltip?: string;
+
+		/**
 		 * Arguments that the command handler should be
 		 * invoked with.
 		 */
@@ -694,6 +699,29 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents options to configure the behavior of showing a [document](#TextDocument) in an [editor](#TextEditor).
+	 */
+	export interface TextDocumentShowOptions {
+		/**
+		 * An optional view column in which the [editor](#TextEditor) should be shown.
+		 * The default is the [one](#ViewColumn.One), other values are adjusted to
+		 * be __Min(column, columnCount + 1)__.
+		 */
+		viewColumn?: ViewColumn;
+
+		/**
+		 * An optional flag that when `true` will stop the [editor](#TextEditor) from taking focus.
+		 */
+		preserveFocus?: boolean;
+
+		/**
+		 * An optional flag that controls if an [editor](#TextEditor)-tab will be replaced
+		 * with the next editor or if it will be kept.
+		 */
+		preview?: boolean;
+	}
+
+	/**
 	 * Represents theme specific rendering styles for a [text editor decoration](#TextEditorDecorationType).
 	 */
 	export interface ThemableDecorationRenderOptions {
@@ -917,7 +945,7 @@ declare module 'vscode' {
 		/**
 		 * Overwrite options for dark themes.
 		 */
-		dark?: ThemableDecorationInstanceRenderOptions
+		dark?: ThemableDecorationInstanceRenderOptions;
 	}
 
 	/**
@@ -1351,7 +1379,7 @@ declare module 'vscode' {
 		 * Provide textual content for a given uri.
 		 *
 		 * The editor will use the returned string-content to create a readonly
-		 * [document](TextDocument). Resources allocated should be released when
+		 * [document](#TextDocument). Resources allocated should be released when
 		 * the corresponding document has been [closed](#workspace.onDidCloseTextDocument).
 		 *
 		 * @param uri An uri which scheme matches the scheme this provider was [registered](#workspace.registerTextDocumentContentProvider) for.
@@ -1461,6 +1489,14 @@ declare module 'vscode' {
 		value?: string;
 
 		/**
+		 * Selection of the prefilled [`value`](#InputBoxOptions.value). Defined as tuple of two number where the
+		 * first is the inclusive start index and the second the exclusive end index. When `undefined` the whole
+		 * word will be selected, when empty (start equals end) only the cursor will be set,
+		 * otherwise the defined range will be selected.
+		 */
+		valueSelection?: [number, number];
+
+		/**
 		 * The text to display underneath the input box.
 		 */
 		prompt?: string;
@@ -1497,7 +1533,7 @@ declare module 'vscode' {
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
 	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕project.json' }`
+	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕package.json' }`
 	 */
 	export interface DocumentFilter {
 
@@ -1557,7 +1593,7 @@ declare module 'vscode' {
 	 * }
 	 * ```
 	 */
-	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>
+	export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>;
 
 	/**
 	 * Contains additional diagnostic information about the context in which
@@ -1858,8 +1894,6 @@ declare module 'vscode' {
 		Field = 7,
 		Constructor = 8,
 		Enum = 9,
-		EnumMember = 21,
-		Struct = 22,
 		Interface = 10,
 		Function = 11,
 		Variable = 12,
@@ -1870,7 +1904,12 @@ declare module 'vscode' {
 		Array = 17,
 		Object = 18,
 		Key = 19,
-		Null = 20
+		Null = 20,
+		EnumMember = 21,
+		Struct = 22,
+		Event = 23,
+		Operator = 24,
+		TypeParameter = 25
 	}
 
 	/**
@@ -2420,20 +2459,23 @@ declare module 'vscode' {
 		Variable = 5,
 		Class = 6,
 		Interface = 7,
-		Struct = 21,
 		Module = 8,
 		Property = 9,
 		Unit = 10,
 		Value = 11,
-		Constant = 20,
 		Enum = 12,
-		EnumMember = 19,
 		Keyword = 13,
 		Snippet = 14,
 		Color = 15,
 		Reference = 17,
 		File = 16,
-		Folder = 18
+		Folder = 18,
+		EnumMember = 19,
+		Constant = 20,
+		Struct = 21,
+		Event = 22,
+		Operator = 23,
+		TypeParameter = 24
 	}
 
 	/**
@@ -3275,7 +3317,7 @@ declare module 'vscode' {
 		 * Report a progress update.
 		 * @param value A progress item, like a message or an updated percentage value
 		 */
-		report(value: T): void
+		report(value: T): void;
 	}
 
 	/**
@@ -3445,6 +3487,526 @@ declare module 'vscode' {
 		 * @param value A value. MUST not contain cyclic references.
 		 */
 		update(key: string, value: any): Thenable<void>;
+	}
+
+	/**
+	 * Defines a problem pattern
+	 */
+	export interface ProblemPattern {
+
+		/**
+		 * The regular expression to find a problem in the console output of an
+		 * executed task.
+		 */
+		regexp: RegExp;
+
+		/**
+		 * The match group index of the filename.
+		 *
+		 * Defaults to 1 if omitted.
+		 */
+		file?: number;
+
+		/**
+		 * The match group index of the problems's location. Valid location
+		 * patterns are: (line), (line,column) and (startLine,startColumn,endLine,endColumn).
+		 * If omitted the line and colum properties are used.
+		 */
+		location?: number;
+
+		/**
+		 * The match group index of the problem's line in the source file.
+		 *
+		 * Defaults to 2 if omitted.
+		 */
+		line?: number;
+
+		/**
+		 * The match group index of the problem's character in the source file.
+		 *
+		 * Defaults to 3 if omitted.
+		 */
+		character?: number;
+
+		/**
+		 * The match group index of the problem's end line in the source file.
+		 *
+		 * Defaults to undefined. No end line is captured.
+		 */
+		endLine?: number;
+
+		/**
+		 * The match group index of the problem's end character in the source file.
+		 *
+		 * Defaults to undefined. No end column is captured.
+		 */
+		endCharacter?: number;
+
+		/**
+		 * The match group index of the problem's severity.
+		 *
+		 * Defaults to undefined. In this case the problem matcher's severity
+		 * is used.
+		*/
+		severity?: number;
+
+		/**
+		 * The match group index of the problems's code.
+		 *
+		 * Defaults to undefined. No code is captured.
+		 */
+		code?: number;
+
+		/**
+		 * The match group index of the message. If omitted it defaults
+		 * to 4 if location is specified. Otherwise it defaults to 5.
+		 */
+		message?: number;
+
+		/**
+		 * Specifies if the last pattern in a multi line problem matcher should
+		 * loop as long as it does match a line consequently. Only valid on the
+		 * last problem pattern in a multi line problem matcher.
+		 */
+		loop?: boolean;
+	}
+
+	/**
+	 * A multi line problem pattern.
+	 */
+	export type MultiLineProblemPattern = ProblemPattern[];
+
+	/**
+	 * The way how the file location is interpreted
+	 */
+	export enum FileLocationKind {
+		/**
+		 * VS Code should decide based on whether the file path found in the
+		 * output is absolute or relative. A relative file path will be treated
+		 * relative to the workspace root.
+		 */
+		Auto = 1,
+
+		/**
+		 * Always treat the file path relative.
+		 */
+		Relative = 2,
+
+		/**
+		 * Always treat the file path absolute.
+		 */
+		Absolute = 3
+	}
+
+	/**
+	 * Controls to which kind of documents problems are applied.
+	 */
+	export enum ApplyToKind {
+		/**
+		 * Problems are applied to all documents.
+		 */
+		AllDocuments = 1,
+
+		/**
+		 * Problems are applied to open documents only.
+		 */
+		OpenDocuments = 2,
+
+
+		/**
+		 * Problems are applied to closed documents only.
+		 */
+		ClosedDocuments = 3
+	}
+
+
+	/**
+	 * A background monitor pattern
+	 */
+	export interface BackgroundPattern {
+		/**
+		 * The actual regular expression
+		 */
+		regexp: RegExp;
+
+		/**
+		 * The match group index of the filename. If provided the expression
+		 * is matched for that file only.
+		 */
+		file?: number;
+	}
+
+	/**
+	 * A description to control the activity of a problem matcher
+	 * watching a background task.
+	 */
+	export interface BackgroundMonitor {
+		/**
+		 * If set to true the monitor is in active mode when the task
+		 * starts. This is equals of issuing a line that matches the
+		 * beginPattern.
+		 */
+		activeOnStart?: boolean;
+
+		/**
+		 * If matched in the output the start of a background activity is signaled.
+		 */
+		beginsPattern: RegExp | BackgroundPattern;
+
+		/**
+		 * If matched in the output the end of a background activity is signaled.
+		 */
+		endsPattern: RegExp | BackgroundPattern;
+	}
+
+	/**
+	 * Defines a problem matcher
+	 */
+	export interface ProblemMatcher {
+		/**
+		 * The owner of a problem. Defaults to a generated id
+		 * if omitted.
+		 */
+		owner?: string;
+
+		/**
+		 * The type of documents problems detected by this matcher
+		 * apply to. Default to `ApplyToKind.AllDocuments` if omitted.
+		 */
+		applyTo?: ApplyToKind;
+
+		/**
+		 * How a file location recognized by a matcher should be interpreted. If omitted the file location
+		 * if `FileLocationKind.Auto`.
+		 */
+		fileLocation?: FileLocationKind | string;
+
+		/**
+		 * The actual pattern used by the problem matcher.
+		 */
+		pattern: ProblemPattern | MultiLineProblemPattern;
+
+		/**
+		 * The default severity of a detected problem in the output. Used
+		 * if the `ProblemPattern` doesn't define a severity match group.
+		 */
+		severity?: DiagnosticSeverity;
+
+		/**
+		 * A background monitor for tasks that are running in the background.
+		 */
+		backgound?: BackgroundMonitor;
+	}
+
+	/**
+	 * Controls the behaviour of the terminal's visibility.
+	 */
+	export enum RevealKind {
+		/**
+		 * Always brings the terminal to front if the task is executed.
+		 */
+		Always = 1,
+
+		/**
+		 * Only brings the terminal to front if a problem is detected executing the task
+		 * (e.g. the task couldn't be started because).
+		 */
+		Silent = 2,
+
+		/**
+		 * The terminal never comes to front when the task is executed.
+		 */
+		Never = 3
+	}
+
+	/**
+	 * Controls terminal specific behaviour.
+	 */
+	export interface TerminalBehaviour {
+		/**
+		 * Controls whether the terminal executing a task is brought to front or not.
+		 * Defaults to `RevealKind.Always`.
+		 */
+		reveal?: RevealKind;
+
+		/**
+		 * Controls whether the command is echoed in the terminal or not.
+		 */
+		echo?: boolean;
+	}
+
+	export interface ProcessOptions {
+		/**
+		 * The current working directory of the executed program or shell.
+		 * If omitted VSCode's current workspace root is used.
+		 */
+		cwd?: string;
+
+		/**
+		 * The additional environment of the executed program or shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env?: { [key: string]: string };
+	}
+
+	export namespace TaskGroup {
+		/**
+		 * The clean task group
+		 */
+		export const Clean: 'clean';
+		/**
+		 * The build task group
+		 */
+		export const Build: 'build';
+		/**
+		 * The rebuild all task group
+		 */
+		export const RebuildAll: 'rebuildAll';
+		/**
+		 * The test task group
+		 */
+		export const Test: 'test';
+	}
+
+	/**
+	 * The supported task groups.
+	 */
+	export type TaskGroup = 'clean' | 'build' | 'rebuildAll' | 'test';
+
+	/**
+	 * The ProblemMatchers type definition.
+	 */
+	export type ProblemMatchers = string | ProblemMatcher | (string | ProblemMatcher)[];
+
+	/**
+	 * A task that starts an external process.
+	 */
+	export class ProcessTask {
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param problemMatchers the problem matchers to use.
+		 */
+		constructor(name: string, process: string, problemMatchers?: ProblemMatchers);
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param args arguments to be passed to the process.
+		 * @param problemMatchers the problem matchers to use.
+		 */
+		constructor(name: string, process: string, args: string[], problemMatchers?: ProblemMatchers);
+
+		/**
+		 * Creates a process task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param process the process to start.
+		 * @param args arguments to be passed to the process.
+		 * @param options additional options for the started process.
+		 * @param problemMatchers the problem matchers to use.
+		 */
+		constructor(name: string, process: string, args: string[], options: ProcessOptions, problemMatchers?: ProblemMatchers);
+
+		/**
+		 * The task's name
+		 */
+		readonly name: string;
+
+		/**
+		 * The task's identifier. If omitted the name is
+		 * used as an identifier.
+		 */
+		identifier: string;
+
+		/**
+		 * Whether the task is a background task or not.
+		 */
+		isBackground: boolean;
+
+		/**
+		 * The process to be executed.
+		 */
+		readonly process: string;
+
+		/**
+		 * The arguments passed to the process. Defaults to an empty array.
+		 */
+		args: string[];
+
+		/**
+		 * The task group this tasks belongs to. Defaults to undefined meaning
+		 * that the task doesn't belong to any special group.
+		 */
+		group?: TaskGroup;
+
+		/**
+		 * The process options used when the process is executed.
+		 * Defaults to an empty object literal.
+		 */
+		options: ProcessOptions;
+
+		/**
+		 * The terminal options. Defaults to an empty object literal.
+		 */
+		terminal: TerminalBehaviour;
+
+		/**
+		 * The problem matchers attached to the task. Defaults to an empty
+		 * array.
+		 */
+		problemMatchers: (string | ProblemMatcher)[];
+	}
+
+	export type ShellOptions = {
+		/**
+		 * The shell executable.
+		 */
+		executable: string;
+
+		/**
+		 * The arguments to be passed to the shell executable used to run the task.
+		 */
+		shellArgs?: string[];
+
+		/**
+		 * The current working directory of the executed shell.
+		 * If omitted VSCode's current workspace root is used.
+		 */
+		cwd?: string;
+
+		/**
+		 * The additional environment of the executed shell. If omitted
+		 * the parent process' environment is used. If provided it is merged with
+		 * the parent process' environment.
+		 */
+		env?: { [key: string]: string };
+	} | {
+			/**
+			 * The current working directory of the executed shell.
+			 * If omitted VSCode's current workspace root is used.
+			 */
+			cwd: string;
+
+			/**
+			 * The additional environment of the executed shell. If omitted
+			 * the parent process' environment is used. If provided it is merged with
+			 * the parent process' environment.
+			 */
+			env?: { [key: string]: string };
+		} | {
+			/**
+			 * The current working directory of the executed shell.
+			 * If omitted VSCode's current workspace root is used.
+			 */
+			cwd?: string;
+
+			/**
+			 * The additional environment of the executed shell. If omitted
+			 * the parent process' environment is used. If provided it is merged with
+			 * the parent process' environment.
+			 */
+			env: { [key: string]: string };
+		};
+
+	/**
+	 * A task that executes a shell command.
+	 */
+	export class ShellTask {
+
+		/**
+		 * Creates a shell task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param commandLine the command line to execute.
+		 * @param problemMatchers the problem matchers to use.
+		 */
+		constructor(name: string, commandLine: string, problemMatchers?: ProblemMatchers);
+
+		/**
+		 * Creates a shell task.
+		 *
+		 * @param name the task's name. Is presented in the user interface.
+		 * @param commandLine the command line to execute.
+		 * @param options additional options used when creating the shell.
+		 * @param problemMatchers the problem matchers to use.
+		 */
+		constructor(name: string, commandLine: string, options: ShellOptions, problemMatchers?: ProblemMatchers);
+
+		/**
+		 * The task's name
+		 */
+		readonly name: string;
+
+		/**
+		 * The task's identifier. If omitted the name is
+		 * used as an identifier.
+		 */
+		identifier: string;
+
+		/**
+		 * Whether the task is a background task or not.
+		 */
+		isBackground: boolean;
+
+		/**
+		 * The command line to execute.
+		 */
+		readonly commandLine: string;
+
+		/**
+		 * The task group this tasks belongs to. Defaults to undefined meaning
+		 * that the task doesn't belong to any special group.
+		 */
+		group?: TaskGroup;
+
+		/**
+		 * The shell options used when the shell is executed. Defaults to an
+		 * empty object literal.
+		 */
+		options: ShellOptions;
+
+		/**
+		 * The terminal options. Defaults to an empty object literal.
+		 */
+		terminal: TerminalBehaviour;
+
+		/**
+		 * The problem matchers attached to the task. Defaults to an empty
+		 * array.
+		 */
+		problemMatchers: (string | ProblemMatcher)[];
+	}
+
+	export type Task = ProcessTask | ShellTask;
+
+	/**
+	 * A task provider allows to add tasks to the task service.
+	 * A task provider is registerd via #workspace.registerTaskProvider.
+	 */
+	export interface TaskProvider {
+		/**
+		 * Provides additional tasks.
+		 * @param token A cancellation token.
+		 * @return a #TaskSet
+		 */
+		provideTasks(token: CancellationToken): ProviderResult<Task[]>;
+	}
+
+	export namespace workspace {
+		/**
+		 * Register a task provider.
+		 *
+		 * @param provider A task provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTaskProvider(provider: TaskProvider): Disposable;
 	}
 
 	/**
@@ -3639,6 +4201,16 @@ declare module 'vscode' {
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
 		export function showTextDocument(document: TextDocument, column?: ViewColumn, preserveFocus?: boolean): Thenable<TextEditor>;
+
+		/**
+		 * Show the given document in a text editor. A [column](#ViewColumn) can be provided
+		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
+		 *
+		 * @param document A text document to be shown.
+		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @return A promise that resolves to an [editor](#TextEditor).
+		 */
+		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
 
 		/**
 		 * Create a TextEditorDecorationType that can be used to add decorations to text editors.
@@ -3857,15 +4429,27 @@ declare module 'vscode' {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * Show progress in the scm viewlet while running the given callback and while its returned
-		 * promise isn't resolve or rejected.
+		 * @deprecated This function **deprecated**. Use `withProgress` instead.
+		 *
+		 * ~~Show progress in the Source Control viewlet while running the given callback and while
+		 * its returned promise isn't resolve or rejected.~~
 		 *
 		 * @param task A callback returning a promise. Progress increments can be reported with
 		 * the provided [progress](#Progress)-object.
-		 * @return The thenable the task did return.
+		 * @return The thenable the task did rseturn.
 		 */
 		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
 
+		/**
+		 * Show progress in the editor. Progress is shown while running the given callback
+		 * and while the promise it returned isn't resolved nor rejected. The location at which
+		 * progress should show (and other details) is defined via the passed [`ProgressOptions`](#ProgressOptions).
+		 *
+		 * @param task A callback returning a promise. Progress state can be reported with
+		 * the provided [progress](#Progress)-object.
+		 * @return The thenable the task-callback returned.
+		 */
+		export function withProgress<R>(options: ProgressOptions, task: (progress: Progress<{ message?: string; }>) => Thenable<R>): Thenable<R>;
 
 		/**
 		 * Creates a status bar [item](#StatusBarItem).
@@ -3898,7 +4482,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Value-object describing what options formatting should use.
+	 * Value-object describing what options a terminal should use.
 	 */
 	export interface TerminalOptions {
 		/**
@@ -3915,6 +4499,41 @@ declare module 'vscode' {
 		 * Args for the custom shell executable, this does not work on Windows (see #8429)
 		 */
 		shellArgs?: string[];
+	}
+
+	/**
+	 * A location in the editor at which progress information can be shown. It depends on the
+	 * location how progress is visually represented.
+	 */
+	export enum ProgressLocation {
+
+		/**
+		 * Show progress for the source control viewlet, as overlay for the icon and as progress bar
+		 * inside the viewlet (when visible).
+		 */
+		SourceControl = 1,
+
+		/**
+		 * Show progress in the status bar of the editor.
+		 */
+		Window = 10
+	}
+
+	/**
+	 * Value-object describing where and how progress should show.
+	 */
+	export interface ProgressOptions {
+
+		/**
+		 * The location at which progress should show.
+		 */
+		location: ProgressLocation;
+
+		/**
+		 * A human-readable string which will be used to describe the
+		 * operation.
+		 */
+		title?: string;
 	}
 
 	/**
@@ -4534,147 +5153,17 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The theme-aware decorations for a [SCM resource](#SCMResource).
+	 * Represents the input box in the Source Control viewlet.
 	 */
-	export interface SCMResourceThemableDecorations {
+	export interface SourceControlInputBox {
 
 		/**
-		 * The icon path for a specific [SCM resource](#SCMResource).
+		 * Setter and getter for the contents of the input box.
 		 */
-		readonly iconPath?: string | Uri;
+		value: string;
 	}
 
-	/**
-	 * The decorations for a [SCM resource](#SCMResource). Can be specified
-	 * for light and dark themes, independently.
-	 */
-	export interface SCMResourceDecorations extends SCMResourceThemableDecorations {
-
-		/**
-		 * Whether the [SCM resource](#SCMResource) should be striked-through
-		 * in the UI.
-		 */
-		readonly strikeThrough?: boolean;
-
-		/**
-		 * The light theme decorations.
-		 */
-		readonly light?: SCMResourceThemableDecorations;
-
-		/**
-		 * The dark theme decorations.
-		 */
-		readonly dark?: SCMResourceThemableDecorations;
-	}
-
-	/**
-	 * An SCM resource represents the state of an underlying workspace
-	 * resource within a certain SCM provider state.
-	 */
-	export interface SCMResource {
-
-		/**
-		 * The [uri](#Uri) of this SCM resource. This uri should uniquely
-		 * identify this SCM resource. Its value should be semantically
-		 * related to your [SCM provider](#SCMProvider).
-		 *
-		 * For example, consider file `/foo/bar` to be modified. An SCM
-		 * resource which would represent such state could have the
-		 * following properties:
-		 *
-		 *   - `uri = 'git:workingtree/A'`
-		 *   - `sourceUri = 'file:///foo/bar'`
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * The [uri](#Uri) of the underlying resource inside the workspace.
-		 */
-		readonly sourceUri: Uri;
-
-		/**
-		 * The [decorations](#SCMResourceDecorations) for this SCM resource.
-		 */
-		readonly decorations?: SCMResourceDecorations;
-	}
-
-	/**
-	 * An SCM resource group is a collection of [SCM resources](#SCMResource).
-	 */
-	export interface SCMResourceGroup {
-
-		/**
-		 * The [uri](#Uri) of this SCM resource group. This uri should
-		 * uniquely identify this SCM resource group. Its value should be
-		 * semantically related to your [SCM provider](#SCMProvider).
-		 *
-		 * For example, consider a Working Tree resource group. An SCM
-		 * resource group which would represent such state could have the
-		 * following properties:
-		 *
-		 *   - `uri = 'git:workingtree'`
-		 *   - `label = 'Working Tree'`
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * The UI label of the SCM resource group.
-		 */
-		readonly label: string;
-
-		/**
-		 * The context key of the SCM resource group, which will be used to populate
-		 * the value of the `scmResourceGroup` context key.
-		 */
-		readonly contextKey?: string;
-
-		/**
-		 * The collection of [SCM resources](#SCMResource) within the SCM resource group.
-		 */
-		readonly resources: SCMResource[];
-	}
-
-	/**
-	 * An SCM provider is able to provide [SCM resources](#SCMResource) to the editor,
-	 * notify of changes in them and interact with the editor in several SCM related ways.
-	 */
-	export interface SCMProvider {
-
-		/**
-		 * A human-readable label for the name of the SCM Provider.
-		 */
-		readonly label: string;
-
-		/**
-		 * The context key of the SCM provider, which will be used to populate
-		 * the value of the `scmProvider` context key.
-		 */
-		readonly contextKey?: string;
-
-		/**
-		 * The list of SCM resource groups.
-		 */
-		readonly resources: SCMResourceGroup[];
-
-		/**
-		 * A count of resources, used in the UI as the label for the SCM changes count.
-		 */
-		readonly count?: number;
-
-		/**
-		 * A state identifier, which will be used to populate the value of the
-		 * `scmProviderState` context key.
-		 */
-		readonly stateContextKey?: string;
-
-		/**
-		 * An [event](#Event) which should fire when any of the following attributes
-		 * have changed:
-		 *   - [resources](#SCMProvider.resources)
-		 *   - [count](#SCMProvider.count)
-		 *   - [state](#SCMProvider.state)
-		 */
-		readonly onDidChange?: Event<SCMProvider>;
+	interface QuickDiffProvider {
 
 		/**
 		 * Provide a [uri](#Uri) to the original resource of any given resource uri.
@@ -4684,58 +5173,187 @@ declare module 'vscode' {
 		 * @return A thenable that resolves to uri of the matching original resource.
 		 */
 		provideOriginalResource?(uri: Uri, token: CancellationToken): ProviderResult<Uri>;
-
-		/**
-		 * Open a specific [SCM resource](#SCMResource). Called when SCM resources
-		 * are clicked in the UI, for example.
-		 *
-		 * @param resource The [SCM resource](#SCMResource) which should be open.
-		 * @param token A cancellation token.
-		 * @return A thenable which resolves when the resource is open.
-		 */
-		open?(resource: SCMResource): void;
 	}
 
 	/**
-	 * Represents the input box in the SCM view.
+	 * The theme-aware decorations for a
+	 * [source control resource state](#SourceControlResourceState).
 	 */
-	export interface SCMInputBox {
+	export interface SourceControlResourceThemableDecorations {
 
 		/**
-		 * Setter and getter for the contents of the input box.
+		 * The icon path for a specific
+		 * [source control resource state](#SourceControlResourceState).
 		 */
-		value: string;
+		readonly iconPath?: string | Uri;
+	}
+
+	/**
+	 * The decorations for a [source control resource state](#SourceControlResourceState).
+	 * Can be independently specified for light and dark themes.
+	 */
+	export interface SourceControlResourceDecorations extends SourceControlResourceThemableDecorations {
+
+		/**
+		 * Whether the [source control resource state](#SourceControlResourceState) should
+		 * be striked-through in the UI.
+		 */
+		readonly strikeThrough?: boolean;
+
+		/**
+		 * Whether the [source control resource state](#SourceControlResourceState) should
+		 * be faded in the UI.
+		 */
+		readonly faded?: boolean;
+
+		/**
+		 * The light theme decorations.
+		 */
+		readonly light?: SourceControlResourceThemableDecorations;
+
+		/**
+		 * The dark theme decorations.
+		 */
+		readonly dark?: SourceControlResourceThemableDecorations;
+	}
+
+	/**
+	 * An source control resource state represents the state of an underlying workspace
+	 * resource within a certain [source control group](#SourceControlResourceGroup).
+	 */
+	export interface SourceControlResourceState {
+
+		/**
+		 * The [uri](#Uri) of the underlying resource inside the workspace.
+		 */
+		readonly resourceUri: Uri;
+
+		/**
+		 * The [command](#Command) which should be run when the resource
+		 * state is open in the Source Control viewlet.
+		 */
+		readonly command?: Command;
+
+		/**
+		 * The [decorations](#SourceControlResourceDecorations) for this source control
+		 * resource state.
+		 */
+		readonly decorations?: SourceControlResourceDecorations;
+	}
+
+	/**
+	 * A source control resource group is a collection of
+	 * [source control resource states](#SourceControlResourceState).
+	 */
+	export interface SourceControlResourceGroup {
+
+		/**
+		 * The id of this source control resource group.
+		 */
+		readonly id: string;
+
+		/**
+		 * The label of this source control resource group.
+		 */
+		label: string;
+
+		/**
+		 * Whether this source control resource group is hidden when it contains
+		 * no [source control resource states](#SourceControlResourceState).
+		 */
+		hideWhenEmpty?: boolean;
+
+		/**
+		 * This group's collection of
+		 * [source control resource states](#SourceControlResourceState).
+		 */
+		resourceStates: SourceControlResourceState[];
+
+		/**
+		 * Dispose this source control resource group.
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * An source control is able to provide [resource states](#SourceControlResourceState)
+	 * to the editor and interact with the editor in several source control related ways.
+	 */
+	export interface SourceControl {
+
+		/**
+		 * The id of this source control.
+		 */
+		readonly id: string;
+
+		/**
+		 * The human-readable label of this source control.
+		 */
+		readonly label: string;
+
+		/**
+		 * The UI-visible count of [resource states](#SourceControlResourceState) of
+		 * this source control.
+		 *
+		 * Equals to the total number of [resource state](#SourceControlResourceState)
+		 * of this source control, if undefined.
+		 */
+		count?: number;
+
+		/**
+		 * An optional [quick diff provider](#QuickDiffProvider).
+		 */
+		quickDiffProvider?: QuickDiffProvider;
+
+		/**
+		 * Optional commit template string.
+		 *
+		 * The Source Control viewlet will populate the Source Control
+		 * input with this value when appropriate.
+		 */
+		commitTemplate?: string;
+
+		/**
+		 * Optional accept input command.
+		 *
+		 * This command will be invoked when the user accepts the value
+		 * in the Source Control input.
+		 */
+		acceptInputCommand?: Command;
+
+		/**
+		 * Optional status bar commands.
+		 *
+		 * These commands will be displayed in the editor's status bar.
+		 */
+		statusBarCommands?: Command[];
+
+		/**
+		 * Create a new [resource group](#SourceControlResourceGroup).
+		 */
+		createResourceGroup(id: string, label: string): SourceControlResourceGroup;
+
+		/**
+		 * Dispose this source control.
+		 */
+		dispose(): void;
 	}
 
 	export namespace scm {
 
 		/**
-		 * The currently active [SCM provider](#SCMProvider).
+		 * The [input box](#SourceControlInputBox) in the Source Control viewlet.
 		 */
-		export let activeProvider: SCMProvider | undefined;
+		export const inputBox: SourceControlInputBox;
 
 		/**
-		 * An [event](#Event) which fires when the active [SCM provider](#SCMProvider)
-		 * has changed.
-		 */
-		export const onDidChangeActiveProvider: Event<SCMProvider>;
-
-		/**
-		 * The [input box](#SCMInputBox) in the SCM view.
-		 */
-		export const inputBox: SCMInputBox;
-
-		/**
-		 * An [event](#Event) which fires when the user has accepted the changes.
-		 */
-		export const onDidAcceptInputValue: Event<SCMInputBox>;
-
-		/**
-		 * Registers an [SCM provider](#SCMProvider).
+		 * Creates a new [source control](#SourceControl) instance.
 		 *
-		 * @return A disposable which unregisters the provider.
+		 * @param id A unique `id` for the source control. Something short, eg: `git`.
+		 * @param label A human-readable string for the source control. Eg: `Git`.
+		 * @return An instance of [source control](#SourceControl).
 		 */
-		export function registerSCMProvider(provider: SCMProvider): Disposable;
+		export function createSourceControl(id: string, label: string): SourceControl;
 	}
 
 	/**

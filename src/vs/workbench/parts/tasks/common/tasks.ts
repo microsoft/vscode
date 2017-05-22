@@ -6,6 +6,7 @@
 
 import * as Types from 'vs/base/common/types';
 
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 
 export interface CommandOptions {
@@ -93,6 +94,33 @@ export namespace ShowOutput {
 	}
 }
 
+export namespace TaskGroup {
+	export const Clean: 'clean' = 'clean';
+
+	export const Build: 'build' = 'build';
+
+	export const RebuildAll: 'rebuildAll' = 'rebuildAll';
+
+	export const Test: 'test' = 'test';
+
+	export function is(value: string): value is TaskGroup {
+		return value === Clean || value === Build || value === RebuildAll || value === Test;
+	}
+}
+
+export type TaskGroup = 'clean' | 'build' | 'rebuildAll' | 'test';
+
+export enum TaskSourceKind {
+	Workspace = 1,
+	Extension = 2,
+	Generic = 3
+}
+
+export interface TaskSource {
+	kind: TaskSourceKind;
+	detail?: string;
+}
+
 /**
  * A task description
  */
@@ -104,6 +132,11 @@ export interface Task {
 	_id: string;
 
 	/**
+	 * Indicated the source of the task (e.g tasks.json or extension)
+	 */
+	_source: TaskSource;
+
+	/**
 	 * The task's name
 	 */
 	name: string;
@@ -112,6 +145,11 @@ export interface Task {
 	 * The task's identifier.
 	 */
 	identifier: string;
+
+	/**
+	 * the task's group;
+	 */
+	group?: TaskGroup;
 
 	/**
 	 * The command configuration
@@ -153,31 +191,16 @@ export interface Task {
 	/**
 	 * The problem watchers to use for this task
 	 */
-	problemMatchers?: ProblemMatcher[];
-}
-
-/**
- * Describes a task set.
- */
-export interface TaskSet {
-	/**
-	 * The inferred build tasks
-	 */
-	buildTasks?: string[];
-
-	/**
-	 * The inferred test tasks;
-	 */
-	testTasks?: string[];
-
-	/**
-	 * The configured tasks
-	 */
-	tasks: Task[];
+	problemMatchers?: (string | ProblemMatcher)[];
 }
 
 export enum ExecutionEngine {
 	Unknown = 0,
 	Terminal = 1,
 	Process = 2
+}
+
+export interface TaskSet {
+	tasks: Task[];
+	extension?: IExtensionDescription;
 }

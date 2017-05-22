@@ -69,7 +69,7 @@ import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutpu
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, TaskSet, ExecutionEngine, ShowOutput } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSet, TaskGroup, ExecutionEngine, ShowOutput, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -138,9 +138,14 @@ abstract class OpenTaskConfigurationAction extends Action {
 							value.stderr.forEach((line) => {
 								outputChannel.append(line + '\n');
 							});
-							this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
-							return selection.content;
-						} else if (config) {
+							if (config && (!config.tasks || config.tasks.length === 0)) {
+								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetect', 'Auto detecting the task system failed. Using default template. Consult the task output for details.'));
+								return selection.content;
+							} else {
+								this.messageService.show(Severity.Warning, nls.localize('ConfigureTaskRunnerAction.autoDetectError', 'Auto detecting the task system produced errors. Consult the task output for details.'));
+							}
+						}
+						if (config) {
 							if (value.stdout && value.stdout.length > 0) {
 								value.stdout.forEach(line => outputChannel.append(line + '\n'));
 							}
@@ -249,44 +254,48 @@ class ViewTerminalAction extends Action {
 	}
 }
 
-class StatusBarItem implements IStatusbarItem {
-
-	private panelService: IPanelService;
-	private markerService: IMarkerService;
-	private taskService: ITaskService;
-	private outputService: IOutputService;
-
+class StatusBarItem extends Themable implements IStatusbarItem {
 	private intervalToken: any;
 	private activeCount: number;
 	private static progressChars: string = '|/-\\';
+	private icons: HTMLElement[];
 
-	constructor( @IPanelService panelService: IPanelService,
-		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
-		@ITaskService taskService: ITaskService,
-		@IPartService private partService: IPartService) {
+	constructor(
+		@IPanelService private panelService: IPanelService,
+		@IMarkerService private markerService: IMarkerService,
+		@IOutputService private outputService: IOutputService,
+		@ITaskService private taskService: ITaskService,
+		@IPartService private partService: IPartService,
+		@IThemeService themeService: IThemeService
+	) {
+		super(themeService);
 
-		this.panelService = panelService;
-		this.markerService = markerService;
-		this.outputService = outputService;
-		this.taskService = taskService;
 		this.activeCount = 0;
+		this.icons = [];
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		this.icons.forEach(icon => {
+			icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
+		});
 	}
 
 	public render(container: HTMLElement): IDisposable {
+		let callOnDispose: IDisposable[] = [];
 
-		let callOnDispose: IDisposable[] = [],
-			element = document.createElement('div'),
-			// icon = document.createElement('a'),
-			progress = document.createElement('div'),
-			label = document.createElement('a'),
-			error = document.createElement('div'),
-			warning = document.createElement('div'),
-			info = document.createElement('div');
+		const element = document.createElement('div');
+		const progress = document.createElement('div');
+		const label = document.createElement('a');
+		const errorIcon = document.createElement('div');
+		const warningIcon = document.createElement('div');
+		const infoIcon = document.createElement('div');
+		const error = document.createElement('div');
+		const warning = document.createElement('div');
+		const info = document.createElement('div');
 
 		Dom.addClass(element, 'task-statusbar-item');
-
-		// dom.addClass(icon, 'task-statusbar-item-icon');
-		// element.appendChild(icon);
 
 		Dom.addClass(progress, 'task-statusbar-item-progress');
 		element.appendChild(progress);
@@ -297,21 +306,30 @@ class StatusBarItem implements IStatusbarItem {
 		element.appendChild(label);
 		element.title = nls.localize('problems', "Problems");
 
-		Dom.addClass(error, 'task-statusbar-item-label-error');
+		Dom.addClass(errorIcon, 'task-statusbar-item-label-error');
+		label.appendChild(errorIcon);
+		this.icons.push(errorIcon);
+
+		Dom.addClass(error, 'task-statusbar-item-label-counter');
 		error.innerHTML = '0';
 		label.appendChild(error);
 
-		Dom.addClass(warning, 'task-statusbar-item-label-warning');
+		Dom.addClass(warningIcon, 'task-statusbar-item-label-warning');
+		label.appendChild(warningIcon);
+		this.icons.push(warningIcon);
+
+		Dom.addClass(warning, 'task-statusbar-item-label-counter');
 		warning.innerHTML = '0';
 		label.appendChild(warning);
 
-		Dom.addClass(info, 'task-statusbar-item-label-info');
+		Dom.addClass(infoIcon, 'task-statusbar-item-label-info');
+		label.appendChild(infoIcon);
+		this.icons.push(infoIcon);
+		$(infoIcon).hide();
+
+		Dom.addClass(info, 'task-statusbar-item-label-counter');
 		label.appendChild(info);
 		$(info).hide();
-
-		//		callOnDispose.push(dom.addListener(icon, 'click', (e:MouseEvent) => {
-		//			this.outputService.showOutput(TaskService.OutputChannel, e.ctrlKey || e.metaKey, true);
-		//		}));
 
 		callOnDispose.push(Dom.addDisposableListener(label, 'click', (e: MouseEvent) => {
 			const panel = this.panelService.getActivePanel();
@@ -322,30 +340,31 @@ class StatusBarItem implements IStatusbarItem {
 			}
 		}));
 
-		let updateStatus = (element: HTMLDivElement, stats: number): boolean => {
+		let updateStatus = (element: HTMLDivElement, icon: HTMLDivElement, stats: number): boolean => {
 			if (stats > 0) {
 				element.innerHTML = stats.toString();
 				$(element).show();
+				$(icon).show();
 				return true;
 			} else {
 				$(element).hide();
+				$(icon).hide();
 				return false;
 			}
 		};
-
 
 		let manyMarkers = nls.localize('manyMarkers', "99+");
 		let updateLabel = (stats: MarkerStatistics) => {
 			error.innerHTML = stats.errors < 100 ? stats.errors.toString() : manyMarkers;
 			warning.innerHTML = stats.warnings < 100 ? stats.warnings.toString() : manyMarkers;
-			updateStatus(info, stats.infos);
+			updateStatus(info, infoIcon, stats.infos);
 		};
 
 		this.markerService.onMarkerChanged((changedResources) => {
 			updateLabel(this.markerService.getStatistics());
 		});
 
-		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Active, () => {
+		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Active, () => {
 			this.activeCount++;
 			if (this.activeCount === 1) {
 				let index = 1;
@@ -362,7 +381,7 @@ class StatusBarItem implements IStatusbarItem {
 			}
 		}));
 
-		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Inactive, (data: TaskServiceEventData) => {
+		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Inactive, (data: TaskServiceEventData) => {
 			// Since the exiting of the sub process is communicated async we can't order inactive and terminate events.
 			// So try to treat them accordingly.
 			if (this.activeCount > 0) {
@@ -377,7 +396,7 @@ class StatusBarItem implements IStatusbarItem {
 			}
 		}));
 
-		callOnDispose.push(this.taskService.addListener2(TaskServiceEvents.Terminated, () => {
+		callOnDispose.push(this.taskService.addListener(TaskServiceEvents.Terminated, () => {
 			if (this.activeCount !== 0) {
 				$(progress).hide();
 				if (this.intervalToken) {
@@ -389,6 +408,8 @@ class StatusBarItem implements IStatusbarItem {
 		}));
 
 		container.appendChild(element);
+
+		this.updateStyles();
 
 		return {
 			dispose: () => {
@@ -467,7 +488,16 @@ class ProblemReporter implements TaskConfig.IProblemReporter {
 }
 
 interface WorkspaceTaskResult {
-	taskSet: TaskSet;
+	set: TaskSet;
+	annotatingTasks: {
+		byIdentifier: IStringDictionary<Task>;
+		byName: IStringDictionary<Task>;
+	};
+	hasErrors: boolean;
+}
+
+interface WorkspaceConfigurationResult {
+	config: TaskConfig.ExternalTaskRunnerConfiguration;
 	hasErrors: boolean;
 }
 
@@ -495,15 +525,14 @@ class TaskService extends EventEmitter implements ITaskService {
 	private quickOpenService: IQuickOpenService;
 
 	private _configHasErrors: boolean;
-	private _workspaceTasksPromise: TPromise<TaskSet>;
+	private _providers: Map<number, ITaskProvider>;
+
+	private _workspaceTasksPromise: TPromise<WorkspaceTaskResult>;
 
 	private _taskSystem: ITaskSystem;
+	private _taskSystemListeners: IDisposable[];
 
-	private taskSystemListeners: IDisposable[];
-	private clearTaskSystemPromise: boolean;
-	private outputChannel: IOutputChannel;
-
-	private providers: Map<number, ITaskProvider>;
+	private _outputChannel: IOutputChannel;
 
 	constructor( @IModeService modeService: IModeService, @IConfigurationService configurationService: IConfigurationService,
 		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
@@ -536,22 +565,24 @@ class TaskService extends EventEmitter implements ITaskService {
 
 		this._configHasErrors = false;
 		this._workspaceTasksPromise = undefined;
-		this.taskSystemListeners = [];
-		this.clearTaskSystemPromise = false;
-		this.outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
-		this.providers = new Map<number, ITaskProvider>();
+		this._taskSystemListeners = [];
+		this._outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
+		this._providers = new Map<number, ITaskProvider>();
 		this.configurationService.onDidUpdateConfiguration(() => {
-			if (!this._taskSystem) {
+			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
 			}
 			this.updateWorkspaceTasks();
+			if (!this._taskSystem) {
+				return;
+			}
 			let currentExecutionEngine = this._taskSystem instanceof TerminalTaskSystem
 				? ExecutionEngine.Terminal
 				: this._taskSystem instanceof ProcessTaskSystem
 					? ExecutionEngine.Process
 					: ExecutionEngine.Unknown;
 			if (currentExecutionEngine !== this.getExecutionEngine()) {
-				this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires to restart VS Code. The change is ignored.'));
+				this.messageService.show(Severity.Info, nls.localize('TaskSystem.noHotSwap', 'Changing the task execution engine requires restarting VS Code. The change is ignored.'));
 			}
 		});
 		lifecycleService.onWillShutdown(event => event.veto(this.beforeShutdown()));
@@ -601,22 +632,22 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private showOutput(): void {
-		this.outputChannel.show(true);
+		this._outputChannel.show(true);
 	}
 
 	private disposeTaskSystemListeners(): void {
-		this.taskSystemListeners = dispose(this.taskSystemListeners);
+		this._taskSystemListeners = dispose(this._taskSystemListeners);
 	}
 
 	public registerTaskProvider(handle: number, provider: ITaskProvider): void {
 		if (!provider) {
 			return;
 		}
-		this.providers.set(handle, provider);
+		this._providers.set(handle, provider);
 	}
 
 	public unregisterTaskProvider(handle: number): boolean {
-		return this.providers.delete(handle);
+		return this._providers.delete(handle);
 	}
 
 	public tasks(): TPromise<Task[]> {
@@ -646,7 +677,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	public build(): TPromise<ITaskSummary> {
 		return this.getTaskSets().then((values) => {
-			let runnable = this.createRunnableTask(values, (set) => set.buildTasks);
+			let runnable = this.createRunnableTask(values, TaskGroup.Build);
 			if (!runnable || !runnable.task) {
 				throw new TaskError(Severity.Info, nls.localize('TaskService.noBuildTask', 'No build task defined. Mark a task with \'isBuildCommand\' in the tasks.json file.'), TaskErrors.NoBuildTask);
 			}
@@ -667,7 +698,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	public runTest(): TPromise<ITaskSummary> {
 		return this.getTaskSets().then((values) => {
-			let runnable = this.createRunnableTask(values, (set) => set.testTasks);
+			let runnable = this.createRunnableTask(values, TaskGroup.Test);
 			if (!runnable || !runnable.task) {
 				throw new TaskError(Severity.Info, nls.localize('TaskService.noTestTask', 'No test task defined. Mark a task with \'isTestCommand\' in the tasks.json file.'), TaskErrors.NoTestTask);
 			}
@@ -701,22 +732,21 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
-	private createRunnableTask(sets: TaskSet[], idFetcher: (set: TaskSet) => string[]): { task: Task; resolver: ITaskResolver } {
+	private createRunnableTask(sets: TaskSet[], group: TaskGroup): { task: Task; resolver: ITaskResolver } {
 		let uuidMap: IStringDictionary<Task> = Object.create(null);
 		let identifierMap: IStringDictionary<Task> = Object.create(null);
 
-		let taskIds: string[] = [];
+		let primaryTasks: Task[] = [];
 		sets.forEach((set) => {
 			set.tasks.forEach((task) => {
 				uuidMap[task._id] = task;
 				identifierMap[task.identifier] = task;
+				if (group && task.group === group) {
+					primaryTasks.push(task);
+				}
 			});
-			let ids: string[] = idFetcher(set);
-			if (ids) {
-				taskIds.push(...ids);
-			}
 		});
-		if (taskIds.length === 0) {
+		if (primaryTasks.length === 0) {
 			return undefined;
 		}
 		let resolver: ITaskResolver = {
@@ -728,15 +758,16 @@ class TaskService extends EventEmitter implements ITaskService {
 				return identifierMap[id];
 			}
 		};
-		if (taskIds.length === 1) {
-			return { task: resolver.resolve(taskIds[0]), resolver };
+		if (primaryTasks.length === 1) {
+			return { task: primaryTasks[0], resolver };
 		} else {
 			let id: string = UUID.generateUuid();
 			let task: Task = {
 				_id: id,
+				_source: { kind: TaskSourceKind.Generic },
 				name: id,
 				identifier: id,
-				dependsOn: taskIds,
+				dependsOn: primaryTasks.map(task => task._id),
 				command: undefined,
 				showOutput: ShowOutput.Never
 			};
@@ -766,17 +797,19 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private executeTask(task: Task, resolver: ITaskResolver): TPromise<ITaskSummary> {
-		return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
-			let executeResult = this.getTaskSystem().run(task, resolver);
-			if (executeResult.kind === TaskExecuteKind.Active) {
-				let active = executeResult.active;
-				if (active.same && active.background) {
-					this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
-				} else {
-					throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+		return ProblemMatcherRegistry.onReady().then(() => {
+			return this.textFileService.saveAll().then((value) => { // make sure all dirty files are saved
+				let executeResult = this.getTaskSystem().run(task, resolver);
+				if (executeResult.kind === TaskExecuteKind.Active) {
+					let active = executeResult.active;
+					if (active.same && active.background) {
+						this.messageService.show(Severity.Info, nls.localize('TaskSystem.activeSame', 'The task is already active and in watch mode. To terminate the task use `F1 > terminate task`'));
+					} else {
+						throw new TaskError(Severity.Warning, nls.localize('TaskSystem.active', 'There is already a task running. Terminate it first before executing another task.'), TaskErrors.RunningTask);
+					}
 				}
-			}
-			return executeResult.promise;
+				return executeResult.promise;
+			});
 		});
 	}
 
@@ -839,8 +872,8 @@ class TaskService extends EventEmitter implements ITaskService {
 			system.hasErrors(this._configHasErrors);
 			this._taskSystem = system;
 		}
-		this.taskSystemListeners.push(this._taskSystem.addListener2(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
-		this.taskSystemListeners.push(this._taskSystem.addListener2(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
+		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Active, (event) => this.emit(TaskServiceEvents.Active, event)));
+		this._taskSystemListeners.push(this._taskSystem.addListener(TaskSystemEvents.Inactive, (event) => this.emit(TaskServiceEvents.Inactive, event)));
 		return this._taskSystem;
 	}
 
@@ -849,7 +882,9 @@ class TaskService extends EventEmitter implements ITaskService {
 			let result: TaskSet[] = [];
 			let counter: number = 0;
 			let done = (value: TaskSet) => {
-				result.push(value);
+				if (value) {
+					result.push(value);
+				}
 				if (--counter === 0) {
 					resolve(result);
 				}
@@ -859,86 +894,154 @@ class TaskService extends EventEmitter implements ITaskService {
 					resolve(result);
 				}
 			};
-			if (this.getExecutionEngine() === ExecutionEngine.Terminal) {
-				this.providers.forEach((provider) => {
+			if (this.getExecutionEngine() === ExecutionEngine.Terminal && this._providers.size > 0) {
+				this._providers.forEach((provider) => {
 					counter++;
 					provider.provideTasks().done(done, error);
 				});
+			} else {
+				resolve(result);
 			}
-			// Do this last since the then of a resolved promise returns immediatelly.
-			counter++;
-			this.getWorkspaceTasks().done(done, error);
+		}).then((result) => {
+			return this.getWorkspaceTasks().then((workspaceTaskResult) => {
+				let workspaceTasksToDelete: Task[] = [];
+				let annotatingTasks = workspaceTaskResult.annotatingTasks;
+				let legacyAnnotatingTasks = workspaceTaskResult.set ? this.getLegacyAnnotatingTasks(workspaceTaskResult.set) : undefined;
+				if (annotatingTasks || legacyAnnotatingTasks) {
+					for (let set of result) {
+						for (let task of set.tasks) {
+							if (annotatingTasks) {
+								let annotatingTask = annotatingTasks.byIdentifier[task.identifier] || annotatingTasks.byName[task.name];
+								if (annotatingTask) {
+									TaskConfig.mergeTasks(task, annotatingTask);
+									task._source.kind = TaskSourceKind.Workspace;
+									continue;
+								}
+							}
+							if (legacyAnnotatingTasks) {
+								let legacyAnnotatingTask = legacyAnnotatingTasks[task.identifier];
+								if (legacyAnnotatingTask) {
+									TaskConfig.mergeTasks(task, legacyAnnotatingTask);
+									task._source.kind = TaskSourceKind.Workspace;
+									workspaceTasksToDelete.push(legacyAnnotatingTask);
+									continue;
+								}
+							}
+						}
+					}
+				}
+				if (workspaceTaskResult.set) {
+					if (workspaceTasksToDelete.length > 0) {
+						let tasks = workspaceTaskResult.set.tasks;
+						let newSet: TaskSet = {
+							extension: workspaceTaskResult.set.extension,
+							tasks: []
+						};
+						let toDelete = workspaceTasksToDelete.reduce<IStringDictionary<boolean>>((map, task) => {
+							map[task._id] = true;
+							return map;
+						}, Object.create(null));
+						newSet.tasks = tasks.filter(task => !toDelete[task._id]);
+						result.push(newSet);
+					} else {
+						result.push(workspaceTaskResult.set);
+					}
+				}
+				return result;
+			}, () => {
+				// If we can't read the tasks.json file provide at least the contributed tasks
+				return result;
+			});
 		});
 	}
 
-	private getWorkspaceTasks(): TPromise<TaskSet> {
+	private getLegacyAnnotatingTasks(workspaceTasks: TaskSet): IStringDictionary<Task> {
+		let result: IStringDictionary<Task>;
+		function getResult() {
+			if (result) {
+				return result;
+			}
+			result = Object.create(null);
+			return result;
+		}
+		for (let task of workspaceTasks.tasks) {
+			let commandName = task.command && task.command.name;
+			// This is for backwards compatibility with the 0.1.0 task annotation code
+			// if we had a gulp, jake or grunt command a task specification was a annotation
+			if (commandName === 'gulp' || commandName === 'grunt' || commandName === 'jake') {
+				getResult()[`${commandName}.${task.name}`] = task;
+			}
+		}
+		return result;
+	}
+
+	private getWorkspaceTasks(): TPromise<WorkspaceTaskResult> {
 		if (this._workspaceTasksPromise) {
 			return this._workspaceTasksPromise;
 		}
-		this._workspaceTasksPromise = this.computeWorkspaceTasks().then(value => {
-			this._configHasErrors = value.hasErrors;
-			if (this._taskSystem instanceof ProcessTaskSystem) {
-				this._taskSystem.hasErrors(this._configHasErrors);
-			}
-			return value.taskSet;
-		});
+		this.updateWorkspaceTasks();
 		return this._workspaceTasksPromise;
 	}
 
 	private updateWorkspaceTasks(): void {
 		this._workspaceTasksPromise = this.computeWorkspaceTasks().then(value => {
 			this._configHasErrors = value.hasErrors;
-			return value.taskSet;
+			if (this._taskSystem instanceof ProcessTaskSystem) {
+				this._taskSystem.hasErrors(this._configHasErrors);
+			}
+			return value;
 		});
 	}
 
 	private computeWorkspaceTasks(): TPromise<WorkspaceTaskResult> {
-		let { config, hasParseErrors } = this.getConfiguration();
-		if (hasParseErrors) {
-			return TPromise.as({ taskSet: undefined, hasErrors: true });
-		}
-		let configPromise: TPromise<{ config: TaskConfig.ExternalTaskRunnerConfiguration; hasErrors: boolean }>;
-		if (config) {
-			let engine = TaskConfig.ExecutionEngine.from(config);
-			if (engine === ExecutionEngine.Process && this.hasDetectorSupport(config)) {
-				configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value) => {
-					let hasErrors = this.printStderr(value.stderr);
-					let detectedConfig = value.config;
-					if (!detectedConfig) {
-						return config;
-					}
-					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
-					let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
-					if (!result.tasks) {
-						if (detectedConfig.tasks) {
-							result.tasks = detectedConfig.tasks;
-						}
-					} else {
-						result.tasks.forEach(task => configuredTasks[task.taskName] = task);
-						detectedConfig.tasks.forEach((task) => {
-							if (!configuredTasks[task.taskName]) {
-								result.tasks.push(task);
-							}
-						});
-					}
-					return { config: result, hasErrors };
-				});
-			} else {
-				configPromise = TPromise.as({ config, hasErrors: false });
+		let configPromise: TPromise<WorkspaceConfigurationResult>;
+		{
+			let { config, hasParseErrors } = this.getConfiguration();
+			if (hasParseErrors) {
+				return TPromise.as({ set: undefined, hasErrors: true });
 			}
-		} else {
-			configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
-				let hasErrors = this.printStderr(value.stderr);
-				return { config: value.config, hasErrors };
-			});
-		}
-		return configPromise.then((value) => {
-			return ProblemMatcherRegistry.onReady().then(() => {
-				if (!value || !value.config) {
-					return { taskSet: undefined, hasErrors: value !== void 0 ? value.hasErrors : false };
+			if (config) {
+				let engine = TaskConfig.ExecutionEngine.from(config);
+				if (engine === ExecutionEngine.Process && this.hasDetectorSupport(config)) {
+					configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService, config).detect(true).then((value): WorkspaceConfigurationResult => {
+						let hasErrors = this.printStderr(value.stderr);
+						let detectedConfig = value.config;
+						if (!detectedConfig) {
+							return { config, hasErrors };
+						}
+						let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
+						let configuredTasks: IStringDictionary<TaskConfig.TaskDescription> = Object.create(null);
+						if (!result.tasks) {
+							if (detectedConfig.tasks) {
+								result.tasks = detectedConfig.tasks;
+							}
+						} else {
+							result.tasks.forEach(task => configuredTasks[task.taskName] = task);
+							detectedConfig.tasks.forEach((task) => {
+								if (!configuredTasks[task.taskName]) {
+									result.tasks.push(task);
+								}
+							});
+						}
+						return { config: result, hasErrors };
+					});
+				} else {
+					configPromise = TPromise.as({ config, hasErrors: false });
 				}
-				let problemReporter = new ProblemReporter(this.outputChannel);
-				let parseResult = TaskConfig.parse(config, problemReporter);
+			} else {
+				configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
+					let hasErrors = this.printStderr(value.stderr);
+					return { config: value.config, hasErrors };
+				});
+			}
+		}
+		return configPromise.then((resolved) => {
+			return ProblemMatcherRegistry.onReady().then((): WorkspaceTaskResult => {
+				if (!resolved || !resolved.config) {
+					return { set: undefined, annotatingTasks: undefined, hasErrors: resolved !== void 0 ? resolved.hasErrors : false };
+				}
+				let problemReporter = new ProblemReporter(this._outputChannel);
+				let parseResult = TaskConfig.parse(resolved.config, problemReporter);
 				let hasErrors = false;
 				if (!parseResult.validationStatus.isOK()) {
 					hasErrors = true;
@@ -946,9 +1049,22 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 				if (problemReporter.status.isFatal()) {
 					problemReporter.fatal(nls.localize('TaskSystem.configurationErrors', 'Error: the provided task configuration has validation errors and can\'t not be used. Please correct the errors first.'));
-					return { taskSet: undefined, hasErrors };
+					return { set: undefined, annotatingTasks: undefined, hasErrors };
 				}
-				return { taskSet: parseResult.taskSet, hasErrors };
+				let annotatingTasks: { byIdentifier: IStringDictionary<Task>; byName: IStringDictionary<Task>; };
+				if (parseResult.annotatingTasks && parseResult.annotatingTasks.length > 0) {
+					annotatingTasks = {
+						byIdentifier: Object.create(null),
+						byName: Object.create(null)
+					};
+					for (let task of parseResult.annotatingTasks) {
+						annotatingTasks.byIdentifier[task.identifier] = task;
+						if (task.name) {
+							annotatingTasks.byName[task.name] = task;
+						}
+					}
+				}
+				return { set: { tasks: parseResult.tasks }, annotatingTasks: annotatingTasks, hasErrors };
 			});
 		});
 	}
@@ -964,7 +1080,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private getConfiguration(): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
 		let result = this.configurationService.getConfiguration<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
 		if (!result) {
-			return undefined;
+			return { config: undefined, hasParseErrors: false };
 		}
 		let parseErrors: string[] = (result as any).$parseErrors;
 		if (parseErrors) {
@@ -976,7 +1092,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				}
 			}
 			if (isAffected) {
-				this.outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
+				this._outputChannel.append(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
 				this.showOutput();
 				return { config: undefined, hasParseErrors: true };
 			}
@@ -989,9 +1105,9 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (stderr && stderr.length > 0) {
 			stderr.forEach((line) => {
 				result = true;
-				this.outputChannel.append(line + '\n');
+				this._outputChannel.append(line + '\n');
 			});
-			this.outputChannel.show(true);
+			this._outputChannel.show(true);
 		}
 		return result;
 	}
@@ -1084,7 +1200,7 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this.outputChannel.show(true);
+			this._outputChannel.show(true);
 		}
 	}
 
@@ -1254,6 +1370,8 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from './jsonSchema_v1';
 import schemaVersion2 from './jsonSchema_v2';
+import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,

@@ -135,7 +135,13 @@ export class UpdateService implements IUpdateService {
 
 	checkForUpdates(explicit = false): TPromise<IUpdate> {
 		return this.throttler.queue(() => this._checkForUpdates(explicit))
-			.then(null, err => this._onError.fire(err));
+			.then(null, err => {
+				if (explicit) {
+					this._onError.fire(err);
+				}
+
+				return null;
+			});
 	}
 
 	private _checkForUpdates(explicit: boolean): TPromise<IUpdate> {
@@ -171,6 +177,7 @@ export class UpdateService implements IUpdateService {
 				this._availableUpdate = data;
 				this._onUpdateAvailable.fire({ url: update.url, version: update.version });
 				this.state = State.UpdateAvailable;
+				this.telemetryService.publicLog('update:available', { explicit, version: update.version, currentVersion: product.commit });
 
 			} else {
 				const data: IUpdate = {
@@ -188,7 +195,7 @@ export class UpdateService implements IUpdateService {
 			return update;
 		}, err => {
 			this.state = State.Idle;
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<IUpdate>(err);
 		});
 
 		return always(result, () => dispose(listeners));

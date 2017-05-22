@@ -5,17 +5,17 @@
 
 'use strict';
 
-import { ExtensionContext, workspace, window, Disposable, commands, Uri, scm } from 'vscode';
-import { findGit, Git } from './git';
+import { ExtensionContext, workspace, window, Disposable, commands, Uri } from 'vscode';
+import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { GitSCMProvider } from './scmProvider';
 import { CommandCenter } from './commands';
-import { CheckoutStatusBar, SyncStatusBar } from './statusbar';
+import { StatusBarCommands } from './statusbar';
 import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
 import { MergeDecorator } from './merge';
 import { Askpass } from './askpass';
-import { filterEvent } from './util';
+import { toDisposable } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 
@@ -48,13 +48,15 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	const model = new Model(git, workspaceRootPath);
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
-	git.onOutput(str => outputChannel.append(str), null, disposables);
+
+	const onOutput = str => outputChannel.append(str);
+	git.onOutput.addListener('log', onOutput);
+	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
 	const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
-	const provider = new GitSCMProvider(model, commandCenter);
+	const statusBarCommands = new StatusBarCommands(model);
+	const provider = new GitSCMProvider(model, commandCenter, statusBarCommands);
 	const contentProvider = new GitContentProvider(model);
-	const checkoutStatusBar = new CheckoutStatusBar(model);
-	const syncStatusBar = new SyncStatusBar(model);
 	const autoFetcher = new AutoFetcher(model);
 	const mergeDecorator = new MergeDecorator(model);
 
@@ -62,28 +64,12 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 		commandCenter,
 		provider,
 		contentProvider,
-		checkoutStatusBar,
-		syncStatusBar,
 		autoFetcher,
 		mergeDecorator,
 		model
 	);
 
-	if (/^[01]/.test(info.version)) {
-		const update = localize('updateGit', "Update Git");
-		const choice = await window.showWarningMessage(localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version), update);
-
-		if (choice === update) {
-			commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
-		}
-	}
-
-	filterEvent(scm.onDidAcceptInputValue, () => scm.activeProvider === provider)
-		(commandCenter.commitWithInput, commandCenter, disposables);
-
-	if (scm.activeProvider === provider) {
-		scm.inputBox.value = await model.getCommitTemplate();
-	}
+	await checkGitVersion(info);
 }
 
 export function activate(context: ExtensionContext): any {
@@ -92,4 +78,32 @@ export function activate(context: ExtensionContext): any {
 
 	init(context, disposables)
 		.catch(err => console.error(err));
+}
+
+async function checkGitVersion(info: IGit): Promise<void> {
+	const config = workspace.getConfiguration('git');
+	const shouldIgnore = config.get<boolean>('ignoreLegacyWarning') === true;
+
+	if (shouldIgnore) {
+		return;
+	}
+
+	if (!/^[01]/.test(info.version)) {
+		return;
+	}
+
+	const update = localize('updateGit', "Update Git");
+	const neverShowAgain = localize('neverShowAgain', "Don't show again");
+
+	const choice = await window.showWarningMessage(
+		localize('git20', "You seem to have git {0} installed. Code works best with git >= 2", info.version),
+		update,
+		neverShowAgain
+	);
+
+	if (choice === update) {
+		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+	} else if (choice === neverShowAgain) {
+		await config.update('ignoreLegacyWarning', true, true);
+	}
 }

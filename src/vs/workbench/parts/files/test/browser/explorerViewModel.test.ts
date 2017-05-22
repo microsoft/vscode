@@ -206,16 +206,14 @@ suite('Files - View Model', () => {
 		assert(validateFileName(s, '  ') !== null);
 		assert(validateFileName(s, 'Read Me') === null, 'name containing space');
 		assert(validateFileName(s, 'foo/bar') !== null);
+		assert(validateFileName(s, 'foo\\bar') !== null);
 		if (isWindows) {
-			assert(validateFileName(s, 'foo\\bar') !== null);
 			assert(validateFileName(s, 'foo:bar') !== null);
 			assert(validateFileName(s, 'foo*bar') !== null);
 			assert(validateFileName(s, 'foo?bar') !== null);
 			assert(validateFileName(s, 'foo<bar') !== null);
 			assert(validateFileName(s, 'foo>bar') !== null);
 			assert(validateFileName(s, 'foo|bar') !== null);
-		} else {
-			assert(validateFileName(s, 'foo\\bar') === null);
 		}
 		assert(validateFileName(s, 'alles.klar') !== null);
 

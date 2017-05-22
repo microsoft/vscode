@@ -29,6 +29,8 @@ import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { TerminalLinkHandler } from 'vs/workbench/parts/terminal/electron-browser/terminalLinkHandler';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
+import { registerThemingParticipant, ITheme, ICssStyleCollector } from "vs/platform/theme/common/themeService";
+import { scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from "vs/platform/theme/common/colorRegistry";
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -43,7 +45,7 @@ class StandardTerminalProcessFactory implements ITerminalProcessFactory {
 }
 
 export class TerminalInstance implements ITerminalInstance {
-	private static readonly EOL_REGEX = /\r?\n/g;
+	private static readonly WINDOWS_EOL_REGEX = /\r?\n/g;
 
 	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _lastKnownDimensions: Dimension = null;
@@ -153,10 +155,6 @@ export class TerminalInstance implements ITerminalInstance {
 		const font = this._configHelper.getFont();
 		this._cols = Math.floor(dimension.width / font.charWidth);
 		this._rows = Math.floor(dimension.height / font.charHeight);
-		// Caps cols at 159 on Windows due to #19665 (hopefully temporary)
-		if (platform.isWindows && this._cols >= 160) {
-			this._cols = 159;
-		}
 		return dimension.width;
 	}
 
@@ -324,10 +322,13 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public clearSelection(): void {
-		document.getSelection().empty();
+		window.getSelection().empty();
 	}
 
 	public dispose(): void {
+		if (this._linkHandler) {
+			this._linkHandler.dispose();
+		}
 		if (this._xterm && this._xterm.element) {
 			this._hadFocusOnExit = DOM.hasClass(this._xterm.element, 'focus');
 		}
@@ -369,8 +370,9 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {
-		if (addNewLine && text.substr(text.length - os.EOL.length) !== os.EOL) {
-			text += os.EOL;
+		text = this._sanitizeInput(text);
+		if (addNewLine && text.substr(text.length - 1) !== '\r') {
+			text += '\r';
 		}
 		this._process.send({
 			event: 'input',
@@ -427,7 +429,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _sanitizeInput(data: any) {
-		return typeof data === 'string' ? data.replace(TerminalInstance.EOL_REGEX, os.EOL) : data;
+		return typeof data === 'string' ? data.replace(TerminalInstance.WINDOWS_EOL_REGEX, '\r') : data;
 	}
 
 	protected _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
@@ -494,9 +496,6 @@ export class TerminalInstance implements ITerminalInstance {
 		if (message.type === 'data') {
 			if (this._widgetManager) {
 				this._widgetManager.closeMessage();
-			}
-			if (this._linkHandler) {
-				this._linkHandler.disposeTooltipListeners();
 			}
 			if (this._xterm) {
 				this._xterm.write(message.content);
@@ -749,3 +748,26 @@ export class TerminalInstance implements ITerminalInstance {
 		this._terminalProcessFactory = factory;
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Scrollbar
+	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
+	if (scrollbarSliderBackgroundColor) {
+		collector.addRule(`
+			.monaco-workbench .panel.integrated-terminal .xterm.focus .xterm-viewport,
+			.monaco-workbench .panel.integrated-terminal .xterm:focus .xterm-viewport,
+			.monaco-workbench .panel.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor}; }`
+		);
+	}
+
+	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
+	if (scrollbarSliderHoverBackgroundColor) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: ${scrollbarSliderHoverBackgroundColor}; }`);
+	}
+
+	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
+	if (scrollbarSliderActiveBackgroundColor) {
+		collector.addRule(`.monaco-workbench .panel.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }`);
+	}
+});

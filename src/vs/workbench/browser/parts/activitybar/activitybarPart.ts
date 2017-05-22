@@ -29,10 +29,9 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
-import SCMPreview from 'vs/workbench/parts/scm/browser/scmPreview';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { highContrastBorder, highContrastOutline, focus } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER } from 'vs/workbench/common/theme';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 interface IViewletActivity {
 	badge: IBadge;
@@ -81,22 +80,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const pinnedViewlets = this.memento[ActivitybarPart.PINNED_VIEWLETS] as string[];
 
 		if (pinnedViewlets) {
-			// TODO@Ben: Migrate git => scm viewlet
-
-			const map = SCMPreview.enabled
-				? (id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
-				: (id => id === 'workbench.view.scm' ? 'workbench.view.git' : id);
-
 			this.pinnedViewlets = pinnedViewlets
-				.map(map)
+				// TODO@Ben: Migrate git => scm viewlet
+				.map(id => id === 'workbench.view.git' ? 'workbench.view.scm' : id)
 				.filter(arrays.uniqueFilter<string>(str => str));
 
 		} else {
 			this.pinnedViewlets = this.viewletService.getViewlets().map(v => v.id);
 		}
-
-		// Update viewlet switcher when external viewlets become ready
-		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
 
 		this.registerListeners();
 	}
@@ -219,17 +210,18 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Part container
 		const container = this.getContainer();
-		container.style('background-color', this.getColor(ACTIVITY_BAR_BACKGROUND));
+		const background = this.getColor(ACTIVITY_BAR_BACKGROUND);
+		container.style('background-color', background);
 
-		const useBorder = this.isHighContrastTheme;
+		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style('box-sizing', useBorder && isPositionLeft ? 'border-box' : null);
-		container.style('border-right-width', useBorder && isPositionLeft ? '1px' : null);
-		container.style('border-right-style', useBorder && isPositionLeft ? 'solid' : null);
-		container.style('border-right-color', useBorder && isPositionLeft ? this.getColor(highContrastBorder) : null);
-		container.style('border-left-width', useBorder && !isPositionLeft ? '1px' : null);
-		container.style('border-left-style', useBorder && !isPositionLeft ? 'solid' : null);
-		container.style('border-left-color', useBorder && !isPositionLeft ? this.getColor(highContrastBorder) : null);
+		container.style('box-sizing', borderColor && isPositionLeft ? 'border-box' : null);
+		container.style('border-right-width', borderColor && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', borderColor && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', isPositionLeft ? borderColor : null);
+		container.style('border-left-width', borderColor && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', borderColor && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', !isPositionLeft ? borderColor : null);
 	}
 
 	private showContextMenu(e: MouseEvent): void {
@@ -255,6 +247,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		});
 
 		this.updateViewletSwitcher();
+
+		// Update viewlet switcher when external viewlets become ready
+		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
 	}
 
 	private updateViewletSwitcher() {
@@ -512,68 +507,3 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		super.shutdown();
 	}
 }
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-
-	// High Contrast Styling
-	if (theme.type === 'hc') {
-		const outline = theme.getColor(highContrastOutline);
-
-		collector.addRule(`
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label:before {
-				content: "";
-				position: absolute;
-				top: 9px;
-				left: 9px;
-				height: 32px;
-				width: 32px;
-				opacity: 0.6;
-			}
-
-			.monaco-workbench > .activitybar > .content .monaco-action-bar.global .action-item .action-label.active:before {
-				border: none;
-			}
-
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:hover:before {
-				outline: 1px solid;
-			}
-
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:hover:before {
-				outline: 1px dashed;
-			}
-
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.active,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label:before {
-				opacity: 1;
-			}
-
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
-				border-left-color: ${outline};
-			}
-
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active:hover:before,
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:hover:before {
-				outline-color: ${outline};
-			}
-		`);
-	}
-
-	// Non High Contrast Themes
-	else {
-		const focusBorder = theme.getColor(focus);
-
-		collector.addRule(`
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
-				opacity: 0.6;
-			}
-
-			.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
-				border-left-color: ${focusBorder};
-			}
-		`);
-	}
-});

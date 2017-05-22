@@ -183,7 +183,7 @@
 			"name": "string.regexp.coffee"
 		},
 		{
-			"match": "\\b(?<![\\.\\$])(break|by|catch|continue|else|finally|for|in|of|if|return|switch|then|throw|try|unless|when|while|until|loop|do|(?<=for)\\s+own)(?!\\s*:)\\b",
+			"match": "\\b(?<![\\.\\$])(break|by|catch|continue|else|finally|for|in|of|if|return|switch|then|throw|try|unless|when|while|until|loop|do|export|import|default|from|as|yield|async|await|(?<=for)\\s+own)(?!\\s*:)\\b",
 			"name": "keyword.control.coffee"
 		},
 		{
@@ -191,7 +191,7 @@
 			"name": "keyword.operator.coffee"
 		},
 		{
-			"match": "\\b(?<![\\.\\$])(case|default|function|var|void|with|const|let|enum|export|import|native|__hasProp|__extends|__slice|__bind|__indexOf|implements|interface|package|private|protected|public|static|yield)(?!\\s*:)\\b",
+			"match": "\\b(?<![\\.\\$])(case|function|var|void|with|const|let|enum|native|__hasProp|__extends|__slice|__bind|__indexOf|implements|interface|package|private|protected|public|static)(?!\\s*:)\\b",
 			"name": "keyword.reserved.coffee"
 		},
 		{
@@ -687,5 +687,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-coffee-script/commit/966587ed53c26944cbee0666a6d6fafd68d19b97"
+	"version": "https://github.com/atom/language-coffee-script/commit/49c117b24096a369f92dfce180b61bd1f0425a29"
 }

@@ -12,7 +12,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, IViewZone, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,8 +23,11 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Position } from 'vs/editor/common/core/position';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from "vs/platform/theme/common/colorRegistry";
 
 export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 
@@ -39,7 +42,7 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	private _onToggled = this._register(new Emitter<boolean>());
 	public onToggled: Event<boolean> = this._onToggled.event;
 
-	private previousPosition: editorCommon.IPosition;
+	private previousPosition: Position;
 
 	constructor(private editor: ICodeEditor, public settingsGroup: ISettingsGroup) {
 		super();
@@ -153,13 +156,13 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		}
 	}
 
-	private onCursorChange(e: editorCommon.ICursorPositionChangedEvent): void {
+	private onCursorChange(e: ICursorPositionChangedEvent): void {
 		if (e.source !== 'mouse' && this.focusTitle(e.position)) {
 			this.titleContainer.focus();
 		}
 	}
 
-	private focusTitle(currentPosition: editorCommon.IPosition): boolean {
+	private focusTitle(currentPosition: Position): boolean {
 		const previousPosition = this.previousPosition;
 		this.previousPosition = currentPosition;
 		if (!previousPosition) {
@@ -241,10 +244,10 @@ export class SearchWidget extends Widget {
 	private inputBox: InputBox;
 
 	private _onDidChange = this._register(new Emitter<string>());
-	public onDidChange: Event<string> = this._onDidChange.event;
+	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
 	private _onNavigate = this._register(new Emitter<boolean>());
-	public onNavigate: Event<boolean> = this._onNavigate.event;
+	public readonly onNavigate: Event<boolean> = this._onNavigate.event;
 
 	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -260,6 +263,18 @@ export class SearchWidget extends Widget {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 		this.countElement = DOM.append(this.domNode, DOM.$('.settings-count-widget'));
+		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+
+			this.countElement.style.backgroundColor = background;
+
+			this.countElement.style.borderWidth = border ? '1px' : null;
+			this.countElement.style.borderStyle = border ? 'solid' : null;
+			this.countElement.style.borderColor = border;
+
+			this.styleCountElementForeground();
+		}));
 		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
 	}
 
@@ -283,6 +298,13 @@ export class SearchWidget extends Widget {
 		this.inputBox.inputElement.setAttribute('aria-label', message);
 		DOM.toggleClass(this.countElement, 'no-results', count === 0);
 		this.inputBox.inputElement.style.paddingRight = DOM.getTotalWidth(this.countElement) + 20 + 'px';
+		this.styleCountElementForeground();
+	}
+
+	private styleCountElementForeground() {
+		const colorId = DOM.hasClass(this.countElement, 'no-results') ? errorForeground : badgeForeground;
+		const color = this.themeService.getTheme().getColor(colorId);
+		this.countElement.style.color = color ? color.toString() : null;
 	}
 
 	public layout(dimension: Dimension) {
@@ -297,17 +319,25 @@ export class SearchWidget extends Widget {
 
 	public focus() {
 		this.inputBox.focus();
-		if (this.value) {
+		if (this.getValue()) {
 			this.inputBox.select();
 		}
+	}
+
+	public hasFocus(): boolean {
+		return this.inputBox.hasFocus();
 	}
 
 	public clear() {
 		this.inputBox.value = '';
 	}
 
-	public value(): string {
+	public getValue(): string {
 		return this.inputBox.value;
+	}
+
+	public setValue(value: string): string {
+		return this.inputBox.value = value;
 	}
 
 	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
@@ -350,10 +380,15 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	private _onClick: Emitter<void> = this._register(new Emitter<void>());
 	public onClick: Event<void> = this._onClick.event;
 
-	constructor(private editor: ICodeEditor, private label: string, private keyBindingAction: string,
-		@IKeybindingService keybindingService: IKeybindingService
+	constructor(
+		private editor: ICodeEditor,
+		private label: string,
+		private keyBindingAction: string,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super();
+
 		if (keyBindingAction) {
 			let keybinding = keybindingService.lookupKeybinding(keyBindingAction);
 			if (keybinding) {
@@ -364,6 +399,11 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	public render() {
 		this._domNode = DOM.$('.floating-click-widget');
+		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground }, colors => {
+			this._domNode.style.backgroundColor = colors.buttonBackground;
+			this._domNode.style.color = colors.buttonForeground;
+		}));
+
 		DOM.append(this._domNode, DOM.$('')).textContent = this.label;
 		this.onclick(this._domNode, e => this._onClick.fire());
 		this.editor.addOverlayWidget(this);
@@ -406,7 +446,7 @@ export class EditPreferenceWidget<T> extends Disposable {
 		super();
 		this._editPreferenceDecoration = [];
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
-			if (e.target.type !== editorCommon.MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.isVisible()) {
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.isVisible()) {
 				return;
 			}
 			this._onClick.fire(e);

@@ -286,12 +286,6 @@ function mergeProperty<T, K extends keyof T>(target: T, source: T, key: K) {
 	}
 }
 
-function fillProperty<T, K extends keyof T>(target: T, source: T, key: K) {
-	if (target[key] === void 0 && source[key] !== void 0) {
-		target[key] = source[key];
-	}
-}
-
 interface ParseContext {
 	problemReporter: IProblemReporter;
 	namedProblemMatchers: IStringDictionary<NamedProblemMatcher>;
@@ -637,25 +631,26 @@ namespace ProblemMatcherConverter {
 	}
 }
 
+interface TaskParseResult {
+	tasks: Tasks.Task[] | undefined;
+	annotatingTasks: Tasks.Task[] | undefined;
+}
+
 namespace TaskDescription {
 
-	export interface TaskConfiguration {
-		tasks: Tasks.Task[];
-		buildTask?: string;
-		testTask?: string;
-	}
+	export let source: Tasks.TaskSource = {
+		kind: Tasks.TaskSourceKind.Workspace,
+		detail: '.settins\tasks.json'
+	};
 
-	export function isEmpty(value: TaskConfiguration): boolean {
-		return !value || !value.tasks || Object.keys(value.tasks).length === 0;
-	}
-
-	export function from(this: void, tasks: TaskDescription[], globals: Globals, context: ParseContext): TaskConfiguration {
+	export function from(this: void, tasks: TaskDescription[], globals: Globals, context: ParseContext): TaskParseResult {
 		if (!tasks) {
 			return undefined;
 		}
 		let parsedTasks: Tasks.Task[] = [];
-		let defaultBuildTask: { id: string; exact: number; } = { id: null, exact: -1 };
-		let defaultTestTask: { id: string; exact: number; } = { id: null, exact: -1 };
+		let annotatingTasks: Tasks.Task[] = [];
+		let defaultBuildTask: { task: Tasks.Task; rank: number; } = { task: null, rank: -1 };
+		let defaultTestTask: { task: Tasks.Task; rank: number; } = { task: null, rank: -1 };
 		tasks.forEach((externalTask) => {
 			let taskName = externalTask.taskName;
 			if (!taskName) {
@@ -669,6 +664,7 @@ namespace TaskDescription {
 			let identifer = Types.isString(externalTask.identifier) ? externalTask.identifier : taskName;
 			let task: Tasks.Task = {
 				_id: UUID.generateUuid(),
+				_source: source,
 				name: taskName,
 				identifier: identifer,
 				command,
@@ -707,6 +703,10 @@ namespace TaskDescription {
 				task.problemMatchers = problemMatchers;
 			}
 			mergeGlobals(task, globals);
+			if (context.isTermnial && isAnnotating(task)) {
+				annotatingTasks.push(task);
+				return;
+			}
 			fillDefaults(task);
 			let addTask: boolean = true;
 			if (context.isTermnial && task.command && task.command.name && task.command.isShellCommand && task.command.args && task.command.args.length > 0) {
@@ -733,68 +733,57 @@ namespace TaskDescription {
 			}
 			if (addTask) {
 				parsedTasks.push(task);
-				if (!Types.isUndefined(externalTask.isBuildCommand) && externalTask.isBuildCommand && defaultBuildTask.exact < 2) {
-					defaultBuildTask.id = task._id;
-					defaultBuildTask.exact = 2;
-				} else if (taskName === 'build' && defaultBuildTask.exact < 2) {
-					defaultBuildTask.id = task._id;
-					defaultBuildTask.exact = 1;
+				if (!Types.isUndefined(externalTask.isBuildCommand) && externalTask.isBuildCommand && defaultBuildTask.rank < 2) {
+					defaultBuildTask.task = task;
+					defaultBuildTask.rank = 2;
+				} else if (taskName === 'build' && defaultBuildTask.rank < 2) {
+					defaultBuildTask.task = task;
+					defaultBuildTask.rank = 1;
 				}
-				if (!Types.isUndefined(externalTask.isTestCommand) && externalTask.isTestCommand && defaultTestTask.exact < 2) {
-					defaultTestTask.id = task._id;
-					defaultTestTask.exact = 2;
-				} else if (taskName === 'test' && defaultTestTask.exact < 2) {
-					defaultTestTask.id = task._id;
-					defaultTestTask.exact = 1;
+				if (!Types.isUndefined(externalTask.isTestCommand) && externalTask.isTestCommand && defaultTestTask.rank < 2) {
+					defaultTestTask.task = task;
+					defaultTestTask.rank = 2;
+				} else if (taskName === 'test' && defaultTestTask.rank < 2) {
+					defaultTestTask.task = task;
+					defaultTestTask.rank = 1;
 				}
 			}
 		});
-		let buildTask: string;
-		if (defaultBuildTask.exact > 0) {
-			buildTask = defaultBuildTask.id;
+		if (defaultBuildTask.task) {
+			defaultBuildTask.task.group = Tasks.TaskGroup.Build;
 		}
-		let testTask: string;
-		if (defaultTestTask.exact > 0) {
-			testTask = defaultTestTask.id;
+		if (defaultTestTask.task) {
+			defaultTestTask.task.group = Tasks.TaskGroup.Test;
 		}
-		let result = { tasks: parsedTasks, buildTask, testTask };
-		return isEmpty(result) ? undefined : result;
+		return parsedTasks.length === 0 && annotatingTasks.length === 0 ? undefined : { tasks: parsedTasks, annotatingTasks: annotatingTasks };
 	}
 
-	export function merge(target: TaskConfiguration, source: TaskConfiguration): TaskConfiguration {
-		if (isEmpty(source)) {
+	export function mergeTasks(target: Tasks.Task[], source: Tasks.Task[]): Tasks.Task[] {
+		if (source === void 0 || source.length === 0) {
 			return target;
 		}
-		if (isEmpty(target)) {
+		if (target === void 0 || target.length === 0) {
 			return source;
 		}
 
-		if (source.tasks) {
+		if (source) {
 			// Tasks are keyed by ID but we need to merge by name
-			let targetNames: IStringDictionary<string> = Object.create(null);
-			Object.keys(target.tasks).forEach(key => {
-				let task = target.tasks[key];
-				targetNames[task.name] = task.id;
+			let map: IStringDictionary<Tasks.Task> = Object.create(null);
+			target.forEach((task) => {
+				map[task.name] = task;
 			});
 
-			let sourceNames: IStringDictionary<string> = Object.create(null);
-			Object.keys(source.tasks).forEach(key => {
-				let task = source.tasks[key];
-				sourceNames[task.name] = task.id;
+			source.forEach((task) => {
+				map[task.name] = task;
 			});
-
-			Object.keys(sourceNames).forEach(taskName => {
-				let targetId = targetNames[taskName];
-				let sourceId = sourceNames[taskName];
-				// Same name exists globally
-				if (targetId) {
-					delete target.tasks[targetId];
-				}
-				target.tasks[sourceId] = source.tasks[sourceId];
+			let newTarget: Tasks.Task[] = [];
+			target.forEach(task => {
+				newTarget.push(map[task.name]);
+				delete map[task.name];
 			});
+			Object.keys(map).forEach(key => newTarget.push(map[key]));
+			target = newTarget;
 		}
-		fillProperty(target, source, 'buildTask');
-		fillProperty(target, source, 'testTask');
 		return target;
 	}
 
@@ -867,6 +856,30 @@ namespace TaskDescription {
 			}
 			return false;
 		}
+	}
+
+	function isAnnotating(task: Tasks.Task): boolean {
+		return (task.command === void 0 || task.command.name === void 0) && (task.dependsOn === void 0 || task.dependsOn.length === 0);
+	}
+
+	export function merge(target: Tasks.Task, source: Tasks.Task): Tasks.Task {
+		if (!target) {
+			return source;
+		}
+		if (!source) {
+			return target;
+		}
+
+		mergeProperty(target, source, 'group');
+		target.command = CommandConfiguration.merge(target.command, source.command);
+		mergeProperty(target, source, 'suppressTaskName');
+		mergeProperty(target, source, 'args');
+		mergeProperty(target, source, 'isBackground');
+		mergeProperty(target, source, 'promptOnClose');
+		mergeProperty(target, source, 'showOutput');
+		mergeProperty(target, source, 'dependsOn');
+		mergeProperty(target, source, 'problemMatchers');
+		return target;
 	}
 }
 
@@ -976,7 +989,8 @@ export namespace ExecutionEngine {
 
 export interface ParseResult {
 	validationStatus: ValidationStatus;
-	taskSet: Tasks.TaskSet;
+	tasks: Tasks.Task[];
+	annotatingTasks: Tasks.Task[];
 	engine: Tasks.ExecutionEngine;
 }
 
@@ -987,7 +1001,6 @@ export interface IProblemReporter extends IProblemReporterBase {
 class ConfigurationParser {
 
 	private problemReporter: IProblemReporter;
-
 	constructor(problemReporter: IProblemReporter) {
 		this.problemReporter = problemReporter;
 	}
@@ -997,21 +1010,27 @@ class ConfigurationParser {
 		if (engine === Tasks.ExecutionEngine.Terminal) {
 			this.problemReporter.clearOutput();
 		}
-		let context: ParseContext = { problemReporter: this.problemReporter, namedProblemMatchers: undefined, isTermnial: engine === Tasks.ExecutionEngine.Terminal };
+		let context: ParseContext = {
+			problemReporter: this.problemReporter,
+			namedProblemMatchers: undefined,
+			isTermnial: engine === Tasks.ExecutionEngine.Terminal
+		};
+		let taskParseResult = this.createTaskRunnerConfiguration(fileConfig, context);
 		return {
 			validationStatus: this.problemReporter.status,
-			taskSet: this.createTaskRunnerConfiguration(fileConfig, context),
+			tasks: taskParseResult.tasks,
+			annotatingTasks: taskParseResult.annotatingTasks,
 			engine
 		};
 	}
 
-	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): Tasks.TaskSet {
+	private createTaskRunnerConfiguration(fileConfig: ExternalTaskRunnerConfiguration, context: ParseContext): TaskParseResult {
 		let globals = Globals.from(fileConfig, context);
 		if (this.problemReporter.status.isFatal()) {
 			return undefined;
 		}
 		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
-		let globalTasks: TaskDescription.TaskConfiguration;
+		let globalTasks: TaskParseResult;
 		if (fileConfig.windows && Platform.platform === Platform.Platform.Windows) {
 			globalTasks = TaskDescription.from(fileConfig.windows.tasks, globals, context);
 		} else if (fileConfig.osx && Platform.platform === Platform.Platform.Mac) {
@@ -1020,48 +1039,44 @@ class ConfigurationParser {
 			globalTasks = TaskDescription.from(fileConfig.linux.tasks, globals, context);
 		}
 
-		let taskConfig: TaskDescription.TaskConfiguration;
+		let result: TaskParseResult = { tasks: undefined, annotatingTasks: undefined };
 		if (fileConfig.tasks) {
-			taskConfig = TaskDescription.from(fileConfig.tasks, globals, context);
+			result = TaskDescription.from(fileConfig.tasks, globals, context);
 		}
-		taskConfig = TaskDescription.merge(taskConfig, globalTasks);
+		if (globalTasks) {
+			result.tasks = TaskDescription.mergeTasks(result.tasks, globalTasks.tasks);
+			result.annotatingTasks = TaskDescription.mergeTasks(result.annotatingTasks, globalTasks.annotatingTasks);
+		}
 
-		if (TaskDescription.isEmpty(taskConfig)) {
-			let tasks: Tasks.Task[] = [];
-			let buildTask: string;
-			if (globals.command && globals.command.name) {
-				let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);;
-				let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
-				let task: Tasks.Task = {
-					_id: UUID.generateUuid(),
-					name: globals.command.name,
-					identifier: UUID.generateUuid(),
-					command: undefined,
-					isBackground: isBackground,
-					showOutput: undefined,
-					suppressTaskName: true, // this must be true since we infer the task from the global data.
-					problemMatchers: matchers
-				};
-				TaskDescription.mergeGlobals(task, globals);
-				TaskDescription.fillDefaults(task);
-				tasks.push(task);
-				buildTask = task._id;
-			}
-
-			taskConfig = {
-				tasks: tasks,
-				buildTask
+		if ((!result.tasks || result.tasks.length === 0) && (globals.command && globals.command.name)) {
+			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);;
+			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
+			let task: Tasks.Task = {
+				_id: UUID.generateUuid(),
+				_source: TaskDescription.source,
+				name: globals.command.name,
+				identifier: globals.command.name,
+				group: Tasks.TaskGroup.Build,
+				command: undefined,
+				isBackground: isBackground,
+				showOutput: undefined,
+				suppressTaskName: true, // this must be true since we infer the task from the global data.
+				problemMatchers: matchers
 			};
+			TaskDescription.mergeGlobals(task, globals);
+			TaskDescription.fillDefaults(task);
+			result.tasks = [task];
 		}
-
-		return {
-			tasks: taskConfig.tasks,
-			buildTasks: taskConfig.buildTask ? [taskConfig.buildTask] : [],
-			testTasks: taskConfig.testTask ? [taskConfig.testTask] : []
-		};
+		result.tasks = result.tasks || [];
+		result.annotatingTasks = result.annotatingTasks || [];
+		return result;
 	}
 }
 
 export function parse(configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
 	return (new ConfigurationParser(logger)).run(configuration);
+}
+
+export function mergeTasks(target: Tasks.Task, source: Tasks.Task): Tasks.Task {
+	return TaskDescription.merge(target, source);
 }

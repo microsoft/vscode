@@ -33,6 +33,19 @@ suite('Arrays', () => {
 		assert.equal(array[idx], 1);
 	});
 
+	test('stableSort', function () {
+		let counter = 0;
+		let data = arrays.fill(10000, () => ({ n: 1, m: counter++ }));
+
+		arrays.stableSort(data, (a, b) => a.n - b.n);
+
+		let lastM = -1;
+		for (const element of data) {
+			assert.ok(lastM < element.m);
+			lastM = element.m;
+		}
+	});
+
 	test('delta', function () {
 		function compare(a: number, b: number): number {
 			return a - b;

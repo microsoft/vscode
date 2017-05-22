@@ -134,6 +134,9 @@ suite('KeyCode', () => {
 		assertKeyCode(StandaloneKeyCode.NUMPAD_SUBTRACT, RuntimeKeyCode.NUMPAD_SUBTRACT);
 		assertKeyCode(StandaloneKeyCode.NUMPAD_DECIMAL, RuntimeKeyCode.NUMPAD_DECIMAL);
 		assertKeyCode(StandaloneKeyCode.NUMPAD_DIVIDE, RuntimeKeyCode.NUMPAD_DIVIDE);
+		assertKeyCode(StandaloneKeyCode.KEY_IN_COMPOSITION, RuntimeKeyCode.KEY_IN_COMPOSITION);
+		assertKeyCode(StandaloneKeyCode.ABNT_C1, RuntimeKeyCode.ABNT_C1);
+		assertKeyCode(StandaloneKeyCode.ABNT_C2, RuntimeKeyCode.ABNT_C2);
 		assertKeyCode(StandaloneKeyCode.MAX_VALUE, RuntimeKeyCode.MAX_VALUE);
 	});
 });

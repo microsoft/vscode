@@ -1,3 +1,4 @@
+isUSStandard: false
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       | WYSIWYG |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -303,7 +304,6 @@
 |                                |       |                         [ |     |                           |                                |                           |                                |         |
 |               Shift+Alt+Digit5 |   %   |               Shift+Alt+5 |     |               Shift+Alt+5 |                    shift+alt+5 |               Shift+Alt+5 |             shift+alt+[Digit5] |         |
 |          Ctrl+Shift+Alt+Digit5 |   [   |          Ctrl+Shift+Alt+5 |     |          Ctrl+Shift+Alt+5 |               ctrl+shift+alt+5 |          Ctrl+Shift+Alt+5 |        ctrl+shift+alt+[Digit5] |         |
-|                                |       |          Ctrl+Shift+Alt+[ |     |                           |                                |                           |                                |         |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit6 |   6   |                         6 |     |                         6 |                              6 |                         6 |                       [Digit6] |         |
 |                    Ctrl+Digit6 |   6   |                    Ctrl+6 |     |                    Ctrl+6 |                         ctrl+6 |                    Ctrl+6 |                  ctrl+[Digit6] |         |
@@ -314,7 +314,6 @@
 |                                |       |                         ] |     |                           |                                |                           |                                |         |
 |               Shift+Alt+Digit6 |   &   |               Shift+Alt+6 |     |               Shift+Alt+6 |                    shift+alt+6 |               Shift+Alt+6 |             shift+alt+[Digit6] |         |
 |          Ctrl+Shift+Alt+Digit6 |   ]   |          Ctrl+Shift+Alt+6 |     |          Ctrl+Shift+Alt+6 |               ctrl+shift+alt+6 |          Ctrl+Shift+Alt+6 |        ctrl+shift+alt+[Digit6] |         |
-|                                |       |          Ctrl+Shift+Alt+] |     |                           |                                |                           |                                |         |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       | WYSIWYG |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -470,14 +469,14 @@
 |               Shift+Alt+Period |   :   |               Shift+Alt+; |     |               Shift+Alt+. |             shift+alt+[Period] |                      null |             shift+alt+[Period] |    NO   |
 |          Ctrl+Shift+Alt+Period |   ÷   |          Ctrl+Shift+Alt+; |     |          Ctrl+Shift+Alt+. |        ctrl+shift+alt+[Period] |                      null |        ctrl+shift+alt+[Period] |    NO   |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-|                          Slash |   -   |                         - |     |                         - |                              - |                         - |                        [Slash] |         |
-|                     Ctrl+Slash |   -   |                    Ctrl+- |     |                    Ctrl+- |                         ctrl+- |                    Ctrl+- |                   ctrl+[Slash] |         |
-|                    Shift+Slash |   _   |                   Shift+- |     |                   Shift+- |                        shift+- |                   Shift+- |                  shift+[Slash] |         |
-|               Ctrl+Shift+Slash |   _   |              Ctrl+Shift+- |     |              Ctrl+Shift+- |                   ctrl+shift+- |              Ctrl+Shift+- |             ctrl+shift+[Slash] |         |
-|                      Alt+Slash |   -   |                     Alt+- |     |                     Alt+- |                          alt+- |                     Alt+- |                    alt+[Slash] |         |
-|                 Ctrl+Alt+Slash |   –   |                Ctrl+Alt+- |     |                Ctrl+Alt+- |                     ctrl+alt+- |                Ctrl+Alt+- |               ctrl+alt+[Slash] |         |
-|                Shift+Alt+Slash |   _   |               Shift+Alt+- |     |               Shift+Alt+- |                    shift+alt+- |               Shift+Alt+- |              shift+alt+[Slash] |         |
-|           Ctrl+Shift+Alt+Slash |   —   |          Ctrl+Shift+Alt+- |     |          Ctrl+Shift+Alt+- |               ctrl+shift+alt+- |          Ctrl+Shift+Alt+- |         ctrl+shift+alt+[Slash] |         |
+|                          Slash |   -   |                         - |     |                         - |                              - |                      null |                        [Slash] |         |
+|                     Ctrl+Slash |   -   |                    Ctrl+- |     |                    Ctrl+- |                         ctrl+- |                      null |                   ctrl+[Slash] |         |
+|                    Shift+Slash |   _   |                   Shift+- |     |                   Shift+- |                        shift+- |                      null |                  shift+[Slash] |         |
+|               Ctrl+Shift+Slash |   _   |              Ctrl+Shift+- |     |              Ctrl+Shift+- |                   ctrl+shift+- |                      null |             ctrl+shift+[Slash] |         |
+|                      Alt+Slash |   -   |                     Alt+- |     |                     Alt+- |                          alt+- |                      null |                    alt+[Slash] |         |
+|                 Ctrl+Alt+Slash |   –   |                Ctrl+Alt+- |     |                Ctrl+Alt+- |                     ctrl+alt+- |                      null |               ctrl+alt+[Slash] |         |
+|                Shift+Alt+Slash |   _   |               Shift+Alt+- |     |               Shift+Alt+- |                    shift+alt+- |                      null |              shift+alt+[Slash] |         |
+|           Ctrl+Shift+Alt+Slash |   —   |          Ctrl+Shift+Alt+- |     |          Ctrl+Shift+Alt+- |               ctrl+shift+alt+- |                      null |         ctrl+shift+alt+[Slash] |         |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       | WYSIWYG |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -507,4 +506,24 @@
 |         Ctrl+Alt+IntlBackslash |   ﬁ   |                           |     |                Ctrl+Alt+§ |       ctrl+alt+[IntlBackslash] |                      null |       ctrl+alt+[IntlBackslash] |    NO   |
 |        Shift+Alt+IntlBackslash |   °   |                           |     |               Shift+Alt+§ |      shift+alt+[IntlBackslash] |                      null |      shift+alt+[IntlBackslash] |    NO   |
 |   Ctrl+Shift+Alt+IntlBackslash |   ‰   |                           |     |          Ctrl+Shift+Alt+§ | ctrl+shift+alt+[IntlBackslash] |                      null | ctrl+shift+alt+[IntlBackslash] |    NO   |
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+|                         IntlRo |  ---  |                           |     |                      null |                       [IntlRo] |                      null |                       [IntlRo] |    NO   |
+|                    Ctrl+IntlRo |  ---  |                           |     |                      null |                  ctrl+[IntlRo] |                      null |                  ctrl+[IntlRo] |    NO   |
+|                   Shift+IntlRo |  ---  |                           |     |                      null |                 shift+[IntlRo] |                      null |                 shift+[IntlRo] |    NO   |
+|              Ctrl+Shift+IntlRo |  ---  |                           |     |                      null |            ctrl+shift+[IntlRo] |                      null |            ctrl+shift+[IntlRo] |    NO   |
+|                     Alt+IntlRo |  ---  |                           |     |                      null |                   alt+[IntlRo] |                      null |                   alt+[IntlRo] |    NO   |
+|                Ctrl+Alt+IntlRo |  ---  |                           |     |                      null |              ctrl+alt+[IntlRo] |                      null |              ctrl+alt+[IntlRo] |    NO   |
+|               Shift+Alt+IntlRo |  ---  |                           |     |                      null |             shift+alt+[IntlRo] |                      null |             shift+alt+[IntlRo] |    NO   |
+|          Ctrl+Shift+Alt+IntlRo |  ---  |                           |     |                      null |        ctrl+shift+alt+[IntlRo] |                      null |        ctrl+shift+alt+[IntlRo] |    NO   |
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+|       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       | WYSIWYG |
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+|                        IntlYen |  ---  |                           |     |                      null |                      [IntlYen] |                      null |                      [IntlYen] |    NO   |
+|                   Ctrl+IntlYen |  ---  |                           |     |                      null |                 ctrl+[IntlYen] |                      null |                 ctrl+[IntlYen] |    NO   |
+|                  Shift+IntlYen |  ---  |                           |     |                      null |                shift+[IntlYen] |                      null |                shift+[IntlYen] |    NO   |
+|             Ctrl+Shift+IntlYen |  ---  |                           |     |                      null |           ctrl+shift+[IntlYen] |                      null |           ctrl+shift+[IntlYen] |    NO   |
+|                    Alt+IntlYen |  ---  |                           |     |                      null |                  alt+[IntlYen] |                      null |                  alt+[IntlYen] |    NO   |
+|               Ctrl+Alt+IntlYen |  ---  |                           |     |                      null |             ctrl+alt+[IntlYen] |                      null |             ctrl+alt+[IntlYen] |    NO   |
+|              Shift+Alt+IntlYen |  ---  |                           |     |                      null |            shift+alt+[IntlYen] |                      null |            shift+alt+[IntlYen] |    NO   |
+|         Ctrl+Shift+Alt+IntlYen |  ---  |                           |     |                      null |       ctrl+shift+alt+[IntlYen] |                      null |       ctrl+shift+alt+[IntlYen] |    NO   |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

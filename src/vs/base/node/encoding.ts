@@ -60,8 +60,8 @@ export function detectEncodingByBOMFromBuffer(buffer: NodeBuffer, bytesRead: num
 		return null;
 	}
 
-	let b0 = buffer.readUInt8(0);
-	let b1 = buffer.readUInt8(1);
+	const b0 = buffer.readUInt8(0);
+	const b1 = buffer.readUInt8(1);
 
 	// UTF-16 BE
 	if (b0 === 0xFE && b1 === 0xFF) {
@@ -77,7 +77,7 @@ export function detectEncodingByBOMFromBuffer(buffer: NodeBuffer, bytesRead: num
 		return null;
 	}
 
-	let b2 = buffer.readUInt8(2);
+	const b2 = buffer.readUInt8(2);
 
 	// UTF-8
 	if (b0 === 0xEF && b1 === 0xBB && b2 === 0xBF) {
@@ -95,7 +95,7 @@ export function detectEncodingByBOM(file: string): TPromise<string> {
 	return stream.readExactlyByFile(file, 3).then(({ buffer, bytesRead }) => detectEncodingByBOMFromBuffer(buffer, bytesRead));
 }
 
-const MINIMUM_THRESHOLD = 0.2; // TODO@Ben Decide how much this should be.
+const MINIMUM_THRESHOLD = 0.2;
 jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
 
 const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
@@ -155,6 +155,8 @@ export function toCanonicalName(enc: string): string {
 			return 'koi8-u';
 		case 'macroman':
 			return 'x-mac-roman';
+		case 'utf8bom':
+			return 'utf8';
 		default:
 			const m = enc.match(/windows(\d+)/);
 			if (m) {

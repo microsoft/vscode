@@ -17,7 +17,9 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 		if (typeof cmd._newEol === 'number') {
 			editor.getModel().setEOL(cmd._newEol);
 		}
+		editor.pushUndoStop();
 		editor.executeCommand('formatEditsCommand', cmd);
+		editor.pushUndoStop();
 	}
 
 	private _edits: TextEdit[];
@@ -35,7 +37,7 @@ export class EditOperationsCommand implements editorCommon.ICommand {
 			if (typeof edit.eol === 'number') {
 				this._newEol = edit.eol;
 			}
-			if (edit.range && edit.text) {
+			if (edit.range && typeof edit.text === 'string') {
 				this._edits.push(edit);
 			}
 		}

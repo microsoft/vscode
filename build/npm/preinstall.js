@@ -6,7 +6,7 @@
 const path = require('path');
 const cp = require('child_process');
 
-if (process.env['npm_config_disturl'] !== 'https://atom.io/download/atom-shell') {
+if (process.env['npm_config_disturl'] !== 'https://atom.io/download/electron') {
 	console.error("You can't use plain npm to install Code's dependencies.");
 	console.error(
 		/^win/.test(process.platform)

@@ -47,7 +47,8 @@ export class QueryBuilder {
 			contentPattern: contentPattern,
 			useRipgrep: configuration.search.useRipgrep,
 			disregardIgnoreFiles: options.disregardIgnoreFiles,
-			disregardExcludeSettings: options.disregardExcludeSettings
+			disregardExcludeSettings: options.disregardExcludeSettings,
+			searchPaths: options.searchPaths
 		};
 	}
 }

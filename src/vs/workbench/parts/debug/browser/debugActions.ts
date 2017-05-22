@@ -6,16 +6,17 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import * as lifecycle from 'vs/base/common/lifecycle';
+import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IDebugService, IConfig, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -34,7 +35,7 @@ export abstract class AbstractDebugAction extends Action {
 	) {
 		super(id, label, cssClass, false);
 		this.toDispose = [];
-		this.toDispose.push(this.debugService.onDidChangeState(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.onDidChangeState(state => this.updateEnablement(state)));
 
 		this.updateLabel(label);
 		this.updateEnablement();
@@ -45,8 +46,8 @@ export abstract class AbstractDebugAction extends Action {
 	}
 
 	public get tooltip(): string {
-		const [keybinding] = this.keybindingService.lookupKeybindings(this.id);
-		const keybindingLabel = keybinding && this.keybindingService.getLabelFor(keybinding);
+		const keybinding = this.keybindingService.lookupKeybinding(this.id);
+		const keybindingLabel = keybinding && keybinding.getLabel();
 
 		return keybindingLabel ? `${this.label} (${keybindingLabel})` : this.label;
 	}
@@ -55,8 +56,8 @@ export abstract class AbstractDebugAction extends Action {
 		this.label = newLabel;
 	}
 
-	protected updateEnablement(): void {
-		this.enabled = this.isEnabled(this.debugService.state);
+	protected updateEnablement(state = this.debugService.state): void {
+		this.enabled = this.isEnabled(state);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -76,7 +77,8 @@ export class ConfigureAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
 		this.toDispose.push(debugService.getViewModel().onDidSelectConfiguration(configurationName => this.updateClass()));
@@ -97,6 +99,7 @@ export class ConfigureAction extends AbstractDebugAction {
 
 	public run(event?: any): TPromise<any> {
 		if (!this.contextService.getWorkspace()) {
+			this.messageService.show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return TPromise.as(null);
 		}
 
@@ -105,11 +108,6 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 }
 
-interface StartSessionResult {
-	status: 'ok' | 'initialConfiguration' | 'saveConfiguration';
-	content?: string;
-};
-
 export class StartAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.start';
 	static LABEL = nls.localize('startDebug', "Start Debugging");
@@ -117,10 +115,7 @@ export class StartAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ICommandService private commandService: ICommandService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IFileService private fileService: IFileService,
-		@ITextFileService private textFileService: ITextFileService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 		this.debugService.getViewModel().onDidSelectConfiguration(() => {
@@ -129,59 +124,19 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.textFileService.saveAll().then(() => {
-			if (this.debugService.getModel().getProcesses().length === 0) {
-				this.debugService.removeReplExpressions();
-			}
-			const manager = this.debugService.getConfigurationManager();
-			const configName = this.debugService.getViewModel().selectedConfigurationName;
-			const compound = manager.getCompound(configName);
-			if (compound) {
-				return this.commandService.executeCommand('_workbench.startDebug', configName);
-			}
-
-			let configuration = manager.getConfiguration(configName);
-			return manager.getStartSessionCommand(configuration ? configuration.type : undefined).then(commandAndType => {
-				configuration = this.massageConfiguartion(configuration);
-				if (commandAndType && commandAndType.command) {
-					return this.commandService.executeCommand(commandAndType.command, configuration || this.getDefaultConfiguration()).then((result: StartSessionResult) => {
-						if (this.contextService.getWorkspace()) {
-							if (result && result.status === 'initialConfiguration') {
-								return manager.openConfigFile(false, commandAndType.type);
-							}
-
-							if (result && result.status === 'saveConfiguration') {
-								return this.fileService.updateContent(manager.configFileUri, result.content).then(() => manager.openConfigFile(false));
-							}
-						}
-						return undefined;
-					});
-				}
-
-				if (configName) {
-					return this.commandService.executeCommand('_workbench.startDebug', configuration || configName);
-				}
-
-				if (this.contextService.getWorkspace() && commandAndType) {
-					return manager.openConfigFile(false, commandAndType.type);
-				}
-				return undefined;
-			});
-		});
+		return this.debugService.startDebugging(undefined, this.isNoDebug());
 	}
 
-	protected getDefaultConfiguration(): any {
-		return {};
-	}
-
-	protected massageConfiguartion(config: IConfig): IConfig {
-		return config;
+	protected isNoDebug(): boolean {
+		return false;
 	}
 
 	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: State): boolean {
 		const processes = this.debugService.getModel().getProcesses();
+		const compound = this.debugService.getConfigurationManager().getCompound(this.debugService.getViewModel().selectedConfigurationName);
 		return state !== State.Initializing && processes.every(p => p.name !== this.debugService.getViewModel().selectedConfigurationName) &&
+			(!compound || !compound.configurations || processes.every(p => compound.configurations.indexOf(p.name) === -1)) &&
 			(!this.contextService || !!this.contextService.getWorkspace() || processes.length === 0);
 	}
 }
@@ -190,27 +145,8 @@ export class RunAction extends StartAction {
 	static ID = 'workbench.action.debug.run';
 	static LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 
-	constructor(id: string, label: string,
-		@IDebugService debugService: IDebugService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ICommandService commandService: ICommandService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IFileService fileService: IFileService,
-		@ITextFileService textFileService: ITextFileService
-	) {
-		super(id, label, debugService, keybindingService, commandService, contextService, fileService, textFileService);
-	}
-
-	protected getDefaultConfiguration(): any {
-		return { noDebug: true };
-	}
-
-	protected massageConfiguartion(config: IConfig): IConfig {
-		if (config) {
-			config.noDebug = true;
-		}
-
-		return config;
+	protected isNoDebug(): boolean {
+		return true;
 	}
 }
 
@@ -253,6 +189,9 @@ export class RestartAction extends AbstractDebugAction {
 	public run(process: IProcess): TPromise<any> {
 		if (!(process instanceof Process)) {
 			process = this.debugService.getViewModel().focusedProcess;
+		}
+		if (!process) {
+			return TPromise.as(null);
 		}
 
 		if (this.debugService.getModel().getProcesses().length <= 1) {
@@ -610,7 +549,7 @@ export class AddConditionalBreakpointAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(this.lineNumber);
+		this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(this.lineNumber, undefined);
 		return TPromise.as(null);
 	}
 }
@@ -621,7 +560,6 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string,
 		private editor: ICodeEditor,
-		private lineNumber: number,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
@@ -629,7 +567,7 @@ export class EditConditionalBreakpointAction extends AbstractDebugAction {
 	}
 
 	public run(breakpoint: IBreakpoint): TPromise<any> {
-		this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(this.lineNumber);
+		this.editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showBreakpointWidget(breakpoint.lineNumber, breakpoint.column);
 		return TPromise.as(null);
 	}
 }
@@ -673,6 +611,20 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		return super.isEnabled(state) && this.debugService.getModel().getWatchExpressions().every(we => !!we.name);
+	}
+}
+
+export class EditWatchExpressionAction extends AbstractDebugAction {
+	static ID = 'workbench.debug.viewlet.action.editWatchExpression';
+	static LABEL = nls.localize('editWatchExpression', "Edit Expression");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, undefined, debugService, keybindingService);
+	}
+
+	public run(expression: Expression): TPromise<any> {
+		this.debugService.getViewModel().setSelectedExpression(expression);
+		return TPromise.as(null);
 	}
 }
 

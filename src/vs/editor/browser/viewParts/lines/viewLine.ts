@@ -11,7 +11,6 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { renderViewLine, RenderLineInput, CharacterMapping } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { ClassNames } from 'vs/editor/browser/editorBrowser';
 import { IVisibleLine } from 'vs/editor/browser/view/viewLayer';
 import { RangeUtil } from 'vs/editor/browser/viewParts/lines/rangeUtil';
 import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
@@ -101,6 +100,8 @@ export class ViewLineOptions {
 }
 
 export class ViewLine implements IVisibleLine {
+
+	public static CLASS_NAME = 'view-line';
 
 	private _options: ViewLineOptions;
 	private _isMaybeInvalid: boolean;
@@ -205,7 +206,7 @@ export class ViewLine implements IVisibleLine {
 
 		this._renderedViewLine = renderedViewLine;
 
-		return `<div style="top:${deltaTop}px;height:${this._options.lineHeight}px;" class="${ClassNames.VIEW_LINE}">${output.html}</div>`;
+		return `<div style="top:${deltaTop}px;height:${this._options.lineHeight}px;" class="${ViewLine.CLASS_NAME}">${output.html}</div>`;
 	}
 
 	public layoutLine(lineNumber: number, deltaTop: number): void {

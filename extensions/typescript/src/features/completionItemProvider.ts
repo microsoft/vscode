@@ -59,17 +59,19 @@ class MyCompletionItem extends CompletionItem {
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
 			case PConst.Kind.localVariable:
+			case PConst.Kind.alias:
 				return CompletionItemKind.Variable;
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 				return CompletionItemKind.Field;
 			case PConst.Kind.function:
+				return CompletionItemKind.Function;
 			case PConst.Kind.memberFunction:
 			case PConst.Kind.constructSignature:
 			case PConst.Kind.callSignature:
 			case PConst.Kind.indexSignature:
-				return CompletionItemKind.Function;
+				return CompletionItemKind.Method;
 			case PConst.Kind.enum:
 				return CompletionItemKind.Enum;
 			case PConst.Kind.module:
@@ -87,7 +89,6 @@ class MyCompletionItem extends CompletionItem {
 			case PConst.Kind.directory:
 				return CompletionItemKind.Folder;
 		}
-
 		return CompletionItemKind.Property;
 	}
 
@@ -127,11 +128,13 @@ class MyCompletionItem extends CompletionItem {
 }
 
 interface Configuration {
-	useCodeSnippetsOnMethodSuggest?: boolean;
+	useCodeSnippetsOnMethodSuggest: boolean;
+	nameSuggestions: boolean;
 }
 
 namespace Configuration {
 	export const useCodeSnippetsOnMethodSuggest = 'useCodeSnippetsOnMethodSuggest';
+	export const nameSuggestions = 'nameSuggestions';
 }
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
@@ -142,13 +145,19 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		private client: ITypescriptServiceClient,
 		private typingsStatus: TypingsStatus
 	) {
-		this.config = { useCodeSnippetsOnMethodSuggest: false };
+		this.config = {
+			useCodeSnippetsOnMethodSuggest: false,
+			nameSuggestions: true
+		};
 	}
 
 	public updateConfiguration(): void {
 		// Use shared setting for js and ts
 		const typeScriptConfig = workspace.getConfiguration('typescript');
 		this.config.useCodeSnippetsOnMethodSuggest = typeScriptConfig.get(Configuration.useCodeSnippetsOnMethodSuggest, false);
+
+		const jsConfig = workspace.getConfiguration('javascript');
+		this.config.nameSuggestions = jsConfig.get(Configuration.nameSuggestions, true);
 	}
 
 	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
@@ -201,13 +210,15 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				// Prevents incorrectly completing while typing spread operators.
 				if (position.character > 0) {
 					const preText = document.getText(new Range(
-						new Position(position.line, 0),
-						new Position(position.line, position.character - 1)));
+						position.line, 0,
+						position.line, position.character - 1));
 					enableDotCompletions = preText.match(/[a-z_$\)\]\}]\s*$/ig) !== null;
 				}
 
-				for (let i = 0; i < body.length; i++) {
-					const element = body[i];
+				for (const element of body) {
+					if (element.kind === PConst.Kind.warning && !this.config.nameSuggestions) {
+						continue;
+					}
 					const item = new MyCompletionItem(position, document, element, enableDotCompletions, !this.config.useCodeSnippetsOnMethodSuggest);
 					completionItems.push(item);
 				}
@@ -241,8 +252,9 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				return item;
 			}
 			const detail = details[0];
-			item.documentation = Previewer.plain(detail.documentation);
 			item.detail = Previewer.plain(detail.displayParts);
+
+			item.documentation = Previewer.plainDocumentation(detail.documentation, detail.tags);
 
 			if (detail && this.config.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
 				return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {

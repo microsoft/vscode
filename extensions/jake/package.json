@@ -1,0 +1,48 @@
+{
+  "name": "jake",
+  "publisher": "vscode",
+  "description": "Extension to add Jake capabilities to VSCode.",
+  "displayName": "Jake support for VSCode",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "*"
+  },
+  "enableProposedApi": true,
+  "categories": [
+    "Other"
+  ],
+  "scripts": {
+    "compile": "gulp compile-extension:jake",
+    "watch": "gulp watch-extension:jake"
+  },
+  "dependencies": {
+    "vscode-nls": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.18"
+  },
+  "main": "./out/main",
+  "activationEvents": [
+    "onCommand:workbench.action.tasks.runTask",
+    "onCommand:workbench.action.tasks.build",
+    "onCommand:workbench.action.tasks.test"
+  ],
+  "contributes": {
+    "configuration": {
+      "id": "jake",
+      "type": "object",
+      "title": "Jake",
+      "properties": {
+        "jake.autoDetect": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on"
+          ],
+          "default": "on",
+          "description": "%config.jake.autoDetect%"
+        }
+      }
+    }
+  }
+}

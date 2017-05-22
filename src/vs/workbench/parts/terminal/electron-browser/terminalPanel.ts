@@ -16,7 +16,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { ansiColorIdentifiers } from './terminalColorRegistry';
+import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR } from './terminalColorRegistry';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceAction, SwitchTerminalInstanceActionItem, CopyTerminalSelectionAction, TerminalPasteAction, ClearTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { Panel } from 'vs/workbench/browser/panel';
@@ -26,6 +26,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 export class TerminalPanel extends Panel {
 
 	private _actions: IAction[];
+	private _copyContextMenuAction: IAction;
 	private _contextMenuActions: IAction[];
 	private _cancelContextMenu: boolean = false;
 	private _font: ITerminalFont;
@@ -117,10 +118,11 @@ export class TerminalPanel extends Panel {
 
 	private _getContextMenuActions(): IAction[] {
 		if (!this._contextMenuActions) {
+			this._copyContextMenuAction = this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, nls.localize('copy', "Copy"));
 			this._contextMenuActions = [
 				this._instantiationService.createInstance(CreateNewTerminalAction, CreateNewTerminalAction.ID, nls.localize('createNewTerminal', "New Terminal")),
 				new Separator(),
-				this._instantiationService.createInstance(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, nls.localize('copy', "Copy")),
+				this._copyContextMenuAction,
 				this._instantiationService.createInstance(TerminalPasteAction, TerminalPasteAction.ID, nls.localize('paste', "Paste")),
 				new Separator(),
 				this._instantiationService.createInstance(ClearTerminalAction, ClearTerminalAction.ID, nls.localize('clear', "Clear"))
@@ -129,6 +131,7 @@ export class TerminalPanel extends Panel {
 				this._register(a);
 			});
 		}
+		this._copyContextMenuAction.enabled = document.activeElement.classList.contains('xterm') && window.getSelection().toString().length > 0;
 		return this._contextMenuActions;
 	}
 
@@ -148,9 +151,6 @@ export class TerminalPanel extends Panel {
 	}
 
 	private _attachEventListeners(): void {
-		this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => this._refreshCtrlHeld(e)));
-		this._register(DOM.addDisposableListener(window, DOM.EventType.KEY_UP, (e: KeyboardEvent) => this._refreshCtrlHeld(e)));
-		this._register(DOM.addDisposableListener(window, DOM.EventType.FOCUS, (e: KeyboardEvent) => this._refreshCtrlHeld(e)));
 		this._register(DOM.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
@@ -168,6 +168,15 @@ export class TerminalPanel extends Panel {
 						terminal.clearSelection();
 					} else {
 						terminal.paste();
+					}
+					// Clear selection after all click event bubbling is finished on Mac to prevent
+					// right-click selecting a word which is seemed cannot be disabled. There is a
+					// flicker when pasting but this appears to give the best experience if the
+					// setting is enabled.
+					if (platform.isMacintosh) {
+						setTimeout(() => {
+							terminal.clearSelection();
+						}, 0);
 					}
 					this._cancelContextMenu = true;
 				}
@@ -203,10 +212,6 @@ export class TerminalPanel extends Panel {
 		}));
 	}
 
-	private _refreshCtrlHeld(e: KeyboardEvent): void {
-		this._parentDomElement.classList.toggle('ctrlcmd-held', platform.isMacintosh ? e.metaKey : e.ctrlKey);
-	}
-
 	private _updateTheme(theme?: ITheme): void {
 		if (!theme) {
 			theme = this.themeService.getTheme();
@@ -218,11 +223,21 @@ export class TerminalPanel extends Panel {
 				let color = theme.getColor(colorId);
 				let rgba = color.transparent(0.996);
 				css += `.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} { color: ${color}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection { background-color: ${rgba}; }` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index}::selection,` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-color-${index} *::selection { background-color: ${rgba}; }` +
 					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} { background-color: ${color}; }` +
-					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection { color: ${color}; }`;
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index}::selection,` +
+					`.monaco-workbench .panel.integrated-terminal .xterm .xterm-bg-color-${index} *::selection { color: ${color}; }`;
 			}
 		});
+		const bgColor = theme.getColor(TERMINAL_BACKGROUND_COLOR);
+		if (bgColor) {
+			css += `.monaco-workbench .panel.integrated-terminal .terminal-outer-container { background-color: ${bgColor}; }`;
+		}
+		const fgColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
+		if (fgColor) {
+			css += `.monaco-workbench .panel.integrated-terminal .xterm { color: ${fgColor}; }`;
+		}
 
 		this._themeStyleElement.innerHTML = css;
 	}

@@ -145,7 +145,7 @@
 	var marker = new ActiveLineMarker();
 	const settings = JSON.parse(document.getElementById('vscode-markdown-preview-data').getAttribute('data-settings'));
 
-	window.onload = () => {
+	function onLoad() {
 		if (settings.scrollPreviewWithEditorSelection) {
 			const initialLine = +settings.line;
 			if (!isNaN(initialLine)) {
@@ -155,7 +155,14 @@
 				}, 0);
 			}
 		}
-	};
+	}
+
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', onLoad);
+	} else {
+		onLoad();
+	}
+
 
 	window.addEventListener('resize', () => {
 		scrollDisabled = true;
@@ -206,9 +213,9 @@
 				if (!isNaN(line)) {
 					const args = [settings.source, line];
 					window.parent.postMessage({
-						command: "did-click-link",
+						command: 'did-click-link',
 						data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`
-					}, "file://");
+					}, 'file://');
 				}
 			}
 		}, 50));

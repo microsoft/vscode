@@ -39,7 +39,7 @@ export class Menu extends EventEmitter {
 			actionRunner: options.actionRunner
 		});
 
-		this.listener = this.addEmitter2(this.actionBar);
+		this.listener = this.addEmitter(this.actionBar);
 
 		this.actionBar.push(actions, { icon: true, label: true });
 	}

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IHTMLContentElement } from 'vs/base/common/htmlContent';
-import { ResolvedKeybinding, KeyCode, KeyCodeUtils, USER_SETTINGS, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding, ResolvedKeybindingPart, KeyCode, KeyCodeUtils, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/platform/keybinding/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 
@@ -81,12 +80,6 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
 	}
 
-	public getHTMLLabel(): IHTMLContentElement[] {
-		let firstPart = this._getUILabelForKeybinding(this._firstPart);
-		let chordPart = this._getUILabelForKeybinding(this._chordPart);
-		return UILabelProvider.toHTMLLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
-	}
-
 	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string {
 		if (keyCode >= KeyCode.NUMPAD_0 && keyCode <= KeyCode.NUMPAD_DIVIDE) {
 			// Electron cannot handle numpad keys
@@ -134,7 +127,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		if (keybinding.isDuplicateModifierCase()) {
 			return '';
 		}
-		return USER_SETTINGS.fromKeyCode(keybinding.keyCode);
+		return KeyCodeUtils.toUserSettingsUS(keybinding.keyCode);
 	}
 
 	public getUserSettingsLabel(): string {
@@ -152,32 +145,26 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		return (this._chordPart ? true : false);
 	}
 
-	public hasCtrlModifier(): boolean {
-		if (this._chordPart) {
-			return false;
-		}
-		return this._firstPart.ctrlKey;
+	public getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart] {
+		return [
+			this._toResolvedKeybindingPart(this._firstPart),
+			this._toResolvedKeybindingPart(this._chordPart)
+		];
 	}
 
-	public hasShiftModifier(): boolean {
-		if (this._chordPart) {
-			return false;
+	private _toResolvedKeybindingPart(keybinding: SimpleKeybinding): ResolvedKeybindingPart {
+		if (!keybinding) {
+			return null;
 		}
-		return this._firstPart.shiftKey;
-	}
 
-	public hasAltModifier(): boolean {
-		if (this._chordPart) {
-			return false;
-		}
-		return this._firstPart.altKey;
-	}
-
-	public hasMetaModifier(): boolean {
-		if (this._chordPart) {
-			return false;
-		}
-		return this._firstPart.metaKey;
+		return new ResolvedKeybindingPart(
+			keybinding.ctrlKey,
+			keybinding.shiftKey,
+			keybinding.altKey,
+			keybinding.metaKey,
+			this._getUILabelForKeybinding(keybinding),
+			this._getAriaLabelForKeybinding(keybinding)
+		);
 	}
 
 	public getDispatchParts(): [string, string] {

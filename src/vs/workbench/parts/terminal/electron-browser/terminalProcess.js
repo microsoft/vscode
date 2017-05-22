@@ -39,17 +39,32 @@ if (cols && rows) {
 }
 
 var ptyProcess = ptyJs.fork(shell, args, options);
+var closeTimeout;
+var exitCode;
+
+// Allow any trailing data events to be sent before the exit event is sent.
+// See https://github.com/Tyriar/node-pty/issues/72
+function queueProcessExit() {
+	closeTimeout = setTimeout(function () {
+		ptyProcess.kill();
+		process.exit(exitCode);
+	}, 250);
+}
 
 ptyProcess.on('data', function (data) {
 	process.send({
 		type: 'data',
 		content: data
 	});
+	if (closeTimeout) {
+		clearTimeout(closeTimeout);
+		queueProcessExit();
+	}
 });
 
-ptyProcess.on('exit', function (exitCode) {
-	ptyProcess.kill();
-	process.exit(exitCode);
+ptyProcess.on('exit', function (code) {
+	exitCode = code;
+	queueProcessExit();
 });
 
 process.on('message', function (message) {

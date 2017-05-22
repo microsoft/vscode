@@ -23,11 +23,16 @@ interface CommandHandler {
 	description: ICommandHandlerDescription;
 }
 
+export interface ArgumentProcessor {
+	processArgument(arg: any): any;
+}
+
 export class ExtHostCommands extends ExtHostCommandsShape {
 
 	private _commands = new Map<string, CommandHandler>();
 	private _proxy: MainThreadCommandsShape;
 	private _converter: CommandsConverter;
+	private _argumentProcessors: ArgumentProcessor[] = [];
 
 	constructor(
 		threadService: IThreadService,
@@ -40,6 +45,10 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 
 	get converter(): CommandsConverter {
 		return this._converter;
+	}
+
+	registerArgumentProcessor(processor: ArgumentProcessor): void {
+		this._argumentProcessors.push(processor);
 	}
 
 	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
@@ -67,7 +76,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
 			// to pass any kind of parameters around
-			return this.$executeContributedCommand(id, ...args);
+			return this.$executeContributedCommand<T>(id, ...args);
 
 		} else {
 			// automagically convert some argument types
@@ -87,7 +96,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 				}
 			});
 
-			return this._proxy.$executeCommand(id, args);
+			return this._proxy.$executeCommand<T>(id, args);
 		}
 
 	}
@@ -109,6 +118,8 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 				}
 			}
 		}
+
+		args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r), arg));
 
 		try {
 			let result = callback.apply(thisArg, args);
@@ -170,7 +181,7 @@ export class CommandsConverter {
 			title: command.title
 		};
 
-		if (!isFalsyOrEmpty(command.arguments)) {
+		if (command.command && !isFalsyOrEmpty(command.arguments)) {
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 
@@ -179,6 +190,10 @@ export class CommandsConverter {
 
 			result.id = '_internal_command_delegation';
 			result.arguments = [id];
+		}
+
+		if (command.tooltip) {
+			result.tooltip = command.tooltip;
 		}
 
 		return result;

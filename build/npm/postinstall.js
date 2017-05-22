@@ -32,7 +32,11 @@ const extensions = [
 	'css',
 	'html',
 	'git',
-	'gulp'
+	'gulp',
+	'grunt',
+	'jake'
 ];
 
 extensions.forEach(extension => npmInstall(`extensions/${extension}`));
+
+npmInstall(`build`); // node modules required for build

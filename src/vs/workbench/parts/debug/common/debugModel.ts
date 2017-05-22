@@ -13,21 +13,19 @@ import { clone } from 'vs/base/common/objects';
 import severity from 'vs/base/common/severity';
 import { isObject, isString } from 'vs/base/common/types';
 import { distinct } from 'vs/base/common/arrays';
-import { IRange } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const MAX_REPL_LENGTH = 10000;
-const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
-export abstract class AbstractOutputElement implements ITreeElement {
+export abstract class AbstractOutputElement implements IReplElement {
 	private static ID_COUNTER = 0;
 
 	constructor(private id = AbstractOutputElement.ID_COUNTER++) {
@@ -37,6 +35,8 @@ export abstract class AbstractOutputElement implements ITreeElement {
 	public getId(): string {
 		return `outputelement:${this.id}`;
 	}
+
+	abstract toString(): string;
 }
 
 export class OutputElement extends AbstractOutputElement {
@@ -49,6 +49,10 @@ export class OutputElement extends AbstractOutputElement {
 	) {
 		super();
 		this.counter = 1;
+	}
+
+	public toString(): string {
+		return this.value;
 	}
 }
 
@@ -89,6 +93,10 @@ export class OutputNameValueElement extends AbstractOutputElement implements IEx
 		}
 
 		return TPromise.as(result);
+	}
+
+	public toString(): string {
+		return `${this.name}: ${this.value}`;
 	}
 }
 
@@ -182,7 +190,7 @@ export class ExpressionContainer implements IExpressionContainer {
 			count,
 			filter
 		}).then(response => {
-			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v), v => v.name).map(
+			return response && response.body && response.body.variables ? distinct(response.body.variables.filter(v => !!v && v.name), v => v.name).map(
 				v => new Variable(this.process, this, v.variablesReference, v.name, v.evaluateName, v.value, v.namedVariables, v.indexedVariables, v.type)
 			) : [];
 		}, (e: Error) => [new Variable(this.process, this, 0, null, e.message, '', 0, 0, null, false)]);
@@ -198,6 +206,10 @@ export class ExpressionContainer implements IExpressionContainer {
 		this.valueChanged = ExpressionContainer.allValues.get(this.getId()) &&
 			ExpressionContainer.allValues.get(this.getId()) !== Expression.DEFAULT_VALUE && ExpressionContainer.allValues.get(this.getId()) !== value;
 		ExpressionContainer.allValues.set(this.getId(), value);
+	}
+
+	public toString(): string {
+		return this.value;
 	}
 }
 
@@ -246,21 +258,23 @@ export class Expression extends ExpressionContainer implements IExpression {
 			this.reference = 0;
 		});
 	}
+
+	public toString(): string {
+		return `${this.name}\n${this.value}`;
+	}
 }
 
 export class Variable extends ExpressionContainer implements IExpression {
 
 	// Used to show the error message coming from the adapter when setting the value #7807
 	public errorMessage: string;
-	private static NOT_PROPERTY_SYNTAX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-	private static ARRAY_ELEMENT_SYNTAX = /\[.*\]$/;
 
 	constructor(
 		process: IProcess,
 		public parent: IExpressionContainer,
 		reference: number,
 		public name: string,
-		private _evaluateName: string,
+		public evaluateName: string,
 		value: string,
 		namedVariables: number,
 		indexedVariables: number,
@@ -270,35 +284,6 @@ export class Variable extends ExpressionContainer implements IExpression {
 	) {
 		super(process, reference, `variable:${parent.getId()}:${name}:${reference}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = value;
-	}
-
-	public get evaluateName(): string {
-		if (this._evaluateName) {
-			return this._evaluateName;
-		}
-
-		// TODO@Isidor get rid of this ugly heuristic
-		let names = [this.name];
-		let v = this.parent;
-		while (v instanceof Variable || v instanceof Expression) {
-			names.push((<Variable>v).name);
-			v = (<Variable>v).parent;
-		}
-		names = names.reverse();
-
-		let result = null;
-		names.forEach(name => {
-			if (!result) {
-				result = name;
-			} else if (Variable.ARRAY_ELEMENT_SYNTAX.test(name) || (this.process.configuration.type === 'node' && !Variable.NOT_PROPERTY_SYNTAX.test(name))) {
-				// use safe way to access node properties a['property_name']. Also handles array elements.
-				result = name && name.indexOf('[') === 0 ? `${result}${name}` : `${result}['${name}']`;
-			} else {
-				result = `${result}.${name}`;
-			}
-		});
-
-		return result;
 	}
 
 	public setVariable(value: string): TPromise<any> {
@@ -317,6 +302,10 @@ export class Variable extends ExpressionContainer implements IExpression {
 		}, err => {
 			this.errorMessage = err.message;
 		});
+	}
+
+	public toString(): string {
+		return `${this.name}: ${this.value}`;
 	}
 }
 
@@ -344,8 +333,7 @@ export class StackFrame implements IStackFrame {
 		public frameId: number,
 		public source: Source,
 		public name: string,
-		public lineNumber: number,
-		public column: number
+		public range: IRange
 	) {
 		this.scopes = null;
 	}
@@ -374,8 +362,9 @@ export class StackFrame implements IStackFrame {
 				return scopes;
 			}
 
-			return [scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
-				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber)).shift()];
+			const scopesContainingRange = scopes.filter(scope => scope.range && Range.containsRange(scope.range, range))
+				.sort((first, second) => (first.range.endLineNumber - first.range.startLineNumber) - (second.range.endLineNumber - second.range.startLineNumber));
+			return scopesContainingRange.length > 0 ? scopesContainingRange.slice(0, 1) : scopes;
 		});
 	}
 
@@ -384,17 +373,17 @@ export class StackFrame implements IStackFrame {
 	}
 
 	public toString(): string {
-		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.lineNumber})`;
+		return `${this.name} (${this.source.inMemory ? this.source.name : this.source.uri.fsPath}:${this.range.startLineNumber})`;
 	}
 
 	public openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any> {
 
-		return this.source.name === UNKNOWN_SOURCE_LABEL ? TPromise.as(null) : editorService.openEditor({
+		return !this.source.available ? TPromise.as(null) : editorService.openEditor({
 			resource: this.source.uri,
 			description: this.source.origin,
 			options: {
 				preserveFocus,
-				selection: { startLineNumber: this.lineNumber, startColumn: 1 },
+				selection: { startLineNumber: this.range.startLineNumber, startColumn: 1 },
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true,
 				pinned: !preserveFocus
@@ -404,15 +393,17 @@ export class StackFrame implements IStackFrame {
 }
 
 export class Thread implements IThread {
-	private promisedCallStack: TPromise<IStackFrame[]>;
-	private cachedCallStack: IStackFrame[];
+	private fetchPromise: TPromise<void>;
+	private callStack: IStackFrame[];
+	private staleCallStack: IStackFrame[];
 	public stoppedDetails: IRawStoppedDetails;
 	public stopped: boolean;
 
 	constructor(public process: IProcess, public name: string, public threadId: number) {
-		this.promisedCallStack = null;
+		this.fetchPromise = null;
 		this.stoppedDetails = null;
-		this.cachedCallStack = null;
+		this.callStack = [];
+		this.staleCallStack = [];
 		this.stopped = false;
 	}
 
@@ -421,43 +412,48 @@ export class Thread implements IThread {
 	}
 
 	public clearCallStack(): void {
-		this.promisedCallStack = null;
-		this.cachedCallStack = null;
+		this.fetchPromise = null;
+		if (this.callStack.length) {
+			this.staleCallStack = this.callStack;
+		}
+		this.callStack = [];
 	}
 
 	public getCallStack(): IStackFrame[] {
-		return this.cachedCallStack;
+		return this.callStack;
+	}
+
+	public getStaleCallStack(): IStackFrame[] {
+		return this.staleCallStack;
 	}
 
 	/**
-	 * Queries the debug adapter for the callstack and returns a promise with
-	 * the stack frames of the callstack.
+	 * Queries the debug adapter for the callstack and returns a promise
+	 * which completes once the call stack has been retrieved.
 	 * If the thread is not stopped, it returns a promise to an empty array.
-	 * Only gets the first 20 stack frames. Calling this method consecutive times
-	 * with getAdditionalStackFrames = true gets the remainder of the call stack.
+	 * Only fetches the first stack frame for performance reasons. Calling this method consecutive times
+	 * gets the remainder of the call stack.
 	 */
-	public fetchCallStack(getAdditionalStackFrames = false): TPromise<IStackFrame[]> {
+	public fetchCallStack(): TPromise<void> {
 		if (!this.stopped) {
-			return TPromise.as([]);
+			return TPromise.as(null);
 		}
 
-		if (!this.promisedCallStack) {
-			this.promisedCallStack = this.getCallStackImpl(0).then(callStack => {
-				this.cachedCallStack = callStack;
-				return callStack;
+		if (!this.fetchPromise) {
+			this.fetchPromise = this.getCallStackImpl(0, 1).then(callStack => {
+				this.callStack = callStack || [];
 			});
-		} else if (getAdditionalStackFrames) {
-			this.promisedCallStack = this.promisedCallStack.then(callStackFirstPart => this.getCallStackImpl(callStackFirstPart.length).then(callStackSecondPart => {
-				this.cachedCallStack = callStackFirstPart.concat(callStackSecondPart);
-				return this.cachedCallStack;
+		} else {
+			this.fetchPromise = this.fetchPromise.then(() => this.getCallStackImpl(this.callStack.length, 20).then(callStackSecondPart => {
+				this.callStack = this.callStack.concat(callStackSecondPart);
 			}));
 		}
 
-		return this.promisedCallStack;
+		return this.fetchPromise;
 	}
 
-	private getCallStackImpl(startFrame: number): TPromise<IStackFrame[]> {
-		return this.process.session.stackTrace({ threadId: this.threadId, startFrame, levels: 20 }).then(response => {
+	private getCallStackImpl(startFrame: number, levels: number): TPromise<IStackFrame[]> {
+		return this.process.session.stackTrace({ threadId: this.threadId, startFrame, levels }).then(response => {
 			if (!response || !response.body) {
 				return [];
 			}
@@ -467,10 +463,7 @@ export class Thread implements IThread {
 			}
 
 			return response.body.stackFrames.map((rsf, level) => {
-				if (!rsf) {
-					return new StackFrame(this, 0, new Source({ name: UNKNOWN_SOURCE_LABEL }, rsf.presentationHint), nls.localize('unknownStack', "Unknown stack location"), null, null);
-				}
-				let source = rsf.source ? new Source(rsf.source, rsf.source.presentationHint) : new Source({ name: UNKNOWN_SOURCE_LABEL }, rsf.presentationHint);
+				let source = new Source(rsf.source, rsf.source ? rsf.source.presentationHint : rsf.presentationHint);
 				if (this.process.sources.has(source.uri.toString())) {
 					const alreadyCreatedSource = this.process.sources.get(source.uri.toString());
 					alreadyCreatedSource.presenationHint = source.presenationHint;
@@ -479,7 +472,12 @@ export class Thread implements IThread {
 					this.process.sources.set(source.uri.toString(), source);
 				}
 
-				return new StackFrame(this, rsf.id, source, rsf.name, rsf.line, rsf.column);
+				return new StackFrame(this, rsf.id, source, rsf.name, new Range(
+					rsf.line,
+					rsf.column,
+					rsf.endLine,
+					rsf.endColumn
+				));
 			});
 		}, (err: Error) => {
 			if (this.stoppedDetails) {
@@ -673,6 +671,8 @@ export class Breakpoint implements IBreakpoint {
 	public verified: boolean;
 	public idFromAdapter: number;
 	public message: string;
+	public endLineNumber: number;
+	public endColumn: number;
 	private id: string;
 
 	constructor(
@@ -682,7 +682,6 @@ export class Breakpoint implements IBreakpoint {
 		public enabled: boolean,
 		public condition: string,
 		public hitCondition: string,
-		public respectColumn: boolean // TODO@Isidor remove this in March
 	) {
 		if (enabled === undefined) {
 			this.enabled = true;
@@ -737,7 +736,7 @@ export class Model implements IModel {
 
 	private processes: Process[];
 	private toDispose: lifecycle.IDisposable[];
-	private replElements: ITreeElement[];
+	private replElements: IReplElement[];
 	private _onDidChangeBreakpoints: Emitter<void>;
 	private _onDidChangeCallStack: Emitter<void>;
 	private _onDidChangeWatchExpressions: Emitter<IExpression>;
@@ -811,6 +810,12 @@ export class Model implements IModel {
 		}
 	}
 
+	public fetchCallStack(thread: IThread): TPromise<void> {
+		return (<Thread>thread).fetchCallStack().then(() => {
+			this._onDidChangeCallStack.fire();
+		});
+	}
+
 	public getBreakpoints(): Breakpoint[] {
 		return this.breakpoints;
 	}
@@ -843,8 +848,9 @@ export class Model implements IModel {
 
 	public addBreakpoints(uri: uri, rawData: IRawBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.concat(rawData.map(rawBp =>
-			new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, true)));
+			new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition)));
 		this.breakpointsActivated = true;
+		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
 		this._onDidChangeBreakpoints.fire();
 	}
 
@@ -858,15 +864,16 @@ export class Model implements IModel {
 			const bpData = data[bp.getId()];
 			if (bpData) {
 				bp.lineNumber = bpData.line ? bpData.line : bp.lineNumber;
-				bp.column = bpData.column ? bpData.column : bp.column;
+				bp.endLineNumber = bpData.endLine;
+				bp.column = bpData.column;
+				bp.endColumn = bpData.endColumn;
 				bp.verified = bpData.verified;
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;
 			}
 		});
+		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
 
-		// Remove duplicate breakpoints. This can happen when an adapter updates a line number of a breakpoint
-		this.breakpoints = distinct(this.breakpoints, bp => bp.uri.toString() + bp.lineNumber);
 		this._onDidChangeBreakpoints.fire();
 	}
 
@@ -917,7 +924,7 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire();
 	}
 
-	public getReplElements(): ITreeElement[] {
+	public getReplElements(): IReplElement[] {
 		return this.replElements;
 	}
 
@@ -939,7 +946,7 @@ export class Model implements IModel {
 				if (previousOutput instanceof OutputElement && severity === previousOutput.severity && toAdd.length) {
 					previousOutput.value += toAdd.shift().value;
 				}
-				if (previousOutput && previousOutput.value === '') {
+				if (previousOutput && previousOutput.value === '' && previousOutput.severity !== severity) {
 					// remove potential empty lines between different output types
 					this.replElements.pop();
 				}
@@ -954,7 +961,7 @@ export class Model implements IModel {
 		this._onDidChangeREPLElements.fire();
 	}
 
-	private addReplElements(newElements: ITreeElement[]): void {
+	private addReplElements(newElements: IReplElement[]): void {
 		this.replElements.push(...newElements);
 		if (this.replElements.length > MAX_REPL_LENGTH) {
 			this.replElements.splice(0, this.replElements.length - MAX_REPL_LENGTH);

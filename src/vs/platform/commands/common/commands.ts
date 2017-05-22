@@ -71,7 +71,7 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 			command = { handler: commandOrDesc };
 
 		} else {
-			const {handler, description} = commandOrDesc;
+			const { handler, description } = commandOrDesc;
 			if (description) {
 				// add argument validation if rich command metadata is provided
 				const constraints: TypeConstraint[] = [];

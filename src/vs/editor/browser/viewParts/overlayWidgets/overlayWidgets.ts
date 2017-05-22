@@ -7,7 +7,7 @@
 
 import 'vs/css!./overlayWidgets';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ClassNames, IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { ViewPart, PartFingerprint, PartFingerprints } from 'vs/editor/browser/view/viewPart';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -45,8 +45,8 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._editorWidth = this._context.configuration.editor.layoutInfo.width;
 
 		this._domNode = createFastDomNode(document.createElement('div'));
-		PartFingerprints.write(this._domNode.domNode, PartFingerprint.OverlayWidgets);
-		this._domNode.setClassName(ClassNames.OVERLAY_WIDGETS);
+		PartFingerprints.write(this._domNode, PartFingerprint.OverlayWidgets);
+		this._domNode.setClassName('overlayWidgets');
 	}
 
 	public dispose(): void {
@@ -54,8 +54,8 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._widgets = null;
 	}
 
-	public getDomNode(): HTMLElement {
-		return this._domNode.domNode;
+	public getDomNode(): FastDomNode<HTMLElement> {
+		return this._domNode;
 	}
 
 	// ---- begin view event handlers
@@ -86,7 +86,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		// This is sync because a widget wants to be in the dom
 		domNode.setPosition('absolute');
 		domNode.setAttribute('widgetId', widget.getId());
-		this._domNode.domNode.appendChild(domNode.domNode);
+		this._domNode.appendChild(domNode);
 
 		this.setShouldRender();
 	}

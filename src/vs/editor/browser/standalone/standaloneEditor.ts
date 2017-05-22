@@ -6,7 +6,7 @@
 
 import 'vs/css!./media/standalone-tokens';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, ContentWidgetPositionPreference, OverlayWidgetPositionPreference, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { StandaloneEditor, IStandaloneCodeEditor, StandaloneDiffEditor, IStandaloneDiffEditor, IEditorConstructionOptions, IDiffEditorConstructionOptions } from 'vs/editor/browser/standalone/standaloneCodeEditor';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } from 'vs/editor/browser/standalone/standaloneServices';
@@ -34,6 +34,8 @@ import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/common/services/standaloneThemeService';
 import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import * as editorOptions from 'vs/editor/common/config/editorOptions';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 /**
  * @internal
@@ -123,9 +125,9 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(IContextKeyService),
 			services.get(IKeybindingService),
 			services.get(IContextViewService),
-			services.get(IStandaloneThemeService),
 			services.get(IEditorWorkerService),
-			services.get(ICodeEditorService)
+			services.get(ICodeEditorService),
+			services.get(IStandaloneThemeService)
 		);
 	});
 }
@@ -307,6 +309,13 @@ export function defineTheme(themeName: string, themeData: IStandaloneThemeData):
 }
 
 /**
+ * Switches to a theme.
+ */
+export function setTheme(themeName: string): void {
+	StaticServices.standaloneThemeService.get().setTheme(themeName);
+}
+
+/**
  * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
@@ -333,44 +342,32 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		colorizeModelLine: colorizeModelLine,
 		tokenize: tokenize,
 		defineTheme: defineTheme,
+		setTheme: setTheme,
 
 		// enums
 		ScrollbarVisibility: ScrollbarVisibility,
-		WrappingIndent: editorCommon.WrappingIndent,
+		WrappingIndent: editorOptions.WrappingIndent,
 		OverviewRulerLane: editorCommon.OverviewRulerLane,
 		EndOfLinePreference: editorCommon.EndOfLinePreference,
 		DefaultEndOfLine: editorCommon.DefaultEndOfLine,
 		EndOfLineSequence: editorCommon.EndOfLineSequence,
 		TrackedRangeStickiness: editorCommon.TrackedRangeStickiness,
-		CursorChangeReason: editorCommon.CursorChangeReason,
-		MouseTargetType: editorCommon.MouseTargetType,
-		TextEditorCursorStyle: editorCommon.TextEditorCursorStyle,
-		TextEditorCursorBlinkingStyle: editorCommon.TextEditorCursorBlinkingStyle,
+		CursorChangeReason: CursorChangeReason,
+		MouseTargetType: MouseTargetType,
+		TextEditorCursorStyle: editorOptions.TextEditorCursorStyle,
+		TextEditorCursorBlinkingStyle: editorOptions.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
-		RenderMinimap: editorCommon.RenderMinimap,
+		RenderMinimap: editorOptions.RenderMinimap,
 
 		// classes
-		InternalEditorScrollbarOptions: <any>editorCommon.InternalEditorScrollbarOptions,
-		InternalEditorMinimapOptions: <any>editorCommon.InternalEditorMinimapOptions,
-		EditorWrappingInfo: <any>editorCommon.EditorWrappingInfo,
-		InternalEditorViewOptions: <any>editorCommon.InternalEditorViewOptions,
-		EditorContribOptions: <any>editorCommon.EditorContribOptions,
-		InternalEditorOptions: <any>editorCommon.InternalEditorOptions,
-		OverviewRulerPosition: <any>editorCommon.OverviewRulerPosition,
-		EditorLayoutInfo: <any>editorCommon.EditorLayoutInfo,
+		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,
 		BareFontInfo: <any>BareFontInfo,
 		FontInfo: <any>FontInfo,
 		TextModelResolvedOptions: <any>editorCommon.TextModelResolvedOptions,
 		FindMatch: <any>editorCommon.FindMatch,
 
 		// vars
-		EditorType: editorCommon.EditorType,
-		CursorMoveByUnit: editorCommon.CursorMoveByUnit,
-		CursorMovePosition: editorCommon.CursorMovePosition,
-		EditorScrollDirection: editorCommon.EditorScrollDirection,
-		EditorScrollByUnit: editorCommon.EditorScrollByUnit,
-		RevealLineAtArgument: editorCommon.RevealLineAtArgument,
-		Handler: editorCommon.Handler,
+		EditorType: editorCommon.EditorType
 	};
 }

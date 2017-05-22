@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 
-suite('Browser Services - EditorLayoutProvider', () => {
+suite('Decoration Render Options', () => {
 	var options: IDecorationRenderOptions = {
 		gutterIconPath: URI.parse('https://github.com/Microsoft/vscode/blob/master/resources/linux/code.png'),
 		gutterIconSize: 'contain',
@@ -32,7 +32,7 @@ suite('Browser Services - EditorLayoutProvider', () => {
 
 	function readStyleSheet(styleSheet: HTMLStyleElement): string {
 		if ((<any>styleSheet.sheet).rules) {
-			return Array.prototype.map.call((<any>styleSheet.sheet).rules, r => r.cssText).join('\n');
+			return Array.prototype.map.call((<any>styleSheet.sheet).rules, (r: { cssText: string }) => r.cssText).join('\n');
 		}
 		return styleSheet.sheet.toString();
 	}

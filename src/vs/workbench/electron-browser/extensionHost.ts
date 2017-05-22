@@ -30,7 +30,7 @@ import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net
 import { createServer, Server } from 'net';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { MainProcessExtensionService } from 'vs/workbench/api/node/mainThreadExtensionService';
+import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
@@ -189,7 +189,7 @@ export class ExtensionHostProcessWorker {
 	private tryFindDebugPort(): TPromise<number> {
 		const extensionHostPort = this.environmentService.debugExtensionHost.port;
 		if (typeof extensionHostPort !== 'number') {
-			return TPromise.wrap(void 0);
+			return TPromise.wrap<number>(void 0);
 		}
 		return new TPromise<number>((c, e) => {
 			findFreePort(extensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, (port) => {
@@ -248,7 +248,8 @@ export class ExtensionHostProcessWorker {
 					extensionDevelopmentPath: this.environmentService.extensionDevelopmentPath,
 					extensionTestsPath: this.environmentService.extensionTestsPath,
 					// globally disable proposed api when built and not insiders developing extensions
-					enableProposedApi: !this.environmentService.isBuilt || (!!this.environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0)
+					enableProposedApiForAll: !this.environmentService.isBuilt || (!!this.environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0),
+					enableProposedApiFor: this.environmentService.args['enable-proposed-api'] || []
 				},
 				contextService: {
 					workspace: this.contextService.getWorkspace()

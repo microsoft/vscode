@@ -38,6 +38,7 @@ export interface IQueryOptions {
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
+	searchPaths?: string[];
 }
 
 export interface ISearchQuery extends IQueryOptions {
@@ -54,6 +55,7 @@ export interface IPatternInfo {
 	pattern: string;
 	isRegExp?: boolean;
 	isWordMatch?: boolean;
+	wordSeparators?: string;
 	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
 }
@@ -74,7 +76,11 @@ export interface IProgress {
 	worked?: number;
 }
 
-export interface ISearchProgressItem extends IFileMatch, IProgress {
+export interface ISearchLog {
+	message?: string;
+}
+
+export interface ISearchProgressItem extends IFileMatch, IProgress, ISearchLog {
 	// Marker interface to indicate the possible values for progress calls from the engine
 }
 
@@ -132,6 +138,9 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 		exclude: IExpression;
 		useRipgrep: boolean;
 		useIgnoreFilesByDefault: boolean;
+	};
+	editor: {
+		wordSeparators: string;
 	};
 }
 

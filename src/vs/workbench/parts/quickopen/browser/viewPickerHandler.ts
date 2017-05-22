@@ -87,7 +87,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 				return false;
 			}
 
-			const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(e, searchValue);
+			const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(e, searchValue);
 			e.setHighlights(labelHighlights, descriptionHighlights);
 
 			return true;

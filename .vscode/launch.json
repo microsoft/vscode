@@ -4,34 +4,6 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Unit Tests",
-			"protocol": "legacy",
-			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
-			"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
-			"windows": {
-				"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.exe"
-			},
-			"linux": {
-				"runtimeExecutable": "${workspaceRoot}/.build/electron/code-oss"
-			},
-			"stopOnEntry": false,
-			"args": [
-				"--timeout",
-				"2000"
-			],
-			"cwd": "${workspaceRoot}",
-			"env": {
-				"ELECTRON_RUN_AS_NODE": "true"
-			},
-			"sourceMaps": true,
-			"outFiles": [
-				"${workspaceRoot}/out/**/*.js"
-			],
-			"preLaunchTask": "electron"
-		},
-		{
-			"type": "node",
-			"request": "launch",
 			"name": "Gulp Build",
 			"program": "${workspaceRoot}/node_modules/gulp/bin/gulp.js",
 			"stopOnEntry": true,
@@ -147,16 +119,42 @@
 			},
 			"urlFilter": "*index.html*",
 			"runtimeArgs": [
-				"${workspaceRoot}",
 				"--debug=5875"
 			],
 			"webRoot": "${workspaceRoot}"
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Git Unit Tests",
+			"protocol": "inspector",
+			"program": "${workspaceRoot}/extensions/git/node_modules/mocha/bin/_mocha",
+			"stopOnEntry": false,
+			"cwd": "${workspaceRoot}/extensions/git",
+			"sourceMaps": true,
+			"outFiles": [
+				"${workspaceRoot}/extensions/git/out/**/*.js"
+			]
+		},
+		{
+			"name": "Attach to TS Server",
+			"type": "node",
+			"request": "attach",
+			"port": 5859,
+			"sourceMaps": true,
+			"protocol": "legacy",
+			"outFiles": [
+				"${workspaceRoot}/extensions/node_modules/typescript/lib/**/*.js"
+			]
 		}
 	],
 	"compounds": [
 		{
 			"name": "Debug VS Code Main and Renderer",
-			"configurations": ["Launch VS Code", "Attach to Main Process"]
+			"configurations": [
+				"Launch VS Code",
+				"Attach to Main Process"
+			]
 		}
 	]
 }

@@ -61,7 +61,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 
 	public setEnablement(identifier: string, enable: boolean, workspace: boolean = false): TPromise<boolean> {
 		if (workspace && !this.workspace) {
-			return TPromise.wrapError(localize('noWorkspace', "No workspace."));
+			return TPromise.wrapError<boolean>(localize('noWorkspace', "No workspace."));
 		}
 
 		if (this.environmentService.disableExtensions) {
@@ -124,7 +124,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		}
 	}
 
-	private onDidUninstallExtension({id, error}: DidUninstallExtensionEvent): void {
+	private onDidUninstallExtension({ id, error }: DidUninstallExtensionEvent): void {
 		if (!error) {
 			id = getIdAndVersionFromLocalExtensionId(id).id;
 			if (id) {

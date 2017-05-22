@@ -24,6 +24,7 @@ import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IThemable } from 'vs/platform/theme/common/styler';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -52,8 +53,8 @@ export abstract class ViewerViewlet extends Viewlet {
 		this.viewer = this.createViewer(this.viewerContainer);
 
 		// Eventing
-		this.toUnbind.push(this.viewer.addListener2('selection', (e: ISelectionEvent) => this.onSelection(e)));
-		this.toUnbind.push(this.viewer.addListener2('focus', (e: IFocusEvent) => this.onFocus(e)));
+		this.toUnbind.push(this.viewer.addListener('selection', (e: ISelectionEvent) => this.onSelection(e)));
+		this.toUnbind.push(this.viewer.addListener('focus', (e: IFocusEvent) => this.onFocus(e)));
 
 		return TPromise.as(null);
 	}
@@ -288,12 +289,14 @@ export class CollapseAction extends Action {
 	}
 }
 
-export interface IViewletView extends IView {
+export interface IViewletView extends IView, IThemable {
 	create(): TPromise<void>;
 	setVisible(visible: boolean): TPromise<void>;
 	getActions(): IAction[];
 	getSecondaryActions(): IAction[];
 	getActionItem(action: IAction): IActionItem;
+	showHeader(): boolean;
+	hideHeader(): boolean;
 	shutdown(): void;
 	focusBody(): void;
 	isExpanded(): boolean;
@@ -318,18 +321,24 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 		initialBodySize: number,
 		collapsed: boolean,
 		private viewName: string,
-		private keybindingService: IKeybindingService,
+		protected keybindingService: IKeybindingService,
 		protected contextMenuService: IContextMenuService
 	) {
 		super({
 			expandedBodySize: initialBodySize,
-			headerSize: 22,
 			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED,
-			ariaHeaderLabel: viewName
+			ariaHeaderLabel: viewName,
+			headerSize: 22,
 		});
 
 		this.actionRunner = actionRunner;
 		this.toDispose = [];
+	}
+
+	protected changeState(state: CollapsibleState): void {
+		updateTreeVisibility(this.tree, state === CollapsibleState.EXPANDED);
+
+		super.changeState(state);
 	}
 
 	public create(): TPromise<void> {
@@ -341,12 +350,12 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 		// Tool bar
 		this.toolBar = new ToolBar($('div.actions').appendTo(container).getHTMLElement(), this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: (action) => { return this.getActionItem(action); },
+			actionItemProvider: (action) => this.getActionItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
-		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
+		this.updateActions();
 
 		// Expand on drag over
 		this.dragHandler = new DelayedDragHandler(container, () => {
@@ -356,10 +365,8 @@ export abstract class AdaptiveCollapsibleViewletView extends FixedCollapsibleVie
 		});
 	}
 
-	protected changeState(state: CollapsibleState): void {
-		updateTreeVisibility(this.tree, state === CollapsibleState.EXPANDED);
-
-		super.changeState(state);
+	protected updateActions(): void {
+		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
 	}
 
 	protected renderViewTree(container: HTMLElement): HTMLElement {
@@ -440,12 +447,12 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		collapsed: boolean,
 		private viewName: string,
 		protected messageService: IMessageService,
-		private keybindingService: IKeybindingService,
+		protected keybindingService: IKeybindingService,
 		protected contextMenuService: IContextMenuService,
 		headerSize?: number
 	) {
 		super({
-			minimumSize: 2 * 22,
+			minimumSize: 5 * 22,
 			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED,
 			ariaHeaderLabel: viewName,
 			headerSize
@@ -470,12 +477,12 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		// Tool bar
 		this.toolBar = new ToolBar($('div.actions').appendTo(container).getHTMLElement(), this.contextMenuService, {
 			orientation: ActionsOrientation.HORIZONTAL,
-			actionItemProvider: (action) => { return this.getActionItem(action); },
+			actionItemProvider: (action) => this.getActionItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.viewName),
 			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
 		});
 		this.toolBar.actionRunner = this.actionRunner;
-		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
+		this.updateActions();
 
 		// Expand on drag over
 		this.dragHandler = new DelayedDragHandler(container, () => {
@@ -483,6 +490,10 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 				this.expand();
 			}
 		});
+	}
+
+	protected updateActions(): void {
+		this.toolBar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
 	}
 
 	protected renderViewTree(container: HTMLElement): HTMLElement {

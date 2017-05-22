@@ -10,12 +10,11 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { findFocusedEditor } from 'vs/editor/common/config/config';
+import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { CopyOptions } from 'vs/editor/common/controller/textAreaHandler';
-
-import EditorContextKeys = editorCommon.EditorContextKeys;
+import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -44,7 +43,7 @@ abstract class ExecCommandAction extends EditorAction {
 	}
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
-		let focusedEditor = findFocusedEditor(this.id, accessor, false);
+		let focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		if (focusedEditor && focusedEditor.isFocused()) {
 			focusedEditor.trigger('keyboard', this.id, args);
@@ -68,9 +67,9 @@ class ExecCommandCutAction extends ExecCommandAction {
 			id: 'editor.action.clipboardCutAction',
 			label: nls.localize('actions.clipboard.cutLabel', "Cut"),
 			alias: 'Cut',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
 			},
@@ -82,9 +81,9 @@ class ExecCommandCutAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
-		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
 
@@ -102,7 +101,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 			alias: 'Copy',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
 			},
@@ -114,9 +113,9 @@ class ExecCommandCopyAction extends ExecCommandAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
-		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
 
@@ -132,9 +131,9 @@ class ExecCommandPasteAction extends ExecCommandAction {
 			id: 'editor.action.clipboardPasteAction',
 			label: nls.localize('actions.clipboard.pasteLabel', "Paste"),
 			alias: 'Paste',
-			precondition: EditorContextKeys.Writable,
+			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 				win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
 			},
@@ -156,16 +155,16 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 			alias: 'Copy With Syntax Highlighting',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.TextFocus,
+				kbExpr: EditorContextKeys.textFocus,
 				primary: null
 			}
 		});
 	}
 
 	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
-		var enableEmptySelectionClipboard = editor.getConfiguration().contribInfo.emptySelectionClipboard && browser.enableEmptySelectionClipboard;
+		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
-		if (!enableEmptySelectionClipboard && editor.getSelection().isEmpty()) {
+		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
 			return;
 		}
 

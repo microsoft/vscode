@@ -8,6 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app } from 'electron';
@@ -19,6 +20,7 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 // TODO@Joao: remove this dependency, move all implementation to this class
 import { OpenContext } from 'vs/code/common/windows';
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
+import { ILifecycleService } from "vs/code/electron-main/lifecycle";
 
 export interface ISharedProcess {
 	whenReady(): TPromise<void>;
@@ -38,11 +40,12 @@ export class WindowsService implements IWindowsService, IDisposable {
 		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IURLService urlService: IURLService
+		@IURLService urlService: IURLService,
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		chain(urlService.onOpenURL)
 			.filter(uri => uri.authority === 'file' && !!uri.path)
-			.map(uri => uri.path)
+			.map(uri => URI.file(uri.fsPath))
 			.on(this.openFileForURI, this, this.disposables);
 	}
 
@@ -166,6 +169,16 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
+	isFocused(windowId: number): TPromise<boolean> {
+		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (vscodeWindow) {
+			return TPromise.as(vscodeWindow.win.isFocused());
+		}
+
+		return TPromise.as(null);
+	}
+
 	isMaximized(windowId: number): TPromise<boolean> {
 		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
 
@@ -275,20 +288,8 @@ export class WindowsService implements IWindowsService, IDisposable {
 	}
 
 	relaunch(options: { addArgs?: string[], removeArgs?: string[] }): TPromise<void> {
-		const args = process.argv.slice(1);
-		if (options.addArgs) {
-			args.push(...options.addArgs);
-		}
-		if (options.removeArgs) {
-			for (const a of options.removeArgs) {
-				const idx = args.indexOf(a);
-				if (idx >= 0) {
-					args.splice(idx, 1);
-				}
-			}
-		}
-		app.quit();
-		app.once('quit', () => app.relaunch({ args }));
+		this.lifecycleService.relaunch(options);
+
 		return TPromise.as(null);
 	}
 
@@ -301,9 +302,9 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	private openFileForURI(filePath: string): TPromise<void> {
+	private openFileForURI(uri: URI): TPromise<void> {
 		const cli = assign(Object.create(null), this.environmentService.args, { goto: true });
-		const pathsToOpen = [filePath];
+		const pathsToOpen = [uri.fsPath];
 
 		this.windowsMainService.open({ context: OpenContext.API, cli, pathsToOpen });
 		return TPromise.as(null);

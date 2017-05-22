@@ -18,7 +18,6 @@ import { isString } from 'vs/base/common/types';
 import { IAction, ActionRunner as BaseActionRunner, IActionRunner } from 'vs/base/common/actions';
 import comparers = require('vs/base/common/comparers');
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { $, Builder } from 'vs/base/browser/builder';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import glob = require('vs/base/common/glob');
 import { FileLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
@@ -29,10 +28,9 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IFileOperationResult, FileOperationResult, IFileService, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
 import { ResourceMap } from 'vs/base/common/map';
 import { DuplicateFileAction, ImportFileAction, IEditableData, IFileViewletState } from 'vs/workbench/parts/files/browser/fileActions';
-import { IDataSource, ITree, IElementCallback, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
+import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDrop, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
-import { ActionsRenderer } from 'vs/base/parts/tree/browser/actionsRenderer';
 import { FileStat, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -51,7 +49,6 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -115,7 +112,7 @@ export class FileDataSource implements IDataSource {
 
 		// Return if root reached
 		const workspace = this.contextService.getWorkspace();
-		if (workspace && isEqual(stat.resource.fsPath, workspace.resource.fsPath)) {
+		if (workspace && stat.resource.toString() === workspace.resource.toString()) {
 			return TPromise.as(null);
 		}
 
@@ -256,63 +253,73 @@ export class ActionRunner extends BaseActionRunner implements IActionRunner {
 	}
 }
 
+export interface IFileTemplateData {
+	label: FileLabel;
+	container: HTMLElement;
+}
+
 // Explorer Renderer
-export class FileRenderer extends ActionsRenderer implements IRenderer {
+export class FileRenderer implements IRenderer {
 
 	private static ITEM_HEIGHT = 22;
+	private static FILE_TEMPLATE_ID = 'file';
 
 	private state: FileViewletState;
 
 	constructor(
 		state: FileViewletState,
-		actionRunner: IActionRunner,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super({
-			actionProvider: state.actionProvider,
-			actionRunner: actionRunner
-		});
-
 		this.state = state;
 	}
 
-	public getContentHeight(tree: ITree, element: any): number {
+	public getHeight(tree: ITree, element: any): number {
 		return FileRenderer.ITEM_HEIGHT;
 	}
 
-	public renderContents(tree: ITree, stat: FileStat, domElement: HTMLElement, previousCleanupFn: IElementCallback): IElementCallback {
-		const el = $(domElement).clearChildren();
+	public getTemplateId(tree: ITree, element: any): string {
+		return FileRenderer.FILE_TEMPLATE_ID;
+	}
 
-		// File Rename/Add Input Field
+	public disposeTemplate(tree: ITree, templateId: string, templateData: IFileTemplateData): void {
+		templateData.label.dispose();
+	}
+
+	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): IFileTemplateData {
+		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
+
+		return { label, container };
+	}
+
+	public renderElement(tree: ITree, stat: FileStat, templateId: string, templateData: IFileTemplateData): void {
 		const editableData: IEditableData = this.state.getEditableData(stat);
-		if (editableData) {
-			return this.renderInputBox(el, tree, stat, editableData);
+
+		// File Label
+		if (!editableData) {
+			templateData.label.element.style.display = 'block';
+			const extraClasses = ['explorer-item'];
+			templateData.label.setFile(stat.resource, { hidePath: true, isFolder: stat.isDirectory, extraClasses });
 		}
 
-		// Label
-		return this.renderLabel(el, stat);
+		// Input Box
+		else {
+			templateData.label.element.style.display = 'none';
+			this.renderInputBox(templateData.container, tree, stat, editableData);
+		}
 	}
 
-	private renderLabel(container: Builder, stat: FileStat): IElementCallback {
-		const label = this.instantiationService.createInstance(FileLabel, container.getHTMLElement(), void 0);
+	private renderInputBox(container: HTMLElement, tree: ITree, stat: FileStat, editableData: IEditableData): void {
 
-		const extraClasses = ['explorer-item'];
-		label.setFile(stat.resource, { hidePath: true, isFolder: stat.isDirectory, extraClasses });
-
-		return () => label.dispose();
-	}
-
-	private renderInputBox(container: Builder, tree: ITree, stat: FileStat, editableData: IEditableData): IElementCallback {
-		const label = this.instantiationService.createInstance(FileLabel, container.getHTMLElement(), void 0);
-
+		// Use a file label only for the icon next to the input box
+		const label = this.instantiationService.createInstance(FileLabel, container, void 0);
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const isFolder = stat.isDirectory || (stat instanceof NewStatPlaceholder && stat.isDirectoryPlaceholder());
 		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, isFolder, extraClasses };
 		label.setFile(stat.resource, labelOptions);
 
-		// Input field (when creating a new file or folder or renaming)
+		// Input field for name
 		const inputBox = new InputBox(label.element, this.contextViewService, {
 			validationOptions: {
 				validation: editableData.validator,
@@ -344,6 +351,7 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 			setTimeout(() => {
 				tree.DOMFocus();
 				lifecycle.dispose(toDispose);
+				container.removeChild(label.element);
 			}, 0);
 		});
 
@@ -358,14 +366,12 @@ export class FileRenderer extends ActionsRenderer implements IRenderer {
 					done(false);
 				}
 			}),
-			DOM.addDisposableListener(inputBox.inputElement, 'blur', () => {
+			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid());
 			}),
 			label,
 			styler
 		];
-
-		return () => done(true);
 	}
 }
 
@@ -418,7 +424,7 @@ export class FileController extends DefaultController {
 
 		// Handle root
 		const workspace = this.contextService.getWorkspace();
-		if (workspace && isEqual(stat.resource.fsPath, workspace.resource.fsPath)) {
+		if (workspace && stat.resource.toString() === workspace.resource.toString()) {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 
@@ -484,7 +490,7 @@ export class FileController extends DefaultController {
 			getAnchor: () => anchor,
 			getActions: () => {
 				return this.state.actionProvider.getSecondaryActions(tree, stat).then(actions => {
-					fillInActions(this.contributedContextMenu, stat.resource, actions);
+					fillInActions(this.contributedContextMenu, { arg: stat.resource }, actions);
 					return actions;
 				});
 			},
@@ -598,7 +604,6 @@ export class FileDragAndDrop implements IDragAndDrop {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
 		@IBackupFileService private backupFileService: IBackupFileService
 	) {
 		this.toDispose = [];
@@ -694,7 +699,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 					return true; // NewStatPlaceholders can not be moved
 				}
 
-				if (isEqual(source.resource.fsPath, target.resource.fsPath)) {
+				if (source.resource.toString() === target.resource.toString()) {
 					return true; // Can not move anything onto itself
 				}
 
@@ -718,7 +723,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 		}
 
 		const workspace = this.contextService.getWorkspace();
-		if (workspace && !isEqual(target.resource.fsPath, workspace.resource.fsPath)) {
+		if (workspace && target.resource.toString() !== workspace.resource.toString()) {
 			return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_UP_COPY : DRAG_OVER_ACCEPT_BUBBLE_UP;
 		}
 
@@ -754,7 +759,7 @@ export class FileDragAndDrop implements IDragAndDrop {
 
 				// Success: load all files that are dirty again to restore their dirty contents
 				// Error: discard any backups created during the process
-				const onSuccess = () => TPromise.join(dirtyMoved.map(t => this.textModelResolverService.createModelReference(t)));
+				const onSuccess = () => TPromise.join(dirtyMoved.map(t => this.textFileService.models.loadOrCreate(t)));
 				const onError = (error?: Error, showError?: boolean) => {
 					if (showError) {
 						this.messageService.show(Severity.Error, error);

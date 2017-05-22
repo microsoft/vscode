@@ -1,0 +1,23 @@
+{
+  "name": "code-oss-dev-build",
+  "version": "1.0.0",
+  "devDependencies": {
+    "@types/azure": "^0.9.18",
+    "@types/documentdb": "^1.10.1",
+    "@types/es6-collections": "^0.5.30",
+    "@types/es6-promise": "0.0.32",
+    "@types/mime": "0.0.29",
+    "@types/node": "^7.0.13",
+    "@types/xml2js": "^0.0.33",
+    "azure-storage": "^2.1.0",
+    "documentdb": "^1.11.0",
+    "mime": "^1.3.4",
+    "typescript": "^2.2.2",
+    "xml2js": "^0.4.17"
+  },
+  "scripts": {
+    "compile": "tsc",
+    "watch": "tsc --watch",
+    "postinstall": "npm run compile"
+  }
+}

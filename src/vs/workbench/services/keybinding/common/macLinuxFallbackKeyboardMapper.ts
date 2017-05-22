@@ -38,7 +38,7 @@ export class MacLinuxFallbackKeyboardMapper implements IKeyboardMapper {
 	 */
 	private readonly _OS: OperatingSystem;
 
-	constructor(rawMappings: IMacLinuxKeyboardMapping, OS: OperatingSystem) {
+	constructor(OS: OperatingSystem) {
 		this._OS = OS;
 	}
 

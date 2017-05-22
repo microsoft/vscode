@@ -18,15 +18,10 @@ import { ScanCodeBinding } from 'vs/workbench/services/keybinding/common/scanCod
 export interface IResolvedKeybinding {
 	label: string;
 	ariaLabel: string;
-	HTMLLabel: IHTMLContentElement[];
 	electronAccelerator: string;
 	userSettingsLabel: string;
 	isWYSIWYG: boolean;
 	isChord: boolean;
-	hasCtrlModifier: boolean;
-	hasShiftModifier: boolean;
-	hasAltModifier: boolean;
-	hasMetaModifier: boolean;
 	dispatchParts: [string, string];
 }
 
@@ -34,15 +29,10 @@ function toIResolvedKeybinding(kb: ResolvedKeybinding): IResolvedKeybinding {
 	return {
 		label: kb.getLabel(),
 		ariaLabel: kb.getAriaLabel(),
-		HTMLLabel: kb.getHTMLLabel(),
 		electronAccelerator: kb.getElectronAccelerator(),
 		userSettingsLabel: kb.getUserSettingsLabel(),
 		isWYSIWYG: kb.isWYSIWYG(),
 		isChord: kb.isChord(),
-		hasCtrlModifier: kb.hasCtrlModifier(),
-		hasShiftModifier: kb.hasShiftModifier(),
-		hasAltModifier: kb.hasAltModifier(),
-		hasMetaModifier: kb.hasMetaModifier(),
 		dispatchParts: kb.getDispatchParts(),
 	};
 }
@@ -98,7 +88,7 @@ export function readRawMapping<T>(file: string): TPromise<T> {
 		let contents = buff.toString();
 		let func = new Function('define', contents);
 		let rawMappings: T = null;
-		func(function (value) {
+		func(function (value: T) {
 			rawMappings = value;
 		});
 		return rawMappings;

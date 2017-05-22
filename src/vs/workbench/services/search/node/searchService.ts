@@ -135,7 +135,7 @@ export class SearchService implements ISearchService {
 				}
 
 				// Use editor API to find matches
-				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch, false);
+				let matches = model.findMatches(query.contentPattern.pattern, false, query.contentPattern.isRegExp, query.contentPattern.isCaseSensitive, query.contentPattern.isWordMatch ? query.contentPattern.wordSeparators : null, false, query.maxResults);
 				if (matches.length) {
 					let fileMatch = new FileMatch(resource);
 					localResults.set(resource, fileMatch);
@@ -232,7 +232,8 @@ export class DiskSearch {
 			sortByScore: query.sortByScore,
 			cacheKey: query.cacheKey,
 			useRipgrep: query.useRipgrep,
-			disregardIgnoreFiles: query.disregardIgnoreFiles
+			disregardIgnoreFiles: query.disregardIgnoreFiles,
+			searchPaths: query.searchPaths
 		};
 
 		if (query.type === QueryType.Text) {

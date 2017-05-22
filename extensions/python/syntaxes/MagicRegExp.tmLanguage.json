@@ -14,6 +14,32 @@
 		"regexp-base-expression": {
 			"patterns": [
 				{
+					"include": "#regexp-quantifier"
+				},
+				{
+					"include": "#regexp-base-common"
+				}
+			]
+		},
+		"fregexp-base-expression": {
+			"patterns": [
+				{
+					"include": "#fregexp-quantifier"
+				},
+				{
+					"include": "#fstring-formatting-braces"
+				},
+				{
+					"match": "\\{.*?\\}"
+				},
+				{
+					"include": "#regexp-base-common"
+				}
+			]
+		},
+		"regexp-base-common": {
+			"patterns": [
+				{
 					"name": "support.other.match.any.regexp",
 					"match": "\\."
 				},
@@ -34,13 +60,17 @@
 					"match": "\\|"
 				},
 				{
-					"name": "keyword.operator.quantifier.regexp",
-					"match": "(?x)\n  \\{(\n    \\d+ | \\d+,(\\d+)? | ,\\d+\n  )\\}\n"
-				},
-				{
 					"include": "#regexp-escape-sequence"
 				}
 			]
+		},
+		"regexp-quantifier": {
+			"name": "keyword.operator.quantifier.regexp",
+			"match": "(?x)\n  \\{(\n    \\d+ | \\d+,(\\d+)? | ,\\d+\n  )\\}\n"
+		},
+		"fregexp-quantifier": {
+			"name": "keyword.operator.quantifier.regexp",
+			"match": "(?x)\n  \\{\\{(\n    \\d+ | \\d+,(\\d+)? | ,\\d+\n  )\\}\\}\n"
 		},
 		"regexp-backreference-number": {
 			"name": "meta.backreference.regexp",
@@ -56,13 +86,13 @@
 			"match": "(?x)\n  (\\()  (\\?P= \\w+(?:\\s+[[:alnum:]]+)?)  (\\))\n",
 			"captures": {
 				"1": {
-					"name": "punctuation.parenthesis.backreference.named.begin.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.backreference.named.begin.regexp"
 				},
 				"2": {
 					"name": "entity.name.tag.named.backreference.regexp"
 				},
 				"3": {
-					"name": "punctuation.parenthesis.backreference.named.end.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.backreference.named.end.regexp"
 				}
 			}
 		},
@@ -183,7 +213,7 @@
 					"end": "(\\])",
 					"beginCaptures": {
 						"1": {
-							"name": "constant.other.set.regexp punctuation.character.set.begin.regexp"
+							"name": "punctuation.character.set.begin.regexp constant.other.set.regexp"
 						},
 						"2": {
 							"name": "keyword.operator.negation.regexp"
@@ -194,7 +224,7 @@
 					},
 					"endCaptures": {
 						"1": {
-							"name": "constant.other.set.regexp punctuation.character.set.end.regexp"
+							"name": "punctuation.character.set.end.regexp constant.other.set.regexp"
 						},
 						"2": {
 							"name": "invalid.illegal.newline.python"
@@ -218,7 +248,7 @@
 			"end": "(\\))",
 			"beginCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.named.begin.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.named.begin.regexp"
 				},
 				"2": {
 					"name": "entity.name.tag.named.group.regexp"
@@ -226,7 +256,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.named.end.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.named.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -274,7 +304,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.lookahead.end.regexp keyword.operator.lookahead.regexp"
+					"name": "keyword.operator.lookahead.regexp punctuation.parenthesis.lookahead.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -299,7 +329,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.lookahead.end.regexp keyword.operator.lookahead.negative.regexp"
+					"name": "keyword.operator.lookahead.negative.regexp punctuation.parenthesis.lookahead.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -324,7 +354,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.lookbehind.end.regexp keyword.operator.lookbehind.regexp"
+					"name": "keyword.operator.lookbehind.regexp punctuation.parenthesis.lookbehind.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -349,7 +379,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.lookbehind.end.regexp keyword.operator.lookbehind.negative.regexp"
+					"name": "keyword.operator.lookbehind.negative.regexp punctuation.parenthesis.lookbehind.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -374,7 +404,7 @@
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.conditional.end.regexp keyword.operator.conditional.negative.regexp"
+					"name": "keyword.operator.conditional.negative.regexp punctuation.parenthesis.conditional.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -391,12 +421,12 @@
 			"end": "(\\))",
 			"beginCaptures": {
 				"0": {
-					"name": "punctuation.parenthesis.non-capturing.begin.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.non-capturing.begin.regexp"
 				}
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.non-capturing.end.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.non-capturing.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -413,12 +443,12 @@
 			"end": "(\\))",
 			"beginCaptures": {
 				"0": {
-					"name": "punctuation.parenthesis.begin.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.begin.regexp"
 				}
 			},
 			"endCaptures": {
 				"1": {
-					"name": "punctuation.parenthesis.end.regexp support.other.parenthesis.regexp"
+					"name": "support.other.parenthesis.regexp punctuation.parenthesis.end.regexp"
 				},
 				"2": {
 					"name": "invalid.illegal.newline.python"
@@ -431,5 +461,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/MagicStack/MagicPython/commit/a45287d159f82256c768ad2e1114ca9751d28670"
+	"version": "https://github.com/MagicStack/MagicPython/commit/df5bb18c64252f2e7b1aa87e2ed124666d314f1d"
 }

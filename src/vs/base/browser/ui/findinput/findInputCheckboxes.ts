@@ -9,14 +9,14 @@ import 'vs/css!./findInputCheckboxes';
 import * as nls from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 
 export interface IFindInputCheckboxOpts {
 	appendTitle: string;
 	isChecked: boolean;
 	onChange: (viaKeyboard: boolean) => void;
 	onKeyDown?: (e: IKeyboardEvent) => void;
-	checkedBorderColor?: Color;
+	inputActiveOptionBorder?: Color;
 }
 
 const NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");
@@ -31,7 +31,7 @@ export class CaseSensitiveCheckbox extends Checkbox {
 			isChecked: opts.isChecked,
 			onChange: opts.onChange,
 			onKeyDown: opts.onKeyDown,
-			checkedBorderColor: opts.checkedBorderColor
+			inputActiveOptionBorder: opts.inputActiveOptionBorder
 		});
 	}
 }
@@ -44,7 +44,7 @@ export class WholeWordsCheckbox extends Checkbox {
 			isChecked: opts.isChecked,
 			onChange: opts.onChange,
 			onKeyDown: opts.onKeyDown,
-			checkedBorderColor: opts.checkedBorderColor
+			inputActiveOptionBorder: opts.inputActiveOptionBorder
 		});
 	}
 }
@@ -57,7 +57,7 @@ export class RegexCheckbox extends Checkbox {
 			isChecked: opts.isChecked,
 			onChange: opts.onChange,
 			onKeyDown: opts.onKeyDown,
-			checkedBorderColor: opts.checkedBorderColor
+			inputActiveOptionBorder: opts.inputActiveOptionBorder
 		});
 	}
 }

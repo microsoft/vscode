@@ -11,7 +11,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { Range, Disposable, CompletionList, CompletionItem, SnippetString } from 'vs/workbench/api/node/extHostTypes';
-import { IPosition, IRange, ISingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
@@ -21,6 +21,8 @@ import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/searc
 import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
 
 // --- adapter
 
@@ -455,7 +457,7 @@ class RenameAdapter {
 					rejectReason: err
 				};
 			}
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<modes.WorkspaceEdit>(err);
 		});
 	}
 }
@@ -552,7 +554,7 @@ class SuggestAdapter {
 	}
 
 	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range): modes.ISuggestion {
-		if (!item.label) {
+		if (typeof item.label !== 'string' || item.label.length === 0) {
 			console.warn('INVALID text edit -> must have at least a label');
 			return undefined;
 		}
@@ -714,7 +716,7 @@ export class ExtHostLanguageFeatures extends ExtHostLanguageFeaturesShape {
 	private _withAdapter<A, R>(handle: number, ctor: { new (...args: any[]): A }, callback: (adapter: A) => TPromise<R>): TPromise<R> {
 		let adapter = this._adapter.get(handle);
 		if (!(adapter instanceof ctor)) {
-			return TPromise.wrapError(new Error('no adapter found'));
+			return TPromise.wrapError<R>(new Error('no adapter found'));
 		}
 		return callback(<any>adapter);
 	}

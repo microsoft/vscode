@@ -22,10 +22,11 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import URI from 'vs/base/common/uri';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISCMService } from 'vs/workbench/services/scm/common/scm';
+import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
 
 class DirtyDiffModelDecorator {
 
-	static MODIFIED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
+	static MODIFIED_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		linesDecorationsClassName: 'dirty-diff-modified-glyph',
 		isWholeLine: true,
 		overviewRuler: {
@@ -33,9 +34,9 @@ class DirtyDiffModelDecorator {
 			darkColor: 'rgba(0, 122, 204, 0.6)',
 			position: common.OverviewRulerLane.Left
 		}
-	};
+	});
 
-	static ADDED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
+	static ADDED_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		linesDecorationsClassName: 'dirty-diff-added-glyph',
 		isWholeLine: true,
 		overviewRuler: {
@@ -43,9 +44,9 @@ class DirtyDiffModelDecorator {
 			darkColor: 'rgba(0, 122, 204, 0.6)',
 			position: common.OverviewRulerLane.Left
 		}
-	};
+	});
 
-	static DELETED_DECORATION_OPTIONS: common.IModelDecorationOptions = {
+	static DELETED_DECORATION_OPTIONS = ModelDecorationOptions.register({
 		linesDecorationsClassName: 'dirty-diff-deleted-glyph',
 		isWholeLine: true,
 		overviewRuler: {
@@ -53,7 +54,7 @@ class DirtyDiffModelDecorator {
 			darkColor: 'rgba(0, 122, 204, 0.6)',
 			position: common.OverviewRulerLane.Left
 		}
-	};
+	});
 
 	private decorations: string[];
 	private baselineModel: common.IModel;

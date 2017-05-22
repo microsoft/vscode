@@ -16,6 +16,7 @@ import sash = require('vs/base/browser/ui/sash/sash');
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
+import { Color } from 'vs/base/common/color';
 
 export enum Orientation {
 	VERTICAL,
@@ -101,20 +102,59 @@ export abstract class View extends ee.EventEmitter implements IView {
 	abstract layout(size: number, orientation: Orientation): void;
 }
 
-export interface IHeaderViewOptions {
+export interface IHeaderViewOptions extends IHeaderViewStyles {
 	headerSize?: number;
 }
 
+export interface IHeaderViewStyles {
+	headerBackground?: Color;
+	headerHighContrastBorder?: Color;
+}
+
+const headerDefaultOpts = {
+	headerBackground: Color.fromHex('#808080').transparent(0.2)
+};
+
 export abstract class HeaderView extends View {
 
-	protected headerSize: number;
+	private _headerSize: number;
+	private _showHeader: boolean;
+
 	protected header: HTMLElement;
 	protected body: HTMLElement;
+
+	private headerBackground: Color;
+	private headerHighContrastBorder;
 
 	constructor(opts: IHeaderViewOptions) {
 		super(opts);
 
-		this.headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
+		this._headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
+		this._showHeader = this._headerSize > 0;
+
+		this.headerBackground = opts.headerBackground || headerDefaultOpts.headerBackground;
+		this.headerHighContrastBorder = opts.headerHighContrastBorder;
+	}
+
+	style(styles: IHeaderViewStyles): void {
+		this.headerBackground = styles.headerBackground;
+		this.headerHighContrastBorder = styles.headerHighContrastBorder;
+
+		this.applyStyles();
+	}
+
+	protected get headerSize(): number {
+		return this._showHeader ? this._headerSize : 0;
+	}
+
+	protected applyStyles(): void {
+		if (this.header) {
+			const headerBackgroundColor = this.headerBackground ? this.headerBackground.toString() : null;
+			const headerHighContrastBorderColor = this.headerHighContrastBorder ? this.headerHighContrastBorder.toString() : null;
+
+			this.header.style.backgroundColor = headerBackgroundColor;
+			this.header.style.borderTop = headerHighContrastBorderColor ? `1px solid ${headerHighContrastBorderColor}` : null;
+		}
 	}
 
 	render(container: HTMLElement, orientation: Orientation): void {
@@ -129,7 +169,7 @@ export abstract class HeaderView extends View {
 			this.header.style.height = headerSize;
 		}
 
-		if (this.headerSize > 0) {
+		if (this._showHeader) {
 			this.renderHeader(this.header);
 			container.appendChild(this.header);
 		}
@@ -140,6 +180,30 @@ export abstract class HeaderView extends View {
 		this.layoutBodyContainer(orientation);
 		this.renderBody(this.body);
 		container.appendChild(this.body);
+
+		this.applyStyles();
+	}
+
+	showHeader(): boolean {
+		if (!this._showHeader) {
+			if (!this.body.parentElement.contains(this.header)) {
+				this.renderHeader(this.header);
+				this.body.parentElement.insertBefore(this.header, this.body);
+			}
+			dom.removeClass(this.header, 'hide');
+			this._showHeader = true;
+			return true;
+		}
+		return false;
+	}
+
+	hideHeader(): boolean {
+		if (this._showHeader) {
+			dom.addClass(this.header, 'hide');
+			this._showHeader = false;
+			return true;
+		}
+		return false;
 	}
 
 	layout(size: number, orientation: Orientation): void {
@@ -509,19 +573,19 @@ export class SplitView implements
 		if (this.views.length > 2) {
 			let s = new sash.Sash(this.el, this, { orientation: this.sashOrientation });
 			this.sashes.splice(index - 1, 0, s);
-			this.sashesListeners.push(s.addListener2('start', e => this.onSashStart(s, this.eventWrapper(e))));
-			this.sashesListeners.push(s.addListener2('change', e => this.onSashChange(s, this.eventWrapper(e))));
+			this.sashesListeners.push(s.addListener('start', e => this.onSashStart(s, this.eventWrapper(e))));
+			this.sashesListeners.push(s.addListener('change', e => this.onSashChange(s, this.eventWrapper(e))));
 		}
 
-		this.viewChangeListeners.splice(index, 0, view.addListener2('change', size => this.onViewChange(view, size)));
+		this.viewChangeListeners.splice(index, 0, view.addListener('change', size => this.onViewChange(view, size)));
 		this.onViewChange(view, view.minimumSize);
 
 		let viewFocusTracker = dom.trackFocus(viewElement);
 		this.viewFocusListeners.splice(index, 0, viewFocusTracker);
 		viewFocusTracker.addFocusListener(() => this._onFocus.fire(view));
 
-		this.viewFocusPreviousListeners.splice(index, 0, view.addListener2('focusPrevious', () => index > 0 && this.views[index - 1].focus()));
-		this.viewFocusNextListeners.splice(index, 0, view.addListener2('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
+		this.viewFocusPreviousListeners.splice(index, 0, view.addListener('focusPrevious', () => index > 0 && this.views[index - 1].focus()));
+		this.viewFocusNextListeners.splice(index, 0, view.addListener('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
 	}
 
 	removeView(view: IView): void {

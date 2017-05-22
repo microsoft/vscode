@@ -15,7 +15,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
+import { ICheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
 
 export interface IFindInputOptions extends IFindInputStyles {
 	placeholder?: string;
@@ -29,7 +30,7 @@ export interface IFindInputOptions extends IFindInputStyles {
 }
 
 export interface IFindInputStyles extends IInputBoxStyles {
-	checkedBorderColor?: Color;
+	inputActiveOptionBorder?: Color;
 }
 
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
@@ -44,9 +45,17 @@ export class FindInput extends Widget {
 	private validation: IInputValidator;
 	private label: string;
 
-	private checkedBorderColor: Color;
+	private inputActiveOptionBorder: Color;
 	private inputBackground: Color;
 	private inputForeground: Color;
+	private inputBorder: Color;
+
+	private inputValidationInfoBorder: Color;
+	private inputValidationInfoBackground: Color;
+	private inputValidationWarningBorder: Color;
+	private inputValidationWarningBackground: Color;
+	private inputValidationErrorBorder: Color;
+	private inputValidationErrorBackground: Color;
 
 	private regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
@@ -77,9 +86,17 @@ export class FindInput extends Widget {
 		this.validation = options.validation;
 		this.label = options.label || NLS_DEFAULT_LABEL;
 
-		this.checkedBorderColor = options.checkedBorderColor;
+		this.inputActiveOptionBorder = options.inputActiveOptionBorder;
 		this.inputBackground = options.inputBackground;
 		this.inputForeground = options.inputForeground;
+		this.inputBorder = options.inputBorder;
+
+		this.inputValidationInfoBorder = options.inputValidationInfoBorder;
+		this.inputValidationInfoBackground = options.inputValidationInfoBackground;
+		this.inputValidationWarningBorder = options.inputValidationWarningBorder;
+		this.inputValidationWarningBackground = options.inputValidationWarningBackground;
+		this.inputValidationErrorBorder = options.inputValidationErrorBorder;
+		this.inputValidationErrorBackground = options.inputValidationErrorBackground;
 
 		this.regex = null;
 		this.wholeWords = null;
@@ -145,26 +162,43 @@ export class FindInput extends Widget {
 		}
 	}
 
-	public style(styles: IFindInputStyles) {
-		this.checkedBorderColor = styles.checkedBorderColor;
+	public style(styles: IFindInputStyles): void {
+		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		this.inputBackground = styles.inputBackground;
 		this.inputForeground = styles.inputForeground;
+		this.inputBorder = styles.inputBorder;
 
-		this._applyStyles();
+		this.inputValidationInfoBackground = styles.inputValidationInfoBackground;
+		this.inputValidationInfoBorder = styles.inputValidationInfoBorder;
+		this.inputValidationWarningBackground = styles.inputValidationWarningBackground;
+		this.inputValidationWarningBorder = styles.inputValidationWarningBorder;
+		this.inputValidationErrorBackground = styles.inputValidationErrorBackground;
+		this.inputValidationErrorBorder = styles.inputValidationErrorBorder;
+
+		this.applyStyles();
 	}
 
-	protected _applyStyles() {
+	protected applyStyles(): void {
 		if (this.domNode) {
-			const styles: IFindInputStyles = {
-				checkedBorderColor: this.checkedBorderColor,
-				inputBackground: this.inputBackground,
-				inputForeground: this.inputForeground
+			const checkBoxStyles: ICheckboxStyles = {
+				inputActiveOptionBorder: this.inputActiveOptionBorder,
 			};
+			this.regex.style(checkBoxStyles);
+			this.wholeWords.style(checkBoxStyles);
+			this.caseSensitive.style(checkBoxStyles);
 
-			this.regex.style(styles);
-			this.wholeWords.style(styles);
-			this.caseSensitive.style(styles);
-			this.inputBox.style(styles);
+			const inputBoxStyles: IInputBoxStyles = {
+				inputBackground: this.inputBackground,
+				inputForeground: this.inputForeground,
+				inputBorder: this.inputBorder,
+				inputValidationInfoBackground: this.inputValidationInfoBackground,
+				inputValidationInfoBorder: this.inputValidationInfoBorder,
+				inputValidationWarningBackground: this.inputValidationWarningBackground,
+				inputValidationWarningBorder: this.inputValidationWarningBorder,
+				inputValidationErrorBackground: this.inputValidationErrorBackground,
+				inputValidationErrorBorder: this.inputValidationErrorBorder
+			};
+			this.inputBox.style(inputBoxStyles);
 		}
 	}
 
@@ -232,7 +266,14 @@ export class FindInput extends Widget {
 				showMessage: true
 			},
 			inputBackground: this.inputBackground,
-			inputForeground: this.inputForeground
+			inputForeground: this.inputForeground,
+			inputBorder: this.inputBorder,
+			inputValidationInfoBackground: this.inputValidationInfoBackground,
+			inputValidationInfoBorder: this.inputValidationInfoBorder,
+			inputValidationWarningBackground: this.inputValidationWarningBackground,
+			inputValidationWarningBorder: this.inputValidationWarningBorder,
+			inputValidationErrorBackground: this.inputValidationErrorBackground,
+			inputValidationErrorBorder: this.inputValidationErrorBorder
 		}));
 
 		this.regex = this._register(new RegexCheckbox({
@@ -246,7 +287,7 @@ export class FindInput extends Widget {
 				this.setInputWidth();
 				this.validate();
 			},
-			checkedBorderColor: this.checkedBorderColor
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
 		this.wholeWords = this._register(new WholeWordsCheckbox({
 			appendTitle: appendWholeWordsLabel,
@@ -259,7 +300,7 @@ export class FindInput extends Widget {
 				this.setInputWidth();
 				this.validate();
 			},
-			checkedBorderColor: this.checkedBorderColor
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: appendCaseSensitiveLabel,
@@ -275,7 +316,7 @@ export class FindInput extends Widget {
 			onKeyDown: (e) => {
 				this._onCaseSensitiveKeyDown.fire(e);
 			},
-			checkedBorderColor: this.checkedBorderColor
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
 
 		// Arrow-Key support to navigate between options

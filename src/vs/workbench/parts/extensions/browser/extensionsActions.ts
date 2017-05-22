@@ -309,7 +309,8 @@ export class DropDownMenuActionItem extends ActionItem {
 		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 10 };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => TPromise.wrap(actions)
+			getActions: () => TPromise.wrap(actions),
+			actionRunner: this.actionRunner
 		});
 	}
 
@@ -1047,6 +1048,34 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 	}
 }
 
+export class ShowExtensionPacksAction extends Action {
+
+	static ID = 'workbench.extensions.action.showExtensionPacks';
+	static LABEL = localize('showExtensionPacks', "Show Extension Packs");
+	static SHORT_LABEL = localize('showExtensionPacksShort', "Extension Packs");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label, null, true);
+	}
+
+	run(): TPromise<void> {
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@sort:installs @category:"extension packs" ');
+				viewlet.focus();
+			});
+	}
+
+	protected isEnabled(): boolean {
+		return true;
+	}
+}
+
 export class ChangeSortAction extends Action {
 
 	private query: Query;
@@ -1057,12 +1086,11 @@ export class ChangeSortAction extends Action {
 		label: string,
 		onSearchChange: Event<string>,
 		private sortBy: string,
-		private sortOrder: string,
 		@IViewletService private viewletService: IViewletService
 	) {
 		super(id, label, null, true);
 
-		if (sortBy === undefined && sortOrder === undefined) {
+		if (sortBy === undefined) {
 			throw new Error('bad arguments');
 		}
 
@@ -1073,7 +1101,7 @@ export class ChangeSortAction extends Action {
 
 	private onSearchChange(value: string): void {
 		const query = Query.parse(value);
-		this.query = new Query(query.value, this.sortBy || query.sortBy, this.sortOrder || query.sortOrder);
+		this.query = new Query(query.value, this.sortBy || query.sortBy);
 		this.enabled = value && this.query.isValid() && !this.query.equals(query);
 	}
 

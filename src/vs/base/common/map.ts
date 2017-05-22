@@ -6,7 +6,6 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 
 export interface Key {
 	toString(): string;
@@ -450,14 +449,7 @@ export class ResourceMap<T> {
 	}
 
 	private toKey(resource: URI): string {
-		let key: string;
-
-		if (resource.scheme === Schemas.file) {
-			key = resource.fsPath;
-		} else {
-			key = resource.toString();
-		}
-
+		let key = resource.toString();
 		if (this.ignoreCase) {
 			key = key.toLowerCase();
 		}

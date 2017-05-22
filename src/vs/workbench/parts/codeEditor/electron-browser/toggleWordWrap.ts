@@ -7,16 +7,17 @@
 import 'vs/css!./media/codeEditor';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICommonCodeEditor, IEditorContribution, InternalEditorOptions, IModel } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DefaultConfig } from 'vs/editor/common/config/defaultConfig';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMessageService } from 'vs/platform/message/common/message';
 import Severity from 'vs/base/common/severity';
+import URI from 'vs/base/common/uri';
+import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -52,12 +53,20 @@ function readTransientState(model: IModel, codeEditorService: ICodeEditorService
 }
 
 function readWordWrapState(model: IModel, configurationService: IConfigurationService, codeEditorService: ICodeEditorService): IWordWrapState {
-	const _configuredWordWrap = configurationService.lookup<'on' | 'off' | 'wordWrapColumn' | 'bounded'>('editor.wordWrap', model.getLanguageIdentifier().language);
+	let _configuredWordWrap = configurationService.lookup<'on' | 'off' | 'wordWrapColumn' | 'bounded'>('editor.wordWrap', model.getLanguageIdentifier().language).value;
+
+	// Compatibility with old true or false values
+	if (<any>_configuredWordWrap === true) {
+		_configuredWordWrap = 'on';
+	} else if (<any>_configuredWordWrap === false) {
+		_configuredWordWrap = 'off';
+	}
+
 	const _configuredWordWrapMinified = configurationService.lookup<boolean>('editor.wordWrapMinified', model.getLanguageIdentifier().language);
 	const _transientState = readTransientState(model, codeEditorService);
 	return {
-		configuredWordWrap: _configuredWordWrap.value,
-		configuredWordWrapMinified: (typeof _configuredWordWrapMinified.value === 'undefined' ? DefaultConfig.editor.wordWrapMinified : _configuredWordWrapMinified.value),
+		configuredWordWrap: _configuredWordWrap,
+		configuredWordWrapMinified: (typeof _configuredWordWrapMinified.value === 'undefined' ? EDITOR_DEFAULTS.wordWrapMinified : _configuredWordWrapMinified.value),
 		transientState: _transientState
 	};
 }
@@ -149,6 +158,10 @@ class ToggleWordWrapAction extends EditorAction {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const model = editor.getModel();
 
+		if (!canToggleWordWrap(model.uri)) {
+			return;
+		}
+
 		// Read the current state
 		const currentState = readWordWrapState(model, configurationService, codeEditorService);
 		// Compute the new state
@@ -200,6 +213,10 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 				return;
 			}
 
+			if (!canToggleWordWrap(newModel.uri)) {
+				return;
+			}
+
 			// Read current configured values and toggle state
 			const desiredState = readWordWrapState(newModel, this.configurationService, this.codeEditorService);
 
@@ -223,6 +240,13 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 	public getId(): string {
 		return ToggleWordWrapController._ID;
 	}
+}
+
+function canToggleWordWrap(uri: URI): boolean {
+	if (!uri) {
+		return false;
+	}
+	return (uri.scheme !== 'output' && uri.scheme !== 'vscode');
 }
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {

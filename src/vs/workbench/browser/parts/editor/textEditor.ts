@@ -15,19 +15,19 @@ import DOM = require('vs/base/browser/dom');
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { EditorInput, EditorOptions, toResource } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorViewState, IEditor, IEditorOptions, EventType as EditorEventType } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, IEditor, isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Scope } from 'vs/workbench/common/memento';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -58,15 +58,14 @@ export abstract class BaseTextEditor extends BaseEditor {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IModeService private modeService: IModeService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IEditorGroupService protected editorGroupService: IEditorGroupService
 	) {
 		super(id, telemetryService, themeService);
 
 		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.handleConfigurationChangeEvent(e.config)));
-		this.toUnbind.push(themeService.onDidColorThemeChange(e => this.handleConfigurationChangeEvent())); // TODO@theme this should be done from the editor itself and not from the outside
 	}
 
 	protected get instantiationService(): IInstantiationService {
@@ -125,7 +124,6 @@ export abstract class BaseTextEditor extends BaseEditor {
 		objects.assign(overrides, {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
-			theme: this.themeService.getColorTheme().id,
 			fixedOverflowWidgets: true
 		});
 
@@ -146,9 +144,13 @@ export abstract class BaseTextEditor extends BaseEditor {
 		}
 
 		// Application & Editor focus change to respect auto save settings
-		if (this.editorControl instanceof EventEmitter) {
-			this.toUnbind.push(this.editorControl.addListener2(EditorEventType.EditorBlur, () => this.onEditorFocusLost()));
+		if (isCommonCodeEditor(this.editorControl)) {
+			this.toUnbind.push(this.editorControl.onDidBlurEditor(() => this.onEditorFocusLost()));
+		} else if (isCommonDiffEditor(this.editorControl)) {
+			this.toUnbind.push(this.editorControl.getOriginalEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
+			this.toUnbind.push(this.editorControl.getModifiedEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
 		}
+
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusLost()));
 		this.toUnbind.push(DOM.addDisposableListener(window, DOM.EventType.BLUR, () => this.onWindowFocusLost()));
 	}
@@ -246,14 +248,14 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		const editorViewState = this.getControl().saveViewState();
 
-		let fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
-		if (!fileViewState) {
-			fileViewState = Object.create(null);
-			textEditorViewStateMemento[key] = fileViewState;
+		let lastKnownViewState: ITextEditorViewState = textEditorViewStateMemento[key];
+		if (!lastKnownViewState) {
+			lastKnownViewState = Object.create(null);
+			textEditorViewStateMemento[key] = lastKnownViewState;
 		}
 
 		if (typeof this.position === 'number') {
-			fileViewState[this.position] = editorViewState;
+			lastKnownViewState[this.position] = editorViewState;
 		}
 	}
 
@@ -275,9 +277,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 		const memento = this.getMemento(this.storageService, Scope.WORKSPACE);
 		const textEditorViewStateMemento = memento[TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY];
 		if (textEditorViewStateMemento) {
-			const fileViewState: ITextEditorViewState = textEditorViewStateMemento[key];
-			if (fileViewState) {
-				return fileViewState[this.position];
+			const viewState: ITextEditorViewState = textEditorViewStateMemento[key];
+			if (viewState) {
+				return viewState[this.position];
 			}
 		}
 

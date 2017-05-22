@@ -150,7 +150,7 @@
 			]
 		},
 		{
-			"match": "\\b(break|do|else|for|if|elseif|return|then|repeat|while|until|end|function|local|in)\\b",
+			"match": "\\b(break|do|else|for|if|elseif|goto|return|then|repeat|while|until|end|function|local|in)\\b",
 			"name": "keyword.control.lua"
 		},
 		{

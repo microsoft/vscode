@@ -54,7 +54,7 @@
 		},
 		{
 			"match": "\\bnullptr\\b",
-			"name": "variable.language.cpp"
+			"name": "constant.language.cpp"
 		},
 		{
 			"match": "\\btemplate\\b\\s*",
@@ -63,6 +63,10 @@
 		{
 			"match": "\\b(const_cast|dynamic_cast|reinterpret_cast|static_cast)\\b\\s*",
 			"name": "keyword.operator.cast.cpp"
+		},
+		{
+			"match": "::",
+			"name": "punctuation.separator.namespace.access.cpp"
 		},
 		{
 			"match": "\\b(and|and_eq|bitand|bitor|compl|not|not_eq|or|or_eq|typeid|xor|xor_eq|alignof|alignas)\\b",
@@ -451,5 +455,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-c/commit/314f4ee53ede0adc91f56ef91b13d43e66771cd7"
+	"version": "https://github.com/atom/language-c/commit/a74c2f967d73e802a67fa6e971a8e8dedf076597"
 }

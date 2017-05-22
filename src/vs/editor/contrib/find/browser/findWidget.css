@@ -99,15 +99,6 @@
 	vertical-align: middle;
 }
 
-.monaco-editor .find-widget.no-results .matchesCount {
-	color: #A1260D;
-}
-
-.monaco-editor.vs-dark .find-widget.no-results .matchesCount,
-.monaco-editor.hc-black .find-widget.no-results .matchesCount {
-	color: #F48771
-}
-
 .monaco-editor .find-widget .matchesCount {
 	display: inline-block;
 	margin: 0 1px 0 3px;
@@ -282,15 +273,6 @@
 	-ms-animation-name: inherit !important;
 	animation-duration: 0;
 	animation-name: inherit !important;
-}
-
-/* Theming */
-.monaco-editor .find-widget {
-	box-shadow: 0 2px 8px #A8A8A8;
-}
-
-.monaco-editor.vs-dark .find-widget {
-	box-shadow: 0 2px 8px #000;
 }
 
 .monaco-editor.hc-black .find-widget .previous,

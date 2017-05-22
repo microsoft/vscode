@@ -6,7 +6,8 @@
 'use strict';
 
 import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode';
-import { debounce, throttle } from './decorators';
+import { debounce } from './decorators';
+import { fromGitUri } from './uri';
 import { Model } from './model';
 
 interface CacheRow {
@@ -32,8 +33,7 @@ export class GitContentProvider {
 	constructor(private model: Model) {
 		this.disposables.push(
 			model.onDidChangeRepository(this.eventuallyFireChangeEvents, this),
-			workspace.registerTextDocumentContentProvider('git', this),
-			workspace.registerTextDocumentContentProvider('git-original', this)
+			workspace.registerTextDocumentContentProvider('git', this)
 		);
 
 		setInterval(() => this.cleanup(), FIVE_MINUTES);
@@ -44,10 +44,7 @@ export class GitContentProvider {
 		this.fireChangeEvents();
 	}
 
-	@throttle
-	private async fireChangeEvents(): Promise<void> {
-		await this.model.whenIdle();
-
+	private fireChangeEvents(): void {
 		Object.keys(this.cache)
 			.forEach(key => this.onDidChangeEmitter.fire(this.cache[key].uri));
 	}
@@ -59,22 +56,17 @@ export class GitContentProvider {
 
 		this.cache[cacheKey] = cacheValue;
 
-		if (uri.scheme === 'git-original') {
-			uri = new Uri().with({ scheme: 'git', path: uri.query });
-		}
-
-		let ref = uri.query;
+		let { path, ref } = fromGitUri(uri);
 
 		if (ref === '~') {
-			const fileUri = uri.with({ scheme: 'file', query: '' });
+			const fileUri = Uri.file(path);
 			const uriString = fileUri.toString();
 			const [indexStatus] = this.model.indexGroup.resources.filter(r => r.original.toString() === uriString);
 			ref = indexStatus ? '' : 'HEAD';
 		}
 
 		try {
-			const result = await this.model.show(ref, uri);
-			return result;
+			return await this.model.show(ref, path);
 		} catch (err) {
 			return '';
 		}

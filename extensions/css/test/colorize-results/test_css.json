@@ -238,7 +238,7 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -249,7 +249,7 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -315,7 +315,7 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -326,7 +326,7 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -348,7 +348,7 @@
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -425,7 +425,7 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -436,7 +436,7 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #569CD6"
+			"hc_black": "keyword.control: #C586C0"
 		}
 	},
 	{
@@ -458,7 +458,7 @@
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -887,7 +887,7 @@
 			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.font-name: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.font-name: #CE9178"
 		}
 	},
 	{
@@ -920,7 +920,7 @@
 			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.font-name: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.font-name: #CE9178"
 		}
 	},
 	{
@@ -1052,7 +1052,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -1063,7 +1063,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -1129,7 +1129,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -1140,7 +1140,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -1162,7 +1162,7 @@
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -1184,7 +1184,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -1217,7 +1217,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -1239,7 +1239,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -1261,7 +1261,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -1459,7 +1459,7 @@
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -1481,7 +1481,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -1624,7 +1624,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -1657,7 +1657,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -1679,7 +1679,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -1712,7 +1712,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -1734,7 +1734,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -1932,7 +1932,7 @@
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -1954,7 +1954,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -2075,7 +2075,7 @@
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -2119,7 +2119,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -2350,7 +2350,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -2460,7 +2460,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -2482,7 +2482,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -2537,7 +2537,7 @@
 			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.font-name: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.font-name: #CE9178"
 		}
 	},
 	{
@@ -2570,7 +2570,7 @@
 			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.font-name: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.font-name: #CE9178"
 		}
 	},
 	{
@@ -2779,7 +2779,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -2790,7 +2790,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -2922,7 +2922,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -2988,7 +2988,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -3054,7 +3054,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -3065,7 +3065,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -3197,7 +3197,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -3263,7 +3263,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -3329,7 +3329,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -3340,7 +3340,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -3406,7 +3406,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -3626,7 +3626,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -3692,7 +3692,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -3703,7 +3703,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -3813,7 +3813,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -3967,7 +3967,7 @@
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -3989,7 +3989,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -4022,7 +4022,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -4044,7 +4044,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -4066,7 +4066,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -4352,7 +4352,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -4693,7 +4693,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -4715,7 +4715,7 @@
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -4737,7 +4737,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -4770,7 +4770,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -4792,7 +4792,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -4814,7 +4814,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -4957,7 +4957,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -5177,7 +5177,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -5320,7 +5320,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -5386,7 +5386,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -5705,7 +5705,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -6024,7 +6024,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -6167,7 +6167,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -6244,7 +6244,7 @@
 			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.font-name: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.font-name: #CE9178"
 		}
 	},
 	{
@@ -6310,7 +6310,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -6431,7 +6431,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -6926,7 +6926,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -7344,7 +7344,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -7663,7 +7663,7 @@
 			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.font-name: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.font-name: #CE9178"
 		}
 	},
 	{
@@ -7696,7 +7696,7 @@
 			"light_plus": "support.constant.font-name: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.font-name: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.font-name: #CE9178"
 		}
 	},
 	{
@@ -7762,7 +7762,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -7784,7 +7784,7 @@
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -7806,7 +7806,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -7839,7 +7839,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -7861,7 +7861,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -7883,7 +7883,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -8301,7 +8301,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -8312,7 +8312,7 @@
 			"light_plus": "constant.other.color.rgb-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "constant.other.color.rgb-value: #0451A5",
-			"hc_black": "constant.other.color.rgb-value: #B5CEA8"
+			"hc_black": "constant.other.color.rgb-value: #CE9178"
 		}
 	},
 	{
@@ -8642,7 +8642,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -8664,7 +8664,7 @@
 			"light_plus": "support.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.function: #DCDCAA"
 		}
 	},
 	{
@@ -8686,7 +8686,7 @@
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -8719,7 +8719,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -8741,7 +8741,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -8763,7 +8763,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
@@ -8829,7 +8829,7 @@
 			"light_plus": "support.constant.property-value: #0451A5",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "default: #FFFFFF"
+			"hc_black": "support.constant.property-value: #CE9178"
 		}
 	},
 	{
