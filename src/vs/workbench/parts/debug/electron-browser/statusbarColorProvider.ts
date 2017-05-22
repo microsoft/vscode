@@ -21,9 +21,9 @@ export const STATUS_BAR_DEBUGGING_BACKGROUND = registerColor('statusBar.debuggin
 }, localize('statusBarDebuggingBackground', "Status bar background color when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_DEBUGGING_FOREGROUND = registerColor('statusBar.debuggingForeground', {
-	dark: '#FFFFFF',
-	light: '#FFFFFF',
-	hc: '#FFFFFF'
+	dark: STATUS_BAR_FOREGROUND,
+	light: STATUS_BAR_FOREGROUND,
+	hc: STATUS_BAR_FOREGROUND
 }, localize('statusBarDebuggingForeground', "Status bar foreground color when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export class StatusBarColorProvider extends Themable implements IWorkbenchContribution {
