@@ -2909,9 +2909,9 @@ declare module monaco.editor {
 		suggestOnTriggerCharacters?: boolean;
 		/**
 		 * Accept suggestions on ENTER.
-		 * Defaults to true.
+		 * Defaults to 'on'.
 		 */
-		acceptSuggestionOnEnter?: boolean;
+		acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
 		/**
 		 * Accept suggestions on provider defined characters.
 		 * Defaults to true.
@@ -3211,7 +3211,7 @@ declare module monaco.editor {
 		readonly formatOnType: boolean;
 		readonly formatOnPaste: boolean;
 		readonly suggestOnTriggerCharacters: boolean;
-		readonly acceptSuggestionOnEnter: boolean;
+		readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
 		readonly acceptSuggestionOnCommitCharacter: boolean;
 		readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 		readonly wordBasedSuggestions: boolean;

@@ -15,14 +15,13 @@ import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { EDITOR_DEFAULTS } from "vs/editor/common/config/editorOptions";
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
 	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
 	AcceptOnKey: new RawContextKey<boolean>('suggestionSupportsAcceptOnKey', true),
-	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnEnter)
+	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true)
 };
 
 export interface ISuggestionItem {

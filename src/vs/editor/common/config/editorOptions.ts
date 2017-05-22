@@ -364,9 +364,9 @@ export interface IEditorOptions {
 	suggestOnTriggerCharacters?: boolean;
 	/**
 	 * Accept suggestions on ENTER.
-	 * Defaults to true.
+	 * Defaults to 'on'.
 	 */
-	acceptSuggestionOnEnter?: boolean;
+	acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
 	/**
 	 * Accept suggestions on provider defined characters.
 	 * Defaults to true.
@@ -726,7 +726,7 @@ export interface EditorContribOptions {
 	readonly formatOnType: boolean;
 	readonly formatOnPaste: boolean;
 	readonly suggestOnTriggerCharacters: boolean;
-	readonly acceptSuggestionOnEnter: boolean;
+	readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly wordBasedSuggestions: boolean;
@@ -1532,7 +1532,7 @@ export class EditorOptionsValidator {
 			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
 			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
 			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
-			acceptSuggestionOnEnter: _boolean(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter),
+			acceptSuggestionOnEnter: _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']),
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
@@ -1939,7 +1939,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		formatOnType: false,
 		formatOnPaste: false,
 		suggestOnTriggerCharacters: true,
-		acceptSuggestionOnEnter: true,
+		acceptSuggestionOnEnter: 'smart',
 		acceptSuggestionOnCommitCharacter: true,
 		snippetSuggestions: 'inline',
 		wordBasedSuggestions: true,

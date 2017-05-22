@@ -102,7 +102,11 @@ export class SuggestController implements IEditorContribution {
 		// Manage the acceptSuggestionsOnEnter context key
 		let acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
 		let updateFromConfig = () => {
-			acceptSuggestionsOnEnter.set(this._editor.getConfiguration().contribInfo.acceptSuggestionOnEnter);
+			const { acceptSuggestionOnEnter } = this._editor.getConfiguration().contribInfo;
+			acceptSuggestionsOnEnter.set(
+				acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart'
+				|| (<any /*migrate from old world*/>acceptSuggestionOnEnter) === true
+			);
 		};
 		this._toDispose.push(this._editor.onDidChangeConfiguration((e) => updateFromConfig()));
 		updateFromConfig();
@@ -129,7 +133,8 @@ export class SuggestController implements IEditorContribution {
 			const endColumn = position.column;
 			let value = true;
 			if (
-				this._model.state === State.Auto
+				this._editor.getConfiguration().contribInfo.acceptSuggestionOnEnter === 'smart'
+				&& this._model.state === State.Auto
 				&& !item.suggestion.command
 				&& !item.suggestion.additionalTextEdits
 				&& item.suggestion.snippetType !== 'textmate'
