@@ -118,6 +118,12 @@ export const STATUS_BAR_FOREGROUND = registerColor('statusBar.foreground', {
 	hc: '#FFFFFF'
 }, nls.localize('statusBarForeground', "Status bar foreground color. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_NO_FOLDER_FOREGROUND = registerColor('statusBar.noFolderForeground', {
+	dark: '#FFFFFF',
+	light: '#FFFFFF',
+	hc: '#FFFFFF'
+}, nls.localize('statusBarNoFolderForeground', "Status bar foreground color when no folder is opened. The status bar is shown in the bottom of the window."));
+
 export const STATUS_BAR_BACKGROUND = registerColor('statusBar.background', {
 	dark: '#007ACC',
 	light: '#007ACC',
