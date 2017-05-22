@@ -21,6 +21,7 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from "vs/editor/common/viewModel/viewModel";
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import Event, { Emitter } from 'vs/base/common/event';
+import { ScreenReaderMessageGenerator } from "vs/editor/common/controller/accGenerator";
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -56,7 +57,7 @@ export class CursorStateChangedEvent {
 /**
  * A snapshot of the cursor and the model state
  */
-class CursorModelState {
+export class CursorModelState {
 
 	public readonly modelVersionId: number;
 	public readonly cursorState: CursorState[];
@@ -380,8 +381,20 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		const selections = this._cursors.getSelections();
 		const viewSelections = this._cursors.getViewSelections();
 
+		let screenReaderMessage: string = null;
+		if (oldState) {
+			screenReaderMessage = ScreenReaderMessageGenerator.generateMessage(
+				source,
+				this._model,
+				oldState.modelVersionId,
+				oldState.cursorState[0].modelState.selection,
+				newState.modelVersionId,
+				newState.cursorState[0].modelState.selection
+			);
+		}
+
 		// Let the view get the event first.
-		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
+		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange, screenReaderMessage)]);
 
 		// Only after the view has been notified, let the rest of the world know...
 		this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));

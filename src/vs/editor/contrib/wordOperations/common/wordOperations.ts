@@ -15,6 +15,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { WordNavigationType, WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { getMapForWordSeparators, WordCharacterClassifier } from "vs/editor/common/controller/wordCharacterClassifier";
+import { CursorState } from "vs/editor/common/controller/cursorCommon";
+import { CursorChangeReason } from "vs/editor/common/controller/cursorEvents";
 
 export interface MoveWordOptions extends ICommandOptions {
 	inSelectionMode: boolean;
@@ -44,7 +46,7 @@ export abstract class MoveWordCommand extends EditorCommand {
 			return this._moveTo(sel, outPosition, this._inSelectionMode);
 		});
 
-		editor.setSelections(result);
+		editor._getCursors().setStates('moveWordCommand', CursorChangeReason.NotSet, result.map(r => CursorState.fromModelSelection(r)));
 		if (result.length === 1) {
 			const pos = new Position(result[0].positionLineNumber, result[0].positionColumn);
 			editor.revealPosition(pos, false, true);
