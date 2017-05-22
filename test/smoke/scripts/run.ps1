@@ -24,7 +24,7 @@ if (-Not (Test-Path node_modules)) {
 }
 
 # Configure environment variables
-$env:VSCODE_LATEST_PATH = "$Root\VSCode-win32-$arch\Code - OSS.exe"
+$env:VSCODE_LATEST_PATH = "$Root\VSCode-win32-$arch\Code - Insiders.exe"
 # $env:VSCODE_STABLE_PATH = $stable
 $env:SMOKETEST_REPO = "..\vscode-smoketest-express"
 
