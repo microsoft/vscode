@@ -548,6 +548,11 @@ export class SplitView implements
 			throw new Error('Initial weight must be a positive number.');
 		}
 
+		/**
+		 * Reset size to null. This will layout newly added viees to initial weights.
+		 */
+		this.size = null;
+
 		let viewCount = this.views.length;
 
 		// Create view container

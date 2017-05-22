@@ -55,11 +55,14 @@ export class TreeView extends CollapsibleViewletView {
 		@IExtensionService private extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super(options.actionRunner, true, options.name, messageService, keybindingService, contextMenuService);
+		super(options.actionRunner, options.collapsed, options.name, messageService, keybindingService, contextMenuService);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
 		this.viewFocusContext = this.contextKeyService.createKey<boolean>(this.id, void 0);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
+		if (!options.collapsed) {
+			this.triggerActivation();
+		}
 	}
 
 	public renderHeader(container: HTMLElement): void {

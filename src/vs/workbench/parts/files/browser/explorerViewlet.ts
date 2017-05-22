@@ -19,7 +19,7 @@ import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/browser
 import { ExplorerView } from 'vs/workbench/parts/files/browser/views/explorerView';
 import { EmptyView } from 'vs/workbench/parts/files/browser/views/emptyView';
 import { OpenEditorsView } from 'vs/workbench/parts/files/browser/views/openEditorsView';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -34,7 +34,15 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachHeaderViewStyler } from 'vs/platform/theme/common/styler';
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/parts/views/browser/views';
 
+interface IViewState {
+	collapsed: boolean;
+	size: number;
+}
+
 export class ExplorerViewlet extends Viewlet {
+
+	private static EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
+
 	private viewletContainer: Builder;
 	private splitView: SplitView;
 	private views: IViewletView[];
@@ -119,21 +127,24 @@ export class ExplorerViewlet extends Viewlet {
 			this.views.push(this.openEditorsView);
 		}
 
+		const viewsState = JSON.parse(this.storageService.get(ExplorerViewlet.EXPLORER_VIEWS_STATE, this.contextService.hasWorkspace() ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
+
 		// Explorer view
-		this.views.push(this.createExplorerOrEmptyView());
+		this.views.push(this.createExplorerOrEmptyView(viewsState));
 
 		// custom views
 		for (const view of customViews) {
 			this.views.push(this.instantiationService.createInstance(view.ctor, view.id, {
 				name: view.name,
 				actionRunner: this.getActionRunner(),
+				collapsed: viewsState[view.id] ? (<IViewState>viewsState[view.id]).collapsed : true
 			}));
 		}
 
 		for (let i = 0; i < this.views.length; i++) {
 			const view = this.views[i];
 			attachHeaderViewStyler(view, this.themeService, { noContrastBorder: i === 0 });
-			this.splitView.addView(view);
+			this.splitView.addView(view, viewsState[view.id] ? (<IViewState>viewsState[view.id]).size : void 0);
 		}
 
 		this.lastFocusedView = this.explorerView;
@@ -195,15 +206,17 @@ export class ExplorerViewlet extends Viewlet {
 		}
 		const views = [];
 
+		const viewsState = JSON.parse(this.storageService.get(ExplorerViewlet.EXPLORER_VIEWS_STATE, this.contextService.hasWorkspace() ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
 		for (const viewDescrirptor of viewDescriptors) {
 			const view = this.instantiationService.createInstance(viewDescrirptor.ctor, viewDescrirptor.id, {
 				name: viewDescrirptor.name,
 				actionRunner: this.getActionRunner(),
+				collapsed: viewsState[viewDescrirptor.id] ? (<IViewState>viewsState[viewDescrirptor.id]).collapsed : true
 			});
 			views.push(view);
 			this.views.push(view);
 			attachHeaderViewStyler(view, this.themeService);
-			this.splitView.addView(view);
+			this.splitView.addView(view, viewsState[view.id] ? (<IViewState>viewsState[view.id]).size : void 0);
 		}
 
 		TPromise.join(views.map(view => view.create())).then(() => void 0).then(() => {
@@ -227,7 +240,7 @@ export class ExplorerViewlet extends Viewlet {
 		}
 	}
 
-	private createExplorerOrEmptyView(): IViewletView {
+	private createExplorerOrEmptyView(viewsState: any): IViewletView {
 		let explorerOrEmptyView: ExplorerView | EmptyView;
 
 		// With a Workspace
@@ -264,12 +277,18 @@ export class ExplorerViewlet extends Viewlet {
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
-			this.explorerView = explorerOrEmptyView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, this.getActionRunner(), this.viewletSettings, void 0);
+			this.explorerView = explorerOrEmptyView = explorerInstantiator.createInstance(ExplorerView, this.viewletState, {
+				collapsed: viewsState[ExplorerView.ID] ? (<IViewState>viewsState[ExplorerView.ID]).collapsed : false,
+				actionRunner: this.getActionRunner()
+			}, this.viewletSettings, void 0);
 		}
 
 		// No workspace
 		else {
-			this.emptyView = explorerOrEmptyView = this.instantiationService.createInstance(EmptyView, this.getActionRunner());
+			this.emptyView = explorerOrEmptyView = this.instantiationService.createInstance(EmptyView, {
+				collapsed: viewsState[EmptyView.ID] ? (<IViewState>viewsState[EmptyView.ID]).collapsed : false,
+				actionRunner: this.getActionRunner()
+			});
 		}
 
 		return explorerOrEmptyView;
@@ -376,9 +395,22 @@ export class ExplorerViewlet extends Viewlet {
 	}
 
 	public shutdown(): void {
+		const viewletState = this.views.reduce((result, view) => {
+			result[view.id] = this.getViewState(view);
+			return result;
+		}, {});
+		this.storageService.store(ExplorerViewlet.EXPLORER_VIEWS_STATE, JSON.stringify(viewletState), this.contextService.hasWorkspace() ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+
 		this.views.forEach((view) => view.shutdown());
 
 		super.shutdown();
+	}
+
+	private getViewState(view: IViewletView): IViewState {
+		return {
+			collapsed: !view.isExpanded(),
+			size: view.size > 0 ? view.size : void 0
+		};
 	}
 
 	public dispose(): void {

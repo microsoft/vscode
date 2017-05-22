@@ -43,6 +43,8 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 	private static DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static DEFAULT_DYNAMIC_HEIGHT = true;
 
+	readonly id: string = 'workbench.explorer.openEditorsView';
+
 	private settings: any;
 	private visibleOpenEditors: number;
 	private dynamicHeight: boolean;
