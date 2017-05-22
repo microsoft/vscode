@@ -22,6 +22,7 @@ import { KillTerminalAction, CreateNewTerminalAction, SwitchTerminalInstanceActi
 import { Panel } from 'vs/workbench/browser/panel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TPromise } from 'vs/base/common/winjs.base';
+import URI from 'vs/base/common/uri';
 
 export class TerminalPanel extends Panel {
 
@@ -210,6 +211,27 @@ export class TerminalPanel extends Panel {
 				event.stopPropagation();
 			}
 		}));
+		this._register(DOM.addDisposableListener(this._parentDomElement, DOM.EventType.DROP, (e: DragEvent) => {
+			if (e.target === this._parentDomElement || DOM.isAncestor(e.target as HTMLElement, this._parentDomElement)) {
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				// Check if the file was dragged from the tree explorer
+				const url = e.dataTransfer.getData('URL');
+				let filePath = URI.parse(url).path;
+
+				// Check if the file was dragged from the filesystem
+				if (!filePath && e.dataTransfer.files.length > 0) {
+					filePath = e.dataTransfer.files[0].path;
+				}
+
+				if (filePath) {
+					const terminal = this._terminalService.getActiveInstance();
+					terminal.sendText(this._wrapPathInQuotes(filePath), false);
+				}
+			}
+		}));
 	}
 
 	private _updateTheme(theme?: ITheme): void {
@@ -266,5 +288,15 @@ export class TerminalPanel extends Panel {
 			a.fontFamily !== b.fontFamily ||
 			a.fontSize !== b.fontSize ||
 			a.lineHeight !== b.lineHeight;
+	}
+
+	/**
+	 * Adds quotes to a path if it contains whitespaces
+	 */
+	private _wrapPathInQuotes(path: string) {
+		if (/\s+/.test(path)) {
+			return `"${path}"`;
+		}
+		return path;
 	}
 }
