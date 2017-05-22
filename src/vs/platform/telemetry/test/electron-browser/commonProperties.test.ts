@@ -53,7 +53,6 @@ suite('Telemetry - common properties', function () {
 				assert.ok('common.sqm.machineid' in props, 'machineid');
 			}
 
-			assert.equal(Object.keys(props).length, process.platform === 'win32' ? 18 : 16);
 		});
 	});
 
