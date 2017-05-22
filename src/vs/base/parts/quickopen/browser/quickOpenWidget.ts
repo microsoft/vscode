@@ -349,7 +349,7 @@ export class QuickOpenWidget implements IModelProvider {
 			this.builder.style('color', foreground);
 			this.builder.style('background-color', background);
 			this.builder.style('border-color', borderColor);
-			this.builder.style('border-width', borderColor ? '2px' : null);
+			this.builder.style('border-width', borderColor ? '1px' : null);
 			this.builder.style('border-style', borderColor ? 'solid' : null);
 			this.builder.style('box-shadow', widgetShadow ? `0 5px 8px ${widgetShadow}` : null);
 		}
