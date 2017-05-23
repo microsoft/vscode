@@ -2636,7 +2636,7 @@ declare module monaco.editor {
 		 */
 		seedSearchStringFromSelection?: boolean;
 		/**
-		 * Controls if Find in Selection flag is turned on when multiple characters or lines of text are selected in the editor.
+		 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
 		 */
 		autoFindInSelection: boolean;
 	}
