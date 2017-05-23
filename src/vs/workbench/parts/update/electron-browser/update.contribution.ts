@@ -6,12 +6,14 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import 'vs/css!./media/update.contribution';
 import { Registry } from 'vs/platform/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ShowCurrentReleaseNotesAction, UpdateContribution } from 'vs/workbench/parts/update/electron-browser/update';
 import { ReleaseNotesEditor } from 'vs/workbench/parts/update/electron-browser/releaseNotesEditor';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IActivityRegistry, ActivityExtensions, IActivity } from 'vs/workbench/browser/activity';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
@@ -52,3 +54,12 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+class UpdateGlobalActivity implements IActivity {
+	id: string = 'update.activity';
+	name: string = 'Update';
+	cssClass: string = 'update-activity';
+}
+
+Registry.as<IActivityRegistry>(ActivityExtensions)
+	.registerActivity(UpdateGlobalActivity);

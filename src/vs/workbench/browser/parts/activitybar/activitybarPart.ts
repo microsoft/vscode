@@ -15,11 +15,11 @@ import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IActivity, Extensions as ActivityExtensions, IActivityRegistry } from 'vs/workbench/browser/activity';
+import { IActivity, ActivityExtensions, IActivityRegistry } from 'vs/workbench/browser/activity';
 import { Registry } from 'vs/platform/platform';
 import { Part } from 'vs/workbench/browser/part';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ViewletActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
@@ -47,10 +47,11 @@ class GlobalActivityAction extends ActivityAction {
 	}
 }
 
-class GlobalActivityActionItem extends ViewletActionItem {
+class GlobalActivityActionItem extends ActivityActionItem {
 
 	onClick(event: Event): void {
 		DOM.EventHelper.stop(event, true);
+		console.log('hello world');
 		// fire up native menu around this.builder.getHTMLElement()
 	}
 }
@@ -199,7 +200,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.createViewletSwitcher($result.clone());
 
 		// Top Actionbar with action items for each viewlet action
-		this.createActivityActionBar($result.getHTMLElement());
+		this.createGlobalActivityActionBar($result.getHTMLElement());
 
 		// Contextmenu for viewlets
 		$(parent).on('contextmenu', (e: MouseEvent) => {
@@ -273,8 +274,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
 	}
 
-	private createActivityActionBar(container: HTMLElement): void {
-		const activityRegistry = Registry.as<IActivityRegistry>(ActivityExtensions.Activities);
+	private createGlobalActivityActionBar(container: HTMLElement): void {
+		const activityRegistry = Registry.as<IActivityRegistry>(ActivityExtensions);
 		const descriptors = activityRegistry.getActivities();
 		const actions = descriptors
 			.map(d => this.instantiationService.createInstance(d))
