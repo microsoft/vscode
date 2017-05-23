@@ -8,17 +8,18 @@
 import * as nls from 'vs/nls';
 import 'vs/css!./media/update.contribution';
 import { Registry } from 'vs/platform/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ShowCurrentReleaseNotesAction, UpdateContribution } from 'vs/workbench/parts/update/electron-browser/update';
 import { ReleaseNotesEditor } from 'vs/workbench/parts/update/electron-browser/releaseNotesEditor';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
 import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IActivityRegistry, ActivityExtensions, IActivity } from 'vs/workbench/browser/activity';
+import { IGlobalActivityRegistry, GlobalActivityExtensions } from 'vs/workbench/browser/activity';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { ShowCurrentReleaseNotesAction, UpdateContribution, UpdateContribution2 } from './update';
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(UpdateContribution);
@@ -34,9 +35,13 @@ const editorDescriptor = new EditorDescriptor(
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(editorDescriptor, [new SyncDescriptor(ReleaseNotesInput)]);
 
-Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
-	.registerWorkbenchAction(new SyncActionDescriptor(ShowCurrentReleaseNotesAction, ShowCurrentReleaseNotesAction.ID, ShowCurrentReleaseNotesAction.LABEL), 'Open Release Notes');
-
+if (isMacintosh) {
+	Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions)
+		.registerActivity(UpdateContribution2);
+} else {
+	Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
+		.registerWorkbenchAction(new SyncActionDescriptor(ShowCurrentReleaseNotesAction, ShowCurrentReleaseNotesAction.ID, ShowCurrentReleaseNotesAction.LABEL), 'Open Release Notes');
+}
 
 // Configuration: Update
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
@@ -54,12 +59,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-
-class UpdateGlobalActivity implements IActivity {
-	id: string = 'update.activity';
-	name: string = 'Update';
-	cssClass: string = 'update-activity';
-}
-
-Registry.as<IActivityRegistry>(ActivityExtensions)
-	.registerActivity(UpdateGlobalActivity);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/platform';
+import { IAction } from 'vs/base/common/actions';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IActivity {
@@ -12,26 +13,30 @@ export interface IActivity {
 	cssClass: string;
 }
 
-export const ActivityExtensions = 'workbench.contributions.activities';
-
-export interface IActivityRegistry {
-	registerActivity(descriptor: IConstructorSignature0<IActivity>): void;
-	getActivities(): IConstructorSignature0<IActivity>[];
+export interface IGlobalActivity extends IActivity {
+	getActions(): IAction[];
 }
 
-export class ActivityRegistry implements IActivityRegistry {
+export const GlobalActivityExtensions = 'workbench.contributions.globalActivities';
 
-	private activityDescriptors = new Set<IConstructorSignature0<IActivity>>();
+export interface IGlobalActivityRegistry {
+	registerActivity(descriptor: IConstructorSignature0<IGlobalActivity>): void;
+	getActivities(): IConstructorSignature0<IGlobalActivity>[];
+}
 
-	registerActivity(descriptor: IConstructorSignature0<IActivity>): void {
+export class GlobalActivityRegistry implements IGlobalActivityRegistry {
+
+	private activityDescriptors = new Set<IConstructorSignature0<IGlobalActivity>>();
+
+	registerActivity(descriptor: IConstructorSignature0<IGlobalActivity>): void {
 		this.activityDescriptors.add(descriptor);
 	}
 
-	getActivities(): IConstructorSignature0<IActivity>[] {
-		const result: IConstructorSignature0<IActivity>[] = [];
+	getActivities(): IConstructorSignature0<IGlobalActivity>[] {
+		const result: IConstructorSignature0<IGlobalActivity>[] = [];
 		this.activityDescriptors.forEach(d => result.push(d));
 		return result;
 	}
 }
 
-Registry.add(ActivityExtensions, new ActivityRegistry());
+Registry.add(GlobalActivityExtensions, new GlobalActivityRegistry());
