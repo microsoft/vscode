@@ -39,7 +39,7 @@ namespace schema {
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
 			case 'view/title': return MenuId.ViewTitle;
-			case 'view/resource': return MenuId.ViewResource;
+			case 'view/item/context': return MenuId.ViewItemContext;
 		}
 
 		return void 0;

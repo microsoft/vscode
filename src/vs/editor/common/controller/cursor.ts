@@ -21,6 +21,7 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from "vs/editor/common/viewModel/viewModel";
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import Event, { Emitter } from 'vs/base/common/event';
+import { ScreenReaderMessageGenerator } from "vs/editor/common/controller/accGenerator";
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -50,6 +51,38 @@ export class CursorStateChangedEvent {
 		this.selections = selections;
 		this.source = source;
 		this.reason = reason;
+	}
+}
+
+/**
+ * A snapshot of the cursor and the model state
+ */
+export class CursorModelState {
+
+	public readonly modelVersionId: number;
+	public readonly cursorState: CursorState[];
+
+	constructor(model: editorCommon.IModel, cursor: Cursor) {
+		this.modelVersionId = model.getVersionId();
+		this.cursorState = cursor.getAll();
+	}
+
+	public equals(other: CursorModelState): boolean {
+		if (!other) {
+			return false;
+		}
+		if (this.modelVersionId !== other.modelVersionId) {
+			return false;
+		}
+		if (this.cursorState.length !== other.cursorState.length) {
+			return false;
+		}
+		for (let i = 0, len = this.cursorState.length; i < len; i++) {
+			if (!this.cursorState[i].equals(other.cursorState[i])) {
+				return false;
+			}
+		}
+		return true;
 	}
 }
 
@@ -154,40 +187,14 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		return this._cursors.getAll();
 	}
 
-	private static _somethingChanged(oldSelections: Selection[], oldViewSelections: Selection[], newSelections: Selection[], newViewSelections: Selection[]): boolean {
-		if (oldSelections.length !== newSelections.length) {
-			return true;
-		}
-
-		for (let i = 0, len = oldSelections.length; i < len; i++) {
-			if (!oldSelections[i].equalsSelection(newSelections[i])) {
-				return true;
-			}
-		}
-
-		for (let i = 0, len = oldViewSelections.length; i < len; i++) {
-			if (!oldViewSelections[i].equalsSelection(newViewSelections[i])) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
 	public setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void {
-		const oldSelections = this._cursors.getSelections();
-		const oldViewSelections = this._cursors.getViewSelections();
+		const oldState = new CursorModelState(this._model, this);
 
 		this._cursors.setStates(states);
 		this._cursors.normalize();
 		this._columnSelectData = null;
 
-		const newSelections = this._cursors.getSelections();
-		const newViewSelections = this._cursors.getViewSelections();
-
-		if (Cursor._somethingChanged(oldSelections, oldViewSelections, newSelections, newViewSelections)) {
-			this._emitStateChanged(source, reason);
-		}
+		this._emitStateChangedIfNecessary(source, reason, oldState);
 	}
 
 	public setColumnSelectData(columnSelectData: IColumnSelectData): void {
@@ -198,8 +205,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._revealRange(target, viewEvents.VerticalRevealType.Simple, horizontal);
 	}
 
-	public revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: viewEvents.VerticalRevealType) {
-		this.emitCursorRevealRange(modelRange, viewRange, verticalType, revealHorizontal);
+	public revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType) {
+		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal);
 	}
 
 	public scrollTo(desiredScrollTop: number): void {
@@ -279,7 +286,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this._cursors.dispose();
 			this._cursors = new CursorCollection(this.context);
 
-			this._emitStateChanged('model', CursorChangeReason.ContentFlush);
+			this._emitStateChangedIfNecessary('model', CursorChangeReason.ContentFlush, null);
 		} else {
 			const selectionsFromMarkers = this._cursors.readSelectionFromMarkers();
 			this.setStates('modelChange', CursorChangeReason.RecoverFromMarkers, CursorState.fromModelSelections(selectionsFromMarkers));
@@ -356,15 +363,17 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- emitting events
 
-	private _emitStateChanged(source: string, reason: CursorChangeReason): void {
-		source = source || 'keyboard';
+	private _emitStateChangedIfNecessary(source: string, reason: CursorChangeReason, oldState: CursorModelState): boolean {
+		const newState = new CursorModelState(this._model, this);
+		if (newState.equals(oldState)) {
+			return false;
+		}
 
-		const positions = this._cursors.getPositions();
 
 		let isInEditableRange: boolean = true;
 		if (this._model.hasEditableRange()) {
 			const editableRange = this._model.getEditableRange();
-			if (!editableRange.containsPosition(positions[0])) {
+			if (!editableRange.containsPosition(newState.cursorState[0].modelState.position)) {
 				isInEditableRange = false;
 			}
 		}
@@ -372,51 +381,56 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		const selections = this._cursors.getSelections();
 		const viewSelections = this._cursors.getViewSelections();
 
+		let screenReaderMessage: string = null;
+		if (oldState) {
+			screenReaderMessage = ScreenReaderMessageGenerator.generateMessage(
+				source,
+				this._model,
+				oldState.modelVersionId,
+				oldState.cursorState[0].modelState.selection,
+				newState.modelVersionId,
+				newState.cursorState[0].modelState.selection
+			);
+		}
+
 		// Let the view get the event first.
-		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
+		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange, screenReaderMessage)]);
 
 		// Only after the view has been notified, let the rest of the world know...
-		this._onDidChange.fire(new CursorStateChangedEvent(selections, source, reason));
+		this._onDidChange.fire(new CursorStateChangedEvent(selections, source || 'keyboard', reason));
+
+		return true;
 	}
 
 	private _revealRange(revealTarget: RevealTarget, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean): void {
-		const positions = this._cursors.getPositions();
 		const viewPositions = this._cursors.getViewPositions();
 
-		let position = positions[0];
 		let viewPosition = viewPositions[0];
 
 		if (revealTarget === RevealTarget.TopMost) {
-			for (let i = 1; i < positions.length; i++) {
-				if (positions[i].isBefore(position)) {
-					position = positions[i];
+			for (let i = 1; i < viewPositions.length; i++) {
+				if (viewPositions[i].isBefore(viewPosition)) {
 					viewPosition = viewPositions[i];
 				}
 			}
 		} else if (revealTarget === RevealTarget.BottomMost) {
-			for (let i = 1; i < positions.length; i++) {
-				if (position.isBeforeOrEqual(positions[i])) {
-					position = positions[i];
+			for (let i = 1; i < viewPositions.length; i++) {
+				if (viewPosition.isBeforeOrEqual(viewPositions[i])) {
 					viewPosition = viewPositions[i];
 				}
 			}
 		} else {
-			if (positions.length > 1) {
+			if (viewPositions.length > 1) {
 				// no revealing!
 				return;
 			}
 		}
 
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this.emitCursorRevealRange(range, viewRange, verticalType, revealHorizontal);
+		this.emitCursorRevealRange(viewRange, verticalType, revealHorizontal);
 	}
 
-	public emitCursorRevealRange(range: Range, viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean) {
-		// Ensure event has viewRange
-		if (!viewRange) {
-			viewRange = this.context.convertModelRangeToViewRange(range);
-		}
+	public emitCursorRevealRange(viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean) {
 		this._emit([new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal)]);
 	}
 
@@ -436,8 +450,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return;
 		}
 
-		const oldSelections = this._cursors.getSelections();
-		const oldViewSelections = this._cursors.getViewSelections();
+		const oldState = new CursorModelState(this._model, this);
 		let cursorChangeReason = CursorChangeReason.NotSet;
 
 		// ensure valid state on all cursors
@@ -488,10 +501,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		this._isHandling = false;
 
-		const newSelections = this._cursors.getSelections();
-		const newViewSelections = this._cursors.getViewSelections();
-		if (Cursor._somethingChanged(oldSelections, oldViewSelections, newSelections, newViewSelections)) {
-			this._emitStateChanged(source, cursorChangeReason);
+		if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState)) {
 			this._revealRange(RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true);
 		}
 	}

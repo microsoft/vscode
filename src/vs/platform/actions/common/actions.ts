@@ -51,7 +51,7 @@ export class MenuId {
 	static readonly SCMResourceContext = new MenuId('13');
 	static readonly CommandPalette = new MenuId('14');
 	static readonly ViewTitle = new MenuId('15');
-	static readonly ViewResource = new MenuId('16');
+	static readonly ViewItemContext = new MenuId('16');
 
 	constructor(private _id: string) {
 

@@ -166,12 +166,9 @@ export class ResourceViewer {
 					.append($('a', {
 						role: 'button',
 						class: 'open-external',
-						text: nls.localize('resourceOpenExternalButton', "Open image")
+						text: nls.localize('resourceOpenExternalButton', "Open image using external program?")
 					}).on(DOM.EventType.CLICK, (e) => {
 						openExternal(descriptor.resource);
-					}))
-					.append($('span', {
-						text: nls.localize('resourceOpenExternalText', ' using external program?')
 					}));
 			}
 		}

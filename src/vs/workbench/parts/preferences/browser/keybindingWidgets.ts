@@ -27,11 +27,12 @@ import { editorWidgetBackground, widgetShadow } from "vs/platform/theme/common/c
 
 class KeybindingInputWidget extends Widget {
 
-	public readonly inputBox: InputBox;
+	private readonly inputBox: InputBox;
 
 	private _acceptChords: boolean;
 	private _firstPart: ResolvedKeybinding;
 	private _chordPart: ResolvedKeybinding;
+	private _inputValue: string;
 
 	private _onKeybinding = this._register(new Emitter<[ResolvedKeybinding, ResolvedKeybinding]>());
 	public readonly onKeybinding: Event<[ResolvedKeybinding, ResolvedKeybinding]> = this._onKeybinding.event;
@@ -42,6 +43,9 @@ class KeybindingInputWidget extends Widget {
 	private _onEscape = this._register(new Emitter<void>());
 	public readonly onEscape: Event<void> = this._onEscape.event;
 
+	private _onBlur = this._register(new Emitter<void>());
+	public readonly onBlur: Event<void> = this._onBlur.event;
+
 	constructor(parent: HTMLElement, private options: IInputOptions,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IKeybindingService private keybindingService: IKeybindingService,
@@ -51,9 +55,25 @@ class KeybindingInputWidget extends Widget {
 		this.inputBox = this._register(new InputBox(parent, this.contextViewService, this.options));
 		this._register(attachInputBoxStyler(this.inputBox, themeService));
 		this.onkeydown(this.inputBox.inputElement, e => this._onKeyDown(e));
+		this.onblur(this.inputBox.inputElement, (e) => this._onBlur.fire());
+
+		this.oninput(this.inputBox.inputElement, (e) => {
+			// Prevent other characters from showing up
+			this.setInputValue(this._inputValue);
+		});
+
 		this._acceptChords = true;
 		this._firstPart = null;
 		this._chordPart = null;
+	}
+
+	public setInputValue(value: string): void {
+		this._inputValue = value;
+		this.inputBox.value = this._inputValue;
+	}
+
+	public focus(): void {
+		this.inputBox.focus();
 	}
 
 	public reset() {
@@ -107,7 +127,7 @@ class KeybindingInputWidget extends Widget {
 		if (this._chordPart) {
 			value = value + ' ' + this._chordPart.getUserSettingsLabel();
 		}
-		this.inputBox.value = value;
+		this.setInputValue(value);
 
 		this.inputBox.inputElement.title = info;
 		this._onKeybinding.fire([this._firstPart, this._chordPart]);
@@ -155,9 +175,9 @@ export class DefineKeybindingWidget extends Widget {
 
 				this._firstPart = null;
 				this._chordPart = null;
-				this._keybindingInputWidget.inputBox.value = '';
+				this._keybindingInputWidget.setInputValue('');
 				dom.clearNode(this._outputNode);
-				this._keybindingInputWidget.inputBox.focus();
+				this._keybindingInputWidget.focus();
 			}
 			const disposable = this._onHide.event(() => {
 				if (this._firstPart) {
@@ -204,7 +224,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.printKeybinding(keybinding)));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
 		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
-		this._register(dom.addDisposableListener(this._keybindingInputWidget.inputBox.inputElement, 'blur', e => this.onCancel()));
+		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
 
 		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
 	}

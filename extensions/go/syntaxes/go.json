@@ -615,15 +615,15 @@
 					},
 					"patterns": [
 						{
-							"include": "#variables"
+							"include": "$self"
 						},
 						{
-							"include": "$self"
+							"include": "#variables"
 						}
 					]
 				}
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-go/commit/190bfd97cc97bd9228dc12feaa7329afb2e070fa"
+	"version": "https://github.com/atom/language-go/commit/c1fe618ccf2dcd17118c5600c49b1c539f26d5c5"
 }

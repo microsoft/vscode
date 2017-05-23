@@ -279,16 +279,17 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		}
 	}
 
-	private _sendRevealRange(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean): void {
+	private _sendRevealRange(modelRange: Range, verticalType: VerticalRevealType, revealHorizontal: boolean): void {
 		if (!this.model || !this.cursor) {
 			return;
 		}
-		if (!Range.isIRange(range)) {
+		if (!Range.isIRange(modelRange)) {
 			throw new Error('Invalid arguments');
 		}
-		let validatedRange = this.model.validateRange(range);
+		const validatedModelRange = this.model.validateRange(modelRange);
+		const viewRange = this.viewModel.coordinatesConverter.convertModelRangeToViewRange(validatedModelRange);
 
-		this.cursor.emitCursorRevealRange(validatedRange, null, verticalType, revealHorizontal);
+		this.cursor.emitCursorRevealRange(viewRange, verticalType, revealHorizontal);
 	}
 
 	public revealLine(lineNumber: number): void {

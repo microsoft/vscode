@@ -39,7 +39,7 @@ export function getMarkdownUri(uri: vscode.Uri) {
 
 	return uri.with({
 		scheme: 'markdown',
-		path: uri.fsPath + '.rendered',
+		path: uri.path + '.rendered',
 		query: uri.toString()
 	});
 }
@@ -166,7 +166,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	private computeCustomStyleSheetIncludes(uri: vscode.Uri): string {
 		if (this.config.styles && Array.isArray(this.config.styles)) {
 			return this.config.styles.map((style) => {
-				return `<link rel="stylesheet" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
+				return `<link rel="stylesheet" data-source="${style.replace(/"/g, '&quot;')}" onerror="onStyleLoadError(event)" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
 			}).join('\n');
 		}
 		return '';
@@ -238,6 +238,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 					${csp}
 					<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
 					<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
+					<script src="${this.getMediaPath('loading.js')}" nonce="${nonce}"></script>
 					${this.getStyles(uri, nonce)}
 					<base href="${document.uri.toString(true)}">
 				</head>

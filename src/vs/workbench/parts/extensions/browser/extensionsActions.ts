@@ -1102,11 +1102,11 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 	}
 }
 
-export class ShowExtensionPacksAction extends Action {
+export class ShowLanguageExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showExtensionPacks';
-	static LABEL = localize('showExtensionPacks', "Show Extension Packs");
-	static SHORT_LABEL = localize('showExtensionPacksShort', "Extension Packs");
+	static ID = 'workbench.extensions.action.showLanguageExtensions';
+	static LABEL = localize('showLanguageExtensions', "Show Language Extensions");
+	static SHORT_LABEL = localize('showLanguageExtensionsShort', "Language Extensions");
 
 	constructor(
 		id: string,
@@ -1120,7 +1120,7 @@ export class ShowExtensionPacksAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@sort:installs @category:"extension packs" ');
+				viewlet.search('@sort:installs @category:languages ');
 				viewlet.focus();
 			});
 	}

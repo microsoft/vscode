@@ -57,13 +57,6 @@ export function macLinuxKeyboardMappingEquals(a: IMacLinuxKeyboardMapping, b: IM
 	return true;
 }
 
-const LOG = false;
-function log(str: string): void {
-	if (LOG) {
-		console.info(str);
-	}
-}
-
 /**
  * A map from character to key codes.
  * e.g. Contains entries such as:
@@ -272,17 +265,6 @@ class ScanCodeKeyCodeMapper {
 	}
 
 	public registrationComplete(): void {
-		for (let i = 0; i < ScanCode.MAX_VALUE; i++) {
-			let base = (i << 3);
-			for (let j = 0; j < 8; j++) {
-				let actual = base + j;
-				let entry = this._scanCodeToKeyCode[actual];
-				if (typeof entry === 'undefined') {
-					log(`${ScanCodeUtils.toString(i)} - ${j.toString(2)} --- is missing`);
-				}
-			}
-		}
-
 		// IntlHash and IntlBackslash are rare keys, so ensure they don't end up being the preferred...
 		this._moveToEnd(ScanCode.IntlHash);
 		this._moveToEnd(ScanCode.IntlBackslash);
@@ -512,6 +494,7 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 		const _registerLetterIfMissing = (charCode: CharCode, scanCode: ScanCode, keyCode: KeyCode): void => {
 			if (!producesLetter[charCode]) {
 				_registerAllCombos(0, 0, 0, scanCode, keyCode);
+				this._scanCodeToLabel[scanCode] = String.fromCharCode(charCode);
 			}
 		};
 
@@ -546,7 +529,6 @@ export class MacLinuxKeyboardMapper implements IKeyboardMapper {
 			if (rawMappings.hasOwnProperty(strScanCode)) {
 				const scanCode = ScanCodeUtils.toEnum(strScanCode);
 				if (scanCode === ScanCode.None) {
-					log(`Unknown ScanCode ${strScanCode} in mapping.`);
 					continue;
 				}
 				if (IMMUTABLE_CODE_TO_KEY_CODE[scanCode] !== -1) {

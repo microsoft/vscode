@@ -60,15 +60,6 @@ export class CursorCollection {
 		return result;
 	}
 
-	public getPositions(): Position[] {
-		let result: Position[] = [];
-		result[0] = this.primaryCursor.modelState.position;
-		for (let i = 0, len = this.secondaryCursors.length; i < len; i++) {
-			result[i + 1] = this.secondaryCursors[i].modelState.position;
-		}
-		return result;
-	}
-
 	public getViewPositions(): Position[] {
 		let result: Position[] = [];
 		result[0] = this.primaryCursor.viewState.position;
