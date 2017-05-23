@@ -13,7 +13,7 @@ import URI from 'vs/base/common/uri';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
 import { IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, getGloballyDisabledExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -21,6 +21,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ExtHostContext, ExtHostExtensionServiceShape } from '../node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -64,6 +65,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super(false);
 		this._isDev = !environmentService.isBuilt || environmentService.isExtensionDevelopment;
@@ -71,12 +73,11 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
 
-		const disabledExtensions = [
-			...extensionEnablementService.getGloballyDisabledExtensions(),
-			...extensionEnablementService.getWorkspaceDisabledExtensions()
-		];
-
 		this.scanExtensions().done(extensionDescriptions => {
+			const disabledExtensions = [
+				...getGloballyDisabledExtensions(extensionEnablementService, storageService, extensionDescriptions),
+				...extensionEnablementService.getWorkspaceDisabledExtensions()
+			];
 
 			_telemetryService.publicLog('extensionsScanned', {
 				totalCount: extensionDescriptions.length,

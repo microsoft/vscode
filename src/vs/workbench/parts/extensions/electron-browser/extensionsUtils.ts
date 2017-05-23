@@ -6,18 +6,21 @@
 'use strict';
 
 import * as arrays from 'vs/base/common/arrays';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import Event, { chain, any, debounceEvent } from 'vs/base/common/event';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IChoiceService } from 'vs/platform/message/common/message';
-import Severity from 'vs/base/common/severity';
+import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService, IExtensionTipsService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/common/message';
+import { Action } from 'vs/base/common/actions';
+import { BetterMergeDisabledNowKey, BetterMergeId, getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 export interface IExtensionStatus {
 	identifier: string;
@@ -70,10 +73,10 @@ export class KeymapExtensions implements IWorkbenchContribution {
 			oldKeymaps: oldKeymaps.map(k => k.identifier)
 		};
 		this.telemetryService.publicLog('disableOtherKeymapsConfirmation', telemetryData);
-		const message = nls.localize('disableOtherKeymapsConfirmation', "Disable other keymaps to avoid conflicts between keybindings?");
+		const message = localize('disableOtherKeymapsConfirmation', "Disable other keymaps to avoid conflicts between keybindings?");
 		const options = [
-			nls.localize('yes', "Yes"),
-			nls.localize('no', "No")
+			localize('yes', "Yes"),
+			localize('no', "No")
 		];
 		return this.choiceService.choose(Severity.Info, message, options, 1, false)
 			.then<void>(value => {
@@ -134,5 +137,47 @@ export function isKeymapExtension(tipsService: IExtensionTipsService, extension:
 }
 
 function stripVersion(id: string): string {
-	return id.replace(/-\d+\.\d+\.\d+$/, '');
+	return getIdAndVersionFromLocalExtensionId(id).id;
+}
+
+export class BetterMergeDisabled implements IWorkbenchContribution {
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IMessageService messageService: IMessageService,
+		@IExtensionService extensionService: IExtensionService,
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@ITelemetryService telemetryService: ITelemetryService,
+	) {
+		extensionService.onReady().then(() => {
+			if (storageService.getBoolean(BetterMergeDisabledNowKey, StorageScope.GLOBAL, false)) {
+				storageService.remove(BetterMergeDisabledNowKey, StorageScope.GLOBAL);
+				telemetryService.publicLog('betterMergeDisabled');
+				messageService.show(Severity.Info, {
+					message: localize('betterMergeDisabled', "The Better Merge extension is now built-in, the installed extension was disabled and can be uninstalled."),
+					actions: [
+						new Action('uninstall', localize('uninstall', "Uninstall"), null, true, () => {
+							telemetryService.publicLog('betterMergeUninstall', {
+								outcome: 'uninstall',
+							});
+							return extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+								return Promise.all(extensions.filter(e => stripVersion(e.id) === BetterMergeId)
+									.map(e => extensionManagementService.uninstall(e, true)));
+							});
+						}),
+						new Action('later', localize('later', "Later"), null, true, () => {
+							telemetryService.publicLog('betterMergeUninstall', {
+								outcome: 'later',
+							});
+							return TPromise.as(true);
+						})
+					]
+				});
+			}
+		});
+	}
+
+	getId(): string {
+		return 'vs.extensions.betterMergeDisabled';
+	}
 }
