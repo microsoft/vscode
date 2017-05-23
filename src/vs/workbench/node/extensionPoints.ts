@@ -48,7 +48,9 @@ export class MessagesCollector {
 		this._messages.push({
 			type: type,
 			message: message,
-			source: source
+			source: source,
+			extensionId: undefined,
+			extensionPointId: undefined
 		});
 	}
 

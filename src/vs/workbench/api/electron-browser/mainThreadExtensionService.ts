@@ -51,8 +51,6 @@ const hasOwnProperty = Object.hasOwnProperty;
 
 export class MainProcessExtensionService extends AbstractExtensionService<ActivatedExtension> {
 
-	private _threadService: IThreadService;
-	private _messageService: IMessageService;
 	private _proxy: ExtHostExtensionServiceShape;
 	private _isDev: boolean;
 	private _extensionsStatus: { [id: string]: IExtensionsStatus };
@@ -61,17 +59,15 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(
-		@IThreadService threadService: IThreadService,
-		@IMessageService messageService: IMessageService,
+		@IThreadService private readonly _threadService: IThreadService,
+		@IMessageService private readonly _messageService: IMessageService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
 	) {
 		super(false);
 		this._isDev = !environmentService.isBuilt || environmentService.isExtensionDevelopment;
 
-		this._messageService = messageService;
-		this._threadService = threadService;
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
 
@@ -82,7 +78,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 
 		this.scanExtensions().done(extensionDescriptions => {
 
-			telemetryService.publicLog('extensionsScanned', {
+			_telemetryService.publicLog('extensionsScanned', {
 				totalCount: extensionDescriptions.length,
 				disabledCount: disabledExtensions.length
 			});
@@ -98,6 +94,13 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 			this._extensionsStatus[msg.source] = { messages: [] };
 		}
 		this._extensionsStatus[msg.source].messages.push(msg);
+
+		if (!this._isDev && msg.extensionId) {
+			const { type, extensionId, extensionPointId, message } = msg;
+			this._telemetryService.publicLog('extensionsMessage', {
+				type, extensionId, extensionPointId, message
+			});
+		}
 	}
 
 	public $localShowMessage(severity: Severity, msg: string): void {
@@ -175,7 +178,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 				users[usersLen++] = {
 					description: desc,
 					value: desc.contributes[extensionPoint.name],
-					collector: new ExtensionMessageCollector(messageHandler, desc.extensionFolderPath)
+					collector: new ExtensionMessageCollector(messageHandler, desc, extensionPoint.name)
 				};
 			}
 		}
