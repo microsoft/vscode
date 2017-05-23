@@ -6,14 +6,14 @@ import * as vscode from 'vscode';
 import * as interfaces from './interfaces';
 import { DocumentMergeConflict } from './documentMergeConflict';
 
-const startMarker = '<<<<<<< ';
+const startHeaderMarker = '<<<<<<< ';
 const splitterMarker = '=======';
-const endMarker = '>>>>>>> ';
+const endFooterMarker = '>>>>>>> ';
 
-interface IPartialMergeConflictDescriptor {
-	currentHeader: vscode.TextLine;
+interface IScanMergedConflict {
+	startHeader: vscode.TextLine;
 	splitter?: vscode.TextLine;
-	incomingFooter?: vscode.TextLine;
+	endFooter?: vscode.TextLine;
 }
 
 export class MergeConflictParser {
@@ -22,44 +22,53 @@ export class MergeConflictParser {
 
 		// Scan each line in the document, we already know there is atleast a <<<<<<< and
 		// >>>>>> marker within the document, we need to group these into conflict ranges.
+		// We initially build a scan match, that references the lines of the header, splitter
+		// and footer. This is then converted into a full descriptor containing all required
+		// ranges.
 
-		let currentConflict: IPartialMergeConflictDescriptor | null = null;
-
+		let currentConflict: IScanMergedConflict | null = null;
 		const conflictDescriptors: interfaces.IDocumentMergeConflictDescriptor[] = [];
 
 		for (let i = 0; i < document.lineCount; i++) {
 			const line = document.lineAt(i);
 
-			if (line.text.startsWith(startMarker)) {
+			// Ignore empty lines
+			if (!line || line.isEmptyOrWhitespace) {
+				continue;
+			}
+
+			// Is this a start line? <<<<<<<
+			if (line.text.startsWith(startHeaderMarker)) {
 				if (currentConflict !== null) {
 					// Error, we should not see a startMarker before we've seen an endMarker
 					currentConflict = null;
+
+					// Give up parsing, anything matched up this to this point will be decorated
+					// anything after will not
 					break;
 				}
 
-				currentConflict = { currentHeader: line };
+				// Create a new conflict starting at this line
+				currentConflict = { startHeader: line };
 			}
-			else if (line.text.startsWith(splitterMarker)) {
-
-				if (currentConflict === null) {
-					continue; // Ignore
-				}
-
+			// Are we within a conflict block and is this a splitter? =======
+			else if (currentConflict && line.text.startsWith(splitterMarker)) {
 				currentConflict.splitter = line;
 			}
-			else if (line.text.startsWith(endMarker)) {
-				if (currentConflict === null) {
-					continue; // Ignore
-				}
+			// Are we withon a conflict block and is this a footer? >>>>>>>
+			else if (currentConflict && line.text.startsWith(endFooterMarker)) {
+				currentConflict.endFooter = line;
 
-				currentConflict.incomingFooter = line;
-
-				let completeDescriptor = MergeConflictParser.completePartialMergeDescriptor(document, currentConflict);
+				// Create a full descriptor from the lines that we matched. This can return
+				// null if the descriptor could not be completed.
+				let completeDescriptor = MergeConflictParser.scanItemTolMergeConflictDescriptor(document, currentConflict);
 
 				if (completeDescriptor !== null) {
 					conflictDescriptors.push(completeDescriptor);
 				}
 
+				// Reset the current conflict to be empty, so we can match the next
+				// starting header marker.
 				currentConflict = null;
 			}
 		}
@@ -69,9 +78,9 @@ export class MergeConflictParser {
 			.map(descriptor => new DocumentMergeConflict(document, descriptor));
 	}
 
-	private static completePartialMergeDescriptor(document: vscode.TextDocument, partial: IPartialMergeConflictDescriptor): interfaces.IDocumentMergeConflictDescriptor | null {
-		// Validate we have valid ranges
-		if (!partial.currentHeader || !partial.splitter || !partial.incomingFooter) {
+	private static scanItemTolMergeConflictDescriptor(document: vscode.TextDocument, scanned: IScanMergedConflict): interfaces.IDocumentMergeConflictDescriptor | null {
+		// Validate we have all the required lines within the scan item.
+		if (!scanned.startHeader || !scanned.splitter || !scanned.endFooter) {
 			return null;
 		}
 
@@ -82,30 +91,30 @@ export class MergeConflictParser {
 		// the decorator will wrap to the next line.
 		return {
 			current: {
-				header: partial.currentHeader.range,
+				header: scanned.startHeader.range,
 				decoratorContent: new vscode.Range(
-					partial.currentHeader.rangeIncludingLineBreak.end,
-					MergeConflictParser.shiftBackOneCharacter(document, partial.splitter.range.start)),
+					scanned.startHeader.rangeIncludingLineBreak.end,
+					MergeConflictParser.shiftBackOneCharacter(document, scanned.splitter.range.start)),
 				// Current content is range between header (shifted for linebreak) and splitter start
 				content: new vscode.Range(
-					partial.currentHeader.rangeIncludingLineBreak.end,
-					partial.splitter.range.start),
-				name: document.getText(partial.currentHeader.range).substring(startMarker.length)
+					scanned.startHeader.rangeIncludingLineBreak.end,
+					scanned.splitter.range.start),
+				name: scanned.startHeader.text.substring(startHeaderMarker.length)
 			},
-			splitter: partial.splitter.range,
+			splitter: scanned.splitter.range,
 			incoming: {
-				header: partial.incomingFooter.range,
+				header: scanned.endFooter.range,
 				decoratorContent: new vscode.Range(
-					partial.splitter.rangeIncludingLineBreak.end,
-					MergeConflictParser.shiftBackOneCharacter(document, partial.incomingFooter.range.start)),
+					scanned.splitter.rangeIncludingLineBreak.end,
+					MergeConflictParser.shiftBackOneCharacter(document, scanned.endFooter.range.start)),
 				// Incoming content is range between splitter (shifted for linebreak) and footer start
 				content: new vscode.Range(
-					partial.splitter.rangeIncludingLineBreak.end,
-					partial.incomingFooter.range.start),
-				name: document.getText(partial.incomingFooter.range).substring(endMarker.length)
+					scanned.splitter.rangeIncludingLineBreak.end,
+					scanned.endFooter.range.start),
+				name: scanned.endFooter.text.substring(endFooterMarker.length)
 			},
 			// Entire range is between current header start and incoming header end (including line break)
-			range: new vscode.Range(partial.currentHeader.range.start, partial.incomingFooter.rangeIncludingLineBreak.end)
+			range: new vscode.Range(scanned.startHeader.range.start, scanned.endFooter.rangeIncludingLineBreak.end)
 		};
 	}
 
@@ -115,7 +124,7 @@ export class MergeConflictParser {
 		}
 
 		let text = document.getText();
-		return text.includes(startMarker) && text.includes(endMarker);
+		return text.includes(startHeaderMarker) && text.includes(endFooterMarker);
 	}
 
 	private static shiftBackOneCharacter(document: vscode.TextDocument, range: vscode.Position): vscode.Position {
