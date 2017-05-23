@@ -199,7 +199,7 @@ export class SuggestModel implements IDisposable {
 						}
 					}
 				}
-				this.trigger(true, false, supports, items);
+				this.trigger(true, Boolean(this.completionModel), supports, items);
 			}
 		});
 	}
@@ -247,6 +247,12 @@ export class SuggestModel implements IDisposable {
 		if (!e.selection.isEmpty()
 			|| e.source !== 'keyboard'
 			|| e.reason !== CursorChangeReason.NotSet) {
+
+			if (this._state === State.Idle) {
+				// Early exit if nothing needs to be done!
+				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
+				return;
+			}
 
 			this.cancel();
 			return;

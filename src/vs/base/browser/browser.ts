@@ -8,31 +8,33 @@ import * as Platform from 'vs/base/common/platform';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
+export const enum AccessibilitySupport {
+	/**
+	 * This should be the browser case where it is not known if a screen reader is attached or no.
+	 */
+	Unknown = 0,
+
+	Disabled = 1,
+
+	Enabled = 2
+}
+
 class WindowManager {
 
 	public static INSTANCE = new WindowManager();
 
-	private _fullscreen: boolean;
-
+	// --- Zoom Level
 	private _zoomLevel: number = 0;
 	private _lastZoomLevelChangeTime: number = 0;
-
-	private _zoomFactor: number = 0;
-
 	private _onDidChangeZoomLevel: Emitter<number> = new Emitter<number>();
+
 	public onDidChangeZoomLevel: Event<number> = this._onDidChangeZoomLevel.event;
-
-	private _onDidChangeFullscreen: Emitter<void> = new Emitter<void>();
-	public onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
-
 	public getZoomLevel(): number {
 		return this._zoomLevel;
 	}
-
 	public getTimeSinceLastZoomLevelChanged(): number {
 		return Date.now() - this._lastZoomLevelChangeTime;
 	}
-
 	public setZoomLevel(zoomLevel: number, isTrusted: boolean): void {
 		if (this._zoomLevel === zoomLevel) {
 			return;
@@ -44,14 +46,19 @@ class WindowManager {
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
 
+
+	// --- Zoom Factor
+	private _zoomFactor: number = 0;
+
 	public getZoomFactor(): number {
 		return this._zoomFactor;
 	}
-
 	public setZoomFactor(zoomFactor: number): void {
 		this._zoomFactor = zoomFactor;
 	}
 
+
+	// --- Pixel Ratio
 	public getPixelRatio(): number {
 		let ctx = document.createElement('canvas').getContext('2d');
 		let dpr = window.devicePixelRatio || 1;
@@ -63,6 +70,11 @@ class WindowManager {
 		return dpr / bsr;
 	}
 
+	// --- Fullscreen
+	private _fullscreen: boolean;
+	private _onDidChangeFullscreen: Emitter<void> = new Emitter<void>();
+
+	public onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
 	public setFullscreen(fullscreen: boolean): void {
 		if (this._fullscreen === fullscreen) {
 			return;
@@ -71,10 +83,28 @@ class WindowManager {
 		this._fullscreen = fullscreen;
 		this._onDidChangeFullscreen.fire();
 	}
-
 	public isFullscreen(): boolean {
 		return this._fullscreen;
 	}
+
+	// --- Accessibility
+	private _accessibilitySupport = AccessibilitySupport.Unknown;
+	private _onDidChangeAccessibilitySupport: Emitter<void> = new Emitter<void>();
+
+	public onDidChangeAccessibilitySupport: Event<void> = this._onDidChangeAccessibilitySupport.event;
+	public setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
+		if (this._accessibilitySupport === accessibilitySupport) {
+			return;
+		}
+
+		this._accessibilitySupport = accessibilitySupport;
+		this._onDidChangeAccessibilitySupport.fire();
+	}
+	public getAccessibilitySupport(): AccessibilitySupport {
+		return this._accessibilitySupport;
+	}
+
+
 }
 
 /** A zoom index, e.g. 1, 2, 3 */
@@ -88,19 +118,22 @@ export function getZoomLevel(): number {
 export function getTimeSinceLastZoomLevelChanged(): number {
 	return WindowManager.INSTANCE.getTimeSinceLastZoomLevelChanged();
 }
+export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
+	return WindowManager.INSTANCE.onDidChangeZoomLevel(callback);
+}
+
 /** The zoom scale for an index, e.g. 1, 1.2, 1.4 */
 export function getZoomFactor(): number {
 	return WindowManager.INSTANCE.getZoomFactor();
 }
-export function getPixelRatio(): number {
-	return WindowManager.INSTANCE.getPixelRatio();
-}
 export function setZoomFactor(zoomFactor: number): void {
 	WindowManager.INSTANCE.setZoomFactor(zoomFactor);
 }
-export function onDidChangeZoomLevel(callback: (zoomLevel: number) => void): IDisposable {
-	return WindowManager.INSTANCE.onDidChangeZoomLevel(callback);
+
+export function getPixelRatio(): number {
+	return WindowManager.INSTANCE.getPixelRatio();
 }
+
 export function setFullscreen(fullscreen: boolean): void {
 	WindowManager.INSTANCE.setFullscreen(fullscreen);
 }
@@ -109,6 +142,16 @@ export function isFullscreen(): boolean {
 }
 export function onDidChangeFullscreen(callback: () => void): IDisposable {
 	return WindowManager.INSTANCE.onDidChangeFullscreen(callback);
+}
+
+export function setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
+	WindowManager.INSTANCE.setAccessibilitySupport(accessibilitySupport);
+}
+export function getAccessibilitySupport(): AccessibilitySupport {
+	return WindowManager.INSTANCE.getAccessibilitySupport();
+}
+export function onDidChangeAccessibilitySupport(callback: () => void): IDisposable {
+	return WindowManager.INSTANCE.onDidChangeAccessibilitySupport(callback);
 }
 
 const userAgent = navigator.userAgent;

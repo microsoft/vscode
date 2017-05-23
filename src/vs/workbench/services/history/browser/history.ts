@@ -61,10 +61,10 @@ export class EditorState {
 			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
 		}
 
-		const liftedSelection = Selection.liftSelection(this._selection);
-		const liftedOtherSelection = Selection.liftSelection(other._selection);
+		const myLineNumber = Math.min(this._selection.selectionStartLineNumber, this._selection.positionLineNumber);
+		const otherLineNumber = Math.min(other._selection.selectionStartLineNumber, other._selection.positionLineNumber);
 
-		if (Math.abs(liftedSelection.getStartPosition().lineNumber - liftedOtherSelection.getStartPosition().lineNumber) < EditorState.EDITOR_SELECTION_THRESHOLD) {
+		if (Math.abs(myLineNumber - otherLineNumber) < EditorState.EDITOR_SELECTION_THRESHOLD) {
 			return false; // ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
 		}
 

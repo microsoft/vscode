@@ -13,7 +13,7 @@ import URI from 'vs/base/common/uri';
 import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
 import { IMessage, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, getGloballyDisabledExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, MessagesCollector } from 'vs/workbench/node/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -21,6 +21,7 @@ import { IThreadService } from 'vs/workbench/services/thread/common/threadServic
 import { ExtHostContext, ExtHostExtensionServiceShape } from '../node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -51,8 +52,6 @@ const hasOwnProperty = Object.hasOwnProperty;
 
 export class MainProcessExtensionService extends AbstractExtensionService<ActivatedExtension> {
 
-	private _threadService: IThreadService;
-	private _messageService: IMessageService;
 	private _proxy: ExtHostExtensionServiceShape;
 	private _isDev: boolean;
 	private _extensionsStatus: { [id: string]: IExtensionsStatus };
@@ -61,28 +60,26 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	 * This class is constructed manually because it is a service, so it doesn't use any ctor injection
 	 */
 	constructor(
-		@IThreadService threadService: IThreadService,
-		@IMessageService messageService: IMessageService,
+		@IThreadService private readonly _threadService: IThreadService,
+		@IMessageService private readonly _messageService: IMessageService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super(false);
 		this._isDev = !environmentService.isBuilt || environmentService.isExtensionDevelopment;
 
-		this._messageService = messageService;
-		this._threadService = threadService;
 		this._proxy = this._threadService.get(ExtHostContext.ExtHostExtensionService);
 		this._extensionsStatus = {};
 
-		const disabledExtensions = [
-			...extensionEnablementService.getGloballyDisabledExtensions(),
-			...extensionEnablementService.getWorkspaceDisabledExtensions()
-		];
-
 		this.scanExtensions().done(extensionDescriptions => {
+			const disabledExtensions = [
+				...getGloballyDisabledExtensions(extensionEnablementService, storageService, extensionDescriptions),
+				...extensionEnablementService.getWorkspaceDisabledExtensions()
+			];
 
-			telemetryService.publicLog('extensionsScanned', {
+			_telemetryService.publicLog('extensionsScanned', {
 				totalCount: extensionDescriptions.length,
 				disabledCount: disabledExtensions.length
 			});
@@ -98,6 +95,13 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 			this._extensionsStatus[msg.source] = { messages: [] };
 		}
 		this._extensionsStatus[msg.source].messages.push(msg);
+
+		if (!this._isDev && msg.extensionId) {
+			const { type, extensionId, extensionPointId, message } = msg;
+			this._telemetryService.publicLog('extensionsMessage', {
+				type, extensionId, extensionPointId, message
+			});
+		}
 	}
 
 	public $localShowMessage(severity: Severity, msg: string): void {
@@ -175,7 +179,7 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 				users[usersLen++] = {
 					description: desc,
 					value: desc.contributes[extensionPoint.name],
-					collector: new ExtensionMessageCollector(messageHandler, desc.extensionFolderPath)
+					collector: new ExtensionMessageCollector(messageHandler, desc, extensionPoint.name)
 				};
 			}
 		}

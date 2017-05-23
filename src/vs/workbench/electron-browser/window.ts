@@ -296,6 +296,11 @@ export class ElectronWindow extends Themable {
 			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(isISOKeyboard);
 		});
 
+		// keyboard layout changed event
+		ipc.on('vscode:accessibilitySupportChanged', (event, accessibilitySupportEnabled: boolean) => {
+			browser.setAccessibilitySupport(accessibilitySupportEnabled ? browser.AccessibilitySupport.Enabled : browser.AccessibilitySupport.Disabled);
+		});
+
 		// Configuration changes
 		let previousConfiguredZoomLevel: number;
 		this.configurationService.onDidUpdateConfiguration(e => {

@@ -82,7 +82,16 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._matchBrackets = this._editor.getConfiguration().contribInfo.matchBrackets;
 
 		this._updateBracketsSoon.schedule();
-		this._register(editor.onDidChangeCursorPosition((e) => this._updateBracketsSoon.schedule()));
+		this._register(editor.onDidChangeCursorPosition((e) => {
+
+			if (!this._matchBrackets) {
+				// Early exit if nothing needs to be done!
+				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
+				return;
+			}
+
+			this._updateBracketsSoon.schedule();
+		}));
 		this._register(editor.onDidChangeModel((e) => { this._decorations = []; this._updateBracketsSoon.schedule(); }));
 		this._register(editor.onDidChangeConfiguration((e) => {
 			this._matchBrackets = this._editor.getConfiguration().contribInfo.matchBrackets;

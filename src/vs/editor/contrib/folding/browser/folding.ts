@@ -219,7 +219,16 @@ export class FoldingController implements IFoldingController {
 		this.localToDispose.push(this.cursorChangedScheduler);
 
 		this.localToDispose.push(this.editor.onDidChangeModelContent(e => this.contentChangedScheduler.schedule()));
-		this.localToDispose.push(this.editor.onDidChangeCursorPosition(e => this.cursorChangedScheduler.schedule()));
+		this.localToDispose.push(this.editor.onDidChangeCursorPosition((e) => {
+
+			if (!this._isEnabled) {
+				// Early exit if nothing needs to be done!
+				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
+				return;
+			}
+
+			this.cursorChangedScheduler.schedule();
+		}));
 		this.localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 
