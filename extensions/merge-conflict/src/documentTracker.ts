@@ -59,7 +59,7 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 
 		console.info('%s -> Check document execution time: %dms', document.uri.toString(), stepEnd[1] / 1000000);
 
-		if(!containsConflict) {
+		if (!containsConflict) {
 			return [];
 		}
 
