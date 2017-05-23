@@ -70,7 +70,7 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
 	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(configuration.isISOKeyboard);
 
-	// TODO@Alex: Initialize accessibilitySupportEnabled
+	browser.setAccessibilitySupport(configuration.accessibilitySupportEnabled ? browser.AccessibilitySupport.Enabled : browser.AccessibilitySupport.Disabled);
 
 	// Setup Intl
 	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));

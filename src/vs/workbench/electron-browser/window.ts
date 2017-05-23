@@ -298,7 +298,7 @@ export class ElectronWindow extends Themable {
 
 		// keyboard layout changed event
 		ipc.on('vscode:accessibilitySupportChanged', (event, accessibilitySupportEnabled: boolean) => {
-			// TODO@Alex: React to accessibilitySupportEnabled
+			browser.setAccessibilitySupport(accessibilitySupportEnabled ? browser.AccessibilitySupport.Enabled : browser.AccessibilitySupport.Disabled);
 		});
 
 		// Configuration changes
