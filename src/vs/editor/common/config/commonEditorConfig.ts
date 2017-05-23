@@ -260,7 +260,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.find.seedSearchStringFromSelection': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.seedSearchStringFromSelection,
-			'description': nls.localize('find.seedSearchStringFromSelection', "")
+			'description': nls.localize('find.seedSearchStringFromSelection', "Controls if we seed the search string in Find Widget from editor selection")
 		},
 		'editor.wordWrap': {
 			'type': 'string',
