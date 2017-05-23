@@ -5,7 +5,6 @@
   "description": "Merge Conflict",
   "version": "0.7.0",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
-  "enableProposedApi": true,
   "engines": {
     "vscode": "^1.5.0"
   },
@@ -101,7 +100,7 @@
       }
     ],
     "configuration": {
-      "title": "Merge Conflict",
+      "title": "%config.title%",
       "properties": {
         "merge-conflict.codeLens.enabled": {
           "type": "boolean",
