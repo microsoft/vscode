@@ -12,9 +12,7 @@ export interface IActivity {
 	cssClass: string;
 }
 
-export const Extensions = {
-	Activities: 'workbench.contributions.activities'
-};
+export const ActivityExtensions = 'workbench.contributions.activities';
 
 export interface IActivityRegistry {
 	registerActivity(descriptor: IConstructorSignature0<IActivity>): void;
@@ -36,4 +34,4 @@ export class ActivityRegistry implements IActivityRegistry {
 	}
 }
 
-Registry.add(Extensions.Activities, new ActivityRegistry());
+Registry.add(ActivityExtensions, new ActivityRegistry());
