@@ -600,6 +600,7 @@ export class CommandCenter {
 	): Promise<boolean> {
 		const config = workspace.getConfiguration('git');
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		const noStagedChanges = this.model.indexGroup.resources.length === 0;
 		const noUnstagedChanges = this.model.workingTreeGroup.resources.length === 0;
 
@@ -622,6 +623,9 @@ export class CommandCenter {
 		if (!opts) {
 			opts = { all: noStagedChanges };
 		}
+
+		// enable signing of commits if configurated
+		opts.signCommit = enableCommitSigning;
 
 		if (
 			// no changes
