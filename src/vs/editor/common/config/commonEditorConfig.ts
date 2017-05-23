@@ -257,6 +257,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.maxColumn,
 			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns")
 		},
+		'editor.find.seedSearchStringFromSelection': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.find.seedSearchStringFromSelection,
+			'description': nls.localize('find.seedSearchStringFromSelection', "")
+		},
 		'editor.wordWrap': {
 			'type': 'string',
 			'enum': ['off', 'on', 'wordWrapColumn', 'bounded'],

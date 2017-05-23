@@ -246,8 +246,10 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		}
 		if (e.isRevealed) {
 			if (this._state.isRevealed) {
+				console.log('open find widget');
 				this._reveal(true);
 			} else {
+				console.log('close find widget');
 				this._hide(true);
 			}
 		}

@@ -2628,6 +2628,13 @@ declare module monaco.editor {
 	}
 
 	/**
+	 * Configuration options for editor find widget
+	 */
+	export interface IEditorFindOptions {
+		seedSearchStringFromSelection?: boolean;
+	}
+
+	/**
 	 * Configuration options for editor minimap
 	 */
 	export interface IEditorMinimapOptions {
@@ -2734,6 +2741,10 @@ declare module monaco.editor {
 		 * Control the behavior and rendering of the minimap.
 		 */
 		minimap?: IEditorMinimapOptions;
+		/**
+		 * Control the behavior of the find widget.
+		 */
+		find?: IEditorFindOptions;
 		/**
 		 * Display overflow widgets as `fixed`.
 		 * Defaults to `false`.
@@ -3153,6 +3164,10 @@ declare module monaco.editor {
 		readonly maxColumn: number;
 	}
 
+	export interface InternalEditorFindOptions {
+		readonly seedSearchStringFromSelection: boolean;
+	}
+
 	export interface EditorWrappingInfo {
 		readonly inDiffEditor: boolean;
 		readonly isDominatedByLongLines: boolean;
@@ -3223,6 +3238,7 @@ declare module monaco.editor {
 		readonly folding: boolean;
 		readonly showFoldingControls: 'always' | 'mouseover';
 		readonly matchBrackets: boolean;
+		readonly find: InternalEditorFindOptions;
 	}
 
 	/**

@@ -75,6 +75,13 @@ export interface IEditorScrollbarOptions {
 }
 
 /**
+ * Configuration options for editor find widget
+ */
+export interface IEditorFindOptions {
+	seedSearchStringFromSelection?: boolean;
+}
+
+/**
  * Configuration options for editor minimap
  */
 export interface IEditorMinimapOptions {
@@ -186,6 +193,10 @@ export interface IEditorOptions {
 	 * Control the behavior and rendering of the minimap.
 	 */
 	minimap?: IEditorMinimapOptions;
+	/**
+	 * Control the behavior of the find widget.
+	 */
+	find?: IEditorFindOptions;
 	/**
 	 * Display overflow widgets as `fixed`.
 	 * Defaults to `false`.
@@ -672,6 +683,10 @@ export interface InternalEditorMinimapOptions {
 	readonly maxColumn: number;
 }
 
+export interface InternalEditorFindOptions {
+	readonly seedSearchStringFromSelection: boolean;
+}
+
 export interface EditorWrappingInfo {
 	readonly inDiffEditor: boolean;
 	readonly isDominatedByLongLines: boolean;
@@ -738,6 +753,7 @@ export interface EditorContribOptions {
 	readonly folding: boolean;
 	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
+	readonly find: InternalEditorFindOptions;
 }
 
 /**
@@ -1007,6 +1023,16 @@ export class InternalEditorOptions {
 	/**
 	 * @internal
 	 */
+
+	private static _equalFindOptions(a: InternalEditorFindOptions, b: InternalEditorFindOptions): boolean {
+		return (
+			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
+		);
+	}
+
+	/**
+	 * @internal
+	 */
 	private static _equalsWrappingInfo(a: EditorWrappingInfo, b: EditorWrappingInfo): boolean {
 		return (
 			a.inDiffEditor === b.inDiffEditor
@@ -1048,6 +1074,7 @@ export class InternalEditorOptions {
 			&& a.folding === b.folding
 			&& a.showFoldingControls === b.showFoldingControls
 			&& a.matchBrackets === b.matchBrackets
+			&& this._equalFindOptions(a.find, b.find)
 		);
 	}
 
@@ -1413,6 +1440,16 @@ export class EditorOptionsValidator {
 		};
 	}
 
+	private static _santizeFindOpts(opts: IEditorFindOptions, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
+		if (typeof opts !== 'object') {
+			return defaults;
+		}
+
+		return {
+			seedSearchStringFromSelection: _boolean(opts.seedSearchStringFromSelection, defaults.seedSearchStringFromSelection)
+		};
+	}
+
 	private static _sanitizeViewInfo(opts: IEditorOptions, defaults: InternalEditorViewOptions): InternalEditorViewOptions {
 
 		let rulers: number[] = [];
@@ -1524,6 +1561,7 @@ export class EditorOptionsValidator {
 		} else {
 			quickSuggestions = _boolean(opts.quickSuggestions, defaults.quickSuggestions);
 		}
+		const find = this._santizeFindOpts(opts.find, defaults.find);
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
 			hover: _boolean(opts.hover, defaults.hover),
@@ -1547,6 +1585,7 @@ export class EditorOptionsValidator {
 			folding: !performanceCritical && _boolean(opts.folding, defaults.folding),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
 			matchBrackets: !performanceCritical && _boolean(opts.matchBrackets, defaults.matchBrackets),
+			find: find
 		};
 	}
 }
@@ -1955,5 +1994,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		folding: true,
 		showFoldingControls: 'mouseover',
 		matchBrackets: true,
+		find: {
+			seedSearchStringFromSelection: true
+		}
 	},
 };
