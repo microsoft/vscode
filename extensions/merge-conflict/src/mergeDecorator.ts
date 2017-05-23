@@ -7,7 +7,6 @@ import * as interfaces from './interfaces';
 import { loadMessageBundle } from 'vscode-nls';
 const localize = loadMessageBundle();
 
-
 export default class MergeDectorator implements vscode.Disposable {
 
 	private decorations: { [key: string]: vscode.TextEditorDecorationType } = {};
@@ -169,8 +168,8 @@ export default class MergeDectorator implements vscode.Disposable {
 
 		conflicts.forEach(conflict => {
 			// TODO, this could be more effective, just call getMatchPositions once with a map of decoration to position
-			pushDecoration('current.content', { range: conflict.current.content });
-			pushDecoration('incoming.content', { range: conflict.incoming.content });
+			pushDecoration('current.content', { range: conflict.current.decoratorContent });
+			pushDecoration('incoming.content', { range: conflict.incoming.decoratorContent });
 
 			if (this.config.enableDecorations) {
 				pushDecoration('current.header', { range: conflict.current.header });

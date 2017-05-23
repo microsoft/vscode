@@ -52,35 +52,11 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 		}
 		else if (type === interfaces.CommitType.Both) {
 			// Replace [ Conflict Range ] with [ Current Content ] + \n + [ Incoming Content ]
-			//
-			// NOTE: Due to headers and splitters NOT covering \n (this is so newlines inserted)
-			// by the user after (e.g. <<<<< HEAD do not fall into the header range but the
-			// content ranges), we can't push 3x deletes, we need to replace the range with the
-			// union of the content.
 
 			const currentContent = editor.document.getText(this.current.content);
 			const incomingContent = editor.document.getText(this.incoming.content);
 
-			let finalContent = '';
-
-			if (!this.isNewlineOnly(currentContent)) {
-				finalContent += currentContent;
-			}
-
-			if (!this.isNewlineOnly(incomingContent)) {
-				if (finalContent.length > 0) {
-					finalContent += '\n';
-				}
-
-				finalContent += incomingContent;
-			}
-
-			if (finalContent.length > 0 && !this.isNewlineOnly(finalContent)) {
-				finalContent += '\n';
-			}
-
-			edit.setEndOfLine(vscode.EndOfLine.LF);
-			edit.replace(this.range, finalContent);
+			edit.replace(this.range, currentContent.concat(incomingContent));
 		}
 	}
 
@@ -90,12 +66,8 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 			return;
 		}
 
-		let updatedContent = content.concat('\n');
-		edit.setEndOfLine(vscode.EndOfLine.LF);
-
 		// Replace [ Conflict Range ] with [ Current Content ]
-
-		edit.replace(this.range, updatedContent);
+		edit.replace(this.range, content);
 	}
 
 	private isNewlineOnly(text: string) {

@@ -8,6 +8,7 @@ export interface IMergeRegion {
 	name: string;
 	header: vscode.Range;
 	content: vscode.Range;
+	decoratorContent: vscode.Range;
 }
 
 export enum CommitType {
