@@ -19,10 +19,18 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ShowCurrentReleaseNotesAction, UpdateContribution, UpdateContribution2 } from './update';
+import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, LightUpdateContribution } from './update';
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(UpdateContribution);
+	.registerWorkbenchContribution(ProductContribution);
+
+if (isMacintosh) {
+	Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions)
+		.registerActivity(LightUpdateContribution);
+} else {
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+		.registerWorkbenchContribution(UpdateContribution);
+}
 
 // Editor
 const editorDescriptor = new EditorDescriptor(
@@ -35,13 +43,8 @@ const editorDescriptor = new EditorDescriptor(
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(editorDescriptor, [new SyncDescriptor(ReleaseNotesInput)]);
 
-if (isMacintosh) {
-	Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions)
-		.registerActivity(UpdateContribution2);
-} else {
-	Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
-		.registerWorkbenchAction(new SyncActionDescriptor(ShowCurrentReleaseNotesAction, ShowCurrentReleaseNotesAction.ID, ShowCurrentReleaseNotesAction.LABEL), 'Open Release Notes');
-}
+Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions)
+	.registerWorkbenchAction(new SyncActionDescriptor(ShowCurrentReleaseNotesAction, ShowCurrentReleaseNotesAction.ID, ShowCurrentReleaseNotesAction.LABEL), 'Open Release Notes');
 
 // Configuration: Update
 const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
