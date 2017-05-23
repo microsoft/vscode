@@ -95,6 +95,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private isClosed: boolean;
 	private scorerCache: { [key: string]: number };
 	private includeSymbols: boolean;
+	private symbolTimeout: number;
 
 	constructor(
 		@IMessageService private messageService: IMessageService,
@@ -121,6 +122,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	private updateHandlers(configuration: IWorkbenchSearchConfiguration): void {
 		this.includeSymbols = configuration && configuration.search && configuration.search.quickOpen && configuration.search.quickOpen.includeSymbols;
+		this.symbolTimeout = configuration && configuration.search && configuration.search.quickOpen && configuration.search.quickOpen.symbolTimeout;
 
 		// Files
 		this.openFileHandler.setOptions({
@@ -161,11 +163,22 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
-			resultPromises.push(this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS));
+			const fileResultsPromise = this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+			resultPromises.push(fileResultsPromise);
 
 			// Symbol Results (unless disabled or a range or absolute path is specified)
 			if (this.includeSymbols && !searchWithRange) {
-				resultPromises.push(this.openSymbolHandler.getResults(searchValue));
+				const openSymbolPromise = this.openSymbolHandler.getResults(searchValue);
+				fileResultsPromise.then(() => {
+					// OpenAnythingHandler is the only way to open files quickly so
+					// we don't want other types of results, like symbols, to unnecessarily delay file results.
+					// If symbol results timeout here, the user can use the dedicated quick open handler for symbols (which has no timeout).
+					// The ideal solution would involve OpenAnythingHandler streaming in results as they are found.
+					setTimeout(() => {
+						openSymbolPromise.cancel();
+					}, this.symbolTimeout);
+				});
+				resultPromises.push(openSymbolPromise);
 			} else {
 				resultPromises.push(TPromise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
 			}

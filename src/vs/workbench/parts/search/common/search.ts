@@ -77,6 +77,7 @@ export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
 	search: {
 		quickOpen: {
 			includeSymbols: boolean;
+			symbolTimeout: number;
 		},
 		exclude: glob.IExpression,
 		useRipgrep: boolean,
