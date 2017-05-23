@@ -2631,7 +2631,14 @@ declare module monaco.editor {
 	 * Configuration options for editor find widget
 	 */
 	export interface IEditorFindOptions {
+		/**
+		 * Controls if we seed search string in the Find Widget with editor selection.
+		 */
 		seedSearchStringFromSelection?: boolean;
+		/**
+		 * Controls if Find in Selection flag is turned on when multiple characters or lines of text are selected in the editor.
+		 */
+		autoFindInSelection: boolean;
 	}
 
 	/**
@@ -3166,6 +3173,7 @@ declare module monaco.editor {
 
 	export interface InternalEditorFindOptions {
 		readonly seedSearchStringFromSelection: boolean;
+		readonly autoFindInSelection: boolean;
 	}
 
 	export interface EditorWrappingInfo {

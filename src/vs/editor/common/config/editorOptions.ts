@@ -78,7 +78,14 @@ export interface IEditorScrollbarOptions {
  * Configuration options for editor find widget
  */
 export interface IEditorFindOptions {
+	/**
+	 * Controls if we seed search string in the Find Widget with editor selection.
+	 */
 	seedSearchStringFromSelection?: boolean;
+	/**
+	 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
+	 */
+	autoFindInSelection: boolean;
 }
 
 /**
@@ -685,6 +692,7 @@ export interface InternalEditorMinimapOptions {
 
 export interface InternalEditorFindOptions {
 	readonly seedSearchStringFromSelection: boolean;
+	readonly autoFindInSelection: boolean;
 }
 
 export interface EditorWrappingInfo {
@@ -1027,6 +1035,7 @@ export class InternalEditorOptions {
 	private static _equalFindOptions(a: InternalEditorFindOptions, b: InternalEditorFindOptions): boolean {
 		return (
 			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
+			&& a.autoFindInSelection === b.autoFindInSelection
 		);
 	}
 
@@ -1446,7 +1455,8 @@ export class EditorOptionsValidator {
 		}
 
 		return {
-			seedSearchStringFromSelection: _boolean(opts.seedSearchStringFromSelection, defaults.seedSearchStringFromSelection)
+			seedSearchStringFromSelection: _boolean(opts.seedSearchStringFromSelection, defaults.seedSearchStringFromSelection),
+			autoFindInSelection: _boolean(opts.autoFindInSelection, defaults.autoFindInSelection)
 		};
 	}
 
@@ -1995,7 +2005,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		showFoldingControls: 'mouseover',
 		matchBrackets: true,
 		find: {
-			seedSearchStringFromSelection: true
+			seedSearchStringFromSelection: true,
+			autoFindInSelection: false
 		}
 	},
 };
