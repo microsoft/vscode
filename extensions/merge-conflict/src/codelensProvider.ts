@@ -10,7 +10,7 @@ const localize = loadMessageBundle();
 
 export default class MergeConflictCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
 
-	private disposables: vscode.Disposable[] = [];
+	private codeLensRegistrationHandle: vscode.Disposable | null;
 	private config: interfaces.IExtensionConfiguration;
 
 	constructor(private context: vscode.ExtensionContext, private tracker: interfaces.IDocumentMergeConflictTracker) {
@@ -18,18 +18,31 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 
 	begin(config: interfaces.IExtensionConfiguration) {
 		this.config = config;
-		this.disposables.push(
-			vscode.languages.registerCodeLensProvider({ pattern: '**/*' }, this)
-		);
+
+		if (this.config.enableCodeLens) {
+			this.registerCodeLensProvider();
+		}
 	}
 
-	configurationUpdated(config: interfaces.IExtensionConfiguration) {
-		this.config = config;
+	configurationUpdated(updatedConfig: interfaces.IExtensionConfiguration) {
+
+		if (updatedConfig.enableCodeLens === false && this.codeLensRegistrationHandle) {
+			this.codeLensRegistrationHandle.dispose();
+			this.codeLensRegistrationHandle = null;
+		}
+		else if (updatedConfig.enableCodeLens === true && !this.codeLensRegistrationHandle) {
+			this.registerCodeLensProvider();
+		}
+
+		this.config = updatedConfig;
 	}
+
 
 	dispose() {
-		this.disposables.forEach(disposable => disposable.dispose());
-		this.disposables = [];
+		if (this.codeLensRegistrationHandle) {
+			this.codeLensRegistrationHandle.dispose();
+			this.codeLensRegistrationHandle = null;
+		}
 	}
 
 	async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CodeLens[] | null> {
@@ -80,5 +93,9 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 		});
 
 		return items;
+	}
+
+	private registerCodeLensProvider() {
+		this.codeLensRegistrationHandle = vscode.languages.registerCodeLensProvider({ pattern: '**/*' }, this);
 	}
 }
