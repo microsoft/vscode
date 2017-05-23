@@ -10,7 +10,9 @@ import ContentProvider from './contentProvider';
 import Decorator from './mergeDecorator';
 import * as interfaces from './interfaces';
 
-const ConfigurationSectionName = 'git';
+const ConfigurationSectionName = 'merge-conflict';
+const FeatureEnabledProperty = 'enableEditorMerge';
+const AlwaysEnableDecorations = true; // If true, merge-conflict.enableEditorMerge is ignored
 
 export default class ServiceWrapper implements vscode.Disposable {
 
@@ -49,11 +51,11 @@ export default class ServiceWrapper implements vscode.Disposable {
 
 	createExtensionConfiguration(): interfaces.IExtensionConfiguration {
 		const workspaceConfiguration = vscode.workspace.getConfiguration(ConfigurationSectionName);
-		const isEnabled: boolean = workspaceConfiguration.get('enableEditorMerge', true);
+		const isEnabled: boolean = workspaceConfiguration.get(FeatureEnabledProperty, true);
 
 		return {
 			enableCodeLens: isEnabled,
-			enableDecorations: isEnabled,
+			enableDecorations: AlwaysEnableDecorations || isEnabled,
 			enableEditorOverview: isEnabled
 		};
 	}
