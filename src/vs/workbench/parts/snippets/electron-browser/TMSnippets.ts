@@ -128,9 +128,9 @@ function parseSnippetFile(snippetFileContent: string, extensionName?: string, co
 
 		const didRewrite = _rewriteBogousVariables(snippet);
 		if (didRewrite && collector) {
-			collector.info(nls.localize(
+			collector.warn(nls.localize(
 				'badVariableUse',
-				"The \"{0}\"-snippet very likely confuses snippet-variables and snippet-placeholders. See https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details",
+				"The \"{0}\"-snippet very likely confuses snippet-variables and snippet-placeholders. See https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details.",
 				name
 			));
 		}
