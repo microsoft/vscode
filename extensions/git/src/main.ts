@@ -13,7 +13,6 @@ import { CommandCenter } from './commands';
 import { StatusBarCommands } from './statusbar';
 import { GitContentProvider } from './contentProvider';
 import { AutoFetcher } from './autofetch';
-import { MergeDecorator } from './merge';
 import { Askpass } from './askpass';
 import { toDisposable } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -58,14 +57,12 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	const provider = new GitSCMProvider(model, commandCenter, statusBarCommands);
 	const contentProvider = new GitContentProvider(model);
 	const autoFetcher = new AutoFetcher(model);
-	const mergeDecorator = new MergeDecorator(model);
 
 	disposables.push(
 		commandCenter,
 		provider,
 		contentProvider,
 		autoFetcher,
-		mergeDecorator,
 		model
 	);
 
