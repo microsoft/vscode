@@ -678,6 +678,11 @@
           "type": "boolean",
           "description": "%config.enableSmartCommit%",
           "default": false
+        },
+        "git.enableCommitSigning": {
+          "type": "boolean",
+          "description": "%config.enableCommitSigning%",
+          "default": false
         }
       }
     }
