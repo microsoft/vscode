@@ -910,6 +910,13 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				return true;
 			} catch (e) {
 				// noop
+			} finally {
+				const p = this.callbacks[seq];
+				if (p) {
+					delete this.callbacks[seq];
+					this.pendingResponses--;
+					p.e(new Error(`Cancelled Request ${seq}`));
+				}
 			}
 		}
 
