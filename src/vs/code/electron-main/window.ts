@@ -79,9 +79,13 @@ export interface IWindowConfiguration extends ParsedArgs {
 	userEnv: platform.IProcessEnvironment;
 
 	/**
-	 * The physical keyboard is of ISO type (on OSX)
+	 * The physical keyboard is of ISO type (on OSX).
 	 */
 	isISOKeyboard?: boolean;
+	/**
+	 * Accessibility support is enabled.
+	 */
+	accessibilitySupportEnabled?: boolean;
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;

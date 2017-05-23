@@ -38,9 +38,14 @@ gracefulFs.gracefulify(fs); // enable gracefulFs
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 
 	/**
-	 * The physical keyboard is of ISO type (on OSX)
+	 * The physical keyboard is of ISO type (on OSX).
 	 */
 	isISOKeyboard?: boolean;
+
+	/**
+	 * Accessibility support is enabled.
+	 */
+	accessibilitySupportEnabled?: boolean;
 
 	appRoot: string;
 	execPath: string;
@@ -64,6 +69,8 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 	browser.setFullscreen(!!configuration.fullscreen);
 
 	KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged(configuration.isISOKeyboard);
+
+	// TODO@Alex: Initialize accessibilitySupportEnabled
 
 	// Setup Intl
 	comparer.setFileNameComparer(new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' }));

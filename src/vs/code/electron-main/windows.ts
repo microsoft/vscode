@@ -177,6 +177,11 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private registerListeners(): void {
+
+		app.on('accessibility-support-changed', (event: Event, accessibilitySupportEnabled: boolean) => {
+			this.sendToAll('vscode:accessibilitySupportChanged', accessibilitySupportEnabled);
+		});
+
 		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
 			this.logService.log('App#activate');
 
@@ -733,6 +738,7 @@ export class WindowsManager implements IWindowsMainService {
 		configuration.filesToDiff = filesToDiff;
 		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
 		configuration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
+		configuration.accessibilitySupportEnabled = app.isAccessibilitySupportEnabled();
 
 		return configuration;
 	}
