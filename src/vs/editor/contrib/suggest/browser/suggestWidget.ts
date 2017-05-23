@@ -33,6 +33,7 @@ import { registerColor, editorWidgetBackground, listFocusBackground, activeContr
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 const sticky = false; // for development purposes
+const expandSuggestionDocsByDefault = false;
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -560,7 +561,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.list.setFocus([index]);
 				this.list.reveal(index);
 
-				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
+				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
 					this.showDetails();
 
 					this._ariaAlert(this.details.getAriaLabel());
@@ -609,7 +610,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			case State.Open:
 				hide(this.messageElement);
 				show(this.listElement);
-				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
+				if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
 					show(this.details.element);
 					this.expandSideOrBelow();
 				} else {
@@ -797,7 +798,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.details.element.style.borderColor = this.detailsBorderColor;
 			}
 		} else if (this.state === State.Open
-			&& this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
+			&& this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
 			this.setState(State.Details);
 			if (this.detailsFocusBorderColor) {
 				this.details.element.style.borderColor = this.detailsFocusBorderColor;
@@ -807,7 +808,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 	toggleDetails(): void {
 
-		if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false)) {
+		if (this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault)) {
 			this.storageService.store('expandSuggestionDocs', false, StorageScope.GLOBAL);
 			hide(this.details.element);
 			removeClass(this.element, 'docs-side');
