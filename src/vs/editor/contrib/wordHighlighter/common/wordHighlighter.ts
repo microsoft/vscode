@@ -78,6 +78,13 @@ class WordHighlighter {
 		this.model = this.editor.getModel();
 		this.toUnhook = [];
 		this.toUnhook.push(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+
+			if (!this.occurrencesHighlight) {
+				// Early exit if nothing needs to be done!
+				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
+				return;
+			}
+
 			this._onPositionChanged(e);
 		}));
 		this.toUnhook.push(editor.onDidChangeModel((e) => {

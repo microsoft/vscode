@@ -765,6 +765,7 @@ export interface IValidatedEditorOptions {
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
 	readonly useTabStops: boolean;
+	readonly performanceCritical: boolean;
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -1344,8 +1345,9 @@ export class EditorOptionsValidator {
 			wordWrap = _stringSet<'off' | 'on' | 'wordWrapColumn' | 'bounded'>(wordWrap, defaults.wordWrap, ['off', 'on', 'wordWrapColumn', 'bounded']);
 		}
 
+		const performanceCritical = false;
 		const viewInfo = this._sanitizeViewInfo(opts, defaults.viewInfo);
-		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo);
+		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo, performanceCritical);
 
 		return {
 			inDiffEditor: _boolean(opts.inDiffEditor, defaults.inDiffEditor),
@@ -1367,6 +1369,7 @@ export class EditorOptionsValidator {
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
+			performanceCritical: performanceCritical,
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
 		};
@@ -1514,7 +1517,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeContribInfo(opts: IEditorOptions, defaults: EditorContribOptions): EditorContribOptions {
+	private static _sanitizeContribInfo(opts: IEditorOptions, defaults: EditorContribOptions, performanceCritical: boolean): EditorContribOptions {
 		let quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 		if (typeof opts.quickSuggestions === 'object') {
 			quickSuggestions = { other: true, ...opts.quickSuggestions };
@@ -1538,12 +1541,12 @@ export class EditorOptionsValidator {
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
-			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
-			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
-			codeLens: _boolean(opts.codeLens, defaults.codeLens) && _boolean(opts.referenceInfos, true),
-			folding: _boolean(opts.folding, defaults.folding),
+			selectionHighlight: !performanceCritical && _boolean(opts.selectionHighlight, defaults.selectionHighlight),
+			occurrencesHighlight: !performanceCritical && _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
+			codeLens: !performanceCritical && _boolean(opts.codeLens, defaults.codeLens) && _boolean(opts.referenceInfos, true),
+			folding: !performanceCritical && _boolean(opts.folding, defaults.folding),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
-			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
+			matchBrackets: !performanceCritical && _boolean(opts.matchBrackets, defaults.matchBrackets),
 		};
 	}
 }
@@ -1879,6 +1882,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	dragAndDrop: false,
 	emptySelectionClipboard: true,
 	useTabStops: true,
+	performanceCritical: false,
 
 	viewInfo: {
 		extraEditorClassName: '',
