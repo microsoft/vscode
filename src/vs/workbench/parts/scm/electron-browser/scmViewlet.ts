@@ -309,7 +309,8 @@ export class SCMViewlet extends Viewlet {
 
 		this.list = new List(this.listContainer, delegate, renderers, {
 			identityProvider,
-			keyboardSupport: false
+			keyboardSupport: true,
+			selectAllEnabled: true
 		});
 
 		this.disposables.push(attachListStyler(this.list, this.themeService));

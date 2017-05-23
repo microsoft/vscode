@@ -226,6 +226,21 @@ class KeyboardController<T> implements IDisposable {
 		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.KEY_A).on(this.onkeyA, this, this.disposables);
+	}
+
+	private onkeyA(e: StandardKeyboardEvent): void {
+		if (this.list.getSelectAllEnabled() && (e.metaKey || e.ctrlKey)) {
+			e.preventDefault();
+			e.stopPropagation();
+			let currentFocus = this.list.getFocus();
+			if (this.list.length !== 0) {
+				let newSelection = range(this.list.length).filter((element) => this.view.element(element)['sourceUri'] !== undefined);
+				this.list.setSelection(newSelection);
+				this.list.setFocus(currentFocus);
+			}
+			this.list.open(this.list.getFocus());
+		}
 	}
 
 	private onEnter(e: StandardKeyboardEvent): void {
@@ -401,6 +416,7 @@ export interface IListOptions<T> extends IListViewOptions, IMouseControllerOptio
 	ariaLabel?: string;
 	mouseSupport?: boolean;
 	keyboardSupport?: boolean;
+	selectAllEnabled?: boolean;
 }
 
 export interface IListStyles {
@@ -435,7 +451,8 @@ const defaultStyles: IListStyles = {
 
 const DefaultOptions: IListOptions<any> = {
 	keyboardSupport: true,
-	mouseSupport: true
+	mouseSupport: true,
+	selectAllEnabled: false
 };
 
 // TODO@Joao: move these utils into a SortedArray class
@@ -555,6 +572,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private spliceable: ISpliceable<T>;
 	private disposables: IDisposable[];
 	private styleElement: HTMLStyleElement;
+	private selectAllEnabled: boolean;
 
 	@memoize get onFocusChange(): Event<IListEvent<T>> {
 		return mapEvent(this.eventBufferer.wrapEvent(this.focus.onChange), e => this.toListEvent(e));
@@ -632,6 +650,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		if (options.ariaLabel) {
 			this.view.domNode.setAttribute('aria-label', options.ariaLabel);
 		}
+
+		this.selectAllEnabled = options.selectAllEnabled;
 
 		this.style(options);
 	}
@@ -771,6 +791,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	getFocusedElements(): T[] {
 		return this.getFocus().map(i => this.view.element(i));
+	}
+
+	getSelectAllEnabled(): boolean {
+		return this.selectAllEnabled;
 	}
 
 	reveal(index: number, relativeTop?: number): void {

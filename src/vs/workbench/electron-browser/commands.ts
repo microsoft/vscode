@@ -290,25 +290,6 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: 'list.selectAll',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: ListFocusContext,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
-		handler: (accessor) => {
-			const listService = accessor.get(IListService);
-			const focused = listService.getFocused();
-
-			if (focused instanceof List) {
-				const list = focused;
-				if (list.length !== 0) {
-					list.setSelection(Array.apply(null, { length: list.length }).map(Function.call, Number));
-					list.focusFirst();
-				}
-			}
-		}
-	});
-
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'list.toggleExpand',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: ListFocusContext,
