@@ -82,10 +82,9 @@ export const BetterMergeId = 'pprice.better-merge';
 /**
  * Globally disabled extensions, taking care of disabling obsolete extensions.
  */
-const CHECK = false;
 export function getGloballyDisabledExtensions(extensionEnablementService: IExtensionEnablementService, storageService: IStorageService, installedExtensions: { id: string; }[]) {
 	const globallyDisabled = extensionEnablementService.getGloballyDisabledExtensions();
-	if (CHECK && !storageService.getBoolean(BetterMergeCheckKey, StorageScope.GLOBAL, false)) {
+	if (!storageService.getBoolean(BetterMergeCheckKey, StorageScope.GLOBAL, false)) {
 		storageService.store(BetterMergeCheckKey, true);
 		if (globallyDisabled.indexOf(BetterMergeId) === -1 && installedExtensions.some(d => d.id === BetterMergeId)) {
 			globallyDisabled.push(BetterMergeId);
