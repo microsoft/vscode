@@ -13,7 +13,7 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Action } from 'vs/base/common/actions';
 import { BaseActionItem, Separator, IBaseActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IActivityBarService, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityBarService, DotBadge, ProgressBadge, TextBadge, NumberBadge, IconBadge, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -125,6 +125,7 @@ export class ActivityActionItem extends BaseActionItem {
 		super(null, action, options);
 
 		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
+		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
 	}
 
 	protected updateStyles(): void {
@@ -155,13 +156,15 @@ export class ActivityActionItem extends BaseActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 
+		container.title = this.activity.name;
+
 		// Label
 		this.$label = $('a.action-label').appendTo(this.builder);
 		if (this.activity.cssClass) {
 			this.$label.addClass(this.activity.cssClass);
 		}
 
-		this.$badge = this.builder.div({ 'class': 'badge' }, (badge: Builder) => {
+		this.$badge = this.builder.clone().div({ 'class': 'badge' }, (badge: Builder) => {
 			this.$badgeContent = badge.div({ 'class': 'badge-content' });
 		});
 
@@ -203,12 +206,26 @@ export class ActivityActionItem extends BaseActionItem {
 				this.$badge.show();
 			}
 
+			// Dot
+			else if (badge instanceof DotBadge) {
+				this.$badge.addClass('dot-badge');
+				this.$badge.title(badge.getDescription());
+				this.$badge.show();
+			}
+
 			// Progress
 			else if (badge instanceof ProgressBadge) {
 				this.$badge.show();
 			}
 
 			this.$label.attr('aria-label', `${this.activity.name} - ${badge.getDescription()}`);
+		}
+	}
+
+	private handleBadgeChangeEvenet(): void {
+		const action = this.getAction();
+		if (action instanceof ActivityAction) {
+			this.updateBadge(action.getBadge());
 		}
 	}
 
@@ -253,8 +270,6 @@ export class ViewletActionItem extends ActivityActionItem {
 		if (!ViewletActionItem.toggleViewletPinnedAction) {
 			ViewletActionItem.toggleViewletPinnedAction = instantiationService.createInstance(ToggleViewletPinnedAction, void 0);
 		}
-
-		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
 	}
 
 	private getKeybindingLabel(id: string): string {
@@ -441,13 +456,6 @@ export class ViewletActionItem extends ActivityActionItem {
 			this.$container.addClass('active');
 		} else {
 			this.$container.removeClass('active');
-		}
-	}
-
-	private handleBadgeChangeEvenet(): void {
-		const action = this.getAction();
-		if (action instanceof ActivityAction) {
-			this.updateBadge(action.getBadge());
 		}
 	}
 

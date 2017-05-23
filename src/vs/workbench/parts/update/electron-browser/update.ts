@@ -8,14 +8,16 @@
 import nls = require('vs/nls');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IActivityBarService, DotBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
+import { IGlobalActivity } from 'vs/workbench/browser/activity';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asText } from 'vs/base/node/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -261,5 +263,61 @@ export class UpdateContribution implements IWorkbenchContribution {
 		});
 
 		updateService.onError(err => messageService.show(severity.Error, err));
+	}
+}
+
+export class UpdateContribution2 implements IGlobalActivity {
+
+	get id() { return 'vs.update'; }
+	get name() { return 'VS Code'; }
+	get cssClass() { return 'update-activity'; }
+
+	constructor(
+		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IMessageService messageService: IMessageService,
+		@IUpdateService updateService: IUpdateService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IActivityBarService activityBarService: IActivityBarService
+	) {
+		// updateService.onUpdateReady(update => {
+		// 	const applyUpdateAction = instantiationService.createInstance(ApplyUpdateAction);
+		// 	const releaseNotesAction = instantiationService.createInstance(ShowReleaseNotesAction, false, update.version);
+
+		// 	messageService.show(severity.Info, {
+		// 		message: nls.localize('updateAvailable', "{0} will be updated after it restarts.", product.nameLong),
+		// 		actions: [applyUpdateAction, NotNowAction, releaseNotesAction]
+		// 	});
+		// });
+
+		// updateService.onUpdateAvailable(update => {
+		setTimeout(() => {
+			const badge = new DotBadge(() => 'UPDATE AVAILABLE');
+			activityBarService.showGlobalActivity(this.id, badge);
+		}, 0);
+		// });
+
+		// updateService.onUpdateNotAvailable(explicit => {
+		// 	if (!explicit) {
+		// 		return;
+		// 	}
+
+		// 	messageService.show(severity.Info, nls.localize('noUpdatesAvailable', "There are no updates currently available."));
+		// });
+
+		updateService.onError(err => messageService.show(severity.Error, err));
+	}
+
+	getActions(): IAction[] {
+		return [
+			new Action('foo', 'FOO'),
+			new Action('bar', 'BAR'),
+			new Action('foo', 'FOO'),
+			new Action('bar', 'BAR'),
+			new Action('foo', 'FOO'),
+			new Action('bar', 'BAR'),
+			new Action('foo', 'FOO'),
+			new Action('bar', 'BAR')
+		];
 	}
 }
