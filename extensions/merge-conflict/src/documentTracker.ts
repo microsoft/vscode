@@ -53,7 +53,23 @@ export default class DocumentMergeConflictTracker implements vscode.Disposable, 
 	}
 
 	private getConflictsOrEmpty(document: vscode.TextDocument): interfaces.IDocumentMergeConflict[] {
-		return MergeConflictParser.containsConflict(document) ? MergeConflictParser.scanDocument(document) : [];
+		let stepStart = process.hrtime();
+		const containsConflict = MergeConflictParser.containsConflict(document);
+		let stepEnd = process.hrtime(stepStart);
+
+		console.info('%s -> Check document execution time: %dms', document.uri.toString(), stepEnd[1] / 1000000);
+
+		if(!containsConflict) {
+			return [];
+		}
+
+		stepStart = process.hrtime();
+		const conflicts = MergeConflictParser.scanDocument(document);
+		stepEnd = process.hrtime(stepStart);
+
+		console.info('%s -> Find conflict regions execution time: %dms', document.uri.toString(), stepEnd[1] / 1000000);
+
+		return conflicts;
 	}
 
 	private getCacheKey(document: vscode.TextDocument): string | null {
