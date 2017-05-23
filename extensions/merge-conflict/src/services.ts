@@ -11,8 +11,6 @@ import Decorator from './mergeDecorator';
 import * as interfaces from './interfaces';
 
 const ConfigurationSectionName = 'merge-conflict';
-const FeatureEnabledProperty = 'enableEditorMerge';
-const AlwaysEnableDecorations = true; // If true, merge-conflict.enableEditorMerge is ignored
 
 export default class ServiceWrapper implements vscode.Disposable {
 
@@ -51,12 +49,13 @@ export default class ServiceWrapper implements vscode.Disposable {
 
 	createExtensionConfiguration(): interfaces.IExtensionConfiguration {
 		const workspaceConfiguration = vscode.workspace.getConfiguration(ConfigurationSectionName);
-		const isEnabled: boolean = workspaceConfiguration.get(FeatureEnabledProperty, true);
+		const codeLensEnabled: boolean = workspaceConfiguration.get('codeLens.enabled', true);
+		const decoratorsEnabled: boolean = workspaceConfiguration.get('decorators.enabled', true);
 
 		return {
-			enableCodeLens: isEnabled,
-			enableDecorations: AlwaysEnableDecorations || isEnabled,
-			enableEditorOverview: isEnabled
+			enableCodeLens: codeLensEnabled,
+			enableDecorations: decoratorsEnabled,
+			enableEditorOverview: decoratorsEnabled
 		};
 	}
 

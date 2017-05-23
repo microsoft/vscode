@@ -103,9 +103,14 @@
     "configuration": {
       "title": "Merge Conflict",
       "properties": {
-        "merge-conflict.enabled": {
+        "merge-conflict.codeLens.enabled": {
           "type": "boolean",
-          "description": "%config.enabled%",
+          "description": "%config.codeLensEnabled%",
+          "default": true
+        },
+        "merge-conflict.decorators.enabled": {
+          "type": "boolean",
+          "description": "%config.decoratorsEnabled%",
           "default": true
         }
       }
