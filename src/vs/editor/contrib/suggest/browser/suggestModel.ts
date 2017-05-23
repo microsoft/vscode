@@ -199,7 +199,7 @@ export class SuggestModel implements IDisposable {
 						}
 					}
 				}
-				this.trigger(true, false, supports, items);
+				this.trigger(true, Boolean(this.completionModel), supports, items);
 			}
 		});
 	}
