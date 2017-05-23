@@ -506,11 +506,21 @@ export class StartFindReplaceAction extends EditorAction {
 		}
 
 		let controller = CommonFindController.get(editor);
+		let currentSelection = editor.getSelection();
+		// we only seed search string from selection when the current selection is single line and not empty.
+		let seedSearchStringFromSelection = currentSelection.isEmpty() ||
+			currentSelection.startLineNumber !== currentSelection.endLineNumber;
+		let oldSearchString = controller.getState().searchString;
+		// if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input
+		// is still empty, so we should focus the Find Input instead of Replace Input.
+		let shouldFocus = !oldSearchString && seedSearchStringFromSelection ?
+			FindStartFocusAction.FocusFindInput : FindStartFocusAction.FocusReplaceInput;
+
 		if (controller) {
 			controller.start({
 				forceRevealReplace: true,
-				seedSearchStringFromSelection: true,
-				shouldFocus: FindStartFocusAction.FocusReplaceInput,
+				seedSearchStringFromSelection: seedSearchStringFromSelection,
+				shouldFocus: shouldFocus,
 				shouldAnimate: true
 			});
 		}
