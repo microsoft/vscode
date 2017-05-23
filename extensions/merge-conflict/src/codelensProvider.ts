@@ -9,11 +9,12 @@ import { loadMessageBundle } from 'vscode-nls';
 const localize = loadMessageBundle();
 
 export default class MergeConflictCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
-
 	private codeLensRegistrationHandle: vscode.Disposable | null;
 	private config: interfaces.IExtensionConfiguration;
+	private tracker: interfaces.IDocumentMergeConflictTracker;
 
-	constructor(private context: vscode.ExtensionContext, private tracker: interfaces.IDocumentMergeConflictTracker) {
+	constructor(private context: vscode.ExtensionContext, trackerService: interfaces.IDocumentMergeConflictTrackerService) {
+		this.tracker = trackerService.createTracker('codelens');
 	}
 
 	begin(config: interfaces.IExtensionConfiguration) {

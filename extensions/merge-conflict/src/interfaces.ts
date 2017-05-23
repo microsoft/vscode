@@ -37,5 +37,11 @@ export interface IDocumentMergeConflictDescriptor {
 
 export interface IDocumentMergeConflictTracker {
 	getConflicts(document: vscode.TextDocument): PromiseLike<IDocumentMergeConflict[]>;
+	isPending(document: vscode.TextDocument): boolean;
+	forget(document: vscode.TextDocument);
+}
+
+export interface IDocumentMergeConflictTrackerService {
+	createTracker(origin: string): IDocumentMergeConflictTracker;
 	forget(document: vscode.TextDocument);
 }

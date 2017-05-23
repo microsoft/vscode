@@ -17,8 +17,10 @@ export default class MergeDectorator implements vscode.Disposable {
 	private currentColorRgb = `32,200,94`;
 	private incomingColorRgb = `24,134,255`;
 	private config: interfaces.IExtensionConfiguration;
+	private tracker: interfaces.IDocumentMergeConflictTracker;
 
-	constructor(private context: vscode.ExtensionContext, private tracker: interfaces.IDocumentMergeConflictTracker) {
+	constructor(private context: vscode.ExtensionContext, trackerService: interfaces.IDocumentMergeConflictTrackerService) {
+		this.tracker = trackerService.createTracker('decorator');
 	}
 
 	begin(config: interfaces.IExtensionConfiguration) {
@@ -149,10 +151,14 @@ export default class MergeDectorator implements vscode.Disposable {
 			return;
 		}
 
+		// If we have a pending scan from the same origin, exit early.
+		if (this.tracker.isPending(editor.document)) {
+			return;
+		}
+
 		let conflicts = await this.tracker.getConflicts(editor.document);
 
 		if (conflicts.length === 0) {
-			// TODO: Remove decorations
 			this.removeDecorations(editor);
 			return;
 		}

@@ -29,8 +29,10 @@ enum NavigationDirection {
 export default class CommandHandler implements vscode.Disposable {
 
 	private disposables: vscode.Disposable[] = [];
+	private tracker: interfaces.IDocumentMergeConflictTracker;
 
-	constructor(private context: vscode.ExtensionContext, private tracker: interfaces.IDocumentMergeConflictTracker) {
+	constructor(private context: vscode.ExtensionContext, trackerService: interfaces.IDocumentMergeConflictTrackerService) {
+		this.tracker = trackerService.createTracker('commands');
 	}
 
 	begin() {
