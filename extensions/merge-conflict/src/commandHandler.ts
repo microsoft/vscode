@@ -9,13 +9,6 @@ import * as path from 'path';
 import { loadMessageBundle } from 'vscode-nls';
 const localize = loadMessageBundle();
 
-const messages = {
-	cursorNotInConflict: 'Editor cursor is not within a merge conflict',
-	cursorOnSplitterRange: 'Editor cursor is within the merge conflict splitter, please move it to either the "current" or "incoming" block',
-	noConflicts: 'No merge conflicts found in this file',
-	noOtherConflictsInThisFile: 'No other merge conflicts within this file'
-};
-
 interface IDocumentMergeConflictNavigationResults {
 	canNavigate: boolean;
 	conflict?: interfaces.IDocumentMergeConflict;
@@ -83,7 +76,7 @@ export default class CommandHandler implements vscode.Disposable {
 
 			// Still failed to find conflict, warn the user and exit
 			if (!conflict) {
-				vscode.window.showWarningMessage(localize('cursorNotInConflict', messages.cursorNotInConflict));
+				vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
 				return;
 			}
 		}
@@ -113,7 +106,7 @@ export default class CommandHandler implements vscode.Disposable {
 		let conflict = await this.findConflictContainingSelection(editor);
 
 		if (!conflict) {
-			vscode.window.showWarningMessage(localize('cursorNotInConflict', messages.cursorNotInConflict));
+			vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
 			return;
 		}
 
@@ -131,7 +124,7 @@ export default class CommandHandler implements vscode.Disposable {
 			typeToAccept = interfaces.CommitType.Incoming;
 		}
 		else {
-			vscode.window.showWarningMessage(localize('cursorOnSplitterRange', messages.cursorOnSplitterRange));
+			vscode.window.showWarningMessage(localize('cursorOnSplitterRange', 'Editor cursor is within the merge conflict splitter, please move it to either the "current" or "incoming" block'));
 			return;
 		}
 
@@ -148,11 +141,11 @@ export default class CommandHandler implements vscode.Disposable {
 		let navigationResult = await this.findConflictForNavigation(editor, direction);
 
 		if (!navigationResult) {
-			vscode.window.showWarningMessage(localize('noConflicts', messages.noConflicts));
+			vscode.window.showWarningMessage(localize('noConflicts', 'No merge conflicts found in this file'));
 			return;
 		}
 		else if (!navigationResult.canNavigate) {
-			vscode.window.showWarningMessage(localize('noOtherConflictsInThisFile', messages.noOtherConflictsInThisFile));
+			vscode.window.showWarningMessage(localize('noOtherConflictsInThisFile', 'No other merge conflicts within this file'));
 			return;
 		}
 		else if (!navigationResult.conflict) {
@@ -179,7 +172,7 @@ export default class CommandHandler implements vscode.Disposable {
 		}
 
 		if (!conflict) {
-			vscode.window.showWarningMessage(localize('cursorNotInConflict', messages.cursorNotInConflict));
+			vscode.window.showWarningMessage(localize('cursorNotInConflict', 'Editor cursor is not within a merge conflict'));
 			return;
 		}
 
@@ -192,7 +185,7 @@ export default class CommandHandler implements vscode.Disposable {
 		let conflicts = await this.tracker.getConflicts(editor.document);
 
 		if (!conflicts || conflicts.length === 0) {
-			vscode.window.showWarningMessage(localize('noConflicts', messages.noConflicts));
+			vscode.window.showWarningMessage(localize('noConflicts', 'No merge conflicts found in this file'));
 			return;
 		}
 
