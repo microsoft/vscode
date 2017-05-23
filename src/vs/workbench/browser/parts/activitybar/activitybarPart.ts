@@ -15,9 +15,11 @@ import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
 import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { IActivity, Extensions as ActivityExtensions, IActivityRegistry } from 'vs/workbench/browser/activity';
+import { Registry } from 'vs/platform/platform';
 import { Part } from 'vs/workbench/browser/part';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ActivityActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { ToggleViewletPinnedAction, ViewletActivityAction, ActivityAction, ViewletActionItem, ViewletOverflowActivityAction, ViewletOverflowActivityActionItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IActivityBarService, IBadge } from 'vs/workbench/services/activity/common/activityBarService';
 import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
@@ -38,6 +40,21 @@ interface IViewletActivity {
 	clazz: string;
 }
 
+class GlobalActivityAction extends ActivityAction {
+
+	constructor(activity: IActivity) {
+		super(activity);
+	}
+}
+
+class GlobalActivityActionItem extends ViewletActionItem {
+
+	onClick(event: Event): void {
+		DOM.EventHelper.stop(event, true);
+		// fire up native menu around this.builder.getHTMLElement()
+	}
+}
+
 export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private static readonly ACTIVITY_ACTION_HEIGHT = 50;
@@ -48,6 +65,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private dimension: Dimension;
 
 	private viewletSwitcherBar: ActionBar;
+	private activityActionBar: ActionBar;
 	private viewletOverflowAction: ViewletOverflowActivityAction;
 	private viewletOverflowActionItem: ViewletOverflowActivityActionItem;
 
@@ -180,6 +198,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Top Actionbar with action items for each viewlet action
 		this.createViewletSwitcher($result.clone());
 
+		// Top Actionbar with action items for each viewlet action
+		this.createActivityActionBar($result.getHTMLElement());
+
 		// Contextmenu for viewlets
 		$(parent).on('contextmenu', (e: MouseEvent) => {
 			DOM.EventHelper.stop(e, true);
@@ -189,11 +210,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Allow to drop at the end to move viewlet to the end
 		$(parent).on(DOM.EventType.DROP, (e: DragEvent) => {
-			const draggedViewlet = ActivityActionItem.getDraggedViewlet();
+			const draggedViewlet = ViewletActionItem.getDraggedViewlet();
 			if (draggedViewlet) {
 				DOM.EventHelper.stop(e, true);
 
-				ActivityActionItem.clearDraggedViewlet();
+				ViewletActionItem.clearDraggedViewlet();
 
 				const targetId = this.pinnedViewlets[this.pinnedViewlets.length - 1];
 				if (targetId !== draggedViewlet.id) {
@@ -250,6 +271,29 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Update viewlet switcher when external viewlets become ready
 		this.extensionService.onReady().then(() => this.updateViewletSwitcher());
+	}
+
+	private createActivityActionBar(container: HTMLElement): void {
+		const activityRegistry = Registry.as<IActivityRegistry>(ActivityExtensions.Activities);
+		const descriptors = activityRegistry.getActivities();
+		const actions = descriptors
+			.map(d => this.instantiationService.createInstance(d))
+			.map(a => new GlobalActivityAction(a));
+
+		this.activityActionBar = new ActionBar(container, {
+			actionItemProvider: a => this.instantiationService.createInstance(GlobalActivityActionItem, a),
+			orientation: ActionsOrientation.VERTICAL,
+			ariaLabel: nls.localize('globalActions', "Global Actions"),
+			animated: false
+		});
+
+		actions.forEach(a => this.activityActionBar.push(a));
+
+		this.updateGlobalSwitcher();
+	}
+
+	private updateGlobalSwitcher(): void {
+
 	}
 
 	private updateViewletSwitcher() {
@@ -371,7 +415,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private toAction(viewlet: ViewletDescriptor): ActivityAction {
 		const action = this.instantiationService.createInstance(ViewletActivityAction, viewlet);
 
-		this.viewletIdToActionItems[action.id] = this.instantiationService.createInstance(ActivityActionItem, action, viewlet);
+		this.viewletIdToActionItems[action.id] = this.instantiationService.createInstance(ViewletActionItem, action);
 		this.viewletIdToActions[viewlet.id] = action;
 
 		return action;
