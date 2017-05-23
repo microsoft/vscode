@@ -570,27 +570,6 @@
 			<key>patterns</key>
 			<array>
 				<dict>
-					<key>captures</key>
-					<dict>
-						<key>1</key>
-						<dict>
-							<key>name</key>
-							<string>punctuation.definition.string.begin.sql</string>
-						</dict>
-						<key>2</key>
-						<dict>
-							<key>name</key>
-							<string>punctuation.definition.string.end.sql</string>
-						</dict>
-					</dict>
-					<key>comment</key>
-					<string>this is faster than the next begin/end rule since sub-pattern will match till end-of-line and SQL files tend to have very long lines.</string>
-					<key>match</key>
-					<string>(')[^'\\]*(')</string>
-					<key>name</key>
-					<string>string.quoted.single.sql</string>
-				</dict>
-				<dict>
 					<key>begin</key>
 					<string>'</string>
 					<key>beginCaptures</key>
