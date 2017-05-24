@@ -59,7 +59,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService, IChoiceService, Severity, CloseAction } from 'vs/platform/message/common/message';
@@ -101,7 +101,6 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { foreground, selectionBackground, focusBorder, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, listHighlightForeground, inputPlaceholderForeground } from 'vs/platform/theme/common/colorRegistry';
-import { stopTimer } from 'vs/base/node/startupTimers';
 
 /**
  * Services that we require for the Shell
@@ -242,10 +241,6 @@ export class WorkbenchShell {
 			restoredEditors: info.restoredEditors.length,
 			startupKind: this.lifecycleService.startupKind
 		});
-
-		if (this.lifecycleService.startupKind === StartupKind.NewWindow) {
-			stopTimer('elapsed:overall');
-		}
 
 		// Telemetry: startup metrics
 		this.timerService.workbenchStarted = Date.now();
