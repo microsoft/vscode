@@ -28,7 +28,7 @@ import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursor
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
-import { OpenDefinitionToSideAction, GoToDefinitionAction } from './goToDeclarationCommands';
+import { DefinitionAction, DefinitionActionConfig } from './goToDeclarationCommands';
 
 @editorContribution
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
@@ -259,14 +259,9 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	}
 
 	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): TPromise<any> {
-
-		const targetAction = sideBySide
-			? OpenDefinitionToSideAction.ID
-			: GoToDefinitionAction.ID;
-
-		// just run the corresponding action
 		this.editor.setPosition(target.position);
-		return this.editor.getAction(targetAction).run();
+		const action = new DefinitionAction(new DefinitionActionConfig(sideBySide, false, true, false), { alias: undefined, label: undefined, id: undefined, precondition: undefined });
+		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
 	}
 
 	public getId(): string {

@@ -29,9 +29,10 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 export class DefinitionActionConfig {
 
 	constructor(
-		public openToSide = false,
-		public openInPeek = false,
-		public filterCurrent = true
+		public readonly openToSide = false,
+		public readonly openInPeek = false,
+		public readonly filterCurrent = true,
+		public readonly showMessage = true,
 	) {
 		//
 	}
@@ -85,9 +86,10 @@ export class DefinitionAction extends EditorAction {
 
 			if (result.length === 0) {
 				// no result -> show message
-				const info = model.getWordAtPosition(pos);
-				MessageController.get(editor).showMessage(this._getNoResultFoundMessage(info), pos);
-
+				if (this._configuration.showMessage) {
+					const info = model.getWordAtPosition(pos);
+					MessageController.get(editor).showMessage(this._getNoResultFoundMessage(info), pos);
+				}
 			} else if (result.length === 1 && idxOfCurrent !== -1) {
 				// only the position at which we are -> adjust selection
 				let [current] = result;
