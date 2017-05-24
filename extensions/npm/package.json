@@ -1,0 +1,48 @@
+{
+  "name": "npm",
+  "publisher": "vscode",
+  "description": "Extension to add task support for npm scripts.",
+  "displayName": "Npm support for VSCode",
+  "version": "0.0.1",
+  "enableProposedApi": true,
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "categories": [
+    "Other"
+  ],
+  "scripts": {
+    "compile": "gulp compile-extension:npm",
+    "watch": "gulp watch-extension:npm"
+  },
+  "dependencies": {
+    "vscode-nls": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^7.0.12"
+  },
+  "main": "./out/main",
+  "activationEvents": [
+    "onCommand:workbench.action.tasks.runTask",
+    "onCommand:workbench.action.tasks.build",
+    "onCommand:workbench.action.tasks.test"
+  ],
+  "contributes": {
+    "configuration": {
+      "id": "npm",
+      "type": "object",
+      "title": "Npm",
+      "properties": {
+        "npm.autoDetect": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on"
+          ],
+          "default": "on",
+          "description": "%config.npm.autoDetect%"
+        }
+      }
+    }
+  }
+}
