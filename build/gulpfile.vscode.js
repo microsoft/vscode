@@ -158,7 +158,7 @@ gulp.task('electron', ['clean-electron'], getElectron(process.arch));
 gulp.task('electron-ia32', ['clean-electron'], getElectron('ia32'));
 gulp.task('electron-x64', ['clean-electron'], getElectron('x64'));
 
-const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita'];
+const languages = ['chs', 'cht', 'jpn', 'kor', 'deu', 'fra', 'esn', 'rus', 'ita', 'ptb'];
 
 /**
  * Compute checksums for some files.
@@ -363,7 +363,8 @@ const vscodeLanguages = [
 	'fr',
 	'es',
 	'ru',
-	'it'
+	'it',
+	'pt-br'
 ];
 const setupDefaultLanguages = [
 	'zh-hans',
