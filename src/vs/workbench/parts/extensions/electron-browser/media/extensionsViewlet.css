@@ -123,12 +123,6 @@
 	display: none;
 }
 
-.extensions-viewlet > .extensions .extension > .details > .header-container .extension-status {
-	width: 8px;
-	height: 8px;
-	margin-left: 6px;
-}
-
 .extensions-viewlet > .extensions .extension > .details > .footer {
 	display: flex;
 	justify-content: flex-end;

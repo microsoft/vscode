@@ -8,7 +8,7 @@ import 'vs/css!./textAreaHandler';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData } from 'vs/editor/browser/controller/textAreaInput';
-import { ISimpleModel, ITypeData, TextAreaState, IENarratorStrategy, NVDAPagedStrategy } from 'vs/editor/browser/controller/textAreaState';
+import { ISimpleModel, ITypeData, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
@@ -61,7 +61,6 @@ export class TextAreaHandler extends ViewPart {
 	private _contentHeight: number;
 	private _scrollLeft: number;
 	private _scrollTop: number;
-	private _experimentalScreenReader: boolean;
 	private _fontInfo: BareFontInfo;
 	private _lineHeight: number;
 	private _emptySelectionClipboard: boolean;
@@ -93,7 +92,6 @@ export class TextAreaHandler extends ViewPart {
 		this._contentHeight = conf.layoutInfo.contentHeight;
 		this._scrollLeft = 0;
 		this._scrollTop = 0;
-		this._experimentalScreenReader = conf.viewInfo.experimentalScreenReader;
 		this._fontInfo = conf.fontInfo;
 		this._lineHeight = conf.lineHeight;
 		this._emptySelectionClipboard = conf.emptySelectionClipboard;
@@ -168,13 +166,7 @@ export class TextAreaHandler extends ViewPart {
 					return TextAreaState.EMPTY;
 				}
 
-				const selection = this._selections[0];
-
-				if (this._experimentalScreenReader) {
-					return NVDAPagedStrategy.fromEditorSelection(currentState, simpleModel, selection);
-				}
-
-				return IENarratorStrategy.fromEditorSelection(currentState, simpleModel, selection);
+				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0]);
 			}
 		};
 
@@ -279,8 +271,6 @@ export class TextAreaHandler extends ViewPart {
 			this._fontInfo = conf.fontInfo;
 		}
 		if (e.viewInfo) {
-			this._experimentalScreenReader = conf.viewInfo.experimentalScreenReader;
-			this._textAreaInput.writeScreenReaderContent('strategy changed');
 			this.textArea.setAttribute('aria-label', conf.viewInfo.ariaLabel);
 		}
 		if (e.layoutInfo) {

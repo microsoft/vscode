@@ -3,6 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
-import 'vs/css!./snippet';
+/// <reference path='../../../../src/vs/vscode.d.ts'/>
+/// <reference path='../../../../src/vs/vscode.proposed.d.ts'/>
+/// <reference types='@types/node'/>

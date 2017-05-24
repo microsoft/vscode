@@ -10,7 +10,7 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Gesture, EventType } from 'vs/base/browser/touch';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { ActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
@@ -22,17 +22,14 @@ export interface ILabelRenderer {
 }
 
 export interface IBaseDropdownOptions {
-	tick?: boolean;
 	label?: string;
 	labelRenderer?: ILabelRenderer;
-	action?: IAction;
 }
 
 export class BaseDropdown extends ActionRunner {
 	private _toDispose: IDisposable[];
 	private $el: Builder;
 	private $boxContainer: Builder;
-	private $action: Builder;
 	private $label: Builder;
 	private $contents: Builder;
 
@@ -45,29 +42,7 @@ export class BaseDropdown extends ActionRunner {
 
 		this.$label = $('.dropdown-label');
 
-		if (options.tick || options.action) {
-			this.$label.addClass('tick');
-		}
-
 		let labelRenderer = options.labelRenderer;
-
-		if (!labelRenderer && options.action) {
-			this.$action = $('.dropdown-action').appendTo(this.$el);
-
-			let item = new ActionItem(null, options.action, {
-				icon: true,
-				label: true
-			});
-
-			item.actionRunner = this;
-			item.render(this.$action.getHTMLElement());
-
-			labelRenderer = (container: HTMLElement): IDisposable => {
-				container.innerText = '';
-				return item;
-			};
-		}
-
 		if (!labelRenderer) {
 			labelRenderer = (container: HTMLElement): IDisposable => {
 				$(container).text(options.label || '');

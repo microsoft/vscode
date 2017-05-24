@@ -2667,11 +2667,6 @@ declare module monaco.editor {
 	 */
 	export interface IEditorOptions {
 		/**
-		 * Enable experimental screen reader support.
-		 * Defaults to `true`.
-		 */
-		experimentalScreenReader?: boolean;
-		/**
 		 * The aria label for the editor's textarea (when it is focused).
 		 */
 		ariaLabel?: string;
@@ -3191,7 +3186,6 @@ declare module monaco.editor {
 	export interface InternalEditorViewOptions {
 		readonly extraEditorClassName: string;
 		readonly disableMonospaceOptimizations: boolean;
-		readonly experimentalScreenReader: boolean;
 		readonly rulers: number[];
 		readonly ariaLabel: string;
 		readonly renderLineNumbers: boolean;

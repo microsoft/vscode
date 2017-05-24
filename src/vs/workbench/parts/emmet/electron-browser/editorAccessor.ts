@@ -7,12 +7,12 @@
 
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import strings = require('vs/base/common/strings');
-import snippets = require('vs/editor/contrib/snippet/common/snippet');
 import { Range } from 'vs/editor/common/core/range';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from "vs/editor/common/controller/coreCommands";
+import { SnippetParser, walk, Placeholder, Variable, Text, Marker } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 import emmet = require('emmet');
 
@@ -94,7 +94,7 @@ export class EditorAccessor implements emmet.Editor {
 			return;
 		}
 
-		const tweakedValue = snippets.CodeSnippet.fixEmmetFinalTabstop(value);
+		const tweakedValue = EditorAccessor.fixEmmetFinalTabstop(value);
 
 		// let selection define the typing range
 		this._editor.setSelection(range);
@@ -102,6 +102,64 @@ export class EditorAccessor implements emmet.Editor {
 
 		// let codeSnippet = snippets.CodeSnippet.fromEmmet(value);
 		// SnippetController.get(this._editor).runWithReplaceRange(codeSnippet, range);
+	}
+
+	private static fixEmmetFinalTabstop(template: string): string {
+
+		let matchFinalStops = template.match(/\$\{0\}|\$0/g);
+		if (!matchFinalStops || matchFinalStops.length === 1) {
+			return template;
+		}
+
+		// string to string conversion that tries to fix the
+		// snippet in-place
+
+		let marker = new SnippetParser(true, false).parse(template);
+		let maxIndex = -Number.MIN_VALUE;
+
+		// find highest placeholder index
+		walk(marker, candidate => {
+			if (candidate instanceof Placeholder) {
+				let index = Number(candidate.index);
+				if (index > maxIndex) {
+					maxIndex = index;
+				}
+			}
+			return true;
+		});
+
+		// rewrite final tabstops
+		walk(marker, candidate => {
+			if (candidate instanceof Placeholder) {
+				if (candidate.isFinalTabstop) {
+					candidate.index = String(++maxIndex);
+				}
+			}
+			return true;
+		});
+
+		// write back as string
+		function toSnippetString(marker: Marker): string {
+			if (marker instanceof Text) {
+				return SnippetParser.escape(marker.string);
+
+			} else if (marker instanceof Placeholder) {
+				if (marker.defaultValue.length > 0) {
+					return `\${${marker.index}:${marker.defaultValue.map(toSnippetString).join('')}}`;
+				} else {
+					return `\$${marker.index}`;
+				}
+			} else if (marker instanceof Variable) {
+				if (marker.defaultValue.length > 0) {
+					return `\${${marker.name}:${marker.defaultValue.map(toSnippetString).join('')}}`;
+				} else {
+					return `\$${marker.name}`;
+				}
+			} else {
+				throw new Error('unexpected marker: ' + marker);
+			}
+		}
+		return marker.map(toSnippetString).join('');
 	}
 
 	public getRangeToReplace(value: string, start: number, end: number): Range {
