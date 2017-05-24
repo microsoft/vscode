@@ -66,6 +66,7 @@ export interface IProductConfiguration {
 }
 
 export interface ISurveyData {
+	surveyId: string;
 	surveyUrl: string;
 	languageId: string;
 	editCount: number;
