@@ -3,14 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-fs.writeFileSync('/home/daniel/testing-terminal-1', 'foo');
-
 import * as os from 'os';
 import * as path from 'path';
 import * as ptyJs from 'node-pty';
 
-fs.writeFileSync('/home/daniel/testing-terminal-2', 'foo');
 // The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
 // see https://github.com/electron/electron/issues/38
 var shellName: string;
@@ -47,10 +43,8 @@ if (cols && rows) {
 	options.rows = parseInt(rows, 10);
 }
 
-fs.writeFileSync('/home/daniel/testing-terminal-3', 'foo');
 var ptyProcess = ptyJs.fork(shell, args, options);
 
-fs.writeFileSync('/home/daniel/testing-terminal-4', 'foo');
 var closeTimeout;
 var exitCode;
 
