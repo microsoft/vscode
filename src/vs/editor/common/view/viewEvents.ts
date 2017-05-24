@@ -38,6 +38,7 @@ export class ViewConfigurationChangedEvent {
 	public readonly editorClassName: boolean;
 	public readonly lineHeight: boolean;
 	public readonly readOnly: boolean;
+	public readonly accessibilitySupport: boolean;
 	public readonly emptySelectionClipboard: boolean;
 	public readonly layoutInfo: boolean;
 	public readonly fontInfo: boolean;
@@ -50,6 +51,7 @@ export class ViewConfigurationChangedEvent {
 		this.editorClassName = source.editorClassName;
 		this.lineHeight = source.lineHeight;
 		this.readOnly = source.readOnly;
+		this.accessibilitySupport = source.accessibilitySupport;
 		this.emptySelectionClipboard = source.emptySelectionClipboard;
 		this.layoutInfo = source.layoutInfo;
 		this.fontInfo = source.fontInfo;

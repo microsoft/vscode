@@ -363,6 +363,13 @@ export class FindWidget extends Widget implements IOverlayWidget {
 		if (!this._isVisible) {
 			this._isVisible = true;
 
+			let selection = this._codeEditor.getSelection();
+			let isSelection = selection ? (selection.startLineNumber !== selection.endLineNumber || selection.startColumn !== selection.endColumn) : false;
+			if (isSelection && this._codeEditor.getConfiguration().contribInfo.find.autoFindInSelection) {
+				this._toggleSelectionFind.checked = true;
+			} else {
+				this._toggleSelectionFind.checked = false;
+			}
 			this._updateButtons();
 
 			setTimeout(() => {

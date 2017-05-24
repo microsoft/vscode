@@ -76,7 +76,7 @@ export class FeedbackDropdown extends Dropdown {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
 			labelRenderer: (container: HTMLElement): IDisposable => {
-				$(container).addClass('send-feedback');
+				$(container).addClass('send-feedback', 'mask-icon');
 
 				return null;
 			}

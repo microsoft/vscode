@@ -235,7 +235,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		};
 
 		// Consider editor selection and overwrite the state with it
-		if (opts.seedSearchStringFromSelection) {
+		if (opts.seedSearchStringFromSelection && this._editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection) {
 			let selectionSearchString = this.getSelectionSearchString();
 			if (selectionSearchString) {
 				if (this._state.isRegex) {

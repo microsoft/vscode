@@ -142,6 +142,12 @@ export const STATUS_BAR_NO_FOLDER_BACKGROUND = registerColor('statusBar.noFolder
 	hc: null
 }, nls.localize('statusBarNoFolderBackground', "Status bar background color when no folder is opened. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_NO_FOLDER_FOREGROUND = registerColor('statusBar.noFolderForeground', {
+	dark: STATUS_BAR_FOREGROUND,
+	light: STATUS_BAR_FOREGROUND,
+	hc: STATUS_BAR_FOREGROUND
+}, nls.localize('statusBarNoFolderForeground', "Status bar foreground color when no folder is opened. The status bar is shown in the bottom of the window."));
+
 export const STATUS_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('statusBarItem.activeBackground', {
 	dark: Color.white.transparent(0.18),
 	light: Color.white.transparent(0.18),
@@ -239,6 +245,12 @@ export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionH
 	light: Color.fromHex('#808080').transparent(0.2),
 	hc: null
 }, nls.localize('sideBarSectionHeaderBackground', "Side bar section header background color. The side bar is the container for views like explorer and search."));
+
+export const SIDE_BAR_SECTION_HEADER_FOREGROUND = registerColor('sideBarSectionHeader.foreground', {
+	dark: SIDE_BAR_FOREGROUND,
+	light: SIDE_BAR_FOREGROUND,
+	hc: SIDE_BAR_FOREGROUND
+}, nls.localize('sideBarSectionHeaderForeground', "Side bar section header foreground color. The side bar is the container for views like explorer and search."));
 
 
 

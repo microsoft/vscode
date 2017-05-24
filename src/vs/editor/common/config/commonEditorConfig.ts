@@ -59,6 +59,7 @@ export interface IEnvConfiguration {
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	zoomLevel: number;
+	accessibilitySupport: platform.AccessibilitySupport;
 }
 
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
@@ -122,7 +123,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			canUseTranslate3d: partialEnv.canUseTranslate3d,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
-			tabFocusMode: TabFocus.getTabFocusMode()
+			tabFocusMode: TabFocus.getTabFocusMode(),
+			accessibilitySupport: partialEnv.accessibilitySupport
 		};
 		return editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
 	}
@@ -257,6 +259,16 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.maxColumn,
 			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns")
 		},
+		'editor.find.seedSearchStringFromSelection': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.find.seedSearchStringFromSelection,
+			'description': nls.localize('find.seedSearchStringFromSelection', "Controls if we seed the search string in Find Widget from editor selection")
+		},
+		'editor.find.autoFindInSelection': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.find.autoFindInSelection,
+			'description': nls.localize('find.autoFindInSelection', "Controls if Find in Selection flag is turned on when multiple characters or lines of text are selected in the editor")
+		},
 		'editor.wordWrap': {
 			'type': 'string',
 			'enum': ['off', 'on', 'wordWrapColumn', 'bounded'],
@@ -373,7 +385,7 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['on', 'smart', 'off'],
 			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnEnter,
-			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions.")
+			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions. The value 'smart' means only accept a suggestion with Enter when it makes a textual change")
 		},
 		'editor.acceptSuggestionOnCommitCharacter': {
 			'type': 'boolean',

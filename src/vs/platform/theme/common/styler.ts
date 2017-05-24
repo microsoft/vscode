@@ -8,7 +8,7 @@
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, lighten, badgeBackground, badgeForeground, progressBarBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND } from 'vs/workbench/common/theme';
 
 export type styleFn = (colors: { [name: string]: ColorIdentifier }) => void;
 
@@ -224,6 +224,7 @@ export function attachListStyler(widget: IThemable, themeService: IThemeService,
 
 export function attachHeaderViewStyler(widget: IThemable, themeService: IThemeService, options?: { noContrastBorder?: boolean }): IDisposable {
 	return doAttachStyler(themeService, {
+		headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
 		headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
 		headerHighContrastBorder: (options && options.noContrastBorder) ? null : contrastBorder
 	}, widget);

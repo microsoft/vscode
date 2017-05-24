@@ -17,7 +17,7 @@ import errors = require('vs/base/common/errors');
 import * as browser from 'vs/base/browser/browser';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Action } from 'vs/base/common/actions';
-import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
+import { language, LANGUAGE_DEFAULT, AccessibilitySupport } from 'vs/base/common/platform';
 import { IMode } from 'vs/editor/common/modes';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput } from 'vs/workbench/common/editor';
@@ -383,7 +383,7 @@ export class EditorStatus implements IStatusbarItem {
 		}
 
 		if (changed.selectionStatus) {
-			if (this.state.selectionStatus) {
+			if (this.state.selectionStatus && !this.state.screenReaderMode) {
 				this.selectionElement.textContent = this.state.selectionStatus;
 				show(this.selectionElement);
 			} else {
@@ -686,7 +686,7 @@ export class EditorStatus implements IStatusbarItem {
 	}
 
 	private onScreenReaderModeChange(): void {
-		const info: StateDelta = { screenReaderMode: browser.getAccessibilitySupport() === browser.AccessibilitySupport.Enabled };
+		const info: StateDelta = { screenReaderMode: browser.getAccessibilitySupport() === AccessibilitySupport.Enabled };
 
 		this.updateState(info);
 	}
