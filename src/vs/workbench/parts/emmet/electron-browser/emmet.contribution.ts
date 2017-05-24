@@ -59,6 +59,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'default': null,
 			'description': nls.localize('emmetExtensionsPath', 'Path to a folder containing emmet profiles, snippets and preferences')
+		},
+		'emmet.useModules': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('emmetUseModules', 'Use the new emmet modules for emmet features than the single emmet library.')
 		}
 	}
 });
