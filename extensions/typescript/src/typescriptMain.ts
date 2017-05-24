@@ -67,28 +67,28 @@ interface ProjectConfigMessageItem extends MessageItem {
 	id: ProjectConfigAction;
 }
 
+const MODE_ID_TS = 'typescript';
+const MODE_ID_TSX = 'typescriptreact';
+const MODE_ID_JS = 'javascript';
+const MODE_ID_JSX = 'javascriptreact';
+
+const standardLanguageDescriptions: LanguageDescription[] = [
+	{
+		id: 'typescript',
+		diagnosticSource: 'ts',
+		modeIds: [MODE_ID_TS, MODE_ID_TSX],
+		configFile: 'tsconfig.json'
+	}, {
+		id: 'javascript',
+		diagnosticSource: 'js',
+		modeIds: [MODE_ID_JS, MODE_ID_JSX],
+		configFile: 'jsconfig.json'
+	}
+];
 
 export function activate(context: ExtensionContext): void {
-	const MODE_ID_TS = 'typescript';
-	const MODE_ID_TSX = 'typescriptreact';
-	const MODE_ID_JS = 'javascript';
-	const MODE_ID_JSX = 'javascriptreact';
-
 	const plugins = getContributedTypeScriptServerPlugins();
-	const clientHost = new TypeScriptServiceClientHost([
-		{
-			id: 'typescript',
-			diagnosticSource: 'ts',
-			modeIds: [MODE_ID_TS, MODE_ID_TSX],
-			configFile: 'tsconfig.json'
-		},
-		{
-			id: 'javascript',
-			diagnosticSource: 'js',
-			modeIds: [MODE_ID_JS, MODE_ID_JSX],
-			configFile: 'jsconfig.json'
-		}
-	], context.storagePath, context.globalState, context.workspaceState, plugins);
+	const clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.storagePath, context.globalState, context.workspaceState, plugins);
 	context.subscriptions.push(clientHost);
 
 	const client = clientHost.serviceClient;
