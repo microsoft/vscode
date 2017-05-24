@@ -201,7 +201,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 				let fileSearchStats: ISearchStats;
 				for (const result of results) {
-					if (results instanceof FileQuickOpenModel) {
+					if (result instanceof FileQuickOpenModel) {
 						fileSearchStats = (<FileQuickOpenModel>result).stats;
 						break;
 					}
