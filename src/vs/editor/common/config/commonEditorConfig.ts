@@ -229,6 +229,11 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overriden based on the file contents when `editor.detectIndentation` is on."),
 			'errorMessage': nls.localize('insertSpaces.errorMessage', "Expected 'boolean'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
+		'editor.leadingCommas': {
+			'type': 'boolean',
+			'default': EDITOR_MODEL_DEFAULTS.leadingCommas,
+			'description': nls.localize('leadingCommas', "Put commas before each line as opposed to after each line.")
+		},
 		'editor.detectIndentation': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.detectIndentation,

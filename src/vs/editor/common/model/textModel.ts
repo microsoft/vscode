@@ -37,6 +37,7 @@ export class TextModel implements editorCommon.ITextModel {
 		detectIndentation: false,
 		defaultEOL: editorCommon.DefaultEndOfLine.LF,
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
+		leadingCommas: EDITOR_MODEL_DEFAULTS.leadingCommas,
 	};
 
 	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS): TextModel {
@@ -53,14 +54,16 @@ export class TextModel implements editorCommon.ITextModel {
 				tabSize: guessedIndentation.tabSize,
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
-				defaultEOL: options.defaultEOL
+				defaultEOL: options.defaultEOL,
+				leadingCommas: options.leadingCommas
 			});
 		} else {
 			resolvedOpts = new editorCommon.TextModelResolvedOptions({
 				tabSize: options.tabSize,
 				insertSpaces: options.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
-				defaultEOL: options.defaultEOL
+				defaultEOL: options.defaultEOL,
+				leadingCommas: options.leadingCommas,
 			});
 		}
 
@@ -137,12 +140,14 @@ export class TextModel implements editorCommon.ITextModel {
 		let tabSize = (typeof _newOpts.tabSize !== 'undefined') ? _newOpts.tabSize : this._options.tabSize;
 		let insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		let trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
+		let leadingCommas = (typeof _newOpts.leadingCommas !== 'undefined') ? _newOpts.leadingCommas : this._options.leadingCommas;
 
 		let newOpts = new editorCommon.TextModelResolvedOptions({
 			tabSize: tabSize,
 			insertSpaces: insertSpaces,
 			defaultEOL: this._options.defaultEOL,
-			trimAutoWhitespace: trimAutoWhitespace
+			trimAutoWhitespace: trimAutoWhitespace,
+			leadingCommas: leadingCommas
 		});
 
 		if (this._options.equals(newOpts)) {

@@ -586,7 +586,8 @@ suite('Editor Contrib - Line Operations', () => {
 				detectIndentation: false,
 				insertSpaces: false,
 				tabSize: 4,
-				trimAutoWhitespace: true
+				trimAutoWhitespace: true,
+				leadingCommas: false
 			}
 		);
 

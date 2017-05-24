@@ -177,6 +177,7 @@ interface IRawConfig {
 		insertSpaces?: any;
 		detectIndentation?: any;
 		trimAutoWhitespace?: any;
+		leadingCommas?: any;
 	};
 }
 
@@ -255,12 +256,18 @@ export class ModelServiceImpl implements IModelService {
 			detectIndentation = (config.editor.detectIndentation === 'false' ? false : Boolean(config.editor.detectIndentation));
 		}
 
+		let leadingCommas = EDITOR_MODEL_DEFAULTS.leadingCommas;
+		if (config.editor && typeof config.editor.leadingCommas !== 'undefined') {
+			insertSpaces = (config.editor.leadingCommas === 'false' ? false : Boolean(config.editor.leadingCommas));
+		}
+
 		return {
 			tabSize: tabSize,
 			insertSpaces: insertSpaces,
 			detectIndentation: detectIndentation,
 			defaultEOL: newDefaultEOL,
-			trimAutoWhitespace: trimAutoWhitespace
+			trimAutoWhitespace: trimAutoWhitespace,
+			leadingCommas: leadingCommas
 		};
 	}
 

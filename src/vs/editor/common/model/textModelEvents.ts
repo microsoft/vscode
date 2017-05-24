@@ -115,6 +115,7 @@ export interface IModelOptionsChangedEvent {
 	readonly tabSize: boolean;
 	readonly insertSpaces: boolean;
 	readonly trimAutoWhitespace: boolean;
+	readonly leadingCommas: boolean;
 }
 
 /**

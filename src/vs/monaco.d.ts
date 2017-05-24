@@ -1390,12 +1390,14 @@ declare module monaco.editor {
 		readonly insertSpaces: boolean;
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
+		readonly leadingCommas: boolean;
 	}
 
 	export interface ITextModelUpdateOptions {
 		tabSize?: number;
 		insertSpaces?: boolean;
 		trimAutoWhitespace?: boolean;
+		leadingCommas?: boolean;
 	}
 
 	/**
@@ -2484,6 +2486,7 @@ declare module monaco.editor {
 		readonly tabSize: boolean;
 		readonly insertSpaces: boolean;
 		readonly trimAutoWhitespace: boolean;
+		readonly leadingCommas: boolean;
 	}
 
 	/**

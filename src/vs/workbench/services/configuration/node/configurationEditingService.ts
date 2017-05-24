@@ -185,7 +185,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 	}
 
 	private getEdits(model: editorCommon.IModel, edit: IConfigurationEditOperation): Edit[] {
-		const { tabSize, insertSpaces } = model.getOptions();
+		const { tabSize, insertSpaces, leadingCommas } = model.getOptions();
 		const eol = model.getEOL();
 		const { key, value, overrideIdentifier } = edit;
 
@@ -199,7 +199,7 @@ export class ConfigurationEditingService implements IConfigurationEditingService
 			}];
 		}
 
-		return setProperty(model.getValue(), overrideIdentifier ? [keyFromOverrideIdentifier(overrideIdentifier), key] : [key], value, { tabSize, insertSpaces, eol });
+		return setProperty(model.getValue(), overrideIdentifier ? [keyFromOverrideIdentifier(overrideIdentifier), key] : [key], value, { tabSize, insertSpaces, eol, leadingCommas });
 	}
 
 	private resolveModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {

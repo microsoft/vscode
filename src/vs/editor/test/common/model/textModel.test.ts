@@ -11,7 +11,7 @@ import { TextModel, ITextModelCreationData } from 'vs/editor/common/model/textMo
 import { DefaultEndOfLine, TextModelResolvedOptions } from 'vs/editor/common/editorCommon';
 import { RawTextSource } from 'vs/editor/common/model/textSource';
 
-function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
+function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string, ): void {
 	var m = TextModel.createFromString(
 		text.join('\n'),
 		{
@@ -19,7 +19,8 @@ function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: numb
 			insertSpaces: defaultInsertSpaces,
 			detectIndentation: true,
 			defaultEOL: DefaultEndOfLine.LF,
-			trimAutoWhitespace: true
+			trimAutoWhitespace: true,
+			leadingCommas: false
 		}
 	);
 	var r = m.getOptions();
@@ -80,6 +81,7 @@ suite('TextModelData.fromString', () => {
 				insertSpaces: true,
 				tabSize: 4,
 				trimAutoWhitespace: true,
+				leadingCommas: false
 			})
 		});
 	});
@@ -105,6 +107,7 @@ suite('TextModelData.fromString', () => {
 				insertSpaces: true,
 				tabSize: 4,
 				trimAutoWhitespace: true,
+				leadingCommas: false
 			})
 		});
 	});
@@ -127,6 +130,7 @@ suite('TextModelData.fromString', () => {
 				insertSpaces: true,
 				tabSize: 4,
 				trimAutoWhitespace: true,
+				leadingCommas: false
 			})
 		});
 	});
@@ -149,6 +153,7 @@ suite('TextModelData.fromString', () => {
 				insertSpaces: true,
 				tabSize: 4,
 				trimAutoWhitespace: true,
+				leadingCommas: false
 			})
 		});
 	});
@@ -171,6 +176,7 @@ suite('TextModelData.fromString', () => {
 				insertSpaces: true,
 				tabSize: 4,
 				trimAutoWhitespace: true,
+				leadingCommas: false,
 			})
 		});
 	});
@@ -739,7 +745,8 @@ suite('Editor Model - TextModel', () => {
 				tabSize: 4,
 				insertSpaces: false,
 				trimAutoWhitespace: true,
-				defaultEOL: DefaultEndOfLine.LF
+				defaultEOL: DefaultEndOfLine.LF,
+				leadingCommas: false
 			}
 		);
 
@@ -775,7 +782,8 @@ suite('Editor Model - TextModel', () => {
 				tabSize: 4,
 				insertSpaces: true,
 				trimAutoWhitespace: true,
-				defaultEOL: DefaultEndOfLine.LF
+				defaultEOL: DefaultEndOfLine.LF,
+				leadingCommas: false
 			}
 		);
 

@@ -425,6 +425,7 @@ export class TextModelResolvedOptions {
 	readonly insertSpaces: boolean;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
+	readonly leadingCommas: boolean;
 
 	/**
 	 * @internal
@@ -434,11 +435,13 @@ export class TextModelResolvedOptions {
 		insertSpaces: boolean;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
+		leadingCommas: boolean;
 	}) {
 		this.tabSize = src.tabSize | 0;
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
+		this.leadingCommas = Boolean(src.leadingCommas);
 	}
 
 	/**
@@ -450,6 +453,7 @@ export class TextModelResolvedOptions {
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
+			&& this.leadingCommas === other.leadingCommas
 		);
 	}
 
@@ -461,6 +465,7 @@ export class TextModelResolvedOptions {
 			tabSize: this.tabSize !== newOpts.tabSize,
 			insertSpaces: this.insertSpaces !== newOpts.insertSpaces,
 			trimAutoWhitespace: this.trimAutoWhitespace !== newOpts.trimAutoWhitespace,
+			leadingCommas: this.leadingCommas !== newOpts.leadingCommas
 		};
 	}
 }
@@ -474,12 +479,14 @@ export interface ITextModelCreationOptions {
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
+	leadingCommas: boolean;
 }
 
 export interface ITextModelUpdateOptions {
 	tabSize?: number;
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
+	leadingCommas?: boolean;
 }
 
 /**
