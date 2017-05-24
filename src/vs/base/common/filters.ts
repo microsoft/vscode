@@ -473,7 +473,7 @@ export function fuzzyScore(pattern: string, word: string): [number, number[]] {
 	}
 
 	if (patternLen === patternStartPos) {
-		return [-1, []];
+		return [-100, []];
 	}
 
 	if (patternLen > wordLen) {
