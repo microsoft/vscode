@@ -106,6 +106,7 @@
 .monaco-editor .find-widget .monaco-findInput {
 	vertical-align: middle;
 	display: flex;
+	display: -webkit-flex;
 	flex:1;
 }
 
@@ -242,12 +243,9 @@
 
 .monaco-editor .find-widget > .replace-part > .replace-input {
 	display: flex;
-	flex:1;
+	display: -webkit-flex;
 	vertical-align: middle;
-}
-
-.monaco-editor .find-widget > .replace-part > .replace-input > .monaco-inputbox {
-	width: 100%;
+	width: auto !important;
 }
 
 /* REDUCED */
@@ -257,12 +255,15 @@
 }
 
 /* NARROW (SMALLER THAN REDUCED) */
-/*.monaco-editor .find-widget.narrow-find-widget > .find-part,
-.monaco-editor .find-widget.narrow-find-widget > .replace-part {
-	width: 240px !important;
-}*/
+.monaco-editor .find-widget.narrow-find-widget {
+	max-width: 257px !important;
+}
 
 /* COLLAPSED (SMALLER THAN NARROW) */
+.monaco-editor .find-widget.collapsed-find-widget {
+	max-width: 111px !important;
+}
+
 .monaco-editor .find-widget.collapsed-find-widget .button.previous,
 .monaco-editor .find-widget.collapsed-find-widget .button.next,
 .monaco-editor .find-widget.collapsed-find-widget .button.replace,
@@ -274,15 +275,6 @@
 .monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
 	padding-right: 0px;
 }
-/*.monaco-editor .find-widget.collapsed-find-widget > .find-part,
-.monaco-editor .find-widget.collapsed-find-widget > .replace-part {
-	max-width: 94px !important;
-}
-.monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput,
-.monaco-editor .find-widget.collapsed-find-widget > .replace-part .replace-input,
-.monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-inputbox > .wrapper > .input {
-	max-width: 71px !important;
-}*/
 
 .monaco-editor .findMatch {
 	-webkit-animation-duration: 0;
@@ -296,7 +288,7 @@
 }
 
 .monaco-editor .find-widget .monaco-sash {
-	background: grey;
+	width: 2px !important;
 	margin-left: -4px;
 }
 
