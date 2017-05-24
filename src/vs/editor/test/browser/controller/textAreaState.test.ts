@@ -5,10 +5,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ISimpleModel, TextAreaState, ITextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
+import { ISimpleModel, TextAreaState, ITextAreaWrapper, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { Model } from "vs/editor/common/model/model";
+import { Selection } from 'vs/editor/common/core/selection';
 
 export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
@@ -487,6 +489,89 @@ suite('TextAreaState', () => {
 			6, 6,
 			'⌨️', 0
 		);
+	});
+
+	suite('PagedScreenReaderStrategy', () => {
+
+		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
+			const model = Model.createFromString(lines.join('\n'));
+			const actual = PagedScreenReaderStrategy.fromEditorSelection(TextAreaState.EMPTY, model, selection);
+			assert.ok(actual.equals(expected), actual);
+			model.dispose();
+		}
+
+		test('simple', () => {
+			testPagedScreenReaderStrategy(
+				[
+					'Hello world!'
+				],
+				new Selection(1, 13, 1, 13),
+				new TextAreaState('Hello world!', 12, 12)
+			);
+
+			testPagedScreenReaderStrategy(
+				[
+					'Hello world!'
+				],
+				new Selection(1, 1, 1, 1),
+				new TextAreaState('Hello world!', 0, 0)
+			);
+
+			testPagedScreenReaderStrategy(
+				[
+					'Hello world!'
+				],
+				new Selection(1, 1, 1, 6),
+				new TextAreaState('Hello world!', 0, 5)
+			);
+		});
+
+		test('multiline', () => {
+			testPagedScreenReaderStrategy(
+				[
+					'Hello world!',
+					'How are you?'
+				],
+				new Selection(1, 1, 1, 1),
+				new TextAreaState('Hello world!\nHow are you?', 0, 0)
+			);
+
+			testPagedScreenReaderStrategy(
+				[
+					'Hello world!',
+					'How are you?'
+				],
+				new Selection(2, 1, 2, 1),
+				new TextAreaState('Hello world!\nHow are you?', 13, 13)
+			);
+		});
+
+		test('page', () => {
+			testPagedScreenReaderStrategy(
+				[
+					'L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21'
+				],
+				new Selection(1, 1, 1, 1),
+				new TextAreaState('L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10', 0, 0)
+			);
+
+			testPagedScreenReaderStrategy(
+				[
+					'L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21'
+				],
+				new Selection(11, 1, 11, 1),
+				new TextAreaState('L11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20', 0, 0)
+			);
+
+			testPagedScreenReaderStrategy(
+				[
+					'L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21'
+				],
+				new Selection(12, 1, 12, 1),
+				new TextAreaState('L11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20', 4, 4)
+			);
+		});
+
 	});
 });
 
