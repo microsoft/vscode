@@ -41,6 +41,52 @@ export namespace ShellConfiguration {
 	}
 }
 
+export enum RevealKind {
+	/**
+	 * Always brings the terminal to front if the task is executed.
+	 */
+	Always = 1,
+
+	/**
+	 * Only brings the terminal to front if a problem is detected executing the task
+	 * (e.g. the task couldn't be started because).
+	 */
+	Silent = 2,
+
+	/**
+	 * The terminal never comes to front when the task is executed.
+	 */
+	Never = 3
+}
+
+export namespace RevealKind {
+	export function fromString(value: string): RevealKind {
+		switch (value.toLowerCase()) {
+			case 'always':
+				return RevealKind.Always;
+			case 'silent':
+				return RevealKind.Silent;
+			case 'never':
+				return RevealKind.Never;
+			default:
+				return RevealKind.Always;
+		}
+	}
+}
+
+export interface TerminalBehavior {
+	/**
+	 * Controls whether the terminal executing a task is brought to front or not.
+	 * Defaults to `RevealKind.Always`.
+	 */
+	reveal: RevealKind;
+
+	/**
+	 * Controls whether the executed command is printed to the output window or terminal as well.
+	 */
+	echo: boolean;
+}
+
 export interface CommandConfiguration {
 	/**
 	 * The command to execute
@@ -68,30 +114,9 @@ export interface CommandConfiguration {
 	taskSelector?: string;
 
 	/**
-	 * Controls whether the executed command is printed to the output windows as well.
+	 * Describes how the terminal is supposed to behave.
 	 */
-	echo: boolean;
-}
-
-export enum ShowOutput {
-	Always = 1,
-	Silent = 2,
-	Never = 3
-}
-
-export namespace ShowOutput {
-	export function fromString(value: string): ShowOutput {
-		value = value.toLowerCase();
-		if (value === 'always') {
-			return ShowOutput.Always;
-		} else if (value === 'silent') {
-			return ShowOutput.Silent;
-		} else if (value === 'never') {
-			return ShowOutput.Never;
-		} else {
-			return undefined;
-		}
-	}
+	terminal: TerminalBehavior;
 }
 
 export namespace TaskGroup {
@@ -176,12 +201,6 @@ export interface Task {
 	 * Whether the task should prompt on close for confirmation if running.
 	 */
 	promptOnClose?: boolean;
-
-	/**
-	 * Controls whether the output of the running tasks is shown or not. Default
-	 * value is "always".
-	 */
-	showOutput: ShowOutput;
 
 	/**
 	 * The other tasks this task depends on.

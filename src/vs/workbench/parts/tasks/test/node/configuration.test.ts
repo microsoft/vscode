@@ -68,10 +68,32 @@ class ConfiguationBuilder {
 	}
 }
 
+class TerminalBehaviorBuilder {
+
+	public result: Tasks.TerminalBehavior;
+
+	constructor(public parent: CommandConfigurationBuilder) {
+		this.result = { echo: false, reveal: Tasks.RevealKind.Always };
+	}
+
+	public echo(value: boolean): TerminalBehaviorBuilder {
+		this.result.echo = value;
+		return this;
+	}
+
+	public reveal(value: Tasks.RevealKind): TerminalBehaviorBuilder {
+		this.result.reveal = value;
+		return this;
+	}
+}
+
 class CommandConfigurationBuilder {
 	public result: Tasks.CommandConfiguration;
 
+	private terminalBuilder: TerminalBehaviorBuilder;
+
 	constructor(public parent: TaskBuilder, command: string) {
+		this.terminalBuilder = new TerminalBehaviorBuilder(this);
 		this.result = {
 			name: command,
 			isShellCommand: false,
@@ -79,7 +101,7 @@ class CommandConfigurationBuilder {
 			options: {
 				cwd: '${workspaceRoot}'
 			},
-			echo: false
+			terminal: this.terminalBuilder.result
 		};
 	}
 
@@ -103,14 +125,13 @@ class CommandConfigurationBuilder {
 		return this;
 	}
 
-	public echo(value: boolean): CommandConfigurationBuilder {
-		this.result.echo = value;
-		return this;
-	}
-
 	public taskSelector(value: string): CommandConfigurationBuilder {
 		this.result.taskSelector = value;
 		return this;
+	}
+
+	public terminal(): TerminalBehaviorBuilder {
+		return this.terminalBuilder;
 	}
 }
 
@@ -127,7 +148,6 @@ class TaskBuilder {
 			identifier: name,
 			name: name,
 			command: this.commandBuilder.result,
-			showOutput: Tasks.ShowOutput.Always,
 			suppressTaskName: false,
 			isBackground: false,
 			promptOnClose: true,
@@ -147,11 +167,6 @@ class TaskBuilder {
 
 	public args(value: string[]): TaskBuilder {
 		this.result.args = value;
-		return this;
-	}
-
-	public showOutput(value: Tasks.ShowOutput): TaskBuilder {
-		this.result.showOutput = value;
 		return this;
 	}
 
@@ -401,7 +416,6 @@ function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 	assert.ok(actual._id);
 	assert.strictEqual(actual.name, expected.name, 'name');
 	assertCommandConfiguration(actual.command, expected.command);
-	assert.strictEqual(actual.showOutput, expected.showOutput, 'showOutput');
 	assert.strictEqual(actual.suppressTaskName, expected.suppressTaskName, 'suppressTaskName');
 	assert.strictEqual(actual.isBackground, expected.isBackground, 'isBackground');
 	assert.strictEqual(actual.promptOnClose, expected.promptOnClose, 'promptOnClose');
@@ -417,6 +431,7 @@ function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected: Tasks.CommandConfiguration) {
 	assert.strictEqual(typeof actual, typeof expected);
 	if (actual && expected) {
+		assertTerminalBehavior(actual.terminal, expected.terminal);
 		assert.strictEqual(actual.name, expected.name, 'name');
 		assert.strictEqual(actual.isShellCommand, expected.isShellCommand, 'isShellCommand');
 		assert.deepEqual(actual.args, expected.args, 'args');
@@ -428,8 +443,15 @@ function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected
 				assert.deepEqual(actual.options.env, expected.options.env, 'env');
 			}
 		}
-		assert.strictEqual(actual.echo, expected.echo, 'echo');
 		assert.strictEqual(actual.taskSelector, expected.taskSelector, 'taskSelector');
+	}
+}
+
+function assertTerminalBehavior(actual: Tasks.TerminalBehavior, expected: Tasks.TerminalBehavior) {
+	assert.strictEqual(typeof actual, typeof expected);
+	if (actual && expected) {
+		assert.strictEqual(actual.echo, expected.echo);
+		assert.strictEqual(actual.reveal, expected.reveal);
 	}
 }
 
@@ -525,7 +547,7 @@ suite('Tasks Configuration parsing tests', () => {
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			suppressTaskName(true).
-			showOutput(Tasks.ShowOutput.Silent);
+			command().terminal().reveal(Tasks.RevealKind.Silent);
 		testConfiguration(
 			{
 				version: '0.1.0',
@@ -590,7 +612,7 @@ suite('Tasks Configuration parsing tests', () => {
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			suppressTaskName(true).
-			showOutput(Tasks.ShowOutput.Never);
+			command().terminal().reveal(Tasks.RevealKind.Never);
 		testConfiguration(
 			{
 				version: '0.1.0',
@@ -607,7 +629,7 @@ suite('Tasks Configuration parsing tests', () => {
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			suppressTaskName(true).
-			command().
+			command().terminal().
 			echo(true);
 		testConfiguration(
 			{
@@ -759,8 +781,8 @@ suite('Tasks Configuration parsing tests', () => {
 		builder.
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
-			showOutput(Platform.isWindows ? Tasks.ShowOutput.Always : Tasks.ShowOutput.Never).
-			suppressTaskName(true);
+			suppressTaskName(true).
+			command().terminal().reveal(Platform.isWindows ? Tasks.RevealKind.Always : Tasks.RevealKind.Never);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
@@ -778,7 +800,7 @@ suite('Tasks Configuration parsing tests', () => {
 			task('tsc', 'tsc').
 			group(Tasks.TaskGroup.Build).
 			suppressTaskName(true).
-			command().
+			command().terminal().
 			echo(Platform.isWindows ? false : true);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
@@ -903,12 +925,11 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder();
 		builder.task('test', 'tsc').
 			group(Tasks.TaskGroup.Test).
-			showOutput(Tasks.ShowOutput.Never).
 			args(['--p']).
 			isBackground(true).
 			promptOnClose(false).
-			command().
-			echo(true);
+			command().terminal().
+			echo(true).reveal(Tasks.RevealKind.Never);
 
 		testConfiguration(external, builder);
 	});
@@ -928,9 +949,8 @@ suite('Tasks Configuration parsing tests', () => {
 		let builder = new ConfiguationBuilder();
 		builder.task('test', 'tsc').
 			group(Tasks.TaskGroup.Test).
-			showOutput(Tasks.ShowOutput.Never).
-			command().
-			echo(true);
+			command().terminal().
+			echo(true).reveal(Tasks.RevealKind.Never);
 
 		testConfiguration(external, builder);
 	});
@@ -1392,15 +1412,17 @@ suite('Bugs / regression tests', () => {
 		let builder = new ConfiguationBuilder();
 		if (Platform.isWindows) {
 			builder.task('composeForDebug', 'powershell').
-				suppressTaskName(true).showOutput(Tasks.ShowOutput.Always).
+				suppressTaskName(true).
 				args(['-ExecutionPolicy', 'RemoteSigned', '.\\dockerTask.ps1', '-ComposeForDebug', '-Environment', 'debug']).
-				command().echo(true).options({ cwd: '${workspaceRoot}' });
+				command().options({ cwd: '${workspaceRoot}' }).
+				terminal().echo(true).reveal(Tasks.RevealKind.Always);
 			testConfiguration(external, builder);
 		} else if (Platform.isMacintosh) {
 			builder.task('composeForDebug', '/bin/bash').
-				suppressTaskName(true).showOutput(Tasks.ShowOutput.Always).
+				suppressTaskName(true).
 				args(['-c', './dockerTask.sh composeForDebug debug']).
-				command().options({ cwd: '${workspaceRoot}' });
+				command().options({ cwd: '${workspaceRoot}' }).
+				terminal().reveal(Tasks.RevealKind.Always);
 			testConfiguration(external, builder);
 		}
 	});

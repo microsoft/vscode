@@ -179,8 +179,13 @@ const command: TaskEntry = {
 		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
 		'\t// for the documentation about the tasks.json format',
 		'\t"version": "2.0.0",',
-		'\t"command": "echo \"Hello World\"",',
-		'\t"isShellCommand": true,',
+		'\t"tasks": [',
+		'\t\t{',
+		'\t\t\t"taskName": "echo",',
+		'\t\t\t"command": "echo Hello",',
+		'\t\t\t"isShellCommand": true',
+		'\t\t}',
+		'\t]',
 		'}'
 	].join('\n')
 };

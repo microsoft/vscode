@@ -7,6 +7,7 @@
 import nls = require('vs/nls');
 import Filters = require('vs/base/common/filters');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Action, IAction } from 'vs/base/common/actions';
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
@@ -14,20 +15,25 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
+import { ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
-	constructor(protected taskService: ITaskService, protected task: Task, highlights: Model.IHighlight[] = []) {
+	constructor(protected taskService: ITaskService, protected _task: Task, highlights: Model.IHighlight[] = []) {
 		super(highlights);
-		this.task = task;
+		this._task = _task;
 	}
 
 	public getLabel(): string {
-		return this.task.name;
+		return this._task.name;
 	}
 
 	public getAriaLabel(): string {
 		return nls.localize('entryAriaLabel', "{0}, tasks", this.getLabel());
+	}
+
+	public get task(): Task {
+		return this._task;
 	}
 }
 
@@ -111,5 +117,54 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 		return {
 			autoFocusFirstEntry: !!input
 		};
+	}
+}
+
+class CustomizeTaskAction extends Action {
+
+	private static ID = 'workbench.action.tasks.customizeTask';
+	private static LABEL = nls.localize('customizeTask', "Customize Task");
+
+	constructor() {
+		super(CustomizeTaskAction.ID, CustomizeTaskAction.LABEL);
+		this.updateClass();
+	}
+
+	public updateClass(): void {
+		this.class = 'quick-open-sidebyside-vertical';
+	}
+
+	public run(context: any): TPromise<any> {
+		return TPromise.as(false);
+	}
+}
+
+export class QuickOpenActionContributor extends ActionBarContributor {
+
+	constructor() {
+		super();
+	}
+
+	public hasActions(context: any): boolean {
+		const entry = this.getEntry(context);
+
+		return !!entry;
+	}
+
+	public getActions(context: any): IAction[] {
+		const actions: Action[] = [];
+
+		const entry = this.getEntry(context);
+		if (entry && entry.task._source.kind === TaskSourceKind.Extension) {
+			actions.push(new CustomizeTaskAction());
+		}
+		return actions;
+	}
+
+	private getEntry(context: any): TaskEntry {
+		if (!context || !(context.element instanceof TaskEntry)) {
+			return undefined;
+		}
+		return context.element as TaskEntry;
 	}
 }

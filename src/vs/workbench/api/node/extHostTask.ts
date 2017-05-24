@@ -192,26 +192,26 @@ namespace ProblemMatcher {
 }
 
 namespace RevealKind {
-	export function from(value: vscode.RevealKind): TaskSystem.ShowOutput {
+	export function from(value: vscode.RevealKind): TaskSystem.RevealKind {
 		if (value === void 0 || value === null) {
-			return TaskSystem.ShowOutput.Always;
+			return TaskSystem.RevealKind.Always;
 		}
 		switch (value) {
 			case types.RevealKind.Silent:
-				return TaskSystem.ShowOutput.Silent;
+				return TaskSystem.RevealKind.Silent;
 			case types.RevealKind.Never:
-				return TaskSystem.ShowOutput.Never;
+				return TaskSystem.RevealKind.Never;
 		}
-		return TaskSystem.ShowOutput.Always;
+		return TaskSystem.RevealKind.Always;
 	}
 }
 
 namespace TerminalBehaviour {
-	export function from(value: vscode.TerminalBehaviour): { showOutput: TaskSystem.ShowOutput, echo: boolean } {
+	export function from(value: vscode.TerminalBehaviour): TaskSystem.TerminalBehavior {
 		if (value === void 0 || value === null) {
-			return { showOutput: TaskSystem.ShowOutput.Always, echo: false };
+			return { reveal: TaskSystem.RevealKind.Always, echo: false };
 		}
-		return { showOutput: RevealKind.from(value.reveal), echo: !!value.echo };
+		return { reveal: RevealKind.from(value.reveal), echo: !!value.echo };
 	}
 }
 
@@ -302,8 +302,6 @@ namespace Tasks {
 		if (command === void 0) {
 			return undefined;
 		}
-		let behaviour = TerminalBehaviour.from(task.terminal);
-		command.echo = behaviour.echo;
 		let result: TaskSystem.Task = {
 			_id: uuidMap.getUUID(task.identifier),
 			_source: { kind: TaskSystem.TaskSourceKind.Extension, detail: extension.id },
@@ -311,7 +309,6 @@ namespace Tasks {
 			identifier: task.identifier,
 			group: types.TaskGroup.is(task.group) ? task.group : undefined,
 			command: command,
-			showOutput: behaviour.showOutput,
 			isBackground: !!task.isBackground,
 			suppressTaskName: true,
 			problemMatchers: ProblemMatcher.from(task.problemMatchers)
@@ -327,7 +324,7 @@ namespace Tasks {
 			name: value.process,
 			args: Strings.from(value.args),
 			isShellCommand: false,
-			echo: false,
+			terminal: TerminalBehaviour.from(value.terminal)
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);
@@ -342,7 +339,7 @@ namespace Tasks {
 		let result: TaskSystem.CommandConfiguration = {
 			name: value.commandLine,
 			isShellCommand: ShellConfiguration.from(value.options),
-			echo: false
+			terminal: TerminalBehaviour.from(value.terminal)
 		};
 		if (value.options) {
 			result.options = CommandOptions.from(value.options);

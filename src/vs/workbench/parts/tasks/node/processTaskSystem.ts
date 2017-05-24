@@ -29,7 +29,7 @@ import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEv
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType
 } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, CommandOptions, ShowOutput, CommandConfiguration } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, CommandOptions, RevealKind, CommandConfiguration } from 'vs/workbench/parts/tasks/common/tasks';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -178,11 +178,12 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 		this.childProcess = new LineProcess(command, args, !!commandConfig.isShellCommand, this.resolveOptions(commandConfig.options));
 		telemetryEvent.command = this.childProcess.getSanitizedCommand();
 		// we have no problem matchers defined. So show the output log
-		if (task.showOutput === ShowOutput.Always || (task.showOutput === ShowOutput.Silent && task.problemMatchers.length === 0)) {
+		let reveal = task.command.terminal.reveal;
+		if (reveal === RevealKind.Always || (reveal === RevealKind.Silent && task.problemMatchers.length === 0)) {
 			this.showOutput();
 		}
 
-		if (commandConfig.echo) {
+		if (commandConfig.terminal.echo) {
 			let prompt: string = Platform.isWindows ? '>' : '$';
 			this.log(`running command${prompt} ${command} ${args.join(' ')}`);
 		}
@@ -214,7 +215,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 				if (!this.checkTerminated(task, success)) {
 					this.log(nls.localize('TaskRunnerSystem.watchingBuildTaskFinished', '\nWatching build tasks has finished.'));
 				}
-				if (success.cmdCode && success.cmdCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
+				if (success.cmdCode && success.cmdCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
 					this.showOutput();
 				}
 				taskSummary.exitCode = success.cmdCode;
@@ -258,7 +259,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 				startStopProblemMatcher.dispose();
 				this.checkTerminated(task, success);
 				this.emit(TaskSystemEvents.Inactive, event);
-				if (success.cmdCode && success.cmdCode === 1 && startStopProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
+				if (success.cmdCode && success.cmdCode === 1 && startStopProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
 					this.showOutput();
 				}
 				taskSummary.exitCode = success.cmdCode;

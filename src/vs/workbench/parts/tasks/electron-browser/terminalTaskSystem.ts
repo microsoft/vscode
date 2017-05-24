@@ -33,7 +33,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { Task, ShowOutput, CommandOptions, ShellConfiguration } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, RevealKind, CommandOptions, ShellConfiguration } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType
@@ -134,7 +134,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
 		let terminalData = this.activeTasks[task._id];
 		if (terminalData && terminalData.promise) {
-			if (task.showOutput === ShowOutput.Always) {
+			let reveal = task.command.terminal.reveal;
+			if (reveal === RevealKind.Always) {
 				terminalData.terminal.setVisible(true);
 			}
 			return { kind: TaskExecuteKind.Active, active: { same: true, background: task.isBackground }, promise: terminalData.promise };
@@ -288,7 +289,8 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 						this.emit(TaskSystemEvents.Inactive, event);
 					}
 					eventCounter = 0;
-					if (exitCode && exitCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && task.showOutput !== ShowOutput.Never) {
+					let reveal = task.command.terminal.reveal;
+					if (exitCode && exitCode === 1 && watchingProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
 					}
@@ -330,7 +332,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 		}
 		this.terminalService.setActiveInstance(terminal);
-		if (task.showOutput === ShowOutput.Always) {
+		if (task.command.terminal.reveal === RevealKind.Always) {
 			this.terminalService.showPanel(false);
 		}
 		this.activeTasks[task._id] = { terminal, task, promise };
@@ -364,7 +366,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let options = this.resolveOptions(task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(task);
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
-		let waitOnExit = task.showOutput !== ShowOutput.Never || !task.isBackground;
+		let waitOnExit = task.command.terminal.reveal !== RevealKind.Never || !task.isBackground;
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
 		if (task.command.isShellCommand) {
 			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
@@ -413,7 +415,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			});
 			shellArgs.push(commandLine);
 			shellLaunchConfig.args = Platform.isWindows ? shellArgs.join(' ') : shellArgs;
-			if (task.command.echo) {
+			if (task.command.terminal.echo) {
 				shellLaunchConfig.initialText = `> ${commandLine}`;
 			}
 		} else {
@@ -427,7 +429,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 				args,
 				waitOnExit
 			};
-			if (task.command.echo) {
+			if (task.command.terminal.echo) {
 				let getArgsToEcho = (args: string | string[]): string => {
 					if (!args || args.length === 0) {
 						return '';

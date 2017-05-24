@@ -65,11 +65,12 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOutputService, IOutputChannelRegistry, Extensions as OutputExt, IOutputChannel } from 'vs/workbench/parts/output/common/output';
+import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actionBarRegistry';
 
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 import { ITaskSystem, ITaskResolver, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, TaskSystemEvents } from 'vs/workbench/parts/tasks/common/taskSystem';
-import { Task, TaskSet, TaskGroup, ExecutionEngine, ShowOutput, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, TaskSet, TaskGroup, ExecutionEngine, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskServiceEvents, ITaskProvider } from 'vs/workbench/parts/tasks/common/taskService';
 import { templates as taskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
@@ -77,6 +78,7 @@ import * as TaskConfig from 'vs/workbench/parts/tasks/common/taskConfiguration';
 import { ProcessTaskSystem } from 'vs/workbench/parts/tasks/node/processTaskSystem';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/parts/tasks/node/processRunnerDetector';
+import { QuickOpenActionContributor } from '../browser/quickOpen';
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
@@ -758,7 +760,6 @@ class TaskService extends EventEmitter implements ITaskService {
 				identifier: id,
 				dependsOn: primaryTasks.map(task => task._id),
 				command: undefined,
-				showOutput: ShowOutput.Never
 			};
 			return { task, resolver };
 		}
@@ -867,30 +868,32 @@ class TaskService extends EventEmitter implements ITaskService {
 	}
 
 	private getTaskSets(): TPromise<TaskSet[]> {
-		return new TPromise<TaskSet[]>((resolve, reject) => {
-			let result: TaskSet[] = [];
-			let counter: number = 0;
-			let done = (value: TaskSet) => {
-				if (value) {
-					result.push(value);
-				}
-				if (--counter === 0) {
+		return this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask').then(() => {
+			return new TPromise<TaskSet[]>((resolve, reject) => {
+				let result: TaskSet[] = [];
+				let counter: number = 0;
+				let done = (value: TaskSet) => {
+					if (value) {
+						result.push(value);
+					}
+					if (--counter === 0) {
+						resolve(result);
+					}
+				};
+				let error = () => {
+					if (--counter === 0) {
+						resolve(result);
+					}
+				};
+				if (this.getExecutionEngine() === ExecutionEngine.Terminal && this._providers.size > 0) {
+					this._providers.forEach((provider) => {
+						counter++;
+						provider.provideTasks().done(done, error);
+					});
+				} else {
 					resolve(result);
 				}
-			};
-			let error = () => {
-				if (--counter === 0) {
-					resolve(result);
-				}
-			};
-			if (this.getExecutionEngine() === ExecutionEngine.Terminal && this._providers.size > 0) {
-				this._providers.forEach((provider) => {
-					counter++;
-					provider.provideTasks().done(done, error);
-				});
-			} else {
-				resolve(result);
-			}
+			});
 		}).then((result) => {
 			return this.getWorkspaceTasks().then((workspaceTaskResult) => {
 				let workspaceTasksToDelete: Task[] = [];
@@ -1018,10 +1021,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					configPromise = TPromise.as({ config, hasErrors: false });
 				}
 			} else {
-				configPromise = new ProcessRunnerDetector(this.fileService, this.contextService, this.configurationResolverService).detect(true).then((value) => {
-					let hasErrors = this.printStderr(value.stderr);
-					return { config: value.config, hasErrors };
-				});
+				configPromise = TPromise.as({ config, hasErrors: false });
 			}
 		}
 		return configPromise.then((resolved) => {
@@ -1325,6 +1325,9 @@ quickOpenRegistry.registerQuickOpenHandler(
 		nls.localize('quickOpen.restartTask', "Restart Task")
 	)
 );
+
+const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
+actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
 
 // Status bar
 let statusbarRegistry = <IStatusbarRegistry>Registry.as(StatusbarExtensions.Statusbar);

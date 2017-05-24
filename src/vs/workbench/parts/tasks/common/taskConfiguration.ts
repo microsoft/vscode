@@ -190,6 +190,21 @@ export interface BaseTaskRunnerConfiguration {
 	echoCommand?: boolean;
 
 	/**
+	 * Controls the behavior of the used terminal
+	 */
+	terminal?: {
+		/**
+		 * The terminal should echo the run command.
+		 */
+		echo?: boolean;
+		/**
+		 * Controls whether or not the terminal is reveal if a task
+		 * is executed.
+		 */
+		reveal?: string;
+	};
+
+	/**
 	 * If set to false the task name is added as an additional argument to the
 	 * command when executed. If set to true the task name is suppressed. If
 	 * omitted false is used.
@@ -402,12 +417,19 @@ namespace ShellConfiguration {
 }
 
 namespace CommandConfiguration {
+	interface TerminalBehavior {
+		echo?: boolean;
+		reveal?: string;
+	}
+
 	interface BaseCommandConfiguationShape {
 		command?: string;
 		isShellCommand?: boolean | ShellConfiguration;
 		args?: string[];
 		options?: ProcessConfig.CommandOptions;
 		echoCommand?: boolean;
+		showOutput?: string;
+		terminal?: TerminalBehavior;
 		taskSelector?: string;
 	}
 
@@ -415,6 +437,70 @@ namespace CommandConfiguration {
 		windows?: BaseCommandConfiguationShape;
 		osx?: BaseCommandConfiguationShape;
 		linux?: BaseCommandConfiguationShape;
+	}
+
+	export namespace TerminalBehavior {
+		export function from(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.TerminalBehavior {
+			let echo: boolean = undefined;
+			let reveal: Tasks.RevealKind = undefined;
+			if (Types.isBoolean(config.echoCommand)) {
+				echo = config.echoCommand;
+			}
+			if (Types.isString(config.showOutput)) {
+				reveal = Tasks.RevealKind.fromString(config.showOutput);
+			}
+			if (config.terminal) {
+				if (Types.isBoolean(config.terminal.echo)) {
+					echo = config.terminal.echo;
+				}
+				if (Types.isString(config.terminal.reveal)) {
+					reveal = Tasks.RevealKind.fromString(config.terminal.reveal);
+				}
+			}
+			if (echo === void 0 && reveal === void 0) {
+				return undefined;
+			}
+			return { echo, reveal };
+		}
+
+		export function merge(target: Tasks.TerminalBehavior, source: Tasks.TerminalBehavior): Tasks.TerminalBehavior {
+			if (isEmpty(source)) {
+				return target;
+			}
+			if (isEmpty(target)) {
+				return source;
+			}
+			mergeProperty(target, source, 'echo');
+			mergeProperty(target, source, 'reveal');
+			return target;
+		}
+
+		export function fillDefault(value: Tasks.TerminalBehavior): Tasks.TerminalBehavior {
+			if (value && Object.isFrozen(value)) {
+				return value;
+			}
+			if (value === void 0) {
+				return { echo: false, reveal: Tasks.RevealKind.Always };
+			}
+			if (value.echo === void 0) {
+				value.echo = false;
+			}
+			if (value.reveal === void 0) {
+				value.reveal = Tasks.RevealKind.Always;
+			}
+			return value;
+		}
+
+		export function freeze(value: Tasks.TerminalBehavior): void {
+			if (value === void 0) {
+				return;
+			}
+			Object.freeze(value);
+		}
+
+		function isEmpty(this: void, value: Tasks.TerminalBehavior): boolean {
+			return !value || value.echo === void 0 && value.reveal === void 0;
+		}
 	}
 
 	export function from(this: void, config: CommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration {
@@ -439,7 +525,7 @@ namespace CommandConfiguration {
 		let result: Tasks.CommandConfiguration = {
 			name: undefined,
 			isShellCommand: undefined,
-			echo: undefined
+			terminal: undefined
 		};
 		if (Types.isString(config.command)) {
 			result.name = config.command;
@@ -464,8 +550,9 @@ namespace CommandConfiguration {
 		if (config.options !== void 0) {
 			result.options = CommandOptions.from(config.options, context);
 		}
-		if (Types.isBoolean(config.echoCommand)) {
-			result.echo = config.echoCommand;
+		let terminal = TerminalBehavior.from(config, context);
+		if (terminal) {
+			result.terminal = terminal;
 		}
 		if (Types.isString(config.taskSelector)) {
 			result.taskSelector = config.taskSelector;
@@ -474,11 +561,13 @@ namespace CommandConfiguration {
 	}
 
 	export function isEmpty(value: Tasks.CommandConfiguration): boolean {
-		return !value || value.name === void 0 && value.isShellCommand === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options) && value.echo === void 0;
+		return !value || value.name === void 0 && value.isShellCommand === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options) && value.terminal === void 0;
 	}
 
-	export function onlyEcho(value: Tasks.CommandConfiguration): boolean {
-		return value && value.echo !== void 0 && value.name === void 0 && value.isShellCommand === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options);
+	export function onlyTerminalBehaviour(value: Tasks.CommandConfiguration): boolean {
+		return value &&
+			value.terminal && (value.terminal.echo !== void 0 || value.terminal.reveal === void 0) &&
+			value.name === void 0 && value.isShellCommand === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options);
 	}
 
 	export function merge(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration {
@@ -500,7 +589,7 @@ namespace CommandConfiguration {
 			target.isShellCommand = source.isShellCommand;
 		}
 
-		mergeProperty(target, source, 'echo');
+		target.terminal = TerminalBehavior.merge(target.terminal, source.terminal);
 		mergeProperty(target, source, 'taskSelector');
 		if (source.args !== void 0) {
 			if (target.args === void 0) {
@@ -520,9 +609,7 @@ namespace CommandConfiguration {
 		if (value.name !== void 0 && value.isShellCommand === void 0) {
 			value.isShellCommand = false;
 		}
-		if (value.echo === void 0) {
-			value.echo = false;
-		}
+		value.terminal = TerminalBehavior.fillDefault(value.terminal);
 		if (value.args === void 0) {
 			value.args = EMPTY_ARRAY;
 		}
@@ -538,6 +625,9 @@ namespace CommandConfiguration {
 		}
 		if (value.options) {
 			CommandOptions.freeze(value.options);
+		}
+		if (value.terminal) {
+			TerminalBehavior.freeze(value.terminal);
 		}
 		if (ShellConfiguration.is(value.isShellCommand)) {
 			ShellConfiguration.freeze(value.isShellCommand);
@@ -660,15 +750,16 @@ namespace TaskDescription {
 			let problemMatchers = ProblemMatcherConverter.from(externalTask.problemMatcher, context);
 			let command: Tasks.CommandConfiguration = externalTask.command !== void 0
 				? CommandConfiguration.from(externalTask, context)
-				: externalTask.echoCommand !== void 0 ? { name: undefined, isShellCommand: undefined, echo: !!externalTask.echoCommand } : undefined;
+				: externalTask.echoCommand !== void 0
+					? { name: undefined, isShellCommand: undefined, terminal: CommandConfiguration.TerminalBehavior.from(externalTask, context) }
+					: undefined;
 			let identifer = Types.isString(externalTask.identifier) ? externalTask.identifier : taskName;
 			let task: Tasks.Task = {
 				_id: UUID.generateUuid(),
 				_source: source,
 				name: taskName,
 				identifier: identifer,
-				command,
-				showOutput: undefined
+				command
 			};
 			if (externalTask.command === void 0 && Types.isStringArray(externalTask.args)) {
 				task.args = externalTask.args.slice();
@@ -681,9 +772,6 @@ namespace TaskDescription {
 			}
 			if (externalTask.promptOnClose !== void 0) {
 				task.promptOnClose = !!externalTask.promptOnClose;
-			}
-			if (Types.isString(externalTask.showOutput)) {
-				task.showOutput = Tasks.ShowOutput.fromString(externalTask.showOutput);
 			}
 			if (externalTask.command !== void 0) {
 				// if the task has its own command then we suppress the
@@ -793,13 +881,13 @@ namespace TaskDescription {
 			if (CommandConfiguration.isEmpty(task.command) && !CommandConfiguration.isEmpty(globals.command) && globals.command.name !== void 0) {
 				task.command = globals.command;
 			}
-			if (CommandConfiguration.onlyEcho(task.command)) {
+			if (CommandConfiguration.onlyTerminalBehaviour(task.command)) {
 				// The globals can have a echo set which would override the local echo
 				// Saves the need of a additional fill method. But might be necessary
 				// at some point.
-				let oldEcho = task.command.echo;
+				let oldTerminal = Objects.clone(task.command.terminal);
 				CommandConfiguration.merge(task.command, globals.command);
-				task.command.echo = oldEcho;
+				task.command.terminal = oldTerminal;
 			}
 		}
 		// promptOnClose is inferred from isBackground if available
@@ -808,9 +896,6 @@ namespace TaskDescription {
 		}
 		if (task.suppressTaskName === void 0 && globals.suppressTaskName !== void 0) {
 			task.suppressTaskName = globals.suppressTaskName;
-		}
-		if (task.showOutput === void 0 && globals.showOutput !== void 0) {
-			task.showOutput = globals.showOutput;
 		}
 	}
 
@@ -827,9 +912,6 @@ namespace TaskDescription {
 		}
 		if (task.isBackground === void 0) {
 			task.isBackground = false;
-		}
-		if (task.showOutput === void 0) {
-			task.showOutput = Tasks.ShowOutput.Always;
 		}
 		if (task.problemMatchers === void 0) {
 			task.problemMatchers = EMPTY_ARRAY;
@@ -876,7 +958,6 @@ namespace TaskDescription {
 		mergeProperty(target, source, 'args');
 		mergeProperty(target, source, 'isBackground');
 		mergeProperty(target, source, 'promptOnClose');
-		mergeProperty(target, source, 'showOutput');
 		mergeProperty(target, source, 'dependsOn');
 		mergeProperty(target, source, 'problemMatchers');
 		return target;
@@ -887,7 +968,6 @@ interface Globals {
 	command?: Tasks.CommandConfiguration;
 	promptOnClose?: boolean;
 	suppressTaskName?: boolean;
-	showOutput?: Tasks.ShowOutput;
 }
 
 namespace Globals {
@@ -916,9 +996,6 @@ namespace Globals {
 
 	export function fromBase(this: void, config: BaseTaskRunnerConfiguration, context: ParseContext): Globals {
 		let result: Globals = {};
-		if (Types.isString(config.showOutput)) {
-			result.showOutput = Tasks.ShowOutput.fromString(config.showOutput);
-		}
 		if (config.suppressTaskName !== void 0) {
 			result.suppressTaskName = !!config.suppressTaskName;
 		}
@@ -929,7 +1006,7 @@ namespace Globals {
 	}
 
 	export function isEmpty(value: Globals): boolean {
-		return !value || value.command === void 0 && value.promptOnClose === void 0 && value.showOutput === void 0 && value.suppressTaskName === void 0;
+		return !value || value.command === void 0 && value.promptOnClose === void 0 && value.suppressTaskName === void 0;
 	}
 
 	export function merge(target: Globals, source: Globals): Globals {
@@ -941,7 +1018,6 @@ namespace Globals {
 		}
 		mergeProperty(target, source, 'promptOnClose');
 		mergeProperty(target, source, 'suppressTaskName');
-		mergeProperty(target, source, 'showOutput');
 		return target;
 	}
 
@@ -951,9 +1027,6 @@ namespace Globals {
 		}
 		if (value.suppressTaskName === void 0) {
 			value.suppressTaskName = false;
-		}
-		if (value.showOutput === void 0) {
-			value.showOutput = Tasks.ShowOutput.Always;
 		}
 		if (value.promptOnClose === void 0) {
 			value.promptOnClose = true;
@@ -1059,7 +1132,6 @@ class ConfigurationParser {
 				group: Tasks.TaskGroup.Build,
 				command: undefined,
 				isBackground: isBackground,
-				showOutput: undefined,
 				suppressTaskName: true, // this must be true since we infer the task from the global data.
 				problemMatchers: matchers
 			};
