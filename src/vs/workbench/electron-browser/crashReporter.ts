@@ -15,6 +15,10 @@ import { Registry } from 'vs/platform/platform';
 import { crashReporter } from 'electron';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
+import * as os from 'os';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const ICrashReporterService = createDecorator<ICrashReporterService>('crashReporterService');
 
 const TELEMETRY_SECTION_ID = 'telemetry';
 
@@ -37,10 +41,16 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-export class CrashReporter {
+export interface ICrashReporterService {
+	_serviceBrand: any;
+	getCrashReporterStartOptions(): Electron.CrashReporterStartOptions;
 
+}
+export class CrashReporterService implements ICrashReporterService {
+
+	public _serviceBrand: any;
 	constructor(
-		configuration: Electron.CrashReporterStartOptions,
+		private configuration: Electron.CrashReporterStartOptions,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWindowsService windowsService: IWindowsService,
 		@IConfigurationService configurationService: IConfigurationService
@@ -52,14 +62,15 @@ export class CrashReporter {
 		}
 
 		telemetryService.getTelemetryInfo()
-			.then(info => ({
-				vscode_sessionId: info.sessionId,
-				vscode_version: pkg.version,
-				vscode_commit: product.commit,
-				vscode_machineId: info.machineId
-			}))
-			.then(extra => assign(configuration, { extra }))
-			.then(configuration => {
+			.then(info => {
+				let extra = {
+					vscode_sessionId: info.sessionId,
+					vscode_version: pkg.version,
+					vscode_commit: product.commit,
+					vscode_machineId: info.machineId,
+					crashesDirectory: os.tmpdir()
+				};
+				assign(configuration, { extra });
 				// start crash reporter right here
 				crashReporter.start(clone(configuration));
 
@@ -68,4 +79,14 @@ export class CrashReporter {
 			})
 			.done(null, onUnexpectedError);
 	}
+
+	public getCrashReporterStartOptions(): Electron.CrashReporterStartOptions {
+		// Experimental attempt on Mac
+		return process.platform === 'darwin' ? clone(this.configuration) : undefined;
+	}
 }
+
+export const NullCrashReporterService: ICrashReporterService = {
+	_serviceBrand: undefined,
+	getCrashReporterStartOptions() { return undefined; }
+};

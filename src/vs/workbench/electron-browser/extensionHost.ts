@@ -32,6 +32,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { ICrashReporterService } from 'vs/workbench/electron-browser/crashReporter';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -92,7 +93,9 @@ export class ExtensionHostProcessWorker {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@ICrashReporterService private crashReporterService: ICrashReporterService
+
 	) {
 		// handle extension host lifecycle a bit special when we know we are developing an extension that runs inside
 		this.isExtensionDevelopmentHost = environmentService.isExtensionDevelopment;
@@ -110,6 +113,10 @@ export class ExtensionHostProcessWorker {
 		TPromise.join<any>([this.tryListenOnPipe(), this.tryFindDebugPort()]).then(data => {
 			const [server, hook] = <[Server, string]>data[0];
 			const port = <number>data[1];
+			let crashReporterStartOptions = this.crashReporterService.getCrashReporterStartOptions();
+			if (crashReporterStartOptions && crashReporterStartOptions.extra) {
+				crashReporterStartOptions.extra.processName = 'extensionHost';
+			}
 
 			let opts = {
 				env: objects.mixin(objects.clone(process.env), {
@@ -118,7 +125,8 @@ export class ExtensionHostProcessWorker {
 					VERBOSE_LOGGING: true,
 					VSCODE_WINDOW_ID: String(this.windowService.getWindowId()),
 					VSCODE_IPC_HOOK_EXTHOST: hook,
-					ELECTRON_NO_ASAR: '1'
+					ELECTRON_NO_ASAR: '1',
+					CRASH_REPORTER_START_OPTIONS: crashReporterStartOptions
 				}),
 				// We only detach the extension host on windows. Linux and Mac orphan by default
 				// and detach under Linux and Mac create another process group.

@@ -126,4 +126,8 @@ if (process.env['VSCODE_PARENT_PID']) {
 	}
 }
 
+if (process.env['CRASH_REPORTER_START_OPTIONS']) {
+	process.crashReporter.start(process.env['CRASH_REPORTER_START_OPTIONS']);
+}
+
 require('./bootstrap-amd').bootstrap(process.env['AMD_ENTRYPOINT']);
