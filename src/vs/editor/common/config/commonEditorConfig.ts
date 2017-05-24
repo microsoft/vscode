@@ -321,6 +321,12 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.scrollbar.mouseWheelScrollSensitivity,
 			'description': nls.localize('mouseWheelScrollSensitivity', "A multiplier to be used on the `deltaX` and `deltaY` of mouse wheel scroll events")
 		},
+		'editor.multicursorModifier': {
+			'type': 'string',
+			'enum': (platform.isMacintosh ? ['cmd', 'alt'] : ['ctrl', 'alt']),
+			'default': 'alt',
+			'description': nls.localize('multicursorModifier', "The modifier to be used to add multiple cursors with the mouse.")
+		},
 		'editor.quickSuggestions': {
 			'anyOf': [
 				{
