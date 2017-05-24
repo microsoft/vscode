@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./goToDeclaration';
+import 'vs/css!./goToDeclarationMouse';
 import * as nls from 'vs/nls';
 import { Throttler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
