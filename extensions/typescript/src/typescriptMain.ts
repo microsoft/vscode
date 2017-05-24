@@ -47,7 +47,7 @@ import ImplementationCodeLensProvider from './features/implementationsCodeLensPr
 import * as BuildStatus from './utils/buildStatus';
 import * as ProjectStatus from './utils/projectStatus';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
-import * as VersionStatus from './utils/versionStatus';
+import VersionStatus from './utils/versionStatus';
 import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from "./utils/plugins";
 
 interface LanguageDescription {
@@ -88,6 +88,7 @@ const standardLanguageDescriptions: LanguageDescription[] = [
 
 export function activate(context: ExtensionContext): void {
 	const plugins = getContributedTypeScriptServerPlugins();
+
 	const clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.storagePath, context.globalState, context.workspaceState, plugins);
 	context.subscriptions.push(clientHost);
 
@@ -123,7 +124,6 @@ export function activate(context: ExtensionContext): void {
 	const jsDocCompletionCommand = new TryCompleteJsDocCommand(clientHost.serviceClient);
 	context.subscriptions.push(commands.registerCommand(TryCompleteJsDocCommand.COMMAND_NAME, jsDocCompletionCommand.tryCompleteJsDoc, jsDocCompletionCommand));
 
-	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
 	clientHost.serviceClient.onReady().then(() => {
 		context.subscriptions.push(ProjectStatus.create(clientHost.serviceClient,
 			path => new Promise<boolean>(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
@@ -421,6 +421,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private languages: LanguageProvider[] = [];
 	private languagePerId: ObjectMap<LanguageProvider>;
 	private readonly disposables: Disposable[] = [];
+	private readonly versionStatus: VersionStatus;
 
 	constructor(
 		descriptions: LanguageDescription[],
@@ -444,7 +445,10 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
-		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState, plugins, this.disposables);
+		this.versionStatus = new VersionStatus();
+		this.disposables.push(this.versionStatus);
+
+		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState, this.versionStatus, plugins, this.disposables);
 		this.languagePerId = Object.create(null);
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description);

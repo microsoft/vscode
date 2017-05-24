@@ -18,7 +18,7 @@ import { ITypescriptServiceClient, ITypescriptServiceClientHost, API } from './t
 import { TypeScriptServerPlugin } from './utils/plugins';
 import Logger from './utils/logger';
 
-import * as VersionStatus from './utils/versionStatus';
+import VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
 
 import * as nls from 'vscode-nls';
@@ -141,7 +141,9 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		host: ITypescriptServiceClientHost,
 		storagePath: string | undefined,
 		globalState: Memento,
-		private workspaceState: Memento,
+		private readonly workspaceState: Memento,
+		private readonly versionStatus: VersionStatus,
+
 		private plugins: TypeScriptServerPlugin[],
 		disposables: Disposable[]
 	) {
@@ -404,8 +406,8 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				const label = version || localize('versionNumber.custom', 'custom');
 				const tooltip = modulePath;
 				this.modulePath = modulePath;
-				VersionStatus.showHideStatus();
-				VersionStatus.setInfo(label, tooltip);
+				this.versionStatus.showHideStatus();
+				this.versionStatus.setInfo(label, tooltip);
 
 				// This is backwards compatibility code to move the setting from the local
 				// store into the workspace setting file.
