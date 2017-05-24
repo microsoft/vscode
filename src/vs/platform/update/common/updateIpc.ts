@@ -7,7 +7,9 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import Event from 'vs/base/common/event';
+import Event, { Emitter, any, mapEvent } from 'vs/base/common/event';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { memoize } from 'vs/base/common/decorators';
 import { IUpdateService, IRawUpdate, State, IUpdate } from './update';
 
 export interface IUpdateChannel extends IChannel {
@@ -18,6 +20,7 @@ export interface IUpdateChannel extends IChannel {
 	call(command: 'event:onStateChange'): TPromise<void>;
 	call(command: 'checkForUpdates', arg: boolean): TPromise<IUpdate>;
 	call(command: 'quitAndInstall'): TPromise<void>;
+	call(command: '_getInitialState'): TPromise<State>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -34,6 +37,7 @@ export class UpdateChannel implements IUpdateChannel {
 			case 'event:onStateChange': return eventToCall(this.service.onStateChange);
 			case 'checkForUpdates': return this.service.checkForUpdates(arg);
 			case 'quitAndInstall': return this.service.quitAndInstall();
+			case '_getInitialState': return TPromise.as(this.service.state);
 		}
 		return undefined;
 	}
@@ -55,14 +59,25 @@ export class UpdateChannelClient implements IUpdateService {
 	private _onUpdateReady = eventFromCall<IRawUpdate>(this.channel, 'event:onUpdateReady');
 	get onUpdateReady(): Event<IRawUpdate> { return this._onUpdateReady; }
 
-	private _onStateChange = eventFromCall<State>(this.channel, 'event:onStateChange');
-	get onStateChange(): Event<State> { return this._onStateChange; }
+	private _onInitialStateChange = new Emitter<State>();
+	private _onRemoteStateChange = eventFromCall<State>(this.channel, 'event:onStateChange');
+
+	@memoize
+	get onStateChange(): Event<State> {
+		const result = any(this._onInitialStateChange.event, this._onRemoteStateChange);
+
+		return mapEvent(result, state => {
+			this._state = state;
+			return state;
+		});
+	}
 
 	private _state: State = State.Uninitialized;
 	get state(): State { return this._state; };
 
-	constructor(private channel: IChannel) {
-		this.onStateChange(state => this._state = state);
+	constructor(private channel: IUpdateChannel) {
+		channel.call('_getInitialState')
+			.done(state => this._onInitialStateChange.fire(state), onUnexpectedError);
 	}
 
 	checkForUpdates(explicit: boolean): TPromise<IUpdate> {
