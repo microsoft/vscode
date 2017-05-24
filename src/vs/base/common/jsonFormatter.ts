@@ -19,6 +19,10 @@ export interface FormattingOptions {
 	 * The default end of line line character
 	 */
 	eol: string;
+	/**
+	 * Format lines with leading commas?
+	 */
+	leadingCommas: boolean;
 }
 
 export interface Edit {
@@ -129,12 +133,20 @@ export function format(documentText: string, range: { offset: number, length: nu
 			switch (firstToken) {
 				case Json.SyntaxKind.OpenBracketToken:
 				case Json.SyntaxKind.OpenBraceToken:
-					indentLevel++;
-					replaceContent = newLineAndIndent();
+					if (!options.leadingCommas) {
+						indentLevel++;
+						replaceContent = newLineAndIndent();
+					} else {
+						replaceContent = ' ';
+					}
 					break;
 				case Json.SyntaxKind.CommaToken:
 				case Json.SyntaxKind.LineCommentTrivia:
-					replaceContent = newLineAndIndent();
+					if (!options.leadingCommas) {
+						replaceContent = newLineAndIndent();
+					} else {
+						replaceContent = ' ';
+					}
 					break;
 				case Json.SyntaxKind.BlockCommentTrivia:
 					if (lineBreak) {
@@ -151,8 +163,16 @@ export function format(documentText: string, range: { offset: number, length: nu
 				case Json.SyntaxKind.TrueKeyword:
 				case Json.SyntaxKind.FalseKeyword:
 				case Json.SyntaxKind.NumericLiteral:
+					if (options.leadingCommas) {
+						replaceContent = newLineAndIndent();
+					}
 					if (secondToken === Json.SyntaxKind.NullKeyword || secondToken === Json.SyntaxKind.FalseKeyword || secondToken === Json.SyntaxKind.NumericLiteral) {
 						replaceContent = ' ';
+					}
+					break;
+				case Json.SyntaxKind.StringLiteral:
+					if (options.leadingCommas) {
+						replaceContent = newLineAndIndent();
 					}
 					break;
 			}

@@ -26,6 +26,7 @@ suite('JSON - edits', () => {
 
 	let formatterOptions: FormattingOptions = {
 		insertSpaces: true,
+		leadingCommas: false,
 		tabSize: 2,
 		eol: '\n'
 	};
