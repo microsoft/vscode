@@ -30,6 +30,40 @@ import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegist
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 import { DefinitionAction, DefinitionActionConfig } from './goToDeclarationCommands';
 
+/**
+ * An event that encapsulates the various trigger modifiers logic needed for go to definition.
+ */
+class MyMouseEvent {
+
+	public readonly target: IMouseTarget;
+	public readonly hasTriggerModifier: boolean;
+	public readonly hasSideBySideModifier: boolean;
+	public readonly isSingleMouseDown: boolean;
+
+	constructor(source: IEditorMouseEvent) {
+		this.target = source.target;
+		this.hasTriggerModifier = !!source.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER];
+		this.hasSideBySideModifier = source.event.altKey;
+		this.isSingleMouseDown = (browser.isIE || source.event.detail <= 1); // IE does not support event.detail properly
+	}
+}
+
+/**
+ * An event that encapsulates the various trigger modifiers logic needed for go to definition.
+ */
+class MyKeyboardEvent {
+
+	public readonly keyCodeIsTriggerKey: boolean;
+	public readonly keyCodeIsSideBySideKey: boolean;
+	public readonly hasTriggerModifier: boolean;
+
+	constructor(source: IKeyboardEvent) {
+		this.keyCodeIsTriggerKey = (source.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE);
+		this.keyCodeIsSideBySideKey = (source.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_SIDEBYSIDE_KEY_VALUE);
+		this.hasTriggerModifier = !!source[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER];
+	}
+}
+
 @editorContribution
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
@@ -44,7 +78,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	private decorations: string[];
 	private currentWordUnderMouse: editorCommon.IWordAtPosition;
 	private throttler: Throttler;
-	private lastMouseMoveEvent: IEditorMouseEvent;
+	private lastMouseMoveEvent: MyMouseEvent;
 	private hasTriggerKeyOnMouseDown: boolean;
 
 	constructor(
@@ -57,12 +91,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.editor = editor;
 		this.throttler = new Throttler();
 
-		this.toUnhook.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
-		this.toUnhook.push(this.editor.onMouseUp((e: IEditorMouseEvent) => this.onEditorMouseUp(e)));
-		this.toUnhook.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
+		this.toUnhook.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(new MyMouseEvent(e))));
+		this.toUnhook.push(this.editor.onMouseUp((e: IEditorMouseEvent) => this.onEditorMouseUp(new MyMouseEvent(e))));
+		this.toUnhook.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(new MyMouseEvent(e))));
 		this.toUnhook.push(this.editor.onMouseDrag(() => this.resetHandler()));
-		this.toUnhook.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
-		this.toUnhook.push(this.editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
+		this.toUnhook.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(new MyKeyboardEvent(e))));
+		this.toUnhook.push(this.editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(new MyKeyboardEvent(e))));
 
 		this.toUnhook.push(this.editor.onDidChangeCursorSelection((e) => this.onDidChangeCursorSelection(e)));
 		this.toUnhook.push(this.editor.onDidChangeModel((e) => this.resetHandler()));
@@ -80,13 +114,13 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		}
 	}
 
-	private onEditorMouseMove(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): void {
+	private onEditorMouseMove(mouseEvent: MyMouseEvent): void {
 		this.lastMouseMoveEvent = mouseEvent;
 
-		this.startFindDefinition(mouseEvent, withKey);
+		this.startFindDefinition(mouseEvent);
 	}
 
-	private startFindDefinition(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): void {
+	private startFindDefinition(mouseEvent: MyMouseEvent, withKey?: MyKeyboardEvent): void {
 		if (!this.isEnabled(mouseEvent, withKey)) {
 			this.currentWordUnderMouse = null;
 			this.removeDecorations();
@@ -196,15 +230,16 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		}
 	}
 
-	private onEditorKeyDown(e: IKeyboardEvent): void {
+	private onEditorKeyDown(e: MyKeyboardEvent): void {
 		if (
-			this.lastMouseMoveEvent && (
-				e.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE || // User just pressed Ctrl/Cmd (normal goto definition)
-				e.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_SIDEBYSIDE_KEY_VALUE && e[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER] // User pressed Ctrl/Cmd+Alt (goto definition to the side)
+			this.lastMouseMoveEvent
+			&& (
+				e.keyCodeIsTriggerKey // User just pressed Ctrl/Cmd (normal goto definition)
+				|| (e.keyCodeIsSideBySideKey && e.hasTriggerModifier) // User pressed Ctrl/Cmd+Alt (goto definition to the side)
 			)
 		) {
 			this.startFindDefinition(this.lastMouseMoveEvent, e);
-		} else if (e[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER]) {
+		} else if (e.hasTriggerModifier) {
 			this.removeDecorations(); // remove decorations if user holds another key with ctrl/cmd to prevent accident goto declaration
 		}
 	}
@@ -215,17 +250,17 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.removeDecorations();
 	}
 
-	private onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
+	private onEditorMouseDown(mouseEvent: MyMouseEvent): void {
 		// We need to record if we had the trigger key on mouse down because someone might select something in the editor
 		// holding the mouse down and then while mouse is down start to press Ctrl/Cmd to start a copy operation and then
 		// release the mouse button without wanting to do the navigation.
 		// With this flag we prevent goto definition if the mouse was down before the trigger key was pressed.
-		this.hasTriggerKeyOnMouseDown = !!mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER];
+		this.hasTriggerKeyOnMouseDown = mouseEvent.hasTriggerModifier;
 	}
 
-	private onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
+	private onEditorMouseUp(mouseEvent: MyMouseEvent): void {
 		if (this.isEnabled(mouseEvent) && this.hasTriggerKeyOnMouseDown) {
-			this.gotoDefinition(mouseEvent.target, mouseEvent.event.altKey).done(() => {
+			this.gotoDefinition(mouseEvent.target, mouseEvent.hasSideBySideModifier).done(() => {
 				this.removeDecorations();
 			}, (error: Error) => {
 				this.removeDecorations();
@@ -234,18 +269,18 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		}
 	}
 
-	private onEditorKeyUp(e: IKeyboardEvent): void {
-		if (e.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE) {
+	private onEditorKeyUp(e: MyKeyboardEvent): void {
+		if (e.keyCodeIsTriggerKey) {
 			this.removeDecorations();
 			this.currentWordUnderMouse = null;
 		}
 	}
 
-	private isEnabled(mouseEvent: IEditorMouseEvent, withKey?: IKeyboardEvent): boolean {
+	private isEnabled(mouseEvent: MyMouseEvent, withKey?: MyKeyboardEvent): boolean {
 		return this.editor.getModel() &&
-			(browser.isIE || mouseEvent.event.detail <= 1) && // IE does not support event.detail properly
+			mouseEvent.isSingleMouseDown &&
 			mouseEvent.target.type === MouseTargetType.CONTENT_TEXT &&
-			(mouseEvent.event[GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER] || (withKey && withKey.keyCode === GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE)) &&
+			(mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey)) &&
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
