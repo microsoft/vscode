@@ -9,6 +9,12 @@ import { Screenshot } from "../helpers/screenshot";
 var fs = require('fs');
 var path = require('path');
 
+export const LATEST_PATH = process.env.VSCODE_LATEST_PATH;
+export const STABLE_PATH = process.env.VSCODE_STABLE_PATH;
+export const WORKSPACE_PATH = process.env.SMOKETEST_REPO;
+export const USER_DIR = 'test_data/temp_user_dir';
+export const EXTENSIONS_DIR = 'test_data/temp_extensions_dir';
+
 /**
  * Wraps Spectron's Application instance with its used methods.
  */
@@ -17,7 +23,7 @@ export class SpectronApplication {
 
 	private spectron: Application;
 	private readonly pollTrials = 5;
-	private readonly pollTimeout = 3; // in secs 
+	private readonly pollTimeout = 3; // in secs
 	private keybindings: any[];
 	private screenshot: Screenshot;
 
