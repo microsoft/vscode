@@ -117,8 +117,8 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 			}
 		}));
 		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			this.container.style.borderColor = colors.selectBorder;
-			selectBoxContainer.style.borderLeftColor = colors.selectBorder;
+			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
+			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : null;
 		}));
 
 		this.updateOptions();

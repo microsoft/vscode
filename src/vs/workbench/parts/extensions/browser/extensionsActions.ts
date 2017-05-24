@@ -33,7 +33,7 @@ import URI from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerThemingParticipant, ITheme, ICssStyleCollector } from "vs/platform/theme/common/themeService";
-import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor } from "vs/platform/theme/common/colorRegistry";
+import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor, foreground } from "vs/platform/theme/common/colorRegistry";
 import { Color } from "vs/base/common/color";
 
 export class InstallAction extends Action {
@@ -1408,6 +1408,11 @@ export const extensionButtonProminentHoverBackground = registerColor('extensionB
 }, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const foregroundColor = theme.getColor(foreground);
+	if (foregroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.built-in-status { border-color: ${foregroundColor}; }`);
+	}
+
 	const buttonBackgroundColor = theme.getColor(buttonBackground);
 	if (buttonBackgroundColor) {
 		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action { background-color: ${buttonBackgroundColor}; }`);
