@@ -11,7 +11,9 @@
 		"noImplicitAny": true,
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
-		"noUnusedParameters": true
+		"noUnusedParameters": true,
+		"strict": true,
+		"alwaysStrict": true
 	},
 	"include": [
 		"src/**/*"

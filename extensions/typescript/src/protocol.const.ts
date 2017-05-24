@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 export class Kind {
 	public static readonly alias = 'alias';
 	public static readonly callSignature = 'call';

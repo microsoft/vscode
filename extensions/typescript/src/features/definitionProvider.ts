@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { DefinitionProvider, TextDocument, Position, CancellationToken, Definition } from 'vscode';
 
 import { ITypescriptServiceClient } from '../typescriptService';
