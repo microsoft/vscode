@@ -9,9 +9,11 @@ import 'vs/css!./findWidget';
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { IMessage as InputBoxMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -514,6 +516,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._findInput.highlightFindOptions();
 	}
 
+	private _onFindInputMouseDown(e: IMouseEvent): void {
+		// on linux, middle key does pasting.
+		if (e.middleButton) {
+			e.stopPropagation();
+		}
+	}
+
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
 
 		if (e.equals(KeyCode.Enter)) {
@@ -647,6 +656,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				}
 			}
 		}));
+		if (platform.isLinux) {
+			this._register(this._findInput.onMouseDown((e) => this._onFindInputMouseDown(e)));
+		}
 
 		this._matchesCount = document.createElement('div');
 		this._matchesCount.className = 'matchesCount';
