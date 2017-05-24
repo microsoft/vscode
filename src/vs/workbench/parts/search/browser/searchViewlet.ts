@@ -903,22 +903,9 @@ export class SearchViewlet extends Viewlet {
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
 		const contentPattern = this.searchWidget.searchInput.getValue();
 		const patternExcludes = this.inputPatternExclusions.getValue().trim();
-		const exclusionsUsePattern = this.inputPatternExclusions.isGlobPattern();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
-		const includesUsePattern = this.inputPatternIncludes.isGlobPattern();
 		const useIgnoreFiles = this.inputPatternExclusions.useIgnoreFiles();
 		const useExcludeSettings = this.inputPatternExclusions.useExcludeSettings();
-
-		// store memento
-		this.viewletSettings['query.contentPattern'] = contentPattern;
-		this.viewletSettings['query.regex'] = isRegex;
-		this.viewletSettings['query.wholeWords'] = isWholeWords;
-		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;
-		this.viewletSettings['query.folderExclusions'] = patternExcludes;
-		this.viewletSettings['query.exclusionsUsePattern'] = exclusionsUsePattern;
-		this.viewletSettings['query.folderIncludes'] = patternIncludes;
-		this.viewletSettings['query.includesUsePattern'] = includesUsePattern;
-		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
 
 		if (!rerunQuery) {
 			return;
@@ -1346,6 +1333,32 @@ export class SearchViewlet extends Viewlet {
 			this.actionRegistry['vs.tree.collapse'],
 			this.actionRegistry['clearSearchResults']
 		];
+	}
+
+	public shutdown(): void {
+		const isRegex = this.searchWidget.searchInput.getRegex();
+		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
+		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
+		const contentPattern = this.searchWidget.searchInput.getValue();
+		const patternExcludes = this.inputPatternExclusions.getValue().trim();
+		const exclusionsUsePattern = this.inputPatternExclusions.isGlobPattern();
+		const patternIncludes = this.inputPatternIncludes.getValue().trim();
+		const includesUsePattern = this.inputPatternIncludes.isGlobPattern();
+		const useIgnoreFiles = this.inputPatternExclusions.useIgnoreFiles();
+
+		// store memento
+		this.viewletSettings['query.contentPattern'] = contentPattern;
+		this.viewletSettings['query.regex'] = isRegex;
+		this.viewletSettings['query.wholeWords'] = isWholeWords;
+		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;
+		this.viewletSettings['query.folderExclusions'] = patternExcludes;
+		this.viewletSettings['query.exclusionsUsePattern'] = exclusionsUsePattern;
+		this.viewletSettings['query.folderIncludes'] = patternIncludes;
+		this.viewletSettings['query.includesUsePattern'] = includesUsePattern;
+		this.viewletSettings['query.useIgnoreFiles'] = useIgnoreFiles;
+		this.viewletSettings['query.contentPattern'] = contentPattern;
+
+		super.shutdown();
 	}
 
 	public dispose(): void {
