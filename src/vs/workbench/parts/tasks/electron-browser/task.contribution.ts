@@ -80,7 +80,7 @@ import { ProcessRunnerDetector } from 'vs/workbench/parts/tasks/node/processRunn
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 let $ = Builder.$;
@@ -269,7 +269,8 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		@IOutputService private outputService: IOutputService,
 		@ITaskService private taskService: ITaskService,
 		@IPartService private partService: IPartService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(themeService);
 
@@ -281,7 +282,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		super.updateStyles();
 
 		this.icons.forEach(icon => {
-			icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
+			icon.style.backgroundColor = this.getColor(this.contextService.hasWorkspace() ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND);
 		});
 	}
 
@@ -310,6 +311,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		element.title = nls.localize('problems', "Problems");
 
 		Dom.addClass(errorIcon, 'task-statusbar-item-label-error');
+		Dom.addClass(errorIcon, 'mask-icon');
 		label.appendChild(errorIcon);
 		this.icons.push(errorIcon);
 
@@ -318,6 +320,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		label.appendChild(error);
 
 		Dom.addClass(warningIcon, 'task-statusbar-item-label-warning');
+		Dom.addClass(warningIcon, 'mask-icon');
 		label.appendChild(warningIcon);
 		this.icons.push(warningIcon);
 
@@ -326,6 +329,7 @@ class StatusBarItem extends Themable implements IStatusbarItem {
 		label.appendChild(warning);
 
 		Dom.addClass(infoIcon, 'task-statusbar-item-label-info');
+		Dom.addClass(infoIcon, 'mask-icon');
 		label.appendChild(infoIcon);
 		this.icons.push(infoIcon);
 		$(infoIcon).hide();
