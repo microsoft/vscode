@@ -8,7 +8,6 @@
 import 'vs/css!./links';
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -26,7 +25,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
 import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
-import { ClickLinkGesture, ClickLinkOptions, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from "vs/editor/contrib/goToDeclaration/browser/clickLinkGesture";
+import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from "vs/editor/contrib/goToDeclaration/browser/clickLinkGesture";
 
 const HOVER_MESSAGE_GENERAL = (
 	platform.isMacintosh
@@ -91,8 +90,6 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	static RECOMPUTE_TIME = 1000; // ms
-	static TRIGGER_KEY_VALUE = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
-	static TRIGGER_MODIFIER: 'metaKey' | 'ctrlKey' = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
 
 	private editor: ICodeEditor;
 	private listenersToRemove: IDisposable[];
@@ -116,11 +113,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		this.editorWorkerService = editorWorkerService;
 		this.listenersToRemove = [];
 
-		let clickLinkGesture = new ClickLinkGesture(editor, new ClickLinkOptions(
-			LinkDetector.TRIGGER_KEY_VALUE,
-			LinkDetector.TRIGGER_MODIFIER,
-			KeyCode.Alt
-		));
+		let clickLinkGesture = new ClickLinkGesture(editor);
 		this.listenersToRemove.push(clickLinkGesture);
 		this.listenersToRemove.push(clickLinkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
 			this._onEditorMouseMove(mouseEvent, keyboardEvent);
