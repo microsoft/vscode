@@ -321,6 +321,7 @@ class MouseController<T> implements IDisposable {
 		this.disposables = [];
 		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
 		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
+		this.disposables.push(view.addListener('dblclick', e => this.onDoubleClick(e)));
 		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
 	}
 
@@ -360,6 +361,19 @@ class MouseController<T> implements IDisposable {
 		const focus = this.list.getFocus();
 		this.list.setSelection(focus);
 		this.list.open(focus);
+	}
+
+	private onDoubleClick(e: IListMouseEvent<T>): void {
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (isSelectionChangeEvent(e)) {
+			return;
+		}
+
+		const focus = this.list.getFocus();
+		this.list.setSelection(focus);
+		this.list.pin(focus);
 	}
 
 	private changeSelection(e: IListMouseEvent<T>, reference: number | undefined): void {
@@ -572,6 +586,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	private _onOpen = new Emitter<number[]>();
 	@memoize get onOpen(): Event<IListEvent<T>> {
 		return mapEvent(this._onOpen.event, indexes => this.toListEvent({ indexes }));
+	}
+
+	private _onPin = new Emitter<number[]>();
+	@memoize get onPin(): Event<IListEvent<T>> {
+		return mapEvent(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
 	private _onDOMFocus = new Emitter<void>();
@@ -811,6 +830,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	open(indexes: number[]): void {
 		this._onOpen.fire(indexes);
+	}
+
+	pin(indexes: number[]): void {
+		this._onPin.fire(indexes);
 	}
 
 	style(styles: IListStyles): void {

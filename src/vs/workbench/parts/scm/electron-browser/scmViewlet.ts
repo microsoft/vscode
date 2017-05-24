@@ -25,6 +25,8 @@ import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMProvider, ISCMResourceGroup, ISCMResource } from 'vs/workbench/services/scm/common/scm';
+import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -243,7 +245,9 @@ export class SCMViewlet extends Viewlet {
 		@IThemeService protected themeService: IThemeService,
 		@IMenuService private menuService: IMenuService,
 		@IModelService private modelService: IModelService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IEditorGroupService private groupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(VIEWLET_ID, telemetryService, themeService);
 
@@ -319,6 +323,11 @@ export class SCMViewlet extends Viewlet {
 			.map(e => e.elements[0])
 			.filter(e => !!e && isSCMResource(e))
 			.on(this.open, this, this.disposables);
+
+		chain(this.list.onPin)
+			.map(e => e.elements[0])
+			.filter(e => !!e && isSCMResource(e))
+			.on(this.pin, this, this.disposables);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
@@ -404,6 +413,12 @@ export class SCMViewlet extends Viewlet {
 
 		this.commandService.executeCommand(e.command.id, ...e.command.arguments)
 			.done(undefined, onUnexpectedError);
+	}
+
+	private pin(): void {
+		const activeEditor = this.editorService.getActiveEditor();
+		const activeEditorInput = this.editorService.getActiveEditorInput();
+		this.groupService.pinEditor(activeEditor.position, activeEditorInput);
 	}
 
 	getTitle(): string {

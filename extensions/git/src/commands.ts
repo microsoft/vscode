@@ -149,7 +149,7 @@ export class CommandCenter {
 			return await commands.executeCommand<void>('vscode.open', right);
 		}
 
-		return await commands.executeCommand<void>('vscode.diff', left, right, title);
+		return await commands.executeCommand<void>('vscode.diff', left, right, title, { preview: true });
 	}
 
 	private getLeftResource(resource: Resource): Uri | undefined {
