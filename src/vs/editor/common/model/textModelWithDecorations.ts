@@ -840,9 +840,9 @@ function cleanClassName(className: string): string {
 }
 
 export class ModelDecorationOverviewRulerOptions implements editorCommon.IModelDecorationOverviewRulerOptions {
-	readonly color: string;
-	readonly darkColor: string;
-	readonly hcColor: string;
+	readonly color: string | editorCommon.ThemeColor;
+	readonly darkColor: string | editorCommon.ThemeColor;
+	readonly hcColor: string | editorCommon.ThemeColor;
 	readonly position: editorCommon.OverviewRulerLane;
 
 	constructor(options: editorCommon.IModelDecorationOverviewRulerOptions) {

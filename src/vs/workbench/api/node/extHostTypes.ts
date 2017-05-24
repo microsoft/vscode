@@ -1270,3 +1270,10 @@ export enum TreeItemCollapsibleState {
 	Collapsed = 1,
 	Expanded = 2
 }
+
+export class ThemeColor {
+	id: string;
+	constructor(id: string) {
+		this.id = id;
+	}
+}

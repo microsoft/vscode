@@ -50,8 +50,7 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IThemeService, ITheme, IThemingParticipant, ThemeType } from 'vs/platform/theme/common/themeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IThemeService, ITheme, DARK } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { isLinux } from 'vs/base/common/platform';
 
@@ -1000,10 +999,16 @@ export class TestWindowsService implements IWindowsService {
 }
 
 export class TestTheme implements ITheme {
-	type: ThemeType;
+
+	constructor(private colors: { [id: string]: string; } = {}, public type = DARK) {
+	}
 
 	getColor(color: string, useDefault?: boolean): Color {
-		throw new Error('Method not implemented.');
+		let value = this.colors[color];
+		if (value) {
+			return Color.fromHex(value);
+		}
+		return void 0;
 	}
 
 	defines(color: string): boolean {
@@ -1011,17 +1016,30 @@ export class TestTheme implements ITheme {
 	}
 }
 
-const testTheme = new TestTheme();
-
 export class TestThemeService implements IThemeService {
 
 	_serviceBrand: any;
+	_theme: ITheme;
+	_onThemeChange = new Emitter<ITheme>();
 
-	getTheme(): ITheme {
-		return testTheme;
+	constructor(theme = new TestTheme()) {
+		this._theme = theme;
 	}
 
-	onThemeChange(participant: IThemingParticipant): IDisposable {
-		return { dispose: () => { } };
+	getTheme(): ITheme {
+		return this._theme;
+	}
+
+	setTheme(theme: ITheme) {
+		this._theme = theme;
+		this.fireThemeChange();
+	}
+
+	fireThemeChange() {
+		this._onThemeChange.fire(this._theme);
+	}
+
+	public get onThemeChange(): Event<ITheme> {
+		return this._onThemeChange.event;
 	}
 }

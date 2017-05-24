@@ -41,19 +41,19 @@ export enum OverviewRulerLane {
 export interface IModelDecorationOverviewRulerOptions {
 	/**
 	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5)
+	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	color: string;
+	color: string | ThemeColor;
 	/**
 	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5)
+	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	darkColor: string;
+	darkColor: string | ThemeColor;
 	/**
 	 * CSS color to render in the overview ruler.
-	 * e.g.: rgba(100, 100, 100, 0.5)
+	 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 	 */
-	hcColor?: string;
+	hcColor?: string | ThemeColor;
 	/**
 	 * The position in the overview ruler.
 	 */
@@ -1621,19 +1621,30 @@ export interface IEditorContribution {
 	restoreViewState?(state: any): void;
 }
 
+export interface ThemeColor {
+	id: string;
+}
+
+/**
+ * @internal
+ */
+export function isThemeColor(o): o is ThemeColor {
+	return o && typeof o.id === 'string';
+}
+
 /**
  * @internal
  */
 export interface IThemeDecorationRenderOptions {
-	backgroundColor?: string;
+	backgroundColor?: string | ThemeColor;
 
 	outline?: string;
-	outlineColor?: string;
+	outlineColor?: string | ThemeColor;
 	outlineStyle?: string;
 	outlineWidth?: string;
 
 	border?: string;
-	borderColor?: string;
+	borderColor?: string | ThemeColor;
 	borderRadius?: string;
 	borderSpacing?: string;
 	borderStyle?: string;
@@ -1641,13 +1652,13 @@ export interface IThemeDecorationRenderOptions {
 
 	textDecoration?: string;
 	cursor?: string;
-	color?: string;
+	color?: string | ThemeColor;
 	letterSpacing?: string;
 
 	gutterIconPath?: string | URI;
 	gutterIconSize?: string;
 
-	overviewRulerColor?: string;
+	overviewRulerColor?: string | ThemeColor;
 
 	before?: IContentDecorationRenderOptions;
 	after?: IContentDecorationRenderOptions;
@@ -1661,9 +1672,10 @@ export interface IContentDecorationRenderOptions {
 	contentIconPath?: string | URI;
 
 	border?: string;
+	borderColor?: string | ThemeColor;
 	textDecoration?: string;
-	color?: string;
-	backgroundColor?: string;
+	color?: string | ThemeColor;
+	backgroundColor?: string | ThemeColor;
 
 	margin?: string;
 	width?: string;
