@@ -235,7 +235,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}));
 
 		this._register(this._codeEditor.onDidScrollChange((e) => {
-			this._layoutViewZone();
+			if (e.scrollTopChanged) {
+				this._layoutViewZone();
+			}
 		}));
 	}
 
