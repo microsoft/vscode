@@ -110,8 +110,6 @@ export class PatternInputWidget extends Widget {
 			return {};
 		}
 
-		const isSearchPath = segment => segment.match(/^\.\//);
-
 		let exprSegments: string[];
 		let searchPaths: string[];
 		if (isGlobPattern) {
@@ -119,21 +117,17 @@ export class PatternInputWidget extends Widget {
 				.map(s => s.trim())
 				.filter(s => !!s.length);
 
-			const groups = collections.groupBy(segments,
-				segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
-			searchPaths = groups.searchPaths || [];
-			exprSegments = groups.exprSegments || [];
+			const groups = this.groupByPathsAndExprSegments(segments);
+			searchPaths = groups.searchPaths;
+			exprSegments = groups.exprSegments;
 		} else {
 			const segments = pattern.split(',')
 				.map(s => strings.trim(s.trim(), '/'))
 				.filter(s => !!s.length);
 
-			const groups = collections.groupBy(segments,
-				segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
-			searchPaths = groups.searchPaths || [];
-			exprSegments = groups.exprSegments || [];
-
-			exprSegments = exprSegments
+			const groups = this.groupByPathsAndExprSegments(segments);
+			searchPaths = groups.searchPaths;
+			exprSegments = groups.exprSegments
 				.map(p => {
 					if (p[0] === '.') {
 						p = '*' + p; // convert ".js" to "*.js"
@@ -145,6 +139,27 @@ export class PatternInputWidget extends Widget {
 
 		const expression = exprSegments.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null));
 		return { expression, searchPaths };
+	}
+
+	private groupByPathsAndExprSegments(segments: string[]) {
+		const isSearchPath = segment => segment.match(/^\.\//);
+
+		const groups = collections.groupBy(segments,
+			segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
+		groups.searchPaths = groups.searchPaths || [];
+		groups.exprSegments = groups.exprSegments || [];
+
+		// If a ./searchPath has a glob character, remove ./ and use it as an expression segment
+		groups.searchPaths = groups.searchPaths.filter(searchPath => {
+			if (searchPath.match(/[\*\{\}\(\)\[\]\?]/)) {
+				groups.exprSegments.push(strings.ltrim(searchPath, './'));
+				return false;
+			}
+
+			return true;
+		});
+
+		return groups;
 	}
 
 	public select(): void {
