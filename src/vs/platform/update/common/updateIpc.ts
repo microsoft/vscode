@@ -7,9 +7,8 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import Event, { Emitter, any, mapEvent } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { memoize } from 'vs/base/common/decorators';
 import { IUpdateService, IRawUpdate, State, IUpdate } from './update';
 
 export interface IUpdateChannel extends IChannel {
@@ -59,25 +58,24 @@ export class UpdateChannelClient implements IUpdateService {
 	private _onUpdateReady = eventFromCall<IRawUpdate>(this.channel, 'event:onUpdateReady');
 	get onUpdateReady(): Event<IRawUpdate> { return this._onUpdateReady; }
 
-	private _onInitialStateChange = new Emitter<State>();
 	private _onRemoteStateChange = eventFromCall<State>(this.channel, 'event:onStateChange');
-
-	@memoize
-	get onStateChange(): Event<State> {
-		const result = any(this._onInitialStateChange.event, this._onRemoteStateChange);
-
-		return mapEvent(result, state => {
-			this._state = state;
-			return state;
-		});
-	}
+	private _onStateChange = new Emitter<State>();
+	get onStateChange(): Event<State> { return this._onStateChange.event; }
 
 	private _state: State = State.Uninitialized;
 	get state(): State { return this._state; };
 
 	constructor(private channel: IUpdateChannel) {
-		channel.call('_getInitialState')
-			.done(state => this._onInitialStateChange.fire(state), onUnexpectedError);
+		// always set this._state as the state changes
+		this.onStateChange(state => this._state = state);
+
+		channel.call('_getInitialState').done(state => {
+			// fire initial state
+			this._onStateChange.fire(state);
+
+			// fire subsequent states as they come in from remote
+			this._onRemoteStateChange(s => this._onStateChange.fire(state));
+		}, onUnexpectedError);
 	}
 
 	checkForUpdates(explicit: boolean): TPromise<IUpdate> {
