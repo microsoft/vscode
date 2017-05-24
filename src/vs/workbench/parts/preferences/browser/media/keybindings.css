@@ -64,12 +64,3 @@
 	box-shadow:	inset 0 0 0 1px #B9B9B9;
 	background-color: rgba(250, 100, 100, 0.2);
 }
-
-/* launcher widget */
-.monaco-editor .defineKeybindingLauncher {
-	background: #007ACC;
-	color: white;
-	padding: 10px;
-	border-radius: 5px;
-	cursor: pointer;
-}

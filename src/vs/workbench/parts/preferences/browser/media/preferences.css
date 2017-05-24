@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .preferences-editor > .preferences-header {
-	border-bottom: 1px solid #efeff2;
 	display: flex;
 	flex-wrap: wrap;
 	padding-left: 27px;
@@ -17,10 +16,6 @@
 	flex-direction: column;
 	align-items: flex-end;
 	padding-bottom: 5px;
-}
-
-.vs-dark .preferences-editor > .preferences-header {
-	border-bottom: 1px solid #2d2d2d;
 }
 
 .preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {

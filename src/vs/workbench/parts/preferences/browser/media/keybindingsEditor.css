@@ -38,10 +38,6 @@
 	height: 30px;
 }
 
-.keybindings-editor > .keybindings-header .search-container > .settings-search-input > .monaco-inputbox {
-	border: 1px solid #ddd;
-}
-
 .keybindings-editor > .keybindings-header .search-container > .settings-search-input > .monaco-inputbox .input {
 	font-size: 14px;
 	padding-left:10px;
@@ -49,7 +45,7 @@
 
 .keybindings-editor > .keybindings-header .open-keybindings-container {
 	margin-top: 10px;
-	color: #aaa;
+	opacity: 0.7;
 	display: flex;
 }
 
@@ -58,17 +54,6 @@
 	cursor: pointer;
 	margin-left: 4px;
 }
-
-/* body styling */
-
-.keybindings-editor > .keybindings-body {
-	border-top: 1px solid #efeff2;
-}
-
-.vs-dark .keybindings-editor > .keybindings-body {
-	border-top: 1px solid #2d2d2d;
-}
-
 
 /** List based styling **/
 
