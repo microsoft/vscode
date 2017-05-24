@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import * as ptyJs from 'node-pty';
+import * as pty from 'node-pty';
 
 // The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
 // see https://github.com/electron/electron/issues/38
@@ -43,7 +43,7 @@ if (cols && rows) {
 	options.rows = parseInt(rows, 10);
 }
 
-var ptyProcess = ptyJs.fork(shell, args, options);
+var ptyProcess = pty.fork(shell, args, options);
 
 var closeTimeout;
 var exitCode;
