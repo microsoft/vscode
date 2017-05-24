@@ -6,7 +6,6 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { Constants } from 'vs/editor/common/core/uint';
 import * as strings from 'vs/base/common/strings';
 
 export interface ITextAreaWrapper {
@@ -206,7 +205,7 @@ export class PagedScreenReaderStrategy {
 		let offset = page * PagedScreenReaderStrategy._LINES_PER_PAGE;
 		let startLineNumber = offset + 1;
 		let endLineNumber = offset + PagedScreenReaderStrategy._LINES_PER_PAGE;
-		return new Range(startLineNumber, 1, endLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
+		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
 	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range): TextAreaState {
