@@ -91,8 +91,6 @@ export function activate(context: ExtensionContext): void {
 	const clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.storagePath, context.globalState, context.workspaceState, plugins);
 	context.subscriptions.push(clientHost);
 
-	const client = clientHost.serviceClient;
-
 	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
 		clientHost.reloadProjects();
 	}));
@@ -102,15 +100,15 @@ export function activate(context: ExtensionContext): void {
 	}));
 
 	context.subscriptions.push(commands.registerCommand('typescript.selectTypeScriptVersion', () => {
-		client.onVersionStatusClicked();
+		clientHost.serviceClient.onVersionStatusClicked();
 	}));
 
 	context.subscriptions.push(commands.registerCommand('typescript.openTsServerLog', () => {
-		client.openTsServerLogFile();
+		clientHost.serviceClient.openTsServerLogFile();
 	}));
 
 	context.subscriptions.push(commands.registerCommand('typescript.restartTsServer', () => {
-		client.restartTsServer();
+		clientHost.serviceClient.restartTsServer();
 	}));
 
 	const goToProjectConfig = (isTypeScript: boolean) => {
@@ -122,12 +120,12 @@ export function activate(context: ExtensionContext): void {
 	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true)));
 	context.subscriptions.push(commands.registerCommand('javascript.goToProjectConfig', goToProjectConfig.bind(null, false)));
 
-	const jsDocCompletionCommand = new TryCompleteJsDocCommand(client);
+	const jsDocCompletionCommand = new TryCompleteJsDocCommand(clientHost.serviceClient);
 	context.subscriptions.push(commands.registerCommand(TryCompleteJsDocCommand.COMMAND_NAME, jsDocCompletionCommand.tryCompleteJsDoc, jsDocCompletionCommand));
 
 	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
-	client.onReady().then(() => {
-		context.subscriptions.push(ProjectStatus.create(client,
+	clientHost.serviceClient.onReady().then(() => {
+		context.subscriptions.push(ProjectStatus.create(clientHost.serviceClient,
 			path => new Promise<boolean>(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
 			context.workspaceState));
 	}, () => {
