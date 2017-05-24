@@ -22,7 +22,7 @@ import * as pfs from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 interface IEmmetConfiguration {
 	emmet: {
@@ -30,7 +30,8 @@ interface IEmmetConfiguration {
 		syntaxProfiles: any;
 		triggerExpansionOnTab: boolean,
 		excludeLanguages: string[],
-		extensionsPath: string
+		extensionsPath: string,
+		useModules: boolean
 	};
 }
 
@@ -240,7 +241,16 @@ export abstract class EmmetEditorAction extends EditorAction {
 		'editor.emmet.action.updateTag': 'emmet.updateTag',
 		'editor.emmet.action.matchingPair': 'emmet.matchTag',
 		'editor.emmet.action.wrapWithAbbreviation': 'emmet.wrapWithAbbreviation',
-		'editor.emmet.action.expandAbbreviation': 'emmet.expandAbbreviation'
+		'editor.emmet.action.expandAbbreviation': 'emmet.expandAbbreviation',
+		'editor.emmet.action.balanceInward': 'emmet.balanceIn',
+		'editor.emmet.action.balanceOutward': 'emmet.balanceOut',
+		'editor.emmet.action.previousEditPoint': 'emmet.prevEditPoint',
+		'editor.emmet.action.nextEditPoint': 'emmet.nextEditPoint',
+		'editor.emmet.action.mergeLines': 'emmet.mergeLines',
+		'editor.emmet.action.selectPreviousItem': 'emmet.selectPrevItem',
+		'editor.emmet.action.selectNextItem': 'emmet.selectNextItem',
+		'editor.emmet.action.splitJoinTag': 'emmet.splitJoinTag',
+		'editor.emmet.action.toggleComment': 'emmet.toggleComment'
 	};
 
 	protected emmetActionName: string;
@@ -280,7 +290,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		const commandService = accessor.get(ICommandService);
 
 		let mappedCommand = this.actionMap[this.id];
-		if (mappedCommand && CommandsRegistry.getCommand(mappedCommand)) {
+		if (mappedCommand && configurationService.getConfiguration<IEmmetConfiguration>().emmet.useModules) {
 			return commandService.executeCommand<void>(mappedCommand);
 		}
 
