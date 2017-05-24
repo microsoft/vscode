@@ -178,7 +178,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
-			revealPreviousCenteredModelRange = true;
+
+			if (this.viewLayout.getScrollTop() !== 0) {
+				// Never change the scroll position from 0 to something else...
+				revealPreviousCenteredModelRange = true;
+			}
 		}
 
 		if (e.readOnly) {
