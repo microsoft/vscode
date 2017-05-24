@@ -20,7 +20,7 @@ import errors = require('vs/base/common/errors');
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
-import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, Position as EditorPosition, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 // --- List Commands
 
@@ -401,7 +401,7 @@ export function registerCommands(): void {
 		if (!options || typeof options !== 'object') {
 			options = {
 				preserveFocus: false,
-				pinned: true
+				pinned: EditorPinned.SOFT
 			};
 		}
 

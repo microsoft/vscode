@@ -24,7 +24,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
-import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IMessageService, IConfirmation } from 'vs/platform/message/common/message';
 import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -461,9 +461,9 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	}
 
-	public pinEditor(group: IEditorGroup, input: IEditorInput): void;
-	public pinEditor(position: Position, input: IEditorInput): void;
-	public pinEditor(arg1: any, input: IEditorInput): void {
+	public pinEditor(group: IEditorGroup, input: IEditorInput, pinned: EditorPinned): void;
+	public pinEditor(position: Position, input: IEditorInput, pinned: EditorPinned): void;
+	public pinEditor(arg1: any, input: IEditorInput, pinned: EditorPinned): void {
 	}
 
 	public unpinEditor(group: IEditorGroup, input: IEditorInput): void;
@@ -512,7 +512,7 @@ export class TestEditorService implements IWorkbenchEditorService {
 		return TPromise.as(null);
 	}
 
-	public closeAllEditors(except?: Position): TPromise<void> {
+	public closeAllEditors(except?: Position, butPinned?: boolean): TPromise<void> {
 		return TPromise.as(null);
 	}
 

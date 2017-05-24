@@ -11,7 +11,7 @@ import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, ICommonCodeEditor, IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -561,7 +561,7 @@ export class EditorOptions implements IEditorOptions {
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
 	 * An editor that is not pinned will always get replaced by another editor that is not pinned.
 	 */
-	public pinned: boolean;
+	public pinned: EditorPinned;
 
 	/**
 	 * The index in the document stack where to insert the editor into when opening.
@@ -616,8 +616,8 @@ export class TextEditorOptions extends EditorOptions {
 				options.preserveFocus = true;
 			}
 
-			if (input.options.pinned) {
-				options.pinned = true;
+			if (typeof input.options.pinned !== 'undefined') {
+				options.pinned = input.options.pinned;
 			}
 
 			if (input.options.inactive) {
@@ -853,6 +853,7 @@ export interface IEditorGroup {
 	count: number;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
+	pinnedEditors: IEditorInput[];
 
 	getEditor(index: number): IEditorInput;
 	getEditor(resource: URI): IEditorInput;
@@ -865,6 +866,8 @@ export interface IEditorGroup {
 	isPreview(editor: IEditorInput): boolean;
 	isPinned(index: number): boolean;
 	isPinned(editor: IEditorInput): boolean;
+	getPinned(index: number): EditorPinned;
+	getPinned(editor: IEditorInput): EditorPinned;
 }
 
 export interface IEditorIdentifier {
@@ -877,7 +880,7 @@ export interface IEditorContext extends IEditorIdentifier {
 }
 
 export interface IEditorCloseEvent extends IEditorIdentifier {
-	pinned: boolean;
+	pinned: EditorPinned;
 	index: number;
 }
 

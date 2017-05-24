@@ -10,7 +10,7 @@ import errors = require('vs/base/common/errors');
 import objects = require('vs/base/common/objects');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { EditorInput, IEditorCloseEvent, IEditorRegistry, Extensions, toResource, IEditorGroup } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -244,7 +244,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}
 
 		if (lastClosedFile) {
-			this.editorService.openEditor({ resource: lastClosedFile.resource, options: { pinned: true, index: lastClosedFile.index } });
+			this.editorService.openEditor({ resource: lastClosedFile.resource, options: { pinned: EditorPinned.SOFT, index: lastClosedFile.index } });
 		}
 	}
 

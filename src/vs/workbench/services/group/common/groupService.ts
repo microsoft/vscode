@@ -6,7 +6,7 @@
 'use strict';
 
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
+import { Position, IEditorInput, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IEditorStacksModel, IEditorGroup } from 'vs/workbench/common/editor';
 import Event from 'vs/base/common/event';
 
@@ -106,8 +106,8 @@ export interface IEditorGroupService {
 	/**
 	 * Adds the pinned state to an editor, removing it from being a preview editor.
 	 */
-	pinEditor(group: IEditorGroup, input: IEditorInput): void;
-	pinEditor(position: Position, input: IEditorInput): void;
+	pinEditor(group: IEditorGroup, input: IEditorInput, pinned: EditorPinned | null): void;
+	pinEditor(position: Position, input: IEditorInput, pinned: EditorPinned | null): void;
 
 	/**
 	 * Removes the pinned state of an editor making it a preview editor.

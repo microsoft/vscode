@@ -32,7 +32,7 @@ import { Registry } from 'vs/platform/platform';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { SyncActionDescriptor, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { IEditor, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -184,7 +184,7 @@ abstract class OpenTaskConfigurationAction extends Action {
 				resource: stat.resource,
 				options: {
 					forceOpen: true,
-					pinned: configFileCreated // pin only if config file is created #8727
+					pinned: configFileCreated ? EditorPinned.SOFT : EditorPinned.NO  // pin only if config file is created #8727
 				}
 			}, sideBySide);
 		}, (error) => {

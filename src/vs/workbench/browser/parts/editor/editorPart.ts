@@ -28,7 +28,7 @@ import { IEditorGroupService, GroupOrientation, GroupArrangement, ITabOptions, I
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorPart } from 'vs/workbench/services/editor/browser/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, POSITIONS, Direction } from 'vs/platform/editor/common/editor';
+import { Position, POSITIONS, Direction, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -198,7 +198,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			if (this.tabOptions.previewEditors !== newPreviewEditors && !newPreviewEditors) {
 				this.stacks.groups.forEach(group => {
 					if (group.previewEditor) {
-						this.pinEditor(group, group.previewEditor);
+						this.pinEditor(group, group.previewEditor, null);
 					}
 				});
 			}
@@ -222,7 +222,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private onEditorDirty(identifier: EditorIdentifier): void {
 
 		// we pin every editor that becomes dirty
-		this.pinEditor(identifier.group, identifier.editor);
+		this.pinEditor(identifier.group, identifier.editor, null);
 	}
 
 	private onEditorDisposed(identifier: EditorIdentifier): void {
@@ -319,7 +319,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// while the UI is not yet ready. Clients have to deal with this fact and we have to make sure that the
 		// stacks model gets updated if any of the UI updating fails with an error.
 		const group = this.ensureGroup(position, !options || !options.preserveFocus);
-		const pinned = !this.tabOptions.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty();
+		const pinned = (!this.tabOptions.previewEditors || (options && (options.pinned || typeof options.index === 'number')) || input.isDirty()) ? EditorPinned.SOFT : EditorPinned.NO;
 		const active = (group.count === 0) || !options || !options.inactive;
 		group.openEditor(input, { active, pinned, index: options && options.index });
 
@@ -566,7 +566,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	private doCloseActiveEditor(group: EditorGroup, focusNext = true): void {
+	private doCloseActiveEditor(group: EditorGroup, focusNext = true, butPinned?: boolean): void {
+
+		if (butPinned && group.getPinned(group.activeEditor) === EditorPinned.HARD) {
+			return;
+		}
+
 		const position = this.stacks.positionOfGroup(group);
 
 		// Update stacks model
@@ -648,7 +653,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		this.textCompareEditorVisible.set(this.visibleEditors.some(e => e && e.isVisible() && e.getId() === TEXT_DIFF_EDITOR_ID));
 	}
 
-	public closeAllEditors(except?: Position): TPromise<void> {
+	public closeAllEditors(except?: Position, butPinned?: boolean): TPromise<void> {
 		let groups = this.stacks.groups.reverse(); // start from the end to prevent layout to happen through rochade
 
 		// Remove position to exclude if we have any
@@ -657,18 +662,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Check for dirty and veto
-		const editorsToClose = arrays.flatten(groups.map(group => group.getEditors().map(editor => { return { group, editor }; })));
+		let editorsToClose = arrays.flatten(groups.map(group => group.getEditors().map(editor => { return { group, editor }; })));
 
 		return this.handleDirty(editorsToClose).then(veto => {
 			if (veto) {
 				return;
 			}
 
-			groups.forEach(group => this.doCloseEditors(group));
+			groups.forEach(group => this.doCloseEditors(group, undefined, undefined, butPinned));
 		});
 	}
 
-	public closeEditors(position: Position, except?: EditorInput, direction?: Direction): TPromise<void> {
+	public closeEditors(position: Position, except?: EditorInput, direction?: Direction, butPinned?: boolean): TPromise<void> {
 		const group = this.stacks.groupAt(position);
 		if (!group) {
 			return TPromise.as<void>(null);
@@ -687,27 +692,27 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				return;
 			}
 
-			this.doCloseEditors(group, except, direction);
+			this.doCloseEditors(group, except, direction, butPinned);
 		});
 	}
 
-	private doCloseEditors(group: EditorGroup, except?: EditorInput, direction?: Direction): void {
+	private doCloseEditors(group: EditorGroup, except?: EditorInput, direction?: Direction, butPinned?: boolean): void {
 
 		// Close all editors in group
 		if (!except) {
 
 			// Update stacks model: remove all non active editors first to prevent opening the next editor in group
-			group.closeEditors(group.activeEditor);
+			group.closeEditors(group.activeEditor, undefined, butPinned);
 
 			// Now close active editor in group which will close the group
-			this.doCloseActiveEditor(group);
+			this.doCloseActiveEditor(group, undefined, butPinned);
 		}
 
 		// Close all editors in group except active one
 		else if (except.matches(group.activeEditor)) {
 
 			// Update stacks model: close non active editors supporting the direction
-			group.closeEditors(group.activeEditor, direction);
+			group.closeEditors(group.activeEditor, direction, butPinned);
 		}
 
 		// Finally: we are asked to close editors around a non-active editor
@@ -719,7 +724,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				// being the expected one, otherwise we end up in an endless loop trying to open the
 				// editor
 				if (except.matches(group.activeEditor)) {
-					this.doCloseEditors(group, except, direction);
+					this.doCloseEditors(group, except, direction, butPinned);
 				}
 			}, errors.onUnexpectedError);
 		}
@@ -857,7 +862,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Update stacks model
 		group.moveEditor(input, toIndex);
-		group.pin(input);
+		group.pin(input, null);
 	}
 
 	private doMoveEditorAcrossGroups(input: EditorInput, fromGroup: EditorGroup, to: Position, moveOptions?: IMoveOptions): void {
@@ -874,11 +879,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// When moving an editor, try to preserve as much view state as possible by checking
 		// for the editor to be a text editor and creating the options accordingly if so
-		let options = EditorOptions.create({ pinned: true, index, inactive, preserveFocus });
+		let options = EditorOptions.create({ pinned: EditorPinned.SOFT, index, inactive, preserveFocus });
 		const activeEditor = this.getActiveEditor();
 		const codeEditor = getCodeEditor(activeEditor);
 		if (codeEditor && activeEditor.position === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
-			options = TextEditorOptions.fromEditor(codeEditor, { pinned: true, index, inactive, preserveFocus });
+			options = TextEditorOptions.fromEditor(codeEditor, { pinned: EditorPinned.SOFT, index, inactive, preserveFocus });
 		}
 
 		// A move to another group is an open first...
@@ -993,7 +998,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		hiddenReplacements.forEach(replacement => {
 			const group = replacement.group;
 
-			group.openEditor(replacement.replaceWith, { active: false, pinned: true, index: replacement.options.index });
+			group.openEditor(replacement.replaceWith, { active: false, pinned: EditorPinned.SOFT, index: replacement.options.index });
 			group.closeEditor(replacement.editor);
 		});
 
@@ -1036,7 +1041,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return {
 				input: group.activeEditor,
 				position: index,
-				options: group.isPinned(group.activeEditor) ? EditorOptions.create({ pinned: true }) : void 0
+				options: group.isPinned(group.activeEditor) ? EditorOptions.create({ pinned: EditorPinned.SOFT }) : void 0
 			};
 		});
 
@@ -1135,7 +1140,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			[positionOneEditors, positionTwoEditors, positionThreeEditors].forEach((editors, index) => {
 				const group = this.stacks.groupAt(index);
 				if (group) {
-					editors.forEach(editor => group.openEditor(editor.input, { pinned: true })); // group could be null if one openeditor call failed!
+					editors.forEach(editor => group.openEditor(editor.input, { pinned: EditorPinned.SOFT })); // group could be null if one openeditor call failed!
 				}
 			});
 
@@ -1180,17 +1185,24 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	public pinEditor(group: EditorGroup, input: EditorInput): void;
-	public pinEditor(position: Position, input: EditorInput): void;
-	public pinEditor(arg1: any, input: EditorInput): void {
+	public pinEditor(group: EditorGroup, input: EditorInput, pinned: EditorPinned | null): void;
+	public pinEditor(position: Position, input: EditorInput, pinned: EditorPinned | null): void;
+	public pinEditor(arg1: any, input: EditorInput, pinned: EditorPinned | null): void {
 		const group = (typeof arg1 === 'number') ? this.stacks.groupAt(arg1) : arg1;
 		if (group) {
-			if (group.isPinned(input)) {
-				return;
+			switch (group.getPinned(input)) {
+				case EditorPinned.NO:
+					group.pin(input, pinned);
+					break;
+				case EditorPinned.SOFT:
+					if (pinned === EditorPinned.HARD) {
+						return group.pin(input, pinned);
+					}
+				case EditorPinned.HARD:
+					if (pinned === EditorPinned.SOFT) {
+						return group.pin(input, pinned);
+					}
 			}
-
-			// Update stacks model
-			group.pin(input);
 		}
 	}
 

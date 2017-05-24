@@ -14,7 +14,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { MIME_BINARY } from 'vs/base/common/mime';
 import { shorten } from 'vs/base/common/labels';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { Position, IEditorInput, Verbosity, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IEditorInput, Verbosity, IUntitledResourceInput, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -141,7 +141,7 @@ export class TabsTitleControl extends TitleControl {
 
 				const group = this.context;
 				if (group) {
-					this.editorService.openEditor({ options: { pinned: true, index: group.count /* always at the end */ } } as IUntitledResourceInput).done(null, errors.onUnexpectedError); // untitled are always pinned
+					this.editorService.openEditor({ options: { pinned: EditorPinned.SOFT, index: group.count /* always at the end */ } } as IUntitledResourceInput).done(null, errors.onUnexpectedError); // untitled are always pinned
 				}
 			}
 		}));
@@ -598,7 +598,7 @@ export class TabsTitleControl extends TitleControl {
 
 			const { group, editor } = this.toTabContext(index);
 
-			this.editorGroupService.pinEditor(group, editor);
+			this.editorGroupService.pinEditor(group, editor, EditorPinned.HARD);
 		}));
 
 		// Context menu
@@ -694,7 +694,7 @@ export class TabsTitleControl extends TitleControl {
 
 			// Copy: just open editor at target index
 			else {
-				this.editorService.openEditor(draggedEditor.editor, { pinned: true, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
+				this.editorService.openEditor(draggedEditor.editor, { pinned: EditorPinned.SOFT, index: targetIndex }, targetPosition).done(null, errors.onUnexpectedError);
 			}
 
 			this.onEditorDragEnd();
@@ -727,7 +727,7 @@ export class TabsTitleControl extends TitleControl {
 			// Open in Editor
 			this.editorService.openEditors(resources.map(d => {
 				return {
-					input: { resource: d.resource, options: { pinned: true, index: targetIndex } },
+					input: { resource: d.resource, options: { pinned: EditorPinned.SOFT, index: targetIndex } },
 					position: targetPosition
 				};
 			})).then(() => {

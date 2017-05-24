@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Throttler } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 
 export interface IOpenFileOptions {
@@ -36,7 +36,7 @@ export default class FileResultsNavigation extends Disposable {
 		this._openFile.fire({
 			editorOptions: {
 				preserveFocus: true,
-				pinned: false,
+				pinned: EditorPinned.NO,
 				revealIfVisible: true
 			},
 			sideBySide: false,
@@ -52,13 +52,14 @@ export default class FileResultsNavigation extends Disposable {
 		let keyboard = payload && payload.origin === 'keyboard';
 		let originalEvent: KeyboardEvent | MouseEvent = payload && payload.originalEvent;
 
-		let pinned = (payload && payload.origin === 'mouse' && originalEvent && originalEvent.detail === 2);
+		let pinned = (payload && payload.origin === 'mouse' && originalEvent && originalEvent.detail === 2) ? EditorPinned.SOFT
+			: EditorPinned.NO;
 		if (pinned && originalEvent) {
 			originalEvent.preventDefault(); // focus moves to editor, we need to prevent default
 		}
 
 		let sideBySide = (originalEvent && (originalEvent.ctrlKey || originalEvent.metaKey));
-		let preserveFocus = !((keyboard && (!payload || !payload.preserveFocus)) || pinned || (payload && payload.focusEditor));
+		let preserveFocus = !((keyboard && (!payload || !payload.preserveFocus)) || pinned !== EditorPinned.NO || (payload && payload.focusEditor));
 		this._openFile.fire({
 			editorOptions: {
 				preserveFocus,

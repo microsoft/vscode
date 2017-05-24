@@ -44,6 +44,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IViewOptions } from 'vs/workbench/parts/views/browser/views';
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 export class ExplorerView extends CollapsibleViewletView {
 
@@ -388,7 +389,7 @@ export class ExplorerView extends CollapsibleViewletView {
 						this.explorerViewer.toggleExpansion(element[0]);
 					}
 
-					controller.openEditor(element[0], { pinned: false, sideBySide: false, preserveFocus: false });
+					controller.openEditor(element[0], { pinned: EditorPinned.NO, sideBySide: false, preserveFocus: false });
 				}
 			}
 		}));

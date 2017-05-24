@@ -32,6 +32,7 @@ import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions
 import URI from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 export class InstallAction extends Action {
 
@@ -1205,7 +1206,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends Action {
 				resource: value.extensionsFileResource,
 				options: {
 					forceOpen: true,
-					pinned: value.created
+					pinned: value.created ? EditorPinned.SOFT : EditorPinned.NO
 				},
 			});
 		}, (error) => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));

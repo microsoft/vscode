@@ -22,6 +22,7 @@ import {
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 const MAX_REPL_LENGTH = 10000;
 
@@ -386,7 +387,7 @@ export class StackFrame implements IStackFrame {
 				selection: { startLineNumber: this.range.startLineNumber, startColumn: 1 },
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true,
-				pinned: !preserveFocus
+				pinned: preserveFocus ? EditorPinned.SOFT : EditorPinned.NO
 			}
 		}, sideBySide);
 	}

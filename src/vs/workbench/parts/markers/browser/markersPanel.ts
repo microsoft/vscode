@@ -40,6 +40,7 @@ import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import FileResultsNavigation from 'vs/workbench/browser/fileResultsNavigation';
 import { debounceEvent } from 'vs/base/common/event';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 export class MarkersPanel extends Panel {
 
@@ -148,7 +149,7 @@ export class MarkersPanel extends Panel {
 		return this.actions;
 	}
 
-	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
+	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: EditorPinned): boolean {
 		if (element instanceof Marker) {
 			const marker: Marker = element;
 			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
@@ -226,7 +227,7 @@ export class MarkersPanel extends Panel {
 
 		const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree));
 		this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {
-			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.editorOptions.pinned, options.sideBySide);
+			this.openFileAtElement(options.element, options.editorOptions.preserveFocus, options.sideBySide, options.editorOptions.pinned);
 		}));
 
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));

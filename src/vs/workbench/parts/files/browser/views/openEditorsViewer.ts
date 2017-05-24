@@ -15,7 +15,7 @@ import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import dom = require('vs/base/browser/dom');
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IResourceInput, Position } from 'vs/platform/editor/common/editor';
+import { IResourceInput, Position, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -226,7 +226,7 @@ export class Controller extends DefaultController {
 			}
 
 			tree.setSelection([element], payload);
-			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide: event.ctrlKey || event.metaKey });
+			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick ? EditorPinned.SOFT : EditorPinned.NO, sideBySide: event.ctrlKey || event.metaKey });
 		}
 
 		return true;
@@ -273,7 +273,7 @@ export class Controller extends DefaultController {
 		return true;
 	}
 
-	public openEditor(element: OpenEditor, options: { preserveFocus: boolean; pinned: boolean; sideBySide: boolean; }): void {
+	public openEditor(element: OpenEditor, options: { preserveFocus: boolean; pinned: EditorPinned; sideBySide: boolean; }): void {
 		if (element) {
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 			let position = this.model.positionOfGroup(element.editorGroup);
@@ -477,7 +477,7 @@ export class DragAndDrop extends DefaultDragAndDrop {
 		// Support drop from explorer viewer
 		if (data instanceof ExternalElementsDragAndDropData) {
 			let resource = explorerItemToFileResource(data.getData()[0]);
-			(resource as IResourceInput).options = { index, pinned: true };
+			(resource as IResourceInput).options = { index, pinned: EditorPinned.SOFT };
 			this.editorService.openEditor(resource, positionOfTargetGroup).done(null, errors.onUnexpectedError);
 		}
 

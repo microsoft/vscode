@@ -31,6 +31,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 /**
  * An implementation of editor for file system resources.
@@ -178,7 +179,7 @@ export class TextFileEditor extends BaseTextEditor {
 								return this.editorService.openEditor({
 									resource: input.getResource(),
 									options: {
-										pinned: true // new file gets pinned by default
+										pinned: EditorPinned.SOFT // new file gets pinned by default
 									}
 								});
 							});

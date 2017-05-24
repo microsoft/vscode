@@ -17,7 +17,7 @@ import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IOutline } from 'vs/editor/contrib/quickOpen/common/quickOpen';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { ICodeLensData } from 'vs/editor/contrib/codelens/common/codelens';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 export class ExtHostApiCommands {
 
@@ -209,7 +209,7 @@ export class ExtHostApiCommands {
 			let editorOptions: IEditorOptions;
 			if (options) {
 				editorOptions = {
-					pinned: !options.preview,
+					pinned: options.preview ? EditorPinned.SOFT : EditorPinned.NO,
 					preserveFocus: options.preserveFocus
 				};
 			}

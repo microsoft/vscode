@@ -17,7 +17,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/platform';
-import { Position, Direction } from 'vs/platform/editor/common/editor';
+import { Position, Direction, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -55,7 +55,8 @@ interface GroupEvents {
 	opened: EditorInput[];
 	activated: EditorInput[];
 	closed: EditorCloseEvent[];
-	pinned: EditorInput[];
+	softPinned: EditorInput[];
+	hardPinned: EditorInput[];
 	unpinned: EditorInput[];
 	moved: EditorInput[];
 }
@@ -91,7 +92,8 @@ function groupListener(group: EditorGroup): GroupEvents {
 		opened: [],
 		closed: [],
 		activated: [],
-		pinned: [],
+		softPinned: [],
+		hardPinned: [],
 		unpinned: [],
 		moved: []
 	};
@@ -99,7 +101,8 @@ function groupListener(group: EditorGroup): GroupEvents {
 	group.onEditorOpened(e => groupEvents.opened.push(e));
 	group.onEditorClosed(e => groupEvents.closed.push(e));
 	group.onEditorActivated(e => groupEvents.activated.push(e));
-	group.onEditorPinned(e => groupEvents.pinned.push(e));
+	group.onEditorKeepOpen(e => groupEvents.softPinned.push(e));
+	group.onEditorPinnedHard(e => groupEvents.hardPinned.push(e));
 	group.onEditorUnpinned(e => groupEvents.unpinned.push(e));
 	group.onEditorMoved(e => groupEvents.moved.push(e));
 
@@ -486,7 +489,7 @@ suite('Editor Stacks Model', () => {
 
 		// Active && Pinned
 		const input1 = input();
-		group.openEditor(input1, { active: true, pinned: true });
+		group.openEditor(input1, { active: true, pinned: EditorPinned.SOFT });
 
 		assert.equal(group.count, 1);
 		assert.equal(group.getEditors(true).length, 1);
@@ -505,11 +508,11 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.activeEditor, void 0);
 		assert.equal(events.closed[0].editor, input1);
 		assert.equal(events.closed[0].index, 0);
-		assert.equal(events.closed[0].pinned, true);
+		assert.equal(events.closed[0].pinned, EditorPinned.SOFT);
 
 		// Active && Preview
 		const input2 = input();
-		group.openEditor(input2, { active: true, pinned: false });
+		group.openEditor(input2, { active: true, pinned: EditorPinned.NO });
 
 		assert.equal(group.count, 1);
 		assert.equal(group.getEditors(true).length, 1);
@@ -528,7 +531,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.activeEditor, void 0);
 		assert.equal(events.closed[1].editor, input2);
 		assert.equal(events.closed[1].index, 0);
-		assert.equal(events.closed[1].pinned, false);
+		assert.equal(events.closed[1].pinned, EditorPinned.NO);
 
 		group.closeEditor(input2);
 		assert.equal(group.count, 0);
@@ -538,7 +541,7 @@ suite('Editor Stacks Model', () => {
 
 		// Nonactive && Pinned => gets active because its first editor
 		const input3 = input();
-		group.openEditor(input3, { active: false, pinned: true });
+		group.openEditor(input3, { active: false, pinned: EditorPinned.SOFT });
 
 		assert.equal(group.count, 1);
 		assert.equal(group.getEditors(true).length, 1);
@@ -598,33 +601,41 @@ suite('Editor Stacks Model', () => {
 		const input3 = input();
 
 		// Pinned and Active
-		group.openEditor(input1, { pinned: true, active: true });
-		group.openEditor(input2, { pinned: true, active: true });
-		group.openEditor(input3, { pinned: true, active: true });
+		group.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input2, { pinned: EditorPinned.HARD, active: true });
+		group.openEditor(input3, { pinned: EditorPinned.SOFT, active: true });
 
 		assert.equal(group.count, 3);
 		assert.equal(group.getEditors(true).length, 3);
 		assert.equal(group.activeEditor, input3);
 		assert.equal(group.isActive(input1), false);
 		assert.equal(group.isPinned(input1), true);
+		assert.equal(group.getPinned(input1), EditorPinned.SOFT, 'editor1.getPinned');
 		assert.equal(group.isPreview(input1), false);
 		assert.equal(group.isActive(input2), false);
 		assert.equal(group.isPinned(input2), true);
+		assert.equal(group.getPinned(input2), EditorPinned.HARD, 'editor2.getPinned');
 		assert.equal(group.isPreview(input2), false);
 		assert.equal(group.isActive(input3), true);
 		assert.equal(group.isPinned(input3), true);
+		assert.equal(group.getPinned(input3), EditorPinned.SOFT, 'editor3.getPinned');
 		assert.equal(group.isPreview(input3), false);
 
 		assert.equal(events.opened[0], input1);
 		assert.equal(events.opened[1], input2);
 		assert.equal(events.opened[2], input3);
 
-		const mru = group.getEditors(true);
+		let mru = group.getEditors(true);
 		assert.equal(mru[0], input3);
 		assert.equal(mru[1], input2);
 		assert.equal(mru[2], input1);
 
-		group.closeAllEditors();
+		group.closeAllEditors(true);
+		assert.equal(events.closed.length, 2);
+		mru = group.getEditors(true);
+		assert.equal(mru[0], input2);
+
+		group.closeAllEditors(false);
 
 		assert.equal(events.closed.length, 3);
 		assert.equal(group.count, 0);
@@ -638,14 +649,14 @@ suite('Editor Stacks Model', () => {
 		const input2 = input();
 		const input3 = input();
 
-		group.openEditor(input1, { pinned: false, active: true });
-		group.openEditor(input2, { pinned: true, active: true });
-		group.openEditor(input3, { pinned: true, active: true });
+		group.openEditor(input1, { pinned: EditorPinned.NO, active: true });
+		group.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input3, { pinned: EditorPinned.SOFT, active: true });
 
 		assert.equal(input3, group.getEditors()[2]);
 
 		const input4 = input();
-		group.openEditor(input4, { pinned: false, active: true }); // this should cause the preview editor to move after input3
+		group.openEditor(input4, { pinned: EditorPinned.NO, active: true }); // this should cause the preview editor to move after input3
 
 		assert.equal(input4, group.getEditors()[2]);
 	});
@@ -672,9 +683,9 @@ suite('Editor Stacks Model', () => {
 		const input3 = input();
 
 		// Pinned and Active
-		group.openEditor(input1, { pinned: true, active: true });
-		group.openEditor(input2, { pinned: true, active: true });
-		group.openEditor(input3, { pinned: true, active: true });
+		group.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input3, { pinned: EditorPinned.SOFT, active: true });
 
 		assert.equal(group.getEditors()[0], input3);
 		assert.equal(group.getEditors()[1], input2);
@@ -695,9 +706,9 @@ suite('Editor Stacks Model', () => {
 		const input3 = input();
 
 		// Pinned and Active
-		group.openEditor(input1, { pinned: true });
-		group.openEditor(input2, { pinned: true });
-		group.openEditor(input3, { pinned: true });
+		group.openEditor(input1, { pinned: EditorPinned.SOFT });
+		group.openEditor(input2, { pinned: EditorPinned.SOFT });
+		group.openEditor(input3, { pinned: EditorPinned.SOFT });
 
 		assert.equal(group.count, 3);
 		assert.equal(group.getEditors(true).length, 3);
@@ -762,9 +773,9 @@ suite('Editor Stacks Model', () => {
 		const input2 = input();
 		const input3 = input();
 
-		group.openEditor(input1, { pinned: true, active: true });
-		group.openEditor(input2, { pinned: true, active: true });
-		group.openEditor(input3, { pinned: false, active: true });
+		group.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input3, { pinned: EditorPinned.NO, active: true });
 
 		assert.equal(group.activeEditor, input3);
 
@@ -798,20 +809,20 @@ suite('Editor Stacks Model', () => {
 		const input2 = input();
 		const input3 = input();
 
-		group.openEditor(input1, { pinned: true, active: true });
-		group.openEditor(input2, { pinned: true, active: true });
-		group.openEditor(input3, { pinned: false, active: true });
+		group.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input3, { pinned: EditorPinned.NO, active: true });
 
 		assert.equal(group.activeEditor, input3);
 		assert.equal(group.count, 3);
 
-		group.pin(input3);
+		group.pin(input3, EditorPinned.SOFT);
 
 		assert.equal(group.activeEditor, input3);
 		assert.equal(group.isPinned(input3), true);
 		assert.equal(group.isPreview(input3), false);
 		assert.equal(group.isActive(input3), true);
-		assert.equal(events.pinned[0], input3);
+		assert.equal(events.softPinned[0], input3);
 		assert.equal(group.count, 3);
 
 		group.unpin(input1);
@@ -852,11 +863,11 @@ suite('Editor Stacks Model', () => {
 		const input4 = input();
 		const input5 = input();
 
-		group.openEditor(input1, { pinned: true, active: true });
-		group.openEditor(input2, { pinned: true, active: true });
-		group.openEditor(input3, { pinned: true, active: true });
-		group.openEditor(input4, { pinned: true, active: true });
-		group.openEditor(input5, { pinned: true, active: true });
+		group.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input3, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input4, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input5, { pinned: EditorPinned.SOFT, active: true });
 
 		assert.equal(group.activeEditor, input5);
 		assert.equal(group.getEditors(true)[0], input5);
@@ -902,8 +913,8 @@ suite('Editor Stacks Model', () => {
 		const input4 = input();
 		const input5 = input();
 
-		group.openEditor(input1, { pinned: true, active: true });
-		group.openEditor(input2, { pinned: true, active: true });
+		group.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
 
 		group.moveEditor(input1, 1);
 
@@ -912,9 +923,9 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.getEditors()[1], input1);
 
 		group.setActive(input1);
-		group.openEditor(input3, { pinned: true, active: true });
-		group.openEditor(input4, { pinned: true, active: true });
-		group.openEditor(input5, { pinned: true, active: true });
+		group.openEditor(input3, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input4, { pinned: EditorPinned.SOFT, active: true });
+		group.openEditor(input5, { pinned: EditorPinned.SOFT, active: true });
 
 		group.moveEditor(input4, 0);
 
@@ -945,13 +956,13 @@ suite('Editor Stacks Model', () => {
 		const g1_input2 = input();
 		const g2_input1 = input();
 
-		group1.openEditor(g1_input1, { active: true, pinned: true });
-		group1.openEditor(g1_input2, { active: true, pinned: true });
-		group2.openEditor(g2_input1, { active: true, pinned: true });
+		group1.openEditor(g1_input1, { active: true, pinned: EditorPinned.SOFT });
+		group1.openEditor(g1_input2, { active: true, pinned: EditorPinned.SOFT });
+		group2.openEditor(g2_input1, { active: true, pinned: EditorPinned.SOFT });
 
 		// A move across groups is a close in the one group and an open in the other group at a specific index
 		group2.closeEditor(g2_input1);
-		group1.openEditor(g2_input1, { active: true, pinned: true, index: 1 });
+		group1.openEditor(g2_input1, { active: true, pinned: EditorPinned.SOFT, index: 1 });
 
 		assert.equal(group1.count, 3);
 		assert.equal(group1.getEditors()[0], g1_input1);
@@ -970,14 +981,14 @@ suite('Editor Stacks Model', () => {
 		const g1_input3 = input();
 		const g2_input1 = g1_input2;
 
-		group1.openEditor(g1_input1, { active: true, pinned: true });
-		group1.openEditor(g1_input2, { active: true, pinned: true });
-		group1.openEditor(g1_input3, { active: true, pinned: true });
-		group2.openEditor(g2_input1, { active: true, pinned: true });
+		group1.openEditor(g1_input1, { active: true, pinned: EditorPinned.SOFT });
+		group1.openEditor(g1_input2, { active: true, pinned: EditorPinned.SOFT });
+		group1.openEditor(g1_input3, { active: true, pinned: EditorPinned.SOFT });
+		group2.openEditor(g2_input1, { active: true, pinned: EditorPinned.SOFT });
 
 		// A move across groups is a close in the one group and an open in the other group at a specific index
 		group2.closeEditor(g2_input1);
-		group1.openEditor(g2_input1, { active: true, pinned: true, index: 0 });
+		group1.openEditor(g2_input1, { active: true, pinned: EditorPinned.SOFT, index: 0 });
 
 		assert.equal(group1.count, 3);
 		assert.equal(group1.getEditors()[0], g1_input2);
@@ -997,7 +1008,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 1);
 
 		const input2 = input();
-		group.openEditor(input2, { pinned: true, active: false });
+		group.openEditor(input2, { pinned: EditorPinned.SOFT, active: false });
 		assert.equal(group.activeEditor, input1);
 		assert.equal(group.previewEditor, input1);
 		assert.equal(group.getEditors()[0], input1);
@@ -1005,7 +1016,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.count, 2);
 
 		const input3 = input();
-		group.openEditor(input3, { pinned: true, active: false });
+		group.openEditor(input3, { pinned: EditorPinned.SOFT, active: false });
 		assert.equal(group.activeEditor, input1);
 		assert.equal(group.previewEditor, input1);
 		assert.equal(group.getEditors()[0], input1);
@@ -1027,23 +1038,23 @@ suite('Editor Stacks Model', () => {
 		const input4 = input();
 		const input5 = input();
 
-		group.openEditor(input1, { active: true, pinned: true });
-		group.openEditor(input2, { active: true, pinned: true });
-		group.openEditor(input3, { active: true, pinned: true });
-		group.openEditor(input4, { active: true, pinned: true });
-		group.openEditor(input5, { active: true, pinned: true });
+		group.openEditor(input1, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input2, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input3, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input4, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input5, { active: true, pinned: EditorPinned.SOFT });
 
 		// Close Others
 		group.closeEditors(group.activeEditor);
 		assert.equal(group.activeEditor, input5);
 		assert.equal(group.count, 1);
 
-		group.closeAllEditors();
-		group.openEditor(input1, { active: true, pinned: true });
-		group.openEditor(input2, { active: true, pinned: true });
-		group.openEditor(input3, { active: true, pinned: true });
-		group.openEditor(input4, { active: true, pinned: true });
-		group.openEditor(input5, { active: true, pinned: true });
+		group.closeAllEditors(false);
+		group.openEditor(input1, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input2, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input3, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input4, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input5, { active: true, pinned: EditorPinned.SOFT });
 		group.setActive(input3);
 
 		// Close Left
@@ -1055,12 +1066,12 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.getEditors()[1], input4);
 		assert.equal(group.getEditors()[2], input5);
 
-		group.closeAllEditors();
-		group.openEditor(input1, { active: true, pinned: true });
-		group.openEditor(input2, { active: true, pinned: true });
-		group.openEditor(input3, { active: true, pinned: true });
-		group.openEditor(input4, { active: true, pinned: true });
-		group.openEditor(input5, { active: true, pinned: true });
+		group.closeAllEditors(false);
+		group.openEditor(input1, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input2, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input3, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input4, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(input5, { active: true, pinned: EditorPinned.SOFT });
 		group.setActive(input3);
 
 		// Close Right
@@ -1095,7 +1106,7 @@ suite('Editor Stacks Model', () => {
 
 		// /style.css/ -> [/style.css/, test.js]
 		let testJs = input('test.js');
-		group.openEditor(testJs, { active: true, pinned: true });
+		group.openEditor(testJs, { active: true, pinned: EditorPinned.SOFT });
 		assert.equal(group.previewEditor, styleCss);
 		assert.equal(group.activeEditor, testJs);
 		assert.equal(group.isPreview(styleCss), true);
@@ -1124,14 +1135,14 @@ suite('Editor Stacks Model', () => {
 
 		// [test.js, /indexHtml/] -> [test.js, index.html]
 		indexHtml = input('index.html');
-		group.pin(indexHtml);
+		group.pin(indexHtml, EditorPinned.SOFT);
 		assert.equal(group.isPinned(indexHtml), true);
 		assert.equal(group.isPreview(indexHtml), false);
 		assert.equal(group.activeEditor, testJs);
 
 		// [test.js, index.html] -> [test.js, file.ts, index.html]
 		const fileTs = input('file.ts');
-		group.openEditor(fileTs, { active: true, pinned: true });
+		group.openEditor(fileTs, { active: true, pinned: EditorPinned.SOFT });
 		assert.equal(group.isPinned(fileTs), true);
 		assert.equal(group.isPreview(fileTs), false);
 		assert.equal(group.count, 3);
@@ -1254,9 +1265,9 @@ suite('Editor Stacks Model', () => {
 		const g1_input2 = input();
 		const g1_input3 = input();
 
-		group1.openEditor(g1_input1, { active: true, pinned: true });
-		group1.openEditor(g1_input2, { active: true, pinned: false });
-		group1.openEditor(g1_input3, { active: false, pinned: true });
+		group1.openEditor(g1_input1, { active: true, pinned: EditorPinned.SOFT });
+		group1.openEditor(g1_input2, { active: true, pinned: EditorPinned.NO });
+		group1.openEditor(g1_input3, { active: false, pinned: EditorPinned.SOFT });
 
 		let group2 = model.openGroup('group2');
 
@@ -1264,9 +1275,9 @@ suite('Editor Stacks Model', () => {
 		const g2_input2 = input();
 		const g2_input3 = input();
 
-		group2.openEditor(g2_input1, { active: true, pinned: true });
-		group2.openEditor(g2_input2, { active: false, pinned: false });
-		group2.openEditor(g2_input3, { active: false, pinned: true });
+		group2.openEditor(g2_input1, { active: true, pinned: EditorPinned.SOFT });
+		group2.openEditor(g2_input2, { active: false, pinned: EditorPinned.NO });
+		group2.openEditor(g2_input3, { active: false, pinned: EditorPinned.SOFT });
 
 		assert.equal(model.groups.length, 2);
 		assert.equal(group1.count, 3);
@@ -1337,9 +1348,9 @@ suite('Editor Stacks Model', () => {
 		const nonSerializableInput2 = input('3', true);
 		const serializableInput2 = input();
 
-		group.openEditor(serializableInput1, { active: true, pinned: true });
-		group.openEditor(nonSerializableInput2, { active: true, pinned: false });
-		group.openEditor(serializableInput2, { active: false, pinned: true });
+		group.openEditor(serializableInput1, { active: true, pinned: EditorPinned.SOFT });
+		group.openEditor(nonSerializableInput2, { active: true, pinned: EditorPinned.NO });
+		group.openEditor(serializableInput2, { active: false, pinned: EditorPinned.SOFT });
 
 		assert.equal(group.count, 3);
 		assert.equal(group.activeEditor.matches(nonSerializableInput2), true);
@@ -1389,7 +1400,7 @@ suite('Editor Stacks Model', () => {
 		const serializableInput2 = input();
 		const nonSerializableInput = input('2', true);
 
-		group1.openEditor(serializableInput1, { pinned: true });
+		group1.openEditor(serializableInput1, { pinned: EditorPinned.SOFT });
 		group1.openEditor(serializableInput2);
 
 		group2.openEditor(nonSerializableInput);
@@ -1430,7 +1441,7 @@ suite('Editor Stacks Model', () => {
 		const serializableInput2 = input();
 		const nonSerializableInput = input('2', true);
 
-		group1.openEditor(serializableInput1, { pinned: true });
+		group1.openEditor(serializableInput1, { pinned: EditorPinned.SOFT });
 		group1.openEditor(serializableInput2);
 
 		group2.openEditor(nonSerializableInput);
@@ -1453,17 +1464,17 @@ suite('Editor Stacks Model', () => {
 		const input2 = input();
 		const input3 = input();
 
-		group1.openEditor(input1, { pinned: true, active: true });
-		group1.openEditor(input2, { pinned: true, active: true });
-		group1.openEditor(input3, { pinned: true, active: true });
+		group1.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group1.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
+		group1.openEditor(input3, { pinned: EditorPinned.SOFT, active: true });
 
 		const input4 = input();
 		const input5 = input();
 		const input6 = input();
 
-		group2.openEditor(input4, { pinned: true, active: true });
-		group2.openEditor(input5, { pinned: true, active: true });
-		group2.openEditor(input6, { pinned: true, active: true });
+		group2.openEditor(input4, { pinned: EditorPinned.SOFT, active: true });
+		group2.openEditor(input5, { pinned: EditorPinned.SOFT, active: true });
+		group2.openEditor(input6, { pinned: EditorPinned.SOFT, active: true });
 
 		model.setActive(group1);
 		group1.setActive(input1);
@@ -1510,17 +1521,17 @@ suite('Editor Stacks Model', () => {
 		const input2 = input();
 		const input3 = input();
 
-		group1.openEditor(input1, { pinned: true, active: true });
-		group1.openEditor(input2, { pinned: true, active: true });
-		group1.openEditor(input3, { pinned: true, active: true });
+		group1.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group1.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
+		group1.openEditor(input3, { pinned: EditorPinned.SOFT, active: true });
 
 		const input4 = input();
 		const input5 = input();
 		const input6 = input();
 
-		group2.openEditor(input4, { pinned: true, active: true });
-		group2.openEditor(input5, { pinned: true, active: true });
-		group2.openEditor(input6, { pinned: true, active: true });
+		group2.openEditor(input4, { pinned: EditorPinned.SOFT, active: true });
+		group2.openEditor(input5, { pinned: EditorPinned.SOFT, active: true });
+		group2.openEditor(input6, { pinned: EditorPinned.SOFT, active: true });
 
 		model.setActive(group1);
 		group1.setActive(input1);
@@ -1621,7 +1632,7 @@ suite('Editor Stacks Model', () => {
 		assert.ok(model.isOpen(input2Resource));
 		assert.ok(!model.isOpen(input1Resource));
 
-		group1.openEditor(input3, { pinned: true });
+		group1.openEditor(input3, { pinned: EditorPinned.SOFT });
 
 		assert.ok(model.isOpen(input2Resource));
 		assert.ok(model.isOpen(input3Resource));
@@ -1643,12 +1654,12 @@ suite('Editor Stacks Model', () => {
 		const input2 = input();
 		const input3 = input();
 
-		group1.openEditor(input1, { pinned: true, active: true });
-		group1.openEditor(input2, { pinned: true, active: true });
-		group1.openEditor(input3, { pinned: true, active: true });
+		group1.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group1.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
+		group1.openEditor(input3, { pinned: EditorPinned.SOFT, active: true });
 
-		group2.openEditor(input1, { pinned: true, active: true });
-		group2.openEditor(input2, { pinned: true, active: true });
+		group2.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group2.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
 
 		input1.dispose();
 
@@ -1663,8 +1674,8 @@ suite('Editor Stacks Model', () => {
 		const input4 = input();
 		const input5 = input();
 
-		group1.openEditor(input4, { pinned: false, active: true });
-		group1.openEditor(input5, { pinned: false, active: true });
+		group1.openEditor(input4, { pinned: EditorPinned.NO, active: true });
+		group1.openEditor(input5, { pinned: EditorPinned.NO, active: true });
 
 		input4.dispose();
 		assert.equal(events.disposed.length, 3);
@@ -1687,10 +1698,10 @@ suite('Editor Stacks Model', () => {
 		const input3 = input();
 		const input4 = input();
 
-		group1.openEditor(input1, { pinned: true, active: true });
-		group1.openEditor(input2, { pinned: true, active: true });
-		group1.openEditor(input3, { pinned: true, active: true });
-		group1.openEditor(input4, { pinned: true, active: true });
+		group1.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group1.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
+		group1.openEditor(input3, { pinned: EditorPinned.SOFT, active: true });
+		group1.openEditor(input4, { pinned: EditorPinned.SOFT, active: true });
 
 		group1.closeEditor(input3);
 
@@ -1703,9 +1714,9 @@ suite('Editor Stacks Model', () => {
 
 		assert.equal(input3.isDisposed(), true);
 
-		group2.openEditor(input2, { pinned: true, active: true });
-		group2.openEditor(input3, { pinned: true, active: true });
-		group2.openEditor(input4, { pinned: true, active: true });
+		group2.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
+		group2.openEditor(input3, { pinned: EditorPinned.SOFT, active: true });
+		group2.openEditor(input4, { pinned: EditorPinned.SOFT, active: true });
 
 		group1.closeEditor(input2);
 
@@ -1729,7 +1740,7 @@ suite('Editor Stacks Model', () => {
 
 		assert.equal(input2.isDisposed(), true);
 
-		group1.closeAllEditors();
+		group1.closeAllEditors(false);
 
 		assert.equal(events.editorClosed.length, 5);
 		assert.equal(events.editorWillClose.length, 5);
@@ -1754,8 +1765,8 @@ suite('Editor Stacks Model', () => {
 
 		const diffInput = new DiffEditorInput('name', 'description', input1, input2);
 
-		group1.openEditor(diffInput, { pinned: true, active: true });
-		group1.openEditor(input1, { pinned: true, active: true });
+		group1.openEditor(diffInput, { pinned: EditorPinned.SOFT, active: true });
+		group1.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
 
 		group1.closeEditor(diffInput);
 
@@ -1772,8 +1783,8 @@ suite('Editor Stacks Model', () => {
 
 		const input1 = input(void 0, void 0, URI.file('/hello/world.txt'));
 
-		group1.openEditor(input1, { pinned: true, active: true });
-		group2.openEditor(input1, { pinned: true, active: true });
+		group1.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group2.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
 
 		group2.closeEditor(input1);
 		assert.equal(input1.isDisposed(), false);
@@ -1793,8 +1804,8 @@ suite('Editor Stacks Model', () => {
 
 		const diffInput = new DiffEditorInput('name', 'description', input2, input1);
 
-		group1.openEditor(input1, { pinned: true, active: true });
-		group2.openEditor(diffInput, { pinned: true, active: true });
+		group1.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group2.openEditor(diffInput, { pinned: EditorPinned.SOFT, active: true });
 
 		group1.closeEditor(input1);
 		assert.equal(input1.isDisposed(), false);
@@ -1818,8 +1829,8 @@ suite('Editor Stacks Model', () => {
 
 		const diffInput = new DiffEditorInput('name', 'description', input2, input1);
 
-		group1.openEditor(input1, { pinned: true, active: true });
-		group2.openEditor(diffInput, { pinned: true, active: true });
+		group1.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group2.openEditor(diffInput, { pinned: EditorPinned.SOFT, active: true });
 
 		group2.closeEditor(diffInput);
 		assert.equal(input1.isDisposed(), false);
@@ -1839,8 +1850,8 @@ suite('Editor Stacks Model', () => {
 		const input1 = input();
 		const input2 = input();
 
-		group1.openEditor(input1, { pinned: true, active: true });
-		group2.openEditor(input2, { pinned: true, active: true });
+		group1.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
+		group2.openEditor(input2, { pinned: EditorPinned.SOFT, active: true });
 
 		let dirtyCounter = 0;
 		model.onEditorDirty(() => {
@@ -1864,7 +1875,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(dirtyCounter, 2);
 		assert.equal(labelChangeCounter, 2);
 
-		group2.closeAllEditors();
+		group2.closeAllEditors(false);
 
 		(<TestEditorInput>input2).setDirty();
 		(<TestEditorInput>input2).setLabel();
@@ -1895,7 +1906,7 @@ suite('Editor Stacks Model', () => {
 
 		const input1 = input();
 
-		group1.openEditor(input1, { pinned: true, active: true });
+		group1.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
 
 		assert.equal(events.changed[2].group, group1);
 		assert.equal(events.changed[2].structural, true); // open editor
@@ -1911,7 +1922,7 @@ suite('Editor Stacks Model', () => {
 		assert.ok(!events.changed[4].structural); // unpin
 		assert.equal(events.changed[4].editor, input1);
 
-		group1.closeAllEditors();
+		group1.closeAllEditors(false);
 
 		assert.equal(events.changed[5].group, group1);
 		assert.ok(events.changed[5].structural); // close
@@ -1927,7 +1938,7 @@ suite('Editor Stacks Model', () => {
 		const input2 = input();
 		const input3 = input();
 
-		group1.openEditor(input1, { pinned: true, active: true });
+		group1.openEditor(input1, { pinned: EditorPinned.SOFT, active: true });
 		group1.openEditor(input2, { active: true });
 		group1.setActive(input1);
 
@@ -1947,10 +1958,10 @@ suite('Editor Stacks Model', () => {
 		const g2_input2 = input();
 		const unmatched_input = input();
 
-		group1.openEditor(g1_input1, { active: true, pinned: true });
-		group1.openEditor(g1_input2, { active: true, pinned: true });
-		group2.openEditor(g2_input1, { active: true, pinned: true });
-		group2.openEditor(g2_input2, { active: true, pinned: true });
+		group1.openEditor(g1_input1, { active: true, pinned: EditorPinned.SOFT });
+		group1.openEditor(g1_input2, { active: true, pinned: EditorPinned.SOFT });
+		group2.openEditor(g2_input1, { active: true, pinned: EditorPinned.SOFT });
+		group2.openEditor(g2_input2, { active: true, pinned: EditorPinned.SOFT });
 
 		const found_group1 = model.findGroup(g1_input2, true);
 		const notfound1 = model.findGroup(g1_input1, true);

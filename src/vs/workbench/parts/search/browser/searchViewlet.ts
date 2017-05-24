@@ -61,6 +61,7 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { Color } from 'vs/base/common/color';
 import { getOutOfWorkspaceEditorResources } from "vs/workbench/parts/search/common/search";
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 export class SearchViewlet extends Viewlet {
 
@@ -1250,7 +1251,7 @@ export class SearchViewlet extends Viewlet {
 		this.currentSelectedFileMatch = null;
 	}
 
-	private onFocus(lineMatch: any, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+	private onFocus(lineMatch: any, preserveFocus?: boolean, sideBySide?: boolean, pinned?: EditorPinned): TPromise<any> {
 		if (!(lineMatch instanceof Match)) {
 			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			return TPromise.as(true);
@@ -1263,7 +1264,7 @@ export class SearchViewlet extends Viewlet {
 			this.open(lineMatch, preserveFocus, sideBySide, pinned);
 	}
 
-	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+	public open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: EditorPinned): TPromise<any> {
 		let selection = this.getSelectionFrom(element);
 		let resource = element instanceof Match ? element.parent().resource() : (<FileMatch>element).resource();
 		return this.editorService.openEditor({

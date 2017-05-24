@@ -11,7 +11,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { platform, Platform } from 'vs/base/common/platform';
-import { Position } from 'vs/platform/editor/common/editor';
+import { Position, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IEditorStacksModel } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -101,7 +101,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 			return {
 				input: {
 					resource,
-					options: { inactive: true, pinned: true, preserveFocus: true }
+					options: { inactive: true, pinned: EditorPinned.SOFT, preserveFocus: true }
 				},
 				position: activePosition
 			};

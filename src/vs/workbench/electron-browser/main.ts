@@ -17,7 +17,7 @@ import platform = require('vs/base/common/platform');
 import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceInput, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IWorkspace, WorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -104,7 +104,7 @@ function toInputs(paths: IPath[], isUntitledFile?: boolean): IResourceInput[] {
 		}
 
 		input.options = {
-			pinned: true // opening on startup is always pinned and not preview
+			pinned: EditorPinned.SOFT // opening on startup is always pinned and not preview
 		};
 
 		if (p.lineNumber) {

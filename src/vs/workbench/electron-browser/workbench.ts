@@ -24,7 +24,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Registry } from 'vs/platform/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IOptions } from 'vs/workbench/common/options';
-import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, IResourceDiffInput, IUntitledResourceInput, IEditor, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/browser/history';
@@ -407,7 +407,7 @@ export class Workbench implements IPartService {
 				return TPromise.as([<IResourceDiffInput>{
 					leftResource: filesToDiff[0].resource,
 					rightResource: filesToDiff[1].resource,
-					options: { pinned: true }
+					options: { pinned: EditorPinned.SOFT }
 				}]);
 			}
 
@@ -416,7 +416,9 @@ export class Workbench implements IPartService {
 				const filesToCreateInputs: IUntitledResourceInput[] = filesToCreate.map(resourceInput => {
 					return <IUntitledResourceInput>{
 						filePath: resourceInput.resource.fsPath,
-						options: { pinned: true }
+						options: {
+							pinned: EditorPinned.SOFT
+						}
 					};
 				});
 

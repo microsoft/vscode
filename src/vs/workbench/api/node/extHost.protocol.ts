@@ -17,7 +17,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
@@ -176,7 +176,7 @@ export interface IApplyEditsOptions extends IUndoStopOptions {
 export interface ITextDocumentShowOptions {
 	position?: EditorPosition;
 	preserveFocus?: boolean;
-	pinned?: boolean;
+	pinned?: EditorPinned;
 }
 
 export abstract class MainThreadEditorsShape {

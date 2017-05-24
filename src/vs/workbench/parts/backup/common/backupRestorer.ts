@@ -15,7 +15,7 @@ import errors = require('vs/base/common/errors');
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IUntitledResourceInput, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class BackupRestorer implements IWorkbenchContribution {
@@ -90,7 +90,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	}
 
 	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledResourceInput {
-		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
+		const options = { pinned: EditorPinned.SOFT, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
 
 		if (resource.scheme === 'untitled' && !BackupRestorer.UNTITLED_REGEX.test(resource.fsPath)) {
 			// TODO@Ben debt: instead of guessing if an untitled file has an associated file path or not
