@@ -240,6 +240,12 @@ export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionH
 	hc: null
 }, nls.localize('sideBarSectionHeaderBackground', "Side bar section header background color. The side bar is the container for views like explorer and search."));
 
+export const SIDE_BAR_SECTION_HEADER_FOREGROUND = registerColor('sideBarSectionHeader.foreground', {
+	dark: SIDE_BAR_FOREGROUND,
+	light: SIDE_BAR_FOREGROUND,
+	hc: SIDE_BAR_FOREGROUND
+}, nls.localize('sideBarSectionHeaderForeground', "Side bar section header foreground color. The side bar is the container for views like explorer and search."));
+
 
 
 // < --- Title Bar --- >

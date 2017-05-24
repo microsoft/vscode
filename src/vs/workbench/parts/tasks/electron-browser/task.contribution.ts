@@ -80,6 +80,9 @@ import { ProcessRunnerDetector } from 'vs/workbench/parts/tasks/node/processRunn
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
+import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+
 let $ = Builder.$;
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -1370,8 +1373,6 @@ let schema: IJSONSchema = {
 
 import schemaVersion1 from './jsonSchema_v1';
 import schemaVersion2 from './jsonSchema_v2';
-import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 schema.definitions = {
 	...schemaVersion1.definitions,
 	...schemaVersion2.definitions,
