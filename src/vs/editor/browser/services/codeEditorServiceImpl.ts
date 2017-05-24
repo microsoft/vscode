@@ -316,15 +316,15 @@ class DecorationCSSRules {
 
 		let hasContent = false;
 		if (unthemedCSS.length > 0) {
-			sheet.insertRule(`${this._unThemedSelector} {${unthemedCSS}}`);
+			sheet.insertRule(`${this._unThemedSelector} {${unthemedCSS}}`, 0);
 			hasContent = true;
 		}
 		if (lightCSS.length > 0) {
-			sheet.insertRule(`.vs${this._unThemedSelector} {${lightCSS}}`);
+			sheet.insertRule(`.vs${this._unThemedSelector} {${lightCSS}}`, 0);
 			hasContent = true;
 		}
 		if (darkCSS.length > 0) {
-			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector} {${darkCSS}}`);
+			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector} {${darkCSS}}`, 0);
 			hasContent = true;
 		}
 		this._hasContent = hasContent;
