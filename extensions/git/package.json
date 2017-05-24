@@ -173,6 +173,11 @@
         "category": "Git"
       },
       {
+        "command": "git.deleteBranch",
+        "title": "%command.deleteBranch%",
+        "category": "Git"
+      },
+      {
         "command": "git.pull",
         "title": "%command.pull%",
         "category": "Git"
@@ -296,6 +301,10 @@
         },
         {
           "command": "git.branch",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+        },
+        {
+          "command": "git.deleteBranch",
           "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
