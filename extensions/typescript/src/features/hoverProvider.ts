@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { HoverProvider, Hover, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
