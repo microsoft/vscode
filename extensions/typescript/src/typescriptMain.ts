@@ -90,6 +90,7 @@ const standardLanguageDescriptions: LanguageDescription[] = [
 export function activate(context: ExtensionContext): void {
 	const plugins = getContributedTypeScriptServerPlugins();
 
+<<<<<<< HEAD
 	const lazyClientHost = (() => {
 		let clientHost: TypeScriptServiceClientHost | undefined;
 		return () => {
@@ -110,6 +111,10 @@ export function activate(context: ExtensionContext): void {
 		};
 	})();
 
+=======
+	const clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.storagePath, context.globalState, context.workspaceState, plugins);
+	context.subscriptions.push(clientHost);
+>>>>>>> a0b779f... Move VersionStatus into a class
 
 	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
 		lazyClientHost().reloadProjects();
@@ -145,6 +150,7 @@ export function activate(context: ExtensionContext): void {
 	const jsDocCompletionCommand = new TryCompleteJsDocCommand(() => lazyClientHost().serviceClient);
 	context.subscriptions.push(commands.registerCommand(TryCompleteJsDocCommand.COMMAND_NAME, jsDocCompletionCommand.tryCompleteJsDoc, jsDocCompletionCommand));
 
+<<<<<<< HEAD
 	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
 	function didOpenTextDocument(textDocument: TextDocument): boolean {
 		if (supportedLanguage.indexOf(textDocument.languageId) >= 0) {
@@ -162,6 +168,15 @@ export function activate(context: ExtensionContext): void {
 		}
 	}
 
+=======
+	clientHost.serviceClient.onReady().then(() => {
+		context.subscriptions.push(ProjectStatus.create(clientHost.serviceClient,
+			path => new Promise<boolean>(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
+			context.workspaceState));
+	}, () => {
+		// Nothing to do here. The client did show a message;
+	});
+>>>>>>> a0b779f... Move VersionStatus into a class
 	BuildStatus.update({ queueLength: 0 });
 }
 
