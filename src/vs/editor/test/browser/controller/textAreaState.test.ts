@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ISimpleModel, TextAreaState, ITextAreaWrapper, IENarratorStrategy } from 'vs/editor/browser/controller/textAreaState';
+import { ISimpleModel, TextAreaState, ITextAreaWrapper, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -487,55 +487,6 @@ suite('TextAreaState', () => {
 			6, 6,
 			'⌨️', 0
 		);
-	});
-
-	function testFromEditorSelectionAndPreviousState(eol: string, lines: string[], range: Range, prevSelectionToken: number): TextAreaState {
-		let model = new SimpleModel(lines, eol);
-		let previousState = new TextAreaState('', 0, 0, prevSelectionToken);
-		return IENarratorStrategy.fromEditorSelection(previousState, model, range);
-	}
-
-	test('fromEditorSelectionAndPreviousState - no selection on first line', () => {
-		let actual = testFromEditorSelectionAndPreviousState('\n', [
-			'Just a line',
-			'And another line'
-		], new Range(1, 1, 1, 1), 0);
-		assertTextAreaState(actual, 'Just a line', 0, 11, 1);
-	});
-
-	test('fromEditorSelectionAndPreviousState - no selection on second line', () => {
-		let actual = testFromEditorSelectionAndPreviousState('\n', [
-			'Just a line',
-			'And another line',
-			'And yet another line',
-		], new Range(2, 1, 2, 1), 0);
-		assertTextAreaState(actual, 'And another line', 0, 16, 2);
-	});
-
-	test('fromEditorSelectionAndPreviousState - on a long line with selectionToken mismatch', () => {
-		let aLongLine = 'a';
-		for (let i = 0; i < 10; i++) {
-			aLongLine = aLongLine + aLongLine;
-		}
-		let actual = testFromEditorSelectionAndPreviousState('\n', [
-			'Just a line',
-			aLongLine,
-			'And yet another line',
-		], new Range(2, 500, 2, 500), 0);
-		assertTextAreaState(actual, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 0, 201, 2);
-	});
-
-	test('fromEditorSelectionAndPreviousState - on a long line with same selectionToken', () => {
-		let aLongLine = 'a';
-		for (let i = 0; i < 10; i++) {
-			aLongLine = aLongLine + aLongLine;
-		}
-		let actual = testFromEditorSelectionAndPreviousState('\n', [
-			'Just a line',
-			aLongLine,
-			'And yet another line',
-		], new Range(2, 500, 2, 500), 2);
-		assertTextAreaState(actual, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 100, 100, 2);
 	});
 });
 

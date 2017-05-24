@@ -119,11 +119,6 @@ export interface IEditorOptions {
 	 */
 	inDiffEditor?: boolean;
 	/**
-	 * Enable experimental screen reader support.
-	 * Defaults to `true`.
-	 */
-	experimentalScreenReader?: boolean;
-	/**
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
@@ -710,7 +705,6 @@ export interface EditorWrappingInfo {
 export interface InternalEditorViewOptions {
 	readonly extraEditorClassName: string;
 	readonly disableMonospaceOptimizations: boolean;
-	readonly experimentalScreenReader: boolean;
 	readonly rulers: number[];
 	readonly ariaLabel: string;
 	readonly renderLineNumbers: boolean;
@@ -963,7 +957,6 @@ export class InternalEditorOptions {
 		return (
 			a.extraEditorClassName === b.extraEditorClassName
 			&& a.disableMonospaceOptimizations === b.disableMonospaceOptimizations
-			&& a.experimentalScreenReader === b.experimentalScreenReader
 			&& this._equalsNumberArrays(a.rulers, b.rulers)
 			&& a.ariaLabel === b.ariaLabel
 			&& a.renderLineNumbers === b.renderLineNumbers
@@ -1542,7 +1535,6 @@ export class EditorOptionsValidator {
 		return {
 			extraEditorClassName: _string(opts.extraEditorClassName, defaults.extraEditorClassName),
 			disableMonospaceOptimizations: disableMonospaceOptimizations,
-			experimentalScreenReader: _boolean(opts.experimentalScreenReader, defaults.experimentalScreenReader),
 			rulers: rulers,
 			ariaLabel: _string(opts.ariaLabel, defaults.ariaLabel),
 			renderLineNumbers: renderLineNumbers,
@@ -1641,7 +1633,6 @@ export class InternalEditorOptionsFactory {
 			viewInfo: {
 				extraEditorClassName: opts.viewInfo.extraEditorClassName,
 				disableMonospaceOptimizations: opts.viewInfo.disableMonospaceOptimizations,
-				experimentalScreenReader: opts.viewInfo.experimentalScreenReader,
 				rulers: opts.viewInfo.rulers,
 				ariaLabel: opts.viewInfo.ariaLabel,
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
@@ -2036,7 +2027,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	viewInfo: {
 		extraEditorClassName: '',
 		disableMonospaceOptimizations: false,
-		experimentalScreenReader: true,
 		rulers: [],
 		ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
 		renderLineNumbers: true,
