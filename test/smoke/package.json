@@ -1,9 +1,10 @@
 {
   "name": "code-oss-dev-smoke-test",
   "version": "0.1.0",
-  "main": "./out/main.js",
+  "main": "./src/main.js",
   "scripts": {
-    "test": "mocha -u tdd --timeout 360000 --retries 2 --slow 50000 --colors ./out/main.js 2> test_data/errors.log"
+    "pretest": "tsc",
+    "test": "node src/main.js"
   },
   "devDependencies": {
     "@types/mocha": "^2.2.41",
@@ -14,6 +15,8 @@
     "mocha": "^3.2.0",
     "spectron": "^3.6.4",
     "typescript": "^2.2.2",
-    "rimraf": "^2.6.1"
+    "rimraf": "^2.6.1",
+    "commander": "^2.9.0",
+    "simple-git": "^1.73.0"
   }
 }

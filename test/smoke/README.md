@@ -1,9 +1,9 @@
 # VS Code Smoke Testing
 This repository contains the smoke test automation code with Spectron for Visual Studio Code.
 
-The following command is used to run the tests: `.\scripts\run.ps1 -latest "path\to\Code.exe"` on Windows (from PowerShell) and `./scripts/run.sh path/to/binary` on Unix system.
+The following command is used to run the tests: `npm test -- --latest "path/to/binary"`.
 
-If you want to include 'Data Migration' area tests use  `.\scripts\run.ps1 -latest "path\to\Code.exe" -stable "path\to\CurrentStable.exe"` and `./scripts/run.sh path/to/binary path/to/currentStable` respectively.
+If you want to include 'Data Migration' area tests use  `npm test -- --latest path/to/binary --stable path/to/currentStable` respectively.
 
 # Contributing
 

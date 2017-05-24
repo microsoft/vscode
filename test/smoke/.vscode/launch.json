@@ -15,7 +15,7 @@
                 "--timeout",
                 "999999",
                 "--colors",
-                "${workspaceRoot}/out/main.js"
+                "${workspaceRoot}/out/tests.js"
             ],
 			"outFiles": [ "${workspaceRoot}/out/**/*.js" ],
             "internalConsoleOptions": "openOnSessionStart",
