@@ -354,8 +354,8 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		weight: weight,
 		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.DownArrow,
-		secondary: [KeyMod.Alt | KeyCode.DownArrow],
-		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.Alt | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
+		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow],
+		mac: { primary: KeyCode.DownArrow, secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow, KeyMod.WinCtrl | KeyCode.KEY_N] }
 	}
 }));
 
@@ -367,7 +367,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		weight: weight,
 		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.PageDown,
-		secondary: [KeyMod.Alt | KeyCode.PageDown]
+		secondary: [KeyMod.CtrlCmd | KeyCode.PageDown]
 	}
 }));
 
@@ -385,8 +385,8 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		weight: weight,
 		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.UpArrow,
-		secondary: [KeyMod.Alt | KeyCode.UpArrow],
-		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
+		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow],
+		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
 	}
 }));
 
@@ -398,7 +398,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 		weight: weight,
 		kbExpr: EditorContextKeys.textFocus,
 		primary: KeyCode.PageUp,
-		secondary: [KeyMod.Alt | KeyCode.PageUp]
+		secondary: [KeyMod.CtrlCmd | KeyCode.PageUp]
 	}
 }));
 
