@@ -722,13 +722,27 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A reference to one of the workbench colors as defined in https://code.visualstudio.com/docs/getstarted/theme-color-reference.
+	 * Using a theme color is preferred over a custom color as it gives theme authors and users the possibility to change the color.
+	 */
+	export class ThemeColor {
+
+		/**
+		 * Creates a reference to a theme color.
+		 * @param id of the color. The available colors are listed in https://code.visualstudio.com/docs/getstarted/theme-color-reference.
+		 */
+		constructor(id: string);
+	}
+
+	/**
 	 * Represents theme specific rendering styles for a [text editor decoration](#TextEditorDecorationType).
 	 */
 	export interface ThemableDecorationRenderOptions {
 		/**
 		 * Background color of the decoration. Use rgba() and define transparent background colors to play well with other decorations.
+		 * Alternativly a color from the color registry an be [referenced](#ColorIdentifier).
 		 */
-		backgroundColor?: string;
+		backgroundColor?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -739,7 +753,7 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 * Better use 'outline' for setting one or more of the individual outline properties.
 		 */
-		outlineColor?: string;
+		outlineColor?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -762,7 +776,7 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 * Better use 'border' for setting one or more of the individual border properties.
 		 */
-		borderColor?: string;
+		borderColor?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -801,7 +815,7 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
-		color?: string;
+		color?: string | ThemeColor;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -823,7 +837,7 @@ declare module 'vscode' {
 		/**
 		 * The color of the decoration in the overview ruler. Use rgba() and define transparent colors to play well with other decorations.
 		 */
-		overviewRulerColor?: string;
+		overviewRulerColor?: string | ThemeColor;
 
 		/**
 		 * Defines the rendering options of the attachment that is inserted before the decorated text
@@ -851,17 +865,21 @@ declare module 'vscode' {
 		 */
 		border?: string;
 		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
+		borderColor?: string | ThemeColor;
+		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
 		textDecoration?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
-		color?: string;
+		color?: string | ThemeColor;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
-		backgroundColor?: string;
+		backgroundColor?: string | ThemeColor;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */

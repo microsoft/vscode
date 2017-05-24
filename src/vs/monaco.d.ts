@@ -1068,19 +1068,19 @@ declare module monaco.editor {
 	export interface IModelDecorationOverviewRulerOptions {
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		color: string;
+		color: string | ThemeColor;
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		darkColor: string;
+		darkColor: string | ThemeColor;
 		/**
 		 * CSS color to render in the overview ruler.
-		 * e.g.: rgba(100, 100, 100, 0.5)
+		 * e.g.: rgba(100, 100, 100, 0.5) or a color from the color registry
 		 */
-		hcColor?: string;
+		hcColor?: string | ThemeColor;
 		/**
 		 * The position in the overview ruler.
 		 */
@@ -2156,6 +2156,10 @@ declare module monaco.editor {
 		 * Restore view state.
 		 */
 		restoreViewState?(state: any): void;
+	}
+
+	export interface ThemeColor {
+		id: string;
 	}
 
 	export interface ICommonCodeEditor extends IEditor {

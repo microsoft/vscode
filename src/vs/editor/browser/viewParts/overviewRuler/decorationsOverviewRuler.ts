@@ -15,6 +15,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { editorOverviewRulerBorder, editorCursor } from 'vs/editor/common/view/editorColorRegistry';
+import { Color } from 'vs/base/common/color';
 
 export class DecorationsOverviewRuler extends ViewPart {
 
@@ -186,13 +187,21 @@ export class DecorationsOverviewRuler extends ViewPart {
 				dec.range.endLineNumber,
 				overviewRuler.position,
 				0,
-				overviewRuler.color,
-				overviewRuler.darkColor,
-				overviewRuler.hcColor
+				this.resolveRulerColor(overviewRuler.color),
+				this.resolveRulerColor(overviewRuler.darkColor),
+				this.resolveRulerColor(overviewRuler.hcColor)
 			));
 		}
 
 		return zones;
+	}
+
+	private resolveRulerColor(color: string | editorCommon.ThemeColor): string {
+		if (editorCommon.isThemeColor(color)) {
+			let c = this._context.theme.getColor(color.id) || Color.transparent;
+			return c.toString();
+		}
+		return color;
 	}
 
 	private _createZonesFromCursors(): OverviewRulerZone[] {
