@@ -108,7 +108,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 
 		const text = document.getText(range);
 
-		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${(item.text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}\\b`, 'gm');
+		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${(item.text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}(\\b|\\W)`, 'gm');
 		const match = identifierMatch.exec(text);
 		const prefixLength = match ? match.index + match[1].length : 0;
 		const startOffset = document.offsetAt(new Position(range.start.line, range.start.character)) + prefixLength;
