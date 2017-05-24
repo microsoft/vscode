@@ -3301,7 +3301,7 @@ declare module 'vscode' {
 		/**
 		 * The foreground color for this entry.
 		 */
-		color: string | undefined;
+		color: string | ThemeColor | undefined;
 
 		/**
 		 * The identifier of a command to run on click. The command must be

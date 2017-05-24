@@ -30,6 +30,8 @@ import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector }
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { isThemeColor } from "vs/editor/common/editorCommon";
+import { Color } from 'vs/base/common/color';
 
 export class StatusbarPart extends Part implements IStatusbarService {
 
@@ -217,7 +219,8 @@ class StatusBarEntryItem implements IStatusbarItem {
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.entry = entry;
 
@@ -249,8 +252,17 @@ class StatusBarEntryItem implements IStatusbarItem {
 		}
 
 		// Color
-		if (this.entry.color) {
-			$(textContainer).color(this.entry.color);
+		let color = this.entry.color;
+		if (color) {
+			if (isThemeColor(color)) {
+				let colorId = color.id;
+				color = (this.themeService.getTheme().getColor(colorId) || Color.transparent).toString();
+				toDispose.push(this.themeService.onThemeChange(theme => {
+					let colorValue = (this.themeService.getTheme().getColor(colorId) || Color.transparent).toString();
+					$(textContainer).color(colorValue);
+				}));
+			}
+			$(textContainer).color(color);
 		}
 
 		// Context Menu
