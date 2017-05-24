@@ -32,13 +32,16 @@ import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions
 import URI from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { registerThemingParticipant, ITheme, ICssStyleCollector } from "vs/platform/theme/common/themeService";
+import { buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, registerColor } from "vs/platform/theme/common/colorRegistry";
+import { Color } from "vs/base/common/color";
 
 export class InstallAction extends Action {
 
 	private static InstallLabel = localize('installAction', "Install");
 	private static InstallingLabel = localize('installing', "Installing");
 
-	private static Class = 'extension-action install';
+	private static Class = 'extension-action prominent install';
 	private static InstallingClass = 'extension-action install installing';
 
 	private disposables: IDisposable[] = [];
@@ -153,7 +156,7 @@ export class UninstallAction extends Action {
 
 export class CombinedInstallAction extends Action {
 
-	private static NoExtensionClass = 'extension-action install no-extension';
+	private static NoExtensionClass = 'extension-action prominent install no-extension';
 	private installAction: InstallAction;
 	private uninstallAction: UninstallAction;
 	private disposables: IDisposable[] = [];
@@ -224,7 +227,7 @@ export class CombinedInstallAction extends Action {
 
 export class UpdateAction extends Action {
 
-	private static EnabledClass = 'extension-action update';
+	private static EnabledClass = 'extension-action prominent update';
 	private static DisabledClass = `${UpdateAction.EnabledClass} disabled`;
 	private static Label = localize('updateAction', "Update");
 
@@ -477,7 +480,7 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 export class EnableAction extends Action {
 
 	static ID = 'extensions.enable';
-	private static EnabledClass = 'extension-action enable';
+	private static EnabledClass = 'extension-action prominent enable';
 	private static DisabledClass = `${EnableAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
@@ -1384,4 +1387,59 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showLanguageExtens
 			viewlet.search(`ext:${fileExtension.replace(/^\./, '')}`);
 			viewlet.focus();
 		});
+});
+
+export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
+	dark: '#327e36',
+	light: '#327e36',
+	hc: null
+}, localize('extensionButtonProminentBackground', "Button background color for actions extension that stand out (e.g. install button)."));
+
+export const extensionButtonProminentForeground = registerColor('extensionButton.prominentForeground', {
+	dark: Color.white,
+	light: Color.white,
+	hc: null
+}, localize('extensionButtonProminentForeground', "Button foreground color for actions extension that stand out (e.g. install button)."));
+
+export const extensionButtonProminentHoverBackground = registerColor('extensionButton.prominentHoverBackground', {
+	dark: '#28632b',
+	light: '#28632b',
+	hc: null
+}, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const buttonBackgroundColor = theme.getColor(buttonBackground);
+	if (buttonBackgroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action { background-color: ${buttonBackgroundColor}; }`);
+	}
+
+	const buttonForegroundColor = theme.getColor(buttonForeground);
+	if (buttonForegroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action { color: ${buttonForegroundColor}; }`);
+	}
+
+	const buttonHoverBackgroundColor = theme.getColor(buttonHoverBackground);
+	if (buttonHoverBackgroundColor) {
+		collector.addRule(`.monaco-action-bar .action-item:hover .action-label.extension-action { background-color: ${buttonHoverBackgroundColor}; }`);
+	}
+
+	const contrastBorderColor = theme.getColor(contrastBorder);
+	if (contrastBorderColor) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action { border: 1px solid ${contrastBorderColor}; }`);
+	}
+
+	const extensionButtonProminentBackgroundColor = theme.getColor(extensionButtonProminentBackground);
+	if (extensionButtonProminentBackground) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.prominent { background-color: ${extensionButtonProminentBackgroundColor}; }`);
+	}
+
+	const extensionButtonProminentForegroundColor = theme.getColor(extensionButtonProminentForeground);
+	if (extensionButtonProminentForeground) {
+		collector.addRule(`.monaco-action-bar .action-item .action-label.extension-action.prominent { color: ${extensionButtonProminentForegroundColor}; }`);
+	}
+
+	const extensionButtonProminentHoverBackgroundColor = theme.getColor(extensionButtonProminentHoverBackground);
+	if (extensionButtonProminentHoverBackground) {
+		collector.addRule(`.monaco-action-bar .action-item:hover .action-label.extension-action.prominent { background-color: ${extensionButtonProminentHoverBackgroundColor}; }`);
+	}
 });
