@@ -112,8 +112,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
-		var stopKey = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
-		if (e.keyCode !== stopKey) {
+		if (e.keyCode !== KeyCode.Ctrl && e.keyCode !== KeyCode.Alt && e.keyCode !== KeyCode.Meta) {
 			// Do not hide hover when Ctrl/Meta is pressed
 			this._hideWidgets();
 		}

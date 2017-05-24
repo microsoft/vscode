@@ -10,8 +10,6 @@ import * as nls from 'vs/nls';
 import { Throttler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkedString } from 'vs/base/common/htmlContent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
@@ -26,15 +24,12 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 import { DefinitionAction, DefinitionActionConfig } from './goToDeclarationCommands';
-import { ClickLinkGesture, ClickLinkOptions, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from "vs/editor/contrib/goToDeclaration/browser/clickLinkGesture";
+import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from "vs/editor/contrib/goToDeclaration/browser/clickLinkGesture";
 
 @editorContribution
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.gotodefinitionwithmouse';
-	static TRIGGER_MODIFIER: 'metaKey' | 'ctrlKey' = platform.isMacintosh ? 'metaKey' : 'ctrlKey';
-	static TRIGGER_SIDEBYSIDE_KEY_VALUE = KeyCode.Alt;
-	static TRIGGER_KEY_VALUE = platform.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
 	static MAX_SOURCE_PREVIEW_LINES = 8;
 
 	private editor: ICodeEditor;
@@ -53,11 +48,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.editor = editor;
 		this.throttler = new Throttler();
 
-		let linkGesture = new ClickLinkGesture(editor, new ClickLinkOptions(
-			GotoDefinitionWithMouseEditorContribution.TRIGGER_KEY_VALUE,
-			GotoDefinitionWithMouseEditorContribution.TRIGGER_MODIFIER,
-			GotoDefinitionWithMouseEditorContribution.TRIGGER_SIDEBYSIDE_KEY_VALUE
-		));
+		let linkGesture = new ClickLinkGesture(editor);
 		this.toUnhook.push(linkGesture);
 
 		this.toUnhook.push(linkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
