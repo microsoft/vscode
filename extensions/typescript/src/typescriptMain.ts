@@ -109,6 +109,10 @@ export function activate(context: ExtensionContext): void {
 		client.openTsServerLogFile();
 	}));
 
+	context.subscriptions.push(commands.registerCommand('typescript.restartTsServer', () => {
+		client.restartTsServer();
+	}));
+
 	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
 		if (editor) {

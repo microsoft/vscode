@@ -345,6 +345,11 @@
         "command": "typescript.openTsServerLog",
         "title": "%typescript.openTsServerLog.title%",
         "category": "TypeScript"
+      },
+      {
+        "command": "typescript.restartTsServer",
+        "title": "%typescript.restartTsServer%",
+        "category": "TypeScript"
       }
     ],
     "menus": {
