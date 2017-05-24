@@ -473,9 +473,9 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		const env = TerminalInstance.createTerminalEnv(process.env, shell, this._getCwd(shell, workspace), locale, this._cols, this._rows);
 		this._title = shell.name || '';
-		this._process = cp.fork('./terminalProcess', [], {
+		this._process = cp.fork('../node/terminalProcess', [], {
 			env: env,
-			cwd: URI.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
+			cwd: URI.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath
 		});
 		if (!shell.name) {
 			// Only listen for process title changes when a name is not provided
