@@ -420,7 +420,6 @@ export abstract class ExtHostTreeViewsShape {
 }
 
 export abstract class ExtHostExtensionServiceShape {
-	$localShowMessage(severity: Severity, msg: string): void { throw ni(); }
 	$activateExtension(extensionDescription: IExtensionDescription): TPromise<void> { throw ni(); }
 }
 
