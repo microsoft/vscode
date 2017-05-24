@@ -38,7 +38,7 @@ import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench
 import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IUntitledResourceInput, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { Themable, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
@@ -397,7 +397,7 @@ export class ElectronWindow extends Themable {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {
-				return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: true } });
+				return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: EditorPinned.SOFT } });
 			}
 
 			// For one file, just put it into the current active editor
@@ -421,9 +421,9 @@ export class ElectronWindow extends Themable {
 			const resource = URI.file(p.filePath);
 			let input: IResourceInput | IUntitledResourceInput;
 			if (isNew) {
-				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
+				input = { filePath: resource.fsPath, options: { pinned: EditorPinned.SOFT } } as IUntitledResourceInput;
 			} else {
-				input = { resource, options: { pinned: true } } as IResourceInput;
+				input = { resource, options: { pinned: EditorPinned.SOFT } } as IResourceInput;
 			}
 
 			if (!isNew && p.lineNumber) {

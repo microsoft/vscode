@@ -13,7 +13,7 @@ import { TextEditorSelectionChangeKind } from './extHostTypes';
 import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { MainContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IResolvedTextEditorConfiguration, ISelectionChangeEvent } from './extHost.protocol';
 import * as vscode from 'vscode';
 
@@ -64,19 +64,19 @@ export class ExtHostEditors extends ExtHostEditorsShape {
 			options = {
 				position: TypeConverters.fromViewColumn(columnOrOptions),
 				preserveFocus: preserveFocus,
-				pinned: true
+				pinned: EditorPinned.SOFT
 			};
 		} else if (typeof columnOrOptions === 'object') {
 			options = {
 				position: TypeConverters.fromViewColumn(columnOrOptions.viewColumn),
 				preserveFocus: columnOrOptions.preserveFocus,
-				pinned: columnOrOptions.preview === undefined ? true : !columnOrOptions.preview
+				pinned: (columnOrOptions.preview === undefined || !columnOrOptions.preview) ? EditorPinned.SOFT : EditorPinned.NO
 			};
 		} else {
 			options = {
 				position: EditorPosition.ONE,
 				preserveFocus: false,
-				pinned: true
+				pinned: EditorPinned.SOFT
 			};
 		}
 

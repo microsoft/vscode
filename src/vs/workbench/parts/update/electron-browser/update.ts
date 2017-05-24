@@ -26,6 +26,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { OS } from 'vs/base/common/platform';
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -137,7 +138,7 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 		this.enabled = false;
 
 		return this.instantiationService.invokeFunction(loadReleaseNotes, this.version)
-			.then(text => this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, this.version, text), { pinned: true }))
+			.then(text => this.editorService.openEditor(this.instantiationService.createInstance(ReleaseNotesInput, this.version, text), { pinned: EditorPinned.SOFT }))
 			.then(() => true)
 			.then(null, () => {
 				const action = this.instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction);
@@ -207,7 +208,7 @@ export class UpdateContribution implements IWorkbenchContribution {
 		if (product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			instantiationService.invokeFunction(loadReleaseNotes, pkg.version)
 				.then(
-				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text), { pinned: true }),
+				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text), { pinned: EditorPinned.SOFT }),
 				() => {
 					messageService.show(Severity.Info, {
 						message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),

@@ -23,7 +23,7 @@ import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/qui
 import { QueryBuilder } from 'vs/workbench/parts/search/common/searchQuery';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceInput, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -95,7 +95,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		const input: IResourceInput = {
 			resource: this.resource,
 			options: {
-				pinned: !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+				pinned: this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen ? EditorPinned.NO : EditorPinned.SOFT
 			}
 		};
 

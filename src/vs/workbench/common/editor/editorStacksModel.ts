@@ -14,7 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/platform';
-import { Position, Direction } from 'vs/platform/editor/common/editor';
+import { Position, Direction, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 
 export interface EditorCloseEvent extends IEditorCloseEvent {
@@ -27,7 +27,7 @@ export interface EditorIdentifier extends IEditorIdentifier {
 }
 
 export interface IEditorOpenOptions {
-	pinned?: boolean;
+	pinned?: EditorPinned;
 	active?: boolean;
 	index?: number;
 }
@@ -57,6 +57,7 @@ export class EditorGroup implements IEditorGroup {
 
 	private preview: EditorInput; // editor in preview state
 	private active: EditorInput;  // editor in active state
+	private hardPins: EditorInput[]; // editors with hard pins
 
 	private toDispose: IDisposable[];
 	private editorOpenPositioning: 'left' | 'right' | 'first' | 'last';
@@ -68,7 +69,8 @@ export class EditorGroup implements IEditorGroup {
 	private _onEditorDirty: Emitter<EditorInput>;
 	private _onEditorLabelChange: Emitter<EditorInput>;
 	private _onEditorMoved: Emitter<EditorInput>;
-	private _onEditorPinned: Emitter<EditorInput>;
+	private _onEditorKeepOpen: Emitter<EditorInput>;
+	private _onEditorPinnedHard: Emitter<EditorInput>;
 	private _onEditorUnpinned: Emitter<EditorInput>;
 	private _onEditorStateChanged: Emitter<EditorInput>;
 	private _onEditorsStructureChanged: Emitter<EditorInput>;
@@ -81,6 +83,7 @@ export class EditorGroup implements IEditorGroup {
 		this._id = EditorGroup.IDS++;
 
 		this.editors = [];
+		this.hardPins = [];
 		this.mru = [];
 		this.toDispose = [];
 		this.mapResourceToEditorCount = new ResourceMap<number>();
@@ -93,12 +96,13 @@ export class EditorGroup implements IEditorGroup {
 		this._onEditorDirty = new Emitter<EditorInput>();
 		this._onEditorLabelChange = new Emitter<EditorInput>();
 		this._onEditorMoved = new Emitter<EditorInput>();
-		this._onEditorPinned = new Emitter<EditorInput>();
+		this._onEditorKeepOpen = new Emitter<EditorInput>();
+		this._onEditorPinnedHard = new Emitter<EditorInput>();
 		this._onEditorUnpinned = new Emitter<EditorInput>();
 		this._onEditorStateChanged = new Emitter<EditorInput>();
 		this._onEditorsStructureChanged = new Emitter<EditorInput>();
 
-		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorMoved, this._onEditorPinned, this._onEditorUnpinned, this._onEditorStateChanged, this._onEditorsStructureChanged);
+		this.toDispose.push(this._onEditorActivated, this._onEditorOpened, this._onEditorClosed, this._onEditorDisposed, this._onEditorDirty, this._onEditorLabelChange, this._onEditorMoved, this._onEditorKeepOpen, this._onEditorPinnedHard, this._onEditorUnpinned, this._onEditorStateChanged, this._onEditorsStructureChanged);
 
 		if (typeof arg1 === 'object') {
 			this.deserialize(arg1);
@@ -163,8 +167,12 @@ export class EditorGroup implements IEditorGroup {
 		return this._onEditorMoved.event;
 	}
 
-	public get onEditorPinned(): Event<EditorInput> {
-		return this._onEditorPinned.event;
+	public get onEditorKeepOpen(): Event<EditorInput> {
+		return this._onEditorKeepOpen.event;
+	}
+
+	public get onEditorPinnedHard(): Event<EditorInput> {
+		return this._onEditorPinnedHard.event;
 	}
 
 	public get onEditorUnpinned(): Event<EditorInput> {
@@ -268,7 +276,12 @@ export class EditorGroup implements IEditorGroup {
 			}
 
 			// Handle preview
-			if (!makePinned) {
+			if (makePinned) {
+				if (makePinned === EditorPinned.HARD) {
+					this.hardPins.push(editor);
+				}
+			}
+			else {
 
 				// Replace existing preview with this editor if we have a preview
 				if (this.preview) {
@@ -301,7 +314,7 @@ export class EditorGroup implements IEditorGroup {
 
 			// Pin it
 			if (makePinned) {
-				this.pin(editor);
+				this.pin(editor, makePinned);
 			}
 
 			// Activate it
@@ -345,11 +358,19 @@ export class EditorGroup implements IEditorGroup {
 		}));
 	}
 
-	public closeEditor(editor: EditorInput, openNext = true): void {
+	public closeEditor(editor: EditorInput, openNext = true, butPinned = false): void {
 		const index = this.indexOf(editor);
 		if (index === -1) {
 			return; // not found
 		}
+
+		const hardPinIndex = this.hardPins.indexOf(editor);
+		const isHardPin = this.hardPins.indexOf(editor) >= 0;
+		if (isHardPin && butPinned) {
+			return; // don't close
+		}
+
+		let pinned: EditorPinned = isHardPin ? EditorPinned.HARD : EditorPinned.SOFT;
 
 		// Active Editor closed
 		if (openNext && this.matches(this.active, editor)) {
@@ -366,20 +387,24 @@ export class EditorGroup implements IEditorGroup {
 		}
 
 		// Preview Editor closed
-		let pinned = true;
 		if (this.matches(this.preview, editor)) {
 			this.preview = null;
-			pinned = false;
+			pinned = EditorPinned.NO;
 		}
 
 		// Remove from arrays
 		this.splice(index, true);
 
+		// remove from pinned
+		if (isHardPin) {
+			this.hardPins.splice(hardPinIndex, 1);
+		}
+
 		// Event
 		this.fireEvent(this._onEditorClosed, { editor, pinned, index, group: this }, true);
 	}
 
-	public closeEditors(except: EditorInput, direction?: Direction): void {
+	public closeEditors(except: EditorInput, direction?: Direction, butPinned?: boolean): void {
 		const index = this.indexOf(except);
 		if (index === -1) {
 			return; // not found
@@ -388,28 +413,28 @@ export class EditorGroup implements IEditorGroup {
 		// Close to the left
 		if (direction === Direction.LEFT) {
 			for (let i = index - 1; i >= 0; i--) {
-				this.closeEditor(this.editors[i]);
+				this.closeEditor(this.editors[i], undefined, butPinned);
 			}
 		}
 
 		// Close to the right
 		else if (direction === Direction.RIGHT) {
 			for (let i = this.editors.length - 1; i > index; i--) {
-				this.closeEditor(this.editors[i]);
+				this.closeEditor(this.editors[i], undefined, butPinned);
 			}
 		}
 
 		// Both directions
 		else {
-			this.mru.filter(e => !this.matches(e, except)).forEach(e => this.closeEditor(e));
+			this.mru.filter(e => !this.matches(e, except)).forEach(e => this.closeEditor(e, undefined, butPinned));
 		}
 	}
 
-	public closeAllEditors(): void {
+	public closeAllEditors(butPinned?: boolean): void {
 
 		// Optimize: close all non active editors first to produce less upstream work
-		this.mru.filter(e => !this.matches(e, this.active)).forEach(e => this.closeEditor(e));
-		this.closeEditor(this.active);
+		this.mru.filter(e => !this.matches(e, this.active)).forEach(e => this.closeEditor(e, undefined, butPinned));
+		this.closeEditor(this.active, undefined, butPinned);
 	}
 
 	public moveEditor(editor: EditorInput, toIndex: number): void {
@@ -445,21 +470,34 @@ export class EditorGroup implements IEditorGroup {
 		this.fireEvent(this._onEditorActivated, editor, false);
 	}
 
-	public pin(editor: EditorInput): void {
+	public pin(editor: EditorInput, pinned: EditorPinned | null): void {
 		const index = this.indexOf(editor);
 		if (index === -1) {
 			return; // not found
 		}
 
-		if (!this.isPreview(editor)) {
-			return; // can only pin a preview editor
+		if (this.isPreview(editor)) {
+			// Convert the preview editor to be a pinned editor
+			this.preview = null;
+		}
+		else {
+			if (!pinned || this.getPinned(editor) >= pinned) {
+				return; // can only pin a preview editor or same kind of pin
+			}
 		}
 
-		// Convert the preview editor to be a pinned editor
-		this.preview = null;
-
 		// Event
-		this.fireEvent(this._onEditorPinned, editor, false);
+		if (pinned === EditorPinned.HARD) {
+			this.hardPins.push(editor);
+			this.fireEvent(this._onEditorPinnedHard, editor, false);
+		}
+		else {
+			const hardPinIndex = this.hardPins.indexOf(editor);
+			if (hardPinIndex >= 0) {
+				this.hardPins.splice(hardPinIndex, 1);
+			}
+			this.fireEvent(this._onEditorKeepOpen, editor, false);
+		}
 	}
 
 	public unpin(editor: EditorInput): void {
@@ -470,6 +508,11 @@ export class EditorGroup implements IEditorGroup {
 
 		if (!this.isPinned(editor)) {
 			return; // can only unpin a pinned editor
+		}
+
+		const hardPinIndex = this.hardPins.indexOf(editor);
+		if (hardPinIndex >= 0) {
+			this.hardPins.splice(hardPinIndex, 1);
 		}
 
 		// Set new
@@ -505,6 +548,36 @@ export class EditorGroup implements IEditorGroup {
 		}
 
 		return !this.matches(this.preview, editor);
+	}
+
+	public get pinnedEditors(): EditorInput[] {
+		return this.hardPins;
+	}
+
+	public getPinned(editor: EditorInput): EditorPinned;
+	public getPinned(index: number): EditorPinned;
+	public getPinned(arg1: EditorInput | number): EditorPinned {
+		let editor: EditorInput;
+		let index: number;
+		if (typeof arg1 === 'number') {
+			editor = this.editors[arg1];
+			index = arg1;
+		} else {
+			editor = arg1;
+			index = this.indexOf(editor);
+		}
+
+		if (index === -1 || !editor) {
+			return EditorPinned.NO; // editor not found
+		}
+
+		if (this.preview && this.matches(this.preview, editor)) {
+			return EditorPinned.NO;
+		}
+
+		const hardPinIndex = this.hardPins.indexOf(editor);
+
+		return hardPinIndex >= 0 ? EditorPinned.HARD : EditorPinned.SOFT;
 	}
 
 	private fireEvent(emitter: Emitter<EditorInput | EditorCloseEvent>, arg2: EditorInput | EditorCloseEvent, isStructuralChange: boolean): void {
@@ -888,7 +961,7 @@ export class EditorStacksModel implements IEditorStacksModel {
 		}
 
 		// Close Editors in Group first and dispose then
-		group.closeAllEditors();
+		group.closeAllEditors(false);
 		group.dispose();
 
 		// Splice from groups

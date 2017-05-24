@@ -55,7 +55,7 @@ class TestEditorPart implements IEditorPart {
 		return TPromise.as(null);
 	}
 
-	public closeAllEditors(except?: Position): TPromise<void> {
+	public closeAllEditors(except?: Position, butPinned?: boolean): TPromise<void> {
 		return TPromise.as(null);
 	}
 

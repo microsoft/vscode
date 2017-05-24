@@ -32,13 +32,14 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseEditorsInGroupAction, SplitEditorAction, CloseEditorAction, KeepEditorAction, PinEditorAction, CloseOtherEditorsInGroupAction, CloseRightEditorsInGroupAction, ShowEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resourceContextKey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -68,7 +69,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 	protected dragged: boolean;
 
 	protected closeEditorAction: CloseEditorAction;
-	protected pinEditorAction: KeepEditorAction;
+	protected keepEditorAction: KeepEditorAction;
+	protected hardPinEditorAction: PinEditorAction;
 	protected closeOtherEditorsAction: CloseOtherEditorsInGroupAction;
 	protected closeRightEditorsAction: CloseRightEditorsInGroupAction;
 	protected closeEditorsInGroupAction: CloseEditorsInGroupAction;
@@ -228,7 +230,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		this.closeOtherEditorsAction = services.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
 		this.closeRightEditorsAction = services.createInstance(CloseRightEditorsInGroupAction, CloseRightEditorsInGroupAction.ID, nls.localize('closeRight', "Close to the Right"));
 		this.closeEditorsInGroupAction = services.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All"));
-		this.pinEditorAction = services.createInstance(KeepEditorAction, KeepEditorAction.ID, nls.localize('keepOpen', "Keep Open"));
+		this.keepEditorAction = services.createInstance(KeepEditorAction, KeepEditorAction.ID, nls.localize('keepOpen', "Keep Open"));
+		this.hardPinEditorAction = services.createInstance(PinEditorAction, PinEditorAction.ID, nls.localize('pinEditor', "Pin Editor"));
 		this.showEditorsInGroupAction = services.createInstance(ShowEditorsInGroupAction, ShowEditorsInGroupAction.ID, nls.localize('showOpenedEditors', "Show Opened Editors"));
 		this.splitEditorAction = services.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL);
 	}
@@ -426,7 +429,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 
 		// Enablement
 		this.closeOtherEditorsAction.enabled = group.count > 1;
-		this.pinEditorAction.enabled = !group.isPinned(editor);
+		this.keepEditorAction.enabled = group.getPinned(editor) === EditorPinned.NO;
+		this.hardPinEditorAction.enabled = group.getPinned(editor) !== EditorPinned.HARD;
 		this.closeRightEditorsAction.enabled = group.indexOf(editor) !== group.count - 1;
 
 		// Actions: For all editors
@@ -443,7 +447,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		actions.push(this.closeEditorsInGroupAction);
 
 		if (tabOptions.previewEditors) {
-			actions.push(new Separator(), this.pinEditorAction);
+			actions.push(new Separator(), this.keepEditorAction);
+			actions.push(new Separator(), this.hardPinEditorAction);
 		}
 
 		// Fill in contributed actions
@@ -463,7 +468,8 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			this.closeRightEditorsAction,
 			this.closeOtherEditorsAction,
 			this.closeEditorsInGroupAction,
-			this.pinEditorAction
+			this.keepEditorAction,
+			this.hardPinEditorAction
 		].forEach((action) => {
 			action.dispose();
 		});

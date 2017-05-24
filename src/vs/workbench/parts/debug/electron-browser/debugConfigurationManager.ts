@@ -13,7 +13,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IModel, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { IEditor, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import * as extensionsRegistry from 'vs/platform/extensions/common/extensionsRegistry';
 import { Registry } from 'vs/platform/platform';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -369,7 +369,7 @@ export class ConfigurationManager implements debug.IConfigurationManager {
 					resource: resource,
 					options: {
 						forceOpen: true,
-						pinned: configFileCreated, // pin only if config file is created #8727
+						pinned: configFileCreated ? EditorPinned.SOFT : EditorPinned.NO, // pin only if config file is created #8727
 						revealIfVisible: true
 					},
 				}, sideBySide);

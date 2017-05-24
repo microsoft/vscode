@@ -83,9 +83,9 @@ export interface IWorkbenchEditorService extends IEditorService {
 	closeEditors(position: Position, except?: IEditorInput, direction?: Direction): TPromise<void>;
 
 	/**
-	 * Closes all editors across all groups. The optional position allows to keep one group alive.
+	 * Closes all editors across all groups. The optional position allows to keep one group alive. if butPinned will close only editors without hard pin
 	 */
-	closeAllEditors(except?: Position): TPromise<void>;
+	closeAllEditors(except?: Position, butPinned?: boolean): TPromise<void>;
 
 	/**
 	 * Allows to resolve an untyped input to a workbench typed instanceof editor input

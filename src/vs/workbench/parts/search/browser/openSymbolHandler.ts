@@ -18,7 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import labels = require('vs/base/common/labels');
 import { SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceInput, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -96,7 +96,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		let input: IResourceInput = {
 			resource: this._bearing.location.uri,
 			options: {
-				pinned: !this._configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+				pinned: this._configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen ? EditorPinned.NO : EditorPinned.SOFT
 			}
 		};
 

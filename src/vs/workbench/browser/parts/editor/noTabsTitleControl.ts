@@ -11,7 +11,7 @@ import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import DOM = require('vs/base/browser/dom');
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { EditorLabel } from 'vs/workbench/browser/labels';
-import { Verbosity } from 'vs/platform/editor/common/editor';
+import { Verbosity, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { TAB_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class NoTabsTitleControl extends TitleControl {
@@ -68,7 +68,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 		const group = this.context;
 
-		this.editorGroupService.pinEditor(group, group.activeEditor);
+		this.editorGroupService.pinEditor(group, group.activeEditor, EditorPinned.HARD);
 	}
 
 	private onTitleClick(e: MouseEvent): void {

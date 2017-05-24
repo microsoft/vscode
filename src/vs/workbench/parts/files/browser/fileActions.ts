@@ -37,7 +37,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IQuickOpenService, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IEditorInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput, IEditorInput, IUntitledResourceInput, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -521,7 +521,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.editorService.openEditor({ options: { pinned: true } } as IUntitledResourceInput); // untitled are always pinned
+		return this.editorService.openEditor({ options: { pinned: EditorPinned.SOFT } } as IUntitledResourceInput); // untitled are always pinned
 	}
 }
 
@@ -577,7 +577,7 @@ export class CreateFileAction extends BaseCreateAction {
 
 	public runAction(fileName: string): TPromise<any> {
 		return this.fileService.createFile(URI.file(paths.join(this.element.parent.resource.fsPath, fileName))).then(stat => {
-			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+			return this.editorService.openEditor({ resource: stat.resource, options: { pinned: EditorPinned.SOFT } });
 		}, (error) => {
 			this.onErrorWithRetry(error, () => this.runAction(fileName));
 		});
@@ -853,7 +853,7 @@ export class ImportFileAction extends BaseFileAction {
 
 									// if we only import one file, just open it directly
 									if (filesArray.length === 1) {
-										this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
+										this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: EditorPinned.SOFT } }).done(null, errors.onUnexpectedError);
 									}
 								}, (error: any) => {
 									this.messageService.show(Severity.Error, error);
@@ -1023,7 +1023,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		// Copy File
 		const result = this.fileService.copyFile(this.element.resource, this.findTarget()).then(stat => {
 			if (!stat.isDirectory) {
-				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: EditorPinned.SOFT } });
 			}
 			return undefined;
 		}, (error: any) => {
@@ -1396,7 +1396,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 						resource: target,
 						encoding: encodingOfSource,
 						options: {
-							pinned: true,
+							pinned: EditorPinned.SOFT,
 							viewState: viewStateOfSource
 						}
 					};
@@ -1412,7 +1412,7 @@ export abstract class BaseSaveFileAction extends BaseActionWithErrorReporting {
 			if (!this.resource) {
 				const editor = this.editorService.getActiveEditor();
 				if (editor) {
-					this.editorGroupService.pinEditor(editor.position, editor.input);
+					this.editorGroupService.pinEditor(editor.position, editor.input, null);
 				}
 			}
 
@@ -1530,7 +1530,7 @@ export abstract class BaseSaveAllAction extends BaseActionWithErrorReporting {
 								resource: result.target,
 								encoding: untitledProps.encoding,
 								options: {
-									pinned: true,
+									pinned: EditorPinned.SOFT,
 									index: indexInGroup,
 									preserveFocus: true,
 									inactive: !untitledProps.activeInGroups[index]

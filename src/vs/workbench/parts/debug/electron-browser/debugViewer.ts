@@ -35,6 +35,7 @@ import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 const $ = dom.$;
 const booleanRegex = /^true|false$/i;
@@ -1278,7 +1279,7 @@ export class BreakpointsController extends BaseDebugController {
 				selection,
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true,
-				pinned: !preserveFocus
+				pinned: preserveFocus ? EditorPinned.NO : EditorPinned.SOFT
 			}
 		}, sideBySide).done(undefined, errors.onUnexpectedError);
 	}

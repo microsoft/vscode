@@ -16,7 +16,7 @@ import { EditorInput, toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, IEditor, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -188,15 +188,15 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			// Create as needed and open in editor
 			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
 				return this.editorService.openEditors([
-					{ input: { resource: this.defaultKeybindingsResource, options: { pinned: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }, position: EditorPosition.ONE },
-					{ input: { resource: editableKeybindings, options: { pinned: true } }, position: EditorPosition.TWO },
+					{ input: { resource: this.defaultKeybindingsResource, options: { pinned: EditorPinned.SOFT }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }, position: EditorPosition.ONE },
+					{ input: { resource: editableKeybindings, options: { pinned: EditorPinned.SOFT } }, position: EditorPosition.TWO },
 				]).then(() => {
 					this.editorGroupService.focusGroup(EditorPosition.TWO);
 				});
 			});
 
 		}
-		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
+		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: EditorPinned.SOFT }).then(() => null);
 	}
 
 	configureSettingsForLanguage(language: string): void {
@@ -219,9 +219,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.defaultSettingsResource);
 					const preferencesEditorInput = new PreferencesEditorInput(editableSettingsEditorInput.getName(), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 					this.lastOpenedSettingsInput = preferencesEditorInput;
-					return this.editorService.openEditor(preferencesEditorInput, { pinned: true });
+					return this.editorService.openEditor(preferencesEditorInput, { pinned: EditorPinned.SOFT });
 				}
-				return this.editorService.openEditor(editableSettingsEditorInput, { pinned: true });
+				return this.editorService.openEditor(editableSettingsEditorInput, { pinned: EditorPinned.SOFT });
 			});
 	}
 

@@ -37,6 +37,7 @@ import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { ListFocusContext } from 'vs/platform/list/browser/listService';
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -76,7 +77,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor, args: any) => {
 		const searchViewlet: SearchViewlet = <SearchViewlet>accessor.get(IViewletService).getActiveViewlet();
 		const tree: ITree = searchViewlet.getControl();
-		searchViewlet.open(tree.getFocus(), false, true, true);
+		searchViewlet.open(tree.getFocus(), false, true, EditorPinned.SOFT);
 	}
 });
 

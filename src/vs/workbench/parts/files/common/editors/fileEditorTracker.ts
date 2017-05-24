@@ -209,7 +209,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 							resource: reopenFileResource,
 							options: {
 								preserveFocus: true,
-								pinned: group.isPinned(input),
+								pinned: group.getPinned(input),
 								index: group.indexOf(input),
 								inactive: !group.isActive(input),
 								viewState: this.getViewStateFor(oldResource, group)

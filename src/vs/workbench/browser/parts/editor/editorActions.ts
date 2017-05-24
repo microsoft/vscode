@@ -15,7 +15,7 @@ import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry,
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, IEditor, Direction, IResourceInput, IEditorInput, POSITIONS } from 'vs/platform/editor/common/editor';
+import { Position, IEditor, Direction, IResourceInput, IEditorInput, POSITIONS, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -64,7 +64,7 @@ export class SplitEditorAction extends Action {
 		} else {
 			options = new EditorOptions();
 		}
-		options.pinned = true;
+		options.pinned = EditorPinned.SOFT;
 
 		// Count editors
 		const visibleEditors = this.editorService.getVisibleEditors();
@@ -316,9 +316,9 @@ export abstract class BaseFocusSideGroupAction extends Action {
 			let options: EditorOptions;
 			const codeEditor = getCodeEditor(referenceEditor);
 			if (codeEditor) {
-				options = TextEditorOptions.fromEditor(codeEditor, { pinned: true });
+				options = TextEditorOptions.fromEditor(codeEditor, { pinned: EditorPinned.SOFT });
 			} else {
-				options = EditorOptions.create({ pinned: true });
+				options = EditorOptions.create({ pinned: EditorPinned.SOFT });
 			}
 
 			return this.editorService.openEditor(referenceEditor.input, options, this.getTargetEditorSide());
@@ -332,10 +332,10 @@ export abstract class BaseFocusSideGroupAction extends Action {
 				// For now only support to open files from history to the side
 				if (input instanceof EditorInput) {
 					if (hasResource(input, { filter: ['file', 'untitled'] })) {
-						return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
+						return this.editorService.openEditor(input, { pinned: EditorPinned.SOFT }, this.getTargetEditorSide());
 					}
 				} else {
-					return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: true } }, this.getTargetEditorSide());
+					return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: EditorPinned.SOFT } }, this.getTargetEditorSide());
 				}
 			}
 		}
@@ -676,7 +676,7 @@ export class CloseAllEditorsAction extends Action {
 
 		// Just close all if there are no or one dirty editor
 		if (this.textFileService.getDirty().length < 2) {
-			return this.editorService.closeAllEditors();
+			return this.editorService.closeAllEditors(undefined, false);
 		}
 
 		// Otherwise ask for combined confirmation
@@ -694,7 +694,50 @@ export class CloseAllEditorsAction extends Action {
 
 		return saveOrRevertPromise.then(success => {
 			if (success) {
-				return this.editorService.closeAllEditors();
+				return this.editorService.closeAllEditors(undefined, false);
+			}
+			return undefined;
+		});
+	}
+}
+
+export class CloseAllButPinnedAction extends Action {
+
+	public static ID = 'workbench.action.closeAllButPinned';
+	public static LABEL = nls.localize('closeAllButPinned', "Close All But Pinned");
+
+	constructor(
+		id: string,
+		label: string,
+		@ITextFileService private textFileService: ITextFileService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label, 'action-close-all-files');
+	}
+
+	public run(): TPromise<any> {
+
+		// Just close all if there are no or one dirty editor
+		if (this.textFileService.getDirty().length < 2) {
+			return this.editorService.closeAllEditors(undefined, true);
+		}
+
+		// Otherwise ask for combined confirmation
+		const confirm = this.textFileService.confirmSave();
+		if (confirm === ConfirmResult.CANCEL) {
+			return undefined;
+		}
+
+		let saveOrRevertPromise: TPromise<boolean>;
+		if (confirm === ConfirmResult.DONT_SAVE) {
+			saveOrRevertPromise = this.textFileService.revertAll(null, { soft: true }).then(() => true);
+		} else {
+			saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => r.success));
+		}
+
+		return saveOrRevertPromise.then(success => {
+			if (success) {
+				return this.editorService.closeAllEditors(undefined, true);
 			}
 			return undefined;
 		});
@@ -725,7 +768,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 		}
 
 		if (typeof position === 'number') {
-			return this.editorService.closeAllEditors(position);
+			return this.editorService.closeAllEditors(position, true);
 		}
 
 		return TPromise.as(false);
@@ -940,7 +983,31 @@ export class KeepEditorAction extends Action {
 	public run(context?: IEditorContext): TPromise<any> {
 		const target = getTarget(this.editorService, this.editorGroupService, context);
 		if (target) {
-			this.editorGroupService.pinEditor(target.position, target.input);
+			this.editorGroupService.pinEditor(target.position, target.input, EditorPinned.SOFT);
+		}
+
+		return TPromise.as(true);
+	}
+}
+
+export class PinEditorAction extends Action {
+
+	public static ID = 'workbench.action.pinEditor';
+	public static LABEL = nls.localize('pinEditor', "Pin Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: IEditorContext): TPromise<any> {
+		const target = getTarget(this.editorService, this.editorGroupService, context);
+		if (target) {
+			this.editorGroupService.pinEditor(target.position, target.input, EditorPinned.HARD);
 		}
 
 		return TPromise.as(true);

@@ -19,7 +19,7 @@ import errors = require('vs/base/common/errors');
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
+import { Position, POSITIONS, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IEditorGroupService, ITabOptions, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -1050,11 +1050,11 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 			// When moving an editor, try to preserve as much view state as possible by checking
 			// for th editor to be a text editor and creating the options accordingly if so
-			let options = EditorOptions.create({ pinned: true });
+			let options = EditorOptions.create({ pinned: EditorPinned.SOFT });
 			const activeEditor = $this.editorService.getActiveEditor();
 			const editor = getCodeEditor(activeEditor);
 			if (editor && activeEditor.position === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
-				options = TextEditorOptions.fromEditor(editor, { pinned: true });
+				options = TextEditorOptions.fromEditor(editor, { pinned: EditorPinned.SOFT });
 			}
 
 			return options;
@@ -1127,7 +1127,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 					// Open in Editor
 					$this.windowService.focusWindow()
-						.then(() => editorService.openEditors(droppedResources.map(d => { return { input: { resource: d.resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; })))
+						.then(() => editorService.openEditors(droppedResources.map(d => { return { input: { resource: d.resource, options: { pinned: EditorPinned.SOFT } }, position: splitEditor ? freeGroup : position }; })))
 						.then(() => {
 							if (splitEditor && splitTo !== freeGroup) {
 								groupService.moveGroup(freeGroup, splitTo);

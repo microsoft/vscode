@@ -13,7 +13,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position } from 'vs/platform/editor/common/editor';
+import { Position, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -187,7 +187,7 @@ class WelcomePage {
 				query: JSON.stringify({ moduleId: 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page' })
 			});
 		const input = this.instantiationService.createInstance(WalkThroughInput, localize('welcome.title', "Welcome"), '', uri, telemetryFrom, container => this.onReady(container, recentlyOpened, installedExtensions));
-		this.editorService.openEditor(input, { pinned: true }, Position.ONE)
+		this.editorService.openEditor(input, { pinned: EditorPinned.SOFT }, Position.ONE)
 			.then(null, onUnexpectedError);
 	}
 

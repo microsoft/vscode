@@ -18,7 +18,7 @@ import { KeyMod } from 'vs/base/common/keyCodes';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IResourceInput, IEditorInput, IEditorOptions, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -255,7 +255,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 
 			let openInBackgroundOptions: IEditorOptions;
 			if (mode === Mode.OPEN_IN_BACKGROUND) {
-				openInBackgroundOptions = { pinned: true, preserveFocus: true };
+				openInBackgroundOptions = { pinned: EditorPinned.SOFT, preserveFocus: true };
 			}
 
 			let input = this.getInput();

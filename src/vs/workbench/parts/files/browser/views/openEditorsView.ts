@@ -26,7 +26,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerViewModel';
 import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseAllButPinnedAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -34,6 +34,7 @@ import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from "vs/platform/theme/common/colorRegistry";
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 const $ = dom.$;
 
@@ -113,7 +114,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		return [
 			this.instantiationService.createInstance(ToggleEditorLayoutAction, ToggleEditorLayoutAction.ID, ToggleEditorLayoutAction.LABEL),
 			this.instantiationService.createInstance(SaveAllAction, SaveAllAction.ID, SaveAllAction.LABEL),
-			this.instantiationService.createInstance(CloseAllEditorsAction, CloseAllEditorsAction.ID, CloseAllEditorsAction.LABEL)
+			this.instantiationService.createInstance(CloseAllButPinnedAction, CloseAllButPinnedAction.ID, CloseAllButPinnedAction.LABEL)
 		];
 	}
 
@@ -152,7 +153,7 @@ export class OpenEditorsView extends AdaptiveCollapsibleViewletView {
 		// Open when selecting via keyboard
 		this.toDispose.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
-				controller.openEditor(this.tree.getFocus(), { pinned: false, sideBySide: false, preserveFocus: false });
+				controller.openEditor(this.tree.getFocus(), { pinned: EditorPinned.NO, sideBySide: false, preserveFocus: false });
 			}
 		}));
 

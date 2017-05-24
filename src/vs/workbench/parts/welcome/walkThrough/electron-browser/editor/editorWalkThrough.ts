@@ -6,7 +6,7 @@
 
 import { localize } from 'vs/nls';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position } from 'vs/platform/editor/common/editor';
+import { Position, Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 import { Action } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -32,7 +32,7 @@ export class EditorWalkThroughAction extends Action {
 		const uri = URI.parse(require.toUrl('./vs_code_editor_walkthrough.md'))
 			.with({ scheme: Schemas.walkThrough });
 		const input = this.instantiationService.createInstance(WalkThroughInput, localize('editorWalkThrough.title', "Interactive Playground"), '', uri, /* telemetryFrom */ null, /* onReady */ null);
-		return this.editorService.openEditor(input, { pinned: true }, Position.ONE)
+		return this.editorService.openEditor(input, { pinned: EditorPinned.SOFT }, Position.ONE)
 			.then(() => void (0));
 	}
 }

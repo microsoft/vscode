@@ -16,6 +16,7 @@ import { ToggleMarkersPanelAction, ToggleErrorsAndWarningsAction } from 'vs/work
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { MarkersPanel } from 'vs/workbench/parts/markers/browser/markersPanel';
+import { Pinned as EditorPinned } from 'vs/platform/editor/common/editor';
 
 export function registerContributions(): void {
 
@@ -29,7 +30,7 @@ export function registerContributions(): void {
 		},
 		handler: (accessor, args: any) => {
 			const markersPanel = (<MarkersPanel>accessor.get(IPanelService).getActivePanel());
-			markersPanel.openFileAtElement(markersPanel.getFocusElement(), false, true, true);
+			markersPanel.openFileAtElement(markersPanel.getFocusElement(), false, true, EditorPinned.SOFT);
 		}
 	});
 
