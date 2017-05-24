@@ -20,12 +20,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { registerColor, oneOf } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
-import { Color } from 'vs/base/common/color';
+import { Color, RGBA } from 'vs/base/common/color';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { AccessibilitySupport } from 'vs/base/common/platform';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
@@ -39,6 +39,7 @@ class MarkerModel {
 	private _ignoreSelectionChange: boolean;
 	private _onCurrentMarkerChanged: Emitter<IMarker>;
 	private _onMarkerSetChanged: Emitter<MarkerModel>;
+	private _currentMarker: IMarker;
 
 	constructor(editor: ICodeEditor, markers: IMarker[]) {
 		this._editor = editor;
@@ -65,6 +66,10 @@ class MarkerModel {
 
 	public get onMarkerSetChanged() {
 		return this._onMarkerSetChanged.event;
+	}
+
+	public get currentMarker() {
+		return this._currentMarker;
 	}
 
 	public setMarkers(markers: IMarker[]): void {
@@ -118,6 +123,7 @@ class MarkerModel {
 	private move(fwd: boolean): void {
 		if (!this.canNavigate()) {
 			this._onCurrentMarkerChanged.fire(undefined);
+			this._currentMarker = undefined;
 			return;
 		}
 
@@ -137,6 +143,7 @@ class MarkerModel {
 		}
 		const marker = this._markers[this._nextIdx];
 		this._onCurrentMarkerChanged.fire(marker);
+		this._currentMarker = marker;
 	}
 
 	public canNavigate(): boolean {
@@ -168,18 +175,18 @@ class MarkerModel {
 		return 1 + this._markers.indexOf(marker);
 	}
 
-	public reveal(): void {
+	// public reveal(): void {
 
-		if (this._nextIdx === -1) {
-			return;
-		}
+	// 	if (this._nextIdx === -1) {
+	// 		return;
+	// 	}
 
-		this.withoutWatchingEditorPosition(() => {
-			const pos = new Position(this._markers[this._nextIdx].startLineNumber, this._markers[this._nextIdx].startColumn);
-			this._editor.setPosition(pos);
-			this._editor.revealPositionInCenter(pos);
-		});
-	}
+	// 	this.withoutWatchingEditorPosition(() => {
+	// 		const pos = new Position(this._markers[this._nextIdx].startLineNumber, this._markers[this._nextIdx].startColumn);
+	// 		this._editor.setPosition(pos);
+	// 		this._editor.revealPositionInCenter(pos);
+	// 	});
+	// }
 
 	public dispose(): void {
 		this._toUnbind = dispose(this._toUnbind);
@@ -212,7 +219,75 @@ class MessageWidget {
 	}
 }
 
-class MarkerNavigationWidget extends ZoneWidget {
+class MarkerWidget implements IViewZone {
+
+	domNode : HTMLElement;
+	afterLineNumber: number;
+	afterColumn: number;
+	heightInLines: number;
+	private _message: MessageWidget;
+	private _severity = Severity.Warning;
+	private _backgroundColor = Color.white;
+	private _frameColor = Color.fromRGBA(new RGBA(0, 122, 204));
+	private _container: HTMLElement;
+	private _title: HTMLElement;
+
+
+	constructor(private _editor: ICodeEditor, private _model: MarkerModel, private _themeService: IThemeService) {
+		this._fillDomNode();
+		this._setContent();
+		this._applyStyles();
+		this._setPosition();
+	}
+
+	private _fillDomNode(): void {
+		this.domNode = document.createElement('div');
+		dom.addClass(this.domNode, 'marker-widget');
+		this.domNode.tabIndex = 0;
+		this.domNode.setAttribute('role', 'tooltip');
+
+		this._container = document.createElement('div');
+		this.domNode.appendChild(this._container);
+
+		this._title = document.createElement('div');
+		this._title.className = 'block title';
+		this._container.appendChild(this._title);
+
+		this._message = new MessageWidget(this._container);
+		this._editor.applyFontInfo(this._message.domNode);
+	}
+
+	private _setContent(): void {
+		let marker = this._model.currentMarker;
+		if (!marker) {
+			return;
+		}
+		this._container.classList.remove('stale');
+		this._title.innerHTML = nls.localize('title.wo_source', "({0}/{1})", this._model.indexOf(marker), this._model.total);
+		this._message.update(marker);
+	}
+
+	private _applyStyles(): void {
+		if (this.domNode) {
+			this.domNode.style.backgroundColor = this._backgroundColor.toString();
+			this.domNode.style.borderTopColor = this._frameColor.toString();
+			this.domNode.style.borderBottomColor = this._frameColor.toString();
+		}
+	}
+
+	private _setPosition(): void {
+		this.afterLineNumber = this._model.currentMarker.startLineNumber;
+		this.afterColumn = this._model.currentMarker.startColumn;
+		this.heightInLines = this._message.lines;
+	}
+
+	focus(): void {
+		this.domNode.focus();
+	}
+
+}
+
+class MarkerNavigationWidgetOld extends ZoneWidget {
 
 	private _parentContainer: HTMLElement;
 	private _container: HTMLElement;
@@ -356,7 +431,7 @@ class MarkerNavigationAction extends EditorAction {
 			} else {
 				model.previous();
 			}
-			model.reveal();
+			controller.show();
 		}
 	}
 }
@@ -372,7 +447,6 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 	private _editor: ICodeEditor;
 	private _model: MarkerModel;
-	private _zone: MarkerNavigationWidget;
 	private _callOnClose: IDisposable[] = [];
 	private _markersNavigationVisible: IContextKey<boolean>;
 
@@ -397,7 +471,6 @@ class MarkerController implements editorCommon.IEditorContribution {
 	private _cleanUp(): void {
 		this._markersNavigationVisible.reset();
 		this._callOnClose = dispose(this._callOnClose);
-		this._zone = null;
 		this._model = null;
 	}
 
@@ -409,11 +482,10 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 		const markers = this._getMarkers();
 		this._model = new MarkerModel(this._editor, markers);
-		this._zone = new MarkerNavigationWidget(this._editor, this._model, this._themeService);
+		// this._zone = new MarkerNavigationWidget(this._editor, this._model, this._themeService);
 		this._markersNavigationVisible.set(true);
 
 		this._callOnClose.push(this._model);
-		this._callOnClose.push(this._zone);
 
 		this._callOnClose.push(this._editor.onDidChangeModel(() => this._cleanUp()));
 		this._model.onCurrentMarkerChanged(marker => !marker && this._cleanUp(), undefined, this._callOnClose);
@@ -435,6 +507,13 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 	private _getMarkers(): IMarker[] {
 		return this._markerService.read({ resource: this._editor.getModel().uri });
+	}
+
+	public show() {
+		let widget = new MarkerWidget(this._editor, this._model, this._themeService);
+		this._editor.changeViewZones(accessor => {
+			accessor.addZone(widget);
+		});
 	}
 }
 
