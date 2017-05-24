@@ -16,7 +16,7 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { IMessage as InputBoxMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { Sash, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
+import { Sash, IHorizontalSashLayoutProvider, ISashEvent, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/common/findModel';
@@ -28,6 +28,7 @@ import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/t
 import { Color } from 'vs/base/common/color';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, activeContrastBorder, contrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+
 
 export interface IFindController {
 	replace(): void;
@@ -49,10 +50,19 @@ const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "O
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
 const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
 
+const FIND_WIDGET_INITIAL_WIDTH = 411;
+const PART_WIDTH = 275;
+const FIND_INPUT_AREA_WIDTH = PART_WIDTH - 54;
+const REPLACE_INPUT_AREA_WIDTH = FIND_INPUT_AREA_WIDTH;
+
 let MAX_MATCHES_COUNT_WIDTH = 69;
+let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COUNT_WIDTH + 3 + 1) /** Match Results */ + 23 /** Button */ * 4 + 2/** sash */;
+
+const FIND_INPUT_AREA_HEIGHT = 34; // The height of Find Widget when Replace Input is not visible.
+const FIND_REPLACE_AREA_HEIGHT = 64; // The height of Find Widget when Replace Input is  visible.
+
 
 export class FindWidgetViewZone implements IViewZone {
-
 	public afterLineNumber: number;
 	public heightInPx: number;
 	public suppressMouseDown: boolean;
@@ -61,24 +71,15 @@ export class FindWidgetViewZone implements IViewZone {
 	constructor(afterLineNumber: number) {
 		this.afterLineNumber = afterLineNumber;
 
-		this.heightInPx = 34;
+		this.heightInPx = FIND_INPUT_AREA_HEIGHT;
 		this.suppressMouseDown = false;
 		this.domNode = document.createElement('div');
 		this.domNode.className = 'dock-find-viewzone';
 	}
 }
 
-
 export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
-
-
-	private static ID = 'editor.contrib.findWidget';
-	private static PART_WIDTH = 275;
-	private static FIND_INPUT_AREA_WIDTH = FindWidget.PART_WIDTH - 54;
-	private static REPLACE_INPUT_AREA_WIDTH = FindWidget.FIND_INPUT_AREA_WIDTH;
-	private static FIND_INPUT_AREA_HEIGHT = 34; // The height of Find Widget when Replace Input is not visible.
-	private static FIND_REPLACE_AREA_HEIGHT = 64; // The height of Find Widget when Replace Input is  visible.
-
+	private static ID = 'editor.contrib.findWidget';;
 	private _codeEditor: ICodeEditor;
 	private _state: FindReplaceState;
 	private _controller: IFindController;
@@ -128,44 +129,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._isReplaceVisible = false;
 
 		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));
-
 		this._buildDomNode();
-		this._resizeSash = new Sash(this._domNode, this, { orientation: 0 });
-		let data: { startX: number; };
-		let originalWidth = 411;
-		this._register(this._resizeSash.addListener('start', (e: ISashEvent) => {
-			data = {
-				startX: e.startX,
-			};
-			originalWidth = dom.getTotalWidth(this._domNode);
-		}));
-
-		this._register(this._resizeSash.addListener('end', () => {
-			data = undefined;
-		}));
-
-		this._register(this._resizeSash.addListener('change', (evt: ISashEvent) => {
-			if (data) {
-				let reducedFindWidget = false;
-				let narrowFindWidget = false;
-				let collapsedFindWidget = false;
-				let width = originalWidth + data.startX - evt.currentX;
-				if (width < 411) {
-					reducedFindWidget = true;
-			}
-				if (width < 411 - 69) {
-					narrowFindWidget = true;
-				}
-				if (width < 265) {
-					collapsedFindWidget = true;
-				}
-				dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
-				dom.toggleClass(this._domNode, 'narrow-find-widget', narrowFindWidget);
-				dom.toggleClass(this._domNode, 'reduced-find-widget', reducedFindWidget);
-				this._domNode.style.width = `${width}px`;
-				// this._findInput.setWidth(FindWidget.FIND_INPUT_AREA_WIDTH + Math.max(0, data.startX - evt.currentX));
-			}
-		}));
 		this._updateButtons();
 
 		let checkEditorWidth = () => {
@@ -174,25 +138,36 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			let collapsedFindWidget = false;
 			let reducedFindWidget = false;
 			let narrowFindWidget = false;
-			let widgetWidth = Math.max(411, dom.getTotalWidth(this._domNode)) - 69;
-			if (widgetWidth + 28 >= editorWidth + 50) {
-				collapsedFindWidget = true;
+			let widgetWidth = dom.getTotalWidth(this._domNode);
+
+			if (widgetWidth > FIND_WIDGET_INITIAL_WIDTH) {
+				// as the widget is resized by users, we may need to change the max width of the widget as the editor width changes.
+				this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
+				this._replaceInputBox.inputElement.style.width = `${dom.getTotalWidth(this._findInput.inputBox.inputElement)}px`;
+				return;
 			}
-			if (widgetWidth + 28 >= editorWidth) {
+
+			if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth >= editorWidth) {
+				reducedFindWidget = true;
+			}
+			if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editorWidth) {
 				narrowFindWidget = true;
 			}
-			if (widgetWidth + MAX_MATCHES_COUNT_WIDTH + 28 + minimapWidth >= editorWidth) {
-				reducedFindWidget = true;
+			if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editorWidth + 50) {
+				collapsedFindWidget = true;
 			}
 			dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
 			dom.toggleClass(this._domNode, 'narrow-find-widget', narrowFindWidget);
 			dom.toggleClass(this._domNode, 'reduced-find-widget', reducedFindWidget);
-			if (collapsedFindWidget) {
-				this._domNode.style.maxWidth = '111px';
-			} else if (narrowFindWidget) {
-				this._domNode.style.maxWidth = '257px';
-			} else {
+
+			if (!narrowFindWidget && !collapsedFindWidget) {
+				// the minimal left offset of findwidget is 15px.
 				this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
+			}
+
+			let findInputWidth = dom.getTotalWidth(this._findInput.inputBox.inputElement);
+			if (findInputWidth > 0) {
+				this._replaceInputBox.inputElement.style.width = `${findInputWidth}px`;
 			}
 
 		};
@@ -467,9 +442,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		this._codeEditor.changeViewZones((accessor) => {
 			if (this._state.isReplaceRevealed) {
-				this._viewZone.heightInPx = FindWidget.FIND_REPLACE_AREA_HEIGHT;
+				this._viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
 			} else {
-				this._viewZone.heightInPx = FindWidget.FIND_INPUT_AREA_HEIGHT;
+				this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
 			}
 
 			this._viewZoneId = accessor.addZone(this._viewZone);
@@ -483,19 +458,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 
 		this._codeEditor.changeViewZones((accessor) => {
-			let scrollAdjustment = FindWidget.FIND_INPUT_AREA_HEIGHT;
+			let scrollAdjustment = FIND_INPUT_AREA_HEIGHT;
 
 			if (this._viewZoneId !== undefined) {
 				if (this._state.isReplaceRevealed) {
-					this._viewZone.heightInPx = FindWidget.FIND_REPLACE_AREA_HEIGHT;
-					scrollAdjustment = FindWidget.FIND_REPLACE_AREA_HEIGHT - FindWidget.FIND_INPUT_AREA_HEIGHT;
+					this._viewZone.heightInPx = FIND_REPLACE_AREA_HEIGHT;
+					scrollAdjustment = FIND_REPLACE_AREA_HEIGHT - FIND_INPUT_AREA_HEIGHT;
 				} else {
-					this._viewZone.heightInPx = FindWidget.FIND_INPUT_AREA_HEIGHT;
-					scrollAdjustment = FindWidget.FIND_INPUT_AREA_HEIGHT - FindWidget.FIND_REPLACE_AREA_HEIGHT;
+					this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
+					scrollAdjustment = FIND_INPUT_AREA_HEIGHT - FIND_REPLACE_AREA_HEIGHT;
 				}
 				accessor.removeZone(this._viewZoneId);
 			} else {
-				this._viewZone.heightInPx = FindWidget.FIND_INPUT_AREA_HEIGHT;
+				this._viewZone.heightInPx = FIND_INPUT_AREA_HEIGHT;
 			}
 			this._viewZoneId = accessor.addZone(this._viewZone);
 			this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
@@ -625,7 +600,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _buildFindPart(): HTMLElement {
 		// Find input
 		this._findInput = this._register(new FindInput(null, this._contextViewProvider, {
-			width: FindWidget.FIND_INPUT_AREA_WIDTH,
+			width: FIND_INPUT_AREA_WIDTH,
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
 			appendCaseSensitiveLabel: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
@@ -751,7 +726,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Replace input
 		let replaceInput = document.createElement('div');
 		replaceInput.className = 'replace-input';
-		replaceInput.style.width = FindWidget.REPLACE_INPUT_AREA_WIDTH + 'px';
+		replaceInput.style.width = REPLACE_INPUT_AREA_WIDTH + 'px';
 		this._replaceInputBox = this._register(new InputBox(replaceInput, null, {
 			ariaLabel: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER
@@ -809,6 +784,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			className: 'toggle left',
 			onTrigger: () => {
 				this._state.change({ isReplaceRevealed: !this._isReplaceVisible }, false);
+				if (this._isReplaceVisible) {
+					this._replaceInputBox.width = this._findInput.inputBox.width;
+				}
 				this._showViewZone();
 			},
 			onKeyDown: (e) => { }
@@ -825,6 +803,36 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 		this._domNode.appendChild(findPart);
 		this._domNode.appendChild(replacePart);
+
+		this._buildSash();
+	}
+
+	private _buildSash() {
+		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL });
+		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
+
+		this._register(this._resizeSash.addListener('start', (e: ISashEvent) => {
+			originalWidth = dom.getTotalWidth(this._domNode);
+		}));
+
+		this._register(this._resizeSash.addListener('change', (evt: ISashEvent) => {
+			let width = originalWidth + evt.startX - evt.currentX;
+
+			if (width < FIND_WIDGET_INITIAL_WIDTH) {
+				// narrow down the find widget should be handled by CSS.
+				return;
+			}
+
+			let inputBoxWidth = width - FIND_ALL_CONTROLS_WIDTH;
+			let maxWidth = parseFloat(dom.getComputedStyle(this._domNode).maxWidth) || 0;
+			if (width > maxWidth) {
+				return;
+			}
+			this._domNode.style.width = `${width}px`;
+			if (this._isReplaceVisible) {
+				this._replaceInputBox.width = inputBoxWidth;
+			}
+		}));
 	}
 }
 
@@ -1008,6 +1016,11 @@ registerThemingParticipant((theme, collector) => {
 	let error = theme.getColor(errorForeground);
 	if (error) {
 		collector.addRule(`.monaco-editor .find-widget.no-results .matchesCount { color: ${error}; }`);
+	}
+
+	let border = theme.getColor('panel.border');
+	if (border) {
+		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; width: 2px !important; margin-left: -4px;}`);
 	}
 });
 
