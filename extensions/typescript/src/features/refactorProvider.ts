@@ -45,16 +45,21 @@ export default class TypeScriptRefactorProvider implements CodeActionProvider {
 			endOffset: range.end.character + 1
 		};
 
-		const response = await this.client.execute('getApplicableRefactors', args, token);
-		if (!response || !response.body) {
+		try {
+			const response = await this.client.execute('getApplicableRefactors', args, token);
+			if (!response || !response.body) {
+				return [];
+			}
+
+			return response.body.map(action => ({
+				title: action.description,
+				command: this.commandId,
+				arguments: [file, action.name, range]
+			}));
+		} catch (err) {
+			this.client.error(`'getApplicableRefactors' request failed with error.`, err);
 			return [];
 		}
-
-		return response.body.map(action => ({
-			title: action.description,
-			command: this.commandId,
-			arguments: [file, action.name, range]
-		}));
 	}
 
 	private actionsToEdit(actions: Proto.CodeAction[]): WorkspaceEdit {
