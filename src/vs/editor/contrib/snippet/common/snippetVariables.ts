@@ -13,6 +13,18 @@ import { ISnippetVariableResolver } from './snippet';
 
 export class EditorSnippetVariableResolver {
 
+	static readonly VariableNames = Object.freeze({
+		'SELECTION': true,
+		'TM_SELECTED_TEXT': true,
+		'TM_CURRENT_LINE': true,
+		'TM_CURRENT_WORD': true,
+		'TM_LINE_INDEX': true,
+		'TM_LINE_NUMBER': true,
+		'TM_FILENAME': true,
+		'TM_DIRECTORY': true,
+		'TM_FILEPATH': true,
+	});
+
 	constructor(
 		private readonly _model: IModel,
 		private readonly _selection: Selection

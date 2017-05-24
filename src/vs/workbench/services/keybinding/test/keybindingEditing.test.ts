@@ -16,7 +16,8 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCodes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import extfs = require('vs/base/node/extfs');
-import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, TestEditorGroupService, TestLifecycleService, TestBackupFileService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import uuid = require('vs/base/common/uuid');
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
@@ -66,6 +67,7 @@ suite('Keybindings Editing', () => {
 			instantiationService.stub(IConfigurationService, 'getConfiguration', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
 
+			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			instantiationService.stub(ILifecycleService, new TestLifecycleService());
 			instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
 			instantiationService.stub(ITelemetryService, NullTelemetryService);

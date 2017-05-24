@@ -257,6 +257,16 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.maxColumn,
 			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns")
 		},
+		'editor.find.seedSearchStringFromSelection': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.find.seedSearchStringFromSelection,
+			'description': nls.localize('find.seedSearchStringFromSelection', "Controls if we seed the search string in Find Widget from editor selection")
+		},
+		'editor.find.autoFindInSelection': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.find.autoFindInSelection,
+			'description': nls.localize('find.autoFindInSelection', "Controls if Find in Selection flag is turned on when multiple characters or lines of text are selected in the editor")
+		},
 		'editor.wordWrap': {
 			'type': 'string',
 			'enum': ['off', 'on', 'wordWrapColumn', 'bounded'],
@@ -370,7 +380,8 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('suggestOnTriggerCharacters', "Controls if suggestions should automatically show up when typing trigger characters")
 		},
 		'editor.acceptSuggestionOnEnter': {
-			'type': 'boolean',
+			'type': 'string',
+			'enum': ['on', 'smart', 'off'],
 			'default': EDITOR_DEFAULTS.contribInfo.acceptSuggestionOnEnter,
 			'description': nls.localize('acceptSuggestionOnEnter', "Controls if suggestions should be accepted on 'Enter' - in addition to 'Tab'. Helps to avoid ambiguity between inserting new lines or accepting suggestions.")
 		},

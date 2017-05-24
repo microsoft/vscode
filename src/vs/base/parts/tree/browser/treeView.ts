@@ -215,7 +215,7 @@ export class ViewItem implements IViewItem {
 			this.element.removeAttribute('aria-labelledby');
 		}
 		if (this.model.hasChildren()) {
-			this.element.setAttribute('aria-expanded', String(this.model.isExpanded()));
+			this.element.setAttribute('aria-expanded', String(!!this.model.isExpanded()));
 		} else {
 			this.element.removeAttribute('aria-expanded');
 		}

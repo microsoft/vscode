@@ -880,7 +880,7 @@ let lastStaticId = 0;
 
 export class ModelDecorationOptions implements editorCommon.IModelDecorationOptions {
 
-	public static EMPTY = ModelDecorationOptions.register({});
+	public static EMPTY: ModelDecorationOptions;
 
 	public static register(options: editorCommon.IModelDecorationOptions): ModelDecorationOptions {
 		return new ModelDecorationOptions(++lastStaticId, options);
@@ -944,6 +944,7 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 		);
 	}
 }
+ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({});
 
 class ModelDeltaDecoration implements editorCommon.IModelDeltaDecoration {
 

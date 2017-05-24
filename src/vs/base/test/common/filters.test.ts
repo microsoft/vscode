@@ -320,6 +320,18 @@ suite('Filters', () => {
 		);
 	});
 
+	test('Fuzzy IntelliSense matching vs Haxe metadata completion, #26995', function () {
+		assertMatches('f', ':Foo', ':^Foo', fuzzyScore);
+		assertMatches('f', ':foo', ':^foo', fuzzyScore);
+	});
+
+	test('fuzzyScore with offset', function () {
+		const matches = fuzzyScore('bc', 'abc', 0, 1);
+		assert.ok(matches);
+		const [, range] = matches;
+		assert.deepEqual(range, [1, 2]);
+	});
+
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
 		let topScore = -(100 * 10);
 		let topIdx = 0;

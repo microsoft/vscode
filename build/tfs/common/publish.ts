@@ -7,9 +7,11 @@
 
 import * as fs from 'fs';
 import { execSync } from 'child_process';
+import { Readable } from 'stream';
 import * as crypto from 'crypto';
 import * as azure from 'azure-storage';
 import * as mime from 'mime';
+import * as minimist from 'minimist';
 import { DocumentClient, NewDocument } from 'documentdb';
 
 if (process.argv.length < 6) {
@@ -17,10 +19,9 @@ if (process.argv.length < 6) {
 	process.exit(-1);
 }
 
-function sha1hash(file: string): Promise<string> {
+function hashStream(hashName: string, stream: Readable): Promise<string> {
 	return new Promise<string>((c, e) => {
-		const shasum = crypto.createHash('sha1');
-		const stream = fs.createReadStream(file);
+		const shasum = crypto.createHash(hashName);
 
 		stream
 			.on('data', shasum.update.bind(shasum))
@@ -66,6 +67,7 @@ interface Asset {
 	url: string;
 	mooncakeUrl: string;
 	hash: string;
+	sha256hash: string;
 }
 
 function createOrUpdate(commit: string, quality: string, platform: string, type: string, release: NewDocument, asset: Asset, isUpdate: boolean): Promise<void> {
@@ -137,7 +139,11 @@ async function uploadBlob(blobService: azure.BlobService, quality: string, blobN
 	await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, file, blobOptions, err => err ? e(err) : c()));
 }
 
-async function publish(commit: string, quality: string, platform: string, type: string, name: string, version: string, _isUpdate: string, file: string): Promise<void> {
+interface PublishOptions {
+	'upload-only': boolean;
+}
+
+async function publish(commit: string, quality: string, platform: string, type: string, name: string, version: string, _isUpdate: string, file: string, opts: PublishOptions): Promise<void> {
 	const isUpdate = _isUpdate === 'true';
 
 	const queuedBy = process.env['BUILD_QUEUEDBY'];
@@ -157,8 +163,11 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	console.log('Is Released:', isReleased);
 	console.log('File:', file);
 
-	const hash = await sha1hash(file);
-	console.log('Hash:', hash);
+	const stream = fs.createReadStream(file);
+	const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
+
+	console.log('SHA1:', sha1hash);
+	console.log('SHA256:', sha256hash);
 
 	const blobName = commit + '/' + name;
 	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2'];
@@ -202,7 +211,8 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		type: type,
 		url: `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`,
 		mooncakeUrl: `${process.env['MOONCAKE_CDN_URL']}/${quality}/${blobName}`,
-		hash: hash
+		hash: sha1hash,
+		sha256hash
 	};
 
 	const release = {
@@ -212,22 +222,30 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		isReleased: config.frozen ? false : isReleased,
 		sourceBranch,
 		queuedBy,
-		assets: [asset],
+		assets: [],
 		updates: {} as any
 	};
 
-	if (isUpdate) {
-		release.updates[platform] = type;
+	if (!opts['upload-only']) {
+		release.assets.push(asset);
+
+		if (isUpdate) {
+			release.updates[platform] = type;
+		}
 	}
 
 	await createOrUpdate(commit, quality, platform, type, release, asset, isUpdate);
 }
 
 function main(): void {
-	const [, , quality, platform, type, name, version, _isUpdate, file] = process.argv;
+	const opts = minimist<PublishOptions>(process.argv.slice(2), {
+		boolean: ['upload-only']
+	});
+
+	const [quality, platform, type, name, version, _isUpdate, file] = opts._;
 	const commit = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
 
-	publish(commit, quality, platform, type, name, version, _isUpdate, file).catch(err => {
+	publish(commit, quality, platform, type, name, version, _isUpdate, file, opts).catch(err => {
 		console.error(err);
 		process.exit(1);
 	});

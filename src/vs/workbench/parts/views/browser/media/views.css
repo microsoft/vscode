@@ -24,7 +24,3 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
-
-.custom-view-tree-node-item > .custom-view-tree-node-item-label .label {
-	vertical-align: middle;
-}

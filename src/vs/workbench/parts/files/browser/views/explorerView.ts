@@ -12,7 +12,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
 import labels = require('vs/base/common/labels');
 import paths = require('vs/base/common/paths');
-import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actionBarRegistry';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
@@ -43,9 +43,11 @@ import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/th
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IViewOptions } from 'vs/workbench/parts/views/browser/views';
 
 export class ExplorerView extends CollapsibleViewletView {
 
+	public static ID: string = 'workbench.explorer.fileView';
 	private static EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 	private static EXPLORER_FILE_CHANGES_REFRESH_DELAY = 100; // delay in ms to refresh the explorer from disk file changes
 	private static EXPLORER_IMPORT_REFRESH_DELAY = 300; // delay in ms to refresh the explorer from imports
@@ -54,6 +56,8 @@ export class ExplorerView extends CollapsibleViewletView {
 	private static MEMENTO_EXPANDED_FOLDER_RESOURCES = 'explorer.memento.expandedFolderResources';
 
 	private static COMMON_SCM_FOLDERS = ['.git', '.svn', '.hg'];
+
+	public readonly id: string = ExplorerView.ID;
 
 	private explorerViewer: ITree;
 	private filter: FileFilter;
@@ -76,7 +80,7 @@ export class ExplorerView extends CollapsibleViewletView {
 
 	constructor(
 		viewletState: FileViewletState,
-		actionRunner: IActionRunner,
+		options: IViewOptions,
 		settings: any,
 		headerSize: number,
 		@IMessageService messageService: IMessageService,
@@ -95,11 +99,11 @@ export class ExplorerView extends CollapsibleViewletView {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		super(actionRunner, false, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
+		super(options.actionRunner, options.collapsed, nls.localize('explorerSection', "Files Explorer Section"), messageService, keybindingService, contextMenuService, headerSize);
 
 		this.settings = settings;
 		this.viewletState = viewletState;
-		this.actionRunner = actionRunner;
+		this.actionRunner = options.actionRunner;
 		this.autoReveal = true;
 
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);

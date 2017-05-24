@@ -75,6 +75,20 @@ export interface IEditorScrollbarOptions {
 }
 
 /**
+ * Configuration options for editor find widget
+ */
+export interface IEditorFindOptions {
+	/**
+	 * Controls if we seed search string in the Find Widget with editor selection.
+	 */
+	seedSearchStringFromSelection?: boolean;
+	/**
+	 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
+	 */
+	autoFindInSelection: boolean;
+}
+
+/**
  * Configuration options for editor minimap
  */
 export interface IEditorMinimapOptions {
@@ -186,6 +200,10 @@ export interface IEditorOptions {
 	 * Control the behavior and rendering of the minimap.
 	 */
 	minimap?: IEditorMinimapOptions;
+	/**
+	 * Control the behavior of the find widget.
+	 */
+	find?: IEditorFindOptions;
 	/**
 	 * Display overflow widgets as `fixed`.
 	 * Defaults to `false`.
@@ -364,9 +382,9 @@ export interface IEditorOptions {
 	suggestOnTriggerCharacters?: boolean;
 	/**
 	 * Accept suggestions on ENTER.
-	 * Defaults to true.
+	 * Defaults to 'on'.
 	 */
-	acceptSuggestionOnEnter?: boolean;
+	acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
 	/**
 	 * Accept suggestions on provider defined characters.
 	 * Defaults to true.
@@ -672,6 +690,11 @@ export interface InternalEditorMinimapOptions {
 	readonly maxColumn: number;
 }
 
+export interface InternalEditorFindOptions {
+	readonly seedSearchStringFromSelection: boolean;
+	readonly autoFindInSelection: boolean;
+}
+
 export interface EditorWrappingInfo {
 	readonly inDiffEditor: boolean;
 	readonly isDominatedByLongLines: boolean;
@@ -726,7 +749,7 @@ export interface EditorContribOptions {
 	readonly formatOnType: boolean;
 	readonly formatOnPaste: boolean;
 	readonly suggestOnTriggerCharacters: boolean;
-	readonly acceptSuggestionOnEnter: boolean;
+	readonly acceptSuggestionOnEnter: 'on' | 'smart' | 'off';
 	readonly acceptSuggestionOnCommitCharacter: boolean;
 	readonly snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none';
 	readonly wordBasedSuggestions: boolean;
@@ -738,6 +761,7 @@ export interface EditorContribOptions {
 	readonly folding: boolean;
 	readonly showFoldingControls: 'always' | 'mouseover';
 	readonly matchBrackets: boolean;
+	readonly find: InternalEditorFindOptions;
 }
 
 /**
@@ -765,6 +789,7 @@ export interface IValidatedEditorOptions {
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
 	readonly useTabStops: boolean;
+	readonly performanceCritical: boolean;
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -1006,6 +1031,17 @@ export class InternalEditorOptions {
 	/**
 	 * @internal
 	 */
+
+	private static _equalFindOptions(a: InternalEditorFindOptions, b: InternalEditorFindOptions): boolean {
+		return (
+			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
+			&& a.autoFindInSelection === b.autoFindInSelection
+		);
+	}
+
+	/**
+	 * @internal
+	 */
 	private static _equalsWrappingInfo(a: EditorWrappingInfo, b: EditorWrappingInfo): boolean {
 		return (
 			a.inDiffEditor === b.inDiffEditor
@@ -1047,6 +1083,7 @@ export class InternalEditorOptions {
 			&& a.folding === b.folding
 			&& a.showFoldingControls === b.showFoldingControls
 			&& a.matchBrackets === b.matchBrackets
+			&& this._equalFindOptions(a.find, b.find)
 		);
 	}
 
@@ -1344,8 +1381,9 @@ export class EditorOptionsValidator {
 			wordWrap = _stringSet<'off' | 'on' | 'wordWrapColumn' | 'bounded'>(wordWrap, defaults.wordWrap, ['off', 'on', 'wordWrapColumn', 'bounded']);
 		}
 
+		const performanceCritical = false;
 		const viewInfo = this._sanitizeViewInfo(opts, defaults.viewInfo);
-		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo);
+		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo, performanceCritical);
 
 		return {
 			inDiffEditor: _boolean(opts.inDiffEditor, defaults.inDiffEditor),
@@ -1367,6 +1405,7 @@ export class EditorOptionsValidator {
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
 			useTabStops: _boolean(opts.useTabStops, defaults.useTabStops),
+			performanceCritical: performanceCritical,
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
 		};
@@ -1407,6 +1446,17 @@ export class EditorOptionsValidator {
 			enabled: _boolean(opts.enabled, defaults.enabled),
 			renderCharacters: _boolean(opts.renderCharacters, defaults.renderCharacters),
 			maxColumn: _clampedInt(opts.maxColumn, defaults.maxColumn, 1, 10000),
+		};
+	}
+
+	private static _santizeFindOpts(opts: IEditorFindOptions, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
+		if (typeof opts !== 'object') {
+			return defaults;
+		}
+
+		return {
+			seedSearchStringFromSelection: _boolean(opts.seedSearchStringFromSelection, defaults.seedSearchStringFromSelection),
+			autoFindInSelection: _boolean(opts.autoFindInSelection, defaults.autoFindInSelection)
 		};
 	}
 
@@ -1514,13 +1564,14 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _sanitizeContribInfo(opts: IEditorOptions, defaults: EditorContribOptions): EditorContribOptions {
+	private static _sanitizeContribInfo(opts: IEditorOptions, defaults: EditorContribOptions, performanceCritical: boolean): EditorContribOptions {
 		let quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
 		if (typeof opts.quickSuggestions === 'object') {
 			quickSuggestions = { other: true, ...opts.quickSuggestions };
 		} else {
 			quickSuggestions = _boolean(opts.quickSuggestions, defaults.quickSuggestions);
 		}
+		const find = this._santizeFindOpts(opts.find, defaults.find);
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
 			hover: _boolean(opts.hover, defaults.hover),
@@ -1532,18 +1583,19 @@ export class EditorOptionsValidator {
 			formatOnType: _boolean(opts.formatOnType, defaults.formatOnType),
 			formatOnPaste: _boolean(opts.formatOnPaste, defaults.formatOnPaste),
 			suggestOnTriggerCharacters: _boolean(opts.suggestOnTriggerCharacters, defaults.suggestOnTriggerCharacters),
-			acceptSuggestionOnEnter: _boolean(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter),
+			acceptSuggestionOnEnter: _stringSet<'on' | 'smart' | 'off'>(opts.acceptSuggestionOnEnter, defaults.acceptSuggestionOnEnter, ['on', 'smart', 'off']),
 			acceptSuggestionOnCommitCharacter: _boolean(opts.acceptSuggestionOnCommitCharacter, defaults.acceptSuggestionOnCommitCharacter),
 			snippetSuggestions: _stringSet<'top' | 'bottom' | 'inline' | 'none'>(opts.snippetSuggestions, defaults.snippetSuggestions, ['top', 'bottom', 'inline', 'none']),
 			wordBasedSuggestions: _boolean(opts.wordBasedSuggestions, defaults.wordBasedSuggestions),
 			suggestFontSize: _clampedInt(opts.suggestFontSize, defaults.suggestFontSize, 0, 1000),
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
-			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
-			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
-			codeLens: _boolean(opts.codeLens, defaults.codeLens) && _boolean(opts.referenceInfos, true),
-			folding: _boolean(opts.folding, defaults.folding),
+			selectionHighlight: !performanceCritical && _boolean(opts.selectionHighlight, defaults.selectionHighlight),
+			occurrencesHighlight: !performanceCritical && _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
+			codeLens: !performanceCritical && _boolean(opts.codeLens, defaults.codeLens) && _boolean(opts.referenceInfos, true),
+			folding: !performanceCritical && _boolean(opts.folding, defaults.folding),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
-			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
+			matchBrackets: !performanceCritical && _boolean(opts.matchBrackets, defaults.matchBrackets),
+			find: find
 		};
 	}
 }
@@ -1879,6 +1931,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	dragAndDrop: false,
 	emptySelectionClipboard: true,
 	useTabStops: true,
+	performanceCritical: false,
 
 	viewInfo: {
 		extraEditorClassName: '',
@@ -1939,7 +1992,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		formatOnType: false,
 		formatOnPaste: false,
 		suggestOnTriggerCharacters: true,
-		acceptSuggestionOnEnter: true,
+		acceptSuggestionOnEnter: 'smart',
 		acceptSuggestionOnCommitCharacter: true,
 		snippetSuggestions: 'inline',
 		wordBasedSuggestions: true,
@@ -1951,5 +2004,9 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		folding: true,
 		showFoldingControls: 'mouseover',
 		matchBrackets: true,
+		find: {
+			seedSearchStringFromSelection: true,
+			autoFindInSelection: false
+		}
 	},
 };

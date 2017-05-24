@@ -235,7 +235,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		};
 
 		// Consider editor selection and overwrite the state with it
-		if (opts.seedSearchStringFromSelection) {
+		if (opts.seedSearchStringFromSelection && this._editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection) {
 			let selectionSearchString = this.getSelectionSearchString();
 			if (selectionSearchString) {
 				if (this._state.isRegex) {
@@ -506,11 +506,21 @@ export class StartFindReplaceAction extends EditorAction {
 		}
 
 		let controller = CommonFindController.get(editor);
+		let currentSelection = editor.getSelection();
+		// we only seed search string from selection when the current selection is single line and not empty.
+		let seedSearchStringFromSelection = currentSelection.isEmpty() ||
+			currentSelection.startLineNumber !== currentSelection.endLineNumber;
+		let oldSearchString = controller.getState().searchString;
+		// if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input
+		// is still empty, so we should focus the Find Input instead of Replace Input.
+		let shouldFocus = !oldSearchString && seedSearchStringFromSelection ?
+			FindStartFocusAction.FocusFindInput : FindStartFocusAction.FocusReplaceInput;
+
 		if (controller) {
 			controller.start({
 				forceRevealReplace: true,
-				seedSearchStringFromSelection: true,
-				shouldFocus: FindStartFocusAction.FocusReplaceInput,
+				seedSearchStringFromSelection: seedSearchStringFromSelection,
+				shouldFocus: shouldFocus,
 				shouldAnimate: true
 			});
 		}
@@ -918,6 +928,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	private static ID = 'editor.contrib.selectionHighlighter';
 
 	private editor: editorCommon.ICommonCodeEditor;
+	private _isEnabled: boolean;
 	private decorations: string[];
 	private updateSoon: RunOnceScheduler;
 	private state: SelectionHighlighterState;
@@ -925,11 +936,22 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	constructor(editor: editorCommon.ICommonCodeEditor) {
 		super();
 		this.editor = editor;
+		this._isEnabled = editor.getConfiguration().contribInfo.selectionHighlight;
 		this.decorations = [];
 		this.updateSoon = this._register(new RunOnceScheduler(() => this._update(), 300));
 		this.state = null;
 
+		this._register(editor.onDidChangeConfiguration((e) => {
+			this._isEnabled = editor.getConfiguration().contribInfo.selectionHighlight;
+		}));
 		this._register(editor.onDidChangeCursorSelection((e: ICursorSelectionChangedEvent) => {
+
+			if (!this._isEnabled) {
+				// Early exit if nothing needs to be done!
+				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
+				return;
+			}
+
 			if (e.selection.isEmpty()) {
 				if (e.reason === CursorChangeReason.Explicit) {
 					if (this.state && (!this.state.lastWordUnderCursor || !this.state.lastWordUnderCursor.containsPosition(e.selection.getStartPosition()))) {
@@ -958,10 +980,10 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 	}
 
 	private _update(): void {
-		this._setState(SelectionHighlighter._createState(this.editor));
+		this._setState(SelectionHighlighter._createState(this._isEnabled, this.editor));
 	}
 
-	private static _createState(editor: editorCommon.ICommonCodeEditor): SelectionHighlighterState {
+	private static _createState(isEnabled: boolean, editor: editorCommon.ICommonCodeEditor): SelectionHighlighterState {
 		const model = editor.getModel();
 		if (!model) {
 			return null;
@@ -970,7 +992,7 @@ export class SelectionHighlighter extends Disposable implements editorCommon.IEd
 		const config = editor.getConfiguration();
 
 		let lastWordUnderCursor: Selection = null;
-		if (!config.contribInfo.selectionHighlight) {
+		if (!isEnabled) {
 			return null;
 		}
 

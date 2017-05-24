@@ -31,6 +31,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class InstallAction extends Action {
 
@@ -681,6 +682,59 @@ export class CheckForUpdatesAction extends Action {
 	}
 }
 
+export class ToggleAutoUpdateAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private autoUpdateValue: boolean,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, '', true);
+		this.updateEnablement();
+		configurationService.onDidUpdateConfiguration(() => this.updateEnablement());
+	}
+
+	private updateEnablement(): void {
+		this.enabled = this.extensionsWorkbenchService.isAutoUpdateEnabled !== this.autoUpdateValue;
+	}
+
+	run(): TPromise<any> {
+		return this.extensionsWorkbenchService.setAutoUpdate(this.autoUpdateValue);
+	}
+}
+
+export class EnableAutoUpdateAction extends ToggleAutoUpdateAction {
+
+	static ID = 'workbench.extensions.action.enableAutoUpdate';
+	static LABEL = localize('enableAutoUpdate', "Enable Auto Updating Extensions");
+
+	constructor(
+		id = EnableAutoUpdateAction.ID,
+		label = EnableAutoUpdateAction.LABEL,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, true, configurationService, extensionsWorkbenchService);
+	}
+}
+
+export class DisableAutoUpdateAction extends ToggleAutoUpdateAction {
+
+	static ID = 'workbench.extensions.action.disableAutoUpdate';
+	static LABEL = localize('disableAutoUpdate', "Disable Auto Updating Extensions");
+
+	constructor(
+		id = EnableAutoUpdateAction.ID,
+		label = EnableAutoUpdateAction.LABEL,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(id, label, false, configurationService, extensionsWorkbenchService);
+	}
+}
+
 export class UpdateAllAction extends Action {
 
 	static ID = 'workbench.extensions.action.updateAllExtensions';
@@ -1048,11 +1102,11 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 	}
 }
 
-export class ShowExtensionPacksAction extends Action {
+export class ShowLanguageExtensionsAction extends Action {
 
-	static ID = 'workbench.extensions.action.showExtensionPacks';
-	static LABEL = localize('showExtensionPacks', "Show Extension Packs");
-	static SHORT_LABEL = localize('showExtensionPacksShort', "Extension Packs");
+	static ID = 'workbench.extensions.action.showLanguageExtensions';
+	static LABEL = localize('showLanguageExtensions', "Show Language Extensions");
+	static SHORT_LABEL = localize('showLanguageExtensionsShort', "Language Extensions");
 
 	constructor(
 		id: string,
@@ -1066,7 +1120,7 @@ export class ShowExtensionPacksAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@sort:installs @category:"extension packs" ');
+				viewlet.search('@sort:installs @category:languages ');
 				viewlet.focus();
 			});
 	}

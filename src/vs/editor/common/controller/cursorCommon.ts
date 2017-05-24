@@ -42,7 +42,7 @@ export interface ICursors {
 
 	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
 	reveal(horizontal: boolean, target: RevealTarget): void;
-	revealRange(revealHorizontal: boolean, modelRange: Range, viewRange: Range, verticalType: VerticalRevealType): void;
+	revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType): void;
 
 	scrollTo(desiredScrollTop: number): void;
 }
@@ -410,6 +410,10 @@ export class CursorState {
 	constructor(modelState: SingleCursorState, viewState: SingleCursorState) {
 		this.modelState = modelState;
 		this.viewState = viewState;
+	}
+
+	public equals(other: CursorState): boolean {
+		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.viewState));
 	}
 }
 

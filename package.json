@@ -41,7 +41,7 @@
     "vscode-ripgrep": "0.0.12",
     "vscode-textmate": "^3.1.4",
     "winreg": "1.2.0",
-    "xterm": "Tyriar/xterm.js#vscode-release/1.12",
+    "xterm": "Tyriar/xterm.js#vscode-release/1.13",
     "yauzl": "2.3.1"
   },
   "devDependencies": {
@@ -103,7 +103,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^4.3.1",
-    "typescript": "2.3.3-insiders.20170512",
+    "typescript": "2.3.3",
     "typescript-formatter": "4.0.1",
     "uglify-js": "2.4.8",
     "underscore": "^1.8.2",

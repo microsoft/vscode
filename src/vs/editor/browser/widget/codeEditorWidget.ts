@@ -5,7 +5,6 @@
 'use strict';
 
 import 'vs/css!./media/editor';
-import 'vs/editor/common/view/editorColorRegistry'; // initialze editor theming partcicpants
 import 'vs/css!./media/tokens';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -31,7 +30,9 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { Color } from 'vs/base/common/color';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -545,3 +546,30 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 		return this._hasFocus;
 	}
 }
+
+const squigglyStart = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' height='3' width='6'><g fill='`);
+const squigglyEnd = encodeURIComponent(`'><polygon points='5.5,0 2.5,3 1.1,3 4.1,0'/><polygon points='4,0 6,2 6,0.6 5.4,0'/><polygon points='0,2 1,3 2.4,3 0,0.6'/></g></svg>`);
+
+function getSquigglySVGData(color: Color) {
+	return squigglyStart + encodeURIComponent(color.toString()) + squigglyEnd;
+}
+
+registerThemingParticipant((theme, collector) => {
+	let errorBorderColor = theme.getColor(editorErrorBorder);
+	if (errorBorderColor) {
+		collector.addRule(`.monaco-editor .redsquiggly { border-bottom: 4px double ${errorBorderColor}; }`);
+	}
+	let errorForeground = theme.getColor(editorErrorForeground);
+	if (errorForeground) {
+		collector.addRule(`.monaco-editor .redsquiggly { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
+	}
+
+	let warningBorderColor = theme.getColor(editorWarningBorder);
+	if (warningBorderColor) {
+		collector.addRule(`.monaco-editor .greensquiggly { border-bottom: 4px double ${warningBorderColor}; }`);
+	}
+	let warningForeground = theme.getColor(editorWarningForeground);
+	if (warningForeground) {
+		collector.addRule(`.monaco-editor .greensquiggly { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
+	}
+});

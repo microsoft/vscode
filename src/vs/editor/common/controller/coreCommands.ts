@@ -1405,7 +1405,9 @@ export namespace CoreNavigationCommands {
 				}
 			}
 
-			cursors.revealRange(false, range, null, revealAt);
+			const viewRange = cursors.context.convertModelRangeToViewRange(range);
+
+			cursors.revealRange(false, viewRange, revealAt);
 		}
 	});
 

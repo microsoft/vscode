@@ -153,13 +153,17 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 			}
 
 			const className = d.source.options.className;
+			const showIfCollapsed = d.source.options.showIfCollapsed;
 
-			let linesVisibleRanges = ctx.linesVisibleRangesForRange(d.range, /*TODO@Alex*/className === 'findMatch');
+			let range = d.range;
+			if (showIfCollapsed && range.endColumn === 1 && range.endLineNumber !== range.startLineNumber) {
+				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber - 1, this._context.model.getLineMaxColumn(range.endLineNumber - 1));
+			}
+
+			let linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch');
 			if (!linesVisibleRanges) {
 				continue;
 			}
-
-			const showIfCollapsed = d.source.options.showIfCollapsed;
 
 			for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
 				let lineVisibleRanges = linesVisibleRanges[j];

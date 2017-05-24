@@ -290,6 +290,7 @@ export class CollapseAction extends Action {
 }
 
 export interface IViewletView extends IView, IThemable {
+	id?: string;
 	create(): TPromise<void>;
 	setVisible(visible: boolean): TPromise<void>;
 	getActions(): IAction[];
@@ -449,10 +450,11 @@ export abstract class CollapsibleViewletView extends CollapsibleView implements 
 		protected messageService: IMessageService,
 		protected keybindingService: IKeybindingService,
 		protected contextMenuService: IContextMenuService,
-		headerSize?: number
+		headerSize?: number,
+		minimumSize?: number
 	) {
 		super({
-			minimumSize: 5 * 22,
+			minimumSize: minimumSize === void 0 ? 5 * 22 : minimumSize,
 			initialState: collapsed ? CollapsibleState.COLLAPSED : CollapsibleState.EXPANDED,
 			ariaHeaderLabel: viewName,
 			headerSize

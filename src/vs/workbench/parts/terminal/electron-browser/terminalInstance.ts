@@ -220,7 +220,7 @@ export class TerminalInstance implements ITerminalInstance {
 		DOM.addClass(this._wrapperElement, 'terminal-wrapper');
 		this._xtermElement = document.createElement('div');
 
-		this._xterm.open(this._xtermElement);
+		this._xterm.open(this._xtermElement, false);
 		this._xterm.attachCustomKeydownHandler((event: KeyboardEvent) => {
 			// Disable all input if the terminal is exiting
 			if (this._isExiting) {
@@ -299,6 +299,12 @@ export class TerminalInstance implements ITerminalInstance {
 		this.layout(new Dimension(width, height));
 		this.setVisible(this._isVisible);
 		this.updateConfig();
+
+		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
+		// panel was initialized.
+		if (this._xterm.getOption('disableStdin')) {
+			this._attachPressAnyKeyToCloseListener();
+		}
 	}
 
 	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void): number {
@@ -527,10 +533,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// Disable all input if the terminal is exiting and listen for next keypress
 			this._xterm.setOption('disableStdin', true);
 			if (this._xterm.textarea) {
-				this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
-					this.dispose();
-					event.preventDefault();
-				}));
+				this._attachPressAnyKeyToCloseListener();
 			}
 		} else {
 			this.dispose();
@@ -553,6 +556,13 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			}
 		}
+	}
+
+	private _attachPressAnyKeyToCloseListener() {
+		this._processDisposables.push(DOM.addDisposableListener(this._xterm.textarea, 'keypress', (event: KeyboardEvent) => {
+			this.dispose();
+			event.preventDefault();
+		}));
 	}
 
 	public reuseTerminal(shell?: IShellLaunchConfig): void {

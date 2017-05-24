@@ -28,6 +28,7 @@ export enum TreeItemCollapsibleState {
 export interface IViewOptions {
 	name: string;
 	actionRunner: IActionRunner;
+	collapsed: boolean;
 }
 
 export interface IViewConstructorSignature {
