@@ -124,7 +124,15 @@ export class CompletionModel {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 			}
 
-			if (typeof suggestion.filterText === 'string') {
+			if (wordLen === 0) {
+				// when there is nothing to score against, don't
+				// event try to do. Use a const rank and rely on
+				// the fallback-sort using the initial sort order.
+				// use a score of `-100` because that is out of the
+				// bound of values `fuzzyScore` will return
+				item.score = -100;
+
+			} else if (typeof suggestion.filterText === 'string') {
 				// when there is a `filterText` it must match the `word`.
 				// if it matches we check with the label to compute highlights
 				// and if that doesn't yield a result we have no highlights,
