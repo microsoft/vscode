@@ -225,7 +225,7 @@ export class RipgrepParser extends EventEmitter {
 					this.onResult();
 				}
 
-				this.fileMatch = new FileMatch(path.join(this.rootFolder, r[1]));
+				this.fileMatch = new FileMatch(path.resolve(this.rootFolder, r[1]));
 			} else {
 				// Line is empty (or malformed)
 			}
@@ -460,6 +460,8 @@ function getRgArgs(config: IRawSearch): { args: string[], siblingClauses: glob.I
 	} else {
 		args.push('./');
 	}
+
+	args.push(...config.extraFiles);
 
 	return { args, siblingClauses };
 }
