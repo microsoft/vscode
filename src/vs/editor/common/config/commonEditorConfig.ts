@@ -59,6 +59,7 @@ export interface IEnvConfiguration {
 	emptySelectionClipboard: boolean;
 	pixelRatio: number;
 	zoomLevel: number;
+	accessibilitySupport: platform.AccessibilitySupport;
 }
 
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
@@ -122,7 +123,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 			canUseTranslate3d: partialEnv.canUseTranslate3d,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
-			tabFocusMode: TabFocus.getTabFocusMode()
+			tabFocusMode: TabFocus.getTabFocusMode(),
+			accessibilitySupport: partialEnv.accessibilitySupport
 		};
 		return editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
 	}

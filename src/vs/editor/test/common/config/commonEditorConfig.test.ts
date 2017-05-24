@@ -8,6 +8,7 @@ import * as assert from 'assert';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { IEnvConfiguration } from "vs/editor/common/config/commonEditorConfig";
+import { AccessibilitySupport } from "vs/base/common/platform";
 
 suite('Common Editor Config', () => {
 	test('Zoom Level', () => {
@@ -61,7 +62,8 @@ suite('Common Editor Config', () => {
 				canUseTranslate3d: true,
 				emptySelectionClipboard: true,
 				pixelRatio: 1,
-				zoomLevel: 0
+				zoomLevel: 0,
+				accessibilitySupport: AccessibilitySupport.Unknown
 			};
 		}
 	}

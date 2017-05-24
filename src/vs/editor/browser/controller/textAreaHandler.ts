@@ -5,6 +5,7 @@
 'use strict';
 
 import 'vs/css!./textAreaHandler';
+import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, ITypeData, TextAreaState, IENarratorStrategy, NVDAPagedStrategy } from 'vs/editor/browser/controller/textAreaState';
@@ -54,6 +55,7 @@ export class TextAreaHandler extends ViewPart {
 	private readonly _viewHelper: ITextAreaHandlerHelper;
 
 	private _pixelRatio: number;
+	private _accessibilitySupport: platform.AccessibilitySupport;
 	private _contentLeft: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
@@ -85,6 +87,7 @@ export class TextAreaHandler extends ViewPart {
 		const conf = this._context.configuration.editor;
 
 		this._pixelRatio = conf.pixelRatio;
+		this._accessibilitySupport = conf.accessibilitySupport;
 		this._contentLeft = conf.layoutInfo.contentLeft;
 		this._contentWidth = conf.layoutInfo.contentWidth;
 		this._contentHeight = conf.layoutInfo.contentHeight;
@@ -157,6 +160,11 @@ export class TextAreaHandler extends ViewPart {
 
 				if (browser.isIPad) {
 					// Do not place anything in the textarea for the iPad
+					return TextAreaState.EMPTY;
+				}
+
+				if (this._accessibilitySupport === platform.AccessibilitySupport.Disabled) {
+					// We know for a fact that a screen reader is not attached
 					return TextAreaState.EMPTY;
 				}
 
@@ -286,6 +294,10 @@ export class TextAreaHandler extends ViewPart {
 		if (e.pixelRatio) {
 			this._pixelRatio = conf.pixelRatio;
 		}
+		if (e.accessibilitySupport) {
+			this._accessibilitySupport = conf.accessibilitySupport;
+			this._textAreaInput.writeScreenReaderContent('strategy changed');
+		}
 		if (e.emptySelectionClipboard) {
 			this._emptySelectionClipboard = conf.emptySelectionClipboard;
 		}
@@ -294,6 +306,7 @@ export class TextAreaHandler extends ViewPart {
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections.slice(0);
+		this._textAreaInput.writeScreenReaderContent('selection changed');
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -333,10 +346,6 @@ export class TextAreaHandler extends ViewPart {
 		this._textAreaInput.focusTextArea();
 	}
 
-	public writeToTextArea(): void {
-		this._textAreaInput.writeScreenReaderContent('selection changed');
-	}
-
 	public setAriaActiveDescendant(id: string): void {
 		if (id) {
 			this.textArea.setAttribute('role', 'combobox');
@@ -356,11 +365,18 @@ export class TextAreaHandler extends ViewPart {
 	private _primaryCursorVisibleRange: HorizontalRange = null;
 
 	public prepareRender(ctx: RenderingContext): void {
-		const primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
-		this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(primaryCursorPosition);
+		if (this._accessibilitySupport === platform.AccessibilitySupport.Enabled) {
+			// Do not move the textarea with the cursor, as this generates accessibility events that might confuse screen readers
+			// See https://github.com/Microsoft/vscode/issues/26730
+			this._primaryCursorVisibleRange = null;
+		} else {
+			const primaryCursorPosition = new Position(this._selections[0].positionLineNumber, this._selections[0].positionColumn);
+			this._primaryCursorVisibleRange = ctx.visibleRangeForPosition(primaryCursorPosition);
+		}
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
+		this._textAreaInput.writeScreenReaderContent('render');
 		this._render();
 	}
 

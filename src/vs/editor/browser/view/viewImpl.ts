@@ -403,7 +403,6 @@ export class View extends ViewEventHandler {
 
 		if (!this.viewLines.shouldRender() && viewPartsToRender.length === 0) {
 			// Nothing to render
-			this._textAreaHandler.writeToTextArea();
 			return;
 		}
 
@@ -413,15 +412,11 @@ export class View extends ViewEventHandler {
 		let viewportData = new ViewportData(partialViewportData, this._context.model);
 
 		if (this.viewLines.shouldRender()) {
-			this.viewLines.renderText(viewportData, () => {
-				this._textAreaHandler.writeToTextArea();
-			});
+			this.viewLines.renderText(viewportData);
 			this.viewLines.onDidRender();
 
 			// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
 			viewPartsToRender = this._getViewPartsToRender();
-		} else {
-			this._textAreaHandler.writeToTextArea();
 		}
 
 		let renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this.viewLines);

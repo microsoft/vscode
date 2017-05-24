@@ -3389,6 +3389,7 @@ declare module monaco.editor {
 		readonly editorClassName: boolean;
 		readonly lineHeight: boolean;
 		readonly readOnly: boolean;
+		readonly accessibilitySupport: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
 		readonly useTabStops: boolean;

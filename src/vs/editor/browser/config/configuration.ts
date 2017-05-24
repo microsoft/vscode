@@ -310,6 +310,7 @@ export class Configuration extends CommonEditorConfiguration {
 		}
 
 		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
+		this._register(browser.onDidChangeAccessibilitySupport(() => this._recomputeOptions()));
 
 		this._recomputeOptions();
 	}
@@ -353,7 +354,8 @@ export class Configuration extends CommonEditorConfiguration {
 			canUseTranslate3d: browser.canUseTranslate3d(),
 			emptySelectionClipboard: browser.isWebKit,
 			pixelRatio: browser.getPixelRatio(),
-			zoomLevel: browser.getZoomLevel()
+			zoomLevel: browser.getZoomLevel(),
+			accessibilitySupport: browser.getAccessibilitySupport()
 		};
 	}
 
