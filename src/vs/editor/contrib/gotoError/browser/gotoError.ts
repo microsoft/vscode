@@ -27,6 +27,8 @@ import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { getAccessibilitySupport } from 'vs/base/browser/browser';
+import { AccessibilitySupport } from 'vs/base/common/platform';
 
 class MarkerModel {
 
@@ -276,7 +278,9 @@ class MarkerNavigationWidget extends ZoneWidget {
 
 	public show(where: Position, heightInLines: number): void {
 		super.show(where, heightInLines);
-		this.focus();
+		if (getAccessibilitySupport() !== AccessibilitySupport.Disabled) {
+			this.focus();
+		}
 	}
 
 	private _wireModelAndView(): void {
