@@ -31,18 +31,16 @@ export interface ITypeData {
 
 export class TextAreaState {
 
-	public static EMPTY = new TextAreaState('', 0, 0, 0);
+	public static EMPTY = new TextAreaState('', 0, 0);
 
 	public readonly value: string;
 	public readonly selectionStart: number;
 	public readonly selectionEnd: number;
-	public readonly selectionToken: number;
 
-	constructor(value: string, selectionStart: number, selectionEnd: number, selectionToken: number) {
+	constructor(value: string, selectionStart: number, selectionEnd: number) {
 		this.value = value;
 		this.selectionStart = selectionStart;
 		this.selectionEnd = selectionEnd;
-		this.selectionToken = selectionToken;
 	}
 
 	public equals(other: TextAreaState): boolean {
@@ -51,22 +49,21 @@ export class TextAreaState {
 				this.value === other.value
 				&& this.selectionStart === other.selectionStart
 				&& this.selectionEnd === other.selectionEnd
-				&& this.selectionToken === other.selectionToken
 			);
 		}
 		return false;
 	}
 
 	public toString(): string {
-		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ', selectionToken: ' + this.selectionToken + ']';
+		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ']';
 	}
 
 	public readFromTextArea(textArea: ITextAreaWrapper): TextAreaState {
-		return new TextAreaState(textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd(), this.selectionToken);
+		return new TextAreaState(textArea.getValue(), textArea.getSelectionStart(), textArea.getSelectionEnd());
 	}
 
 	public collapseSelection(): TextAreaState {
-		return new TextAreaState(this.value, this.value.length, this.value.length, this.selectionToken);
+		return new TextAreaState(this.value, this.value.length, this.value.length);
 	}
 
 	public writeToTextArea(reason: string, textArea: ITextAreaWrapper, select: boolean): void {
@@ -78,7 +75,7 @@ export class TextAreaState {
 	}
 
 	public static selectedText(text: string): TextAreaState {
-		return new TextAreaState(text, 0, text.length, 0);
+		return new TextAreaState(text, 0, text.length);
 	}
 
 	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
@@ -255,6 +252,6 @@ export class PagedScreenReaderStrategy {
 			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
 		}
 
-		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, selection.startLineNumber);
+		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length);
 	}
 }

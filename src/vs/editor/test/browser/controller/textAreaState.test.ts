@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ISimpleModel, TextAreaState, ITextAreaWrapper, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
+import { ISimpleModel, TextAreaState, ITextAreaWrapper } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -61,8 +61,8 @@ export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper 
 
 suite('TextAreaState', () => {
 
-	function assertTextAreaState(actual: TextAreaState, value: string, selectionStart: number, selectionEnd: number, selectionToken: number): void {
-		let desired = new TextAreaState(value, selectionStart, selectionEnd, selectionToken);
+	function assertTextAreaState(actual: TextAreaState, value: string, selectionStart: number, selectionEnd: number): void {
+		let desired = new TextAreaState(value, selectionStart, selectionEnd);
 		assert.ok(desired.equals(actual), desired.toString() + ' == ' + actual.toString());
 	}
 
@@ -73,12 +73,12 @@ suite('TextAreaState', () => {
 		textArea._selectionEnd = 12;
 		let actual = TextAreaState.EMPTY.readFromTextArea(textArea);
 
-		assertTextAreaState(actual, 'Hello world!', 1, 12, 0);
+		assertTextAreaState(actual, 'Hello world!', 1, 12);
 		assert.equal(actual.value, 'Hello world!');
 		assert.equal(actual.selectionStart, 1);
 
 		actual = actual.collapseSelection();
-		assertTextAreaState(actual, 'Hello world!', 12, 12, 0);
+		assertTextAreaState(actual, 'Hello world!', 12, 12);
 
 		textArea.dispose();
 	});
@@ -89,21 +89,21 @@ suite('TextAreaState', () => {
 		textArea._selectionStart = 1;
 		textArea._selectionEnd = 12;
 
-		let state = new TextAreaState('Hi world!', 2, 2, 0);
+		let state = new TextAreaState('Hi world!', 2, 2);
 		state.writeToTextArea('test', textArea, false);
 
 		assert.equal(textArea._value, 'Hi world!');
 		assert.equal(textArea._selectionStart, 9);
 		assert.equal(textArea._selectionEnd, 9);
 
-		state = new TextAreaState('Hi world!', 3, 3, 0);
+		state = new TextAreaState('Hi world!', 3, 3);
 		state.writeToTextArea('test', textArea, false);
 
 		assert.equal(textArea._value, 'Hi world!');
 		assert.equal(textArea._selectionStart, 9);
 		assert.equal(textArea._selectionEnd, 9);
 
-		state = new TextAreaState('Hi world!', 0, 2, 0);
+		state = new TextAreaState('Hi world!', 0, 2);
 		state.writeToTextArea('test', textArea, true);
 
 		assert.equal(textArea._value, 'Hi world!');
@@ -151,7 +151,7 @@ suite('TextAreaState', () => {
 		// PREVIOUS STATE: [ <ｓ>, selectionStart: 0, selectionEnd: 1, selectionToken: 0]
 		// CURRENT STATE: [ <せ>, selectionStart: 0, selectionEnd: 1, selectionToken: 0]
 		testDeduceInput(
-			new TextAreaState('ｓ', 0, 1, 0),
+			new TextAreaState('ｓ', 0, 1),
 			'せ',
 			0, 1,
 			'せ', 1
@@ -161,7 +161,7 @@ suite('TextAreaState', () => {
 		// PREVIOUS STATE: [ <せ>, selectionStart: 0, selectionEnd: 1, selectionToken: 0]
 		// CURRENT STATE: [ <せｎ>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
 		testDeduceInput(
-			new TextAreaState('せ', 0, 1, 0),
+			new TextAreaState('せ', 0, 1),
 			'せｎ',
 			0, 2,
 			'せｎ', 1
@@ -171,7 +171,7 @@ suite('TextAreaState', () => {
 		// PREVIOUS STATE: [ <せｎ>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
 		// CURRENT STATE: [ <せん>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
 		testDeduceInput(
-			new TextAreaState('せｎ', 0, 2, 0),
+			new TextAreaState('せｎ', 0, 2),
 			'せん',
 			0, 2,
 			'せん', 2
@@ -181,7 +181,7 @@ suite('TextAreaState', () => {
 		// PREVIOUS STATE: [ <せん>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
 		// CURRENT STATE: [ <せんｓ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
 		testDeduceInput(
-			new TextAreaState('せん', 0, 2, 0),
+			new TextAreaState('せん', 0, 2),
 			'せんｓ',
 			0, 3,
 			'せんｓ', 2
@@ -191,7 +191,7 @@ suite('TextAreaState', () => {
 		// PREVIOUS STATE: [ <せんｓ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
 		// CURRENT STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
 		testDeduceInput(
-			new TextAreaState('せんｓ', 0, 3, 0),
+			new TextAreaState('せんｓ', 0, 3),
 			'せんせ',
 			0, 3,
 			'せんせ', 3
@@ -201,7 +201,7 @@ suite('TextAreaState', () => {
 		// PREVIOUS STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
 		// CURRENT STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
 		testDeduceInput(
-			new TextAreaState('せんせ', 0, 3, 0),
+			new TextAreaState('せんせ', 0, 3),
 			'せんせ',
 			0, 3,
 			'せんせ', 3
@@ -211,7 +211,7 @@ suite('TextAreaState', () => {
 		// PREVIOUS STATE: [ <せんせ>, selectionStart: 0, selectionEnd: 3, selectionToken: 0]
 		// CURRENT STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, selectionToken: 0]
 		testDeduceInput(
-			new TextAreaState('せんせ', 0, 3, 0),
+			new TextAreaState('せんせ', 0, 3),
 			'せんせい',
 			0, 4,
 			'せんせい', 3
@@ -221,7 +221,7 @@ suite('TextAreaState', () => {
 		// PREVIOUS STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, selectionToken: 0]
 		// CURRENT STATE: [ <せんせい>, selectionStart: 4, selectionEnd: 4, selectionToken: 0]
 		testDeduceInput(
-			new TextAreaState('せんせい', 0, 4, 0),
+			new TextAreaState('せんせい', 0, 4),
 			'せんせい',
 			4, 4,
 			'', 0
@@ -240,7 +240,7 @@ suite('TextAreaState', () => {
 		// PREVIOUS STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, selectionToken: 0]
 		// CURRENT STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, selectionToken: 0]
 		testDeduceInput(
-			new TextAreaState('せんせい', 0, 4, 0),
+			new TextAreaState('せんせい', 0, 4),
 			'せんせい',
 			0, 4,
 			'せんせい', 4
@@ -250,7 +250,7 @@ suite('TextAreaState', () => {
 		// CURRENT STATE: [ <先生>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
 		// PREVIOUS STATE: [ <せんせい>, selectionStart: 0, selectionEnd: 4, selectionToken: 0]
 		testDeduceInput(
-			new TextAreaState('せんせい', 0, 4, 0),
+			new TextAreaState('せんせい', 0, 4),
 			'先生',
 			0, 2,
 			'先生', 4
@@ -260,7 +260,7 @@ suite('TextAreaState', () => {
 		// PREVIOUS STATE: [ <先生>, selectionStart: 0, selectionEnd: 2, selectionToken: 0]
 		// CURRENT STATE: [ <先生>, selectionStart: 2, selectionEnd: 2, selectionToken: 0]
 		testDeduceInput(
-			new TextAreaState('先生', 0, 2, 0),
+			new TextAreaState('先生', 0, 2),
 			'先生',
 			2, 2,
 			'', 0
@@ -278,7 +278,7 @@ suite('TextAreaState', () => {
 
 	test('issue #2586: Replacing selected end-of-line with newline locks up the document', () => {
 		testDeduceInput(
-			new TextAreaState(']\n', 1, 2, 0),
+			new TextAreaState(']\n', 1, 2),
 			']\n',
 			2, 2,
 			'\n', 0
@@ -314,7 +314,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had the entire line selected', () => {
 		testDeduceInput(
-			new TextAreaState('Hello world!', 0, 12, 0),
+			new TextAreaState('Hello world!', 0, 12),
 			'H',
 			1, 1,
 			'H', 0
@@ -323,7 +323,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had previous text 1', () => {
 		testDeduceInput(
-			new TextAreaState('Hello world!', 12, 12, 0),
+			new TextAreaState('Hello world!', 12, 12),
 			'Hello world!a',
 			13, 13,
 			'a', 0
@@ -332,7 +332,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had previous text 2', () => {
 		testDeduceInput(
-			new TextAreaState('Hello world!', 0, 0, 0),
+			new TextAreaState('Hello world!', 0, 0),
 			'aHello world!',
 			1, 1,
 			'a', 0
@@ -341,7 +341,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - had previous text 3', () => {
 		testDeduceInput(
-			new TextAreaState('Hello world!', 6, 11, 0),
+			new TextAreaState('Hello world!', 6, 11),
 			'Hello other!',
 			11, 11,
 			'other', 0
@@ -359,7 +359,7 @@ suite('TextAreaState', () => {
 
 	test('extractNewText - isInOverwriteMode', () => {
 		testDeduceInput(
-			new TextAreaState('Hello world!', 0, 0, 0),
+			new TextAreaState('Hello world!', 0, 0),
 			'Aello world!',
 			1, 1,
 			'A', 0
@@ -368,7 +368,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText - does nothing if there is selection', () => {
 		testDeduceInput(
-			new TextAreaState('Hello world!', 5, 5, 0),
+			new TextAreaState('Hello world!', 5, 5),
 			'Hellö world!',
 			4, 5,
 			'ö', 0
@@ -377,7 +377,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText - does nothing if there is more than one extra char', () => {
 		testDeduceInput(
-			new TextAreaState('Hello world!', 5, 5, 0),
+			new TextAreaState('Hello world!', 5, 5),
 			'Hellöö world!',
 			5, 5,
 			'öö', 1
@@ -386,7 +386,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText - does nothing if there is more than one changed char', () => {
 		testDeduceInput(
-			new TextAreaState('Hello world!', 5, 5, 0),
+			new TextAreaState('Hello world!', 5, 5),
 			'Helöö world!',
 			5, 5,
 			'öö', 2
@@ -395,7 +395,7 @@ suite('TextAreaState', () => {
 
 	test('extractMacReplacedText', () => {
 		testDeduceInput(
-			new TextAreaState('Hello world!', 5, 5, 0),
+			new TextAreaState('Hello world!', 5, 5),
 			'Hellö world!',
 			5, 5,
 			'ö', 1
@@ -404,7 +404,7 @@ suite('TextAreaState', () => {
 
 	test('issue #25101 - First key press ignored', () => {
 		testDeduceInput(
-			new TextAreaState('a', 0, 1, 0),
+			new TextAreaState('a', 0, 1),
 			'a',
 			1, 1,
 			'a', 0
@@ -413,7 +413,7 @@ suite('TextAreaState', () => {
 
 	test('issue #16520 - Cmd-d of single character followed by typing same character as has no effect', () => {
 		testDeduceInput(
-			new TextAreaState('x x', 0, 1, 0),
+			new TextAreaState('x x', 0, 1),
 			'x x',
 			1, 1,
 			'x', 0
@@ -433,7 +433,7 @@ suite('TextAreaState', () => {
 					'some6  text',
 					'some7  text'
 				].join('\n'),
-				42, 42, 0
+				42, 42
 			),
 			[
 				'so📅me1  text',
@@ -454,7 +454,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState(
 				'some1  text',
-				6, 6, 0
+				6, 6
 			),
 			'some💊1  text',
 			6, 6,
@@ -467,7 +467,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState(
 				'qwertyu\nasdfghj\nzxcvbnm',
-				12, 12, 0
+				12, 12
 			),
 			'qwertyu\nasdfghj\nzxcvbnm🎈',
 			25, 25,
@@ -481,7 +481,7 @@ suite('TextAreaState', () => {
 		testDeduceInput(
 			new TextAreaState(
 				'some1  text',
-				6, 6, 0
+				6, 6
 			),
 			'some⌨️1  text',
 			6, 6,
