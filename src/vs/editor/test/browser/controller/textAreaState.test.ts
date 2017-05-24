@@ -496,7 +496,7 @@ suite('TextAreaState', () => {
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
 			const model = Model.createFromString(lines.join('\n'));
 			const actual = PagedScreenReaderStrategy.fromEditorSelection(TextAreaState.EMPTY, model, selection);
-			assert.ok(actual.equals(expected), actual);
+			assert.ok(actual.equals(expected));
 			model.dispose();
 		}
 
@@ -552,7 +552,7 @@ suite('TextAreaState', () => {
 					'L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21'
 				],
 				new Selection(1, 1, 1, 1),
-				new TextAreaState('L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10', 0, 0)
+				new TextAreaState('L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\n', 0, 0)
 			);
 
 			testPagedScreenReaderStrategy(
@@ -560,7 +560,7 @@ suite('TextAreaState', () => {
 					'L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21'
 				],
 				new Selection(11, 1, 11, 1),
-				new TextAreaState('L11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20', 0, 0)
+				new TextAreaState('L11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\n', 0, 0)
 			);
 
 			testPagedScreenReaderStrategy(
@@ -568,7 +568,15 @@ suite('TextAreaState', () => {
 					'L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21'
 				],
 				new Selection(12, 1, 12, 1),
-				new TextAreaState('L11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20', 4, 4)
+				new TextAreaState('L11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\n', 4, 4)
+			);
+
+			testPagedScreenReaderStrategy(
+				[
+					'L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10\nL11\nL12\nL13\nL14\nL15\nL16\nL17\nL18\nL19\nL20\nL21'
+				],
+				new Selection(21, 1, 21, 1),
+				new TextAreaState('L21', 0, 0)
 			);
 		});
 
