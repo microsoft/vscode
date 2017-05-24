@@ -195,7 +195,7 @@ suite('Filters', () => {
 
 	function assertMatches(pattern: string, word: string, decoratedWord: string, filter: typeof fuzzyScore) {
 		let r = filter(pattern, word);
-		assert.ok(Boolean(r) === Boolean(decoratedWord));
+		assert.ok(!decoratedWord === (!r || r[1].length === 0));
 		if (r) {
 			const [, matches] = r;
 			let pos = 0;
@@ -323,6 +323,18 @@ suite('Filters', () => {
 	test('Fuzzy IntelliSense matching vs Haxe metadata completion, #26995', function () {
 		assertMatches('f', ':Foo', ':^Foo', fuzzyScore);
 		assertMatches('f', ':foo', ':^foo', fuzzyScore);
+	});
+
+	test('Vscode 1.12 no longer obeys \'sortText\' in completion items (from language server), #26096', function () {
+		assertMatches('  ', '  group', undefined, fuzzyScore);
+		assertMatches('  g', '  group', '  ^group', fuzzyScore);
+		assertMatches('g', '  group', '  ^group', fuzzyScore);
+		assertMatches('g g', '  groupGroup', undefined, fuzzyScore);
+		assertMatches('g g', '  group Group', '  ^group^ ^Group', fuzzyScore);
+		assertMatches(' g g', '  group Group', '  ^group^ ^Group', fuzzyScore);
+		assertMatches('zz', 'zzGroup', '^z^zGroup', fuzzyScore);
+		assertMatches('zzg', 'zzGroup', '^z^z^Group', fuzzyScore);
+		assertMatches('g', 'zzGroup', 'zz^Group', fuzzyScore);
 	});
 
 	function assertTopScore(filter: typeof fuzzyScore, pattern: string, expected: number, ...words: string[]) {
