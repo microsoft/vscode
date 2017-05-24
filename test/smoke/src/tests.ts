@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { SpectronApplication } from "./spectron/application";
 import { CommonActions } from './areas/common';
-import { FirstExperience } from './areas/first-experience';
+// import { FirstExperience } from './areas/first-experience';
 import { ConfigurationView, ActivityBarPosition } from './areas/configuration-views';
 import { Search } from './areas/search';
 import { CSS, CSSProblem } from './areas/css';
@@ -23,14 +23,13 @@ import { Localization, ViewletType } from "./areas/localization";
 describe('Smoke Test Suite', function () {
 	const latestPath = process.env.VSCODE_LATEST_PATH;
 	const stablePath = process.env.VSCODE_STABLE_PATH;
-	const insiders = process.env.VSCODE_EDITION;
+	// const insiders = process.env.VSCODE_EDITION;
 	const workspacePath = process.env.SMOKETEST_REPO;
 	const tempUserDir = 'test_data/temp_user_dir';
 	const tempExtensionsDir = 'test_data/temp_extensions_dir';
 
 	let app: SpectronApplication;
 	let common: CommonActions;
-	this.retries(2);
 
 	if (stablePath) {
 		context('Data Migration', function () {
@@ -176,37 +175,38 @@ describe('Smoke Test Suite', function () {
 		});
 	});
 
-	context('First User Experience', function () {
-		let experience: FirstExperience;
+	// Do not run until experiments are finished over the first-time startup behaviour.
+	// context('First User Experience', function () {
+	// 	let experience: FirstExperience;
 
-		beforeEach(async function () {
-			app = new SpectronApplication(latestPath, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), undefined, [`--user-data-dir=${tempUserDir}`, `--excludeSwitches=load-component-extension`]);
-			common = new CommonActions(app);
-			experience = new FirstExperience(app);
+	// 	beforeEach(async function () {
+	// 		app = new SpectronApplication(latestPath, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), undefined, [`--user-data-dir=${tempUserDir}`, `--excludeSwitches=load-component-extension`]);
+	// 		common = new CommonActions(app);
+	// 		experience = new FirstExperience(app);
+			
+	// 		await common.removeDirectory(tempUserDir);
+	// 		return await app.start();
+	// 	});
+	// 	afterEach(async function () {
+	// 		return await app.stop();
+	// 	});
 
-			await common.removeDirectory(tempUserDir);
-			return await app.start();
-		});
-		afterEach(async function () {
-			return await app.stop();
-		});
+	// 	it(`verifies if title is set correctly on the clean user-directory startup`, async function () {
+	// 		const title = await common.getWindowTitle();
+			
+	// 		let expectedTitle = 'Welcome';
+	// 		if (process.platform !== 'darwin') {
+	// 			expectedTitle += ' — Visual Studio Code';
+	// 			if (insiders) expectedTitle += ' - Insiders';
+	// 		}
 
-		it(`verifies if title is set correctly on the clean user-directory startup`, async function () {
-			const title = await common.getWindowTitle();
+	// 		assert.equal(title, expectedTitle);
+	// 	});
 
-			let expectedTitle = 'Welcome';
-			if (process.platform !== 'darwin') {
-				expectedTitle += ' — Visual Studio Code';
-				if (insiders) expectedTitle += ' - Insiders';
-			}
-
-			assert.equal(title, expectedTitle);
-		});
-
-		it(`verifies if 'Welcome page' tab is presented on the clean user-directory startup`, async function () {
-			assert.ok(await experience.getWelcomeTab());
-		});
-	});
+	// 	it(`verifies if 'Welcome page' tab is presented on the clean user-directory startup`, async function () {
+	// 		assert.ok(await experience.getWelcomeTab());
+	// 	});
+	// });
 
 	context('Explorer', function () {
 		beforeEach(async function () {
@@ -557,7 +557,6 @@ describe('Smoke Test Suite', function () {
 			await common.type(command);
 			await common.enter();
 			await app.wait();
-			// Default Powershell terminal adds 3 header rows at the top, whereas bash does not.
 			let output = await terminal.getCommandOutput(command);
 			assert.equal(output, 'test');
 		});
@@ -660,7 +659,7 @@ describe('Smoke Test Suite', function () {
 			const res = await tasks.getOutputResult();
 			assert.equal(res, '✖ 6 problems (6 errors, 0 warnings)');
 		});
-
+		
 		it(`is able to select 'Git' output`, async function () {
 			await tasks.build();
 			await app.wait();
@@ -674,7 +673,7 @@ describe('Smoke Test Suite', function () {
 			assert.ok(await tasks.firstOutputLineEndsWith('index.js'));
 		});
 
-		it(`verifies build errors are reflected in 'Problems View'`, async function () {
+		it(`verifies build errors are reflected in 'Problems View'`, async function () {		
 			await tasks.build();
 			await app.wait();
 			await tasks.openProblemsView();
@@ -717,9 +716,9 @@ describe('Smoke Test Suite', function () {
 			await extensions.installFirstResult();
 			await app.wait();
 			await extensions.getFirstReloadText();
-
+			
 			await app.stop();
-			await app.wait(); // wait until all resources are released (e.g. locked local storage)
+			await app.wait(); // wait until all resources are released (e.g. locked local storage) 
 			await app.start();
 			await extensions.selectMinimalIconsTheme();
 			const x = await extensions.verifyFolderIconAppearance();
@@ -739,13 +738,14 @@ describe('Smoke Test Suite', function () {
 			common.removeDirectory(tempUserDir);
 
 			await app.start();
-
-			let expectedTitle = 'Willkommen — vscode-smoketest-express';
-			if (process.platform !== 'darwin') {
-				expectedTitle += ' — Visual Studio Code';
-				if (insiders) expectedTitle += ' - Insiders';
-			}
-			assert.equal(await common.getWindowTitle(), expectedTitle);
+			
+			// Do not run until experiments are finished over the first-time startup behaviour.
+			// let expectedTitle = 'Willkommen — vscode-smoketest-express';
+			// if (process.platform !== 'darwin') {
+			// 	expectedTitle += ' — Visual Studio Code';
+			// 	if (insiders) expectedTitle += ' - Insiders';
+			// }
+			// assert.equal(await common.getWindowTitle(), expectedTitle);
 
 			let text = await locale.getOpenEditorsText();
 			assert.equal(text.toLowerCase(), 'geöffnete editoren');
@@ -764,8 +764,8 @@ describe('Smoke Test Suite', function () {
 
 			await locale.openViewlet(ViewletType.EXTENSIONS);
 			text = await locale.getExtensionsSearchPlaceholder();
-			assert.equal(text.toLowerCase(), 'nach extensions in marketplace suchen');
+			assert.equal(text.toLowerCase(), 'nach erweiterungen im marketplace suchen');
 		});
 	});
-
+	
 });

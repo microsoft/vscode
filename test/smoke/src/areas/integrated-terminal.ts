@@ -25,6 +25,7 @@ export class IntegratedTerminal {
 
 	public async getCommandOutput(command: string): Promise<string> {
 		const selector = 'div[id="workbench.panel.terminal"] .xterm-rows';
+		// Default Powershell terminal adds 3 header rows at the top, whereas bash does not.
 		let readRow = process.platform === 'win32' ? 5 : 2;
 		let output: string = await this.spectron.client.getText(`${selector}>:nth-child(${readRow})`);
 

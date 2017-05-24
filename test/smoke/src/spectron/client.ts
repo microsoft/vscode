@@ -7,7 +7,7 @@ import { Application } from 'spectron';
 import { Screenshot } from '../helpers/screenshot';
 
 /**
- * Abstracts the Spectron's WebdriverIO managed client property on the created Application instances.
+ * Abstracts the Spectron's WebdriverIO managed client property on the created Application instances. 
  */
 export class SpectronClient {
 

@@ -7,6 +7,7 @@ import { Application } from 'spectron';
 import { SpectronClient } from './client';
 import { Screenshot } from "../helpers/screenshot";
 var fs = require('fs');
+var path = require('path');
 
 /**
  * Wraps Spectron's Application instance with its used methods.
@@ -16,7 +17,7 @@ export class SpectronApplication {
 
 	private spectron: Application;
 	private readonly pollTrials = 5;
-	private readonly pollTimeout = 3; // in secs
+	private readonly pollTimeout = 3; // in secs 
 	private keybindings: any[];
 	private screenshot: Screenshot;
 
@@ -73,13 +74,15 @@ export class SpectronApplication {
 	}
 
 	private retrieveKeybindings() {
-		const os = process.platform;
-		fs.readFile(`test_data/keybindings.${os}.json`, (err, data) => {
+		fs.readFile(path.join(process.cwd(), `test_data/keybindings.json`), 'utf8', (err, data) => {
 			if (err) {
 				throw err;
 			}
-
-			this.keybindings = JSON.parse(data);
+			try {
+				this.keybindings = JSON.parse(data);
+			} catch (e) {
+				throw new Error(`Error parsing keybindings JSON: ${e}`);
+			}
 		});
 	}
 
