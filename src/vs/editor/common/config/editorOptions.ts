@@ -1992,7 +1992,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		formatOnType: false,
 		formatOnPaste: false,
 		suggestOnTriggerCharacters: true,
-		acceptSuggestionOnEnter: 'smart',
+		acceptSuggestionOnEnter: 'on',
 		acceptSuggestionOnCommitCharacter: true,
 		snippetSuggestions: 'inline',
 		wordBasedSuggestions: true,
