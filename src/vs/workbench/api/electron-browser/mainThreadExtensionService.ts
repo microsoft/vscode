@@ -135,7 +135,6 @@ export class MainProcessExtensionService extends AbstractExtensionService<Activa
 	}
 
 	protected _showMessage(severity: Severity, msg: string): void {
-		this._proxy.$localShowMessage(severity, msg);
 		this.$localShowMessage(severity, msg);
 	}
 
