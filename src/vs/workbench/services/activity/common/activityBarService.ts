@@ -24,8 +24,6 @@ export class BaseBadge implements IBadge {
 	}
 }
 
-export class DotBadge extends BaseBadge { }
-
 export class NumberBadge extends BaseBadge {
 	public number: number;
 
@@ -64,11 +62,6 @@ export const IActivityBarService = createDecorator<IActivityBarService>('activit
 
 export interface IActivityBarService {
 	_serviceBrand: any;
-
-	/**
-	 * Show activity in the activitybar for the given global activity.
-	 */
-	showGlobalActivity(globalActivityId: string, badge: IBadge): IDisposable;
 
 	/**
 	 * Show activity in the activitybar for the given viewlet.
