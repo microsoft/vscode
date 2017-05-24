@@ -13,7 +13,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
-import { ActionsOrientation, ActionBar, IActionItem, Separator, IBaseActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, ActionBar, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IGlobalActivity, GlobalActivityExtensions, IGlobalActivityRegistry } from 'vs/workbench/browser/activity';
 import { Registry } from 'vs/platform/platform';
@@ -51,11 +51,10 @@ class GlobalActivityActionItem extends ActivityActionItem {
 
 	constructor(
 		action: GlobalActivityAction,
-		options: IBaseActionItemOptions,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService
 	) {
-		super(action, options, themeService);
+		super(action, { draggable: false }, themeService);
 	}
 
 	onClick(e: MouseEvent): void {
