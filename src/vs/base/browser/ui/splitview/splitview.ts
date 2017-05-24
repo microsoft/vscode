@@ -107,6 +107,7 @@ export interface IHeaderViewOptions extends IHeaderViewStyles {
 }
 
 export interface IHeaderViewStyles {
+	headerForeground?: Color;
 	headerBackground?: Color;
 	headerHighContrastBorder?: Color;
 }
@@ -123,6 +124,7 @@ export abstract class HeaderView extends View {
 	protected header: HTMLElement;
 	protected body: HTMLElement;
 
+	private headerForeground: Color;
 	private headerBackground: Color;
 	private headerHighContrastBorder;
 
@@ -132,11 +134,13 @@ export abstract class HeaderView extends View {
 		this._headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
 		this._showHeader = this._headerSize > 0;
 
+		this.headerForeground = opts.headerForeground;
 		this.headerBackground = opts.headerBackground || headerDefaultOpts.headerBackground;
 		this.headerHighContrastBorder = opts.headerHighContrastBorder;
 	}
 
 	style(styles: IHeaderViewStyles): void {
+		this.headerForeground = styles.headerForeground;
 		this.headerBackground = styles.headerBackground;
 		this.headerHighContrastBorder = styles.headerHighContrastBorder;
 
@@ -149,9 +153,11 @@ export abstract class HeaderView extends View {
 
 	protected applyStyles(): void {
 		if (this.header) {
+			const headerForegroundColor = this.headerForeground ? this.headerForeground.toString() : null;
 			const headerBackgroundColor = this.headerBackground ? this.headerBackground.toString() : null;
 			const headerHighContrastBorderColor = this.headerHighContrastBorder ? this.headerHighContrastBorder.toString() : null;
 
+			this.header.style.color = headerForegroundColor;
 			this.header.style.backgroundColor = headerBackgroundColor;
 			this.header.style.borderTop = headerHighContrastBorderColor ? `1px solid ${headerHighContrastBorderColor}` : null;
 		}
