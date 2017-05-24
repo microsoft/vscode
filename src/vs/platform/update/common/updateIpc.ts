@@ -74,7 +74,7 @@ export class UpdateChannelClient implements IUpdateService {
 			this._onStateChange.fire(state);
 
 			// fire subsequent states as they come in from remote
-			this._onRemoteStateChange(s => this._onStateChange.fire(state));
+			this._onRemoteStateChange(state => this._onStateChange.fire(state));
 		}, onUnexpectedError);
 	}
 
