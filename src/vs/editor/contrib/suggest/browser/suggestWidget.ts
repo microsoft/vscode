@@ -599,12 +599,14 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
 				hide(this.listElement, this.details.element);
 				show(this.messageElement);
+				removeClass(this.element, 'docs-side');
 				this.show();
 				break;
 			case State.Empty:
 				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
 				hide(this.listElement, this.details.element);
 				show(this.messageElement);
+				removeClass(this.element, 'docs-side');
 				this.show();
 				break;
 			case State.Open:
