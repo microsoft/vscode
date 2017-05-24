@@ -280,7 +280,8 @@ export class Repl extends Panel implements IPrivateReplService {
 			lineDecorationsWidth: 0,
 			scrollBeyondLastLine: false,
 			renderLineHighlight: 'none',
-			fixedOverflowWidgets: true
+			fixedOverflowWidgets: true,
+			acceptSuggestionOnEnter: 'smart'
 		};
 	}
 
