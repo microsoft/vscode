@@ -91,12 +91,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.editor = editor;
 		this.throttler = new Throttler();
 
+		this.toUnhook.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(new MyMouseEvent(e))));
 		this.toUnhook.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(new MyMouseEvent(e))));
 		this.toUnhook.push(this.editor.onMouseUp((e: IEditorMouseEvent) => this.onEditorMouseUp(new MyMouseEvent(e))));
-		this.toUnhook.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(new MyMouseEvent(e))));
-		this.toUnhook.push(this.editor.onMouseDrag(() => this.resetHandler()));
 		this.toUnhook.push(this.editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(new MyKeyboardEvent(e))));
 		this.toUnhook.push(this.editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(new MyKeyboardEvent(e))));
+		this.toUnhook.push(this.editor.onMouseDrag(() => this.resetHandler()));
 
 		this.toUnhook.push(this.editor.onDidChangeCursorSelection((e) => this.onDidChangeCursorSelection(e)));
 		this.toUnhook.push(this.editor.onDidChangeModel((e) => this.resetHandler()));
@@ -112,12 +112,6 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		if (e.selection && e.selection.startColumn !== e.selection.endColumn) {
 			this.resetHandler(); // immediately stop this feature if the user starts to select (https://github.com/Microsoft/vscode/issues/7827)
 		}
-	}
-
-	private onEditorMouseMove(mouseEvent: MyMouseEvent): void {
-		this.lastMouseMoveEvent = mouseEvent;
-
-		this.startFindDefinition(mouseEvent);
 	}
 
 	private startFindDefinition(mouseEvent: MyMouseEvent, withKey?: MyKeyboardEvent): void {
@@ -230,24 +224,10 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		}
 	}
 
-	private onEditorKeyDown(e: MyKeyboardEvent): void {
-		if (
-			this.lastMouseMoveEvent
-			&& (
-				e.keyCodeIsTriggerKey // User just pressed Ctrl/Cmd (normal goto definition)
-				|| (e.keyCodeIsSideBySideKey && e.hasTriggerModifier) // User pressed Ctrl/Cmd+Alt (goto definition to the side)
-			)
-		) {
-			this.startFindDefinition(this.lastMouseMoveEvent, e);
-		} else if (e.hasTriggerModifier) {
-			this.removeDecorations(); // remove decorations if user holds another key with ctrl/cmd to prevent accident goto declaration
-		}
-	}
+	private onEditorMouseMove(mouseEvent: MyMouseEvent): void {
+		this.lastMouseMoveEvent = mouseEvent;
 
-	private resetHandler(): void {
-		this.lastMouseMoveEvent = null;
-		this.hasTriggerKeyOnMouseDown = false;
-		this.removeDecorations();
+		this.startFindDefinition(mouseEvent);
 	}
 
 	private onEditorMouseDown(mouseEvent: MyMouseEvent): void {
@@ -269,11 +249,31 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		}
 	}
 
+	private onEditorKeyDown(e: MyKeyboardEvent): void {
+		if (
+			this.lastMouseMoveEvent
+			&& (
+				e.keyCodeIsTriggerKey // User just pressed Ctrl/Cmd (normal goto definition)
+				|| (e.keyCodeIsSideBySideKey && e.hasTriggerModifier) // User pressed Ctrl/Cmd+Alt (goto definition to the side)
+			)
+		) {
+			this.startFindDefinition(this.lastMouseMoveEvent, e);
+		} else if (e.hasTriggerModifier) {
+			this.removeDecorations(); // remove decorations if user holds another key with ctrl/cmd to prevent accident goto declaration
+		}
+	}
+
 	private onEditorKeyUp(e: MyKeyboardEvent): void {
 		if (e.keyCodeIsTriggerKey) {
 			this.removeDecorations();
 			this.currentWordUnderMouse = null;
 		}
+	}
+
+	private resetHandler(): void {
+		this.lastMouseMoveEvent = null;
+		this.hasTriggerKeyOnMouseDown = false;
+		this.removeDecorations();
 	}
 
 	private isEnabled(mouseEvent: MyMouseEvent, withKey?: MyKeyboardEvent): boolean {
