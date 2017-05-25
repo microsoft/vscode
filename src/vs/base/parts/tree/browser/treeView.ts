@@ -197,22 +197,18 @@ export class ViewItem implements IViewItem {
 
 		// ARIA
 		this.element.setAttribute('role', 'treeitem');
+		const ariaLabel = this.context.accessibilityProvider.getAriaLabel(this.context.tree, this.model.getElement());
+		if (ariaLabel) {
+			this.element.setAttribute('aria-label', ariaLabel);
+		}
 		if (this.model.hasTrait('focused')) {
 			const base64Id = strings.safeBtoa(this.model.id);
-			const ariaLabel = this.context.accessibilityProvider.getAriaLabel(this.context.tree, this.model.getElement());
 
 			this.element.setAttribute('aria-selected', 'true');
 			this.element.setAttribute('id', base64Id);
-			if (ariaLabel) {
-				this.element.setAttribute('aria-label', ariaLabel);
-			} else {
-				this.element.setAttribute('aria-labelledby', base64Id); // force screen reader to compute label from children (helps NVDA at least)
-			}
 		} else {
 			this.element.setAttribute('aria-selected', 'false');
 			this.element.removeAttribute('id');
-			this.element.removeAttribute('aria-label');
-			this.element.removeAttribute('aria-labelledby');
 		}
 		if (this.model.hasChildren()) {
 			this.element.setAttribute('aria-expanded', String(!!this.model.isExpanded()));
