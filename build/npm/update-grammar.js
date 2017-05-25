@@ -25,19 +25,28 @@ function getOptions(urlString) {
 	}
 }
 
-function download(url) {
-return new Promise((c, e) => {
-	var content = '';
-		var request = https.get(getOptions(url), function (response) {
+function download(url, redirectCount) {
+	return new Promise((c, e) => {
+		var content = '';
+		https.get(getOptions(url), function (response) {
 			response.on('data', function (data) {
 				content += data.toString();
 			}).on('end', function () {
+				let count = redirectCount || 0;
+				if (count < 5 && response.statusCode >= 300 && response.statusCode <= 303 || response.statusCode === 307) {
+					let location = response.headers['location'];
+					if (location) {
+						console.log("Redirected " + url + " to " + location);
+						download(location, count+1).then(c, e);
+						return;
+					}
+				}
 				c(content);
 			});
 		}).on('error', function (err) {
 			e(err.message);
 		});
-});
+	});
 }
 
 function getCommitSha(repoId, repoPath) {
@@ -46,14 +55,15 @@ function getCommitSha(repoId, repoPath) {
 		try {
 			let lastCommit = JSON.parse(content)[0];
 			return Promise.resolve({
-				commitSha : lastCommit.sha,
-				commitDate : lastCommit.commit.author.date
+				commitSha: lastCommit.sha,
+				commitDate: lastCommit.commit.author.date
 			});
 		} catch (e) {
+			console.error("Failed extracting the SHA: " + content);
 			return Promise.resolve(null);
 		}
 	}, function () {
-		console.err('Failed loading ' + commitInfo);
+		console.error('Failed loading ' + commitInfo);
 		return Promise.resolve(null);
 	});
 }
@@ -97,7 +107,7 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar) {
 }
 
 if (path.basename(process.argv[1]) === 'update-grammar.js') {
-	for (var i = 3; i < process.argv.length; i+=2) {
-		exports.update(process.argv[2], process.argv[i], process.argv[i+1]);
+	for (var i = 3; i < process.argv.length; i += 2) {
+		exports.update(process.argv[2], process.argv[i], process.argv[i + 1]);
 	}
 }
