@@ -13,9 +13,6 @@ export default class MergeDectorator implements vscode.Disposable {
 
 	private decorationUsesWholeLine: boolean = true; // Useful for debugging, set to false to see exact match ranges
 
-	// TODO: Move to config?
-	private currentColorRgb = `32,200,94`;
-	private incomingColorRgb = `24,134,255`;
 	private config: interfaces.IExtensionConfiguration;
 	private tracker: interfaces.IDocumentMergeConflictTracker;
 
@@ -69,21 +66,19 @@ export default class MergeDectorator implements vscode.Disposable {
 		// Create decorators
 		if (config.enableDecorations || config.enableEditorOverview) {
 			this.decorations['current.content'] = vscode.window.createTextEditorDecorationType(
-				this.generateBlockRenderOptions(this.currentColorRgb, config)
+				this.generateBlockRenderOptions('merge.currentContentBackground', 'overviewRuler.currentContentForeground', config)
 			);
 
 			this.decorations['incoming.content'] = vscode.window.createTextEditorDecorationType(
-				this.generateBlockRenderOptions(this.incomingColorRgb, config)
+				this.generateBlockRenderOptions('merge.incomingContentBackground', 'overviewRuler.incomingContentForeground', config)
 			);
 		}
 
 		if (config.enableDecorations) {
 			this.decorations['current.header'] = vscode.window.createTextEditorDecorationType({
-				// backgroundColor: 'rgba(255, 0, 0, 0.01)',
-				// border: '2px solid red',
 				isWholeLine: this.decorationUsesWholeLine,
-				backgroundColor: `rgba(${this.currentColorRgb}, 1.0)`,
-				color: 'white',
+				backgroundColor: new vscode.ThemeColor('merge.currentHeaderBackground'),
+				color: new vscode.ThemeColor('editor.foreground'),
 				after: {
 					contentText: ' ' + localize('currentChange', '(Current change)'),
 					color: 'rgba(0, 0, 0, 0.7)'
@@ -91,14 +86,13 @@ export default class MergeDectorator implements vscode.Disposable {
 			});
 
 			this.decorations['splitter'] = vscode.window.createTextEditorDecorationType({
-				backgroundColor: 'rgba(0, 0, 0, 0.25)',
-				color: 'white',
+				color: new vscode.ThemeColor('editor.foreground'),
 				isWholeLine: this.decorationUsesWholeLine,
 			});
 
 			this.decorations['incoming.header'] = vscode.window.createTextEditorDecorationType({
-				backgroundColor: `rgba(${this.incomingColorRgb}, 1.0)`,
-				color: 'white',
+				backgroundColor: new vscode.ThemeColor('merge.incomingHeaderBackground'),
+				color: new vscode.ThemeColor('editor.foreground'),
 				isWholeLine: this.decorationUsesWholeLine,
 				after: {
 					contentText: ' ' + localize('incomingChange', '(Incoming change)'),
@@ -118,17 +112,17 @@ export default class MergeDectorator implements vscode.Disposable {
 		this.decorations = {};
 	}
 
-	private generateBlockRenderOptions(color: string, config: interfaces.IExtensionConfiguration): vscode.DecorationRenderOptions {
+	private generateBlockRenderOptions(backgroundColor: string, overviewRulerColor: string, config: interfaces.IExtensionConfiguration): vscode.DecorationRenderOptions {
 
-		let renderOptions: any = {};
+		let renderOptions: vscode.DecorationRenderOptions = {};
 
 		if (config.enableDecorations) {
-			renderOptions.backgroundColor = `rgba(${color}, 0.2)`;
+			renderOptions.backgroundColor = new vscode.ThemeColor(backgroundColor);
 			renderOptions.isWholeLine = this.decorationUsesWholeLine;
 		}
 
 		if (config.enableEditorOverview) {
-			renderOptions.overviewRulerColor = `rgba(${color}, 0.5)`;
+			renderOptions.overviewRulerColor = new vscode.ThemeColor(overviewRulerColor);
 			renderOptions.overviewRulerLane = vscode.OverviewRulerLane.Full;
 		}
 
