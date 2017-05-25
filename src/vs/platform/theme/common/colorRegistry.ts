@@ -258,11 +258,11 @@ export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', 
  * Merge-conflict colors
  */
 
-const headerTransparency = 1;
-const currentBaseColor = Color.fromHex('#20C85E').transparent(headerTransparency);
-const incomingBaseColor = Color.fromHex('#1886FF').transparent(headerTransparency);
-const contentTransparency = 0.2;
-const rulerTransparency = 0.5;
+const headerTransparency = 0.5;
+const currentBaseColor = Color.fromHex('#40C8AE').transparent(headerTransparency);
+const incomingBaseColor = Color.fromHex('#40A6FF').transparent(headerTransparency);
+const contentTransparency = 0.4;
+const rulerTransparency = 1;
 
 export const mergeCurrentHeaderBackground = registerColor('merge.currentHeaderBackground', { dark: currentBaseColor, light: currentBaseColor, hc: currentBaseColor }, nls.localize('mergeCurrentHeaderBackground', 'Current header background in inline merge-conflict.'));
 export const mergeCurrentContentBackground = registerColor('merge.currentContentBackground', { dark: transparent(mergeCurrentHeaderBackground, contentTransparency), light: transparent(mergeCurrentHeaderBackground, contentTransparency), hc: transparent(mergeCurrentHeaderBackground, contentTransparency) }, nls.localize('mergeCurrentContentBackground', 'Current content background in inline merge-conflict.'));
