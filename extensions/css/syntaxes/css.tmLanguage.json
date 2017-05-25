@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-css/blob/master/grammars/css.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "source.css",
 	"name": "CSS",
 	"fileTypes": [
@@ -1796,6 +1801,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/atom/language-css/commit/23dcdee3372050eb3f07374fbe9188884bd545d1"
+	}
 }

@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-c/blob/master/grammars/c.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "source.c",
 	"fileTypes": [
 		"c",
@@ -1950,6 +1955,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/atom/language-c/commit/1d137279178d06e7f7500800ebc36155e130172e"
+	}
 }

@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/textmate/lua.tmbundle/blob/master/Syntaxes/Lua.plist",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"comment": "Lua Syntax: version 0.8",
 	"fileTypes": [
 		"lua",
@@ -275,6 +280,5 @@
 		}
 	},
 	"scopeName": "source.lua",
-	"uuid": "93E017CC-6F27-11D9-90EB-000D93589AF7",
-	"version": "https://github.com/textmate/lua.tmbundle/commit/3a97f1b46804a3de99d4d2909e14450299462f2d"
+	"uuid": "93E017CC-6F27-11D9-90EB-000D93589AF7"
 }

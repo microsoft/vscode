@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-xml/blob/master/grammars/xml.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "text.xml",
 	"name": "XML",
 	"fileTypes": [
@@ -433,6 +438,5 @@
 			"end": "--%?>",
 			"name": "comment.block.xml"
 		}
-	},
-	"version": "https://github.com/atom/language-xml/commit/ac6bc8ef6a9c79ac3c7e31615bc18436b0c815ab"
+	}
 }

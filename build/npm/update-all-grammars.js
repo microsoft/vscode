@@ -5,7 +5,6 @@
 
 const cp = require('child_process');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const integrationTests = process.platform === 'win32' ? '.\test-integration.bat' : './test-integration.sh';
 
 function updateGrammar(location) {
 	const result = cp.spawnSync(npm, ['run', 'update-grammar'], {

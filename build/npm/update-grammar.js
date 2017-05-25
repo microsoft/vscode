@@ -88,11 +88,23 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar) {
 			modifyGrammar(grammar);
 		}
 		return getCommitSha(repoId, repoPath).then(function (info) {
+			let result = {
+				information_for_contributors: [
+					'This file has been converted from https://github.com/' + repoId + '/blob/master/' + repoPath,
+					'If you want to provide a fix or improvement, please create a pull request against the original repository.',
+					'Once accepted there, we are happy to receive an update request.'
+				]
+			};
+
 			if (info) {
-				grammar.version = 'https://github.com/' + repoId + '/commit/' + info.commitSha;
+				result.version = 'https://github.com/' + repoId + '/commit/' + info.commitSha;
 			}
+			for (let key in grammar) {
+				result[key] = grammar[key];
+			}
+
 			try {
-				fs.writeFileSync(dest, JSON.stringify(grammar, null, '\t'));
+				fs.writeFileSync(dest, JSON.stringify(result, null, '\t'));
 				if (info) {
 					console.log('Updated ' + path.basename(dest) + ' to ' + repoId + '@' + info.commitSha.substr(0, 7) + ' (' + info.commitDate.substr(0, 10) + ')');
 				} else {

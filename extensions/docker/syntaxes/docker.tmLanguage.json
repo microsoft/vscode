@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/moby/moby/blob/master/contrib/syntax/textmate/Docker.tmbundle/Syntaxes/Dockerfile.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"fileTypes": [
 		"Dockerfile"
 	],
@@ -96,6 +101,5 @@
 		}
 	],
 	"scopeName": "source.dockerfile",
-	"uuid": "a39d8795-59d2-49af-aa00-fe74ee29576e",
-	"version": "https://github.com/moby/moby/commit/8523e9d108a0e98865673701a7bd0a7929c5260b"
+	"uuid": "a39d8795-59d2-49af-aa00-fe74ee29576e"
 }
