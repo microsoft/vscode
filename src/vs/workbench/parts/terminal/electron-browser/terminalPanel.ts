@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import DOM = require('vs/base/browser/dom');
-import nls = require('vs/nls');
-import platform = require('vs/base/common/platform');
+import * as dom from 'vs/base/browser/dom';
+import * as nls from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -51,12 +51,12 @@ export class TerminalPanel extends Panel {
 	public create(parent: Builder): TPromise<any> {
 		super.create(parent);
 		this._parentDomElement = parent.getHTMLElement();
-		DOM.addClass(this._parentDomElement, 'integrated-terminal');
+		dom.addClass(this._parentDomElement, 'integrated-terminal');
 		this._themeStyleElement = document.createElement('style');
 		this._fontStyleElement = document.createElement('style');
 
 		this._terminalContainer = document.createElement('div');
-		DOM.addClass(this._terminalContainer, 'terminal-outer-container');
+		dom.addClass(this._terminalContainer, 'terminal-outer-container');
 		this._parentDomElement.appendChild(this._themeStyleElement);
 		this._parentDomElement.appendChild(this._fontStyleElement);
 		this._parentDomElement.appendChild(this._terminalContainer);
@@ -152,7 +152,7 @@ export class TerminalPanel extends Panel {
 	}
 
 	private _attachEventListeners(): void {
-		this._register(DOM.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
 			}
@@ -183,7 +183,7 @@ export class TerminalPanel extends Panel {
 				}
 			}
 		}));
-		this._register(DOM.addDisposableListener(this._parentDomElement, 'contextmenu', (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._parentDomElement, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
 				const standardEvent = new StandardMouseEvent(event);
 				let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
@@ -196,7 +196,7 @@ export class TerminalPanel extends Panel {
 			}
 			this._cancelContextMenu = false;
 		}));
-		this._register(DOM.addDisposableListener(this._parentDomElement, 'click', (event) => {
+		this._register(dom.addDisposableListener(this._parentDomElement, 'click', (event) => {
 			if (this._terminalService.terminalInstances.length === 0) {
 				return;
 			}
@@ -205,14 +205,14 @@ export class TerminalPanel extends Panel {
 				this._terminalService.getActiveInstance().focus();
 			}
 		}));
-		this._register(DOM.addDisposableListener(this._parentDomElement, 'keyup', (event: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(this._parentDomElement, 'keyup', (event: KeyboardEvent) => {
 			if (event.keyCode === 27) {
 				// Keep terminal open on escape
 				event.stopPropagation();
 			}
 		}));
-		this._register(DOM.addDisposableListener(this._parentDomElement, DOM.EventType.DROP, (e: DragEvent) => {
-			if (e.target === this._parentDomElement || DOM.isAncestor(e.target as HTMLElement, this._parentDomElement)) {
+		this._register(dom.addDisposableListener(this._parentDomElement, dom.EventType.DROP, (e: DragEvent) => {
+			if (e.target === this._parentDomElement || dom.isAncestor(e.target as HTMLElement, this._parentDomElement)) {
 				if (!e.dataTransfer) {
 					return;
 				}
@@ -269,8 +269,8 @@ export class TerminalPanel extends Panel {
 			return;
 		}
 		let newFont = this._terminalService.configHelper.getFont();
-		DOM.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
-		DOM.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
+		dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
+		dom.toggleClass(this._parentDomElement, 'disable-bold', !this._terminalService.configHelper.config.enableBold);
 		if (!this._font || this._fontsDiffer(this._font, newFont)) {
 			this._fontStyleElement.innerHTML = '.monaco-workbench .panel.integrated-terminal .xterm {' +
 				`font-family: ${newFont.fontFamily};` +
