@@ -6,6 +6,7 @@
 
 import { EventEmitter } from 'events';
 import * as path from 'path';
+import { StringDecoder, NodeStringDecoder } from 'string_decoder';
 
 import * as cp from 'child_process';
 import { rgPath } from 'vscode-ripgrep';
@@ -174,11 +175,13 @@ export class RipgrepParser extends EventEmitter {
 	private fileMatch: FileMatch;
 	private remainder: string;
 	private isDone: boolean;
+	private stringDecoder: NodeStringDecoder;
 
 	private numResults = 0;
 
 	constructor(private maxResults: number, private rootFolder: string) {
 		super();
+		this.stringDecoder = new StringDecoder();
 	}
 
 	public cancel(): void {
@@ -186,16 +189,23 @@ export class RipgrepParser extends EventEmitter {
 	}
 
 	public flush(): void {
+		this.handleDecodedData(this.stringDecoder.end());
+
 		if (this.fileMatch) {
 			this.onResult();
 		}
 	}
 
-	public handleData(data: string | Buffer): void {
+	public handleData(data: Buffer | string): void {
+		const dataStr = typeof data === 'string' ? data : this.stringDecoder.write(data);
+		this.handleDecodedData(dataStr);
+	}
+
+	private handleDecodedData(decodedData: string): void {
 		// If the previous data chunk didn't end in a newline, prepend it to this chunk
 		const dataStr = this.remainder ?
-			this.remainder + data.toString() :
-			data.toString();
+			this.remainder + decodedData :
+			decodedData;
 
 		const dataLines: string[] = dataStr.split(/\r\n|\n/);
 		this.remainder = dataLines[dataLines.length - 1] ? dataLines.pop() : null;
