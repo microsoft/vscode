@@ -60,6 +60,7 @@
 	"editorBackground": "エディターの背景色。",
 	"editorForeground": "エディターの既定の前景色。",
 	"editorWidgetBackground": "検索/置換窓など、エディター ウィジェットの背景色。",
+	"editorWidgetBorder": "エディター ウィジェットの境界線の色。",
 	"editorSelection": "エディターの選択範囲の色。",
 	"editorInactiveSelection": "非アクティブなエディターの選択範囲の色。",
 	"editorSelectionHighlight": "選択範囲と同じコンテンツの領域の色。",

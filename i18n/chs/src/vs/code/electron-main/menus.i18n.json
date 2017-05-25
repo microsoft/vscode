@@ -146,7 +146,7 @@
 	"miInteractivePlayground": "交互式演练场(&&I)",
 	"miDocumentation": "文档(&&D)",
 	"miReleaseNotes": "发行说明(&&R)",
-	"miKeyboardShortcuts": "键盘快捷方式参考(&&K)",
+	"miKeyboardShortcuts": "快捷键参考(&&K)",
 	"miIntroductoryVideos": "介绍性视频(&&V)",
 	"miTwitter": "在 Twitter 上加入我们(&&J)",
 	"miUserVoice": "搜索功能请求(&&S)",
@@ -159,6 +159,6 @@
 	"miDownloadingUpdate": "正在下载更新...",
 	"miInstallingUpdate": "正在安装更新...",
 	"miCheckForUpdates": "检查更新...",
-	"aboutDetail": "\n版本 {0}\n提交  {1}\n日期 {2}\nShell {3}\n呈现器 {4}\nNode {5}",
+	"aboutDetail": "\n版本 {0}\n提交 {1}\n日期 {2}\nShell {3}\n渲染器 {4}\nNode {5}",
 	"okButton": "确定"
 }

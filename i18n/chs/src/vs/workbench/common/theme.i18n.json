@@ -32,6 +32,7 @@
 	"activityBarBadgeBackground": "活动通知徽章背景色。活动栏显示在最左侧或最右侧，并允许在侧边栏的视图间切换。",
 	"activityBarBadgeForeground": "活动通知徽章前景色。活动栏显示在最左侧或最右侧，并允许在侧边栏的视图间切换。",
 	"sideBarBackground": "侧边栏背景色。侧边栏是资源管理器和搜索等视图的容器。",
+	"sideBarForeground": "侧边栏前景色。侧边栏是资源管理器和搜索等视图的容器。",
 	"sideBarTitleForeground": "侧边栏标题前景色。侧边栏是资源管理器和搜索等视图的容器。",
 	"sideBarSectionHeaderBackground": "侧边栏节标题的背景颜色。侧边栏是资源管理器和搜索等视图的容器。",
 	"titleBarActiveForeground": "窗口处于活动状态时的标题栏前景色。请注意，该颜色当前仅在 macOS 上受支持。",

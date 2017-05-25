@@ -7,6 +7,7 @@
 	"view": "Affichage",
 	"help": "Aide",
 	"file": "Fichier",
+	"developer": "Développeur",
 	"showEditorTabs": "Contrôle si les éditeurs ouverts doivent s'afficher ou non sous des onglets.",
 	"editorTabCloseButton": "Contrôle la position des boutons de fermeture des onglets de l'éditeur, ou les désactive quand le paramètre a la valeur 'off'.",
 	"showIcons": "Contrôle si les éditeurs ouverts doivent s'afficher ou non avec une icône. Cela implique notamment l'activation d'un thème d'icône.",

@@ -16,7 +16,6 @@
 	"associations": "Consente di configurare le associazioni tra file e linguaggi, ad esempio \"*.extension\": \"html\". Queste hanno la precedenza sulle associazioni predefinite dei linguaggi installate.",
 	"encoding": "Codifica del set di caratteri predefinita da usare durante la lettura e la scrittura di file.",
 	"autoGuessEncoding": "Quando questa opzione è abilitata, la codifica del set di caratteri viene ipotizzata all'apertura dei file",
-	"eol": "Carattere di fine riga predefinito.",
 	"trimTrailingWhitespace": "Se è abilitato, taglierà lo spazio vuoto quando si salva un file.",
 	"insertFinalNewline": "Se è abilitato, inserisce un carattere di nuova riga finale alla fine del file durante il salvataggio.",
 	"files.autoSave.off": "Un file dirty non viene mai salvato automaticamente.",
