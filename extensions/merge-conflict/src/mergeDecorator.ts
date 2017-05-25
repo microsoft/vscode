@@ -81,7 +81,7 @@ export default class MergeDectorator implements vscode.Disposable {
 				color: new vscode.ThemeColor('editor.foreground'),
 				after: {
 					contentText: ' ' + localize('currentChange', '(Current change)'),
-					color: 'rgba(0, 0, 0, 0.7)'
+					color: new vscode.ThemeColor('descriptionForeground')
 				}
 			});
 
@@ -96,7 +96,7 @@ export default class MergeDectorator implements vscode.Disposable {
 				isWholeLine: this.decorationUsesWholeLine,
 				after: {
 					contentText: ' ' + localize('incomingChange', '(Incoming change)'),
-					color: 'rgba(0, 0, 0, 0.7)'
+					color: new vscode.ThemeColor('descriptionForeground')
 				}
 			});
 		}
