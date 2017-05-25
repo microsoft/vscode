@@ -33,7 +33,7 @@ class ExpandAbbreviationAction extends BasicEmmetEditorAction {
 					EditorContextKeys.hasSingleSelection,
 					EditorContextKeys.tabDoesNotMoveFocus,
 					ContextKeyExpr.has('config.emmet.triggerExpansionOnTab'),
-					ContextKeyExpr.not('config.emmet.suggestExpandedAbbreviation')
+					ContextKeyExpr.not('config.emmet.useModules')
 				)
 			}
 		);
