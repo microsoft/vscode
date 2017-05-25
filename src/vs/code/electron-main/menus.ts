@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { isMacintosh, isLinux, isWindows, language } from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem } from 'electron';
+import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem, BrowserWindow } from 'electron';
 import { OpenContext } from 'vs/code/common/windows';
 import { IWindowsMainService } from 'vs/code/electron-main/windows';
 import { VSCodeWindow } from 'vs/code/electron-main/window';
@@ -908,7 +908,7 @@ export class VSCodeMenu {
 			label: this.mnemonicLabel(nls.localize({ key: 'miAccessibilityOptions', comment: ['&& denotes a mnemonic'] }, "Accessibility &&Options")),
 			accelerator: null,
 			click: () => {
-				this.windowsService.openAccessibilityOptions();
+				this.openAccessibilityOptions();
 			}
 		}, false));
 
@@ -972,6 +972,22 @@ export class VSCodeMenu {
 			helpMenu.append(__separator__());
 			helpMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")), click: () => this.openAboutDialog() }));
 		}
+	}
+
+	private openAccessibilityOptions(): void {
+		let win = new BrowserWindow({
+			alwaysOnTop: true,
+			skipTaskbar: true,
+			resizable: false,
+			width: 450,
+			height: 300,
+			show: true,
+			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options")
+		});
+
+		win.setMenuBarVisibility(false);
+
+		win.loadURL('chrome://accessibility');
 	}
 
 	private getUpdateMenuItems(): Electron.MenuItem[] {
