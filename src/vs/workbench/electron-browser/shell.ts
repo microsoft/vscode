@@ -73,7 +73,8 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { CrashReporter } from 'vs/workbench/electron-browser/crashReporter';
+import { ICrashReporterService, NullCrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
+import { CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { NodeCachedDataManager } from 'vs/workbench/electron-browser/nodeCachedDataManager';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
@@ -167,29 +168,6 @@ export class WorkbenchShell {
 
 		// Instantiation service with services
 		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
-
-		//crash reporting
-		if (product.crashReporter && product.hockeyApp) {
-			let submitURL: string;
-
-			if (platform.isWindows) {
-				submitURL = product.hockeyApp[`win32-${process.arch}`];
-			} else if (platform.isMacintosh) {
-				submitURL = product.hockeyApp.darwin;
-			} else if (platform.isLinux) {
-				submitURL = product.hockeyApp[`linux-${process.arch}`];
-			}
-
-			if (submitURL) {
-				const opts: Electron.CrashReporterStartOptions = {
-					companyName: product.crashReporter.companyName,
-					productName: product.crashReporter.productName,
-					submitURL
-				};
-
-				instantiationService.createInstance(CrashReporter, opts);
-			}
-		}
 
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.options, serviceCollection);
@@ -332,6 +310,12 @@ export class WorkbenchShell {
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 		disposables.add(configurationTelemetry(this.telemetryService, this.configurationService));
+
+		let crashReporterService = NullCrashReporterService;
+		if (product.crashReporter && product.hockeyApp) {
+			crashReporterService = instantiationService.createInstance(CrashReporterService);
+		}
+		serviceCollection.set(ICrashReporterService, crashReporterService);
 
 		this.messageService = instantiationService.createInstance(MessageService, container);
 		serviceCollection.set(IMessageService, this.messageService);

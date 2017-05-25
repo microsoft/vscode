@@ -126,4 +126,16 @@ if (process.env['VSCODE_PARENT_PID']) {
 	}
 }
 
+const crashReporterOptionsRaw = process.env['CRASH_REPORTER_START_OPTIONS'];
+if (typeof crashReporterOptionsRaw === 'string') {
+	try {
+		const crashReporterOptions = JSON.parse(crashReporterOptionsRaw);
+		if (crashReporterOptions) {
+			process.crashReporter.start(crashReporterOptions);
+		}
+	} catch (error) {
+		console.error(error);
+	}
+}
+
 require('./bootstrap-amd').bootstrap(process.env['AMD_ENTRYPOINT']);
