@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=0.10
+Name=VS Code
+GenericName=Text Editor
+Comment=Code Editing. Redefined.
+Exec=/usr/local/vscode/Code
+Icon=/usr/local/vscode/resources/app/resources/linux/vscode.png
+Terminal=false
+Categories=GTK;Development;IDE;
+MimeType=text/plain;text/x-chdr;text/x-csrc;text/x-c++hdr;text/x-c++src;text/x-java;text/x-dsrc;text/x-pascal;text/x-perl;text/x-python;application/x-php;application/x-httpd-php3;application/x-httpd-php4;application/x-httpd-php5;application/xml;text/html;text/css;text/x-sql;text/x-diff;
+StartupNotify=true
