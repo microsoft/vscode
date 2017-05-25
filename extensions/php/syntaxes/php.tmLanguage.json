@@ -2071,7 +2071,7 @@
 			"patterns": [
 				{
 					"comment": "PHPDocumentor only recognises lines with an asterisk as the first non-whitespaces character",
-					"match": "^(?!\\s*\\*).*$\\n?",
+					"match": "^(?!\\s*\\*).*?(?:(?=\\*\\/)|$\\n?)",
 					"name": "invalid.illegal.missing-asterisk.phpdoc.php"
 				},
 				{
@@ -2975,5 +2975,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-php/commit/22047c19f52f686de471d0deccae0cb1332997b6"
+	"version": "https://github.com/atom/language-php/commit/c523a19f849b97f6499eae6accf80564aa190c0e"
 }
