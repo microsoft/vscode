@@ -14,13 +14,13 @@ export default () => `
 <div class="welcomePageContainer">
 	<div class="welcomePage">
 		<div class="title">
-			<h1>${escape(localize('welcomePage.vscode', "Visual Studio Code"))}</h1>
-			<p class="subtitle">${escape(localize('welcomePage.editingEvolved', "Editing evolved"))}</p>
+			<h1 class="caption">${escape(localize('welcomePage.vscode', "Visual Studio Code"))}</h1>
+			<p class="subtitle detail">${escape(localize('welcomePage.editingEvolved', "Editing evolved"))}</p>
 		</div>
 		<div class="row">
 			<div class="splash">
 				<div class="section start">
-					<h2>${escape(localize('welcomePage.start', "Start"))}</h2>
+					<h2 class="caption">${escape(localize('welcomePage.start', "Start"))}</h2>
 					<ul>
 						<li><a href="command:workbench.action.files.newUntitledFile">${escape(localize('welcomePage.newFile', "New file"))}</a></li>
 						<li class="mac-only"><a href="command:workbench.action.files.openFileFolder">${escape(localize('welcomePage.openFolder', "Open folder..."))}</a></li>
@@ -29,15 +29,15 @@ export default () => `
 					</ul>
 				</div>
 				<div class="section recent">
-					<h2>${escape(localize('welcomePage.recent', "Recent"))}</h2>
+					<h2 class="caption">${escape(localize('welcomePage.recent', "Recent"))}</h2>
 					<ul class="list">
 						<!-- Filled programmatically -->
-						<li class="moreRecent"><a href="command:workbench.action.openRecent">${escape(localize('welcomePage.moreRecent', "More..."))}</a><span class="path if_shortcut" data-command="workbench.action.openRecent">(<span class="shortcut" data-command="workbench.action.openRecent"></span>)</span></li>
+						<li class="moreRecent"><a href="command:workbench.action.openRecent">${escape(localize('welcomePage.moreRecent', "More..."))}</a><span class="path detail if_shortcut" data-command="workbench.action.openRecent">(<span class="shortcut" data-command="workbench.action.openRecent"></span>)</span></li>
 					</ul>
-					<p class="none">${escape(localize('welcomePage.noRecentFolders', "No recent folders"))}</p>
+					<p class="none detail">${escape(localize('welcomePage.noRecentFolders', "No recent folders"))}</p>
 				</div>
 				<div class="section help">
-					<h2>${escape(localize('welcomePage.help', "Help"))}</h2>
+					<h2 class="caption">${escape(localize('welcomePage.help', "Help"))}</h2>
 					<ul>
 						<li class="keybindingsReferenceLink"><a href="command:workbench.action.keybindingsReference">${escape(localize('welcomePage.keybindingsCheatsheet', "Printable keyboard cheatsheet"))}</a></li>
 						<li><a href="command:workbench.action.openIntroductoryVideosUrl">${escape(localize('welcomePage.introductoryVideos', "Introductory videos"))}</a></li>
@@ -46,36 +46,36 @@ export default () => `
 						<li><a href="http://stackoverflow.com/questions/tagged/vscode?sort=votes&pageSize=50">${escape(localize('welcomePage.stackOverflow', "Stack Overflow"))}</a></li>
 					</ul>
 				</div>
-				<p class="showOnStartup"><input type="checkbox" id="showOnStartup"> <label for="showOnStartup">${escape(localize('welcomePage.showOnStartup', "Show welcome page on startup"))}</label></p>
+				<p class="showOnStartup"><input type="checkbox" id="showOnStartup"> <label class="caption" for="showOnStartup">${escape(localize('welcomePage.showOnStartup', "Show welcome page on startup"))}</label></p>
 			</div>
 			<div class="commands">
 				<div class="section customize">
-					<h2>${escape(localize('welcomePage.customize', "Customize"))}</h2>
+					<h2 class="caption">${escape(localize('welcomePage.customize', "Customize"))}</h2>
 					<ul>
-						<li class="showLanguageExtensions"><button data-href="command:workbench.extensions.action.showLanguageExtensions"><h3>${escape(localize('welcomePage.installExtensionPacks', "Tools and languages"))}</h3> <span>${escape(localize('welcomePage.installExtensionPacksDescription', "Install support for {0} and {1}"))
+						<li class="showLanguageExtensions"><button data-href="command:workbench.extensions.action.showLanguageExtensions"><h3 class="caption">${escape(localize('welcomePage.installExtensionPacks', "Tools and languages"))}</h3> <span class="detail">${escape(localize('welcomePage.installExtensionPacksDescription', "Install support for {0} and {1}"))
 		.replace('{0}', `<span class="extensionPackList"></span>`)
 		.replace('{1}', `<a href="command:workbench.extensions.action.showLanguageExtensions">${escape(localize('welcomePage.moreExtensions', "more"))}</a>`)}
 						</span></button></li>
-						<li class="showRecommendedKeymapExtensions"><button data-href="command:workbench.extensions.action.showRecommendedKeymapExtensions"><h3>${escape(localize('welcomePage.installKeymapDescription', "Install keyboard shortcuts"))}</h3> <span>${escape(localize('welcomePage.installKeymapExtension', "Install the keyboard shortcuts of {0} and {1}"))
+						<li class="showRecommendedKeymapExtensions"><button data-href="command:workbench.extensions.action.showRecommendedKeymapExtensions"><h3 class="caption">${escape(localize('welcomePage.installKeymapDescription', "Install keyboard shortcuts"))}</h3> <span class="detail">${escape(localize('welcomePage.installKeymapExtension', "Install the keyboard shortcuts of {0} and {1}"))
 		.replace('{0}', `<span class="keymapList"></span>`)
 		.replace('{1}', `<a href="command:workbench.extensions.action.showRecommendedKeymapExtensions">${escape(localize('welcomePage.others', "others"))}</a>`)}
 						</span></button></li>
-						<li class="selectTheme"><button data-href="command:workbench.action.selectTheme"><h3>${escape(localize('welcomePage.colorTheme', "Color theme"))}</h3> <span>${escape(localize('welcomePage.colorThemeDescription', "Make the editor and your code look the way you love"))}</span></button></li>
+						<li class="selectTheme"><button data-href="command:workbench.action.selectTheme"><h3 class="caption">${escape(localize('welcomePage.colorTheme', "Color theme"))}</h3> <span class="detail">${escape(localize('welcomePage.colorThemeDescription', "Make the editor and your code look the way you love"))}</span></button></li>
 					</ul>
 				</div>
 				<div class="section learn">
-					<h2>${escape(localize('welcomePage.learn', "Learn"))}</h2>
+					<h2 class="caption">${escape(localize('welcomePage.learn', "Learn"))}</h2>
 					<ul>
-						<li class="showCommands"><button data-href="command:workbench.action.showCommands"><h3>${escape(localize('welcomePage.showCommands', "Find and run all commands"))}</h3> <span>${escape(localize('welcomePage.showCommandsDescription', "Rapidly access and search commands from the control panel ({0})")).replace('{0}', '<span class="shortcut" data-command="workbench.action.showCommands"></span>')}</span></button></li>
-						<li class="showInterfaceOverview"><button data-href="command:workbench.action.showInterfaceOverview"><h3>${escape(localize('welcomePage.interfaceOverview', "Interface overview"))}</h3> <span>${escape(localize('welcomePage.interfaceOverviewDescription', "Get a visual overlay highlighting the major components of the UI"))}</span></button></li>
-						<li class="showInteractivePlayground"><button data-href="command:workbench.action.showInteractivePlayground"><h3>${escape(localize('welcomePage.interactivePlayground', "Interactive playground"))}</h3> <span>${escape(localize('welcomePage.interactivePlaygroundDescription', "Try essential editor features out in a short walkthrough"))}</span></button></li>
+						<li class="showCommands"><button data-href="command:workbench.action.showCommands"><h3 class="caption">${escape(localize('welcomePage.showCommands', "Find and run all commands"))}</h3> <span class="detail">${escape(localize('welcomePage.showCommandsDescription', "Rapidly access and search commands from the control panel ({0})")).replace('{0}', '<span class="shortcut" data-command="workbench.action.showCommands"></span>')}</span></button></li>
+						<li class="showInterfaceOverview"><button data-href="command:workbench.action.showInterfaceOverview"><h3 class="caption">${escape(localize('welcomePage.interfaceOverview', "Interface overview"))}</h3> <span class="detail">${escape(localize('welcomePage.interfaceOverviewDescription', "Get a visual overlay highlighting the major components of the UI"))}</span></button></li>
+						<li class="showInteractivePlayground"><button data-href="command:workbench.action.showInteractivePlayground"><h3 class="caption">${escape(localize('welcomePage.interactivePlayground', "Interactive playground"))}</h3> <span class="detail">${escape(localize('welcomePage.interactivePlaygroundDescription', "Try essential editor features out in a short walkthrough"))}</span></button></li>
 					</ul>
 				</div>
 				<div class="section quickLinks">
-					<h2>${escape(localize('welcomePage.quickLinks', "Quick links"))}</h2>
+					<h2 class="caption">${escape(localize('welcomePage.quickLinks', "Quick links"))}</h2>
 					<ul>
-						<li class="keybindingsReference"><button data-href="command:workbench.action.keybindingsReference"><h3>${escape(localize('welcomePage.keybindingsReference', "Keyboard shortcuts reference"))}</h3> <span>${escape(localize('welcomePage.keybindingsReferenceDescription', "A printable PDF with the most common keyboard shortcuts"))}</span></button></li>
-						<li class="openGlobalSettings"><button data-href="command:workbench.action.openGlobalSettings"><h3>${escape(localize('welcomePage.configureSettings', "Configure settings"))}</h3> <span>${escape(localize('welcomePage.configureSettingsDescription', "Unlock the full power of VS Code by tweaking the settings"))}</span></button></li>
+						<li class="keybindingsReference"><button data-href="command:workbench.action.keybindingsReference"><h3 class="caption">${escape(localize('welcomePage.keybindingsReference', "Keyboard shortcuts reference"))}</h3> <span class="detail">${escape(localize('welcomePage.keybindingsReferenceDescription', "A printable PDF with the most common keyboard shortcuts"))}</span></button></li>
+						<li class="openGlobalSettings"><button data-href="command:workbench.action.openGlobalSettings"><h3 class="caption">${escape(localize('welcomePage.configureSettings', "Configure settings"))}</h3> <span class="detail">${escape(localize('welcomePage.configureSettingsDescription', "Unlock the full power of VS Code by tweaking the settings"))}</span></button></li>
 					</ul>
 				</div>
 			</div>
