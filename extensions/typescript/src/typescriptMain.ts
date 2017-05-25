@@ -90,50 +90,78 @@ const standardLanguageDescriptions: LanguageDescription[] = [
 export function activate(context: ExtensionContext): void {
 	const plugins = getContributedTypeScriptServerPlugins();
 
-	const clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.storagePath, context.globalState, context.workspaceState, plugins);
-	context.subscriptions.push(clientHost);
+	const lazyClientHost = (() => {
+		let clientHost: TypeScriptServiceClientHost | undefined;
+		return () => {
+			if (!clientHost) {
+				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.storagePath, context.globalState, context.workspaceState, plugins);
+				context.subscriptions.push(clientHost);
+
+				const host = clientHost;
+				clientHost.serviceClient.onReady().then(() => {
+					context.subscriptions.push(ProjectStatus.create(host.serviceClient,
+						path => new Promise<boolean>(resolve => setTimeout(() => resolve(host.handles(path)), 750)),
+						context.workspaceState));
+				}, () => {
+					// Nothing to do here. The client did show a message;
+				});
+			}
+			return clientHost;
+		};
+	})();
+
 
 	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
-		clientHost.reloadProjects();
+		lazyClientHost().reloadProjects();
 	}));
 
 	context.subscriptions.push(commands.registerCommand('javascript.reloadProjects', () => {
-		clientHost.reloadProjects();
+		lazyClientHost().reloadProjects();
 	}));
 
 	context.subscriptions.push(commands.registerCommand('typescript.selectTypeScriptVersion', () => {
-		clientHost.serviceClient.onVersionStatusClicked();
+		lazyClientHost().serviceClient.onVersionStatusClicked();
 	}));
 
 	context.subscriptions.push(commands.registerCommand('typescript.openTsServerLog', () => {
-		clientHost.serviceClient.openTsServerLogFile();
+		lazyClientHost().serviceClient.openTsServerLogFile();
 	}));
 
 	context.subscriptions.push(commands.registerCommand('typescript.restartTsServer', () => {
-		clientHost.serviceClient.restartTsServer();
+		lazyClientHost().serviceClient.restartTsServer();
 	}));
 
-	context.subscriptions.push(workspace.registerTaskProvider(new TypeScriptTaskProvider(client)));
+	context.subscriptions.push(workspace.registerTaskProvider(new TypeScriptTaskProvider(() => lazyClientHost().serviceClient)));
 
 	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
 		if (editor) {
-			clientHost.goToProjectConfig(isTypeScript, editor.document.uri);
+			lazyClientHost().goToProjectConfig(isTypeScript, editor.document.uri);
 		}
 	};
 	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true)));
 	context.subscriptions.push(commands.registerCommand('javascript.goToProjectConfig', goToProjectConfig.bind(null, false)));
 
-	const jsDocCompletionCommand = new TryCompleteJsDocCommand(clientHost.serviceClient);
+	const jsDocCompletionCommand = new TryCompleteJsDocCommand(() => lazyClientHost().serviceClient);
 	context.subscriptions.push(commands.registerCommand(TryCompleteJsDocCommand.COMMAND_NAME, jsDocCompletionCommand.tryCompleteJsDoc, jsDocCompletionCommand));
 
-	clientHost.serviceClient.onReady().then(() => {
-		context.subscriptions.push(ProjectStatus.create(clientHost.serviceClient,
-			path => new Promise<boolean>(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
-			context.workspaceState));
-	}, () => {
-		// Nothing to do here. The client did show a message;
-	});
+	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
+	function didOpenTextDocument(textDocument: TextDocument): boolean {
+		if (supportedLanguage.indexOf(textDocument.languageId) >= 0) {
+			openListener.dispose();
+			// Force activation
+			void lazyClientHost();
+			return true;
+		}
+		return false;
+	};
+	const openListener = workspace.onDidOpenTextDocument(didOpenTextDocument);
+	for (let textDocument of workspace.textDocuments) {
+		if (didOpenTextDocument(textDocument)) {
+			break;
+		}
+	}
+
 	BuildStatus.update({ queueLength: 0 });
 }
 

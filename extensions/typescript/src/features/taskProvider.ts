@@ -23,7 +23,7 @@ const exists = (file: string): Promise<boolean> =>
 export default class TypeScriptTaskProvider implements vscode.TaskProvider {
 
 	public constructor(
-		private readonly client: TypeScriptServiceClient
+		private readonly lazyClient: () => TypeScriptServiceClient
 	) { }
 
 	async provideTasks(token: vscode.CancellationToken): Promise<vscode.Task[]> {
@@ -59,7 +59,7 @@ export default class TypeScriptTaskProvider implements vscode.TaskProvider {
 			return [];
 		}
 
-		const res: Proto.ProjectInfoResponse = await this.client.execute(
+		const res: Proto.ProjectInfoResponse = await this.lazyClient().execute(
 			'projectInfo',
 			{ file, needFileNameList: false } as protocol.ProjectInfoRequestArgs,
 			token);
@@ -102,7 +102,7 @@ export default class TypeScriptTaskProvider implements vscode.TaskProvider {
 		if (editor) {
 			const document = editor.document;
 			if (document && (document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
-				return this.client.normalizePath(document.uri);
+				return this.lazyClient().normalizePath(document.uri);
 			}
 		}
 		return null;
