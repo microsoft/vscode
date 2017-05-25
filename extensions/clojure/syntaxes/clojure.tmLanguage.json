@@ -64,14 +64,11 @@
 		},
 		{
 			"include": "#symbol"
-		},
-		{
-			"include": "#whitespace"
 		}
 	],
 	"repository": {
 		"comment": {
-			"begin": ";",
+			"begin": "(?<!\\\\);",
 			"beginCaptures": {
 				"0": {
 					"name": "punctuation.definition.comment.clojure"
@@ -217,18 +214,15 @@
 					"name": "punctuation.section.expression.begin.clojure"
 				}
 			},
-			"end": "(\\))(\\n)|(\\)(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\))",
+			"end": "(\\))$|(\\)(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.section.expression.end.trailing.clojure"
 				},
 				"2": {
-					"name": "meta.after-expression.clojure"
-				},
-				"3": {
 					"name": "punctuation.section.expression.end.trailing.clojure"
 				},
-				"4": {
+				"3": {
 					"name": "punctuation.section.expression.end.clojure"
 				}
 			},
@@ -293,18 +287,15 @@
 					"name": "punctuation.section.expression.begin.clojure"
 				}
 			},
-			"end": "(\\))(\\n)|(\\)(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\))",
+			"end": "(\\))$|(\\)(?=[\\}\\]\\)\\s]*(?:;|$)))|(\\))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.section.expression.end.trailing.clojure"
 				},
 				"2": {
-					"name": "meta.after-expression.clojure"
-				},
-				"3": {
 					"name": "punctuation.section.expression.end.trailing.clojure"
 				},
-				"4": {
+				"3": {
 					"name": "punctuation.section.expression.end.clojure"
 				}
 			},
@@ -448,11 +439,7 @@
 					"include": "$self"
 				}
 			]
-		},
-		"whitespace": {
-			"match": "\\s+$",
-			"name": "invalid.trailing-whitespace"
 		}
 	},
-	"version": "https://github.com/atom/language-clojure/commit/82ff056df3bf2682c90b679d0a9bc1555bea0510"
+	"version": "https://github.com/atom/language-clojure/commit/70e83b27444da31d6367a0aa447a216836eafc05"
 }
