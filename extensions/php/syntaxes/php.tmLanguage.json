@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-php/blob/master/grammars/php.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "text.html.php",
 	"name": "PHP",
 	"fileTypes": [
@@ -2974,6 +2979,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/atom/language-php/commit/c523a19f849b97f6499eae6accf80564aa190c0e"
+	}
 }

@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/textmate/r.tmbundle/blob/master/Syntaxes/R.plist",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"fileTypes": [
 		"R",
 		"r",
@@ -199,6 +204,5 @@
 		}
 	],
 	"scopeName": "source.r",
-	"uuid": "B2E6B78D-6E70-11D9-A369-000D93B3A10E",
-	"version": "https://github.com/textmate/r.tmbundle/commit/6b04ff3424f3f1cdfe64a9cfb71d8765959be250"
+	"uuid": "B2E6B78D-6E70-11D9-A369-000D93B3A10E"
 }

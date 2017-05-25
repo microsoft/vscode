@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/demyte/language-cshtml/blob/master/grammars/cshtml.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"name": "ASP.NET Razor",
 	"scopeName": "text.html.cshtml",
 	"fileTypes": [
@@ -148,6 +153,5 @@
 			"end": "\\*@",
 			"name": "comment.block.cshtml"
 		}
-	},
-	"version": "https://github.com/demyte/language-cshtml/commit/a49735dc7aef56ae772a3bcfd8e42c89895dcff4"
+	}
 }

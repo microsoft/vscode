@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/textmate/ini.tmbundle/blob/master/Syntaxes/Ini.plist",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"fileTypes": [
 		"ini",
 		"conf"
@@ -109,6 +114,5 @@
 		}
 	],
 	"scopeName": "source.ini",
-	"uuid": "77DC23B6-8A90-11D9-BAA4-000A9584EC8C",
-	"version": "https://github.com/textmate/ini.tmbundle/commit/2af0cbb0704940f967152616f2f1ff0aae6287a6"
+	"uuid": "77DC23B6-8A90-11D9-BAA4-000A9584EC8C"
 }

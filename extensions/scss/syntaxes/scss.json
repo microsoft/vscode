@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-sass/blob/master/grammars/scss.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "source.css.scss",
 	"name": "SCSS",
 	"fileTypes": [
@@ -1674,6 +1679,5 @@
 			"match": "(\\$|\\-\\-)[A-Za-z0-9_-]+\\b",
 			"name": "variable.scss"
 		}
-	},
-	"version": "https://github.com/atom/language-sass/commit/8b8b7b52655ab5cf4dbe597443abe4b078bb6953"
+	}
 }

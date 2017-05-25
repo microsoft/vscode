@@ -1,4 +1,9 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/freebroccolo/atom-language-swift/blob/master/grammars/swift.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
 	"scopeName": "source.swift",
 	"fileTypes": [
 		"swift"
@@ -212,6 +217,5 @@
 		"whitespace": {
 			"match": "(?x) [ \\u0020 (?#           space) \\u000A (?#       line-feed) \\u000D (?# carriage-return) \\u0009 (?#  horizontal-tab) \\u000B (?#    vertical-tab) \\u000C (?#       form-feed) \\u0000 (?#            null) ]"
 		}
-	},
-	"version": "https://github.com/freebroccolo/atom-language-swift/commit/fb7c93e0174dea69c8685c00deeb53d480d1d202"
+	}
 }
