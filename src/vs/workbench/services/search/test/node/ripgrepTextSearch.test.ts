@@ -74,7 +74,7 @@ suite('RipgrepParser', () => {
 		assert.deepEqual(results[0],
 			<ISerializedFileMatch>{
 				numMatches: 2,
-				path: path.resolve(rootFolder, 'a.txt'),
+				path: path.join(rootFolder, 'a.txt'),
 				lineMatches: [
 					{
 						lineNumber: 0,
