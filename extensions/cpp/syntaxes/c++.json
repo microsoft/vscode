@@ -425,6 +425,9 @@
 						{
 							"match": "\\\\x\\h+",
 							"name": "constant.character.escape.cpp"
+						},
+						{
+							"include": "source.c#string_placeholder"
 						}
 					]
 				},
@@ -455,5 +458,5 @@
 			]
 		}
 	},
-	"version": "https://github.com/atom/language-c/commit/a74c2f967d73e802a67fa6e971a8e8dedf076597"
+	"version": "https://github.com/atom/language-c/commit/3a269f88b12e512fb9495dc006a1dabf325d3d7f"
 }
