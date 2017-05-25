@@ -61,3 +61,12 @@
 	-webkit-mask: url('status-info.svg') no-repeat 50% 50%;
 	-webkit-mask-size: 11px;
 }
+
+.monaco-workbench .quick-open-task-configure {
+	background-image: url('configure.svg');
+}
+
+.vs-dark .monaco-workbench .quick-open-task-configure,
+.hc-black .monaco-workbench .quick-open-task-configure {
+	background-image: url('configure-inverse.svg');
+}

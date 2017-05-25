@@ -15,7 +15,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 
 import { Task, TaskSourceKind } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/parts/tasks/common/taskService';
-import { ActionBarContributor } from 'vs/workbench/browser/actionBarRegistry';
+import { ActionBarContributor, ContributableActionProvider } from 'vs/workbench/browser/actionBarRegistry';
 
 export class TaskEntry extends Model.QuickOpenEntry {
 
@@ -105,7 +105,7 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 					entries.push(this.createEntry(this.taskService, task, highlights));
 				}
 			}
-			return new Model.QuickOpenModel(entries);
+			return new Model.QuickOpenModel(entries, new ContributableActionProvider());
 		});
 	}
 
@@ -131,7 +131,7 @@ class CustomizeTaskAction extends Action {
 	}
 
 	public updateClass(): void {
-		this.class = 'quick-open-sidebyside-vertical';
+		this.class = 'quick-open-task-configure';
 	}
 
 	public run(context: any): TPromise<any> {
