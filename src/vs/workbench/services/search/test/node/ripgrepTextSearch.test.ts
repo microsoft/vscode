@@ -33,7 +33,11 @@ suite('RipgrepParser', () => {
 		return matchLine;
 	}
 
-	function parseInput(inputChunks: string[]): ISerializedFileMatch[] {
+	function parseInputStrings(inputChunks: string[]): ISerializedFileMatch[] {
+		return parseInput(inputChunks.map(chunk => new Buffer(chunk)));
+	}
+
+	function parseInput(inputChunks: Buffer[]): ISerializedFileMatch[] {
 		const matches: ISerializedFileMatch[] = [];
 		const rgp = new RipgrepParser(1e6, rootFolder);
 		rgp.on('result', (match: ISerializedFileMatch) => {
@@ -65,7 +69,7 @@ suite('RipgrepParser', () => {
 			[getFileLine('a.txt'), getMatchLine(1, ['before', 'match', 'after']), getMatchLine(2, ['before', 'match', 'after']), fileSectionEnd].join('\n')
 		];
 
-		const results = parseInput(input);
+		const results = parseInputStrings(input);
 		assert.equal(results.length, 1);
 		assert.deepEqual(results[0],
 			<ISerializedFileMatch>{
@@ -93,7 +97,7 @@ suite('RipgrepParser', () => {
 			[getFileLine('c.txt'), getMatchLine(1, ['before', 'match', 'after']), getMatchLine(2, ['before', 'match', 'after']), fileSectionEnd].join('\n')
 		];
 
-		const results = parseInput(input);
+		const results = parseInputStrings(input);
 		assert.equal(results.length, 3);
 		results.forEach(fileResult => assert.equal(fileResult.numMatches, 2));
 	});
@@ -116,7 +120,7 @@ suite('RipgrepParser', () => {
 	test('Parses multiple chunks broken at each line', () => {
 		const input = singleLineChunks.map(chunk => chunk + '\n');
 
-		const results = parseInput(input);
+		const results = parseInputStrings(input);
 		assert.equal(results.length, 3);
 		results.forEach(fileResult => assert.equal(fileResult.numMatches, 2));
 	});
@@ -126,7 +130,7 @@ suite('RipgrepParser', () => {
 			.map(chunk => chunk + '\n')
 			.map(halve));
 
-		const results = parseInput(input);
+		const results = parseInputStrings(input);
 		assert.equal(results.length, 3);
 		results.forEach(fileResult => assert.equal(fileResult.numMatches, 2));
 	});
@@ -136,7 +140,7 @@ suite('RipgrepParser', () => {
 			.map(chunk => chunk + '\n')
 			.map(arrayOfChars));
 
-		const results = parseInput(input);
+		const results = parseInputStrings(input);
 		assert.equal(results.length, 3);
 		results.forEach(fileResult => assert.equal(fileResult.numMatches, 2));
 	});
@@ -145,8 +149,26 @@ suite('RipgrepParser', () => {
 		const input = singleLineChunks
 			.map(chunk => '\n' + chunk);
 
-		const results = parseInput(input);
+		const results = parseInputStrings(input);
 		assert.equal(results.length, 3);
 		results.forEach(fileResult => assert.equal(fileResult.numMatches, 2));
+	});
+
+	test('Parses chunks broken in the middle of a multibyte character', () => {
+		const multibyteStr = '漢';
+		const multibyteBuf = new Buffer(multibyteStr);
+		const text = getFileLine('foo/bar') + '\n' + getMatchLine(0, ['before', 'match', 'after']) + '\n';
+
+		// Split the multibyte char into two pieces and divide between the two buffers
+		const beforeIndex = 24;
+		const inputBufs = [
+			Buffer.concat([new Buffer(text.substr(0, beforeIndex)), multibyteBuf.slice(0, 2)]),
+			Buffer.concat([multibyteBuf.slice(2), new Buffer(text.substr(beforeIndex))])
+		];
+
+		const results = parseInput(inputBufs);
+		assert.equal(results.length, 1);
+		assert.equal(results[0].lineMatches.length, 1);
+		assert.deepEqual(results[0].lineMatches[0].offsetAndLengths, [[7, 5]]);
 	});
 });
