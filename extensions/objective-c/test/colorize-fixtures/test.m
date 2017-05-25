@@ -14,6 +14,8 @@
 
 - (void) applicationWillFinishLaunching:(NSNotification *)notification
 {
+    @autoreleasepool {
+    }
 }
 
 - (IBAction)onSelectInput:(id)sender
