@@ -7,6 +7,7 @@
 
 import 'vs/css!./media/workbench';
 
+import { localize } from 'vs/nls';
 import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter, chain } from 'vs/base/common/event';
@@ -91,11 +92,10 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWindowConfiguration } from 'vs/workbench/electron-browser/common';
-import { localize } from "vs/nls";
-import { IWorkbenchActionRegistry, Extensions } from "vs/workbench/common/actionRegistry";
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
 import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction } from "vs/workbench/electron-browser/actions";
-import { KeyMod } from "vs/base/common/keyCodes";
-import { KeyCode } from "vs/editor/common/standalone/standaloneBase";
+import { KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/editor/common/standalone/standaloneBase';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);

@@ -9,7 +9,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import * as errors from 'vs/base/common/errors';
-import { IDisposable, Disposable } from "vs/base/common/lifecycle";
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,

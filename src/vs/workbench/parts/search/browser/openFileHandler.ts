@@ -31,7 +31,7 @@ import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/pl
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
-import { getOutOfWorkspaceEditorResources } from "vs/workbench/parts/search/common/search";
+import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 

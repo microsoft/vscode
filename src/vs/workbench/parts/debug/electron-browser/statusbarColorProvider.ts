@@ -11,7 +11,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IDebugService, State } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
-import { addClass, removeClass } from "vs/base/browser/dom";
+import { addClass, removeClass } from 'vs/base/browser/dom';
 
 // colors for theming
 

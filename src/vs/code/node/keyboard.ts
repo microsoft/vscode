@@ -7,8 +7,8 @@
 
 import * as nativeKeymap from 'native-keymap';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isMacintosh } from "vs/base/common/platform";
-import { Emitter } from "vs/base/common/event";
+import { isMacintosh } from 'vs/base/common/platform';
+import { Emitter } from 'vs/base/common/event';
 
 export class KeyboardLayoutMonitor {
 

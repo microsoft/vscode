@@ -9,7 +9,7 @@ import { ISimpleModel, TextAreaState, ITextAreaWrapper, PagedScreenReaderStrateg
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Model } from "vs/editor/common/model/model";
+import { Model } from 'vs/editor/common/model/model';
 import { Selection } from 'vs/editor/common/core/selection';
 
 export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper {

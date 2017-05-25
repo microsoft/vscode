@@ -39,7 +39,7 @@ import pfs = require('vs/base/node/pfs');
 import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { getParseErrorMessage } from "vs/base/common/jsonErrorMessages";
+import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 // implementation
 

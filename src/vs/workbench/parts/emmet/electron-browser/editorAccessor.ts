@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
-import { CoreEditingCommands } from "vs/editor/common/controller/coreCommands";
+import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 import { SnippetParser, walk, Placeholder, Variable, Text, Marker } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 import emmet = require('emmet');

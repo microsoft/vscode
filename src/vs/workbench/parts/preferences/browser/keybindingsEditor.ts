@@ -39,7 +39,7 @@ import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/c
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
-import { listHighlightForeground } from "vs/platform/theme/common/colorRegistry";
+import { listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 
 let $ = DOM.$;
 

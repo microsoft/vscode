@@ -23,9 +23,9 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/platform/editor/common/editor';
-import { TypeOperations } from "vs/editor/common/controller/cursorTypeOperations";
-import { DeleteOperations } from "vs/editor/common/controller/cursorDeleteOperations";
-import { VerticalRevealType } from "vs/editor/common/view/viewEvents";
+import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
+import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
+import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 

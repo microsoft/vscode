@@ -18,12 +18,12 @@ import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'v
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EndOfLinePreference } from "vs/editor/common/editorCommon";
-import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
-import { PartFingerprints, PartFingerprint, ViewPart } from "vs/editor/browser/view/viewPart";
-import { Margin } from "vs/editor/browser/viewParts/margin/margin";
-import { LineNumbersOverlay } from "vs/editor/browser/viewParts/lineNumbers/lineNumbers";
-import { BareFontInfo } from "vs/editor/common/config/fontInfo";
+import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { PartFingerprints, PartFingerprint, ViewPart } from 'vs/editor/browser/view/viewPart';
+import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
+import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;

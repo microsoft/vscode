@@ -10,8 +10,8 @@ import { FindMatch, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
-import { getMapForWordSeparators } from "vs/editor/common/controller/wordCharacterClassifier";
-import { USUAL_WORD_SEPARATORS } from "vs/editor/common/model/wordHelper";
+import { getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 
 // --------- Find
 suite('TextModelSearch', () => {

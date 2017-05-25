@@ -14,7 +14,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Range } from 'vs/editor/common/core/range';
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export interface IQuickOpenControllerOpts {
 	inputAriaLabel: string;
