@@ -22,7 +22,7 @@ import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-
+import { KeyboardLayoutMonitor } from "vs/code/node/keyboard";
 
 export interface IWindowState {
 	width?: number;
@@ -82,10 +82,7 @@ export interface IWindowConfiguration extends ParsedArgs {
 	 * The physical keyboard is of ISO type (on OSX).
 	 */
 	isISOKeyboard?: boolean;
-	/**
-	 * Accessibility support is enabled.
-	 */
-	accessibilitySupportEnabled?: boolean;
+
 	zoomLevel?: number;
 	fullscreen?: boolean;
 	highContrast?: boolean;
@@ -557,6 +554,9 @@ export class VSCodeWindow {
 		// Set Accessibility Config
 		windowConfiguration.highContrast = platform.isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
+
+		// Set Keyboard Config
+		windowConfiguration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
 
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();

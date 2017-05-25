@@ -31,8 +31,7 @@ import product from 'vs/platform/node/product';
 import { OpenContext } from 'vs/code/common/windows';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
-import * as nativeKeymap from 'native-keymap';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { KeyboardLayoutMonitor } from "vs/code/node/keyboard";
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -107,7 +106,6 @@ export interface IWindowsMainService {
 	openFileFolderPicker(forceNewWindow?: boolean, data?: ITelemetryData): void;
 	openFilePicker(forceNewWindow?: boolean, path?: string, window?: VSCodeWindow, data?: ITelemetryData): void;
 	openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow, data?: ITelemetryData): void;
-	openAccessibilityOptions(): void;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): VSCodeWindow;
 	getLastActiveWindow(): VSCodeWindow;
 	findWindow(workspacePath: string, filePath?: string, extensionDevelopmentPath?: string): VSCodeWindow;
@@ -343,6 +341,7 @@ export class WindowsManager implements IWindowsMainService {
 	}
 
 	private onBroadcast(event: string, payload: any): void {
+
 		// Theme changes
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
 
@@ -737,8 +736,6 @@ export class WindowsManager implements IWindowsMainService {
 		configuration.filesToCreate = filesToCreate;
 		configuration.filesToDiff = filesToDiff;
 		configuration.nodeCachedDataDir = this.environmentService.nodeCachedDataDir;
-		configuration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
-		configuration.accessibilitySupportEnabled = app.isAccessibilitySupportEnabled();
 
 		return configuration;
 	}
@@ -1026,22 +1023,6 @@ export class WindowsManager implements IWindowsMainService {
 
 	public openFolderPicker(forceNewWindow?: boolean, window?: VSCodeWindow, data?: ITelemetryData): void {
 		this.doPickAndOpen({ pickFolders: true, forceNewWindow, window }, 'openFolder', data);
-	}
-
-	public openAccessibilityOptions(): void {
-		let win = new BrowserWindow({
-			alwaysOnTop: true,
-			skipTaskbar: true,
-			resizable: false,
-			width: 450,
-			height: 300,
-			show: true,
-			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options")
-		});
-
-		win.setMenuBarVisibility(false);
-
-		win.loadURL('chrome://accessibility');
 	}
 
 	private doPickAndOpen(options: INativeOpenDialogOptions, eventName: string, data?: ITelemetryData): void {
@@ -1337,64 +1318,5 @@ export class WindowsManager implements IWindowsMainService {
 				this.lifecycleService.quit();
 			}, 10 /* delay to unwind callback stack (IPC) */);
 		}
-	}
-}
-
-class KeyboardLayoutMonitor {
-
-	public static INSTANCE = new KeyboardLayoutMonitor();
-
-	private _emitter: Emitter<boolean>;
-	private _registered: boolean;
-	private _isISOKeyboard: boolean;
-
-	private constructor() {
-		this._emitter = new Emitter<boolean>();
-		this._registered = false;
-		this._isISOKeyboard = this._readIsISOKeyboard();
-	}
-
-	public onDidChangeKeyboardLayout(callback: (isISOKeyboard: boolean) => void): IDisposable {
-		if (!this._registered) {
-			this._registered = true;
-
-			nativeKeymap.onDidChangeKeyboardLayout(() => {
-				this._emitter.fire(this._isISOKeyboard);
-			});
-
-			if (platform.isMacintosh) {
-				// See https://github.com/Microsoft/vscode/issues/24153
-				// On OSX, on ISO keyboards, Chromium swaps the scan codes
-				// of IntlBackslash and Backquote.
-				//
-				// The C++ methods can give the current keyboard type (ISO or not)
-				// only after a NSEvent was handled.
-				//
-				// We therefore poll.
-				setInterval(() => {
-					let newValue = this._readIsISOKeyboard();
-					if (this._isISOKeyboard === newValue) {
-						// no change
-						return;
-					}
-
-					this._isISOKeyboard = newValue;
-					this._emitter.fire(this._isISOKeyboard);
-
-				}, 3000);
-			}
-		}
-		return this._emitter.event(callback);
-	}
-
-	private _readIsISOKeyboard(): boolean {
-		if (platform.isMacintosh) {
-			return nativeKeymap.isISOKeyboard();
-		}
-		return false;
-	}
-
-	public isISOKeyboard(): boolean {
-		return this._isISOKeyboard;
 	}
 }
