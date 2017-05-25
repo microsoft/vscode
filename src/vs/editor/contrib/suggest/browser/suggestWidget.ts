@@ -948,14 +948,42 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	private adjustListPosition(): void {
-		if (hasClass(this.element, 'widget-above')
-			&& hasClass(this.element, 'docs-side')
-			&& this.details.element.offsetHeight > this.listElement.offsetHeight) {
-			// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
-			this.listElement.style.marginTop = `${this.details.element.offsetHeight - this.listElement.offsetHeight}px`;
-		} else {
-			this.listElement.style.marginTop = '0px';
+
+
+		if (hasClass(this.element, 'docs-side')) {
+
+			if (this.details.element.offsetHeight > this.listElement.offsetHeight) {
+				if (hasClass(this.element, 'widget-above')) {
+					// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
+					this.listElement.style.marginTop = `${this.details.element.offsetHeight - this.listElement.offsetHeight}px`;
+				}
+
+				if (hasClass(this.element, 'list-right')) {
+					addClass(this.listElement, 'empty-left-border');
+					removeClass(this.listElement, 'empty-right-border');
+				} else {
+					addClass(this.listElement, 'empty-right-border');
+					removeClass(this.listElement, 'empty-left-border');
+				}
+
+				removeClass(this.details.element, 'empty-left-border');
+				removeClass(this.details.element, 'empty-right-border');
+				return;
+			} else {
+				if (hasClass(this.element, 'list-right')) {
+					addClass(this.details.element, 'empty-right-border');
+					removeClass(this.details.element, 'empty-left-border');
+				} else {
+					addClass(this.details.element, 'empty-left-border');
+					removeClass(this.details.element, 'empty-right-border');
+				}
+
+				removeClass(this.listElement, 'empty-right-border');
+				removeClass(this.listElement, 'empty-left-border');
+			}
 		}
+
+		this.listElement.style.marginTop = '0px';
 	}
 
 	private renderDetails(): void {
