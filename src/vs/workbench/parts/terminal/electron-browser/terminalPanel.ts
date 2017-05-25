@@ -197,11 +197,12 @@ export class TerminalPanel extends Panel {
 			this._cancelContextMenu = false;
 		}));
 		this._register(dom.addDisposableListener(this._parentDomElement, 'click', (event) => {
-			if (this._terminalService.terminalInstances.length === 0) {
+			if (event.which === 3) {
 				return;
 			}
 
-			if (event.which !== 3) {
+			const instance = this._terminalService.getActiveInstance();
+			if (instance) {
 				this._terminalService.getActiveInstance().focus();
 			}
 		}));
