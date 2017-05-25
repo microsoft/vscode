@@ -30,7 +30,12 @@ else
 	fi
 fi
 
+# Allow users to override command-line options
+if [[ -f $HOME/.vscode/code-flags.conf ]]; then
+   CODE_USER_FLAGS="$(cat $HOME/.vscode/code-flags.conf)"
+fi
+
 ELECTRON="$VSCODE_PATH/@@NAME@@"
 CLI="$VSCODE_PATH/resources/app/out/cli.js"
-ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
+ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$CODE_USER_FLAGS" "$@"
 exit $?
