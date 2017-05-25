@@ -55,7 +55,18 @@
 		}
 	},
 	{
-		"c": "--spacing-unit",
+		"c": "--",
+		"t": "source.css.less meta.property-list.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "spacing-unit",
 		"t": "source.css.less meta.property-list.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -100,7 +111,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.less meta.property-list.css meta.property-value.css keyword.other.unit.css",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -132,7 +143,18 @@
 		}
 	},
 	{
-		"c": "--cell-padding",
+		"c": "--",
+		"t": "source.css.less meta.property-list.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "cell-padding",
 		"t": "source.css.less meta.property-list.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",

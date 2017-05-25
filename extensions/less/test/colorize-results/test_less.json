@@ -308,7 +308,18 @@
 		}
 	},
 	{
-		"c": "@base",
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base",
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -385,7 +396,18 @@
 		}
 	},
 	{
-		"c": "@style",
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "style",
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -418,7 +440,18 @@
 		}
 	},
 	{
-		"c": "@c",
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "c",
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -506,7 +539,18 @@
 		}
 	},
 	{
-		"c": "@c",
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "c",
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -594,7 +638,18 @@
 		}
 	},
 	{
-		"c": "@style",
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "style",
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -616,7 +671,18 @@
 		}
 	},
 	{
-		"c": "@c",
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "c",
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -671,7 +737,18 @@
 		}
 	},
 	{
-		"c": "@style",
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "style",
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -704,7 +781,18 @@
 		}
 	},
 	{
-		"c": "@alpha",
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "alpha",
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -749,7 +837,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.less keyword.other.unit.css",
+		"t": "source.css.less constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -836,7 +924,18 @@
 		}
 	},
 	{
-		"c": "@alpha",
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "alpha",
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -913,7 +1012,18 @@
 		}
 	},
 	{
-		"c": "@style",
+		"c": "@",
+		"t": "source.css.less meta.property-list.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "style",
 		"t": "source.css.less meta.property-list.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -1232,7 +1342,18 @@
 		}
 	},
 	{
-		"c": "@base",
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base",
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -1277,7 +1398,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.less meta.property-list.css meta.property-value.css keyword.other.unit.css",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -1375,7 +1496,18 @@
 		}
 	},
 	{
-		"c": "@base",
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base",
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -1420,7 +1552,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.less meta.property-list.css meta.property-value.css keyword.other.unit.css",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -1585,7 +1717,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.less meta.property-list.css meta.property-list.css keyword.other.unit.css",
+		"t": "source.css.less meta.property-list.css meta.property-list.css constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -1640,7 +1772,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.less meta.property-list.css meta.property-list.css keyword.other.unit.css",
+		"t": "source.css.less meta.property-list.css meta.property-list.css constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -1849,7 +1981,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-value.css keyword.other.unit.css",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -2058,7 +2190,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-value.css keyword.other.unit.css",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -2311,7 +2443,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css meta.property-value.css keyword.other.unit.css",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -2398,7 +2530,18 @@
 		}
 	},
 	{
-		"c": "@the-border",
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "the-border",
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -2443,7 +2586,7 @@
 	},
 	{
 		"c": "px",
-		"t": "source.css.less keyword.other.unit.css",
+		"t": "source.css.less constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
@@ -2464,7 +2607,18 @@
 		}
 	},
 	{
-		"c": "@base-color",
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base-color",
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -2519,7 +2673,18 @@
 		}
 	},
 	{
-		"c": "@red",
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "red",
 		"t": "source.css.less variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -2673,7 +2838,18 @@
 		}
 	},
 	{
-		"c": "@base-color",
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base-color",
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -2794,7 +2970,18 @@
 		}
 	},
 	{
-		"c": "@the-border",
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "the-border",
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -2871,7 +3058,18 @@
 		}
 	},
 	{
-		"c": "@the-border",
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "the-border",
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -3058,7 +3256,18 @@
 		}
 	},
 	{
-		"c": "@base-color",
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base-color",
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -3201,7 +3410,18 @@
 		}
 	},
 	{
-		"c": "@red",
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "red",
 		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
 		"r": {
 			"dark_plus": "variable.other.less: #9CDCFE",
@@ -3246,7 +3466,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.css.less meta.property-list.css meta.property-value.css keyword.other.unit.css",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
 			"light_plus": "keyword.other.unit: #09885A",
