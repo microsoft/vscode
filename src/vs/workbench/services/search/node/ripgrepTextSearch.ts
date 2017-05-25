@@ -235,7 +235,7 @@ export class RipgrepParser extends EventEmitter {
 					this.onResult();
 				}
 
-				this.fileMatch = new FileMatch(path.resolve(this.rootFolder, r[1]));
+				this.fileMatch = new FileMatch(path.isAbsolute(r[1]) ? r[1] : path.join(this.rootFolder, r[1]));
 			} else {
 				// Line is empty (or malformed)
 			}
