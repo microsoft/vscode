@@ -22,7 +22,7 @@ import product from 'vs/platform/node/product';
 import { getCommonHTTPHeaders } from 'vs/platform/environment/node/http';
 import { IWindowSettings, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeyboardLayoutMonitor } from "vs/code/node/keyboard";
+import { KeyboardLayoutMonitor } from 'vs/code/node/keyboard';
 
 export interface IWindowState {
 	width?: number;

@@ -10,7 +10,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Model } from 'vs/editor/common/model/model';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { withMockCodeEditor } from "vs/editor/test/common/mocks/mockCodeEditor";
+import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
 
 export function testCommand(
 	lines: string[],

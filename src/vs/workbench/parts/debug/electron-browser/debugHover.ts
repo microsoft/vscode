@@ -23,7 +23,7 @@ import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'v
 import { IListService } from 'vs/platform/list/browser/listService';
 import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { editorHoverBackground, editorHoverBorder } from "vs/platform/theme/common/colorRegistry";
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;

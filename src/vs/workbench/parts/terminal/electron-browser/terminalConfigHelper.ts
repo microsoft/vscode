@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from "vs/editor/common/config/editorOptions";
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IChoiceService } from 'vs/platform/message/common/message';

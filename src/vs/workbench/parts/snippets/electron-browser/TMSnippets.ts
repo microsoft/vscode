@@ -16,7 +16,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { languagesExtPoint } from 'vs/editor/common/services/modeServiceImpl';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { SnippetParser, Marker, Placeholder, Variable, Text, walk } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { EditorSnippetVariableResolver } from "vs/editor/contrib/snippet/browser/snippetVariables";
+import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
 
 interface ISnippetsExtensionPoint {
 	language: string;

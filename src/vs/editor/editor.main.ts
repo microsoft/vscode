@@ -14,7 +14,7 @@ import 'vs/editor/contrib/inspectTokens/browser/inspectTokens';
 import { createMonacoBaseAPI } from 'vs/editor/common/standalone/standaloneBase';
 import { createMonacoEditorAPI } from 'vs/editor/browser/standalone/standaloneEditor';
 import { createMonacoLanguagesAPI } from 'vs/editor/browser/standalone/standaloneLanguages';
-import { EDITOR_DEFAULTS, WrappingIndent } from "vs/editor/common/config/editorOptions";
+import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
 // Set defaults for standalone editor
 (<any>EDITOR_DEFAULTS).wrappingIndent = WrappingIndent.None;

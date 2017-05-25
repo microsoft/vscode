@@ -11,7 +11,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { SnippetSession } from 'vs/editor/contrib/snippet/browser/snippetSession';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-import { Model } from "vs/editor/common/model/model";
+import { Model } from 'vs/editor/common/model/model';
 
 suite('SnippetSession', function () {
 

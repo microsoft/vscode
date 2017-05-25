@@ -48,7 +48,7 @@ import { EditorScrollbar } from 'vs/editor/browser/viewParts/editorScrollbar/edi
 import { Minimap } from 'vs/editor/browser/viewParts/minimap/minimap';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
-import { Cursor } from "vs/editor/common/controller/cursor";
+import { Cursor } from 'vs/editor/common/controller/cursor';
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;

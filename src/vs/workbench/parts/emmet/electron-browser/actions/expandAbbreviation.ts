@@ -11,7 +11,7 @@ import { BasicEmmetEditorAction } from 'vs/workbench/parts/emmet/electron-browse
 import { editorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CoreEditingCommands } from "vs/editor/common/controller/coreCommands";
+import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
 
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

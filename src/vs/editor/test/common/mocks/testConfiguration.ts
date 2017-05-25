@@ -7,7 +7,7 @@
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { AccessibilitySupport } from "vs/base/common/platform";
+import { AccessibilitySupport } from 'vs/base/common/platform';
 
 export class TestConfiguration extends CommonEditorConfiguration {
 

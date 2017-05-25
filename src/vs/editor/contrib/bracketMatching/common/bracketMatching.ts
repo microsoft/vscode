@@ -14,9 +14,9 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerThemingParticipant } from "vs/platform/theme/common/themeService";
-import { editorBracketMatchBackground, editorBracketMatchBorder } from "vs/editor/common/view/editorColorRegistry";
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 @editorAction
 class SelectBracketAction extends EditorAction {

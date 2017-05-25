@@ -5,7 +5,7 @@
 
 import * as path from 'path';
 import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
-import { Disposable } from "vscode";
+import { Disposable } from 'vscode';
 
 
 interface IPackageInfo {

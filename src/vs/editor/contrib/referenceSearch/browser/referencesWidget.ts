@@ -43,8 +43,8 @@ import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/t
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IEnvironmentService } from "vs/platform/environment/common/environment";
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 class DecorationsManager implements IDisposable {
 

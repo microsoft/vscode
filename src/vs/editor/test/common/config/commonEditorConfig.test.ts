@@ -7,8 +7,8 @@
 import * as assert from 'assert';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
-import { IEnvConfiguration } from "vs/editor/common/config/commonEditorConfig";
-import { AccessibilitySupport } from "vs/base/common/platform";
+import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
+import { AccessibilitySupport } from 'vs/base/common/platform';
 
 suite('Common Editor Config', () => {
 	test('Zoom Level', () => {

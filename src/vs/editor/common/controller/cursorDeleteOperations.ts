@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations';
 import * as strings from 'vs/base/common/strings';
-import { ICommand } from "vs/editor/common/editorCommon";
+import { ICommand } from 'vs/editor/common/editorCommon';
 
 export class DeleteOperations {
 

@@ -20,7 +20,7 @@ import { Extensions, IColorRegistry, ColorIdentifier, editorBackground, editorFo
 import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/platform';
 import { WorkbenchThemeService, IColorCustomizations } from "vs/workbench/services/themes/electron-browser/workbenchThemeService";
-import { getParseErrorMessage } from "vs/base/common/jsonErrorMessages";
+import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 

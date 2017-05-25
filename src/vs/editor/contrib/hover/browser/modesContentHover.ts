@@ -22,7 +22,7 @@ import { getHover } from '../common/hover';
 import { HoverOperation, IHoverComputer } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { textToMarkedString, MarkedString } from 'vs/base/common/htmlContent';
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 class ModesContentComputer implements IHoverComputer<Hover[]> {
 

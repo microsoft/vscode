@@ -12,7 +12,7 @@ import { PrefixSumComputerWithCache } from 'vs/editor/common/viewModel/prefixSum
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 export class OutputPosition {
 	_outputPositionBrand: void;

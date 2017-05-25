@@ -13,8 +13,8 @@ import { ITypeData, TextAreaState, ITextAreaWrapper } from 'vs/editor/browser/co
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from "vs/base/browser/keyboardEvent";
-import { FastDomNode } from "vs/base/browser/fastDomNode";
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 
 export interface ICompositionData {
 	data: string;

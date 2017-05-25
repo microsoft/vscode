@@ -24,8 +24,8 @@ import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
-import { ModelDecorationOptions } from "vs/editor/common/model/textModelWithDecorations";
-import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from "vs/editor/contrib/goToDeclaration/browser/clickLinkGesture";
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/browser/clickLinkGesture';
 
 const HOVER_MESSAGE_GENERAL_META = (
 	platform.isMacintosh

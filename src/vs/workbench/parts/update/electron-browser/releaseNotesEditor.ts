@@ -20,7 +20,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { WebviewEditor } from 'vs/workbench/browser/parts/editor/webviewEditor';
-import { IStorageService } from "vs/platform/storage/common/storage";
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>

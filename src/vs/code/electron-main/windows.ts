@@ -31,7 +31,7 @@ import product from 'vs/platform/node/product';
 import { OpenContext } from 'vs/code/common/windows';
 import { ITelemetryService, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { isParent, isEqual, isEqualOrParent } from 'vs/platform/files/common/files';
-import { KeyboardLayoutMonitor } from "vs/code/node/keyboard";
+import { KeyboardLayoutMonitor } from 'vs/code/node/keyboard';
 
 enum WindowError {
 	UNRESPONSIVE,
