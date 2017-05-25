@@ -226,12 +226,15 @@ export class TerminalLinkHandler {
 
 	private _resolvePath(link: string): TPromise<string> {
 		link = this._preprocessPath(link);
-
 		if (!link) {
 			return TPromise.as(void 0);
 		}
 
 		const linkUrl = this.extractLinkUrl(link);
+		if (!linkUrl) {
+			return TPromise.as(void 0);
+		}
+
 		// Open an editor if the path exists
 		return pfs.fileExists(linkUrl).then(isFile => {
 			if (!isFile) {
@@ -292,6 +295,9 @@ export class TerminalLinkHandler {
 	 */
 	public extractLinkUrl(link: string): string {
 		const matches: string[] = this._localLinkRegex.exec(link);
+		if (!matches) {
+			return null;
+		}
 		return matches[1];
 	}
 }
