@@ -890,15 +890,6 @@
 				}
 			]
 		},
-		"constant_hex": {
-			"captures": {
-				"1": {
-					"name": "punctuation.definition.constant.scss"
-				}
-			},
-			"match": "(#)([0-9a-fA-F]{3}|[0-9a-fA-F]{6})\\b",
-			"name": "constant.numeric.color.hex-value.scss"
-		},
 		"constant_important": {
 			"match": "!important",
 			"name": "keyword.other.important.scss"
@@ -906,10 +897,6 @@
 		"constant_mathematical_symbols": {
 			"match": "\\b(\\+|-|\\*|/)\\b",
 			"name": "support.constant.mathematical-symbols.scss"
-		},
-		"constant_number": {
-			"match": "(\\b([0-9]+(\\.[0-9]+)?)|\\B\\.[0-9]+)(?=\\s*(ch|cm|deg|dpi|dpcm|dppx|em|ex|grad|in|mm|mozmm|ms|pc|pt|px|rad|rem|turn|s|vh|vmin|vmax|vw|\\b))",
-			"name": "constant.numeric.scss"
 		},
 		"constant_optional": {
 			"match": "!optional",
@@ -936,10 +923,6 @@
 					"include": "#parameters"
 				}
 			]
-		},
-		"constant_unit": {
-			"match": "(?<=[\\d])(ch|cm|deg|dpi|dpcm|dppx|em|ex|grad|in|mm|mozmm|ms|pc|pt|px|rad|rem|turn|s|vh|vmin|vmax|vw)\\b|%",
-			"name": "keyword.other.unit.scss"
 		},
 		"flow_control": {
 			"patterns": [
@@ -1243,9 +1226,6 @@
 					"include": "#constant_sass_functions"
 				},
 				{
-					"include": "#constant_hex"
-				},
-				{
 					"include": "#constant_important"
 				},
 				{
@@ -1255,10 +1235,7 @@
 					"include": "#constant_optional"
 				},
 				{
-					"include": "#constant_unit"
-				},
-				{
-					"include": "#constant_number"
+					"include": "source.css#numeric-values"
 				},
 				{
 					"include": "source.css#property-keywords"
@@ -1543,7 +1520,7 @@
 						},
 						{
 							"match": "\\d+",
-							"name": "constant.numeric.scss"
+							"name": "constant.numeric.css"
 						},
 						{
 							"match": "(?<=\\d)n\\b|\\b(n|even|odd)\\b",
@@ -1698,5 +1675,5 @@
 			"name": "variable.scss"
 		}
 	},
-	"version": "https://github.com/atom/language-sass/commit/f477576a0ff819657495142f7e64e577a837fadb"
+	"version": "https://github.com/atom/language-sass/commit/8b8b7b52655ab5cf4dbe597443abe4b078bb6953"
 }
