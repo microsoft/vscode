@@ -7,6 +7,7 @@
 	"view": "查看",
 	"help": "帮助",
 	"file": "文件",
+	"developer": "开发者",
 	"showEditorTabs": "控制打开的编辑器是否显示在选项卡中。",
 	"editorTabCloseButton": "控制编辑器的选项卡关闭按钮的位置，或当设置为 \"off\" 时禁用关闭它们。",
 	"showIcons": "控制打开的编辑器是否随图标一起显示。这还需启用图标主题。",

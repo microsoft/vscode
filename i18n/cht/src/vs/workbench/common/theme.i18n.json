@@ -29,6 +29,7 @@
 	"activityBarBadgeBackground": "活動通知徽章的背景色彩。此活動列會顯示在最左側或最右側，讓您可以切換提要欄位的不同檢視。",
 	"activityBarBadgeForeground": "活動通知徽章的前背景色彩。此活動列會顯示在最左側或最右側，讓您可以切換提要欄位的不同檢視。",
 	"sideBarBackground": "提要欄位的背景色彩。提要欄位是檢視 (例如 Explorer 與搜尋) 的容器。",
+	"sideBarForeground": "側欄的前景顏色.側欄包含Explorer與搜尋.",
 	"sideBarTitleForeground": "提要欄位標題的前景色彩。提要欄位是檢視 (例如 Explorer 與搜尋) 的容器。",
 	"sideBarSectionHeaderBackground": "提要欄位區段標頭的背景色彩。提要欄位是檢視 (例如 Explorer 與搜尋) 的容器。",
 	"titleBarActiveForeground": "作用中視窗之標題列的前景。請注意，目前只有 macOS 支援此色彩。",

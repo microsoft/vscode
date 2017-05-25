@@ -7,6 +7,7 @@
 	"view": "Anzeigen",
 	"help": "Hilfe",
 	"file": "Datei",
+	"developer": "Entwickler",
 	"showEditorTabs": "Steuert, ob geöffnete Editoren auf Registerkarten angezeigt werden sollen.",
 	"editorTabCloseButton": "Steuert die Position der Schließen-Schaltflächen der Editor-Registerkarten oder deaktiviert sie bei der Einstellung \"off\".",
 	"showIcons": "Steuert, ob geöffnete Editoren mit einem Symbol angezeigt werden sollen. Hierzu muss auch ein Symboldesign aktiviert werden.",

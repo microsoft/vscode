@@ -33,10 +33,13 @@
 	"javascript.validate.enable": "JavaScript の検証を有効/無効にします。",
 	"typescript.goToProjectConfig.title": "プロジェクト構成に移動",
 	"javascript.goToProjectConfig.title": "プロジェクト構成に移動",
+	"javascript.referencesCodeLens.enabled": "JavaScript ファイル内で CodeLens の参照を有効/無効にします。",
+	"typescript.referencesCodeLens.enabled": "TypeScript ファイル内で CodeLens の参照を有効/無効にします。TypeScript 2.0.6 以上が必要です。",
 	"typescript.implementationsCodeLens.enabled": "CodeLens の実装を有効/無効にします。TypeScript 2.2.0 以上が必要です。",
 	"typescript.openTsServerLog.title": "TS サーバーのログを開く",
 	"typescript.selectTypeScriptVersion.title": "TypeScript のバージョンの選択",
 	"jsDocCompletion.enabled": " 自動 JSDoc コメントを有効/無効にします",
 	"javascript.implicitProjectConfig.checkJs": "JavaScript ファイルのセマンティック チェックを有効/無効にします。既存の jsconfi.json や tsconfi.json ファイルの設定はこれより優先されます。TypeScript は 2.3.1 以上である必要があります。",
-	"typescript.check.npmIsInstalled": "型定義の自動取得に NPM がインストールされているかどうかを確認する"
+	"typescript.check.npmIsInstalled": "型定義の自動取得に NPM がインストールされているかどうかを確認する",
+	"javascript.nameSuggestions": "JavaScript の候補リスト内でファイルから一意の名前を含むかどうかを有効/無効にします。"
 }

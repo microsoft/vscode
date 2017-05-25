@@ -32,6 +32,7 @@
 	"activityBarBadgeBackground": "Color de fondo de distintivo de notificación de actividad. La barra de actividad se muestra en el extremo izquierdo o derecho y permite cambiar entre vistas de la barra lateral.",
 	"activityBarBadgeForeground": "Color de primer plano de distintivo de notificación de actividad. La barra de actividad se muestra en el extremo izquierdo o derecho y permite cambiar entre vistas de la barra lateral.",
 	"sideBarBackground": "Color de fondo de la barra lateral, que es el contenedor de vistas como Explorador y Búsqueda.",
+	"sideBarForeground": "Color de primer plano de la barra lateral, que es el contenedor de vistas como Explorador y Búsqueda.",
 	"sideBarTitleForeground": "Color de primer plano del título de la barra lateral, que es el contenedor de vistas como Explorador y Búsqueda.",
 	"sideBarSectionHeaderBackground": "Color de fondo del encabezado de sección de la barra lateral, que es el contenedor de vistas como Explorador y Búsqueda.",
 	"titleBarActiveForeground": "Color de primer plano de la barra de título cuando la ventana está activa. Tenga en cuenta que, actualmente, este clor solo se admite en macOS.",

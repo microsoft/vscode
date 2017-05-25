@@ -16,7 +16,6 @@
 	"associations": "配置语言的文件关联(如: \"*.extension\": \"html\")。这些关联的优先级高于已安装语言的默认关联。",
 	"encoding": "读取和编写文件时将使用的默认字符集编码。",
 	"autoGuessEncoding": "启用时，会在打开文件时尝试猜测字符集编码",
-	"eol": "默认行尾字符。",
 	"trimTrailingWhitespace": "启用后，将在保存文件时剪裁尾随空格。",
 	"insertFinalNewline": "启用后，保存文件时在文件末尾插入一个最终新行。",
 	"files.autoSave.off": "永不自动保存更新后的文件。",

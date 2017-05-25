@@ -16,7 +16,6 @@
 	"associations": "Configure asociaciones de archivo para los lenguajes (por ejemplo, \"*.extension\": \"html\"). Estas asociaciones tienen prioridad sobre las asociaciones predeterminadas de los lenguajes instalados.",
 	"encoding": "La codificación del juego de caracteres predeterminada que debe utilizarse al leer y escribir archivos.",
 	"autoGuessEncoding": "Si está opción está habilitada, se intentará adivinar la codificación del juego de caracteres al abrir los archivos",
-	"eol": "Carácter predeterminado de final de línea.",
 	"trimTrailingWhitespace": "Si se habilita, se recortará el espacio final cuando se guarde un archivo.",
 	"insertFinalNewline": "Si se habilita, inserte una nueva línea final al final del archivo cuando lo guarde.",
 	"files.autoSave.off": "Un archivo con modificaciones no se guarda nunca automáticamente.",

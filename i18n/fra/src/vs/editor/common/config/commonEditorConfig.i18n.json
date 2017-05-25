@@ -41,7 +41,6 @@
 	"formatOnType": "Contrôle si l'éditeur doit automatiquement mettre en forme la ligne après la saisie",
 	"formatOnPaste": "Contrôle si l'éditeur doit automatiquement mettre en forme le contenu collé. Un formateur doit être disponible et doit pouvoir mettre en forme une plage dans un document.",
 	"suggestOnTriggerCharacters": "Contrôle si les suggestions doivent s'afficher automatiquement durant la saisie de caractères de déclenchement",
-	"acceptSuggestionOnEnter": "Contrôle si les suggestions peuvent être acceptées avec Entrée (en plus de Tab). Cela permet d'éviter toute ambiguïté entre l'insertion de nouvelles lignes et l'acceptation de suggestions.",
 	"acceptSuggestionOnCommitCharacter": "Contrôle si les suggestions doivent être acceptées avec des caractères de validation. Par exemple, en JavaScript, le point-virgule (';') peut être un caractère de validation qui permet d'accepter une suggestion et de taper ce caractère.",
 	"snippetSuggestions": "Contrôle si les extraits de code s'affichent en même temps que d'autres suggestions, ainsi que leur mode de tri.",
 	"emptySelectionClipboard": "Contrôle si la copie sans sélection permet de copier la ligne actuelle.",

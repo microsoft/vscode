@@ -15,5 +15,9 @@
 	"schema.brackets": "Define los corchetes que aumentan o reducen la sangría.",
 	"schema.autoClosingPairs": "Define el par de corchetes. Cuando se escribe un corchete de apertura, se inserta automáticamente el corchete de cierre.",
 	"schema.autoClosingPairs.notIn": "Define una lista de ámbitos donde los pares automáticos están deshabilitados.",
-	"schema.surroundingPairs": "Define los pares de corchetes que se pueden usar para encerrar una cadena seleccionada."
+	"schema.surroundingPairs": "Define los pares de corchetes que se pueden usar para encerrar una cadena seleccionada.",
+	"schema.wordPattern": " La definición de la palabra en el idioma.",
+	"schema.wordPattern.pattern": "El patrón de expresión regular utilizado para localizar palabras.",
+	"schema.wordPattern.flags": "Los flags de expresión regular utilizados para localizar palabras.",
+	"schema.wordPattern.flags.errorMessage": "Debe coincidir con el patrón `/^([gimuy]+)$/`."
 }

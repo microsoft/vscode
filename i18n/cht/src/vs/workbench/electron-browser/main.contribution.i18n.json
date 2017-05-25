@@ -7,6 +7,7 @@
 	"view": "檢視",
 	"help": "說明",
 	"file": "檔案",
+	"developer": "開發人員",
 	"showEditorTabs": "控制已開啟的編輯器是否應顯示在索引標籤中。",
 	"editorTabCloseButton": "控制編輯器的索引標籤關閉按鈕位置，或在設為 'off' 時將其停用。",
 	"showIcons": "控制開啟的編輯器是否搭配圖示顯示。這需要同時啟用圖示佈景主題。",
