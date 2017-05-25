@@ -34,7 +34,10 @@
     "onCommand:typescript.selectTypeScriptVersion",
     "onCommand:javascript.goToProjectConfig",
     "onCommand:typescript.goToProjectConfig",
-    "onCommand:typescript.openTsServerLog"
+    "onCommand:typescript.openTsServerLog",
+    "onCommand:workbench.action.tasks.runTask",
+    "onCommand:workbench.action.tasks.build",
+    "onCommand:workbench.action.tasks.test"
   ],
   "main": "./out/typescriptMain",
   "contributes": {
