@@ -73,7 +73,8 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/workbenchModeService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { ICrashReporterService, CrashReporterService, NullCrashReporterService } from 'vs/workbench/electron-browser/crashReporter';
+import { ICrashReporterService, NullCrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
+import { CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { NodeCachedDataManager } from 'vs/workbench/electron-browser/nodeCachedDataManager';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
@@ -327,29 +328,9 @@ export class WorkbenchShell {
 		serviceCollection.set(ITelemetryService, this.telemetryService);
 		disposables.add(configurationTelemetry(this.telemetryService, this.configurationService));
 
-		//c rash reporting, depends on ITelemetryService, IConfigurationService and IWidnowsService
 		let crashReporterService = NullCrashReporterService;
 		if (product.crashReporter && product.hockeyApp) {
-			let submitURL: string;
-
-			if (platform.isWindows) {
-				submitURL = product.hockeyApp[`win32-${process.arch}`];
-			} else if (platform.isMacintosh) {
-				submitURL = product.hockeyApp.darwin;
-			} else if (platform.isLinux) {
-				submitURL = product.hockeyApp[`linux-${process.arch}`];
-			}
-
-			if (submitURL) {
-				const opts: Electron.CrashReporterStartOptions = {
-					companyName: product.crashReporter.companyName,
-					productName: product.crashReporter.productName,
-					submitURL
-				};
-
-				crashReporterService = instantiationService.createInstance(CrashReporterService, opts);
-
-			}
+			crashReporterService = instantiationService.createInstance(CrashReporterService);
 		}
 		serviceCollection.set(ICrashReporterService, crashReporterService);
 

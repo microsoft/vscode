@@ -32,7 +32,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { IInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { MainProcessExtensionService } from 'vs/workbench/api/electron-browser/mainThreadExtensionService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { ICrashReporterService } from 'vs/workbench/electron-browser/crashReporter';
+import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
 
 export const EXTENSION_LOG_BROADCAST_CHANNEL = 'vscode:extensionLog';
 export const EXTENSION_ATTACH_BROADCAST_CHANNEL = 'vscode:extensionAttach';
@@ -113,20 +113,15 @@ export class ExtensionHostProcessWorker {
 		TPromise.join<any>([this.tryListenOnPipe(), this.tryFindDebugPort()]).then(data => {
 			const [server, hook] = <[Server, string]>data[0];
 			const port = <number>data[1];
-			let crashReporterStartOptions = this.crashReporterService.getCrashReporterStartOptions();
-			if (crashReporterStartOptions && crashReporterStartOptions.extra) {
-				crashReporterStartOptions.extra.processName = 'extensionHost';
-			}
 
-			let opts = {
+			const opts = {
 				env: objects.mixin(objects.clone(process.env), {
 					AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: true,
 					VSCODE_WINDOW_ID: String(this.windowService.getWindowId()),
 					VSCODE_IPC_HOOK_EXTHOST: hook,
-					ELECTRON_NO_ASAR: '1',
-					CRASH_REPORTER_START_OPTIONS: crashReporterStartOptions
+					ELECTRON_NO_ASAR: '1'
 				}),
 				// We only detach the extension host on windows. Linux and Mac orphan by default
 				// and detach under Linux and Mac create another process group.
@@ -137,6 +132,11 @@ export class ExtensionHostProcessWorker {
 					? ['--nolazy', (this.isExtensionDevelopmentDebugBrk ? '--debug-brk=' : '--debug=') + port]
 					: undefined
 			};
+
+			const crashReporterOptions = this.crashReporterService.getChildProcessStartOptions('extensionHost');
+			if (crashReporterOptions) {
+				opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterOptions);
+			}
 
 			// Run Extension Host as fork of current process
 			this.extensionHostProcess = fork(URI.parse(require.toUrl('bootstrap')).fsPath, ['--type=extensionHost'], opts);
