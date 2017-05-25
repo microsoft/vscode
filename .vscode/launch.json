@@ -146,6 +146,32 @@
 			"outFiles": [
 				"${workspaceRoot}/extensions/node_modules/typescript/lib/**/*.js"
 			]
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "Unit Tests",
+			"protocol": "legacy",
+			"program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
+			"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"windows": {
+				"runtimeExecutable": "${workspaceRoot}/.build/electron/Code - OSS.exe"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceRoot}/.build/electron/code-oss"
+			},
+			"stopOnEntry": false,
+			"args": [
+				"--timeout",
+				"2000"
+			],
+			"cwd": "${workspaceRoot}",
+			"env": {
+				"ELECTRON_RUN_AS_NODE": "true"
+			},
+			"outFiles": [
+				"${workspaceRoot}/out/**/*.js"
+			]
 		}
 	],
 	"compounds": [
