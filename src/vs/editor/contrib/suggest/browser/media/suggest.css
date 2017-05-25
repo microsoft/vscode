@@ -34,18 +34,12 @@
 
 .monaco-editor .suggest-widget.docs-side > .tree,
 .monaco-editor .suggest-widget.docs-side > .details {
-	/* subtract 2px for border, and another 2 for the Chromium zoom issue
-	where the children get slightly bigger width than what is set
-	which makes the docs go below the list  */
-	width: calc(50% - 4px);
+	width: 328px;
 }
 
 .monaco-editor.hc-black .suggest-widget.docs-side > .tree,
 .monaco-editor.hc-black .suggest-widget.docs-side > .details {
-	/* subtract 4px for border, and another 2 for the Chromium zoom issue
-	where the children get slightly bigger width than what is set
-	which makes the docs go below the list  */
-	width: calc(50% - 6px);
+	width: 326px;
 }
 
 /* Styles for Message element for when widget is loading or is empty */
