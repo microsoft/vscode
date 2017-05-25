@@ -38,14 +38,26 @@
 	where the children get slightly bigger width than what is set
 	which makes the docs go below the list  */
 	width: calc(50% - 4px);
+	float: left;
+
+}
+
+.monaco-editor .suggest-widget.docs-side.list-right > .tree,
+.monaco-editor .suggest-widget.docs-side.list-right > .details  {
+	float: right;
 }
 
 .monaco-editor.hc-black .suggest-widget.docs-side > .tree,
 .monaco-editor.hc-black .suggest-widget.docs-side > .details {
-	/* subtract 4px for border, and another 2 for the Chromium zoom issue
-	where the children get slightly bigger width than what is set
-	which makes the docs go below the list  */
-	width: calc(50% - 6px);
+	width: 326px;
+}
+
+.monaco-editor .suggest-widget.docs-side .empty-left-border {
+	border-left-width: 0px;
+}
+
+.monaco-editor .suggest-widget.docs-side .empty-right-border {
+	border-right-width: 0px;
 }
 
 /* Styles for Message element for when widget is loading or is empty */
@@ -64,13 +76,7 @@
 	height: 100%;
 }
 
-.monaco-editor .suggest-widget.docs-side > .tree {
-	float: left;
-}
 
-.monaco-editor .suggest-widget.docs-side.list-right > .tree {
-	float: right
-}
 
 /** Styles for each row in the list element **/
 
@@ -211,6 +217,10 @@
 
 .monaco-editor .suggest-widget .details.no-docs {
 	display: none;
+}
+
+.monaco-editor .suggest-widget.docs-below .details {
+	border-top-width: 0px;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element {
