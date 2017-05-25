@@ -21,10 +21,17 @@ import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorO
 (<any>EDITOR_DEFAULTS.contribInfo).folding = false;
 (<any>EDITOR_DEFAULTS.viewInfo).glyphMargin = false;
 
+let base = createMonacoBaseAPI();
+for (let prop in base) {
+	if (base.hasOwnProperty(prop)) {
+		exports[prop] = base[prop];
+	}
+}
+exports.editor = createMonacoEditorAPI();
+exports.languages = createMonacoLanguagesAPI();
+
 var global: any = self;
-global.monaco = createMonacoBaseAPI();
-global.monaco.editor = createMonacoEditorAPI();
-global.monaco.languages = createMonacoLanguagesAPI();
+global.monaco = exports;
 
 if (typeof global.require !== 'undefined' && typeof global.require.config === 'function') {
 	global.require.config({
