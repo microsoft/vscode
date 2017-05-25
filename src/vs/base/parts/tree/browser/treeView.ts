@@ -602,7 +602,7 @@ export class TreeView extends HeightMap {
 		if (styles.listDropBackground) {
 			content.push(`
 				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target { background-color: ${styles.listDropBackground} !important; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
 			`);
 		}
 
