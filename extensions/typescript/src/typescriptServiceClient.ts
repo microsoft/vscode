@@ -442,7 +442,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							args.push('--disableAutomaticTypingAcquisition');
 						}
 					}
-					if (this.apiVersion.has208Features()) {
+					if (this.apiVersion.has208Features() && workspace.getConfiguration().get<boolean>('telemetry.enableTelemetry', true)) {
 						args.push('--enableTelemetry');
 					}
 					if (this.apiVersion.has222Features()) {
