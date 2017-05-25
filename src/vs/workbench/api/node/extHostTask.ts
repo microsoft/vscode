@@ -163,7 +163,7 @@ namespace ProblemMatcher {
 		if (values === void 0 || values === null) {
 			return undefined;
 		}
-		let result: (string | Problems.ProblemMatcher)[];
+		let result: (string | Problems.ProblemMatcher)[] = [];
 		for (let value of values) {
 			let converted = typeof value === 'string' ? value : fromSingle(value);
 			if (converted) {

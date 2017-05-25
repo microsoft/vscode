@@ -41,13 +41,14 @@ import CodeActionProvider from './features/codeActionProvider';
 import ReferenceCodeLensProvider from './features/referencesCodeLensProvider';
 import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
 import { DirectiveCommentCompletionProvider } from './features/directiveCommentCompletionProvider';
+import TypeScriptTaskProvider from './features/taskProvider';
 
 import ImplementationCodeLensProvider from './features/implementationsCodeLensProvider';
 
 import * as BuildStatus from './utils/buildStatus';
 import * as ProjectStatus from './utils/projectStatus';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
-import * as VersionStatus from './utils/versionStatus';
+import VersionStatus from './utils/versionStatus';
 import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from "./utils/plugins";
 
 interface LanguageDescription {
@@ -67,72 +68,100 @@ interface ProjectConfigMessageItem extends MessageItem {
 	id: ProjectConfigAction;
 }
 
+const MODE_ID_TS = 'typescript';
+const MODE_ID_TSX = 'typescriptreact';
+const MODE_ID_JS = 'javascript';
+const MODE_ID_JSX = 'javascriptreact';
+
+const standardLanguageDescriptions: LanguageDescription[] = [
+	{
+		id: 'typescript',
+		diagnosticSource: 'ts',
+		modeIds: [MODE_ID_TS, MODE_ID_TSX],
+		configFile: 'tsconfig.json'
+	}, {
+		id: 'javascript',
+		diagnosticSource: 'js',
+		modeIds: [MODE_ID_JS, MODE_ID_JSX],
+		configFile: 'jsconfig.json'
+	}
+];
 
 export function activate(context: ExtensionContext): void {
-	const MODE_ID_TS = 'typescript';
-	const MODE_ID_TSX = 'typescriptreact';
-	const MODE_ID_JS = 'javascript';
-	const MODE_ID_JSX = 'javascriptreact';
-
 	const plugins = getContributedTypeScriptServerPlugins();
-	const clientHost = new TypeScriptServiceClientHost([
-		{
-			id: 'typescript',
-			diagnosticSource: 'ts',
-			modeIds: [MODE_ID_TS, MODE_ID_TSX],
-			configFile: 'tsconfig.json'
-		},
-		{
-			id: 'javascript',
-			diagnosticSource: 'js',
-			modeIds: [MODE_ID_JS, MODE_ID_JSX],
-			configFile: 'jsconfig.json'
-		}
-	], context.storagePath, context.globalState, context.workspaceState, plugins);
-	context.subscriptions.push(clientHost);
 
-	const client = clientHost.serviceClient;
+	const lazyClientHost = (() => {
+		let clientHost: TypeScriptServiceClientHost | undefined;
+		return () => {
+			if (!clientHost) {
+				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.storagePath, context.globalState, context.workspaceState, plugins);
+				context.subscriptions.push(clientHost);
+
+				const host = clientHost;
+				clientHost.serviceClient.onReady().then(() => {
+					context.subscriptions.push(ProjectStatus.create(host.serviceClient,
+						path => new Promise<boolean>(resolve => setTimeout(() => resolve(host.handles(path)), 750)),
+						context.workspaceState));
+				}, () => {
+					// Nothing to do here. The client did show a message;
+				});
+			}
+			return clientHost;
+		};
+	})();
+
 
 	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
-		clientHost.reloadProjects();
+		lazyClientHost().reloadProjects();
 	}));
 
 	context.subscriptions.push(commands.registerCommand('javascript.reloadProjects', () => {
-		clientHost.reloadProjects();
+		lazyClientHost().reloadProjects();
 	}));
 
 	context.subscriptions.push(commands.registerCommand('typescript.selectTypeScriptVersion', () => {
-		client.onVersionStatusClicked();
+		lazyClientHost().serviceClient.onVersionStatusClicked();
 	}));
 
 	context.subscriptions.push(commands.registerCommand('typescript.openTsServerLog', () => {
-		client.openTsServerLogFile();
+		lazyClientHost().serviceClient.openTsServerLogFile();
 	}));
 
 	context.subscriptions.push(commands.registerCommand('typescript.restartTsServer', () => {
-		client.restartTsServer();
+		lazyClientHost().serviceClient.restartTsServer();
 	}));
+
+	context.subscriptions.push(workspace.registerTaskProvider(new TypeScriptTaskProvider(() => lazyClientHost().serviceClient)));
 
 	const goToProjectConfig = (isTypeScript: boolean) => {
 		const editor = window.activeTextEditor;
 		if (editor) {
-			clientHost.goToProjectConfig(isTypeScript, editor.document.uri);
+			lazyClientHost().goToProjectConfig(isTypeScript, editor.document.uri);
 		}
 	};
 	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true)));
 	context.subscriptions.push(commands.registerCommand('javascript.goToProjectConfig', goToProjectConfig.bind(null, false)));
 
-	const jsDocCompletionCommand = new TryCompleteJsDocCommand(client);
+	const jsDocCompletionCommand = new TryCompleteJsDocCommand(() => lazyClientHost().serviceClient);
 	context.subscriptions.push(commands.registerCommand(TryCompleteJsDocCommand.COMMAND_NAME, jsDocCompletionCommand.tryCompleteJsDoc, jsDocCompletionCommand));
 
-	window.onDidChangeActiveTextEditor(VersionStatus.showHideStatus, null, context.subscriptions);
-	client.onReady().then(() => {
-		context.subscriptions.push(ProjectStatus.create(client,
-			path => new Promise<boolean>(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
-			context.workspaceState));
-	}, () => {
-		// Nothing to do here. The client did show a message;
-	});
+	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
+	function didOpenTextDocument(textDocument: TextDocument): boolean {
+		if (supportedLanguage.indexOf(textDocument.languageId) >= 0) {
+			openListener.dispose();
+			// Force activation
+			void lazyClientHost();
+			return true;
+		}
+		return false;
+	};
+	const openListener = workspace.onDidOpenTextDocument(didOpenTextDocument);
+	for (let textDocument of workspace.textDocuments) {
+		if (didOpenTextDocument(textDocument)) {
+			break;
+		}
+	}
+
 	BuildStatus.update({ queueLength: 0 });
 }
 
@@ -423,6 +452,7 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 	private languages: LanguageProvider[] = [];
 	private languagePerId: ObjectMap<LanguageProvider>;
 	private readonly disposables: Disposable[] = [];
+	private readonly versionStatus: VersionStatus;
 
 	constructor(
 		descriptions: LanguageDescription[],
@@ -446,7 +476,10 @@ class TypeScriptServiceClientHost implements ITypescriptServiceClientHost {
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
-		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState, plugins, this.disposables);
+		this.versionStatus = new VersionStatus();
+		this.disposables.push(this.versionStatus);
+
+		this.client = new TypeScriptServiceClient(this, storagePath, globalState, workspaceState, this.versionStatus, plugins, this.disposables);
 		this.languagePerId = Object.create(null);
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description);
