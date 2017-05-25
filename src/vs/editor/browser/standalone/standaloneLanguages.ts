@@ -135,15 +135,30 @@ export class TokenizationSupport2Adapter implements modes.ITokenizationSupport {
 	}
 
 	public tokenize2(line: string, state: modes.IState, offsetDelta: number): TokenizationResult2 {
-		let actualResult = this._actual.tokenize(line, state);
-		let tokens = this._toBinaryTokens(actualResult.tokens, offsetDelta);
-
+		let tokens: Uint32Array;
 		let endState: modes.IState;
-		// try to save an object if possible
-		if (actualResult.endState.equals(state)) {
-			endState = state;
+
+		// here got to choose to use tokenize or tokenize2, mostly prefer tokenize2.
+		if (!this._actual.tokenize2) {
+			let actualResult = this._actual.tokenize(line, state);
+			tokens = this._toBinaryTokens(actualResult.tokens, offsetDelta);
+
+			// try to save an object if possible
+			if (actualResult.endState.equals(state)) {
+				endState = state;
+			} else {
+				endState = actualResult.endState;
+			}
 		} else {
-			endState = actualResult.endState;
+			let actualResult = this._actual.tokenize2(line, state);
+			tokens = actualResult.tokens;
+
+			// try to save an object if possible
+			if (actualResult.endState.equals(state)) {
+				endState = state;
+			} else {
+				endState = actualResult.endState;
+			}
 		}
 
 		return new TokenizationResult2(tokens, endState);
@@ -174,6 +189,21 @@ export interface ILineTokens {
 }
 
 /**
+ * The result of a line tokenization with Uint32Array tokens.
+ */
+export interface ILineTokens2 {
+	/**
+	 * The Uint32Array tokens on the line.
+	 */
+	tokens: Uint32Array;
+	/**
+	 * The tokenization end state.
+	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+	 */
+	endState: modes.IState;
+}
+
+/**
  * A "manual" provider of tokens.
  */
 export interface TokensProvider {
@@ -185,6 +215,10 @@ export interface TokensProvider {
 	 * Tokenize a line given the state at the beginning of the line.
 	 */
 	tokenize(line: string, state: modes.IState): ILineTokens;
+	/**
+	 * Tokenize a line given the state with Uint32Array tokens.
+	 */
+	tokenize2(line: string, state: modes.IState): ILineTokens2;
 }
 
 /**

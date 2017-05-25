@@ -6,23 +6,24 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import * as types from 'vs/base/common/types';
-import Event, { Emitter } from 'vs/base/common/event';
-import { join, normalize } from 'path';
+import * as objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import * as paths from 'vs/base/common/paths';
+import * as types from 'vs/base/common/types';
+import Event, { Emitter } from 'vs/base/common/event';
 import { ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INITIAL, StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
-import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IThemeService, IThemeSetting } from 'vs/workbench/services/themes/common/themeService';
 import { ITextMateService } from 'vs/editor/node/textMate/textMateService';
 import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/editor/node/textMate/TMGrammars';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { Color } from 'vs/base/common/color';
+import { Color, isValidHexColor } from 'vs/base/common/color';
 
 export class TMScopeRegistry {
 
@@ -102,7 +103,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 
 	private _grammarRegistry: Registry;
 	private _modeService: IModeService;
-	private _themeService: IWorkbenchThemeService;
+	private _themeService: IThemeService;
 	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
 	private _languageToScope: Map<string, string>;
@@ -112,7 +113,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 
 	constructor(
 		@IModeService modeService: IModeService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService
+		@IThemeService themeService: IThemeService
 	) {
 		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
@@ -145,7 +146,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 
 		this._modeService.onDidCreateMode((mode) => {
 			let modeId = mode.getId();
-			if (this._languageToScope.has(modeId)) {
+			if (this._languageToScope[modeId]) {
 				this.registerDefinition(modeId);
 			}
 		});
@@ -159,9 +160,31 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 		return result;
 	}
 
+	static _removeInvalidColors(settings: IThemeSetting[]): IThemeSetting[] {
+		if (!Array.isArray(settings)) {
+			return settings;
+		}
+		settings = settings.slice(0);
+		for (let i = 0, len = settings.length; i < len; i++) {
+			let setting = settings[i];
+			if (setting.settings) {
+				let foreground = setting.settings.foreground;
+				if (typeof foreground !== 'undefined' && !isValidHexColor(foreground)) {
+					let settingClone = objects.deepClone(setting);
+					delete settingClone.settings.foreground;
+					settings[i] = settingClone;
+				}
+			}
+		}
+		return settings;
+	}
+
 	private _updateTheme(): void {
 		let colorTheme = this._themeService.getColorTheme();
-		this._grammarRegistry.setTheme({ name: colorTheme.label, settings: colorTheme.tokenColors });
+		// Remove unparsable foreground colors
+		let settings = MainProcessTextMateSyntax._removeInvalidColors(colorTheme.settings);
+
+		this._grammarRegistry.setTheme({ name: colorTheme.label, settings: settings });
 		let colorMap = MainProcessTextMateSyntax._toColorMap(this._grammarRegistry.getColorMap());
 		let cssRules = generateTokensCSSForColorMap(colorMap);
 		this._styleElement.innerHTML = cssRules;
@@ -190,7 +213,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 			return;
 		}
 
-		let normalizedAbsolutePath = normalize(join(extensionFolderPath, syntax.path));
+		let normalizedAbsolutePath = paths.normalize(paths.join(extensionFolderPath, syntax.path));
 
 		if (normalizedAbsolutePath.indexOf(extensionFolderPath) !== 0) {
 			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
@@ -210,7 +233,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 
 		let modeId = syntax.language;
 		if (modeId) {
-			this._languageToScope.set(modeId, syntax.scopeName);
+			this._languageToScope[modeId] = syntax.scopeName;
 		}
 	}
 
@@ -233,7 +256,7 @@ export class MainProcessTextMateSyntax implements ITextMateService {
 	}
 
 	private _createGrammar(modeId: string): TPromise<ICreateGrammarResult> {
-		let scopeName = this._languageToScope.get(modeId);
+		let scopeName = this._languageToScope[modeId];
 		let languageRegistration = this._scopeRegistry.getLanguageRegistration(scopeName);
 		if (!languageRegistration) {
 			// No TM grammar defined
