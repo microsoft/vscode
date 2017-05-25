@@ -50,8 +50,7 @@ export class CrashReporterService implements ICrashReporterService {
 						vscode_sessionId: info.sessionId,
 						vscode_version: pkg.version,
 						vscode_commit: product.commit,
-						vscode_machineId: info.machineId,
-						crashesDirectory: os.tmpdir()
+						vscode_machineId: info.machineId
 					}
 				});
 
@@ -83,7 +82,7 @@ export class CrashReporterService implements ICrashReporterService {
 		if (isMacintosh) {
 			const childProcessOptions = clone(this.options);
 			childProcessOptions.extra.processName = name;
-
+			childProcessOptions.crashesDirectory = os.tmpdir();
 			return childProcessOptions;
 		}
 
