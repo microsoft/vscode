@@ -18,7 +18,8 @@
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
     "gulp": "gulp --max_old_space_size=4096",
-    "7z": "7z"
+    "7z": "7z",
+    "update-grammars": "node build/npm/update-all-grammars.js"
   },
   "dependencies": {
     "applicationinsights": "0.17.1",
