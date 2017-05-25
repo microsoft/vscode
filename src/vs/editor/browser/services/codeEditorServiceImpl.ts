@@ -151,7 +151,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		this.className = createCSSRules(ModelDecorationCSSRuleType.ClassName);
 		this.inlineClassName = createCSSRules(ModelDecorationCSSRuleType.InlineClassName);
 		this.beforeContentClassName = createCSSRules(ModelDecorationCSSRuleType.BeforeContentClassName);
-		this.beforeContentClassName = createCSSRules(ModelDecorationCSSRuleType.AfterContentClassName);
+		this.afterContentClassName = createCSSRules(ModelDecorationCSSRuleType.AfterContentClassName);
 		this.glyphMarginClassName = createCSSRules(ModelDecorationCSSRuleType.GlyphMarginClassName);
 
 		let options = providerArgs.options;
