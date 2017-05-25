@@ -83,11 +83,22 @@ export function attachInputBoxStyler(widget: IThemable, themeService: IThemeServ
 	}, widget);
 }
 
-export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeService, style?: { selectBackground?: ColorIdentifier, selectForeground?: ColorIdentifier, selectBorder?: ColorIdentifier }): IDisposable {
+export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeService, style?:
+	{
+		selectBackground?: ColorIdentifier,
+		selectForeground?: ColorIdentifier,
+		selectBorder?: ColorIdentifier,
+		selectOptionCheckedBackground?: ColorIdentifier,
+		selectOptionCheckedForeground?: ColorIdentifier,
+		selectOptionHoverBackground?: ColorIdentifier
+	}): IDisposable {
 	return doAttachStyler(themeService, {
 		selectBackground: (style && style.selectBackground) || selectBackground,
 		selectForeground: (style && style.selectForeground) || selectForeground,
-		selectBorder: (style && style.selectBorder) || selectBorder
+		selectBorder: (style && style.selectBorder) || selectBorder,
+		selectOptionCheckedBackground: (style && style.selectOptionCheckedBackground) || listActiveSelectionBackground,
+		selectOptionCheckedForeground: (style && style.selectOptionCheckedForeground) || listActiveSelectionForeground,
+		selectOptionHoverBackground: (style && style.selectOptionHoverBackground) || listHoverBackground,
 	}, widget);
 }
 
