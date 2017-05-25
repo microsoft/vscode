@@ -146,12 +146,7 @@
 			"name": "comment.block.css"
 		},
 		{
-			"match": "[+-]?\\d*\\.?\\d+",
-			"name": "constant.numeric.css"
-		},
-		{
-			"match": "(?<=[\\d])(ch|cm|deg|dpi|dpcm|dppx|em|ex|grad|in|mm|ms|pc|pt|px|rad|rem|turn|s|vh|vmin|vw)\\b|%",
-			"name": "keyword.other.unit.css"
+			"include": "source.css#numeric-values"
 		},
 		{
 			"captures": {
@@ -281,13 +276,13 @@
 			]
 		},
 		{
+			"match": "(@|\\-\\-)[\\w-]+(?=\\s*)",
+			"name": "variable.other.less",
 			"captures": {
 				"1": {
 					"name": "punctuation.definition.variable.less"
 				}
-			},
-			"match": "(?:@|\\-\\-)[a-zA-Z0-9_-][\\w-]*(?=\\s*)",
-			"name": "variable.other.less"
+			}
 		},
 		{
 			"include": "#variable_interpolation"
@@ -516,7 +511,7 @@
 							"include": "#strings"
 						},
 						{
-							"match": "(\\b|\\.{0,2}/).*\\b",
+							"match": "(\\b|\\.{0,2}/)[^)]*\\b",
 							"name": "string.url.css"
 						}
 					]
@@ -546,5 +541,5 @@
 			"name": "support.function.any-method.builtin.less"
 		}
 	},
-	"version": "https://github.com/atom/language-less/commit/7d70b66aa9c853d59e27cce25b5bc25cb067e75a"
+	"version": "https://github.com/atom/language-less/commit/4661d870784f725599e438bf683553cc6cf0f4ed"
 }
