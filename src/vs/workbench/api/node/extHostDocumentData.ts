@@ -242,10 +242,17 @@ export class ExtHostDocumentData extends MirrorModel {
 
 	private _getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range {
 		let position = this._validatePosition(_position);
-		if (!regexp || regExpLeadsToEndlessLoop(regexp)) {
-			console.warn(`[getWordRangeAtPosition]: ignoring custom regexp '${regexp.source}' because it matches the empty string.`);
+
+		if (!regexp) {
+			// use default when custom-regexp isn't provided
 			regexp = getWordDefinitionFor(this._languageId);
+
+		} else if (regExpLeadsToEndlessLoop(regexp)) {
+			// use default when custom-regexp is bad
+			regexp = getWordDefinitionFor(this._languageId);
+			console.warn(`[getWordRangeAtPosition]: ignoring custom regexp '${regexp.source}' because it matches the empty string.`);
 		}
+
 		let wordAtText = getWordAtText(
 			position.character + 1,
 			ensureValidWordDefinition(regexp),
