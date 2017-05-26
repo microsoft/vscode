@@ -222,7 +222,7 @@ class MarkerWidget implements IViewZone {
 
 	private _fillDomNode(): void {
 		this.domNode = document.createElement('div');
-		dom.addClass(this.domNode, 'zone-widget')
+		dom.addClass(this.domNode, 'zone-widget');
 
 		this._container = document.createElement('div');
 		dom.addClass(this._container, 'marker-widget');
