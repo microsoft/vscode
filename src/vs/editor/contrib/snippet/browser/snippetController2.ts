@@ -122,9 +122,9 @@ export class SnippetController2 {
 			this._editor.getModel().pushStackElement();
 		}
 
-		const snippet = new SnippetSession(this._editor);
-		snippet.insert(template, overwriteBefore, overwriteAfter);
+		const snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
 		this._sessions.add(snippet);
+		snippet.insert();
 
 		if (undoStopAfter) {
 			this._editor.getModel().pushStackElement();
