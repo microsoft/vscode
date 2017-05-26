@@ -137,3 +137,79 @@ export function getDeepestNode(node: Node): Node {
 
 	return getDeepestNode(node.children[node.children.length - 1]);
 }
+
+export function findNextWord(propertyValue: string, pos: number): [number, number] {
+
+	let foundSpace = pos === -1;
+	let foundStart = false;
+	let foundEnd = false;
+
+	let newSelectionStart;
+	let newSelectionEnd;
+	while (pos < propertyValue.length - 1) {
+		pos++;
+		if (!foundSpace) {
+			if (propertyValue[pos] === ' ') {
+				foundSpace = true;
+			}
+			continue;
+		}
+		if (foundSpace && !foundStart && propertyValue[pos] === ' ') {
+			continue;
+		}
+		if (!foundStart) {
+			newSelectionStart = pos;
+			foundStart = true;
+			continue;
+		}
+		if (propertyValue[pos] === ' ') {
+			newSelectionEnd = pos;
+			foundEnd = true;
+			break;
+		}
+	}
+
+	if (foundStart && !foundEnd) {
+		newSelectionEnd = propertyValue.length;
+	}
+
+	return [newSelectionStart, newSelectionEnd];
+}
+
+export function findPrevWord(propertyValue: string, pos: number): [number, number] {
+
+	let foundSpace = pos === propertyValue.length;
+	let foundStart = false;
+	let foundEnd = false;
+
+	let newSelectionStart;
+	let newSelectionEnd;
+	while (pos > -1) {
+		pos--;
+		if (!foundSpace) {
+			if (propertyValue[pos] === ' ') {
+				foundSpace = true;
+			}
+			continue;
+		}
+		if (foundSpace && !foundEnd && propertyValue[pos] === ' ') {
+			continue;
+		}
+		if (!foundEnd) {
+			newSelectionEnd = pos + 1;
+			foundEnd = true;
+			continue;
+		}
+		if (propertyValue[pos] === ' ') {
+			newSelectionStart = pos + 1;
+			foundStart = true;
+			break;
+		}
+	}
+
+	if (foundEnd && !foundStart) {
+		newSelectionStart = 0;
+	}
+
+	return [newSelectionStart, newSelectionEnd];
+}
