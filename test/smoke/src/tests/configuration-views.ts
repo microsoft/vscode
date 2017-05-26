@@ -12,8 +12,8 @@ import { ConfigurationView, ActivityBarPosition } from "../areas/configuration-v
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function configurationViews() {
-	context('Configuration and views', function () {
+export function testConfigViews() {
+	context('Configuration and views', () => {
 		let configView: ConfigurationView;
 
 		beforeEach(async function () {

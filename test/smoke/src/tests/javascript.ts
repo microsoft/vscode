@@ -12,8 +12,8 @@ import { JavaScript } from "../areas/javascript";
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function javascript() {
-	context('JavaScript', function () {
+export function testJavaScript() {
+	context('JavaScript', () => {
 		let js: JavaScript;
 
 		beforeEach(async function () {

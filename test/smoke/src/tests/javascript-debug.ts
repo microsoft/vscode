@@ -12,8 +12,8 @@ import { JavaScriptDebug } from "../areas/javascript-debug";
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function javascriptDebug() {
-	context('Debugging JavaScript', function () {
+export function testJavaScriptDebug() {
+	context('Debugging JavaScript', () => {
 		let jsDebug: JavaScriptDebug;
 
 		beforeEach(async function () {

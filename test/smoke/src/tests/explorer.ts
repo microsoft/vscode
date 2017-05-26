@@ -11,8 +11,9 @@ import { CommonActions } from '../areas/common';
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function explorer() {
-	context('Explorer', function () {
+export function testExplorer() {
+	context('Explorer', () => {
+
 		beforeEach(async function () {
 			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH]);
 			common = new CommonActions(app);

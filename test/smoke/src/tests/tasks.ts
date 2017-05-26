@@ -10,8 +10,8 @@ import { Tasks } from "../areas/tasks";
 
 let app: SpectronApplication;
 
-export function tasks() {
-	context('Tasks', function () {
+export function testTasks() {
+	context('Tasks', () => {
 		let tasks: Tasks;
 
 		beforeEach(async function () {
@@ -24,15 +24,14 @@ export function tasks() {
 			return await app.stop();
 		});
 
-		it('verifies that build task produces 6 errors', async function () {
+		it('verifies that eslint task results in 1 problem', async function () {
 			await tasks.build();
 			const res = await tasks.getOutputResult();
-			assert.equal(res, '✖ 6 problems (6 errors, 0 warnings)');
+			assert.equal(res, '✖ 1 problem (0 errors, 1 warning)');
 		});
 
 		it(`is able to select 'Git' output`, async function () {
 			await tasks.build();
-			await app.wait();
 			await tasks.selectOutputViewType('Git');
 			const viewType = await tasks.getOutputViewType();
 			assert.equal(viewType, 'Git');
@@ -45,12 +44,11 @@ export function tasks() {
 
 		it(`verifies build errors are reflected in 'Problems View'`, async function () {
 			await tasks.build();
-			await app.wait();
 			await tasks.openProblemsView();
 			const problemName = await tasks.getProblemsViewFirstElementName();
 			assert.equal(problemName, 'index.js');
 			const problemsCount = await tasks.getProblemsViewFirstElementCount();
-			assert.equal(problemsCount, '6');
+			assert.equal(problemsCount, '1');
 		});
 	});
 }

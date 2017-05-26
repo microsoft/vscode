@@ -13,8 +13,8 @@ let app: SpectronApplication;
 let common: CommonActions;
 let dl: DataLoss;
 
-export function dataLoss() {
-	context('Data Loss', function () {
+export function testDataLoss() {
+	context('Data Loss', () => {
 
 		beforeEach(async function () {
 			app = new SpectronApplication(LATEST_PATH, this.currentTest.fullTitle(), (this.currentTest as any).currentRetry(), [WORKSPACE_PATH], [`--user-data-dir=${USER_DIR}`]);

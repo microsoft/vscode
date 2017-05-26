@@ -53,7 +53,6 @@ else if (os === 'win32') os = 'win';
 var promises = [];
 
 try {
-	// promises.push(execute('npm install'), process.cwd());
 	promises.push(getKeybindings(`${keybindingsUrl}/doc.keybindings.${os}.json`, `${tempFolder}/keybindings.json`));
 	promises.push(cleanOrClone(testRepoUrl, testRepoLocalDir));
 
