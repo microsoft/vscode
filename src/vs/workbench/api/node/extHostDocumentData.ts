@@ -249,8 +249,8 @@ export class ExtHostDocumentData extends MirrorModel {
 
 		} else if (regExpLeadsToEndlessLoop(regexp)) {
 			// use default when custom-regexp is bad
-			regexp = getWordDefinitionFor(this._languageId);
 			console.warn(`[getWordRangeAtPosition]: ignoring custom regexp '${regexp.source}' because it matches the empty string.`);
+			regexp = getWordDefinitionFor(this._languageId);
 		}
 
 		let wordAtText = getWordAtText(
