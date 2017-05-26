@@ -45,21 +45,21 @@ export default class TypeScriptTaskProvider implements vscode.TaskProvider {
 
 		return projects.map(configFile => {
 			const configFileName = path.relative(rootPath, configFile);
-			const buildTask = new vscode.ShellTask(`tsc: build ${configFileName}`, `${command} -p ${configFile}`, '$tsc');
+			const buildTask = new vscode.ShellTask(`tsc: build ${configFileName}`, `${command} -p "${configFile}"`, '$tsc');
 			buildTask.group = vscode.TaskGroup.Build;
 			return buildTask;
 		});
 	}
 
 	private async getAllTsConfigs(token: vscode.CancellationToken): Promise<string[]> {
-		const out: string[] = [];
+		const out = new Set<string>();
 		const configs = (await this.getTsConfigForActiveFile(token)).concat(await this.getTsConfigsInWorkspace());
 		for (const config of configs) {
 			if (await exists(config)) {
-				out.push(config);
+				out.add(config);
 			}
 		}
-		return out;
+		return Array.from(out);
 	}
 
 	private async getTsConfigForActiveFile(token: vscode.CancellationToken): Promise<string[]> {
