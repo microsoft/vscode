@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNode, getDeepestNode } from './util';
+import { getNode, getDeepestNode, findNextWord, findPrevWord } from './util';
 import Node from '@emmetio/node';
 
 export function nextItemHTML(selection: vscode.Selection, editor: vscode.TextEditor, rootNode: Node): vscode.Selection {
@@ -99,10 +99,40 @@ function getNextAttribute(selection: vscode.Selection, document: vscode.TextDocu
 			return new vscode.Selection(document.positionAt(attr.start), document.positionAt(attr.end));
 		}
 
-		if ((attr.value.start !== attr.value.end) && ((selectionStart === attr.start && selectionEnd === attr.end) || selectionEnd < attr.end - 1)) {
-			// select attr value
+		if (attr.value.start === attr.value.end) {
+			// No attr value to select
+			continue;
+		}
+
+		if ((selectionStart === attr.start && selectionEnd === attr.end) || selectionEnd < attr.value.start) {
+			// cursor is in attr name,  so select full attr value
 			return new vscode.Selection(document.positionAt(attr.value.start), document.positionAt(attr.value.end));
 		}
+
+		// Fetch the next word in the attr value
+
+		if (attr.value.toString().indexOf(' ') === -1) {
+			// attr value does not have space, so no next word to find
+			continue;
+		}
+
+		let pos = undefined;
+		if (selectionStart === attr.value.start && selectionEnd === attr.value.end) {
+			pos = -1;
+		}
+		if (pos === undefined && selectionEnd < attr.end) {
+			pos = selectionEnd - attr.value.start - 1;
+		}
+
+		if (pos !== undefined) {
+			let [newSelectionStart, newSelectionEnd] = findNextWord(attr.value.toString(), pos);
+			if (newSelectionStart >= 0 && newSelectionEnd >= 0) {
+				newSelectionStart += attr.value.start;
+				newSelectionEnd += attr.value.start;
+				return new vscode.Selection(document.positionAt(newSelectionStart), document.positionAt(newSelectionEnd));
+			}
+		}
+
 	}
 }
 
@@ -113,18 +143,39 @@ function getPrevAttribute(selection: vscode.Selection, document: vscode.TextDocu
 	}
 
 	let selectionStart = document.offsetAt(selection.anchor);
+	let selectionEnd = document.offsetAt(selection.active);
 
 	for (let i = node.attributes.length - 1; i >= 0; i--) {
 		let attr = node.attributes[i];
 
-		if (selectionStart > attr.value.start) {
+		if (selectionStart <= attr.start) {
+			continue;
+		}
+
+		if (attr.value.start === attr.value.end || selectionStart < attr.value.start) {
+			// select full attr
+			return new vscode.Selection(document.positionAt(attr.start), document.positionAt(attr.end));
+		}
+
+		if (selectionStart === attr.value.start) {
+			if (selectionEnd >= attr.value.end) {
+				// select full attr
+				return new vscode.Selection(document.positionAt(attr.start), document.positionAt(attr.end));
+			}
 			// select attr value
 			return new vscode.Selection(document.positionAt(attr.value.start), document.positionAt(attr.value.end));
 		}
 
-		if (selectionStart > attr.start) {
-			// select full attr
-			return new vscode.Selection(document.positionAt(attr.start), document.positionAt(attr.end));
+		// Fetch the prev word in the attr value
+
+		let pos = selectionStart > attr.value.end ? attr.value.toString().length : selectionStart - attr.value.start;
+		let [newSelectionStart, newSelectionEnd] = findPrevWord(attr.value.toString(), pos);
+		if (newSelectionStart >= 0 && newSelectionEnd >= 0) {
+			newSelectionStart += attr.value.start;
+			newSelectionEnd += attr.value.start;
+			return new vscode.Selection(document.positionAt(newSelectionStart), document.positionAt(newSelectionEnd));
 		}
+
+
 	}
 }
