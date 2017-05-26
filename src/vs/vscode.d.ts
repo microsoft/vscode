@@ -201,7 +201,9 @@ declare module 'vscode' {
 		 * Get a word-range at the given position. By default words are defined by
 		 * common separators, like space, -, _, etc. In addition, per languge custom
 		 * [word definitions](#LanguageConfiguration.wordPattern) can be defined. It
-		 * is also possible to provide a custom regular expression.
+		 * is also possible to provide a custom regular expression. *Note* that a
+		 * custom regular expression must not match the empty string and that it will
+		 * be ignored if it does.
 		 *
 		 * The position will be [adjusted](#TextDocument.validatePosition).
 		 *

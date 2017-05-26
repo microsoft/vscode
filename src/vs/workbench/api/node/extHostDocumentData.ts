@@ -243,6 +243,7 @@ export class ExtHostDocumentData extends MirrorModel {
 	private _getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range {
 		let position = this._validatePosition(_position);
 		if (!regexp || regExpLeadsToEndlessLoop(regexp)) {
+			console.warn(`[getWordRangeAtPosition]: ignoring custom regexp '${regexp.source}' because it matches the empty string.`);
 			regexp = getWordDefinitionFor(this._languageId);
 		}
 		let wordAtText = getWordAtText(
