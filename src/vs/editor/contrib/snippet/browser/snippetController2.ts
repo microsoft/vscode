@@ -90,7 +90,7 @@ export class SnippetController2 {
 			return this.cancel();
 		}
 
-		if (this._snippet.isAtFinalPlaceholder || !this._snippet.isSelectionWithPlaceholders()) {
+		if (this._snippet.isAtFinalPlaceholder || !this._snippet.isSelectionWithinPlaceholders()) {
 			return this.cancel();
 		}
 

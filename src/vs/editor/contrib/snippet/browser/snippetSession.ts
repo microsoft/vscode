@@ -321,7 +321,7 @@ export class SnippetSession {
 		return this._snippets[0].hasPlaceholder;
 	}
 
-	isSelectionWithPlaceholders(): boolean {
+	isSelectionWithinPlaceholders(): boolean {
 		const selections = this._editor.getSelections();
 		if (selections.length < this._snippets.length) {
 			// this means we started snippet mode with N
