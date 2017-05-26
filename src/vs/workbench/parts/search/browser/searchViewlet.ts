@@ -498,7 +498,7 @@ export class SearchViewlet extends Viewlet {
 				}
 			}));
 
-			this.toUnbind.push(this.tree.addListener('focus', (event: any) => {
+			this.toUnbind.push(this.tree.onDOMFocus(e => {
 				const focus = this.tree.getFocus();
 				this.firstMatchFocussed.set(this.tree.getNavigator().first() === this.tree.getFocus());
 				this.fileMatchOrMatchFocussed.set(true);
