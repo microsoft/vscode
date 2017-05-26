@@ -131,7 +131,7 @@ suite('SnippetController2', function () {
 		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 1, 1, 7), new Selection(2, 5, 2, 11));
 
-		editor.trigger('test', 'deleteLeft', {});
+		editor.trigger('test', 'cut', {});
 		assertContextKeys(contextKeys, true, false, true);
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
 

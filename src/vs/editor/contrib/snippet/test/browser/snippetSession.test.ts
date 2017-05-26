@@ -388,7 +388,7 @@ suite('SnippetSession', function () {
 		session.next();
 		assertSelections(editor, new Selection(1, 9, 1, 15));
 
-		editor.trigger('test', 'deleteLeft', {});
+		editor.trigger('test', 'cut', {});
 		assertSelections(editor, new Selection(1, 9, 1, 9));
 
 		editor.trigger('test', 'type', { text: 'XXX' });
