@@ -61,7 +61,7 @@ export function activate(context: vscode.ExtensionContext) {
 				continue;
 			}
 
-			let styles = contributes['markdown.preview'] && contributes['markdown.preview'].styles;
+			let styles = contributes['markdown.previewStyles'];
 			if (styles) {
 				if (!Array.isArray(styles)) {
 					styles = [styles];
@@ -75,7 +75,7 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
-			let scripts = contributes['markdown.preview'] && contributes['markdown.preview'].scripts;
+			let scripts = contributes['markdown.previewScripts'];
 			if (scripts) {
 				if (!Array.isArray(scripts)) {
 					scripts = [scripts];
