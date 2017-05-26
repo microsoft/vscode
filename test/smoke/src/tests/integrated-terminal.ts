@@ -12,8 +12,8 @@ import { IntegratedTerminal } from "../areas/integrated-terminal";
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function integratedTerminal() {
-	context('Integrated Terminal', function () {
+export function testIntegratedTerminal() {
+	context('Integrated Terminal', () => {
 		let terminal: IntegratedTerminal;
 
 		beforeEach(async function () {

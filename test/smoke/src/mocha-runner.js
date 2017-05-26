@@ -14,7 +14,7 @@ var mocha = new Mocha({
 	useColors: true
 });
 
-mocha.addFile(path.join(process.cwd(), 'out/tests.js'));
+mocha.addFile(path.join(process.cwd(), 'out/test.js'));
 mocha.run((failures) => {
 	process.on('exit', () => {
 		process.exit(failures);

@@ -12,8 +12,8 @@ import { StatusBarElement, StatusBar } from "../areas/statusBar";
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function statusBar() {
-	context('Status Bar', function () {
+export function testStatusbar() {
+	context('Status Bar', () => {
 		let statusBar: StatusBar;
 
 		beforeEach(async function () {

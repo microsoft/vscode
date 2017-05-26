@@ -12,8 +12,8 @@ import { Localization, ViewletType } from "../areas/localization";
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function localization() {
-	context('Localization', function () {
+export function testLocalization() {
+	context('Localization', () => {
 		afterEach(async function () {
 			return await app.stop();
 		});

@@ -12,8 +12,8 @@ import { Git } from "../areas/git";
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function test_git() {
-	context('Git', function () {
+export function testGit() {
+	context('Git', () => {
 		let git: Git;
 
 		beforeEach(async function () {

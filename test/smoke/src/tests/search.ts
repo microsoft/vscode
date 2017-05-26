@@ -12,8 +12,8 @@ import { Search } from "../areas/search";
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function search() {
-	context('Search', function () {
+export function testSearch() {
+	context('Search', () => {
 		let search: Search;
 
 		beforeEach(async function () {

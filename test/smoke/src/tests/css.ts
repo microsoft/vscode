@@ -12,8 +12,8 @@ import { CSS, CSSProblem } from '../areas/css';
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function css() {
-	context('CSS', function () {
+export function testCSS() {
+	context('CSS', () => {
 		let css: CSS;
 
 		beforeEach(async function () {

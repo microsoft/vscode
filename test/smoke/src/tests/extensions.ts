@@ -9,11 +9,18 @@ import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH, EXTENSIONS_DIR } from
 import { CommonActions } from '../areas/common';
 import { Extensions } from "../areas/extensions";
 
+var dns = require('dns');
+
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function extensions() {
-	context('Extensions', function () {
+export async function testExtensions() {
+	const network = await networkAttached();
+	if (!network) {
+		return;
+	}
+
+	context('Extensions', () => {
 		let extensions: Extensions;
 
 		beforeEach(async function () {
@@ -52,6 +59,14 @@ export function extensions() {
 			await extensions.selectMinimalIconsTheme();
 			const x = await extensions.verifyFolderIconAppearance();
 			assert.ok(x);
+		});
+	});
+}
+
+function networkAttached(): Promise<boolean> {
+	return new Promise((res, rej) => {
+		dns.resolve('marketplace.visualstudio.com', (err) => {
+			err ? res(false) : res(true);
 		});
 	});
 }

@@ -11,11 +11,12 @@ import { CommonActions } from '../areas/common';
 let app: SpectronApplication;
 let common: CommonActions;
 
-export function dataMigration() {
+export function testDataMigration() {
 	if (!STABLE_PATH) {
 		return;
 	}
-	context('Data Migration', function () {
+
+	context('Data Migration', () => {
 
 		afterEach(async function () {
 			await app.stop();

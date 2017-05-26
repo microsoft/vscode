@@ -15,8 +15,9 @@ export class Tasks {
 		// noop
 	}
 
-	public build(): Promise<any> {
-		return this.spectron.command('workbench.action.tasks.build');
+	public async build(): Promise<any> {
+		await this.spectron.command('workbench.action.tasks.build');
+		return this.spectron.wait();  // wait for build to finish
 	}
 
 	public openProblemsView(): Promise<any> {
@@ -25,12 +26,12 @@ export class Tasks {
 
 	public async firstOutputLineEndsWith(fileName: string): Promise<boolean> {
 		const firstLine = await this.spectron.waitFor(this.spectron.client.getText, `${this.outputViewSelector}>:nth-child(2)`);
-		
+
 		return firstLine.endsWith(fileName);
 	}
 
 	public getOutputResult(): Promise<any> {
-		return this.spectron.waitFor(this.spectron.client.getText, `${this.outputViewSelector}>:nth-child(10) span.mtk1`);
+		return this.spectron.waitFor(this.spectron.client.getText, `${this.outputViewSelector}>:nth-child(5) span.mtk1`);
 	}
 
 	public selectOutputViewType(type: string): Promise<any> {
@@ -41,7 +42,7 @@ export class Tasks {
 		return this.spectron.client.getValue(`${this.workbenchPanelSelector} .select-box`);
 	}
 
-	public getProblemsViewFirstElementName(): Promise<any> {        
+	public getProblemsViewFirstElementName(): Promise<any> {
 		return this.spectron.waitFor(this.spectron.client.getText, `${this.problemsViewSelector} .label-name`);
 	}
 
