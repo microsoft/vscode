@@ -123,12 +123,12 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 		}));
 		this._toDispose.push(textFileService.models.onModelReverted(e => {
 			if (this._shouldHandleFileEvent(e)) {
-				this._proxy.$acceptModelReverted(e.resource.toString());
+				this._proxy.$acceptDirtyStateChanged(e.resource.toString(), false);
 			}
 		}));
 		this._toDispose.push(textFileService.models.onModelDirty(e => {
 			if (this._shouldHandleFileEvent(e)) {
-				this._proxy.$acceptModelDirty(e.resource.toString());
+				this._proxy.$acceptDirtyStateChanged(e.resource.toString(), true);
 			}
 		}));
 
@@ -240,7 +240,7 @@ export class MainThreadDocuments extends MainThreadDocumentsShape {
 			if (!this._modelIsSynced[input.getResource().toString()]) {
 				throw new Error(`expected URI ${input.getResource().toString()} to have come to LIFE`);
 			}
-			return this._proxy.$acceptModelDirty(input.getResource().toString()); // mark as dirty
+			return this._proxy.$acceptDirtyStateChanged(input.getResource().toString(), true); // mark as dirty
 		}).then(() => {
 			return input.getResource();
 		});

@@ -371,8 +371,7 @@ export abstract class ExtHostDocumentsShape {
 	$provideTextDocumentContent(handle: number, uri: URI): TPromise<string> { throw ni(); }
 	$acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void { throw ni(); }
 	$acceptModelSaved(strURL: string): void { throw ni(); }
-	$acceptModelDirty(strURL: string): void { throw ni(); }
-	$acceptModelReverted(strURL: string): void { throw ni(); }
+	$acceptDirtyStateChanged(strURL: string, isDirty: boolean): void { throw ni(); }
 	$acceptModelChanged(strURL: string, e: IModelChangedEvent, isDirty: boolean): void { throw ni(); }
 }
 
