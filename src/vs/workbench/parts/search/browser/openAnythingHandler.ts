@@ -168,8 +168,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 				resultPromises.push(this.openSymbolHandler.getResults(searchValue));
 			}
 
-			// Join and sort unified
-			const handleResults = (results: (QuickOpenModel | FileQuickOpenModel)[]) => {
+			const handleResult = (result: QuickOpenModel | FileQuickOpenModel) => {
 				this.pendingSearch = null;
 
 				// If the quick open widget has been closed meanwhile, ignore the result
@@ -177,16 +176,13 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					return new QuickOpenModel();
 				}
 
-				// Combine file results and symbol results (if any)
-				const mergedResults: QuickOpenEntry[] = results.reduce((entries: QuickOpenEntry[], model: QuickOpenModel) => {
-					return entries.concat(model.entries);
-				}, []);
+				const entries = result.entries;
 
 				// Sort
 				const unsortedResultTime = Date.now();
 				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
 				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache);
-				const viewResults = arrays.top(mergedResults, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+				const viewResults = arrays.top(entries, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 				const sortedResultTime = Date.now();
 
 				// Apply range and highlights to file entries
@@ -199,38 +195,34 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					}
 				});
 
-				let fileSearchStats: ISearchStats;
-				for (const result of results) {
-					if (result instanceof FileQuickOpenModel) {
-						fileSearchStats = (<FileQuickOpenModel>result).stats;
-						break;
-					}
+				// Telemetry
+				if (result instanceof FileQuickOpenModel) {
+					const fileSearchStats = (<FileQuickOpenModel>result).stats;
+					const duration = new Date().getTime() - startTime;
+					const data = this.createTimerEventData(startTime, {
+						searchLength: searchValue.length,
+						unsortedResultTime,
+						sortedResultTime,
+						resultCount: entries.length,
+						symbols: { fromCache: false },
+						files: fileSearchStats
+					});
+
+					this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
 				}
-
-				const duration = new Date().getTime() - startTime;
-				const data = this.createTimerEventData(startTime, {
-					searchLength: searchValue.length,
-					unsortedResultTime,
-					sortedResultTime,
-					resultCount: mergedResults.length,
-					symbols: { fromCache: false },
-					files: fileSearchStats
-				});
-
-				this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
 
 				return new QuickOpenModel(viewResults);
 			};
 
 			this.pendingSearch = new PPromise<QuickOpenModel, QuickOpenModel>((complete, error, progress) => {
 				// When any of the result promises return, forward the result as progress.
-				resultPromises.map(resultPromise => {
+				const processed = resultPromises.map(resultPromise =>
 					resultPromise.then(result => {
-						progress(handleResults([result]));
-					});
-				});
+						progress(handleResult(result));
+					})
+				);
 				// Complete the promise when all promises have completed.
-				TPromise.join(resultPromises).then(() => {
+				TPromise.join(processed).then(() => {
 					// We already sent the results via progress.
 					complete(new QuickOpenModel());
 				}, error => {
