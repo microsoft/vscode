@@ -160,6 +160,9 @@ export class CommandCenter {
 
 			case Status.MODIFIED:
 				return toGitUri(resource.resourceUri, '~');
+
+			case Status.DELETED_BY_THEM:
+				return toGitUri(resource.resourceUri, '');
 		}
 	}
 
@@ -172,6 +175,7 @@ export class CommandCenter {
 				return toGitUri(resource.resourceUri, '');
 
 			case Status.INDEX_DELETED:
+			case Status.DELETED_BY_THEM:
 			case Status.DELETED:
 				return toGitUri(resource.resourceUri, 'HEAD');
 
