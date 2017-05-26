@@ -257,22 +257,22 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: '333' });
 
 		session.next();
-		assert.equal(session.isAtFinalPlaceholder, true);
+		assert.equal(session.isAtLastPlaceholder, true);
 	});
 
 	test('snippets, gracefully move over final tabstop', function () {
 		const session = new SnippetSession(editor, '${1}bar$0');
 		session.insert();
 
-		assert.equal(session.isAtFinalPlaceholder, false);
+		assert.equal(session.isAtLastPlaceholder, false);
 		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5));
 
 		session.next();
-		assert.equal(session.isAtFinalPlaceholder, true);
+		assert.equal(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
 
 		session.next();
-		assert.equal(session.isAtFinalPlaceholder, true);
+		assert.equal(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 4, 1, 4), new Selection(2, 8, 2, 8));
 	});
 
@@ -285,11 +285,11 @@ suite('SnippetSession', function () {
 		assert.equal(model.getValue(), 'log(XXX);function foo() {\n    log(XXX);console.log(a);\n}');
 
 		session.next();
-		assert.equal(session.isAtFinalPlaceholder, false);
+		assert.equal(session.isAtLastPlaceholder, false);
 		// assertSelections(editor, new Selection(1, 7, 1, 7), new Selection(2, 11, 2, 11));
 
 		session.next();
-		assert.equal(session.isAtFinalPlaceholder, true);
+		assert.equal(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 10, 1, 10), new Selection(2, 14, 2, 14));
 	});
 
@@ -321,7 +321,7 @@ suite('SnippetSession', function () {
 		// reset selection to placeholder
 		session.next();
 		assert.equal(session.isSelectionWithinPlaceholders(), true);
-		assert.equal(session.isAtFinalPlaceholder, true);
+		assert.equal(session.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 13, 1, 13), new Selection(2, 17, 2, 17));
 	});
 
@@ -341,11 +341,11 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 6, 1, 10));
 
 		second.next();
-		assert.equal(second.isAtFinalPlaceholder, true);
+		assert.equal(second.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 10, 1, 10));
 
 		first.next();
-		assert.equal(first.isAtFinalPlaceholder, true);
+		assert.equal(first.isAtLastPlaceholder, true);
 		assertSelections(editor, new Selection(1, 13, 1, 13));
 	});
 
@@ -353,7 +353,7 @@ suite('SnippetSession', function () {
 
 		const session = new SnippetSession(editor, 'farboo$0');
 		session.insert();
-		assert.equal(session.isAtFinalPlaceholder, true);
+		assert.equal(session.isAtLastPlaceholder, true);
 		assert.equal(session.isSelectionWithinPlaceholders(), false);
 
 		editor.trigger('test', 'type', { text: 'XXX' });
@@ -368,7 +368,7 @@ suite('SnippetSession', function () {
 
 		editor.setSelection(new Selection(1, 2, 1, 2));
 		assert.equal(session.isSelectionWithinPlaceholders(), false);
-		assert.equal(session.isAtFinalPlaceholder, true);
+		assert.equal(session.isAtLastPlaceholder, true);
 
 		editor.trigger('test', 'type', { text: 'XXX' });
 		assert.equal(model.getLineContent(1), 'fXXXfarboounction foo() {');

@@ -130,17 +130,11 @@ export class OneSnippet {
 	}
 
 	get isAtFirstPlaceholder() {
-		return this._placeholderGroupsIdx === 0 || this._placeholderGroups.length === 0;
+		return this._placeholderGroupsIdx <= 0 || this._placeholderGroups.length === 0;
 	}
 
-	get isAtFinalPlaceholder() {
-		if (this._placeholderGroups.length === 0) {
-			return true;
-		} else if (this._placeholderGroupsIdx < 0) {
-			return false;
-		} else {
-			return this._placeholderGroups[this._placeholderGroupsIdx][0].isFinalTabstop;
-		}
+	get isAtLastPlaceholder() {
+		return this._placeholderGroupsIdx === this._placeholderGroups.length - 1;
 	}
 
 	get hasPlaceholder() {
@@ -215,7 +209,7 @@ export class SnippetSession {
 		dispose(this._snippets);
 	}
 
-	insert(): void {
+	insert(ignoreFinalTabstops: boolean = false): void {
 
 		const model = this._editor.getModel();
 		const edits: IIdentifiedSingleEditOperation[] = [];
@@ -260,6 +254,17 @@ export class SnippetSession {
 			const adjustedTemplate = SnippetSession.adjustWhitespace(model, start, this._template);
 
 			const snippet = SnippetParser.parse(adjustedTemplate).resolveVariables(new EditorSnippetVariableResolver(model, snippetSelection));
+
+			// rewrite final-tabstop to some other placeholder because this
+			// snippet sits inside another snippet
+			if (ignoreFinalTabstops) {
+				for (const placeholder of snippet.placeholders) {
+					if (placeholder.isFinalTabstop) {
+						placeholder.index = String(snippet.placeholders.length);
+					}
+				}
+			}
+
 			const offset = model.getOffsetAt(start) + delta;
 			delta += snippet.text.length - model.getValueLengthInRange(snippetSelection);
 
@@ -304,8 +309,8 @@ export class SnippetSession {
 		return this._snippets[0].isAtFirstPlaceholder;
 	}
 
-	get isAtFinalPlaceholder() {
-		return this._snippets[0].isAtFinalPlaceholder;
+	get isAtLastPlaceholder() {
+		return this._snippets[0].isAtLastPlaceholder;
 	}
 
 	get hasPlaceholder() {

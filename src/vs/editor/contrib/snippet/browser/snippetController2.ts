@@ -35,13 +35,11 @@ class SnippetSessions {
 	}
 
 	get isAtFirstPlaceholder(): boolean {
-		// return !this.empty && this._stack[0].isAtFirstPlaceholder;
 		return this._stack.every(s => s.isAtFirstPlaceholder);
 	}
 
 	get isAtFinalPlaceholder(): boolean {
-		// return !this.empty && this._stack[0].isAtFinalPlaceholder;
-		return this._stack.every(s => s.isAtFinalPlaceholder);
+		return !this.empty && this._stack[0].isAtLastPlaceholder;
 	}
 
 	get isSelectionWithinPlaceholders(): boolean {
@@ -61,7 +59,7 @@ class SnippetSessions {
 	next(): void {
 		for (let i = this._stack.length - 1; i >= 0; i--) {
 			const snippet = this._stack[i];
-			if (!snippet.isAtFinalPlaceholder) {
+			if (!snippet.isAtLastPlaceholder) {
 				snippet.next();
 				break;
 			}
@@ -123,8 +121,8 @@ export class SnippetController2 {
 		}
 
 		const snippet = new SnippetSession(this._editor, template, overwriteBefore, overwriteAfter);
-		this._sessions.add(snippet);
-		snippet.insert();
+		const newLen = this._sessions.add(snippet);
+		snippet.insert(newLen > 1);
 
 		if (undoStopAfter) {
 			this._editor.getModel().pushStackElement();
