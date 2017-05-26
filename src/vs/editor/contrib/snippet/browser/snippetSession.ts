@@ -130,11 +130,13 @@ export class OneSnippet {
 	}
 
 	get isAtFirstPlaceholder() {
-		return this._placeholderGroupsIdx === 0;
+		return this._placeholderGroupsIdx === 0 || this._placeholderGroups.length === 0;
 	}
 
 	get isAtFinalPlaceholder() {
-		if (this._placeholderGroupsIdx < 0) {
+		if (this._placeholderGroups.length === 0) {
+			return true;
+		} else if (this._placeholderGroupsIdx < 0) {
 			return false;
 		} else {
 			return this._placeholderGroups[this._placeholderGroupsIdx][0].isFinalTabstop;
@@ -196,24 +198,35 @@ export class SnippetSession {
 		return selection;
 	}
 
-	static makeInsertEditsAndSnippets(editor: ICommonCodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
+	private readonly _editor: ICommonCodeEditor;
+	private _snippets: OneSnippet[] = [];
+
+	constructor(editor: ICommonCodeEditor) {
+		this._editor = editor;
+	}
+
+	dispose(): void {
+		dispose(this._snippets);
+	}
+
+	insert(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
+
+		const model = this._editor.getModel();
+		const edits: IIdentifiedSingleEditOperation[] = [];
 
 		let delta = 0;
-		let edits: IIdentifiedSingleEditOperation[] = [];
-		let snippets: OneSnippet[] = [];
-		let model = editor.getModel();
 
 		// know what text the overwrite[Before|After] extensions
 		// of the primary curser have selected because only when
 		// secondary selections extend to the same text we can grow them
-		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), overwriteBefore, 0));
-		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, editor.getSelection(), 0, overwriteAfter));
+		let firstBeforeText = model.getValueInRange(SnippetSession.adjustSelection(model, this._editor.getSelection(), overwriteBefore, 0));
+		let firstAfterText = model.getValueInRange(SnippetSession.adjustSelection(model, this._editor.getSelection(), 0, overwriteAfter));
 
 		// sort selections by their start position but remeber
 		// the original index. that allows you to create correct
 		// offset-based selection logic without changing the
 		// primary selection
-		const indexedSelection = editor.getSelections()
+		const indexedSelection = this._editor.getSelections()
 			.map((selection, idx) => ({ selection, idx }))
 			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
 
@@ -248,46 +261,18 @@ export class SnippetSession {
 			// that ensures the primiary cursor stays primary despite not being
 			// the one with lowest start position
 			edits[idx] = EditOperation.replaceMove(snippetSelection, snippet.text);
-			snippets[idx] = new OneSnippet(editor, snippet, offset);
-		}
-
-		return { edits, snippets };
-	}
-
-	private readonly _editor: ICommonCodeEditor;
-	private _snippets: OneSnippet[];
-
-	constructor(editor: ICommonCodeEditor) {
-		this._editor = editor;
-	}
-
-	dispose(): void {
-		dispose(this._snippets);
-	}
-
-	insert(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
-
-		const model = this._editor.getModel();
-		const { edits, snippets } = SnippetSession.makeInsertEditsAndSnippets(
-			this._editor, template, overwriteBefore, overwriteAfter
-		);
-
-		let isNestedInsert = true;
-		if (!this._snippets) {
-			// keep snippets around
-			this._snippets = snippets;
-			isNestedInsert = false;
+			this._snippets[idx] = new OneSnippet(this._editor, snippet, offset);
 		}
 
 		// make insert edit and start with first selections
-		const newSelections = model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
-			if (!isNestedInsert && this._snippets[0].hasPlaceholder) {
+
+		this._editor.setSelections(model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
+			if (this._snippets[0].hasPlaceholder) {
 				return this._move(true);
 			} else {
 				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 			}
-		});
-		this._editor.setSelections(newSelections);
+		}));
 	}
 
 	next(): void {
@@ -322,6 +307,11 @@ export class SnippetSession {
 	}
 
 	isSelectionWithinPlaceholders(): boolean {
+
+		if (!this.hasPlaceholder) {
+			return false;
+		}
+
 		const selections = this._editor.getSelections();
 		if (selections.length < this._snippets.length) {
 			// this means we started snippet mode with N
