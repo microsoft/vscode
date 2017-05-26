@@ -238,7 +238,7 @@ export class ExtHostApiCommands {
 				args: [
 					{ name: 'resource', description: 'Resource to open', constraint: URI },
 					{ name: 'column', description: '(optional) Column in which to open', constraint: v => v === void 0 || typeof v === 'number' },
-					{ name: 'selection', description: '(optional) The range to select in the opened document', constraint: types.Range },
+					{ name: 'selection', description: '(optional) The range to select in the opened document', constraint: v => v === void 0 || types.Range.isRange(v) },
 				]
 			});
 	}
