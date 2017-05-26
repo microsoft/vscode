@@ -10,7 +10,7 @@ var git = require('simple-git')();
 var child_process = require('child_process');
 var path = require('path');
 
-var tempFolder = `test_data`;
+var tempFolder = 'test_data';
 var testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
 var testRepoLocalDir = path.join(process.cwd(), `${tempFolder}/vscode-smoketest-express`);
 var keybindingsUrl = 'https://raw.githubusercontent.com/Microsoft/vscode-docs/master/scripts/keybindings';
@@ -41,10 +41,10 @@ if (!binaryExists(program.latest) || (program.stable && !binaryExists(program.st
 }
 
 // Setting up environment variables
-process.env['VSCODE_LATEST_PATH'] = program.latest;
-if (program.stable) process.env['VSCODE_STABLE_PATH'] = program.stable;
-process.env['SMOKETEST_REPO'] = testRepoLocalDir;
-if (program.stable && program.stable.toLowerCase().startsWith('insiders')) process.env['VSCODE_EDITION'] = 'insiders';
+process.env.VSCODE_LATEST_PATH = program.latest;
+if (program.stable) process.env.VSCODE_STABLE_PATH = program.stable;
+process.env.SMOKETEST_REPO = testRepoLocalDir;
+if (program.stable && program.stable.toLowerCase().startsWith('insiders')) process.env.VSCODE_EDITION = 'insiders';
 
 // Setting up 'vscode-smoketest-express' project
 var os = process.platform;
@@ -112,7 +112,7 @@ function cleanOrClone(repo, dir) {
 function execute(cmd, dir) {
 	return new Promise((res, rej) => {
 		console.log(`Running ${cmd}...`);
-		var output = child_process.exec(cmd, { cwd: dir, stdio: [0, 1, 2] }, (error, stdout, stderr) => {
+		child_process.exec(cmd, { cwd: dir, stdio: [0, 1, 2] }, (error, stdout, stderr) => {
 			if (error) rej(error);
 			if (stderr) console.error(stderr);
 			console.log(stdout);
