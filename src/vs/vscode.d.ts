@@ -1456,9 +1456,47 @@ declare module 'vscode' {
 		ignoreFocusOut?: boolean;
 
 		/**
+		 * Optional auto focus settings
+		 */
+		autoFocus?: AutoFocus;
+
+		/**
 		 * An optional function that is invoked whenever an item is selected.
 		 */
 		onDidSelectItem?<T extends QuickPickItem>(item: T | string): any;
+	}
+
+	/**
+	 * Options to configure the auto focus behavior.
+	 */
+	export interface AutoFocus {
+		/**
+		 * The index of the element to focus in the result list.
+		 */
+		autoFocusIndex?: number;
+
+		/**
+		 * If set to true, will automatically select the first entry from the result list.
+		 */
+		autoFocusFirstEntry?: boolean;
+
+		/**
+		 * If set to true, will automatically select the second entry from the result list.
+		 */
+		autoFocusSecondEntry?: boolean;
+
+		/**
+		 * If set to true, will automatically select the last entry from the result list.
+		 */
+		autoFocusLastEntry?: boolean;
+
+		/**
+		 * If set to true, will automatically select any entry whose label starts with the search
+		 * value. Since some entries to the top might match the query but not on the prefix, this
+		 * allows to select the most accurate match (matching the prefix) while still showing other
+		 * elements.
+		 */
+		autoFocusPrefixMatch?: string;
 	}
 
 	/**
