@@ -171,18 +171,17 @@ export class ExtHostDocuments extends ExtHostDocumentsShape {
 
 	public $acceptModelSaved(strURL: string): void {
 		let data = this._documentsAndEditors.getDocument(strURL);
-		data._acceptIsDirty(false);
+		this.$acceptDirtyStateChanged(strURL, false);
 		this._onDidSaveDocument.fire(data.document);
 	}
 
-	public $acceptModelDirty(strURL: string): void {
-		let document = this._documentsAndEditors.getDocument(strURL);
-		document._acceptIsDirty(true);
-	}
-
-	public $acceptModelReverted(strURL: string): void {
-		let document = this._documentsAndEditors.getDocument(strURL);
-		document._acceptIsDirty(false);
+	public $acceptDirtyStateChanged(strURL: string, isDirty: boolean): void {
+		let data = this._documentsAndEditors.getDocument(strURL);
+		data._acceptIsDirty(isDirty);
+		this._onDidChangeDocument.fire({
+			document: data.document,
+			contentChanges: []
+		});
 	}
 
 	public $acceptModelChanged(strURL: string, events: IModelChangedEvent, isDirty: boolean): void {

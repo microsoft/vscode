@@ -1018,12 +1018,12 @@ export enum RevealKind {
 export class BaseTask {
 
 	private _name: string;
-	private _problemMatchers: (string | vscode.ProblemMatcher)[];
+	private _problemMatchers: string[];
 	private _identifier: string;
 	private _isBackground: boolean;
 	private _terminal: vscode.TerminalBehaviour;
 
-	constructor(name: string, problemMatchers: (string | vscode.ProblemMatcher)[]) {
+	constructor(name: string, problemMatchers: string[]) {
 		if (typeof name !== 'string') {
 			throw illegalArgument('name');
 		}
@@ -1074,11 +1074,11 @@ export class BaseTask {
 		this._terminal = value;
 	}
 
-	get problemMatchers(): (string | vscode.ProblemMatcher)[] {
+	get problemMatchers(): string[] {
 		return this._problemMatchers;
 	}
 
-	set problemMatchers(value: (string | vscode.ProblemMatcher)[]) {
+	set problemMatchers(value: string[]) {
 		if (!Array.isArray(value)) {
 			value = [];
 		}
@@ -1086,12 +1086,14 @@ export class BaseTask {
 	}
 }
 
+/*
 namespace ProblemMatcher {
 	export function is(value: any): value is vscode.ProblemMatcher {
 		let candidate: vscode.ProblemMatcher = value;
 		return candidate && !!candidate.pattern;
 	}
 }
+*/
 
 namespace ShellOptions {
 	export function is(value: any): value is vscode.ShellOptions {
@@ -1144,7 +1146,7 @@ export class ProcessTask extends BaseTask {
 
 		args = arg3 || [];
 		if (arg4) {
-			if (Array.isArray(arg4) || typeof arg4 === 'string' || ProblemMatcher.is(arg4)) {
+			if (Array.isArray(arg4) || typeof arg4 === 'string') {
 				problemMatchers = arg4;
 			} else {
 				options = arg4;
@@ -1153,8 +1155,8 @@ export class ProcessTask extends BaseTask {
 		if (arg5 && !problemMatchers) {
 			problemMatchers = arg5;
 		}
-		let pm: (string | vscode.ProblemMatcher)[];
-		if (problemMatchers && (typeof problemMatchers === 'string' || ProblemMatcher.is(problemMatchers))) {
+		let pm: string[];
+		if (problemMatchers && (typeof problemMatchers === 'string')) {
 			pm = [problemMatchers];
 		} else if (Array.isArray(problemMatchers)) {
 			pm = problemMatchers;
@@ -1217,13 +1219,13 @@ export class ShellTask extends BaseTask implements vscode.ShellTask {
 			throw illegalArgument('commandLine');
 		}
 		let options: vscode.ShellOptions = undefined;
-		let pm: (string | vscode.ProblemMatcher)[];
+		let pm: string[];
 		if (ShellOptions.is(optionsOrProblemMatchers)) {
 			options = optionsOrProblemMatchers;
 		} else {
 			problemMatchers = optionsOrProblemMatchers;
 		}
-		if (problemMatchers && (typeof problemMatchers === 'string' || ProblemMatcher.is(problemMatchers))) {
+		if (problemMatchers && (typeof problemMatchers === 'string')) {
 			pm = [problemMatchers];
 		} else if (Array.isArray(problemMatchers)) {
 			pm = problemMatchers;

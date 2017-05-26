@@ -8,13 +8,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as UUID from 'vs/base/common/uuid';
 import { asWinJsPromise } from 'vs/base/common/async';
 
-import * as Problems from 'vs/platform/markers/common/problemMatcher';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as TaskSystem from 'vs/workbench/parts/tasks/common/tasks';
 
 import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench/api/node/extHost.protocol';
-import { fromDiagnosticSeverity } from 'vs/workbench/api/node/extHostTypeConverters';
 
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as vscode from 'vscode';
@@ -23,6 +21,7 @@ interface StringMap<V> {
 	[key: string]: V;
 }
 
+/*
 namespace ProblemPattern {
 	export function from(value: vscode.ProblemPattern | vscode.MultiLineProblemPattern): Problems.ProblemPattern | Problems.MultiLineProblemPattern {
 		if (value === void 0 || value === null) {
@@ -144,7 +143,7 @@ namespace WatchingPattern {
 	}
 }
 
-namespace WathingMatcher {
+namespace BackgroundMonitor {
 	export function from(value: vscode.BackgroundMonitor): Problems.WatchingMatcher {
 		if (value === void 0 || value === null) {
 			return undefined;
@@ -190,6 +189,7 @@ namespace ProblemMatcher {
 		return result;
 	}
 }
+*/
 
 namespace RevealKind {
 	export function from(value: vscode.RevealKind): TaskSystem.RevealKind {
@@ -317,7 +317,7 @@ namespace Tasks {
 			command: command,
 			isBackground: !!task.isBackground,
 			suppressTaskName: true,
-			problemMatchers: ProblemMatcher.from(task.problemMatchers)
+			problemMatchers: task.problemMatchers.slice()
 		};
 		return result;
 	}
