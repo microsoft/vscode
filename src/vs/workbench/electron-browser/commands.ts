@@ -21,6 +21,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
 import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IRange } from 'vs/editor/common/core/range';
 
 // --- List Commands
 
@@ -414,11 +415,11 @@ export function registerCommands(): void {
 		});
 	});
 
-	CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, number]) {
+	CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, number, IRange]) {
 		const editorService = accessor.get(IWorkbenchEditorService);
-		const [resource, column] = args;
+		const [resource, column, selection] = args;
 
-		return editorService.openEditor({ resource }, column).then(() => {
+		return editorService.openEditor({ resource, options: { selection } }, column).then(() => {
 			return void 0;
 		});
 	});
