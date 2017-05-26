@@ -9,20 +9,6 @@ import * as Types from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
 
-export interface CommandOptions {
-	/**
-	 * The current working directory of the executed program or shell.
-	 * If omitted VSCode's current workspace root is used.
-	 */
-	cwd?: string;
-
-	/**
-	 * The environment of the executed program or shell. If omitted
-	 * the parent process' environment is used.
-	 */
-	env?: { [key: string]: string; };
-}
-
 export interface ShellConfiguration {
 	/**
 	 * The shell executable.
@@ -39,6 +25,26 @@ export namespace ShellConfiguration {
 		let candidate: ShellConfiguration = value;
 		return candidate && Types.isString(candidate.executable) && (candidate.args === void 0 || Types.isStringArray(candidate.args));
 	}
+}
+
+export interface CommandOptions {
+
+	/**
+	 * The shell to use if the task is a shell command.
+	 */
+	shell?: ShellConfiguration;
+
+	/**
+	 * The current working directory of the executed program or shell.
+	 * If omitted VSCode's current workspace root is used.
+	 */
+	cwd?: string;
+
+	/**
+	 * The environment of the executed program or shell. If omitted
+	 * the parent process' environment is used.
+	 */
+	env?: { [key: string]: string; };
 }
 
 export enum RevealKind {
@@ -87,16 +93,35 @@ export interface TerminalBehavior {
 	echo: boolean;
 }
 
+export enum CommandType {
+	Shell = 1,
+	Process = 2
+}
+
+export namespace CommandType {
+	export function fromString(value: string): CommandType {
+		switch (value.toLowerCase()) {
+			case 'shell':
+				return CommandType.Shell;
+			case 'process':
+				return CommandType.Process;
+			default:
+				return CommandType.Process;
+		}
+	}
+}
+
 export interface CommandConfiguration {
+
+	/**
+	 * The task type
+	 */
+	type: CommandType;
+
 	/**
 	 * The command to execute
 	 */
 	name: string;
-
-	/**
-	 * Whether the command is a shell command or not
-	 */
-	isShellCommand: boolean | ShellConfiguration;
 
 	/**
 	 * Additional command options.

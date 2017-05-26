@@ -14,104 +14,6 @@ export interface TaskEntry extends IPickOpenEntry {
 	content: string;
 }
 
-const gulp: TaskEntry = {
-	id: 'gulp',
-	label: 'Gulp',
-	autoDetect: true,
-	content: [
-		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "2.0.0",',
-		'\t"command": "gulp --no-color",',
-		'\t"isShellCommand": true,',
-		'}'
-	].join('\n')
-};
-
-const grunt: TaskEntry = {
-	id: 'grunt',
-	label: 'Grunt',
-	autoDetect: true,
-	content: [
-		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "2.0.0",',
-		'\t"command": "grunt --no-color",',
-		'\t"isShellCommand": true,',
-		'}'
-	].join('\n')
-};
-
-const npm: TaskEntry = {
-	id: 'npm',
-	label: 'npm',
-	sort: 'NPM',
-	autoDetect: false,
-	content: [
-		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "2.0.0",',
-		'\t"tasks": [',
-		'\t\t{',
-		'\t\t\t"taskName": "install",',
-		'\t\t\t"command": "npm install",',
-		'\t\t\t"isShellCommand": true,',
-		'\t\t},',
-		'\t\t{',
-		'\t\t\t"taskName": "update",',
-		'\t\t\t"command": "npm update",',
-		'\t\t\t"isShellCommand": true,',
-		'\t\t},',
-		'\t\t{',
-		'\t\t\t"taskName": "test",',
-		'\t\t\t"command": "npm run test",',
-		'\t\t\t"isShellCommand": true,',
-		'\t\t}',
-		'\t]',
-		'}'
-	].join('\n')
-};
-
-const tscConfig: TaskEntry = {
-	id: 'tsc.config',
-	label: 'TypeScript - tsconfig.json',
-	autoDetect: false,
-	description: nls.localize('tsc.config', 'Compiles a TypeScript project'),
-	content: [
-		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "2.0.0",',
-		'\t"command": "tsc -p .",',
-		'\t"isShellCommand": true,',
-		'\t"showOutput": "silent",',
-		'\t"problemMatcher": "$tsc"',
-		'}'
-	].join('\n')
-};
-
-const tscWatch: TaskEntry = {
-	id: 'tsc.watch',
-	label: 'TypeScript - Watch Mode',
-	autoDetect: false,
-	description: nls.localize('tsc.watch', 'Compiles a TypeScript project in watch mode'),
-	content: [
-		'{',
-		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-		'\t// for the documentation about the tasks.json format',
-		'\t"version": "2.0.0",',
-		'\t"command": "tsc -w -p .",',
-		'\t"isShellCommand": true,',
-		'\t"showOutput": "silent",',
-		'\t"isBackground": true,',
-		'\t"problemMatcher": "$tsc-watch"',
-		'}'
-	].join('\n')
-};
-
 const dotnetBuild: TaskEntry = {
 	id: 'dotnetCore',
 	label: '.NET Core',
@@ -122,16 +24,16 @@ const dotnetBuild: TaskEntry = {
 		'{',
 		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
 		'\t// for the documentation about the tasks.json format',
-		'\t"version": "0.1.0",',
-		'\t"command": "dotnet",',
-		'\t"isShellCommand": true,',
-		'\t"args": [],',
+		'\t"version": "2.0.0",',
 		'\t"tasks": [',
 		'\t\t{',
 		'\t\t\t"taskName": "build",',
-		'\t\t\t"args": [ ],',
-		'\t\t\t"isBuildCommand": true,',
-		'\t\t\t"showOutput": "silent",',
+		'\t\t\t"command": "dotnet",',
+		'\t\t\t"isShellCommand": true,',
+		'\t\t\t"group": "build",',
+		'\t\t\t"terminal": {',
+		'\t\t\t\t"reveal": "silent"',
+		'\t\t\t},',
 		'\t\t\t"problemMatcher": "$msCompile"',
 		'\t\t}',
 		'\t]',
@@ -149,18 +51,20 @@ const msbuild: TaskEntry = {
 		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
 		'\t// for the documentation about the tasks.json format',
 		'\t"version": "2.0.0",',
-		'\t"command": "msbuild",',
-		'\t"args": [',
-		'\t\t// Ask msbuild to generate full paths for file names.',
-		'\t\t"/property:GenerateFullPaths=true"',
-		'\t],',
-		'\t"taskSelector": "/t:",',
-		'\t"showOutput": "silent",',
 		'\t"tasks": [',
 		'\t\t{',
 		'\t\t\t"taskName": "build",',
-		'\t\t\t// Show the output window only if unrecognized errors occur.',
-		'\t\t\t"showOutput": "silent",',
+		'\t\t\t"command": "msbuild",',
+		'\t\t\t"args": [',
+		'\t\t\t\t// Ask msbuild to generate full paths for file names.',
+		'\t\t\t\t"/property:GenerateFullPaths=true",',
+		'\t\t\t\t"/t:build"',
+		'\t\t\t],',
+		'\t\t\t"group": "build",',
+		'\t\t\t"terminal": {',
+		'\t\t\t\t// Reveal the terminal only if unrecognized errors occur.',
+		'\t\t\t\t"reveal": "silent"',
+		'\t\t\t},',
 		'\t\t\t// Use the standard MS compiler pattern to detect errors, warnings and infos',
 		'\t\t\t"problemMatcher": "$msCompile"',
 		'\t\t}',
@@ -201,26 +105,25 @@ const maven: TaskEntry = {
 		'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
 		'\t// for the documentation about the tasks.json format',
 		'\t"version": "2.0.0",',
-		'\t"showOutput": "always",',
 		'\t"tasks": [',
 		'\t\t{',
 		'\t\t\t"taskName": "verify",',
 		'\t\t\t"command": "mvn -B verify",',
 		'\t\t\t"isShellCommand": true,',
-		'\t\t\t"isBuildCommand": true',
+		'\t\t\t"group": "build"',
 		'\t\t},',
 		'\t\t{',
 		'\t\t\t"taskName": "test",',
 		'\t\t\t"command": "mvn -B test",',
 		'\t\t\t"isShellCommand": true,',
-		'\t\t\t"isTestCommand": true',
+		'\t\t\t"group": "test"',
 		'\t\t}',
 		'\t]',
 		'}'
 	].join('\n')
 };
 
-export let templates: TaskEntry[] = [gulp, grunt, tscConfig, tscWatch, dotnetBuild, msbuild, npm, maven].sort((a, b) => {
+export let templates: TaskEntry[] = [dotnetBuild, msbuild, maven].sort((a, b) => {
 	return (a.sort || a.label).localeCompare(b.sort || b.label);
 });
 templates.push(command);

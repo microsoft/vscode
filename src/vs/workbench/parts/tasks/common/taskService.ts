@@ -43,6 +43,8 @@ export interface ITaskService extends IEventEmitter {
 	terminateAll(): TPromise<TerminateResponse>;
 	tasks(): TPromise<Task[]>;
 
+	customize(task: Task, openConfig?: boolean): TPromise<void>;
+
 	registerTaskProvider(handle: number, taskProvider: ITaskProvider): void;
 	unregisterTaskProvider(handle: number): boolean;
 }

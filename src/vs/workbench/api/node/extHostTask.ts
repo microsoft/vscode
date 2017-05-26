@@ -230,7 +230,10 @@ namespace Strings {
 }
 
 namespace CommandOptions {
-	export function from(value: { cwd?: string; env?: { [key: string]: string; } }): TaskSystem.CommandOptions {
+	function isShellOptions(value: any): value is vscode.ShellOptions {
+		return value && typeof value.executable === 'string';
+	}
+	export function from(value: vscode.ShellOptions | vscode.ProcessOptions): TaskSystem.CommandOptions {
 		if (value === void 0 || value === null) {
 			return undefined;
 		}
@@ -248,14 +251,17 @@ namespace CommandOptions {
 				}
 			});
 		}
+		if (isShellOptions(value)) {
+			result.shell = ShellConfiguration.from(value);
+		}
 		return result;
 	}
 }
 
 namespace ShellConfiguration {
-	export function from(value: { executable?: string, args?: string[] }): boolean | TaskSystem.ShellConfiguration {
-		if (value === void 0 || value === null || typeof value.executable !== 'string') {
-			return true;
+	export function from(value: { executable?: string, args?: string[] }): TaskSystem.ShellConfiguration {
+		if (value === void 0 || value === null || !value.executable) {
+			return undefined;
 		}
 
 		let result: TaskSystem.ShellConfiguration = {
@@ -323,7 +329,7 @@ namespace Tasks {
 		let result: TaskSystem.CommandConfiguration = {
 			name: value.process,
 			args: Strings.from(value.args),
-			isShellCommand: false,
+			type: TaskSystem.CommandType.Process,
 			terminal: TerminalBehaviour.from(value.terminal)
 		};
 		if (value.options) {
@@ -338,7 +344,7 @@ namespace Tasks {
 		}
 		let result: TaskSystem.CommandConfiguration = {
 			name: value.commandLine,
-			isShellCommand: ShellConfiguration.from(value.options),
+			type: TaskSystem.CommandType.Shell,
 			terminal: TerminalBehaviour.from(value.terminal)
 		};
 		if (value.options) {

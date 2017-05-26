@@ -11,7 +11,6 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import * as Platform from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
-import { Config as ProcessConfig } from 'vs/base/common/processes';
 
 import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/base/common/parsers';
 import {
@@ -32,7 +31,37 @@ export class ProblemHandling {
 	public static clean: string = 'cleanMatcherMatchers';
 }
 
+export interface ShellConfiguration {
+	executable: string;
+	args?: string[];
+}
+
+export interface CommandOptions {
+	/**
+	 * The current working directory of the executed program or shell.
+	 * If omitted VSCode's current workspace root is used.
+	 */
+	cwd?: string;
+
+	/**
+	 * The additional environment of the executed program or shell. If omitted
+	 * the parent process' environment is used.
+	 */
+	env?: IStringDictionary<string>;
+
+	/**
+	 * The shell configuration;
+	 */
+	shell?: ShellConfiguration;
+}
+
 export interface PlatformTaskDescription {
+
+	/**
+	 * Whether the task is a shell task or a process task.
+	 */
+	type?: string;
+
 	/**
 	 * The command to be executed. Can be an external program or a shell
 	 * command.
@@ -40,17 +69,18 @@ export interface PlatformTaskDescription {
 	command?: string;
 
 	/**
+	 * @deprecated use the task type instead.
 	 * Specifies whether the command is a shell command and therefore must
 	 * be executed in a shell interpreter (e.g. cmd.exe, bash, ...).
 	 *
 	 * Defaults to false if omitted.
 	 */
-	isShellCommand?: boolean;
+	isShellCommand?: boolean | ShellConfiguration;
 
 	/**
 	 * The command options used when the command is executed. Can be omitted.
 	 */
-	options?: ProcessConfig.CommandOptions;
+	options?: CommandOptions;
 
 	/**
 	 * The arguments passed to the command or additional arguments passed to the
@@ -166,7 +196,7 @@ export interface BaseTaskRunnerConfiguration {
 	/**
 	 * The command options used when the command is executed. Can be omitted.
 	 */
-	options?: ProcessConfig.CommandOptions;
+	options?: CommandOptions;
 
 	/**
 	 * The arguments passed to the command. Can be omitted.
@@ -308,7 +338,7 @@ interface ParseContext {
 }
 
 namespace CommandOptions {
-	export function from(this: void, options: ProcessConfig.CommandOptions, context: ParseContext): Tasks.CommandOptions {
+	export function from(this: void, options: CommandOptions, context: ParseContext): Tasks.CommandOptions {
 		let result: Tasks.CommandOptions = {};
 		if (options.cwd !== void 0) {
 			if (Types.isString(options.cwd)) {
@@ -320,11 +350,12 @@ namespace CommandOptions {
 		if (options.env !== void 0) {
 			result.env = Objects.clone(options.env);
 		}
+		result.shell = ShellConfiguration.from(options.shell, context);
 		return isEmpty(result) ? undefined : result;
 	}
 
 	export function isEmpty(value: Tasks.CommandOptions): boolean {
-		return !value || value.cwd === void 0 && value.env === void 0;
+		return !value || value.cwd === void 0 && value.env === void 0 && value.shell === void 0;
 	}
 
 	export function merge(target: Tasks.CommandOptions, source: Tasks.CommandOptions): Tasks.CommandOptions {
@@ -343,6 +374,7 @@ namespace CommandOptions {
 			Object.keys(source.env).forEach(key => env[key = source.env[key]]);
 			target.env = env;
 		}
+		target.shell = ShellConfiguration.merge(target.shell, source.shell);
 		return target;
 	}
 
@@ -356,6 +388,7 @@ namespace CommandOptions {
 		if (value.cwd === void 0) {
 			value.cwd = '${workspaceRoot}';
 		}
+		ShellConfiguration.fillDefaults(value.shell);
 		return value;
 	}
 
@@ -364,12 +397,8 @@ namespace CommandOptions {
 		if (value.env) {
 			Object.freeze(value.env);
 		}
+		ShellConfiguration.freeze(value.shell);
 	}
-}
-
-interface ShellConfiguration {
-	executable: string;
-	args?: string[];
 }
 
 namespace ShellConfiguration {
@@ -424,9 +453,10 @@ namespace CommandConfiguration {
 
 	interface BaseCommandConfiguationShape {
 		command?: string;
+		type?: string;
 		isShellCommand?: boolean | ShellConfiguration;
 		args?: string[];
-		options?: ProcessConfig.CommandOptions;
+		options?: CommandOptions;
 		echoCommand?: boolean;
 		showOutput?: string;
 		terminal?: TerminalBehavior;
@@ -524,21 +554,20 @@ namespace CommandConfiguration {
 	function fromBase(this: void, config: BaseCommandConfiguationShape, context: ParseContext): Tasks.CommandConfiguration {
 		let result: Tasks.CommandConfiguration = {
 			name: undefined,
-			isShellCommand: undefined,
+			type: undefined,
 			terminal: undefined
 		};
 		if (Types.isString(config.command)) {
 			result.name = config.command;
 		}
-		if (Types.isBoolean(config.isShellCommand)) {
-			result.isShellCommand = config.isShellCommand;
-		} else if (ShellConfiguration.is(config.isShellCommand)) {
-			result.isShellCommand = ShellConfiguration.from(config.isShellCommand, context);
-			if (!context.isTermnial) {
-				context.problemReporter.warn(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
-			}
+		if (Types.isString(config.type)) {
+			result.type = Tasks.CommandType.fromString(config.type);
+		}
+		let isShellConfiguration = ShellConfiguration.is(config.isShellCommand);
+		if (Types.isBoolean(config.isShellCommand) || isShellConfiguration) {
+			result.type = Tasks.CommandType.Shell;
 		} else if (config.isShellCommand !== void 0) {
-			result.isShellCommand = !!config.isShellCommand;
+			result.type = !!config.isShellCommand ? Tasks.CommandType.Shell : Tasks.CommandType.Process;
 		}
 		if (config.args !== void 0) {
 			if (Types.isStringArray(config.args)) {
@@ -549,6 +578,12 @@ namespace CommandConfiguration {
 		}
 		if (config.options !== void 0) {
 			result.options = CommandOptions.from(config.options, context);
+			if (result.options && result.options.shell === void 0 && isShellConfiguration) {
+				result.options.shell = ShellConfiguration.from(config.isShellCommand as ShellConfiguration, context);
+				if (!context.isTermnial) {
+					context.problemReporter.warn(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
+				}
+			}
 		}
 		let terminal = TerminalBehavior.from(config, context);
 		if (terminal) {
@@ -561,13 +596,13 @@ namespace CommandConfiguration {
 	}
 
 	export function isEmpty(value: Tasks.CommandConfiguration): boolean {
-		return !value || value.name === void 0 && value.isShellCommand === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options) && value.terminal === void 0;
+		return !value || value.name === void 0 && value.type === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options) && value.terminal === void 0;
 	}
 
 	export function onlyTerminalBehaviour(value: Tasks.CommandConfiguration): boolean {
 		return value &&
-			value.terminal && (value.terminal.echo !== void 0 || value.terminal.reveal === void 0) &&
-			value.name === void 0 && value.isShellCommand === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options);
+			value.terminal && (value.terminal.echo !== void 0 || value.terminal.reveal !== void 0) &&
+			value.name === void 0 && value.type === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options);
 	}
 
 	export function merge(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration {
@@ -578,15 +613,10 @@ namespace CommandConfiguration {
 			return source;
 		}
 		mergeProperty(target, source, 'name');
+		mergeProperty(target, source, 'type');
 		// Merge isShellCommand
-		if (target.isShellCommand === void 0) {
-			target.isShellCommand = source.isShellCommand;
-		} if (Types.isBoolean(target.isShellCommand) && Types.isBoolean(source.isShellCommand)) {
-			mergeProperty(target, source, 'isShellCommand');
-		} else if (ShellConfiguration.is(target.isShellCommand) && ShellConfiguration.is(source.isShellCommand)) {
-			ShellConfiguration.merge(target.isShellCommand, source.isShellCommand);
-		} else if (Types.isBoolean(target.isShellCommand) && ShellConfiguration.is(source.isShellCommand)) {
-			target.isShellCommand = source.isShellCommand;
+		if (target.type === void 0) {
+			target.type = source.type;
 		}
 
 		target.terminal = TerminalBehavior.merge(target.terminal, source.terminal);
@@ -606,8 +636,8 @@ namespace CommandConfiguration {
 		if (!value || Object.isFrozen(value)) {
 			return;
 		}
-		if (value.name !== void 0 && value.isShellCommand === void 0) {
-			value.isShellCommand = false;
+		if (value.name !== void 0 && value.type === void 0) {
+			value.type = Tasks.CommandType.Process;
 		}
 		value.terminal = TerminalBehavior.fillDefault(value.terminal);
 		if (value.args === void 0) {
@@ -628,9 +658,6 @@ namespace CommandConfiguration {
 		}
 		if (value.terminal) {
 			TerminalBehavior.freeze(value.terminal);
-		}
-		if (ShellConfiguration.is(value.isShellCommand)) {
-			ShellConfiguration.freeze(value.isShellCommand);
 		}
 	}
 }
@@ -751,7 +778,7 @@ namespace TaskDescription {
 			let command: Tasks.CommandConfiguration = externalTask.command !== void 0
 				? CommandConfiguration.from(externalTask, context)
 				: externalTask.echoCommand !== void 0
-					? { name: undefined, isShellCommand: undefined, terminal: CommandConfiguration.TerminalBehavior.from(externalTask, context) }
+					? { name: undefined, type: undefined, terminal: CommandConfiguration.TerminalBehavior.from(externalTask, context) }
 					: undefined;
 			let identifer = Types.isString(externalTask.identifier) ? externalTask.identifier : taskName;
 			let task: Tasks.Task = {
@@ -797,7 +824,7 @@ namespace TaskDescription {
 			}
 			fillDefaults(task);
 			let addTask: boolean = true;
-			if (context.isTermnial && task.command && task.command.name && task.command.isShellCommand && task.command.args && task.command.args.length > 0) {
+			if (context.isTermnial && task.command && task.command.name && task.command.type === Tasks.CommandType.Shell && task.command.args && task.command.args.length > 0) {
 				if (hasUnescapedSpaces(task.command.name) || task.command.args.some(hasUnescapedSpaces)) {
 					context.problemReporter.warn(nls.localize('taskConfiguration.shellArgs', 'Warning: the task \'{0}\' is a shell command and either the command name or one of its arguments has unescaped spaces. To ensure correct command line quoting please merge args into the command.', task.name));
 				}

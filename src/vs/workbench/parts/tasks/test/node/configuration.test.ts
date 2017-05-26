@@ -96,7 +96,7 @@ class CommandConfigurationBuilder {
 		this.terminalBuilder = new TerminalBehaviorBuilder(this);
 		this.result = {
 			name: command,
-			isShellCommand: false,
+			type: Tasks.CommandType.Process,
 			args: [],
 			options: {
 				cwd: '${workspaceRoot}'
@@ -110,8 +110,8 @@ class CommandConfigurationBuilder {
 		return this;
 	}
 
-	public shell(value: boolean): CommandConfigurationBuilder {
-		this.result.isShellCommand = value;
+	public type(value: Tasks.CommandType): CommandConfigurationBuilder {
+		this.result.type = value;
 		return this;
 	}
 
@@ -433,7 +433,7 @@ function assertCommandConfiguration(actual: Tasks.CommandConfiguration, expected
 	if (actual && expected) {
 		assertTerminalBehavior(actual.terminal, expected.terminal);
 		assert.strictEqual(actual.name, expected.name, 'name');
-		assert.strictEqual(actual.isShellCommand, expected.isShellCommand, 'isShellCommand');
+		assert.strictEqual(actual.type, expected.type, 'task type');
 		assert.deepEqual(actual.args, expected.args, 'args');
 		assert.strictEqual(typeof actual.options, typeof expected.options);
 		if (actual.options && expected.options) {
@@ -531,7 +531,7 @@ suite('Tasks Configuration parsing tests', () => {
 			group(Tasks.TaskGroup.Build).
 			suppressTaskName(true).
 			command().
-			shell(true);
+			type(Tasks.CommandType.Shell);
 		testConfiguration(
 			{
 				version: '0.1.0',
@@ -730,7 +730,7 @@ suite('Tasks Configuration parsing tests', () => {
 			group(Tasks.TaskGroup.Build).
 			suppressTaskName(true).
 			command().
-			shell(true);
+			type(Tasks.CommandType.Shell);
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
 			command: 'tsc',
@@ -1280,7 +1280,7 @@ suite('Tasks Configuration parsing tests', () => {
 		};
 		let builder = new ConfiguationBuilder();
 		builder.task('taskNameOne', 'tsc').suppressTaskName(true).command().
-			shell(true).args(['arg']).options({ cwd: 'cwd', env: { env: 'env' } });
+			type(Tasks.CommandType.Shell).args(['arg']).options({ cwd: 'cwd', env: { env: 'env' } });
 		testConfiguration(external, builder);
 	});
 
@@ -1355,7 +1355,7 @@ suite('Tasks Configuration parsing tests', () => {
 			]
 		};
 		let builder = new ConfiguationBuilder();
-		builder.task('taskNameOne', 'tsc').command().shell(false);
+		builder.task('taskNameOne', 'tsc').command().type(Tasks.CommandType.Process);
 		testConfiguration(external, builder);
 	});
 });

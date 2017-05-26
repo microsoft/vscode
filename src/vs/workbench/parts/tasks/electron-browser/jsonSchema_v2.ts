@@ -104,6 +104,13 @@ const group: IJSONSchema = {
 	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. If omitted the task belongs to no group')
 };
 
+const taskType: IJSONSchema = {
+	type: 'string',
+	enum: ['shell', 'process'],
+	default: 'process',
+	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell. Default is process')
+};
+
 schema.definitions = Objects.deepClone(commonSchema.definitions);
 let definitions = schema.definitions;
 definitions.commandConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
@@ -113,6 +120,8 @@ definitions.showOutputType.deprecationMessage = nls.localize('JsonSchema.tasks.s
 definitions.taskDescription.properties.echoCommand.deprecationMessage = nls.localize('JsonSchema.tasks.echoCommand.deprecated', 'The property echoCommand is deprecated. Use the terminal property instead.');
 definitions.taskDescription.properties.isBuildCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isBuildCommand.deprecated', 'The property isBuildCommand is deprecated. Use the group property instead.');
 definitions.taskDescription.properties.isTestCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isTestCommand.deprecated', 'The property isTestCommand is deprecated. Use the group property instead.');
+definitions.taskDescription.properties.type = taskType;
+definitions.taskDescription.properties.isShellCommand.deprecationMessage = nls.localize('JsonSchema.tasks.isShellCommand.deprecated', 'The property isShellCommand is deprecated. Use the type property instead.');
 definitions.taskDescription.properties.terminal = terminal;
 definitions.taskDescription.properties.group = group;
 definitions.taskRunnerConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);

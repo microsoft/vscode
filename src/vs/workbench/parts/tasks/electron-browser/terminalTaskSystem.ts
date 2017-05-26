@@ -33,7 +33,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEvents } from 'vs/workbench/parts/tasks/common/problemCollectors';
-import { Task, RevealKind, CommandOptions, ShellConfiguration } from 'vs/workbench/parts/tasks/common/tasks';
+import { Task, RevealKind, CommandOptions, ShellConfiguration, CommandType } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType
@@ -368,17 +368,19 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', task.name);
 		let waitOnExit = task.command.terminal.reveal !== RevealKind.Never || !task.isBackground;
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
-		if (task.command.isShellCommand) {
+		let isShellCommand = task.command.type === CommandType.Shell;
+		if (isShellCommand) {
 			if (Platform.isWindows && ((options.cwd && TPath.isUNC(options.cwd)) || (!options.cwd && TPath.isUNC(process.cwd())))) {
 				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive.'), TaskErrors.UnknownError);
 			}
 			shellLaunchConfig = { name: terminalName, executable: null, args: null, waitOnExit };
 			let shellSpecified: boolean = false;
-			if (ShellConfiguration.is(task.command.isShellCommand)) {
-				shellLaunchConfig.executable = task.command.isShellCommand.executable;
+			let shellOptions: ShellConfiguration = task.command.options && task.command.options.shell;
+			if (shellOptions && shellOptions.executable) {
+				shellLaunchConfig.executable = shellOptions.executable;
 				shellSpecified = true;
-				if (task.command.isShellCommand.args) {
-					shellLaunchConfig.args = task.command.isShellCommand.args.slice();
+				if (shellOptions.args) {
+					shellLaunchConfig.args = shellOptions.args.slice();
 				} else {
 					shellLaunchConfig.args = [];
 				}
@@ -422,7 +424,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			let cwd = options && options.cwd ? options.cwd : process.cwd();
 			// On Windows executed process must be described absolute. Since we allowed command without an
 			// absolute path (e.g. "command": "node") we need to find the executable in the CWD or PATH.
-			let executable = Platform.isWindows && !task.command.isShellCommand ? this.findExecutable(command, cwd) : command;
+			let executable = Platform.isWindows && !isShellCommand ? this.findExecutable(command, cwd) : command;
 			shellLaunchConfig = {
 				name: terminalName,
 				executable: executable,

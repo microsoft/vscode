@@ -61,6 +61,7 @@ import Constants from 'vs/workbench/parts/markers/common/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -118,40 +119,13 @@ abstract class OpenTaskConfigurationAction extends Action {
 				if (!selection) {
 					return undefined;
 				}
-				let contentPromise: TPromise<string>;
-				if (selection.autoDetect) {
-					contentPromise = this.extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask').then(() => {
-						return this.taskService.tasks().then((tasks) => {
-							let tasksToInsert: Task[] = tasks.filter((task) => {
-								return task.identifier && task.identifier.indexOf(selection.id) === 0 && task.identifier[selection.id.length] === '.' && task.group !== void 0;
-							});
-							if (tasksToInsert.length === 0) {
-								return selection.content;
-							}
-							let config: TaskConfig.ExternalTaskRunnerConfiguration = {
-								version: '2.0.0',
-								tasks: tasksToInsert.map<TaskConfig.TaskDescription>((task) => { return { taskName: task.name }; })
-							};
-							let content = JSON.stringify(config, null, '\t');
-							content = [
-								'{',
-								'\t// See https://go.microsoft.com/fwlink/?LinkId=733558',
-								'\t// for the documentation about the tasks.json format',
-							].join('\n') + content.substr(1);
-							return content;
-						});
-					});
-				} else {
-					contentPromise = TPromise.as(selection.content);
+				let content = selection.content;
+				let editorConfig = this.configurationService.getConfiguration<any>();
+				if (editorConfig.editor.insertSpaces) {
+					content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
 				}
-				return contentPromise.then(content => {
-					let editorConfig = this.configurationService.getConfiguration<any>();
-					if (editorConfig.editor.insertSpaces) {
-						content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + strings.repeat(' ', s2.length * editorConfig.editor.tabSize));
-					}
-					configFileCreated = true;
-					return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
-				});
+				configFileCreated = true;
+				return this.fileService.createFile(this.contextService.toResource('.vscode/tasks.json'), content);
 			});
 		}).then((stat) => {
 			if (!stat) {
@@ -187,7 +161,6 @@ class ConfigureTaskRunnerAction extends OpenTaskConfigurationAction {
 			outputService, messageService, quickOpenService, environmentService, configurationResolverService,
 			extensionService);
 	}
-
 }
 
 class ConfigureBuildTaskAction extends OpenTaskConfigurationAction {
@@ -503,6 +476,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private modeService: IModeService;
 	private configurationService: IConfigurationService;
+	private configurationEditingService: IConfigurationEditingService;
 	private markerService: IMarkerService;
 	private outputService: IOutputService;
 	private messageService: IMessageService;
@@ -526,6 +500,7 @@ class TaskService extends EventEmitter implements ITaskService {
 	private _outputChannel: IOutputChannel;
 
 	constructor( @IModeService modeService: IModeService, @IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService,
 		@IMarkerService markerService: IMarkerService, @IOutputService outputService: IOutputService,
 		@IMessageService messageService: IMessageService, @IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IFileService fileService: IFileService, @IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -542,6 +517,7 @@ class TaskService extends EventEmitter implements ITaskService {
 		super();
 		this.modeService = modeService;
 		this.configurationService = configurationService;
+		this.configurationEditingService = configurationEditingService;
 		this.markerService = markerService;
 		this.outputService = outputService;
 		this.messageService = messageService;
@@ -723,6 +699,43 @@ class TaskService extends EventEmitter implements ITaskService {
 		});
 	}
 
+	public customize(task: Task, openConfig: boolean = false): TPromise<void> {
+		if (task._source.kind !== TaskSourceKind.Extension) {
+			return TPromise.as<void>(undefined);
+		}
+		let configuration = this.getConfiguration();
+		if (configuration.hasParseErrors) {
+			this.messageService.show(Severity.Warning, nls.localize('customizeParseErrors', 'The current task configuration has errors. Please fix the errors first before customizing a task.'));
+			return TPromise.as<void>(undefined);
+		}
+		let fileConfig = configuration.config;
+		let customize = { taskName: task.name };
+		if (!fileConfig) {
+			fileConfig = {
+				version: '2.0.0',
+				tasks: [customize]
+			};
+		} else {
+			if (Array.isArray(fileConfig.tasks)) {
+				fileConfig.tasks.push(customize);
+			} else {
+				fileConfig.tasks = [customize];
+			}
+		};
+		return this.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: fileConfig }).then(() => {
+			if (openConfig) {
+				let resource = this.contextService.toResource('.vscode/tasks.json');
+				this.editorService.openEditor({
+					resource: resource,
+					options: {
+						forceOpen: true,
+						pinned: false
+					}
+				}, false);
+			}
+		});
+	}
+
 	private createRunnableTask(sets: TaskSet[], group: TaskGroup): { task: Task; resolver: ITaskResolver } {
 		let uuidMap: IStringDictionary<Task> = Object.create(null);
 		let identifierMap: IStringDictionary<Task> = Object.create(null);
@@ -740,6 +753,8 @@ class TaskService extends EventEmitter implements ITaskService {
 		if (primaryTasks.length === 0) {
 			return undefined;
 		}
+		// check for a WORKSPACE build task and use that onemptied.apply
+
 		let resolver: ITaskResolver = {
 			resolve: (id: string) => {
 				let result = uuidMap[id];

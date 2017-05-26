@@ -97,10 +97,10 @@ export abstract class QuickOpenHandler extends Quickopen.QuickOpenHandler {
 				if (task._source.kind === TaskSourceKind.Workspace && groupWorkspace) {
 					groupWorkspace = false;
 					hadWorkspace = true;
-					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('workspace', 'From Workspace'), false));
+					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('configured', 'Configured Tasks'), false));
 				} else if (task._source.kind === TaskSourceKind.Extension && groupExtension) {
 					groupExtension = false;
-					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('extension', 'From Extensions'), hadWorkspace));
+					entries.push(new TaskGroupEntry(this.createEntry(this.taskService, task, highlights), nls.localize('detected', 'Detected Tasks'), hadWorkspace));
 				} else {
 					entries.push(this.createEntry(this.taskService, task, highlights));
 				}
@@ -125,7 +125,7 @@ class CustomizeTaskAction extends Action {
 	private static ID = 'workbench.action.tasks.customizeTask';
 	private static LABEL = nls.localize('customizeTask', "Customize Task");
 
-	constructor() {
+	constructor(private taskService: ITaskService, private task: Task) {
 		super(CustomizeTaskAction.ID, CustomizeTaskAction.LABEL);
 		this.updateClass();
 	}
@@ -134,14 +134,14 @@ class CustomizeTaskAction extends Action {
 		this.class = 'quick-open-task-configure';
 	}
 
-	public run(context: any): TPromise<any> {
-		return TPromise.as(false);
+	public run(context: any): TPromise<boolean> {
+		return this.taskService.customize(this.task, true).then(_ => false, _ => false);
 	}
 }
 
 export class QuickOpenActionContributor extends ActionBarContributor {
 
-	constructor() {
+	constructor( @ITaskService private taskService: ITaskService) {
 		super();
 	}
 
@@ -156,7 +156,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 
 		const entry = this.getEntry(context);
 		if (entry && entry.task._source.kind === TaskSourceKind.Extension) {
-			actions.push(new CustomizeTaskAction());
+			actions.push(new CustomizeTaskAction(this.taskService, entry.task));
 		}
 		return actions;
 	}
