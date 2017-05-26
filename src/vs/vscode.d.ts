@@ -4680,6 +4680,8 @@ declare module 'vscode' {
 		 * A glob pattern that filters the file events must be provided. Optionally, flags to ignore certain
 		 * kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
+		 * *Note* that only files within the current [workspace](#workspace.rootPath) can be watched.
+		 *
 		 * @param globPattern A glob pattern that is applied to the names of created, changed, and deleted files.
 		 * @param ignoreCreateEvents Ignore when files have been created.
 		 * @param ignoreChangeEvents Ignore when files have been changed.
