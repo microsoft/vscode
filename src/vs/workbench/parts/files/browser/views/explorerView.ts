@@ -389,7 +389,7 @@ export class ExplorerView extends CollapsibleView {
 						this.explorerViewer.toggleExpansion(element[0]);
 					}
 
-					controller.openEditor(element[0], { pinned: false, sideBySide: false, preserveFocus: false });
+					controller.openEditor(element[0], { pinned: undefined, sideBySide: false, preserveFocus: false });
 				}
 			}
 		}));

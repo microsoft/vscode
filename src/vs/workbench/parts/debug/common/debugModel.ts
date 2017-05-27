@@ -390,7 +390,7 @@ export class StackFrame implements IStackFrame {
 				selection: this.range,
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true,
-				pinned: !preserveFocus
+				pinned: !preserveFocus ? true : undefined
 			}
 		}, sideBySide);
 	}

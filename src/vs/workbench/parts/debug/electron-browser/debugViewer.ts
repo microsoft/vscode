@@ -1292,7 +1292,7 @@ export class BreakpointsController extends BaseDebugController {
 				selection,
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true,
-				pinned: !preserveFocus
+				pinned: !preserveFocus ? true : undefined
 			}
 		}, sideBySide).done(undefined, errors.onUnexpectedError);
 	}

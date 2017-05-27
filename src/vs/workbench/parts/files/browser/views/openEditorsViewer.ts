@@ -225,7 +225,7 @@ export class Controller extends DefaultController {
 			}
 
 			tree.setSelection([element], payload);
-			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick, sideBySide: event.ctrlKey || event.metaKey });
+			this.openEditor(element, { preserveFocus: !isDoubleClick, pinned: isDoubleClick ? true : undefined, sideBySide: event.ctrlKey || event.metaKey });
 		}
 
 		return true;

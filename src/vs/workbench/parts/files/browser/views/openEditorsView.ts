@@ -154,7 +154,7 @@ export class OpenEditorsView extends CollapsibleView {
 		// Open when selecting via keyboard
 		this.toDispose.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
-				controller.openEditor(this.tree.getFocus(), { pinned: false, sideBySide: false, preserveFocus: false });
+				controller.openEditor(this.tree.getFocus(), { pinned: undefined, sideBySide: false, preserveFocus: false });
 			}
 		}));
 

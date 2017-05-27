@@ -36,7 +36,7 @@ export default class FileResultsNavigation extends Disposable {
 		this._openFile.fire({
 			editorOptions: {
 				preserveFocus: true,
-				pinned: false,
+				pinned: undefined,
 				revealIfVisible: true
 			},
 			sideBySide: false,
