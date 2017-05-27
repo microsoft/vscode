@@ -72,7 +72,7 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 				// handle selection changes
 				if (options && typeof options.onDidSelectItem === 'function') {
 					this._onDidSelectItem = (handle) => {
-						options.onDidSelectItem(items[handle]);
+						options.onDidSelectItem(items[handle], handle);
 					};
 				}
 
@@ -94,10 +94,12 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 		return wireCancellationToken<Item>(token, promise, true);
 	}
 
-	$onItemSelected(handle: number): void {
+	$onItemSelected(handle: number): TPromise<number> {
 		if (this._onDidSelectItem) {
 			this._onDidSelectItem(handle);
 		}
+
+		return TPromise.as(handle);
 	}
 
 	// ---- input

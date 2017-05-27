@@ -475,7 +475,7 @@ export abstract class ExtHostLanguageFeaturesShape {
 }
 
 export abstract class ExtHostQuickOpenShape {
-	$onItemSelected(handle: number): void { throw ni(); }
+	$onItemSelected(handle: number): TPromise<number> { throw ni(); }
 	$validateInput(input: string): TPromise<string> { throw ni(); }
 }
 
