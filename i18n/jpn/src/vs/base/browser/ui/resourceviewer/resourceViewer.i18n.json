@@ -6,6 +6,7 @@
 {
 	"imgMeta": "{0}x{1} {2}",
 	"largeImageError": "イメージが大きすぎてエディターに表示できません。",
+	"resourceOpenExternalButton": "外部のプログラムを使用して画像を開きますか?",
 	"nativeBinaryError": "このファイルはバイナリか、非常に大きいか、またはサポートされていないテキスト エンコードを使用しているため、エディターに表示されません。",
 	"sizeB": "{0}B",
 	"sizeKB": "{0}KB",

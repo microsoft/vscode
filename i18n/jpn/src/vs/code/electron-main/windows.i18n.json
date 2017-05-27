@@ -7,7 +7,6 @@
 	"ok": "OK",
 	"pathNotExistTitle": "パスが存在しません",
 	"pathNotExistDetail": "パス '{0}' はディスクに存在しなくなったようです。",
-	"accessibilityOptionsWindowTitle": "ユーザー補助オプション",
 	"reopen": "もう一度開く",
 	"wait": "待機を続ける",
 	"close": "閉じる",

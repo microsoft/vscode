@@ -16,5 +16,9 @@
 	"editorBracketMatchBackground": "Cor de fundo atrás do colchetes correspondentes",
 	"editorBracketMatchBorder": "Cor para as caixas de colchetes correspondentes",
 	"editorOverviewRulerBorder": "Cor da borda da régua de visão geral.",
-	"editorGutter": "Cor de fundo da separação do editor.O separador contém os glifos das margens e os números de linha."
+	"editorGutter": "Cor de fundo da separação do editor.O separador contém os glifos das margens e os números de linha.",
+	"errorForeground": "Cor do primeiro plano das linhas onduladas de erro no editor.",
+	"errorBorder": "Cor da borda das linhas onduladas de erro no editor.",
+	"warningForeground": "Cor do primeiro plano de linhas onduladas de aviso no editor.",
+	"warningBorder": "Cor da borda das linhas onduladas de aviso no editor."
 }

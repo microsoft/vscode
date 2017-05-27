@@ -37,6 +37,7 @@
 	"typescript.referencesCodeLens.enabled": "Habilitar/desabilitar referências CodeLens em arquivos TypeScript. Requer TypeScript > = 2.0.6.",
 	"typescript.implementationsCodeLens.enabled": "Habilitar/desabilitar implementações CodeLens. Requer TypeScript > = 2.0.6.",
 	"typescript.openTsServerLog.title": "Abrir arquivo de log do servidor TS",
+	"typescript.restartTsServer": "Reiniciar o servidor TS",
 	"typescript.selectTypeScriptVersion.title": "Selecionar a versão do JavaScript",
 	"jsDocCompletion.enabled": "Habilitar/Desabilitar comentários JSDoc automáticos.",
 	"javascript.implicitProjectConfig.checkJs": "Habilitar/desabilitar verificação semântica de arquivos JavaScript. Os arquivos existentes  jsconfig.json ou tsconfig.json substituem essa configuração. Requer TypeScript > = 2.3.1.",

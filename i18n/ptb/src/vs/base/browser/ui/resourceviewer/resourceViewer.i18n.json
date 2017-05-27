@@ -6,6 +6,7 @@
 {
 	"imgMeta": "{0}x{1} {2}",
 	"largeImageError": "A imagem é muito grande para ser exibida no editor.",
+	"resourceOpenExternalButton": "Abrir imagem usando um programa externo?",
 	"nativeBinaryError": "O arquivo não pode ser exibido no editor porque é binário, muito grande ou usa uma codificação de texto sem suporte.",
 	"sizeB": "{0}B",
 	"sizeKB": "{0}KB",

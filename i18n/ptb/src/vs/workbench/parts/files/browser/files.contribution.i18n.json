@@ -16,6 +16,7 @@
 	"associations": "Configurar as associações de arquivo para linguagens (por exemplo, \"* Extension\": \"html\"). Estas têm precedência sobre as associações padrão das linguagens instaladas.",
 	"encoding": "A codificação padrão do conjunto de caracteres para ser usada ao ler e gravar arquivos.",
 	"autoGuessEncoding": "Quando habilitado, tentará adivinhar a codificação do conjunto de caracteres ao abrir arquivos",
+	"eol": "O caractere padrão de fim de linha. Use \\n para LF e \\r\\n para CRLF.",
 	"trimTrailingWhitespace": "Quando habilitado, removerá espaços em branco à direita ao salvar um arquivo.",
 	"insertFinalNewline": "Quando habilitado, inseririrá uma nova linha no final do arquivo quando salvá-lo.",
 	"files.autoSave.off": "Um arquivo sujo nunca é automaticamente salvo.",
