@@ -42,7 +42,7 @@ export class Delegate implements IDelegate<IExtension> {
 	getTemplateId() { return 'extension'; }
 }
 
-const actionOptions = { icon: true, label: true };
+const actionOptions = { icon: true, label: true, tabIndexOff: true };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
@@ -76,7 +76,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 					return (<ManageExtensionAction>action).actionItem;
 				}
 				return null;
-			}
+			},
+			// cleidigh - tabindex for actions will be controlled by list row focus-selection
+			tabIndexOff: true
+
 		});
 		actionbar.addListener(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
 

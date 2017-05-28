@@ -30,8 +30,10 @@ export interface IActionItem extends IEventEmitter {
 	dispose(): void;
 }
 
+// cleidigh
 export interface IBaseActionItemOptions {
 	draggable?: boolean;
+	tabIndexOff?: boolean;
 }
 
 export class BaseActionItem extends EventEmitter implements IActionItem {
@@ -232,6 +234,7 @@ export class ActionItem extends BaseActionItem {
 		this.options = options;
 		this.options.icon = options.icon !== undefined ? options.icon : false;
 		this.options.label = options.label !== undefined ? options.label : true;
+		this.options.tabIndexOff = options.tabIndexOff !== undefined ? options.tabIndexOff : false;
 		this.cssClass = '';
 	}
 
@@ -302,7 +305,14 @@ export class ActionItem extends BaseActionItem {
 		if (this.getAction().enabled) {
 			this.builder.removeClass('disabled');
 			this.$e.removeClass('disabled');
-			this.$e.attr({ tabindex: 0 });
+			// cleidigh - allow external tabindex control
+			const disableTabIndex = this.options && this.options.tabIndexOff;
+			if (disableTabIndex) {
+				this.$e.attr({ tabindex: -1 });
+			} else {
+				this.$e.attr({ tabindex: 0 });
+			}
+
 		} else {
 			this.builder.addClass('disabled');
 			this.$e.addClass('disabled');
@@ -336,6 +346,7 @@ export interface IActionItemProvider {
 	(action: IAction): IActionItem;
 }
 
+// cleidigh
 export interface IActionBarOptions {
 	orientation?: ActionsOrientation;
 	context?: any;
@@ -343,11 +354,13 @@ export interface IActionBarOptions {
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
 	animated?: boolean;
+	tabIndexOff?: boolean;
 }
 
 let defaultOptions: IActionBarOptions = {
 	orientation: ActionsOrientation.HORIZONTAL,
-	context: null
+	context: null,
+	tabIndexOff: false
 };
 
 export interface IActionOptions extends IActionItemOptions {
@@ -530,6 +543,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			if (!item) {
 				item = new ActionItem(this.context, action, options);
 			}
+
 
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
